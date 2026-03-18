@@ -1,0 +1,47 @@
+# Example: Batch processing with CronJobs and one-time Jobs
+# No long-running workload; only scheduled and one-time batch tasks.
+#
+# helm install my-batch oci://ghcr.io/mberlofa/helm/generic --version 1.0.0 -f cronjob-batch.yaml
+
+workload:
+  enabled: false
+
+imageTagFormat: simple
+image:
+  repository: myregistry.io/my-batch
+  tag: "1.0.0"
+
+jobs:
+  - name: db-migrate
+    command: ["npm", "run", "migrate"]
+    backoffLimit: 3
+    activeDeadlineSeconds: 600
+    env:
+      - name: DATABASE_URL
+        valueFrom:
+          secretKeyRef:
+            name: batch-secrets
+            key: database-url
+
+cronjobs:
+  - name: daily-report
+    schedule: "0 6 * * *"
+    command: ["node", "scripts/report.js"]
+    concurrencyPolicy: Forbid
+    env:
+      - name: SMTP_HOST
+        value: "smtp.example.com"
+
+  - name: cleanup-old-data
+    schedule: "0 2 * * 0"
+    command: ["node", "scripts/cleanup.js"]
+    concurrencyPolicy: Replace
+    activeDeadlineSeconds: 3600
+
+env:
+  - name: NODE_ENV
+    value: "production"
+
+envFrom:
+  - secretRef:
+      name: batch-secrets

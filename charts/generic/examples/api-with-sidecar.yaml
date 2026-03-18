@@ -1,0 +1,76 @@
+# Example: API server with sidecar proxy
+# Multi-container pod with Envoy sidecar, global envFrom, and ServiceMonitor.
+#
+# helm install my-api oci://ghcr.io/mberlofa/helm/generic --version 1.0.0 -f api-with-sidecar.yaml
+
+workload:
+  enabled: true
+  type: Deployment
+
+imageTagFormat: named
+image:
+  repository: myregistry.io/my-api
+  tag: "2.0.0"
+
+containers:
+  - name: api
+    ports:
+      - containerPort: 3000
+    env:
+      - name: PORT
+        value: "3000"
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 3000
+    readinessProbe:
+      httpGet:
+        path: /ready
+        port: 3000
+
+  - name: envoy
+    image:
+      repository: envoyproxy/envoy
+      tag: "v1.31"
+    ports:
+      - containerPort: 8443
+      - containerPort: 9901
+
+envFrom:
+  - secretRef:
+      name: api-secrets
+  - configMapRef:
+      name: api-config
+
+service:
+  port: 8443
+  targetPort: 8443
+  extraPorts:
+    - name: admin
+      port: 9901
+      targetPort: 9901
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+
+persistence:
+  volumes:
+    - name: envoy-config
+      configMap:
+        name: envoy-config
+  mounts:
+    - name: envoy-config
+      mountPath: /etc/envoy
+      readOnly: true
+
+serviceMonitor:
+  enabled: true
+  endpoints:
+    - port: admin
+      path: /stats/prometheus
+      interval: 30s
