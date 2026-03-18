@@ -47,18 +47,27 @@ jobs:
         id: changed
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE_SHA=$(git merge-base "${{ github.event.pull_request.base.sha }}" HEAD)
+            # For 'synchronize' (new push), compare only new commits
+            # For 'opened/reopened', compare full PR against base
+            if [ -n "${{ github.event.before }}" ]; then
+              BASE_SHA="${{ github.event.before }}"
+            else
+              BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            fi
           elif [ "${{ github.event_name }}" = "push" ]; then
             BASE_SHA="${{ github.event.before }}"
           fi
 
           if [ -n "$BASE_SHA" ]; then
+            # Compare only the latest push (not the entire PR) to avoid
+            # re-testing charts when only docs/examples changed
             CHANGED_DIRS=$(git diff --name-only "$BASE_SHA" HEAD -- charts/ \
               | grep -v -E '(README\.md|examples/|docs/)' \
               | cut -d'/' -f2 | sort -u \
               | while read -r dir; do [ -f "charts/$dir/Chart.yaml" ] && echo "$dir"; done \
               | jq -R -s -c 'split("\n") | map(select(length > 0))')
           else
+            # workflow_dispatch: test all charts
             CHANGED_DIRS=$(ls -d charts/*/ 2>/dev/null | xargs -I{} basename {} \
               | jq -R -s -c 'split("\n") | map(select(length > 0))')
           fi

@@ -1,4 +1,4 @@
-# Generic Helm Chart (v1)
+# Generic Helm Chart
 
 A single chart that handles **Deployments**, **StatefulSets**, **DaemonSets**, **Jobs**, and **CronJobs** with a unified values interface. Designed for teams that deploy many services and want one chart to rule them all.
 
