@@ -11,20 +11,17 @@ Reusable Helm charts for Kubernetes workloads. Published as OCI artifacts to Git
 ## Quick Start
 
 ```bash
-# List available chart versions
-helm search repo oci://ghcr.io/mberlofa/helm --versions
-
-# Show default values for a chart
-helm show values oci://ghcr.io/mberlofa/helm/<chart-name> --version <version>
-
 # Install a chart
 helm install <release-name> oci://ghcr.io/mberlofa/helm/<chart-name> --version <version> -f values.yaml
+
+# Show default values
+helm show values oci://ghcr.io/mberlofa/helm/<chart-name> --version <version>
 
 # Pull chart locally
 helm pull oci://ghcr.io/mberlofa/helm/<chart-name> --version <version>
 ```
 
-See each chart's README for specific install commands and configuration.
+Check each chart's README and [git tags](../../tags) for available versions. OCI registries do not support `helm search repo`.
 
 ## CI/CD
 
