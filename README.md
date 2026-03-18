@@ -46,7 +46,7 @@ Charts are automatically tested and published via two GitHub Actions workflows.
 
 ```
 PR        --> ci.yml      --> [Lint] [Template] [Kubeconform]
-Push main --> publish.yml --> [Lint] [Template] [Kubeconform] --> Semver --> Publish to GHCR --> Git tag
+Push main --> publish.yml --> Detect --> Semver --> Package --> Publish to GHCR --> Git tag
 ```
 
 Both workflows dynamically detect which charts changed and run jobs only for those charts using a matrix strategy. Changes to docs (`README.md`, `examples/`, `docs/`) are ignored.
