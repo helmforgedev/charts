@@ -40,8 +40,13 @@ jobs:
       - name: Detect changed charts
         id: changed
         run: |
-          if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE_SHA="${{ github.event.before || github.event.pull_request.base.sha }}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA=$(git merge-base "${{ github.event.pull_request.base.sha }}" HEAD)
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            BASE_SHA="${{ github.event.before }}"
+          fi
+
+          if [ -n "$BASE_SHA" ]; then
             CHANGED_DIRS=$(git diff --name-only "$BASE_SHA" HEAD -- charts/ \
               | cut -d'/' -f2 | sort -u \
               | while read -r dir; do [ -f "charts/$dir/Chart.yaml" ] && echo "$dir"; done \
