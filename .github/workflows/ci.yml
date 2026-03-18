@@ -132,3 +132,19 @@ jobs:
               -schema-location default \
               -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
               -exit-on-error
+
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [detect, lint, template, kubeconform]
+    steps:
+      - name: Check results
+        run: |
+          if [ "${{ needs.lint.result }}" = "failure" ] || \
+             [ "${{ needs.template.result }}" = "failure" ] || \
+             [ "${{ needs.kubeconform.result }}" = "failure" ]; then
+            echo "CI failed"
+            exit 1
+          fi
+          echo "CI passed"
