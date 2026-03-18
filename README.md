@@ -36,19 +36,20 @@ charts/
   <future-chart>/       # Add new charts here
 .github/
   workflows/
-    publish-chart.yml   # CI/CD pipeline
+    ci.yml              # PR validation
+    publish.yml         # Release to GHCR
 ```
 
 ## CI/CD
 
-Charts are automatically tested and published via GitHub Actions.
+Charts are automatically tested and published via two GitHub Actions workflows.
 
 ```
-PR        --> [Lint] [Template] [Kubeconform]  (parallel)
-Push main --> [Lint] [Template] [Kubeconform]  --> Semver --> Publish to GHCR --> Git tag
+PR        --> ci.yml      --> [Lint] [Template] [Kubeconform]
+Push main --> publish.yml --> [Lint] [Template] [Kubeconform] --> Semver --> Publish to GHCR --> Git tag
 ```
 
-The pipeline dynamically detects which charts changed and runs jobs only for those charts using a matrix strategy.
+Both workflows dynamically detect which charts changed and run jobs only for those charts using a matrix strategy. Changes to docs (`README.md`, `examples/`, `docs/`) are ignored.
 
 ### Versioning
 

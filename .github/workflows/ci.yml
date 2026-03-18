@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'charts/**'
+      - '!charts/**/README.md'
+      - '!charts/**/examples/**'
+      - '!charts/**/docs/**'
+      - '.github/workflows/ci.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  HELM_VERSION: v3.18.4
+
+jobs:
+  detect:
+    name: Detect changed charts
+    runs-on: ubuntu-latest
+    outputs:
+      charts: ${{ steps.changed.outputs.charts }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed charts
+        id: changed
+        run: |
+          # For 'synchronize' (new push), compare only new commits
+          # For 'opened/reopened', compare full PR against base
+          if [ -n "${{ github.event.before }}" ]; then
+            BASE_SHA="${{ github.event.before }}"
+          else
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          fi
+
+          CHANGED_DIRS=$(git diff --name-only "$BASE_SHA" HEAD -- charts/ \
+            | grep -v -E '(README\.md|examples/|docs/)' \
+            | cut -d'/' -f2 | sort -u \
+            | while read -r dir; do [ -f "charts/$dir/Chart.yaml" ] && echo "$dir"; done \
+            | jq -R -s -c 'split("\n") | map(select(length > 0))')
+
+          echo "charts=$CHANGED_DIRS" >> "$GITHUB_OUTPUT"
+          echo "Changed charts: $CHANGED_DIRS"
+
+  lint:
+    name: Lint - ${{ matrix.chart }}
+    needs: detect
+    if: needs.detect.outputs.charts != '[]' && needs.detect.outputs.charts != ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJson(needs.detect.outputs.charts) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Helm
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | DESIRED_VERSION=${{ env.HELM_VERSION }} bash
+
+      - name: Helm lint
+        run: helm lint charts/${{ matrix.chart }}
+
+      - name: Helm lint (strict)
+        run: helm lint charts/${{ matrix.chart }} --strict
+
+  template:
+    name: Template - ${{ matrix.chart }}
+    needs: detect
+    if: needs.detect.outputs.charts != '[]' && needs.detect.outputs.charts != ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJson(needs.detect.outputs.charts) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Helm
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | DESIRED_VERSION=${{ env.HELM_VERSION }} bash
+
+      - name: Helm template (default values)
+        run: helm template test-release charts/${{ matrix.chart }}
+
+      - name: Template test values
+        run: |
+          for f in charts/${{ matrix.chart }}/ci/*.yaml; do
+            [ -f "$f" ] || continue
+            echo "--- Testing with $f ---"
+            helm template test-release charts/${{ matrix.chart }} -f "$f"
+          done
+
+  kubeconform:
+    name: Validate - ${{ matrix.chart }}
+    needs: [detect, template]
+    if: needs.detect.outputs.charts != '[]' && needs.detect.outputs.charts != ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJson(needs.detect.outputs.charts) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Helm
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | DESIRED_VERSION=${{ env.HELM_VERSION }} bash
+
+      - name: Install kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz \
+            | tar xz -C /usr/local/bin
+
+      - name: Validate manifests against K8s schemas
+        run: |
+          helm template test-release charts/${{ matrix.chart }} \
+            | kubeconform -strict -summary \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+              -exit-on-error
