@@ -1,0 +1,27 @@
+{{- range .Values.jobs | default list }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .name }}
+  labels:
+    {{- include "chart.labels" $ | nindent 4 }}
+  {{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  backoffLimit: {{ .backoffLimit | default 1 }}
+  activeDeadlineSeconds: {{ .activeDeadlineSeconds | default 300 }}
+  ttlSecondsAfterFinished: {{ .ttlSecondsAfterFinished | default 300 }}
+  template:
+    metadata:
+      labels:
+        {{- include "chart.selectorLabels" $ | nindent 8 }}
+        job-name: {{ .name }}
+      annotations:
+        timestamp: "{{ date "20060102150405" now }}"
+    spec:
+      restartPolicy: {{ .restartPolicy | default "Never" }}
+      {{- include "chart.podSpec" (dict "root" $ "containers" (.containers | default (list .)) "podSpec" . "skipGlobalProbes" true) | nindent 6 }}
+{{- end }}

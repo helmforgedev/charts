@@ -1,0 +1,234 @@
+name: Helm Charts CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'charts/**'
+      - '.github/workflows/publish-chart.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'charts/**'
+      - '.github/workflows/publish-chart.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  HELM_VERSION: v3.17.3
+  OCI_REGISTRY: oci://ghcr.io/${{ github.repository_owner }}/helm
+
+jobs:
+  detect:
+    name: Detect changed charts
+    runs-on: ubuntu-latest
+    outputs:
+      charts: ${{ steps.changed.outputs.charts }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed charts
+        id: changed
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.before || github.event.pull_request.base.sha }}"
+            CHANGED_DIRS=$(git diff --name-only "$BASE_SHA" HEAD -- charts/ \
+              | cut -d'/' -f2 | sort -u \
+              | while read -r dir; do [ -f "charts/$dir/Chart.yaml" ] && echo "$dir"; done \
+              | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          else
+            CHANGED_DIRS=$(ls -d charts/*/ 2>/dev/null | xargs -I{} basename {} \
+              | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          fi
+
+          echo "charts=$CHANGED_DIRS" >> "$GITHUB_OUTPUT"
+          echo "Changed charts: $CHANGED_DIRS"
+
+  lint:
+    name: Lint - ${{ matrix.chart }}
+    needs: detect
+    if: needs.detect.outputs.charts != '[]' && needs.detect.outputs.charts != ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJson(needs.detect.outputs.charts) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Helm lint
+        run: helm lint charts/${{ matrix.chart }}
+
+      - name: Helm lint (strict)
+        run: helm lint charts/${{ matrix.chart }} --strict
+
+  template:
+    name: Template - ${{ matrix.chart }}
+    needs: detect
+    if: needs.detect.outputs.charts != '[]' && needs.detect.outputs.charts != ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJson(needs.detect.outputs.charts) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Helm template (default values)
+        run: helm template test-release charts/${{ matrix.chart }}
+
+      - name: Template test values
+        run: |
+          for f in charts/${{ matrix.chart }}/ci/*.yaml; do
+            [ -f "$f" ] || continue
+            echo "--- Testing with $f ---"
+            helm template test-release charts/${{ matrix.chart }} -f "$f"
+          done
+
+  kubeconform:
+    name: Validate - ${{ matrix.chart }}
+    needs: [detect, template]
+    if: needs.detect.outputs.charts != '[]' && needs.detect.outputs.charts != ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJson(needs.detect.outputs.charts) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Install kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz \
+            | tar xz -C /usr/local/bin
+
+      - name: Validate manifests against K8s schemas
+        run: |
+          helm template test-release charts/${{ matrix.chart }} \
+            | kubeconform -strict -summary \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+              -exit-on-error
+
+  publish:
+    name: Publish - ${{ matrix.chart }}
+    needs: [detect, lint, template, kubeconform]
+    if: |
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.detect.outputs.charts != '[]' &&
+      needs.detect.outputs.charts != ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJson(needs.detect.outputs.charts) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Calculate semantic version
+        id: semver
+        run: |
+          CHART="${{ matrix.chart }}"
+          LATEST_TAG=$(git tag --sort=-v:refname | grep -E "^${CHART}-v[0-9]+\.[0-9]+\.[0-9]+$" | head -1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No previous tag found for $CHART, starting at 1.0.0"
+            NEXT_VERSION="1.0.0"
+            BUMP_TYPE="initial"
+          else
+            CURRENT_VERSION="${LATEST_TAG#${CHART}-v}"
+            echo "Latest tag: $LATEST_TAG (version: $CURRENT_VERSION)"
+
+            COMMITS=$(git log "${LATEST_TAG}..HEAD" --pretty=format:"%s" -- "charts/${CHART}/")
+
+            if [ -z "$COMMITS" ]; then
+              echo "No commits affecting $CHART since $LATEST_TAG, skipping"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+            MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+            PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
+
+            if echo "$COMMITS" | grep -qE '^[a-z]+(\(.+\))?!:' || \
+               git log "${LATEST_TAG}..HEAD" --pretty=format:"%b" -- "charts/${CHART}/" | grep -q 'BREAKING CHANGE'; then
+              BUMP_TYPE="major"
+              NEXT_VERSION="$((MAJOR + 1)).0.0"
+            elif echo "$COMMITS" | grep -qE '^feat(\(.+\))?:'; then
+              BUMP_TYPE="minor"
+              NEXT_VERSION="${MAJOR}.$((MINOR + 1)).0"
+            else
+              BUMP_TYPE="patch"
+              NEXT_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+            fi
+          fi
+
+          echo "version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "bump=$BUMP_TYPE" >> "$GITHUB_OUTPUT"
+          echo "tag=${CHART}-v${NEXT_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Bump: $BUMP_TYPE -> $NEXT_VERSION"
+
+      - name: Update Chart.yaml version
+        if: steps.semver.outputs.skip != 'true'
+        run: |
+          sed -i "s/^version:.*/version: ${{ steps.semver.outputs.version }}/" charts/${{ matrix.chart }}/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: ${{ steps.semver.outputs.version }}/" charts/${{ matrix.chart }}/Chart.yaml
+          echo "Updated Chart.yaml:"
+          grep -E '^(version|appVersion):' charts/${{ matrix.chart }}/Chart.yaml
+
+      - name: Login to GHCR
+        if: steps.semver.outputs.skip != 'true'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Package and push chart
+        if: steps.semver.outputs.skip != 'true'
+        run: |
+          helm package charts/${{ matrix.chart }} --destination .dist
+          for pkg in .dist/*.tgz; do
+            echo "Publishing $pkg"
+            helm push "$pkg" "$OCI_REGISTRY"
+          done
+
+      - name: Commit version bump and tag
+        if: steps.semver.outputs.skip != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add charts/${{ matrix.chart }}/Chart.yaml
+          git commit -m "release(${{ matrix.chart }}): ${{ steps.semver.outputs.version }} [skip ci]"
+          git tag -a "${{ steps.semver.outputs.tag }}" -m "Release ${{ matrix.chart }} v${{ steps.semver.outputs.version }}"
+          git push origin main --follow-tags

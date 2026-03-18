@@ -1,0 +1,342 @@
+# =============================================================================
+# Generic Helm Chart - Default Values
+# =============================================================================
+# Supports Deployments, StatefulSets, DaemonSets, Jobs, and CronJobs.
+# Multi-container pods, envFrom, initContainers, and extraManifests.
+
+# -- Number of pod replicas (ignored when HPA is enabled; not used by DaemonSet)
+replicaCount: 1
+
+# -- Override the release name
+nameOverride: ""
+# -- Override the fully qualified release name
+fullnameOverride: ""
+
+# -- Labels added to all resources
+commonLabels: {}
+
+# =============================================================================
+# Workload
+# =============================================================================
+# type: Deployment | StatefulSet | DaemonSet
+# Set enabled: false for Jobs/CronJobs-only releases (no long-running workload).
+
+workload:
+  enabled: true
+  type: Deployment
+
+  # -- StatefulSet specific
+  # podManagementPolicy: OrderedReady
+  # volumeClaimTemplates:
+  #   - metadata:
+  #       name: data
+  #     spec:
+  #       accessModes: ["ReadWriteOnce"]
+  #       storageClassName: standard
+  #       resources:
+  #         requests:
+  #           storage: 10Gi
+
+  # -- StatefulSet / DaemonSet specific
+  # updateStrategy:
+  #   type: RollingUpdate
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  repository: container.registry.io/project/image
+  tag: latest
+  pullPolicy: Always
+
+# -- Image tag format: "named" produces {repo}:{containerName}-{tag}, "simple" produces {repo}:{tag}
+imageTagFormat: named
+
+imagePullSecrets: []
+  # - name: registry-secret
+
+# =============================================================================
+# Containers
+# =============================================================================
+# Each container supports: image, command, args, env, envFrom, ports,
+# livenessProbe, readinessProbe, startupProbe, resources, securityContext,
+# volumeMounts, lifecycle, workingDir.
+
+containers:
+  - name: app
+    image: {}
+    ports:
+      - containerPort: 8080
+    env: []
+    envFrom: []
+    # envFrom:
+    #   - configMapRef:
+    #       name: my-config
+    #   - secretRef:
+    #       name: my-secret
+
+# -- Init containers (same spec as containers)
+initContainers: []
+  # - name: init-db
+  #   image:
+  #     repository: busybox
+  #     tag: "1.36"
+  #   command: ["sh", "-c", "echo init"]
+
+# =============================================================================
+# Global environment
+# =============================================================================
+# Applied to ALL containers (deployment, job, cronjob).
+
+env: []
+  # - name: APP_ENV
+  #   value: "production"
+  # - name: SECRET_KEY
+  #   valueFrom:
+  #     secretKeyRef:
+  #       name: my-secret
+  #       key: secret-key
+
+# -- envFrom applied to ALL containers
+envFrom: []
+  # - configMapRef:
+  #     name: global-config
+  # - secretRef:
+  #     name: global-secret
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  create: false
+  # name: ""
+  annotations: {}
+
+# =============================================================================
+# Resources (default for all containers that don't specify their own)
+# =============================================================================
+
+resources: {}
+  # limits:
+  #   cpu: 500m
+  #   memory: 512Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+# =============================================================================
+# Probes (applied to first container only if not set per-container)
+# =============================================================================
+
+livenessProbe: {}
+readinessProbe: {}
+startupProbe: {}
+
+# =============================================================================
+# Security
+# =============================================================================
+
+podSecurityContext: {}
+  # fsGroup: 1000
+  # runAsNonRoot: true
+
+securityContext: {}
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+  # clusterIP: ""
+  # loadBalancerIP: ""
+  # externalIPs: []
+  # annotations: {}
+  # extraPorts:
+  #   - name: metrics
+  #     port: 9090
+  #     targetPort: 9090
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  enabled: false
+  ingressClassName: nginx
+  annotations: {}
+  hosts: []
+    # - host: app.example.com
+    #   paths:
+    #     - /
+  tls: []
+    # - hosts:
+    #     - app.example.com
+    #   secretName: app-tls
+
+# =============================================================================
+# Update Strategy (Deployment only)
+# =============================================================================
+
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 25%
+    maxUnavailable: 25%
+
+# =============================================================================
+# Pod scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+# -- Extra labels on pods only
+podLabels: {}
+# -- Extra annotations on pods only
+podAnnotations: {}
+# -- Annotations on the workload resource itself
+annotations: {}
+
+# =============================================================================
+# Autoscaling (not available for DaemonSet)
+# =============================================================================
+
+hpa:
+  enabled: false
+  # minReplicas: 1
+  # maxReplicas: 5
+  # metrics:
+  #   - resource: cpu
+  #     type: Utilization
+  #     target: 75
+  #   - resource: memory
+  #     type: Utilization
+  #     target: 80
+  # behavior:
+  #   scaleDown:
+  #     stabilizationWindowSeconds: 300
+
+vpa:
+  enabled: false
+  # updateMode: "Off"
+  # resourcePolicy:
+  #   containerPolicies:
+  #     - containerName: app
+  #       minAllowed:
+  #         cpu: 100m
+  #         memory: 128Mi
+
+# =============================================================================
+# Pod Disruption Budget
+# =============================================================================
+
+pdb:
+  enabled: false
+  # minAvailable: 1
+  # maxUnavailable: 1
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  volumes: []
+    # - name: data
+    #   emptyDir: {}
+    # - name: config
+    #   configMap:
+    #     name: my-config
+
+  mounts: []
+    # - name: data
+    #   mountPath: /data
+    # - name: config
+    #   mountPath: /etc/config
+    #   readOnly: true
+
+  storage: []
+    # - name: data
+    #   capacity: 10Gi
+    #   accessMode: ReadWriteOnce
+    #   storageClassName: standard
+    #   # existingPVName: my-pv
+    #   # nfs:
+    #   #   server: 10.0.0.1
+    #   #   path: /exports/data
+
+# =============================================================================
+# ConfigMaps
+# =============================================================================
+
+configMaps: []
+  # - name: app-config
+  #   data:
+  #     config.yaml: |
+  #       key: value
+  #     settings.json: |
+  #       {"debug": false}
+
+# =============================================================================
+# ServiceMonitor (Prometheus Operator)
+# =============================================================================
+
+serviceMonitor:
+  enabled: false
+  # labels: {}
+  # endpoints:
+  #   - port: http
+  #     path: /metrics
+  #     interval: 30s
+
+# =============================================================================
+# Jobs
+# =============================================================================
+
+jobs: []
+  # - name: db-migrate
+  #   image:
+  #     repository: my-app
+  #     tag: latest
+  #   command: ["npm", "run", "migrate"]
+  #   backoffLimit: 3
+  #   activeDeadlineSeconds: 600
+
+# =============================================================================
+# CronJobs
+# =============================================================================
+
+cronjobs: []
+  # - name: cleanup
+  #   schedule: "0 2 * * *"
+  #   image:
+  #     repository: my-app
+  #     tag: latest
+  #   command: ["npm", "run", "cleanup"]
+  #   concurrencyPolicy: Forbid
+  #   suspend: false
+
+# =============================================================================
+# Extra Manifests
+# =============================================================================
+# Inject arbitrary Kubernetes manifests. Supports Helm templating via tpl.
+
+extraManifests: []
+  # - apiVersion: v1
+  #   kind: Secret
+  #   metadata:
+  #     name: '{{ include "chart.fullname" . }}-extra'
+  #   type: Opaque
+  #   data:
+  #     key: dmFsdWU=

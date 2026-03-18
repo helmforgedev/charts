@@ -1,0 +1,36 @@
+{{- range .Values.persistence.storage | default list }}
+{{- if not .existingPVName }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "chart.name" $ }}-{{ .name }}
+  labels:
+    {{- include "chart.labels" $ | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  capacity:
+    storage: {{ .capacity }}
+  accessModes:
+    - {{ .accessMode | default "ReadWriteOnce" }}
+  persistentVolumeReclaimPolicy: {{ .reclaimPolicy | default "Retain" }}
+  {{- with .storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  {{- with .nfs }}
+  nfs:
+    server: {{ .server | quote }}
+    path: {{ .path }}
+  {{- end }}
+  {{- with .hostPath }}
+  hostPath:
+    path: {{ .path }}
+    type: {{ .type | default "DirectoryOrCreate" }}
+  {{- end }}
+  {{- with .csi }}
+  csi:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}

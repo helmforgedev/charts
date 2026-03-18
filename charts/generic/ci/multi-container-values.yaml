@@ -1,0 +1,45 @@
+workload:
+  enabled: true
+  type: Deployment
+
+imageTagFormat: named
+image:
+  repository: myapp
+  tag: "2.0.0"
+
+containers:
+  - name: api
+    ports:
+      - containerPort: 3000
+    env:
+      - name: PORT
+        value: "3000"
+  - name: sidecar
+    image:
+      repository: envoyproxy/envoy
+      tag: "v1.31"
+    ports:
+      - containerPort: 9901
+
+envFrom:
+  - secretRef:
+      name: app-secrets
+
+service:
+  port: 3000
+  targetPort: 3000
+
+serviceMonitor:
+  enabled: true
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+
+extraManifests:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: extra-config
+    data:
+      key: value

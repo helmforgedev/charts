@@ -1,0 +1,40 @@
+{{- if eq (include "chart.isWorkload" (dict "root" . "kind" "Deployment")) "true" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "chart.fullname" . }}
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+  {{- with .Values.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if and .Values.hpa .Values.hpa.enabled }}
+  replicas: {{ .Values.hpa.minReplicas | default 1 }}
+  {{- else }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  {{- with .Values.updateStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "chart.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "chart.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        timestamp: "{{ date "20060102150405" now }}"
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "chart.podSpec" (dict "root" . "containers" .Values.containers) | nindent 6 }}
+      restartPolicy: Always
+{{- end }}
