@@ -1,4 +1,4 @@
-name: Helm Charts CI/CD
+name: Publish
 
 on:
   push:
@@ -8,20 +8,12 @@ on:
       - '!charts/**/README.md'
       - '!charts/**/examples/**'
       - '!charts/**/docs/**'
-      - '.github/workflows/publish-chart.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'charts/**'
-      - '!charts/**/README.md'
-      - '!charts/**/examples/**'
-      - '!charts/**/docs/**'
-      - '.github/workflows/publish-chart.yml'
+      - '.github/workflows/publish.yml'
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -46,28 +38,18 @@ jobs:
       - name: Detect changed charts
         id: changed
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            # For 'synchronize' (new push), compare only new commits
-            # For 'opened/reopened', compare full PR against base
-            if [ -n "${{ github.event.before }}" ]; then
-              BASE_SHA="${{ github.event.before }}"
-            else
-              BASE_SHA="${{ github.event.pull_request.base.sha }}"
-            fi
-          elif [ "${{ github.event_name }}" = "push" ]; then
+          if [ "${{ github.event_name }}" = "push" ]; then
             BASE_SHA="${{ github.event.before }}"
           fi
 
           if [ -n "$BASE_SHA" ]; then
-            # Compare only the latest push (not the entire PR) to avoid
-            # re-testing charts when only docs/examples changed
             CHANGED_DIRS=$(git diff --name-only "$BASE_SHA" HEAD -- charts/ \
               | grep -v -E '(README\.md|examples/|docs/)' \
               | cut -d'/' -f2 | sort -u \
               | while read -r dir; do [ -f "charts/$dir/Chart.yaml" ] && echo "$dir"; done \
               | jq -R -s -c 'split("\n") | map(select(length > 0))')
           else
-            # workflow_dispatch: test all charts
+            # workflow_dispatch: all charts
             CHANGED_DIRS=$(ls -d charts/*/ 2>/dev/null | xargs -I{} basename {} \
               | jq -R -s -c 'split("\n") | map(select(length > 0))')
           fi
@@ -159,11 +141,7 @@ jobs:
   publish:
     name: Publish - ${{ matrix.chart }}
     needs: [detect, lint, template, kubeconform]
-    if: |
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
-      needs.detect.outputs.charts != '[]' &&
-      needs.detect.outputs.charts != ''
+    if: needs.detect.outputs.charts != '[]' && needs.detect.outputs.charts != ''
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
