@@ -1,0 +1,23 @@
+{{- range .Values.persistence.storage | default list }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "chart.name" $ }}-{{ .name }}
+  labels:
+    {{- include "chart.labels" $ | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - {{ .accessMode | default "ReadWriteOnce" }}
+  resources:
+    requests:
+      storage: {{ .capacity }}
+  {{- if .storageClassName }}
+  storageClassName: {{ .storageClassName | quote }}
+  {{- end }}
+  {{- if or .existingPVName (not .storageClassName) }}
+  volumeName: {{ .existingPVName | default (printf "%s-%s" (include "chart.name" $) .name) }}
+  {{- end }}
+{{- end }}

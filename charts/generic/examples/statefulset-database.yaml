@@ -1,0 +1,70 @@
+# Example: StatefulSet with persistent storage
+# Redis cluster with persistent volumes and ordered pod management.
+#
+# helm install my-redis oci://ghcr.io/mberlofa/helm/generic --version 1.0.0 -f statefulset-database.yaml
+
+workload:
+  enabled: true
+  type: StatefulSet
+  podManagementPolicy: OrderedReady
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 10Gi
+
+imageTagFormat: simple
+image:
+  repository: redis
+  tag: "7.4"
+
+containers:
+  - name: redis
+    ports:
+      - containerPort: 6379
+    volumeMounts:
+      - name: data
+        mountPath: /data
+
+env:
+  - name: REDIS_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: redis-secret
+        key: password
+
+service:
+  port: 6379
+  targetPort: 6379
+
+livenessProbe:
+  exec:
+    command: ["redis-cli", "ping"]
+  initialDelaySeconds: 15
+  periodSeconds: 10
+
+readinessProbe:
+  exec:
+    command: ["redis-cli", "ping"]
+  initialDelaySeconds: 5
+  periodSeconds: 5
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 1Gi
+  requests:
+    cpu: 100m
+    memory: 256Mi
+
+podSecurityContext:
+  fsGroup: 1000
+  runAsNonRoot: true
+
+securityContext:
+  runAsUser: 1000
+  readOnlyRootFilesystem: true

@@ -1,0 +1,39 @@
+{{- range .Values.cronjobs | default list }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .name }}
+  labels:
+    {{- include "chart.labels" $ | nindent 4 }}
+  {{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  schedule: {{ .schedule | quote }}
+  concurrencyPolicy: {{ .concurrencyPolicy | default "Forbid" }}
+  successfulJobsHistoryLimit: {{ .successfulJobsHistoryLimit | default 3 }}
+  failedJobsHistoryLimit: {{ .failedJobsHistoryLimit | default 3 }}
+  {{- with .startingDeadlineSeconds }}
+  startingDeadlineSeconds: {{ . }}
+  {{- end }}
+  {{- if hasKey . "suspend" }}
+  suspend: {{ .suspend }}
+  {{- end }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .backoffLimit | default 1 }}
+      activeDeadlineSeconds: {{ .activeDeadlineSeconds | default 300 }}
+      ttlSecondsAfterFinished: {{ .ttlSecondsAfterFinished | default 300 }}
+      template:
+        metadata:
+          labels:
+            {{- include "chart.selectorLabels" $ | nindent 12 }}
+            cronjob-name: {{ .name }}
+          annotations:
+            timestamp: "{{ date "20060102150405" now }}"
+        spec:
+          restartPolicy: {{ .restartPolicy | default "Never" }}
+          {{- include "chart.podSpec" (dict "root" $ "containers" (.containers | default (list .)) "podSpec" . "skipGlobalProbes" true) | nindent 10 }}
+{{- end }}

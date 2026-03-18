@@ -1,0 +1,82 @@
+# Example: Web application (Node.js, Python, Go, etc.)
+# Deployment with Ingress, HPA, PDB, probes, and resource limits.
+#
+# helm install my-app oci://ghcr.io/mberlofa/helm/generic --version 1.0.0 -f web-app.yaml
+
+workload:
+  enabled: true
+  type: Deployment
+
+imageTagFormat: simple
+image:
+  repository: myregistry.io/my-app
+  tag: "1.2.3"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets:
+  - name: registry-secret
+
+containers:
+  - name: app
+    ports:
+      - containerPort: 3000
+
+env:
+  - name: NODE_ENV
+    value: "production"
+  - name: DATABASE_URL
+    valueFrom:
+      secretKeyRef:
+        name: app-secrets
+        key: database-url
+
+service:
+  port: 3000
+  targetPort: 3000
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+  hosts:
+    - host: app.example.com
+      paths: [/]
+  tls:
+    - hosts: [app.example.com]
+      secretName: app-tls
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 10
+  periodSeconds: 5
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - resource: cpu
+      type: Utilization
+      target: 75
+
+pdb:
+  enabled: true
+  minAvailable: 1
