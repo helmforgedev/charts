@@ -4,41 +4,27 @@ Reusable Helm charts for Kubernetes workloads. Published as OCI artifacts to Git
 
 ## Charts
 
-| Chart | Description | Version |
-|-------|-------------|---------|
-| [generic](charts/generic/) | General-purpose chart for any Kubernetes workload | `1.0.0` |
+| Chart | Description |
+|-------|-------------|
+| [generic](charts/generic/) | General-purpose chart for any Kubernetes workload |
 
 ## Quick Start
 
-### Install from OCI registry
-
 ```bash
-helm install my-release oci://ghcr.io/mberlofa/helm/generic --version 1.0.0 -f values.yaml
+# List available chart versions
+helm search repo oci://ghcr.io/mberlofa/helm --versions
+
+# Show default values for a chart
+helm show values oci://ghcr.io/mberlofa/helm/<chart-name> --version <version>
+
+# Install a chart
+helm install <release-name> oci://ghcr.io/mberlofa/helm/<chart-name> --version <version> -f values.yaml
+
+# Pull chart locally
+helm pull oci://ghcr.io/mberlofa/helm/<chart-name> --version <version>
 ```
 
-### Pull and inspect
-
-```bash
-helm pull oci://ghcr.io/mberlofa/helm/generic --version 1.0.0
-helm show values oci://ghcr.io/mberlofa/helm/generic --version 1.0.0
-```
-
-## Repository Structure
-
-```
-charts/
-  generic/              # General-purpose chart
-    Chart.yaml
-    values.yaml
-    templates/
-    ci/                 # Test values for CI pipeline
-    examples/           # Usage examples
-  <future-chart>/       # Add new charts here
-.github/
-  workflows/
-    ci.yml              # PR validation
-    publish.yml         # Release to GHCR
-```
+See each chart's README for specific install commands and configuration.
 
 ## CI/CD
 
