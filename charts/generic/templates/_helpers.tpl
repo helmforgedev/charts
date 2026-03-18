@@ -199,6 +199,9 @@ imagePullSecrets:
   {{- toYaml . | nindent 2 }}
 {{- end }}
 serviceAccountName: {{ include "chart.serviceAccountName" .root }}
+{{- if hasKey .root.Values.serviceAccount "automountServiceAccountToken" }}
+automountServiceAccountToken: {{ .root.Values.serviceAccount.automountServiceAccountToken }}
+{{- end }}
 {{- with (.podSpec).priorityClassName | default .root.Values.priorityClassName }}
 priorityClassName: {{ . }}
 {{- end }}
