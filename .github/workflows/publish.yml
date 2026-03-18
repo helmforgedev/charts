@@ -141,13 +141,10 @@ jobs:
             helm push "$pkg" "$OCI_REGISTRY"
           done
 
-      - name: Commit version bump and tag
+      - name: Create release tag
         if: steps.semver.outputs.skip != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add charts/${{ matrix.chart }}/Chart.yaml
-          git diff --cached --quiet && echo "Chart.yaml already at target version, skip commit" || \
-            git commit -m "release(${{ matrix.chart }}): ${{ steps.semver.outputs.version }} [skip ci]"
           git tag -a "${{ steps.semver.outputs.tag }}" -m "Release ${{ matrix.chart }} v${{ steps.semver.outputs.version }}"
-          git push origin main --follow-tags
+          git push origin "${{ steps.semver.outputs.tag }}"
