@@ -91,6 +91,13 @@ KeyFile secret name.
 {{- end -}}
 
 {{/*
+Return true if any initdb scripts should be mounted (manual scripts, configmap, or auth.users).
+*/}}
+{{- define "mongodb.hasInitdbScripts" -}}
+{{- if or .Values.initdbScripts .Values.initdbScriptsConfigMap .Values.auth.users -}}true{{- end -}}
+{{- end -}}
+
+{{/*
 Init scripts ConfigMap name.
 */}}
 {{- define "mongodb.initdbScriptsConfigMap" -}}
@@ -305,7 +312,7 @@ spec:
           subPath: mongod.conf
           readOnly: true
         {{- end }}
-        {{- if or .root.Values.initdbScripts .root.Values.initdbScriptsConfigMap }}
+        {{- if include "mongodb.hasInitdbScripts" .root }}
         - name: initdb-scripts
           mountPath: /docker-entrypoint-initdb.d
           readOnly: true
@@ -362,7 +369,7 @@ spec:
       configMap:
         name: {{ include "mongodb.configConfigMap" .root }}
     {{- end }}
-    {{- if or .root.Values.initdbScripts .root.Values.initdbScriptsConfigMap }}
+    {{- if include "mongodb.hasInitdbScripts" .root }}
     - name: initdb-scripts
       configMap:
         name: {{ include "mongodb.initdbScriptsConfigMap" .root }}

@@ -40,7 +40,7 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
 | `ci.yml` | PR | lint, template, kubeconform |
-| `publish.yml` | Push main / dispatch | detect → semver → package → push GHCR → git tag |
+| `publish.yml` | Push main / dispatch | detect → semver → package → push GHCR → git tag (max-parallel: 1 + retry loop) |
 
 ### What triggers workflows
 

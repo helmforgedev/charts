@@ -10,7 +10,7 @@ data:
     {{- toYaml .Values.config | nindent 4 }}
 {{- end }}
 ---
-{{- if and .Values.initdbScripts (not .Values.initdbScriptsConfigMap) }}
+{{- if and (or .Values.initdbScripts .Values.auth.users) (not .Values.initdbScriptsConfigMap) }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -18,6 +18,35 @@ metadata:
   labels:
     {{- include "mongodb.labels" . | nindent 4 }}
 data:
+  {{- if .Values.auth.users }}
+  00-create-users.sh: |
+    #!/bin/bash
+    set -e
+    {{- range .Values.auth.users }}
+    echo "Creating user '{{ .username }}' on database '{{ .database }}'..."
+    mongosh --host localhost -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --eval '
+      db = db.getSiblingDB({{ .database | quote }});
+      if (db.getUser({{ .username | quote }}) === null) {
+        db.createUser({
+          user: {{ .username | quote }},
+          pwd: {{ .password | quote }},
+          roles: [
+          {{- if .roles }}
+            {{- range $i, $role := .roles }}
+            {{ mustToJson $role }},
+            {{- end }}
+          {{- else }}
+            { role: "readWrite", db: {{ .database | quote }} }
+          {{- end }}
+          ]
+        });
+        print("User {{ .username }} created.");
+      } else {
+        print("User {{ .username }} already exists, skipping.");
+      }
+    '
+    {{- end }}
+  {{- end }}
   {{- range $key, $val := .Values.initdbScripts }}
   {{ $key }}: |
     {{- $val | nindent 4 }}
