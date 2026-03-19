@@ -52,6 +52,8 @@ Rules:
 - always use the exact chart directory name as scope for chart changes
 - keep repository-instruction changes in their own commit when practical
 - keep PR titles in the same Conventional Commit format for readable workflow history
+- always open PRs from the working branch to `main`
+- never create branch-to-branch PRs in this repository
 
 Use the repository owner's git identity. When the agent contributed materially, add:
 
@@ -68,6 +70,14 @@ Use:
 - `refactor/<chart>-<description>`
 - `docs/<scope>-<description>`
 - `ci/<description>`
+
+Mandatory flow:
+
+1. create a branch from `main`
+2. implement the change
+3. commit all intended files
+4. push the branch
+5. create a PR to `main`
 
 ## Chart Authoring Rules
 
