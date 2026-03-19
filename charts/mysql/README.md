@@ -38,6 +38,8 @@ Recommended reading before installation:
 
 - [Standalone](docs/standalone.md)
 - [Replication](docs/replication.md)
+- [Replication Operations](docs/replication-operations.md)
+- [Backup and Restore](docs/backup-restore.md)
 
 ## Official product references
 
@@ -155,6 +157,11 @@ metrics:
 - treat backup, restore, and failover as operational workflows external to the chart
 - review the architecture guides before promoting `replication` to production
 
+Operational documents:
+
+- [Replication Operations](docs/replication-operations.md)
+- [Backup and Restore](docs/backup-restore.md)
+
 ## Main values
 
 | Parameter | Description | Default |
@@ -192,6 +199,8 @@ The `ci/` scenarios validate the main chart behaviors:
 - `initdb.yaml`
 - `existing-secret.yaml`
 - `metrics.yaml`
+- `existing-configmap.yaml`
+- `replication-metrics.yaml`
 
 ## Examples
 
