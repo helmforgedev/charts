@@ -1,4 +1,4 @@
-{{- if .Values.pdb.enabled }}
+{{- if include "postgresql.pdbEnabled" . }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -9,8 +9,12 @@ spec:
   selector:
     matchLabels:
       {{- include "postgresql.selectorLabels" . | nindent 6 }}
-  {{- if .Values.pdb.maxUnavailable }}
+  {{- if and (eq .Values.architecture "replication") .Values.replication.pdb.maxUnavailable }}
+  maxUnavailable: {{ .Values.replication.pdb.maxUnavailable }}
+  {{- else if .Values.pdb.maxUnavailable }}
   maxUnavailable: {{ .Values.pdb.maxUnavailable }}
+  {{- else if eq .Values.architecture "replication" }}
+  minAvailable: {{ .Values.replication.pdb.minAvailable }}
   {{- else }}
   minAvailable: {{ .Values.pdb.minAvailable }}
   {{- end }}

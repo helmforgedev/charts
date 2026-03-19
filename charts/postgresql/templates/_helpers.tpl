@@ -156,6 +156,22 @@ app.kubernetes.io/role: {{ .role }}
 {{- if .Values.tls.enabled }}export PGSSLMODE={{ .Values.tls.sslMode | quote }}; export PGSSLROOTCERT=/tls/{{ .Values.tls.caFilename }}; {{- end }}PGPASSWORD="${POSTGRES_PASSWORD}" pg_isready -U postgres -h 127.0.0.1 -p {{ .Values.service.port }}
 {{- end -}}
 
+{{- define "postgresql.primaryReadinessCommandString" -}}
+{{- if and (eq .Values.architecture "replication") .Values.replication.primary.probes.requireWritable -}}
+{{- if .Values.tls.enabled }}export PGSSLMODE={{ .Values.tls.sslMode | quote }}; export PGSSLROOTCERT=/tls/{{ .Values.tls.caFilename }}; {{- end }}PGPASSWORD="${POSTGRES_PASSWORD}" psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d postgres -tAc "SELECT CASE WHEN pg_is_in_recovery() THEN 1 ELSE 0 END" | grep -qx 0
+{{- else -}}
+{{ include "postgresql.probeCommandString" . }}
+{{- end -}}
+{{- end -}}
+
+{{- define "postgresql.replicaReadinessCommandString" -}}
+{{- if and (eq .Values.architecture "replication") .Values.replication.readReplicas.probes.requireRecoveryMode -}}
+{{- if .Values.tls.enabled }}export PGSSLMODE={{ .Values.tls.sslMode | quote }}; export PGSSLROOTCERT=/tls/{{ .Values.tls.caFilename }}; {{- end }}PGPASSWORD="${POSTGRES_PASSWORD}" psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d postgres -tAc "SELECT CASE WHEN pg_is_in_recovery() THEN 1 ELSE 0 END" | grep -qx 1
+{{- else -}}
+{{ include "postgresql.probeCommandString" . }}
+{{- end -}}
+{{- end -}}
+
 {{- define "postgresql.metricsEnv" -}}
 - name: DATA_SOURCE_URI
   value: 127.0.0.1:{{ .Values.service.port }}/postgres?sslmode={{ if .Values.tls.enabled }}{{ .Values.tls.sslMode }}{{ else }}disable{{ end }}{{ if and .Values.tls.enabled (or (eq .Values.tls.sslMode "verify-ca") (eq .Values.tls.sslMode "verify-full")) }}&sslrootcert=/tls/{{ .Values.tls.caFilename }}{{ end }}
@@ -202,16 +218,42 @@ terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
 nodeSelector:
   {{- toYaml . | nindent 2 }}
 {{- end }}
-{{- with .Values.affinity }}
+{{- if .Values.affinity }}
 affinity:
-  {{- toYaml . | nindent 2 }}
+  {{- toYaml .Values.affinity | nindent 2 }}
+{{- else if and (eq .Values.architecture "replication") .Values.replication.scheduling.enableDefaultPodAntiAffinity }}
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              {{- include "postgresql.selectorLabels" . | nindent 14 }}
 {{- end }}
 {{- with .Values.tolerations }}
 tolerations:
   {{- toYaml . | nindent 2 }}
 {{- end }}
-{{- with .Values.topologySpreadConstraints }}
+{{- if .Values.topologySpreadConstraints }}
 topologySpreadConstraints:
-  {{- toYaml . | nindent 2 }}
+  {{- toYaml .Values.topologySpreadConstraints | nindent 2 }}
+{{- else if and (eq .Values.architecture "replication") .Values.replication.scheduling.enableDefaultTopologySpread }}
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: {{ .Values.replication.scheduling.topologyKey | quote }}
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        {{- include "postgresql.selectorLabels" . | nindent 8 }}
 {{- end }}
+{{- end -}}
+
+{{- define "postgresql.pdbEnabled" -}}
+{{- if eq .Values.architecture "replication" -}}
+{{- if .Values.replication.pdb.enabled -}}true{{- end -}}
+{{- else -}}
+{{- if .Values.pdb.enabled -}}true{{- end -}}
+{{- end -}}
 {{- end -}}

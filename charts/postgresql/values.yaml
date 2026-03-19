@@ -136,6 +136,9 @@ replication:
       size: 20Gi
     # -- Resources for the primary PostgreSQL pod
     resources: {}
+    probes:
+      # -- In replication mode, require the primary readiness check to confirm the pod is not in recovery mode
+      requireWritable: true
   readReplicas:
     # -- Number of read replica pods
     replicaCount: 2
@@ -151,6 +154,26 @@ replication:
       size: 20Gi
     # -- Resources for read replica pods
     resources: {}
+    probes:
+      # -- In replication mode, require replica readiness to confirm the pod is in recovery mode
+      requireRecoveryMode: true
+  wal:
+    # -- WAL retention kept locally for replicas and recovery workflows
+    keepSize: 512MB
+    # -- Maximum WAL sender processes
+    maxSenders: 10
+    # -- Maximum replication slots
+    maxReplicationSlots: 10
+  pdb:
+    # -- Enable a PodDisruptionBudget by default in replication mode
+    enabled: true
+    minAvailable: 1
+    maxUnavailable: ""
+  scheduling:
+    # -- Enable opinionated default placement rules in replication mode when global affinity/topologySpreadConstraints are empty
+    enableDefaultPodAntiAffinity: true
+    enableDefaultTopologySpread: true
+    topologyKey: kubernetes.io/hostname
 
 # =============================================================================
 # Service
@@ -228,22 +251,28 @@ serviceAccount:
 # =============================================================================
 
 livenessProbe:
-  initialDelaySeconds: 30
-  periodSeconds: 15
+  # -- Enable livenessProbe
+  enabled: true
+  initialDelaySeconds: 60
+  periodSeconds: 20
   timeoutSeconds: 5
   failureThreshold: 6
 
 readinessProbe:
-  initialDelaySeconds: 10
+  # -- Enable readinessProbe
+  enabled: true
+  initialDelaySeconds: 20
   periodSeconds: 10
   timeoutSeconds: 5
   failureThreshold: 6
 
 startupProbe:
+  # -- Enable startupProbe
+  enabled: true
   initialDelaySeconds: 10
   periodSeconds: 10
   timeoutSeconds: 5
-  failureThreshold: 30
+  failureThreshold: 60
 
 # =============================================================================
 # Scheduling and Security
