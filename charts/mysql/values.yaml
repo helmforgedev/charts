@@ -1,0 +1,314 @@
+# =============================================================================
+# MySQL Helm Chart - Default Values
+# =============================================================================
+# Supported architectures:
+# - standalone
+# - replication
+
+# -- MySQL deployment mode: standalone | replication
+architecture: standalone
+
+# -- Override chart name
+nameOverride: ""
+# -- Override full release name
+fullnameOverride: ""
+
+# -- Labels added to all resources
+commonLabels: {}
+
+# -- Kubernetes cluster domain
+clusterDomain: cluster.local
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- MySQL image repository
+  repository: mysql
+  # -- MySQL image tag
+  tag: "8.4"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Authentication
+# =============================================================================
+
+auth:
+  # -- MySQL root password. Auto-generated if empty and no existingSecret is set.
+  rootPassword: ""
+  # -- Application database created on first bootstrap
+  database: app
+  # -- Application user created on first bootstrap
+  username: app
+  # -- Application user password. Auto-generated if empty and no existingSecret is set.
+  password: ""
+  # -- Replication user used by read replicas
+  replicationUsername: replicator
+  # -- Replication user password. Auto-generated if empty and no existingSecret is set.
+  replicationPassword: ""
+  # -- Existing secret with MySQL passwords
+  existingSecret: ""
+  # -- Usernames and database names remain regular values on purpose. This chart only reads secrets for sensitive runtime data.
+  # -- Secret key for the MySQL root password in auth.existingSecret
+  existingSecretRootPasswordKey: mysql-root-password
+  # -- Secret key for the application user password in auth.existingSecret
+  existingSecretUserPasswordKey: mysql-user-password
+  # -- Secret key for the replication user password in auth.existingSecret
+  existingSecretReplicationPasswordKey: mysql-replication-password
+
+# =============================================================================
+# MySQL Configuration
+# =============================================================================
+
+config:
+  # -- Optional configuration preset: none | small | medium | large
+  preset: none
+  # -- Extra my.cnf content appended to the generated configuration
+  myCnf: ""
+
+# =============================================================================
+# Initialization
+# =============================================================================
+
+initdb:
+  # -- Additional init scripts written into docker-entrypoint-initdb.d
+  scripts: {}
+    # 10-extra.sql: |
+    #   CREATE TABLE IF NOT EXISTS example (id INT PRIMARY KEY);
+  # -- Existing ConfigMap mounted into docker-entrypoint-initdb.d in addition to the generated scripts
+  existingConfigMap: ""
+
+# =============================================================================
+# Standalone
+# =============================================================================
+
+standalone:
+  # -- Server ID used in standalone mode
+  serverId: 1
+  # -- Optional resource preset: none | small | medium | large
+  resourcesPreset: none
+  persistence:
+    # -- Enable PVC for standalone mode
+    enabled: true
+    # -- Storage class for standalone PVC
+    storageClass: ""
+    # -- Access modes for standalone PVC
+    accessModes:
+      - ReadWriteOnce
+    # -- PVC size for standalone mode
+    size: 8Gi
+  # -- Resources for standalone MySQL
+  resources: {}
+
+# =============================================================================
+# Replication
+# =============================================================================
+
+replication:
+  source:
+    # -- Server ID used by the source pod
+    serverId: 1
+    # -- Optional resource preset: none | small | medium | large
+    resourcesPreset: none
+    persistence:
+      # -- Enable PVC for the source StatefulSet
+      enabled: true
+      # -- Storage class for source PVCs
+      storageClass: ""
+      # -- Access modes for source PVCs
+      accessModes:
+        - ReadWriteOnce
+      # -- PVC size for the source pod
+      size: 20Gi
+    # -- Resources for the source MySQL pod
+    resources: {}
+    probes:
+      # -- In replication mode, require the source readiness check to confirm the pod is writable
+      requireWritable: true
+  readReplicas:
+    # -- Base server ID used to derive replica server IDs from pod ordinal
+    serverIdBase: 100
+    # -- Optional resource preset: none | small | medium | large
+    resourcesPreset: none
+    # -- Number of read replica pods
+    replicaCount: 2
+    persistence:
+      # -- Enable PVCs for read replicas
+      enabled: true
+      # -- Storage class for replica PVCs
+      storageClass: ""
+      # -- Access modes for replica PVCs
+      accessModes:
+        - ReadWriteOnce
+      # -- PVC size per read replica
+      size: 20Gi
+    # -- Resources for read replica pods
+    resources: {}
+    probes:
+      # -- In replication mode, require replica readiness to confirm the pod is read-only
+      requireReadOnly: true
+  binlog:
+    # -- Binlog format used by the source
+    format: ROW
+    # -- Binlog expiration in seconds
+    expireLogsSeconds: 604800
+    # -- sync_binlog value used by the source
+    syncBinlog: 1
+    # -- Number of parallel applier workers on replicas
+    replicaParallelWorkers: 4
+  pdb:
+    # -- Enable a PodDisruptionBudget by default in replication mode
+    enabled: true
+    minAvailable: 1
+    maxUnavailable: ""
+  scheduling:
+    # -- Enable opinionated default placement rules in replication mode when global affinity/topologySpreadConstraints are empty
+    enableDefaultPodAntiAffinity: true
+    enableDefaultTopologySpread: true
+    topologyKey: kubernetes.io/hostname
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type for MySQL client access
+  type: ClusterIP
+  annotations: {}
+  sourceAnnotations: {}
+  replicasAnnotations: {}
+  # -- MySQL listener port
+  port: 3306
+  # -- Metrics port exposed when metrics.enabled=true
+  metricsPort: 9104
+
+# =============================================================================
+# Metrics
+# =============================================================================
+
+metrics:
+  # -- Enable mysqld-exporter sidecar
+  enabled: false
+  # -- Optional resource preset for mysqld-exporter: none | small | medium
+  resourcesPreset: none
+  service:
+    # -- Annotations applied to metrics Services
+    annotations: {}
+  image:
+    # -- mysqld-exporter image repository
+    repository: prom/mysqld-exporter
+    # -- mysqld-exporter image tag
+    tag: "v0.17.2"
+    pullPolicy: IfNotPresent
+  # -- Resources for mysqld-exporter
+  resources: {}
+  serviceMonitor:
+    # -- Create a ServiceMonitor (requires Prometheus Operator)
+    enabled: false
+    interval: 30s
+    labels: {}
+
+# =============================================================================
+# NetworkPolicy
+# =============================================================================
+
+networkPolicy:
+  # -- Create an ingress-only NetworkPolicy for MySQL pods
+  enabled: false
+  ingress:
+    # -- Allow ingress from the same namespace
+    allowSameNamespace: true
+    # -- Additional ingress "from" rules appended to the generated policy
+    extraFrom: []
+
+# =============================================================================
+# Pod Disruption Budget
+# =============================================================================
+
+pdb:
+  # -- Enable PodDisruptionBudget
+  enabled: false
+  # -- Minimum available pods when PDB is enabled
+  minAvailable: 1
+  # -- Maximum unavailable pods when PDB is enabled
+  maxUnavailable: ""
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  name: ""
+  annotations: {}
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+livenessProbe:
+  # -- Enable livenessProbe
+  enabled: true
+  initialDelaySeconds: 60
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+readinessProbe:
+  # -- Enable readinessProbe
+  enabled: true
+  initialDelaySeconds: 20
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+startupProbe:
+  # -- Enable startupProbe
+  enabled: true
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 60
+
+# =============================================================================
+# Scheduling and Security
+# =============================================================================
+
+podSecurityContext:
+  fsGroup: 999
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  runAsUser: 999
+  runAsGroup: 999
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+podLabels: {}
+podAnnotations: {}
+annotations: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 120
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []

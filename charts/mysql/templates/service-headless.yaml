@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mysql.sourceHeadlessServiceName" . }}
+  labels:
+    {{- include "mysql.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: mysql
+      port: {{ .Values.service.port }}
+      targetPort: mysql
+  selector:
+    {{- include "mysql.componentLabels" (dict "root" . "role" (ternary "source" "standalone" (eq .Values.architecture "replication"))) | nindent 4 }}
+{{- if eq .Values.architecture "replication" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mysql.replicasHeadlessServiceName" . }}
+  labels:
+    {{- include "mysql.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: mysql
+      port: {{ .Values.service.port }}
+      targetPort: mysql
+  selector:
+    {{- include "mysql.componentLabels" (dict "root" . "role" "replica") | nindent 4 }}
+{{- end }}
