@@ -162,7 +162,7 @@ sharded:
 |-----------|-------------|---------|
 | `metrics.enabled` | Deploy mongodb-exporter sidecar | `false` |
 | `metrics.image.repository` | Exporter image | `percona/mongodb_exporter` |
-| `metrics.image.tag` | Exporter tag | `0.43.1` |
+| `metrics.image.tag` | Exporter tag | `0.49.0` |
 | `metrics.port` | Exporter port | `9216` |
 | `metrics.serviceMonitor.enabled` | Create ServiceMonitor | `false` |
 
