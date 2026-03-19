@@ -1,0 +1,128 @@
+{{- if include "mongodb.isReplicaSet" . }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "mongodb.fullname" . }}-rs-init
+  labels:
+    {{- include "mongodb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rs-init
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+spec:
+  backoffLimit: 10
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        {{- include "mongodb.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: rs-init
+    spec:
+      restartPolicy: OnFailure
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: rs-init
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            {{- if .Values.auth.enabled }}
+            - name: MONGO_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mongodb.secretName" . }}
+                  key: mongodb-root-username
+            - name: MONGO_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mongodb.secretName" . }}
+                  key: mongodb-root-password
+            {{- end }}
+          command:
+            - bash
+            - -c
+            - |
+              set -e
+
+              FULLNAME="{{ include "mongodb.fullname" . }}"
+              HEADLESS="{{ include "mongodb.headlessServiceName" . }}"
+              NAMESPACE="{{ .Release.Namespace }}"
+              RS_NAME="{{ .Values.replicaSet.name }}"
+              MEMBERS={{ include "mongodb.replicaCount" . }}
+              PORT={{ .Values.port }}
+
+              {{- if .Values.auth.enabled }}
+              AUTH_ARGS="-u $MONGO_USER -p $MONGO_PASS --authenticationDatabase admin"
+              {{- else }}
+              AUTH_ARGS=""
+              {{- end }}
+
+              PRIMARY="${FULLNAME}-0.${HEADLESS}.${NAMESPACE}.svc.cluster.local:${PORT}"
+
+              echo "Waiting for primary to be ready..."
+              until mongosh --host "$PRIMARY" $AUTH_ARGS --quiet --eval "db.adminCommand('ping')" 2>/dev/null; do
+                echo "  Waiting for ${FULLNAME}-0..."
+                sleep 5
+              done
+
+              echo "Checking if replica set is already initialized..."
+              RS_STATUS=$(mongosh --host "$PRIMARY" $AUTH_ARGS --quiet --eval "
+                try { rs.status().ok } catch(e) { 0 }
+              " 2>/dev/null || echo "0")
+
+              if [ "$RS_STATUS" = "1" ]; then
+                echo "Replica set already initialized. Checking members..."
+
+                CURRENT_MEMBERS=$(mongosh --host "$PRIMARY" $AUTH_ARGS --quiet --eval "
+                  rs.status().members.length
+                " 2>/dev/null)
+
+                echo "Current members: $CURRENT_MEMBERS, expected: $MEMBERS"
+
+                if [ "$CURRENT_MEMBERS" -lt "$MEMBERS" ]; then
+                  for i in $(seq "$CURRENT_MEMBERS" $((MEMBERS - 1))); do
+                    MEMBER="${FULLNAME}-${i}.${HEADLESS}.${NAMESPACE}.svc.cluster.local:${PORT}"
+                    echo "Adding member: $MEMBER"
+                    mongosh --host "$PRIMARY" $AUTH_ARGS --quiet --eval "rs.add('${MEMBER}')"
+                  done
+                fi
+
+                echo "Replica set is configured."
+                exit 0
+              fi
+
+              echo "Initializing replica set '${RS_NAME}'..."
+              MEMBERS_JSON=""
+              for i in $(seq 0 $((MEMBERS - 1))); do
+                MEMBER="${FULLNAME}-${i}.${HEADLESS}.${NAMESPACE}.svc.cluster.local:${PORT}"
+                if [ -n "$MEMBERS_JSON" ]; then
+                  MEMBERS_JSON="${MEMBERS_JSON},"
+                fi
+                MEMBERS_JSON="${MEMBERS_JSON}{_id:${i},host:'${MEMBER}'}"
+              done
+
+              mongosh --host "$PRIMARY" $AUTH_ARGS --quiet --eval "
+                rs.initiate({
+                  _id: '${RS_NAME}',
+                  members: [${MEMBERS_JSON}]
+                })
+              "
+
+              echo "Waiting for replica set to elect primary..."
+              for attempt in $(seq 1 60); do
+                IS_PRIMARY=$(mongosh --host "$PRIMARY" $AUTH_ARGS --quiet --eval "
+                  rs.isMaster().ismaster
+                " 2>/dev/null || echo "false")
+                if [ "$IS_PRIMARY" = "true" ]; then
+                  echo "Primary elected. Replica set ready."
+                  exit 0
+                fi
+                sleep 2
+              done
+
+              echo "WARNING: Primary election timed out but rs.initiate succeeded."
+              exit 0
+{{- end }}

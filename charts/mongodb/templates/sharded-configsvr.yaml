@@ -1,0 +1,135 @@
+{{- if include "mongodb.isSharded" . }}
+# Config Server Replica Set
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "mongodb.fullname" . }}-configsvr
+  labels:
+    {{- include "mongodb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: configsvr
+spec:
+  serviceName: {{ include "mongodb.fullname" . }}-configsvr-headless
+  replicas: {{ .Values.sharded.configServer.replicaCount }}
+  podManagementPolicy: OrderedReady
+  selector:
+    matchLabels:
+      {{- include "mongodb.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: configsvr
+  template:
+    metadata:
+      labels:
+        {{- include "mongodb.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: configsvr
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if include "mongodb.needsKeyFile" . }}
+      initContainers:
+        - name: init-keyfile
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command:
+            - bash
+            - -c
+            - |
+              cp /etc/mongodb/keyfile-readonly/replica-set-key /etc/mongodb/keyfile/replica-set-key
+              chmod 400 /etc/mongodb/keyfile/replica-set-key
+              chown 999:999 /etc/mongodb/keyfile/replica-set-key
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: keyfile-readonly
+              mountPath: /etc/mongodb/keyfile-readonly
+              readOnly: true
+            - name: keyfile
+              mountPath: /etc/mongodb/keyfile
+      {{- end }}
+      containers:
+        - name: mongod
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "--configsvr"
+            - "--replSet"
+            - "configRS"
+            - "--bind_ip_all"
+            - "--port"
+            - {{ .Values.port | quote }}
+            {{- if include "mongodb.needsKeyFile" . }}
+            - "--keyFile"
+            - "/etc/mongodb/keyfile/replica-set-key"
+            {{- end }}
+          ports:
+            - name: mongodb
+              containerPort: {{ .Values.port }}
+          env:
+            {{- if .Values.auth.enabled }}
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mongodb.secretName" . }}
+                  key: mongodb-root-username
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mongodb.secretName" . }}
+                  key: mongodb-root-password
+            {{- end }}
+          {{- with .Values.sharded.configServer.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /data/configdb
+            {{- if include "mongodb.needsKeyFile" . }}
+            - name: keyfile
+              mountPath: /etc/mongodb/keyfile
+              readOnly: true
+            {{- end }}
+      volumes:
+        {{- if include "mongodb.needsKeyFile" . }}
+        - name: keyfile-readonly
+          secret:
+            secretName: {{ include "mongodb.keySecretName" . }}
+            defaultMode: 0400
+        - name: keyfile
+          emptyDir: {}
+        {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.sharded.configServer.persistence.storageClass }}
+        storageClassName: {{ .Values.sharded.configServer.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.sharded.configServer.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mongodb.fullname" . }}-configsvr-headless
+  labels:
+    {{- include "mongodb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: configsvr
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: mongodb
+      port: {{ .Values.port }}
+      targetPort: mongodb
+  selector:
+    {{- include "mongodb.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: configsvr
+{{- end }}

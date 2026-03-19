@@ -1,0 +1,167 @@
+{{- if include "mongodb.isSharded" . }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "mongodb.fullname" . }}-sharded-init
+  labels:
+    {{- include "mongodb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sharded-init
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+spec:
+  backoffLimit: 10
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        {{- include "mongodb.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: sharded-init
+    spec:
+      restartPolicy: OnFailure
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if include "mongodb.needsKeyFile" . }}
+      initContainers:
+        - name: init-keyfile
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command:
+            - bash
+            - -c
+            - |
+              cp /etc/mongodb/keyfile-readonly/replica-set-key /etc/mongodb/keyfile/replica-set-key
+              chmod 400 /etc/mongodb/keyfile/replica-set-key
+              chown 999:999 /etc/mongodb/keyfile/replica-set-key
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: keyfile-readonly
+              mountPath: /etc/mongodb/keyfile-readonly
+              readOnly: true
+            - name: keyfile
+              mountPath: /etc/mongodb/keyfile
+      {{- end }}
+      containers:
+        - name: sharded-init
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            {{- if .Values.auth.enabled }}
+            - name: MONGO_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mongodb.secretName" . }}
+                  key: mongodb-root-username
+            - name: MONGO_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mongodb.secretName" . }}
+                  key: mongodb-root-password
+            {{- end }}
+          {{- if include "mongodb.needsKeyFile" . }}
+          volumeMounts:
+            - name: keyfile
+              mountPath: /etc/mongodb/keyfile
+              readOnly: true
+          {{- end }}
+          command:
+            - bash
+            - -c
+            - |
+              set -e
+
+              FULLNAME="{{ include "mongodb.fullname" . }}"
+              NAMESPACE="{{ .Release.Namespace }}"
+              PORT={{ .Values.port }}
+              SHARD_COUNT={{ .Values.sharded.shards.count }}
+              SHARD_MEMBERS={{ .Values.sharded.shards.membersPerShard }}
+              CONFIGSVR_COUNT={{ .Values.sharded.configServer.replicaCount }}
+              MONGOS_PORT={{ .Values.sharded.mongos.port }}
+
+              {{- if .Values.auth.enabled }}
+              AUTH_ARGS="-u $MONGO_USER -p $MONGO_PASS --authenticationDatabase admin"
+              {{- else }}
+              AUTH_ARGS=""
+              {{- end }}
+
+              wait_for_host() {
+                local host=$1
+                echo "Waiting for $host..."
+                until mongosh --host "$host" $AUTH_ARGS --quiet --eval "db.adminCommand('ping')" 2>/dev/null; do
+                  sleep 5
+                done
+              }
+
+              # 1. Initialize config server replica set
+              CONFIGSVR_PRIMARY="${FULLNAME}-configsvr-0.${FULLNAME}-configsvr-headless.${NAMESPACE}.svc.cluster.local:${PORT}"
+              wait_for_host "$CONFIGSVR_PRIMARY"
+
+              echo "Initializing config server replica set..."
+              CONFIGSVR_MEMBERS=""
+              for i in $(seq 0 $((CONFIGSVR_COUNT - 1))); do
+                HOST="${FULLNAME}-configsvr-${i}.${FULLNAME}-configsvr-headless.${NAMESPACE}.svc.cluster.local:${PORT}"
+                [ -n "$CONFIGSVR_MEMBERS" ] && CONFIGSVR_MEMBERS="${CONFIGSVR_MEMBERS},"
+                CONFIGSVR_MEMBERS="${CONFIGSVR_MEMBERS}{_id:${i},host:'${HOST}'}"
+              done
+
+              mongosh --host "$CONFIGSVR_PRIMARY" $AUTH_ARGS --quiet --eval "
+                try { rs.status().ok } catch(e) {
+                  rs.initiate({ _id: 'configRS', configsvr: true, members: [${CONFIGSVR_MEMBERS}] })
+                }
+              " || true
+
+              sleep 10
+
+              # 2. Initialize each shard replica set
+              for s in $(seq 0 $((SHARD_COUNT - 1))); do
+                SHARD_PRIMARY="${FULLNAME}-shard${s}-0.${FULLNAME}-shard${s}-headless.${NAMESPACE}.svc.cluster.local:${PORT}"
+                wait_for_host "$SHARD_PRIMARY"
+
+                echo "Initializing shard${s} replica set..."
+                SHARD_MEMBERS=""
+                for m in $(seq 0 $((SHARD_MEMBERS - 1))); do
+                  HOST="${FULLNAME}-shard${s}-${m}.${FULLNAME}-shard${s}-headless.${NAMESPACE}.svc.cluster.local:${PORT}"
+                  [ -n "$SHARD_MEMBERS" ] && SHARD_MEMBERS="${SHARD_MEMBERS},"
+                  SHARD_MEMBERS="${SHARD_MEMBERS}{_id:${m},host:'${HOST}'}"
+                done
+
+                mongosh --host "$SHARD_PRIMARY" $AUTH_ARGS --quiet --eval "
+                  try { rs.status().ok } catch(e) {
+                    rs.initiate({ _id: 'shard${s}RS', members: [${SHARD_MEMBERS}] })
+                  }
+                " || true
+              done
+
+              sleep 15
+
+              # 3. Add shards via mongos
+              MONGOS_HOST="${FULLNAME}-mongos.${NAMESPACE}.svc.cluster.local:${MONGOS_PORT}"
+              wait_for_host "$MONGOS_HOST"
+
+              for s in $(seq 0 $((SHARD_COUNT - 1))); do
+                SHARD_CONN="shard${s}RS/"
+                for m in $(seq 0 $((SHARD_MEMBERS - 1))); do
+                  [ "$m" -gt 0 ] && SHARD_CONN="${SHARD_CONN},"
+                  SHARD_CONN="${SHARD_CONN}${FULLNAME}-shard${s}-${m}.${FULLNAME}-shard${s}-headless.${NAMESPACE}.svc.cluster.local:${PORT}"
+                done
+
+                echo "Adding shard${s}: ${SHARD_CONN}"
+                mongosh --host "$MONGOS_HOST" $AUTH_ARGS --quiet --eval "
+                  try { sh.addShard('${SHARD_CONN}') } catch(e) { print('Shard may already exist: ' + e) }
+                "
+              done
+
+              echo "Sharded cluster initialization complete."
+      volumes:
+        {{- if include "mongodb.needsKeyFile" . }}
+        - name: keyfile-readonly
+          secret:
+            secretName: {{ include "mongodb.keySecretName" . }}
+            defaultMode: 0400
+        - name: keyfile
+          emptyDir: {}
+        {{- end }}
+{{- end }}

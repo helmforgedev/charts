@@ -7,6 +7,7 @@ Reusable Helm charts for Kubernetes workloads. Published as OCI artifacts to Git
 | Chart | Description |
 |-------|-------------|
 | [generic](charts/generic/) | General-purpose chart for any Kubernetes workload |
+| [mongodb](charts/mongodb/) | MongoDB — standalone, replica set, or sharded cluster |
 
 ## Quick Start
 

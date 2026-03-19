@@ -1,0 +1,141 @@
+{{- if include "mongodb.isSharded" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mongodb.fullname" . }}-mongos
+  labels:
+    {{- include "mongodb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mongos
+spec:
+  replicas: {{ .Values.sharded.mongos.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "mongodb.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: mongos
+  template:
+    metadata:
+      labels:
+        {{- include "mongodb.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: mongos
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if include "mongodb.needsKeyFile" . }}
+      initContainers:
+        - name: init-keyfile
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command:
+            - bash
+            - -c
+            - |
+              cp /etc/mongodb/keyfile-readonly/replica-set-key /etc/mongodb/keyfile/replica-set-key
+              chmod 400 /etc/mongodb/keyfile/replica-set-key
+              chown 999:999 /etc/mongodb/keyfile/replica-set-key
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: keyfile-readonly
+              mountPath: /etc/mongodb/keyfile-readonly
+              readOnly: true
+            - name: keyfile
+              mountPath: /etc/mongodb/keyfile
+      {{- end }}
+      containers:
+        - name: mongos
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["mongos"]
+          args:
+            - "--configdb"
+            - "configRS/{{ include "mongodb.fullname" . }}-configsvr-0.{{ include "mongodb.fullname" . }}-configsvr-headless.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.port }}"
+            - "--bind_ip_all"
+            - "--port"
+            - {{ .Values.sharded.mongos.port | quote }}
+            {{- if include "mongodb.needsKeyFile" . }}
+            - "--keyFile"
+            - "/etc/mongodb/keyfile/replica-set-key"
+            {{- end }}
+          ports:
+            - name: mongodb
+              containerPort: {{ .Values.sharded.mongos.port }}
+          env:
+            {{- if .Values.auth.enabled }}
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mongodb.secretName" . }}
+                  key: mongodb-root-username
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mongodb.secretName" . }}
+                  key: mongodb-root-password
+            {{- end }}
+          livenessProbe:
+            exec:
+              command:
+                - mongosh
+                - --port
+                - {{ .Values.sharded.mongos.port | quote }}
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          readinessProbe:
+            exec:
+              command:
+                - mongosh
+                - --port
+                - {{ .Values.sharded.mongos.port | quote }}
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          {{- with .Values.sharded.mongos.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- if include "mongodb.needsKeyFile" . }}
+            - name: keyfile
+              mountPath: /etc/mongodb/keyfile
+              readOnly: true
+            {{- end }}
+      volumes:
+        {{- if include "mongodb.needsKeyFile" . }}
+        - name: keyfile-readonly
+          secret:
+            secretName: {{ include "mongodb.keySecretName" . }}
+            defaultMode: 0400
+        - name: keyfile
+          emptyDir: {}
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mongodb.fullname" . }}-mongos
+  labels:
+    {{- include "mongodb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mongos
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: mongodb
+      port: {{ .Values.sharded.mongos.port }}
+      targetPort: mongodb
+  selector:
+    {{- include "mongodb.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: mongos
+{{- end }}

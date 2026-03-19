@@ -1,0 +1,284 @@
+# =============================================================================
+# MongoDB Helm Chart — Default Values
+# =============================================================================
+# Supports: standalone | replicaset | sharded
+# Uses the official MongoDB Docker image (https://hub.docker.com/_/mongo)
+
+# -- Architecture: standalone | replicaset | sharded
+architecture: standalone
+
+# -- Override release name
+nameOverride: ""
+fullnameOverride: ""
+
+# -- Labels added to all resources
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  repository: mongo
+  tag: "8.2.6"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Authentication
+# =============================================================================
+
+auth:
+  # -- Enable authentication (--auth flag)
+  enabled: true
+  # -- Root username (MONGO_INITDB_ROOT_USERNAME)
+  rootUser: root
+  # -- Root password (MONGO_INITDB_ROOT_PASSWORD). Required if auth.enabled=true.
+  rootPassword: ""
+  # -- Use an existing secret for root credentials
+  # Keys: mongodb-root-username, mongodb-root-password
+  existingSecret: ""
+  # -- Replica set keyFile for internal member authentication
+  # Auto-generated if empty and architecture=replicaset|sharded
+  replicaSetKey: ""
+  # -- Existing secret containing the keyFile (key: mongodb-replica-set-key)
+  existingKeySecret: ""
+
+# =============================================================================
+# Replica Set
+# =============================================================================
+
+replicaSet:
+  # -- Replica set name
+  name: rs0
+  # -- Number of data-bearing members (architecture=replicaset)
+  members: 3
+
+# =============================================================================
+# Sharded Cluster (architecture=sharded)
+# =============================================================================
+
+sharded:
+  mongos:
+    # -- Number of mongos routers
+    replicaCount: 2
+    # -- Resources for mongos
+    resources: {}
+    # -- Port for mongos
+    port: 27017
+
+  configServer:
+    # -- Number of config server members
+    replicaCount: 3
+    # -- Resources for config servers
+    resources: {}
+    persistence:
+      size: 8Gi
+      storageClass: ""
+
+  shards:
+    # -- Number of shards
+    count: 2
+    # -- Members per shard replica set
+    membersPerShard: 3
+    # -- Resources for shard members
+    resources: {}
+    persistence:
+      size: 16Gi
+      storageClass: ""
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistent storage (StatefulSet volumeClaimTemplate)
+  enabled: true
+  # -- Storage class (empty = cluster default)
+  storageClass: ""
+  # -- Access mode
+  accessMode: ReadWriteOnce
+  # -- Volume size
+  size: 8Gi
+  # -- Use an existing PVC (standalone only)
+  existingClaim: ""
+
+# =============================================================================
+# Mongod Configuration
+# =============================================================================
+
+# -- Custom mongod.conf content (mounted as ConfigMap)
+# If empty, a sensible default is generated based on architecture
+config: {}
+  # storage:
+  #   wiredTiger:
+  #     engineConfig:
+  #       cacheSizeGB: 1
+  # operationProfiling:
+  #   mode: slowOp
+  #   slowOpThresholdMs: 100
+
+# -- Port mongod listens on
+port: 27017
+
+# =============================================================================
+# Init Scripts
+# =============================================================================
+
+# -- Scripts executed on first startup via /docker-entrypoint-initdb.d/
+# Supports .sh and .js files. Runs against MONGO_INITDB_DATABASE.
+initdbScripts: {}
+  # 01-create-user.js: |
+  #   db.createUser({
+  #     user: "appuser",
+  #     pwd: "apppass",
+  #     roles: [{ role: "readWrite", db: "mydb" }]
+  #   });
+  # 02-seed-data.sh: |
+  #   #!/bin/bash
+  #   mongoimport --db mydb --collection items --file /data/seed.json
+
+# -- Name of an existing ConfigMap with init scripts
+initdbScriptsConfigMap: ""
+
+# -- Database for init scripts (MONGO_INITDB_DATABASE)
+initdbDatabase: ""
+
+# =============================================================================
+# Resources
+# =============================================================================
+
+resources: {}
+  # limits:
+  #   cpu: "1"
+  #   memory: 2Gi
+  # requests:
+  #   cpu: 250m
+  #   memory: 512Mi
+
+# =============================================================================
+# Security Context
+# =============================================================================
+
+podSecurityContext:
+  fsGroup: 999
+
+securityContext: {}
+  # runAsUser: 999
+  # runAsNonRoot: true
+  # allowPrivilegeEscalation: false
+  # readOnlyRootFilesystem: false
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type: ClusterIP, NodePort, LoadBalancer
+  type: ClusterIP
+  port: 27017
+  # -- Annotations on the client service
+  annotations: {}
+  # -- NodePort (only if type=NodePort)
+  nodePort: ""
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  create: false
+  name: ""
+  annotations: {}
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+livenessProbe:
+  exec:
+    command:
+      - mongosh
+      - --eval
+      - "db.adminCommand('ping')"
+  initialDelaySeconds: 30
+  periodSeconds: 20
+  timeoutSeconds: 10
+  failureThreshold: 6
+
+readinessProbe:
+  exec:
+    command:
+      - mongosh
+      - --eval
+      - "db.adminCommand('ping')"
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+startupProbe:
+  exec:
+    command:
+      - mongosh
+      - --eval
+      - "db.adminCommand('ping')"
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+
+# =============================================================================
+# Metrics (Prometheus Exporter)
+# =============================================================================
+
+metrics:
+  # -- Deploy a mongodb-exporter sidecar
+  enabled: false
+  image:
+    repository: percona/mongodb_exporter
+    tag: "0.43.1"
+    pullPolicy: IfNotPresent
+  port: 9216
+  # -- Extra args for the exporter
+  extraArgs: []
+  resources: {}
+
+  serviceMonitor:
+    # -- Create a ServiceMonitor resource (requires Prometheus Operator)
+    enabled: false
+    interval: 30s
+    labels: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 60
+
+podLabels: {}
+podAnnotations: {}
+annotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+# -- Extra environment variables
+extraEnv: []
+  # - name: MONGO_EXTRA_FLAG
+  #   value: "true"
+
+# -- Extra volume mounts on the mongod container
+extraVolumeMounts: []
+# -- Extra volumes on the pod
+extraVolumes: []
+
+# -- Arbitrary extra manifests (supports tpl)
+extraManifests: []
