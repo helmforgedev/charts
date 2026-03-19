@@ -46,7 +46,9 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 
 Only changes to `templates/`, `values.yaml`, `Chart.yaml`, `ci/` trigger workflows. Changes to `README.md`, `examples/`, `docs/`, `AGENTS.md` are **ignored**.
 
-`Chart.yaml` version is managed by the publish workflow — never edit it manually.
+`Chart.yaml` **version** is managed by the publish workflow — never edit it manually. **appVersion** is the upstream application/image version and must be set manually — the publish workflow does NOT touch it.
+- `generic`: no fixed image → `appVersion: "1.0.0"` (never changes)
+- All other charts: `appVersion` = default image tag in `values.yaml` (e.g., `mongodb` → `"8.2.6"`). Update both `image.tag` in values.yaml and `appVersion` in Chart.yaml together.
 
 ## Helm Development
 
