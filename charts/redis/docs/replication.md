@@ -1,71 +1,71 @@
 # Redis Replication
 
-## Quando usar
+## When to use
 
-Use `replication` quando você precisa de um primário fixo para escrita e réplicas para leitura.
+Use `replication` when you need one fixed primary for writes and replicas for reads.
 
-Cenários comuns:
+Common cases:
 
-- aplicações com leitura intensiva
-- workloads que já tratam indisponibilidade do primário fora do chart
-- ambientes que querem separar escrita e leitura sem Redis Cluster
+- read-heavy applications
+- workloads that already handle primary unavailability outside the chart
+- environments that want read/write separation without Redis Cluster
 
-## O que essa arquitetura entrega
+## What this architecture delivers
 
-- um primário
-- N réplicas
-- serviços separados para primário e réplicas
-- persistência por role
+- one primary
+- multiple replicas
+- separate services for primary and replicas
+- persistence by role
 
-## O que ela não entrega
+## What it does not deliver
 
-- failover automático por Sentinel
-- reconfiguração automática de clientes
+- automatic failover through Sentinel
+- automatic client reconfiguration
 
-## Requisitos do ambiente
+## Environment requirements
 
-- PVC separado para primário e réplicas
-- rede estável entre os pods para replicação contínua
-- estratégia de cliente que saiba qual endpoint usar para escrita e para leitura
+- separate PVCs for primary and replicas
+- stable networking between pods for replication
+- client strategy that understands where to send writes and where to send reads
 
-## Como pensar essa topologia
+## How to think about this topology
 
-`replication` é útil quando a aplicação quer escalar leitura, mas ainda aceita um primário estável e conhecido. Esse modo é mais simples que `sentinel`, porém desloca para a operação da aplicação e do time a responsabilidade por lidar com queda do primário.
+`replication` is useful when the application wants read scale but still accepts a stable, known primary. It is simpler than `sentinel`, but it pushes more failover responsibility to the application and the operating team.
 
-## Riscos comuns
+## Common risks
 
-- assumir que réplicas resolvem HA sozinhas
-- rotear escrita acidentalmente para réplicas
-- não separar capacidade de CPU, memória e IOPS entre primário e réplicas
-- executar todos os pods no mesmo nó ou zona
+- assuming replicas alone provide HA
+- sending writes to replicas by mistake
+- not separating CPU, memory, and IOPS sizing between primary and replicas
+- scheduling every pod onto the same node or zone
 
-## Boas práticas de produção
+## Production best practices
 
-- mantenha ao menos 2 réplicas em ambientes críticos
-- use anti-affinity e `topologySpreadConstraints`
-- habilite `pdb.enabled=true`
-- trate o serviço do primário como endpoint exclusivo de escrita
-- monitore atraso de replicação e reinicializações de pods
+- keep at least 2 replicas in critical environments
+- use anti-affinity and `topologySpreadConstraints`
+- enable `pdb.enabled=true`
+- treat the primary service as the write-only endpoint
+- monitor replication lag and pod restarts
 
-## Boas práticas
+## Best practices
 
 - use `auth.existingSecret`
-- mantenha anti-affinity habilitada no cluster via values
-- habilite `pdb.enabled=true` em produção
-- dimensione storage e recursos separadamente para primário e réplicas
+- keep anti-affinity enabled at the cluster level
+- enable `pdb.enabled=true` in production
+- size storage and resources separately for primary and replicas
 
-## Valores mais relevantes
+## Most relevant values
 
 | Parameter | Description |
 |-----------|-------------|
-| `architecture` | Deve ser `replication` |
-| `replication.replicaCount` | Número de réplicas |
-| `replication.primary.persistence.*` | Persistência do primário |
-| `replication.replica.persistence.*` | Persistência das réplicas |
-| `pdb.enabled` | Proteção contra indisponibilidade planejada |
-| `metrics.enabled` | Exporter para monitoramento |
+| `architecture` | Must be `replication` |
+| `replication.replicaCount` | Number of replicas |
+| `replication.primary.persistence.*` | Persistence for the primary |
+| `replication.replica.persistence.*` | Persistence for replicas |
+| `pdb.enabled` | Protection against planned disruption |
+| `metrics.enabled` | Exporter for monitoring |
 
-## Exemplo base
+## Example
 
 ```yaml
 architecture: replication
@@ -87,7 +87,7 @@ replication:
       size: 50Gi
 ```
 
-## Quando migrar para outro modo
+## When to move to another mode
 
-- migre para `sentinel` quando a promoção automática de primário se tornar requisito
-- migre para `cluster` quando a necessidade deixar de ser apenas leitura escalável e passar a exigir sharding real
+- move to `sentinel` when automatic primary promotion becomes a requirement
+- move to `cluster` when the need shifts from read scaling to true shard-based scale

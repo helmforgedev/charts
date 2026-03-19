@@ -9,6 +9,7 @@ Reusable Helm charts for Kubernetes workloads. Published as OCI artifacts to Git
 | [generic](charts/generic/) | General-purpose chart for any Kubernetes workload |
 | [mongodb](charts/mongodb/) | MongoDB — standalone, replica set, or sharded cluster |
 | [redis](charts/redis/) | Redis — standalone, replication, sentinel, or cluster |
+| [rabbitmq](charts/rabbitmq/) | RabbitMQ — single-node or cluster with management UI and optional TLS |
 
 ## Quick Start
 

@@ -1,68 +1,68 @@
 # Redis Standalone
 
-## Quando usar
+## When to use
 
-Use `standalone` quando você precisa de Redis simples, previsível e com baixo custo operacional.
+Use `standalone` when you need a simple, predictable Redis deployment with the lowest operational cost.
 
-Cenários comuns:
+Common cases:
 
-- desenvolvimento
-- homologação
-- cache local de aplicação
-- cargas pequenas sem necessidade de failover
+- development
+- testing
+- local application cache
+- small workloads without failover requirements
 
-## O que essa arquitetura entrega
+## What this architecture delivers
 
-- um único nó Redis
-- persistência opcional
-- autenticação por senha
-- métricas opcionais
+- a single Redis node
+- optional persistence
+- password authentication
+- optional metrics
 
-## O que ela não entrega
+## What it does not deliver
 
-- failover automático
-- alta disponibilidade
-- escalabilidade horizontal por shards
+- automatic failover
+- high availability
+- horizontal sharding
 
-## Requisitos do ambiente
+## Environment requirements
 
-- PVC quando o dado não puder ser descartado
-- storage class com desempenho coerente com a carga de escrita
-- requests e limits compatíveis com crescimento de memória do dataset
+- PVC when data must survive pod recreation
+- a storage class aligned with write behavior
+- memory sized for the dataset and Redis usage pattern
 
-## Fluxo operacional recomendado
+## Recommended operational flow
 
-1. usar `auth.enabled=true`
-2. referenciar `auth.existingSecret` em produção
-3. habilitar persistência quando Redis guardar mais do que cache descartável
-4. habilitar métricas se o ambiente já possui Prometheus
+1. keep `auth.enabled=true`
+2. use `auth.existingSecret` in production
+3. enable persistence when Redis stores non-disposable data
+4. enable metrics when the environment is monitored
 
-## Riscos comuns
+## Common risks
 
-- tratar `standalone` como solução HA
-- usar volume efêmero para dados que precisam sobreviver a reinício
-- subdimensionar memória e gerar eviction pelo próprio Redis ou pelo nó
-- expor o serviço para fora do cluster sem controles adicionais
+- treating `standalone` as an HA solution
+- using ephemeral storage for important data
+- under-sizing memory and causing eviction or instability
+- exposing the service outside the cluster without proper controls
 
-## Boas práticas
+## Best practices
 
-- mantenha `auth.enabled=true`
-- use volume persistente quando o dado não puder ser perdido
-- não exponha o serviço externamente sem necessidade
-- habilite métricas se o ambiente for monitorado
+- keep `auth.enabled=true`
+- use persistent volumes when data cannot be lost
+- do not expose the service externally without a clear reason
+- enable metrics in monitored environments
 
-## Valores mais relevantes
+## Most relevant values
 
 | Parameter | Description |
 |-----------|-------------|
-| `architecture` | Deve permanecer `standalone` |
-| `auth.enabled` | Habilita senha |
-| `auth.existingSecret` | Usa secret existente para a senha |
-| `standalone.persistence.enabled` | Ativa PVC |
-| `standalone.persistence.size` | Tamanho do volume |
-| `metrics.enabled` | Habilita exporter |
+| `architecture` | Must remain `standalone` |
+| `auth.enabled` | Enables password auth |
+| `auth.existingSecret` | Uses an existing secret for the password |
+| `standalone.persistence.enabled` | Enables PVC |
+| `standalone.persistence.size` | Volume size |
+| `metrics.enabled` | Enables exporter |
 
-## Exemplo mínimo
+## Example
 
 ```yaml
 architecture: standalone
@@ -78,8 +78,8 @@ standalone:
     size: 10Gi
 ```
 
-## Quando migrar para outro modo
+## When to move to another mode
 
-- migre para `replication` quando leitura separada de escrita passar a ser necessária
-- migre para `sentinel` quando failover automático de primário virar requisito
-- migre para `cluster` quando um único nó não atender mais em capacidade ou throughput
+- move to `replication` when separating reads from writes becomes necessary
+- move to `sentinel` when automatic primary failover becomes a requirement
+- move to `cluster` when one node no longer fits the capacity or throughput needs

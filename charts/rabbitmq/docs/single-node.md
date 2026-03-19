@@ -1,39 +1,39 @@
 # RabbitMQ Single Node
 
-## Quando usar
+## When to use
 
-Use `single-node` quando a prioridade for simplicidade operacional.
+Use `single-node` when simplicity is the main goal.
 
-Cenários comuns:
+Common cases:
 
-- desenvolvimento
-- homologação
-- cargas pequenas
-- brokers internos sem requisito de failover entre nós
+- development
+- staging
+- small workloads
+- internal brokers without node-level failover requirements
 
-## O que essa arquitetura entrega
+## What this architecture delivers
 
-- um broker RabbitMQ
-- Management UI opcional
-- autenticação com usuário, senha e Erlang cookie
-- persistência opcional
-- TLS opcional
-- métricas opcionais
+- one RabbitMQ broker
+- optional Management UI
+- authentication with username, password, and Erlang cookie
+- optional persistence
+- optional TLS
+- optional metrics
 
-## O que ela não entrega
+## What it does not deliver
 
-- redundância entre brokers
-- continuidade após perda do único nó
-- tolerância a falha de nó para filas locais
+- broker redundancy
+- continuity after losing the only node
+- node-failure tolerance for local queues
 
-## Boas práticas
+## Best practices
 
-- use `existingSecret` em produção
-- mantenha persistência habilitada quando mensagens não puderem ser perdidas
-- não exponha a Management UI sem necessidade
-- habilite métricas em ambientes monitorados
+- use `existingSecret` in production
+- keep persistence enabled when messages cannot be lost
+- do not expose the Management UI unnecessarily
+- enable metrics in monitored environments
 
-## Exemplo base
+## Base example
 
 ```yaml
 architecture: single-node

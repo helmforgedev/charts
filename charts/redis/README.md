@@ -1,6 +1,6 @@
 # Redis
 
-Implantação de Redis em Kubernetes com suporte às arquiteturas `standalone`, `replication`, `sentinel` e `cluster`.
+Redis for Kubernetes with support for `standalone`, `replication`, `sentinel`, and `cluster` architectures.
 
 ## Install
 
@@ -8,64 +8,64 @@ Implantação de Redis em Kubernetes com suporte às arquiteturas `standalone`, 
 helm install redis oci://ghcr.io/mberlofa/helm/redis -f values.yaml
 ```
 
-## O que este chart cobre
+## What this chart covers
 
-- escolha explícita de arquitetura por `architecture`
-- autenticação com senha gerenciada pelo chart ou por `existingSecret`
-- persistência por topologia
-- métricas opcionais com `redis_exporter`
-- `ServiceMonitor` opcional para Prometheus Operator
-- objetos de disponibilidade como `PodDisruptionBudget`
-- exemplos e cenários de CI separados por modo operacional
+- explicit architecture selection through `architecture`
+- password authentication managed by the chart or through `existingSecret`
+- persistence by topology
+- optional metrics with `redis_exporter`
+- optional `ServiceMonitor` for Prometheus Operator
+- availability objects such as `PodDisruptionBudget`
+- examples and CI scenarios separated by operational mode
 
-## Arquiteturas suportadas
+## Supported architectures
 
-| Arquitetura | Quando usar | Documento |
-|-------------|-------------|-----------|
-| `standalone` | desenvolvimento, ambientes simples ou workloads sem necessidade de HA | [docs/standalone.md](docs/standalone.md) |
-| `replication` | primário fixo com réplicas de leitura, sem failover por Sentinel | [docs/replication.md](docs/replication.md) |
-| `sentinel` | failover automático com descoberta de primário via Sentinel | [docs/sentinel.md](docs/sentinel.md) |
-| `cluster` | sharding nativo e alta disponibilidade no protocolo Redis Cluster | [docs/cluster.md](docs/cluster.md) |
+| Architecture | When to use | Document |
+|-------------|-------------|----------|
+| `standalone` | development, simple environments, or workloads without HA requirements | [docs/standalone.md](docs/standalone.md) |
+| `replication` | fixed primary with read replicas, without Sentinel failover | [docs/replication.md](docs/replication.md) |
+| `sentinel` | automatic failover with primary discovery through Sentinel | [docs/sentinel.md](docs/sentinel.md) |
+| `cluster` | native sharding and high availability through Redis Cluster protocol | [docs/cluster.md](docs/cluster.md) |
 
-## Como escolher a arquitetura
+## How to choose the architecture
 
-- Use `standalone` quando a simplicidade operacional for mais importante que HA.
-- Use `replication` quando você precisa separar escrita e leitura, mas a promoção automática de primário não faz parte do requisito.
-- Use `sentinel` quando o cliente consegue falar com Redis Sentinel e você precisa de descoberta de primário e failover.
-- Use `cluster` quando o cliente suporta Redis Cluster e você precisa de sharding horizontal real.
+- use `standalone` when operational simplicity matters more than HA
+- use `replication` when you need separate write and read roles, but automatic primary promotion is not required
+- use `sentinel` when the client can talk to Redis Sentinel and you need primary discovery and failover
+- use `cluster` when the client supports Redis Cluster and you need real horizontal sharding
 
-Leitura recomendada antes da instalação:
+Recommended reading before installation:
 
 - [Standalone](docs/standalone.md)
 - [Replication](docs/replication.md)
 - [Sentinel](docs/sentinel.md)
 - [Cluster](docs/cluster.md)
 
-## Referências oficiais do produto
+## Official product references
 
 - Redis Sentinel: https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/
 - Redis Cluster: https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/
 
 ## Features
 
-- autenticação por senha com suporte a `existingSecret`
-- persistência por arquitetura
-- serviços específicos por topologia
-- `StatefulSet` próprios para os modos stateful
-- bootstrap de cluster por `Job`
-- métricas opcionais com `redis_exporter`
-- integração opcional com `ServiceMonitor`
+- password authentication with `existingSecret`
+- persistence by architecture
+- topology-specific services
+- dedicated `StatefulSet` resources for stateful modes
+- cluster bootstrap through `Job`
+- optional metrics with `redis_exporter`
+- optional `ServiceMonitor` integration
 
-## Requisitos operacionais
+## Operational requirements
 
-- storage class válida para ambientes com persistência
-- clientes compatíveis com a arquitetura escolhida
-- `existingSecret` obrigatório quando credenciais são gerenciadas fora do chart
-- cuidado especial com afinidade e distribuição dos pods em modos HA
+- a valid storage class for environments with persistence
+- clients compatible with the selected architecture
+- `existingSecret` when credentials are managed outside the chart
+- careful affinity and pod distribution in HA modes
 
-## Início rápido
+## Quick start
 
-Exemplo mínimo com senha em secret existente:
+Minimal example with a secret-managed password:
 
 ```yaml
 architecture: standalone
@@ -81,56 +81,56 @@ standalone:
     size: 8Gi
 ```
 
-Aplicar:
+Apply:
 
 ```bash
 helm install redis oci://ghcr.io/mberlofa/helm/redis -f redis-values.yaml
 ```
 
-## Recomendações de boas práticas
+## Best practices
 
-### Segurança
+### Security
 
-- prefira `auth.enabled=true`
-- em produção, use `auth.existingSecret` em vez de senha inline
-- habilite TLS apenas quando o material de certificado já estiver definido
-- restrinja exposição de portas ao mínimo necessário
+- prefer `auth.enabled=true`
+- in production, use `auth.existingSecret` instead of inline passwords
+- enable TLS only when certificate material is already defined
+- restrict port exposure to the minimum necessary
 
-### Persistência
+### Persistence
 
-- use volumes persistentes em todas as arquiteturas stateful relevantes
-- trate `cluster` e `sentinel` como topologias de produção, não como cenários efêmeros
-- alinhe o tamanho do volume ao padrão de retenção e carga real
+- use persistent volumes for all relevant stateful architectures
+- treat `cluster` and `sentinel` as production topologies, not ephemeral test modes
+- align volume sizing with real retention and load expectations
 
-### Agendamento
+### Scheduling
 
-- habilite anti-affinity para `replication`, `sentinel` e `cluster`
-- habilite `pdb.enabled=true` em modos HA
-- distribua pods por `topologySpreadConstraints` quando o cluster permitir
+- enable anti-affinity for `replication`, `sentinel`, and `cluster`
+- enable `pdb.enabled=true` in HA modes
+- spread pods with `topologySpreadConstraints` when supported by the cluster
 
-### Observabilidade
+### Observability
 
-- habilite `metrics.enabled=true` para ambientes monitorados
-- habilite `metrics.serviceMonitor.enabled=true` quando usar Prometheus Operator
-- monitore latência, uso de memória, replicas em atraso e estado do cluster
+- enable `metrics.enabled=true` in monitored environments
+- enable `metrics.serviceMonitor.enabled=true` with Prometheus Operator
+- monitor latency, memory usage, replication lag, and cluster state
 
-## Padrões de segurança
+## Security patterns
 
-- prefira `auth.existingSecret` para produção
-- evite expor Redis fora da rede interna do cluster sem um motivo forte
-- use `networkPolicy` externa ou controles equivalentes do cluster quando aplicável
-- combine requests/limits, anti-affinity e PDB para reduzir indisponibilidade durante manutenção
+- prefer `auth.existingSecret` in production
+- avoid exposing Redis outside the cluster network without a strong reason
+- use external `NetworkPolicy` or equivalent cluster controls when applicable
+- combine requests/limits, anti-affinity, and PDB for better maintenance resilience
 
-## Operação por arquitetura
+## Operations by architecture
 
-- `standalone`: menor custo operacional, sem failover
-- `replication`: um primário fixo com réplicas de leitura
-- `sentinel`: failover automático para cenários compatíveis com Sentinel
-- `cluster`: sharding e alta disponibilidade nativos do Redis Cluster
+- `standalone`: lowest operational cost, no failover
+- `replication`: one fixed primary with read replicas
+- `sentinel`: automatic failover for Sentinel-compatible clients
+- `cluster`: sharding and high availability through Redis Cluster
 
-Cada modo tem contratos diferentes de cliente, failover, descoberta e escalabilidade. Escolha a topologia pelo comportamento exigido pela aplicação, não apenas pelo desejo de ter HA.
+Each mode has different client, failover, discovery, and scaling contracts. Choose the topology for the application behavior you need, not just for the desire to have HA.
 
-## Values principais
+## Main values
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
@@ -144,7 +144,7 @@ Cada modo tem contratos diferentes de cliente, failover, descoberta e escalabili
 | `tls.enabled` | Enable TLS | `false` |
 | `standalone.persistence.enabled` | Enable persistence for standalone | `true` |
 | `replication.replicaCount` | Number of replica pods | `2` |
-| `sentinel.replicaCount` | Number of sentinel pods | `3` |
+| `sentinel.replicaCount` | Number of Sentinel pods | `3` |
 | `sentinel.quorum` | Sentinel quorum | `2` |
 | `cluster.nodes` | Number of Redis Cluster nodes | `6` |
 | `cluster.replicasPerMaster` | Replicas per master in cluster bootstrap | `1` |
@@ -154,7 +154,7 @@ Cada modo tem contratos diferentes de cliente, failover, descoberta e escalabili
 
 ## CI scenarios
 
-Os cenários em `ci/` foram desenhados para validar comportamentos específicos:
+The `ci/` scenarios validate specific behaviors:
 
 - `standalone.yaml`
 - `replication.yaml`
@@ -165,15 +165,15 @@ Os cenários em `ci/` foram desenhados para validar comportamentos específicos:
 
 ## Examples
 
-Veja `examples/`:
+See `examples/`:
 
 - `standalone-simple.yaml`
 - `replication-production.yaml`
 - `cluster.yaml`
 
-## Notas importantes
+## Important notes
 
-- `replication` e `sentinel` são diferentes por contrato operacional.
-- `cluster` exige cliente compatível com Redis Cluster.
-- se `auth.password` não for informado e `auth.existingSecret` não for usado, o chart gera a senha automaticamente
-- para operação em produção, leia o documento da arquitetura escolhida antes de instalar
+- `replication` and `sentinel` are different operational contracts
+- `cluster` requires a Redis Cluster-compatible client
+- if `auth.password` is not set and `auth.existingSecret` is not used, the chart generates a password automatically
+- for production operation, read the architecture document before installing

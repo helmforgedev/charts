@@ -1,6 +1,6 @@
 # RabbitMQ
 
-RabbitMQ para Kubernetes com modos explícitos `single-node` e `cluster`, suporte a Management UI, TLS opcional, métricas opcionais e documentação operacional por arquitetura.
+RabbitMQ for Kubernetes with explicit `single-node` and `cluster` modes, optional Management UI, optional TLS, optional metrics, and dedicated operational docs for each architecture.
 
 ## Install
 
@@ -8,51 +8,51 @@ RabbitMQ para Kubernetes com modos explícitos `single-node` e `cluster`, suport
 helm install rabbitmq oci://ghcr.io/mberlofa/helm/rabbitmq -f values.yaml
 ```
 
-## Arquiteturas suportadas
+## Supported architectures
 
-| Arquitetura | Quando usar | Documento |
-|-------------|-------------|-----------|
-| `single-node` | ambientes simples, dev, homologação e workloads sem requisito de failover entre nós | [docs/single-node.md](docs/single-node.md) |
-| `cluster` | produção com múltiplos nós, filas quorum e redundância entre brokers | [docs/cluster.md](docs/cluster.md) |
+| Architecture | When to use | Document |
+|-------------|-------------|----------|
+| `single-node` | simple environments, development, staging, and workloads without broker-node failover requirements | [docs/single-node.md](docs/single-node.md) |
+| `cluster` | production with multiple nodes, quorum queues, and broker redundancy | [docs/cluster.md](docs/cluster.md) |
 
-## O que este chart cobre
+## What this chart covers
 
-- escolha explícita de arquitetura por `architecture`
-- autenticação com usuário, senha e Erlang cookie
-- `existingSecret` para credenciais gerenciadas fora do chart
-- modelagem transparente de `rabbitmq.conf` e `enabled_plugins`
-- Management UI opcional
-- TLS opcional para AMQP e Management UI
-- métricas opcionais com plugin nativo do RabbitMQ
-- `ServiceMonitor` opcional
-- `PodDisruptionBudget` opcional
+- explicit architecture selection through `architecture`
+- authentication with username, password, and Erlang cookie
+- `existingSecret` for credentials managed outside the chart
+- transparent `rabbitmq.conf` and `enabled_plugins` modeling
+- optional Management UI
+- optional TLS for AMQP and Management UI
+- optional metrics through the native RabbitMQ Prometheus plugin
+- optional `ServiceMonitor`
+- optional `PodDisruptionBudget`
 
-## Como escolher a arquitetura
+## How to choose the architecture
 
-- use `single-node` quando o objetivo principal for simplicidade operacional
-- use `cluster` quando a fila precisar sobreviver à perda de um nó e a aplicação já operar corretamente com múltiplos brokers
+- use `single-node` when operational simplicity matters more than broker redundancy
+- use `cluster` when queues must survive node loss and the application already handles multi-broker reconnect correctly
 
-Leitura recomendada antes da instalação:
+Recommended reading before installation:
 
 - [Single Node](docs/single-node.md)
 - [Cluster](docs/cluster.md)
 
-## Referências oficiais do produto
+## Official product references
 
 - RabbitMQ Downloads: https://www.rabbitmq.com/docs/download
 - RabbitMQ Cluster Formation: https://www.rabbitmq.com/docs/cluster-formation
 - RabbitMQ Quorum Queues: https://www.rabbitmq.com/quorum-queues.html
 - RabbitMQ TLS: https://www.rabbitmq.com/docs/ssl
 
-## Direção operacional
+## Operational direction
 
-- para produção, a recomendação é `cluster` com `queueDefaults.type=quorum`
-- use `single-node` apenas quando HA entre brokers não for requisito
-- não trate um cluster RabbitMQ como substituto para desenho ruim de filas, roteamento e consumidores
+- for production, the recommended mode is `cluster` with `queueDefaults.type=quorum`
+- use `single-node` only when broker-level HA is not a requirement
+- do not treat a RabbitMQ cluster as a substitute for good queue design, routing, or consumer reconnect behavior
 
-## Início rápido
+## Quick start
 
-Exemplo mínimo:
+Minimal example:
 
 ```yaml
 architecture: single-node
@@ -66,7 +66,7 @@ singleNode:
     size: 8Gi
 ```
 
-Exemplo de cluster:
+Cluster example:
 
 ```yaml
 architecture: cluster
@@ -89,45 +89,45 @@ metrics:
     enabled: true
 ```
 
-## Boas práticas
+## Best practices
 
-### Segurança
+### Security
 
-- use `auth.existingSecret` em produção
-- mantenha o Erlang cookie estável entre reinícios e upgrades
-- habilite TLS quando houver tráfego entre clientes fora da malha interna confiável
-- restrinja a exposição da Management UI
+- use `auth.existingSecret` in production
+- keep the Erlang cookie stable across restarts and upgrades
+- enable TLS when clients connect outside a trusted internal network boundary
+- restrict Management UI exposure
 
-### Filas e topologia
+### Queues and topology
 
-- em produção, prefira filas quorum em vez de mirrored classic queues
-- use `cluster` apenas quando a aplicação realmente precisar da topologia multi-node
-- valide comportamento de reconnect nos clientes antes de promover para produção
+- in production, prefer quorum queues over mirrored classic queues
+- use `cluster` only when the application truly needs a multi-node topology
+- validate client reconnect behavior before promoting the topology to production
 
 ### Scheduling
 
-- em `cluster`, distribua os pods entre nós ou zonas
-- habilite `pdb.enabled=true` em clusters produtivos
-- mantenha `replicaCount >= 3` para o baseline operacional do cluster
+- in `cluster`, spread pods across nodes or zones
+- enable `pdb.enabled=true` for production clusters
+- keep `replicaCount >= 3` for the operational cluster baseline
 
-### Observabilidade
+### Observability
 
-- habilite `metrics.enabled=true` em ambientes monitorados
-- use `metrics.serviceMonitor.enabled=true` quando houver Prometheus Operator
-- monitore memória, disco, conexões, filas, consumers e alarme local de nós
+- enable `metrics.enabled=true` in monitored environments
+- use `metrics.serviceMonitor.enabled=true` with Prometheus Operator
+- monitor memory, disk, connections, queues, consumers, and node-local alarms
 
-## Values principais
+## Main values
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `architecture` | `single-node` ou `cluster` | `single-node` |
+| `architecture` | `single-node` or `cluster` | `single-node` |
 | `image.repository` | RabbitMQ image repository | `rabbitmq` |
 | `image.tag` | RabbitMQ image tag | `4.2.4-management` |
 | `auth.username` | Application username | `user` |
 | `auth.password` | Application password | `""` |
 | `auth.erlangCookie` | Erlang cookie | `""` |
 | `auth.existingSecret` | Existing secret for credentials | `""` |
-| `queueDefaults.type` | `quorum` ou `classic` | `quorum` |
+| `queueDefaults.type` | `quorum` or `classic` | `quorum` |
 | `management.enabled` | Enable management plugin/UI | `true` |
 | `management.ingress.enabled` | Enable management ingress | `false` |
 | `tls.enabled` | Enable TLS listeners | `false` |
@@ -140,7 +140,7 @@ metrics:
 
 ## CI scenarios
 
-Os cenários em `ci/` validam o comportamento principal do chart:
+The `ci/` scenarios validate the main chart behaviors:
 
 - `single-node.yaml`
 - `cluster.yaml`
@@ -150,14 +150,14 @@ Os cenários em `ci/` validam o comportamento principal do chart:
 
 ## Examples
 
-Veja `examples/`:
+See `examples/`:
 
 - `single-node.yaml`
 - `cluster-ha.yaml`
 - `management-tls.yaml`
 
-## Notas importantes
+## Important notes
 
-- `cluster` não é uma abstração mágica de HA; filas, consumers e reconnect continuam sendo responsabilidade operacional da solução
-- filas quorum são a orientação padrão para produção neste chart
-- o chart não tenta orquestrar federação, shovel ou políticas avançadas na v1
+- `cluster` is not magical HA abstraction; queues, consumers, and reconnect behavior remain application and operations concerns
+- quorum queues are the recommended production direction in this chart
+- this chart does not attempt to orchestrate federation, shovel, or advanced policy management in v1
