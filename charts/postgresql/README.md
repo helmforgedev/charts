@@ -23,6 +23,7 @@ helm install postgresql oci://ghcr.io/mberlofa/helm/postgresql -f values.yaml
 - app user and app database bootstrap on first initialization
 - optional extra init scripts
 - fixed-primary asynchronous replication with `pg_basebackup`
+- role-aware readiness checks for primary and replicas in replication mode
 - optional metrics through `postgres_exporter`
 - optional `ServiceMonitor`
 - dedicated metrics Services separated from client traffic
@@ -109,6 +110,8 @@ metrics:
 - treat `replication` as read scaling and operational recovery help, not full HA
 - place primary and replicas across different nodes or zones when the cluster supports it
 - use `pdb.enabled=true` when running multiple replicas and planning maintenance windows
+- review the default replication PDB and placement behavior before overriding them globally
+- keep `startupProbe` conservative for PostgreSQL, especially on larger volumes and recovery paths
 
 ### Initialization
 
@@ -171,6 +174,12 @@ Operational documents:
 | `livenessProbe.enabled` | Enable livenessProbe | `true` |
 | `readinessProbe.enabled` | Enable readinessProbe | `true` |
 | `startupProbe.enabled` | Enable startupProbe | `true` |
+| `replication.primary.probes.requireWritable` | Require primary readiness to confirm writable state | `true` |
+| `replication.readReplicas.probes.requireRecoveryMode` | Require replica readiness to confirm recovery mode | `true` |
+| `replication.wal.keepSize` | Local WAL retention target | `512MB` |
+| `replication.pdb.enabled` | Enable replication PDB by default | `true` |
+| `replication.scheduling.enableDefaultPodAntiAffinity` | Enable default anti-affinity in replication mode | `true` |
+| `replication.scheduling.enableDefaultTopologySpread` | Enable default topology spread in replication mode | `true` |
 | `standalone.persistence.enabled` | Enable PVC for standalone | `true` |
 | `replication.readReplicas.replicaCount` | Number of async read replicas | `2` |
 | `metrics.enabled` | Enable `postgres_exporter` sidecar | `false` |
@@ -195,6 +204,8 @@ The `ci/` scenarios validate the main chart behaviors:
 - `config-preset.yaml`
 - `structured-pghba.yaml`
 - `resources-preset.yaml`
+- `replication-recovery-check.yaml`
+- `replication-wal-tuning.yaml`
 
 ## Examples
 
@@ -206,6 +217,7 @@ See `examples/`:
 - `tls.yaml`
 - `structured-config.yaml`
 - `resources-preset.yaml`
+- `replication-production.yaml`
 
 ## Important notes
 
