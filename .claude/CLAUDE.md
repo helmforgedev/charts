@@ -85,9 +85,12 @@ Mandatory flow:
 - research official docs and mature public charts before implementing
 - use external charts as references, not as copy sources
 - keep `values.yaml` product-oriented and explicit
+- document default `values.yaml` keys with inline comments following the repository pattern already used by the documented charts
 - use helpers to reduce duplication inside one chart
 - avoid cross-chart abstraction until it is clearly justified
 - when a chart supports distinct architectures, document each one in `docs/`
+- if a solution exposes a UI or web entrypoint, include configurable ingress support with `ingressClassName`
+- for UI/web solutions, `ingressClassName` may default to `traefik`, and docs must mention that `nginx` or another supported ingress class can also be used
 
 ## Validation
 
@@ -106,6 +109,7 @@ When available, also validate with `kubeconform`.
 - all repository documentation must be written in English
 - root `README.md`: repository overview, charts list, CI/CD, commit standards
 - chart `README.md`: install, features, examples, values, operational usage
+- chart `README.md` must document the main default values for the chart
 - chart `docs/*.md`: architecture-specific guidance
 - chart docs must use relative internal links only; never include local machine paths or repository-absolute filesystem paths
 - external references in chart docs must point only to official vendor or project documentation

@@ -3,114 +3,241 @@
 # =============================================================================
 # Supports: single-node | cluster
 
+# -- Architecture: single-node | cluster
 architecture: single-node
 
+# -- Override release name
 nameOverride: ""
 fullnameOverride: ""
+
+# -- Labels added to all resources
 commonLabels: {}
 
+# -- Kubernetes cluster domain
 clusterDomain: cluster.local
 
+# =============================================================================
+# Image
+# =============================================================================
+
 image:
+  # -- RabbitMQ image repository
   repository: rabbitmq
+  # -- RabbitMQ image tag
   tag: "4.2.4-management"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
 
+# =============================================================================
+# Authentication
+# =============================================================================
+
 auth:
+  # -- RabbitMQ application username
   username: user
+  # -- RabbitMQ application password. Auto-generated if empty.
   password: ""
+  # -- Erlang cookie used for node-to-node authentication. Auto-generated if empty.
   erlangCookie: ""
+  # -- Default vhost created by RabbitMQ
   vhost: /
+  # -- Existing secret for username, password, and Erlang cookie
   existingSecret: ""
+  # -- Secret key for username in existingSecret
   existingSecretUsernameKey: rabbitmq-username
+  # -- Secret key for password in existingSecret
   existingSecretPasswordKey: rabbitmq-password
+  # -- Secret key for Erlang cookie in existingSecret
   existingSecretErlangCookieKey: rabbitmq-erlang-cookie
 
+# =============================================================================
+# Queue Defaults
+# =============================================================================
+
 queueDefaults:
+  # -- Default queue type: quorum | classic
   type: quorum
 
+# =============================================================================
+# Management UI
+# =============================================================================
+
 management:
+  # -- Enable the management plugin/UI
   enabled: true
   ingress:
+    # -- Enable ingress for the Management UI
     enabled: false
-    className: ""
+    # -- Ingress class name for the Management UI (for example: traefik, nginx)
+    className: traefik
     annotations: {}
+    # -- Management UI ingress hosts
     hosts: []
+      # - host: rabbitmq.example.com
+      #   paths:
+      #     - path: /
+      #       pathType: Prefix
+    # -- Management UI ingress TLS configuration
     tls: []
+    # -- Route ingress to the TLS management port instead of the plain HTTP port
     useTlsPort: false
 
+# =============================================================================
+# TLS
+# =============================================================================
+
 tls:
+  # -- Enable TLS listeners
   enabled: false
+  # -- Existing secret containing TLS material
   existingSecret: ""
+  # -- CA certificate filename in the TLS secret
   caFilename: ca.crt
+  # -- Certificate filename in the TLS secret
   certFilename: tls.crt
+  # -- Private key filename in the TLS secret
   keyFilename: tls.key
+  # -- TLS verification mode
   verify: verify_none
+  # -- Require peer certificates
   failIfNoPeerCert: false
+  # -- Disable non-TLS listeners when TLS is enabled
   disableNonTLSListeners: false
+
+# =============================================================================
+# Single Node
+# =============================================================================
 
 singleNode:
   persistence:
+    # -- Enable PVC for single-node mode
     enabled: true
+    # -- Storage class for single-node PVC
     storageClass: ""
+    # -- Access mode for single-node PVC
     accessMode: ReadWriteOnce
+    # -- PVC size for single-node mode
     size: 8Gi
+
+# =============================================================================
+# Cluster
+# =============================================================================
 
 cluster:
+  # -- Number of RabbitMQ nodes in cluster mode
   replicaCount: 3
+  # -- Pod management policy for the StatefulSet
   podManagementPolicy: OrderedReady
+  # -- Cluster partition handling strategy
   partitionHandling: pause_minority
+  # -- Starting ordinal for peer discovery
   ordinalStart: 0
+  # -- Optional explicit seed node for cluster formation
   seedNode: ""
   gracefulShutdown:
+    # -- Enable graceful shutdown commands before pod termination
     enabled: true
   persistence:
+    # -- Enable PVCs for cluster mode
     enabled: true
+    # -- Storage class for cluster PVCs
     storageClass: ""
+    # -- Access mode for cluster PVCs
     accessMode: ReadWriteOnce
+    # -- PVC size per RabbitMQ node
     size: 8Gi
 
+# =============================================================================
+# Service
+# =============================================================================
+
 service:
+  # -- Service type
   type: ClusterIP
+  # -- Annotations for the client service
   annotations: {}
+  # -- AMQP listener port
   amqpPort: 5672
+  # -- AMQPS listener port
   amqpsPort: 5671
+  # -- Management UI HTTP port
   managementPort: 15672
+  # -- Management UI HTTPS port
   managementTlsPort: 15671
+  # -- Erlang port mapper daemon port
   epmdPort: 4369
+  # -- Erlang distribution port
   distPort: 25672
+  # -- Prometheus metrics port
   metricsPort: 15692
+  # -- Extra ports added to the client service
   extraPorts: []
 
+# =============================================================================
+# Plugins
+# =============================================================================
+
 plugins:
+  # -- Additional RabbitMQ plugins enabled in addition to the chart defaults
   extra: []
 
+# =============================================================================
+# RabbitMQ Configuration
+# =============================================================================
+
 config:
+  # -- Extra rabbitmq.conf entries appended to the generated config
   extra: ""
+  # -- Raw advanced.config content
   advancedConfig: ""
 
+# =============================================================================
+# Service Account
+# =============================================================================
+
 serviceAccount:
+  # -- Create a ServiceAccount
   create: false
   name: ""
   annotations: {}
 
+# =============================================================================
+# Pod Disruption Budget
+# =============================================================================
+
 pdb:
+  # -- Enable PodDisruptionBudget
   enabled: false
+  # -- Minimum available pods when PDB is enabled
   minAvailable: 1
+  # -- Maximum unavailable pods when PDB is enabled
   maxUnavailable: ""
 
+# =============================================================================
+# Metrics
+# =============================================================================
+
 metrics:
+  # -- Enable the RabbitMQ Prometheus plugin
   enabled: false
   serviceMonitor:
+    # -- Create a ServiceMonitor (requires Prometheus Operator)
     enabled: false
     interval: 30s
     labels: {}
 
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
 resources: {}
 podSecurityContext: {}
 securityContext: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
 
 nodeSelector: {}
 tolerations: []
@@ -122,6 +249,10 @@ terminationGracePeriodSeconds: 120
 podLabels: {}
 podAnnotations: {}
 annotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
 
 extraEnv: []
 extraVolumes: []

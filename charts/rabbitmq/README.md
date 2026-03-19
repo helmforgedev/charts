@@ -26,6 +26,7 @@ helm install rabbitmq oci://ghcr.io/mberlofa/helm/rabbitmq -f values.yaml
 - optional metrics through the native RabbitMQ Prometheus plugin
 - optional `ServiceMonitor`
 - optional `PodDisruptionBudget`
+- ingress support for the Management UI with configurable `ingressClassName`
 
 ## How to choose the architecture
 
@@ -89,6 +90,20 @@ metrics:
     enabled: true
 ```
 
+Management UI ingress example:
+
+```yaml
+management:
+  ingress:
+    enabled: true
+    className: traefik
+    hosts:
+      - host: rabbitmq.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+```
+
 ## Best practices
 
 ### Security
@@ -130,6 +145,7 @@ metrics:
 | `queueDefaults.type` | `quorum` or `classic` | `quorum` |
 | `management.enabled` | Enable management plugin/UI | `true` |
 | `management.ingress.enabled` | Enable management ingress | `false` |
+| `management.ingress.className` | Ingress class for the Management UI | `traefik` |
 | `tls.enabled` | Enable TLS listeners | `false` |
 | `singleNode.persistence.enabled` | Enable PVC for single node | `true` |
 | `cluster.replicaCount` | Number of cluster nodes | `3` |
@@ -161,3 +177,4 @@ See `examples/`:
 - `cluster` is not magical HA abstraction; queues, consumers, and reconnect behavior remain application and operations concerns
 - quorum queues are the recommended production direction in this chart
 - this chart does not attempt to orchestrate federation, shovel, or advanced policy management in v1
+- `management.ingress.className` can be set to `traefik`, `nginx`, or any ingress class available in the target cluster
