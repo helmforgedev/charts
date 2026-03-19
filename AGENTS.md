@@ -159,6 +159,7 @@ for f in charts/<chart-name>/ci/*.yaml; do helm template test-release charts/<ch
 
 ## Documentation Rules
 
+- all repository documentation must be written in English
 - root `README.md`: contributor-facing repository behavior, generic commands, no hardcoded chart versions
 - `charts/<name>/README.md`: install, features, values, examples, operational usage
 - `charts/<name>/docs/*.md`: architecture-specific operational guidance

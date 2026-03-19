@@ -1,40 +1,40 @@
 # RabbitMQ Cluster
 
-## Quando usar
+## When to use
 
-Use `cluster` quando a solução realmente precisar de múltiplos brokers.
+Use `cluster` when the solution truly needs multiple brokers.
 
-Cenários comuns:
+Common cases:
 
-- produção com filas quorum
-- ambientes com necessidade de redundância entre nós
-- workloads com reconnect correto no cliente
+- production with quorum queues
+- environments that require broker redundancy
+- workloads with correct client reconnect behavior
 
-## O que essa arquitetura entrega
+## What this architecture delivers
 
-- múltiplos nós RabbitMQ em `StatefulSet`
-- clusterização via `rabbitmq_peer_discovery_k8s`
-- Management UI opcional
-- filas quorum como direção recomendada
-- TLS opcional
-- métricas opcionais
+- multiple RabbitMQ nodes in a `StatefulSet`
+- cluster formation through `rabbitmq_peer_discovery_k8s`
+- optional Management UI
+- quorum queues as the recommended direction
+- optional TLS
+- optional metrics
 
-## O que ela exige
+## What it requires
 
-- ao menos 3 nós para um baseline produtivo
-- persistência por nó
-- clientes que lidem corretamente com reconexão
-- distribuição dos pods entre nós ou zonas
+- at least 3 nodes for a production baseline
+- persistence per node
+- clients that handle reconnect correctly
+- pod distribution across nodes or zones
 
-## Boas práticas
+## Best practices
 
-- mantenha `cluster.replicaCount >= 3`
+- keep `cluster.replicaCount >= 3`
 - use `queueDefaults.type=quorum`
-- habilite `pdb.enabled=true`
-- distribua os pods com affinity ou topology spread
-- monitore memória, disco, filas, alarms e conexões
+- enable `pdb.enabled=true`
+- spread pods with affinity or topology spread constraints
+- monitor memory, disk, queues, alarms, and connections
 
-## Exemplo base
+## Base example
 
 ```yaml
 architecture: cluster

@@ -1,74 +1,74 @@
 # Redis Sentinel
 
-## Quando usar
+## When to use
 
-Use `sentinel` quando a aplicação ou o cliente conseguem consultar Sentinel para descobrir o primário atual.
+Use `sentinel` when the application or client can query Sentinel to discover the current primary.
 
-Cenários comuns:
+Common cases:
 
-- HA com descoberta de primário
-- clientes compatíveis com Sentinel
-- necessidade de failover sem Redis Cluster
+- HA with primary discovery
+- Sentinel-compatible clients
+- need for failover without adopting Redis Cluster
 
-## O que essa arquitetura entrega
+## What this architecture delivers
 
-- topologia de dados com primário e réplicas
-- pods Sentinel dedicados
-- quorum configurável
-- descoberta de primário por serviço Sentinel
+- primary and replica data topology
+- dedicated Sentinel pods
+- configurable quorum
+- primary discovery through the Sentinel service
 
-## O que ela exige do cliente
+## What it requires from the client
 
-- o cliente deve suportar Redis Sentinel
-- a aplicação deve estar preparada para a troca de primário via Sentinel
+- the client must support Redis Sentinel
+- the application must tolerate primary changes discovered through Sentinel
 
-## Requisitos do ambiente
+## Environment requirements
 
-- ao menos 3 instâncias de Sentinel para quorum consistente
-- réplicas suficientes para failover sem perda do serviço
-- distribuição entre nós ou zonas para reduzir falha correlacionada
-- clientes e bibliotecas validados para Sentinel antes da entrada em produção
+- at least 3 Sentinel instances for consistent quorum
+- enough replicas to fail over without losing service
+- distribution across nodes or zones to reduce correlated failure
+- validated client and library behavior before production rollout
 
-## Como pensar essa topologia
+## How to think about this topology
 
-`sentinel` é a opção certa quando você quer failover automático sem migrar para o contrato do Redis Cluster. Ela mantém um primário ativo por vez e usa Sentinels para eleição, observação de saúde e promoção de réplicas.
+`sentinel` is the right option when you want automatic failover without moving to the Redis Cluster contract. It keeps one active primary at a time and uses Sentinels for election, health observation, and replica promotion.
 
-## Riscos comuns
+## Common risks
 
-- escolher `quorum` incompatível com a quantidade de sentinels
-- concentrar sentinels e réplicas no mesmo nó
-- usar clientes que não fazem redescoberta do primário
-- tratar Sentinel como substituto de sharding
+- choosing a quorum incompatible with the number of Sentinels
+- concentrating Sentinels and replicas on the same node
+- using clients that do not rediscover the primary correctly
+- treating Sentinel as a substitute for sharding
 
-## Boas práticas de produção
+## Production best practices
 
-- mantenha 3 sentinels como baseline mínima
-- use `quorum` de maioria simples
-- distribua sentinels, primário e réplicas entre domínios de falha
-- habilite `pdb.enabled=true`
-- valide failover real e tempo de reconexão da aplicação
-- monitore troca de primário, atraso de réplica e indisponibilidade de sentinels
+- keep 3 Sentinels as the minimum baseline
+- use majority quorum
+- distribute Sentinels, primary, and replicas across failure domains
+- enable `pdb.enabled=true`
+- validate real failover and application reconnect timing
+- monitor primary changes, replication lag, and Sentinel health
 
-## Boas práticas
+## Best practices
 
-- use no mínimo 3 sentinels
-- mantenha `quorum` coerente com o número de sentinels
-- distribua sentinels e réplicas em nós distintos
-- habilite `pdb.enabled=true`
-- valide o comportamento de failover no ambiente real
+- use at least 3 Sentinels
+- keep `quorum` aligned with the number of Sentinels
+- distribute Sentinels and replicas across distinct nodes
+- enable `pdb.enabled=true`
+- validate failover behavior in the real environment
 
-## Valores mais relevantes
+## Most relevant values
 
 | Parameter | Description |
 |-----------|-------------|
-| `architecture` | Deve ser `sentinel` |
-| `replication.replicaCount` | Quantidade de réplicas Redis |
-| `sentinel.replicaCount` | Quantidade de pods Sentinel |
-| `sentinel.quorum` | Quorum para decisões de failover |
-| `pdb.enabled` | Proteção contra interrupções planejadas |
-| `metrics.enabled` | Exporter para monitoramento |
+| `architecture` | Must be `sentinel` |
+| `replication.replicaCount` | Number of Redis replicas |
+| `sentinel.replicaCount` | Number of Sentinel pods |
+| `sentinel.quorum` | Quorum for failover decisions |
+| `pdb.enabled` | Protection against planned disruption |
+| `metrics.enabled` | Exporter for monitoring |
 
-## Exemplo base
+## Example
 
 ```yaml
 architecture: sentinel
@@ -86,7 +86,7 @@ sentinel:
   quorum: 2
 ```
 
-## Quando migrar para outro modo
+## When to move to another mode
 
-- volte para `replication` se a aplicação não conseguir operar com Sentinel
-- migre para `cluster` quando a necessidade principal deixar de ser failover e passar a ser escala horizontal com shards
+- move back to `replication` if the application cannot operate with Sentinel
+- move to `cluster` when the primary need becomes shard-based scale rather than failover

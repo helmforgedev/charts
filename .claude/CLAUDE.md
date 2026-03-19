@@ -103,6 +103,7 @@ When available, also validate with `kubeconform`.
 
 ## Documentation Rules
 
+- all repository documentation must be written in English
 - root `README.md`: repository overview, charts list, CI/CD, commit standards
 - chart `README.md`: install, features, examples, values, operational usage
 - chart `docs/*.md`: architecture-specific guidance

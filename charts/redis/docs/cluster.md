@@ -1,74 +1,74 @@
 # Redis Cluster
 
-## Quando usar
+## When to use
 
-Use `cluster` quando você precisa de sharding nativo e seu cliente suporta Redis Cluster.
+Use `cluster` when you need native sharding and the client supports Redis Cluster.
 
-Cenários comuns:
+Common cases:
 
-- crescimento horizontal de dados
-- necessidade de múltiplos masters
-- aplicações cluster-aware
+- horizontally growing datasets
+- need for multiple masters
+- cluster-aware applications
 
-## O que essa arquitetura entrega
+## What this architecture delivers
 
-- múltiplos nós Redis
-- bootstrap de cluster por Job
-- réplicas por master
-- serviço cliente para acesso ao conjunto de nós
+- multiple Redis nodes
+- cluster bootstrap through a `Job`
+- replicas per master
+- client service for access to the set of nodes
 
-## O que ela exige do cliente
+## What it requires from the client
 
-- suporte a redirecionamento `MOVED`/`ASK`
-- compatibilidade explícita com Redis Cluster
+- support for `MOVED` and `ASK` redirects
+- explicit Redis Cluster compatibility
 
-## Requisitos do ambiente
+## Environment requirements
 
-- número de nós coerente com `replicasPerMaster`
-- persistência em todos os nós
-- DNS estável entre pods
-- clientes e bibliotecas validados para Redis Cluster
+- node count aligned with `replicasPerMaster`
+- persistence on all nodes
+- stable DNS between pods
+- validated client and library support for Redis Cluster
 
-## Como pensar essa topologia
+## How to think about this topology
 
-`cluster` é uma escolha de escala e disponibilidade, não apenas de redundância. O dado é fragmentado entre masters e o cliente precisa entender redirecionamentos e mapa de slots.
+`cluster` is a scale and availability choice, not just a redundancy choice. Data is partitioned across masters, and the client must understand redirects and slot mapping.
 
-## Riscos comuns
+## Common risks
 
-- usar clientes não compatíveis com Redis Cluster
-- escolher quantidade de nós incompatível com a estratégia de réplicas
-- negligenciar rebalanceamento e expansão futura
-- tratar cluster como simples substituto de `sentinel`
+- using clients that are not Redis Cluster compatible
+- choosing a node count incompatible with the replica strategy
+- ignoring future rebalance and expansion operations
+- treating cluster as a simple replacement for `sentinel`
 
-## Boas práticas de produção
+## Production best practices
 
-- comece com 6 nós para 3 masters e 3 réplicas quando a carga justificar
-- use anti-affinity e distribuição por zona
-- mantenha PVC por nó
-- habilite `pdb.enabled=true`
-- monitore bootstrap, slots, failover e uso de memória por nó
-- planeje janelas operacionais para expansão ou manutenção do cluster
+- start with 6 nodes for 3 masters and 3 replicas when the workload justifies it
+- use anti-affinity and zone distribution
+- keep PVCs on every node
+- enable `pdb.enabled=true`
+- monitor bootstrap, slots, failover, and memory usage per node
+- plan operational windows for cluster expansion or maintenance
 
-## Boas práticas
+## Best practices
 
-- use números de nós compatíveis com `replicasPerMaster`
-- valide os clients da aplicação antes de adotar esse modo
-- use volumes persistentes em todos os nós
-- habilite anti-affinity e `pdb.enabled=true`
-- monitore bootstrap, rebalanceamento e saúde do cluster
+- use node counts compatible with `replicasPerMaster`
+- validate application clients before adopting this mode
+- use persistent volumes on all nodes
+- enable anti-affinity and `pdb.enabled=true`
+- monitor bootstrap, rebalance, and overall cluster health
 
-## Valores mais relevantes
+## Most relevant values
 
 | Parameter | Description |
 |-----------|-------------|
-| `architecture` | Deve ser `cluster` |
-| `cluster.nodes` | Quantidade total de nós |
-| `cluster.replicasPerMaster` | Réplicas por master |
-| `cluster.persistence.enabled` | PVC por nó |
-| `cluster.persistence.size` | Tamanho do volume por nó |
-| `metrics.enabled` | Exporter para monitoramento |
+| `architecture` | Must be `cluster` |
+| `cluster.nodes` | Total number of nodes |
+| `cluster.replicasPerMaster` | Replicas per master |
+| `cluster.persistence.enabled` | PVC on each node |
+| `cluster.persistence.size` | Volume size per node |
+| `metrics.enabled` | Exporter for monitoring |
 
-## Exemplo base
+## Example
 
 ```yaml
 architecture: cluster
@@ -86,8 +86,8 @@ cluster:
     size: 20Gi
 ```
 
-## Quando não usar
+## When not to use
 
-- quando a aplicação só precisa de um primário e réplicas de leitura
-- quando o cliente não entende Redis Cluster
-- quando o volume de dados ainda cabe de forma confortável em uma única instância
+- when the application only needs one primary and read replicas
+- when the client does not understand Redis Cluster
+- when the data volume still fits comfortably in a single instance
