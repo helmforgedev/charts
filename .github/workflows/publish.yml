@@ -64,6 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         chart: ${{ fromJson(needs.detect.outputs.charts) }}
     steps:
@@ -149,4 +150,8 @@ jobs:
           git diff --cached --quiet && echo "Chart.yaml already at target version, skip commit" || \
             git commit -m "release(${{ matrix.chart }}): ${{ steps.semver.outputs.version }} [skip ci]"
           git tag -a "${{ steps.semver.outputs.tag }}" -m "Release ${{ matrix.chart }} v${{ steps.semver.outputs.version }}"
-          git push origin main --follow-tags
+          for attempt in 1 2 3 4 5; do
+            git pull --rebase origin main && git push origin main --follow-tags && break
+            echo "Push failed (attempt $attempt/5), retrying in $((attempt * 2))s..."
+            sleep $((attempt * 2))
+          done
