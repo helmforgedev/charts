@@ -1,0 +1,52 @@
+{{- if and (include "redis.isCluster" .) .Values.cluster.initJob.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "redis.fullname" . }}-cluster-init
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.cluster.initJob.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.cluster.initJob.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "redis.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: redis-cluster-init
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "redis.serviceAccountName" . }}
+      containers:
+        - name: redis-cli
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-ec"]
+          args:
+            - |
+              for i in $(seq 0 $(({{ .Values.cluster.nodes }} - 1))); do
+                until redis-cli -h "{{ include "redis.clusterStatefulSetName" . }}-${i}.{{ include "redis.headlessServiceName" . }}.{{ .Release.Namespace }}.svc.cluster.local" {{- if .Values.auth.enabled }} -a "$REDIS_PASSWORD" {{- end }} ping; do
+                  echo "waiting for node $i"
+                  sleep 5
+                done
+              done
+              if redis-cli -h "{{ include "redis.clusterStatefulSetName" . }}-0.{{ include "redis.headlessServiceName" . }}.{{ .Release.Namespace }}.svc.cluster.local" {{- if .Values.auth.enabled }} -a "$REDIS_PASSWORD" {{- end }} cluster info | grep -q cluster_state:ok; then
+                echo "cluster already initialized"
+                exit 0
+              fi
+              yes yes | redis-cli --cluster create \
+              {{- range $i, $_ := until (.Values.cluster.nodes | int) }}
+                {{ include "redis.clusterStatefulSetName" $ }}-{{ $i }}.{{ include "redis.headlessServiceName" $ }}.{{ $.Release.Namespace }}.svc.cluster.local:{{ $.Values.service.ports.redis }} \
+              {{- end }}
+              --cluster-replicas {{ .Values.cluster.replicasPerMaster }} {{- if .Values.auth.enabled }} -a "$REDIS_PASSWORD" {{- end }}
+          env:
+            {{- if .Values.auth.enabled }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "redis.secretName" . }}
+                  key: {{ .Values.auth.existingSecretPasswordKey }}
+            {{- end }}
+{{- end }}
