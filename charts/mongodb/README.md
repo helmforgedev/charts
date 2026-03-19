@@ -26,6 +26,12 @@ helm install mongodb oci://ghcr.io/mberlofa/helm/mongodb -f values.yaml
 | **Replica Set** | `replicaset` | N-member RS with automatic `rs.initiate()` via Helm hook Job |
 | **Sharded** | `sharded` | Mongos routers + config servers + N shards, auto-initialized |
 
+Read before choosing an architecture:
+
+- [Standalone](/C:/devops/berlofa/github/helm/charts/mongodb/docs/standalone.md)
+- [Replica Set](/C:/devops/berlofa/github/helm/charts/mongodb/docs/replicaset.md)
+- [Sharded](/C:/devops/berlofa/github/helm/charts/mongodb/docs/sharded.md)
+
 ## Key Features
 
 - **Official `mongo` image** — no vendor lock-in, standard paths (`/data/db`)
@@ -204,6 +210,12 @@ See the [`examples/`](examples/) directory:
 - [`standalone-simple.yaml`](examples/standalone-simple.yaml) — Minimal standalone instance
 - [`replicaset-production.yaml`](examples/replicaset-production.yaml) — Production RS with monitoring, init scripts, and anti-affinity
 - [`sharded-cluster.yaml`](examples/sharded-cluster.yaml) — Full sharded cluster
+
+## Architecture Guides
+
+- [`docs/standalone.md`](docs/standalone.md) — when to use a single-node deployment
+- [`docs/replicaset.md`](docs/replicaset.md) — when to use replica set topology and what it requires operationally
+- [`docs/sharded.md`](docs/sharded.md) — when to use sharding, mongos, config servers, and multiple shards
 
 ## Connection Strings
 

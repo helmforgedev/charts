@@ -18,6 +18,13 @@ workload:
   type: Deployment       # Deployment | StatefulSet | DaemonSet
 ```
 
+Read before choosing a mode:
+
+- [Deployment](/C:/devops/berlofa/github/helm/charts/generic/docs/deployment.md)
+- [StatefulSet](/C:/devops/berlofa/github/helm/charts/generic/docs/statefulset.md)
+- [DaemonSet](/C:/devops/berlofa/github/helm/charts/generic/docs/daemonset.md)
+- [Batch Jobs and CronJobs](/C:/devops/berlofa/github/helm/charts/generic/docs/batch.md)
+
 <details>
 <summary><b>Deployment</b> (default)</summary>
 
@@ -51,6 +58,15 @@ ingress:
       secretName: app-tls
 ```
 </details>
+
+## How to choose the right mode
+
+- use `Deployment` for stateless APIs, web apps, workers behind a service, and most standard applications
+- use `StatefulSet` when pod identity, ordered rollout, or persistent storage per replica matters
+- use `DaemonSet` when exactly one pod per node is the intended operating model
+- use Jobs or CronJobs when the release is batch-oriented and should not keep a long-running workload alive
+
+The generic chart is most useful when your team wants one operational contract for many internal services. It is not the right choice when a product has its own topology, bootstrap flow, or domain-specific configuration model that deserves a dedicated chart.
 
 <details>
 <summary><b>StatefulSet</b></summary>
@@ -212,6 +228,28 @@ extraManifests:
       policyTypes: [Ingress, Egress]
 ```
 
+## Operational guidance
+
+### When this chart fits well
+
+- internal platforms that deploy many services with the same operational contract
+- teams that want a single chart for stateless services, workers, scheduled tasks, and simple stateful apps
+- cases where the application contract is generic enough to be described by workload, containers, service, ingress, scaling, and persistence primitives
+
+### When this chart is the wrong tool
+
+- databases and middleware with their own topology and bootstrap semantics
+- applications that require custom initialization controllers, cluster formation, or product-specific CRDs
+- products whose values contract should reflect domain concepts instead of generic Kubernetes objects
+
+### Recommended practices
+
+- keep `containers` explicit and small; avoid turning one release into a large bundle of unrelated sidecars
+- use `imageTagFormat: simple` unless you intentionally depend on the `named` pattern
+- define probes per container when more than one container is user-facing
+- enable `pdb`, `hpa`, and `topologySpreadConstraints` for production deployments that need resilience
+- prefer chart examples and `ci/` scenarios as the starting point for new workloads
+
 ## Examples
 
 See the [examples/](examples/) directory for complete, ready-to-use values files:
@@ -223,6 +261,13 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | [worker.yaml](examples/worker.yaml) | Background worker without Service/Ingress |
 | [statefulset-database.yaml](examples/statefulset-database.yaml) | StatefulSet with persistent storage |
 | [cronjob-batch.yaml](examples/cronjob-batch.yaml) | Batch processing with CronJobs |
+
+## Usage Guides
+
+- [`docs/deployment.md`](docs/deployment.md) — stateless services, APIs, ingress, and autoscaling
+- [`docs/statefulset.md`](docs/statefulset.md) — stable identity, persistent storage, and rollout expectations
+- [`docs/daemonset.md`](docs/daemonset.md) — node-level agents and one-pod-per-node behavior
+- [`docs/batch.md`](docs/batch.md) — one-off jobs and scheduled workloads
 
 ## Values Reference
 
