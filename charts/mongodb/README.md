@@ -114,7 +114,7 @@ sharded:
 |-----------|-------------|---------|
 | `auth.enabled` | Enable MongoDB authentication | `true` |
 | `auth.rootUser` | Root username | `root` |
-| `auth.rootPassword` | Root password (required if no existingSecret) | `""` |
+| `auth.rootPassword` | Root password (auto-generated if empty) | `""` |
 | `auth.existingSecret` | Existing secret with credentials | `""` |
 | `auth.replicaSetKey` | KeyFile content (auto-generated if empty) | `""` |
 | `auth.existingKeySecret` | Existing secret with keyFile | `""` |
