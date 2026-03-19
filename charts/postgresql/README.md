@@ -127,7 +127,9 @@ metrics:
 
 - use `config.preset` for a small set of opinionated PostgreSQL defaults
 - use `config.pgHbaEntries` when you need structured host-based access rules
+- use `*.resourcesPreset` for small and predictable environment sizing before reaching for fully custom resources
 - keep `config.postgresql` and `config.pgHba` for raw overrides when structured values are not enough
+- keep `auth.database`, `auth.username`, and `auth.replicationUsername` as plain values; `existingSecret` is intentionally limited to sensitive runtime data
 
 ## Production notes
 
@@ -158,6 +160,9 @@ Operational documents:
 | `auth.replicationUsername` | Replication username | `replicator` |
 | `config.preset` | Optional PostgreSQL config preset | `none` |
 | `config.pgHbaEntries` | Structured pg_hba entries | `[]` |
+| `standalone.resourcesPreset` | Resource preset for standalone mode | `none` |
+| `replication.primary.resourcesPreset` | Resource preset for the primary pod | `none` |
+| `replication.readReplicas.resourcesPreset` | Resource preset for replica pods | `none` |
 | `initdb.existingConfigMap` | External ConfigMap for extra init scripts | `""` |
 | `tls.enabled` | Enable PostgreSQL TLS | `false` |
 | `tls.existingSecret` | Existing secret with TLS material | `""` |
@@ -169,6 +174,7 @@ Operational documents:
 | `standalone.persistence.enabled` | Enable PVC for standalone | `true` |
 | `replication.readReplicas.replicaCount` | Number of async read replicas | `2` |
 | `metrics.enabled` | Enable `postgres_exporter` sidecar | `false` |
+| `metrics.resourcesPreset` | Resource preset for `postgres_exporter` | `none` |
 | `metrics.serviceMonitor.enabled` | Enable ServiceMonitor | `false` |
 | `pdb.enabled` | Enable PodDisruptionBudget | `false` |
 
@@ -188,6 +194,7 @@ The `ci/` scenarios validate the main chart behaviors:
 - `tls-networkpolicy.yaml`
 - `config-preset.yaml`
 - `structured-pghba.yaml`
+- `resources-preset.yaml`
 
 ## Examples
 
@@ -198,6 +205,7 @@ See `examples/`:
 - `initdb-metrics.yaml`
 - `tls.yaml`
 - `structured-config.yaml`
+- `resources-preset.yaml`
 
 ## Important notes
 

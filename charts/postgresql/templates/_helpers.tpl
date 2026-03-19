@@ -208,6 +208,51 @@ maintenance_work_mem = '256MB'
 {{- end -}}
 {{- end -}}
 
+{{- define "postgresql.resourcesPreset" -}}
+{{- $preset := default "none" .preset -}}
+{{- if eq $preset "small" -}}
+requests:
+  cpu: 250m
+  memory: 512Mi
+limits:
+  cpu: 500m
+  memory: 1Gi
+{{- else if eq $preset "medium" -}}
+requests:
+  cpu: 500m
+  memory: 1Gi
+limits:
+  cpu: "1"
+  memory: 2Gi
+{{- else if eq $preset "large" -}}
+requests:
+  cpu: "1"
+  memory: 2Gi
+limits:
+  cpu: "2"
+  memory: 4Gi
+{{- end -}}
+{{- end -}}
+
+{{- define "postgresql.metricsResourcesPreset" -}}
+{{- $preset := default "none" .Values.metrics.resourcesPreset -}}
+{{- if eq $preset "small" -}}
+requests:
+  cpu: 25m
+  memory: 64Mi
+limits:
+  cpu: 100m
+  memory: 128Mi
+{{- else if eq $preset "medium" -}}
+requests:
+  cpu: 50m
+  memory: 128Mi
+limits:
+  cpu: 200m
+  memory: 256Mi
+{{- end -}}
+{{- end -}}
+
 {{- define "postgresql.volumeClaimTemplate" -}}
 - metadata:
     name: data
