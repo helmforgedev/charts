@@ -38,6 +38,7 @@ Recommended reading before installation:
 - [Replication](docs/replication.md)
 - [Replication Operations](docs/replication-operations.md)
 - [Backup and Restore](docs/backup-restore.md)
+- [Secret Rotation](docs/secret-rotation.md)
 
 ## Official product references
 
@@ -98,8 +99,9 @@ metrics:
 
 - prefer `auth.existingSecret` in production
 - keep client access internal unless there is a strong reason to expose PostgreSQL outside the cluster network
-- use external `NetworkPolicy` or equivalent platform controls when possible
+- use `networkPolicy.enabled=true` or external platform controls when possible
 - rotate passwords through secret management workflows instead of editing values inline
+- use `tls.enabled=true` with certificate material from a managed secret when PostgreSQL traffic must be encrypted
 
 ### Replication and availability
 
@@ -133,6 +135,7 @@ Operational documents:
 
 - [Replication Operations](docs/replication-operations.md)
 - [Backup and Restore](docs/backup-restore.md)
+- [Secret Rotation](docs/secret-rotation.md)
 
 ## Main values
 
@@ -146,6 +149,10 @@ Operational documents:
 | `auth.existingSecret` | Existing secret for passwords | `""` |
 | `auth.replicationUsername` | Replication username | `replicator` |
 | `initdb.existingConfigMap` | External ConfigMap for extra init scripts | `""` |
+| `tls.enabled` | Enable PostgreSQL TLS | `false` |
+| `tls.existingSecret` | Existing secret with TLS material | `""` |
+| `tls.sslMode` | Internal libpq sslmode | `require` |
+| `networkPolicy.enabled` | Enable ingress-only NetworkPolicy | `false` |
 | `standalone.persistence.enabled` | Enable PVC for standalone | `true` |
 | `replication.readReplicas.replicaCount` | Number of async read replicas | `2` |
 | `metrics.enabled` | Enable `postgres_exporter` sidecar | `false` |
@@ -164,6 +171,8 @@ The `ci/` scenarios validate the main chart behaviors:
 - `existing-configmap.yaml`
 - `replication-metrics.yaml`
 - `scheduling.yaml`
+- `tls.yaml`
+- `tls-networkpolicy.yaml`
 
 ## Examples
 
@@ -172,6 +181,7 @@ See `examples/`:
 - `standalone.yaml`
 - `replication.yaml`
 - `initdb-metrics.yaml`
+- `tls.yaml`
 
 ## Important notes
 

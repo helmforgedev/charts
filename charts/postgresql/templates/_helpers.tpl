@@ -62,6 +62,12 @@ app.kubernetes.io/role: {{ .role }}
 {{- printf "%s-initdb" (include "postgresql.fullname" .) -}}
 {{- end -}}
 
+{{- define "postgresql.tlsSecretName" -}}
+{{- if .Values.tls.enabled -}}
+{{- required "tls.existingSecret is required when tls.enabled=true" .Values.tls.existingSecret -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "postgresql.primaryServiceName" -}}
 {{- if eq .Values.architecture "replication" -}}
 {{- printf "%s-primary" (include "postgresql.fullname" .) -}}
@@ -146,16 +152,13 @@ app.kubernetes.io/role: {{ .role }}
 {{- end -}}
 {{- end -}}
 
-{{- define "postgresql.probeCommand" -}}
-- sh
-- -ec
-- >-
-  PGPASSWORD="${POSTGRES_PASSWORD}" pg_isready -U postgres -h 127.0.0.1 -p {{ .Values.service.port }}
+{{- define "postgresql.probeCommandString" -}}
+{{- if .Values.tls.enabled }}export PGSSLMODE={{ .Values.tls.sslMode | quote }}; export PGSSLROOTCERT=/tls/{{ .Values.tls.caFilename }}; {{- end }}PGPASSWORD="${POSTGRES_PASSWORD}" pg_isready -U postgres -h 127.0.0.1 -p {{ .Values.service.port }}
 {{- end -}}
 
 {{- define "postgresql.metricsEnv" -}}
 - name: DATA_SOURCE_URI
-  value: 127.0.0.1:{{ .Values.service.port }}/postgres?sslmode=disable
+  value: 127.0.0.1:{{ .Values.service.port }}/postgres?sslmode={{ if .Values.tls.enabled }}{{ .Values.tls.sslMode }}{{ else }}disable{{ end }}{{ if and .Values.tls.enabled (or (eq .Values.tls.sslMode "verify-ca") (eq .Values.tls.sslMode "verify-full")) }}&sslrootcert=/tls/{{ .Values.tls.caFilename }}{{ end }}
 - name: DATA_SOURCE_USER
   value: postgres
 - name: DATA_SOURCE_PASS

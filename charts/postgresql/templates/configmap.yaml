@@ -16,18 +16,39 @@ data:
     max_replication_slots = 10
     wal_keep_size = '512MB'
     password_encryption = scram-sha-256
+    {{- if .Values.tls.enabled }}
+    ssl = on
+    ssl_cert_file = '/tls/{{ .Values.tls.certFilename }}'
+    ssl_key_file = '/tls/{{ .Values.tls.keyFilename }}'
+    ssl_ca_file = '/tls/{{ .Values.tls.caFilename }}'
+    ssl_min_protocol_version = '{{ .Values.tls.minProtocolVersion }}'
+    {{- else }}
+    ssl = off
+    {{- end }}
     {{- with .Values.config.postgresql }}
     {{ . | nindent 4 }}
     {{- end }}
   pg_hba.conf: |
     local   all             all                                     trust
+    {{- if .Values.tls.enabled }}
+    hostssl all             all             127.0.0.1/32            scram-sha-256
+    hostssl all             all             ::1/128                 scram-sha-256
+    hostssl all             all             0.0.0.0/0               scram-sha-256
+    hostssl all             all             ::/0                    scram-sha-256
+    {{- else }}
     host    all             all             127.0.0.1/32            scram-sha-256
     host    all             all             ::1/128                 scram-sha-256
     host    all             all             0.0.0.0/0               scram-sha-256
     host    all             all             ::/0                    scram-sha-256
+    {{- end }}
     {{- if eq .Values.architecture "replication" }}
+    {{- if .Values.tls.enabled }}
+    hostssl replication     {{ .Values.auth.replicationUsername }}  0.0.0.0/0    scram-sha-256
+    hostssl replication     {{ .Values.auth.replicationUsername }}  ::/0         scram-sha-256
+    {{- else }}
     host    replication     {{ .Values.auth.replicationUsername }}  0.0.0.0/0    scram-sha-256
     host    replication     {{ .Values.auth.replicationUsername }}  ::/0         scram-sha-256
+    {{- end }}
     {{- end }}
     {{- with .Values.config.pgHba }}
     {{ . | nindent 4 }}

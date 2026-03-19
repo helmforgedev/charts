@@ -69,6 +69,26 @@ config:
   pgHba: ""
 
 # =============================================================================
+# TLS
+# =============================================================================
+
+tls:
+  # -- Enable TLS for PostgreSQL server and internal clients
+  enabled: false
+  # -- Existing secret containing server TLS materials
+  existingSecret: ""
+  # -- Certificate filename in the TLS secret
+  certFilename: tls.crt
+  # -- Private key filename in the TLS secret
+  keyFilename: tls.key
+  # -- CA filename in the TLS secret
+  caFilename: ca.crt
+  # -- libpq sslmode used by internal probes, replication, and exporter
+  sslMode: require
+  # -- Minimum TLS protocol version accepted by PostgreSQL
+  minProtocolVersion: TLSv1.2
+
+# =============================================================================
 # Initialization
 # =============================================================================
 
@@ -169,6 +189,19 @@ metrics:
     labels: {}
 
 # =============================================================================
+# NetworkPolicy
+# =============================================================================
+
+networkPolicy:
+  # -- Create an ingress-only NetworkPolicy for PostgreSQL pods
+  enabled: false
+  ingress:
+    # -- Allow ingress from the same namespace
+    allowSameNamespace: true
+    # -- Additional ingress "from" rules appended to the generated policy
+    extraFrom: []
+
+# =============================================================================
 # Pod Disruption Budget
 # =============================================================================
 
@@ -218,6 +251,9 @@ startupProbe:
 
 podSecurityContext:
   fsGroup: 999
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
 
 securityContext:
   runAsUser: 999
@@ -225,6 +261,9 @@ securityContext:
   runAsNonRoot: true
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
 
 podLabels: {}
 podAnnotations: {}

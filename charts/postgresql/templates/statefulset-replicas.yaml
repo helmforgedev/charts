@@ -44,6 +44,10 @@ spec:
                 sleep 5
               done
               rm -rf "${DATA_DIR:?}"/*
+              {{- if .Values.tls.enabled }}
+              export PGSSLMODE={{ .Values.tls.sslMode | quote }}
+              export PGSSLROOTCERT=/tls/{{ .Values.tls.caFilename }}
+              {{- end }}
               pg_basebackup \
                 -h {{ include "postgresql.primaryServiceName" . }} \
                 -p {{ .Values.service.port }} \
@@ -66,6 +70,11 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
       containers:
         - name: postgresql
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -88,13 +97,21 @@ spec:
                 secretKeyRef:
                   name: {{ include "postgresql.secretName" . }}
                   key: {{ .Values.auth.existingSecretPostgresPasswordKey }}
+            {{- if .Values.tls.enabled }}
+            - name: PGSSLMODE
+              value: {{ .Values.tls.sslMode | quote }}
+            - name: PGSSLROOTCERT
+              value: /tls/{{ .Values.tls.caFilename }}
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           livenessProbe:
             exec:
               command:
-                {{- include "postgresql.probeCommand" . | nindent 16 }}
+                - sh
+                - -ec
+                - {{ include "postgresql.probeCommandString" . | quote }}
             initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
@@ -102,7 +119,9 @@ spec:
           readinessProbe:
             exec:
               command:
-                {{- include "postgresql.probeCommand" . | nindent 16 }}
+                - sh
+                - -ec
+                - {{ include "postgresql.probeCommandString" . | quote }}
             initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
@@ -110,7 +129,9 @@ spec:
           startupProbe:
             exec:
               command:
-                {{- include "postgresql.probeCommand" . | nindent 16 }}
+                - sh
+                - -ec
+                - {{ include "postgresql.probeCommandString" . | quote }}
             initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.startupProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
@@ -124,6 +145,11 @@ spec:
               mountPath: /var/lib/postgresql/data
             - name: config
               mountPath: /etc/postgresql/generated
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -140,11 +166,22 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           resources:
             {{- toYaml .Values.metrics.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
         {{- end }}
       volumes:
         - name: config
           configMap:
             name: {{ include "postgresql.configMapName" . }}
+        {{- if .Values.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ include "postgresql.tlsSecretName" . }}
+        {{- end }}
         {{- if not .Values.replication.readReplicas.persistence.enabled }}
         - name: data
           emptyDir: {}
