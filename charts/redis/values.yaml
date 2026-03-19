@@ -1,0 +1,237 @@
+# =============================================================================
+# Redis Helm Chart - Default Values
+# =============================================================================
+# Supported architectures:
+# - standalone
+# - replication
+# - sentinel
+# - cluster
+
+# -- Redis topology to deploy: standalone | replication | sentinel | cluster
+architecture: standalone
+
+# -- Override chart name
+nameOverride: ""
+# -- Override full release name
+fullnameOverride: ""
+
+# -- Extra labels applied to all resources
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  repository: redis
+  tag: "8.6.0"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Authentication
+# =============================================================================
+
+auth:
+  # -- Enable password authentication
+  enabled: true
+  # -- Redis password. Auto-generated if empty and auth.enabled=true
+  password: ""
+  # -- Existing secret with the Redis password
+  existingSecret: ""
+  # -- Secret key name for the password in auth.existingSecret
+  existingSecretPasswordKey: redis-password
+
+# =============================================================================
+# TLS
+# =============================================================================
+
+tls:
+  # -- Enable TLS. Requires tls.existingSecret.
+  enabled: false
+  # -- Existing secret with tls.crt, tls.key and ca.crt
+  existingSecret: ""
+  certFilename: tls.crt
+  keyFilename: tls.key
+  caFilename: ca.crt
+
+# =============================================================================
+# Standalone
+# =============================================================================
+
+standalone:
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 8Gi
+  resources: {}
+
+# =============================================================================
+# Replication
+# =============================================================================
+
+replication:
+  replicaCount: 2
+  primary:
+    persistence:
+      enabled: true
+      storageClass: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 8Gi
+    resources: {}
+  replica:
+    persistence:
+      enabled: true
+      storageClass: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 8Gi
+    resources: {}
+
+# =============================================================================
+# Sentinel
+# =============================================================================
+
+sentinel:
+  replicaCount: 3
+  quorum: 2
+  downAfterMilliseconds: 60000
+  failoverTimeout: 180000
+  parallelSyncs: 1
+  persistence:
+    enabled: false
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 1Gi
+  resources: {}
+
+# =============================================================================
+# Cluster
+# =============================================================================
+
+cluster:
+  nodes: 6
+  replicasPerMaster: 1
+  initJob:
+    enabled: true
+    backoffLimit: 4
+    activeDeadlineSeconds: 900
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 8Gi
+  resources: {}
+
+# =============================================================================
+# Configuration
+# =============================================================================
+
+config:
+  # -- Extra Redis configuration appended to the generated redis.conf
+  redis: ""
+  # -- Extra Sentinel configuration appended to the generated sentinel.conf
+  sentinel: ""
+
+# =============================================================================
+# Networking
+# =============================================================================
+
+service:
+  type: ClusterIP
+  annotations: {}
+  clientAnnotations: {}
+  primaryAnnotations: {}
+  replicaAnnotations: {}
+  sentinelAnnotations: {}
+  clusterAnnotations: {}
+  ports:
+    redis: 6379
+    sentinel: 26379
+    metrics: 9121
+
+serviceAccount:
+  create: false
+  name: ""
+  annotations: {}
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+livenessProbe:
+  initialDelaySeconds: 20
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+readinessProbe:
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+startupProbe:
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+
+# =============================================================================
+# Metrics
+# =============================================================================
+
+metrics:
+  enabled: false
+  image:
+    repository: oliver006/redis_exporter
+    tag: v1.69.0
+    pullPolicy: IfNotPresent
+  resources: {}
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    labels: {}
+
+# =============================================================================
+# Scheduling and Security
+# =============================================================================
+
+podSecurityContext:
+  fsGroup: 999
+
+securityContext:
+  runAsUser: 999
+  runAsGroup: 999
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+
+podLabels: {}
+podAnnotations: {}
+annotations: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 60
+
+pdb:
+  enabled: false
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []
+extraManifests: []

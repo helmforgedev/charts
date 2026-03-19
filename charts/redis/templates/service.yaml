@@ -1,0 +1,160 @@
+{{- if or (include "redis.isStandalone" .) (include "redis.isReplication" .) (include "redis.isSentinel" .) (include "redis.isCluster" .) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "redis.headlessServiceName" . }}
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: redis
+      port: {{ .Values.service.ports.redis }}
+      targetPort: redis
+    {{- if .Values.metrics.enabled }}
+    - name: metrics
+      port: {{ .Values.service.ports.metrics }}
+      targetPort: metrics
+    {{- end }}
+  selector:
+    {{- include "redis.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+{{- end }}
+
+{{- if include "redis.isStandalone" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "redis.clientServiceName" . }}
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+  {{- with .Values.service.clientAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: redis
+      port: {{ .Values.service.ports.redis }}
+      targetPort: redis
+    {{- if .Values.metrics.enabled }}
+    - name: metrics
+      port: {{ .Values.service.ports.metrics }}
+      targetPort: metrics
+    {{- end }}
+  selector:
+    {{- include "redis.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+    app.kubernetes.io/role: standalone
+{{- end }}
+
+{{- if include "redis.isReplication" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "redis.primaryServiceName" . }}
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+  {{- with .Values.service.primaryAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: redis
+      port: {{ .Values.service.ports.redis }}
+      targetPort: redis
+    {{- if .Values.metrics.enabled }}
+    - name: metrics
+      port: {{ .Values.service.ports.metrics }}
+      targetPort: metrics
+    {{- end }}
+  selector:
+    {{- include "redis.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+    app.kubernetes.io/role: primary
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "redis.replicaServiceName" . }}
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+  {{- with .Values.service.replicaAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: redis
+      port: {{ .Values.service.ports.redis }}
+      targetPort: redis
+    {{- if .Values.metrics.enabled }}
+    - name: metrics
+      port: {{ .Values.service.ports.metrics }}
+      targetPort: metrics
+    {{- end }}
+  selector:
+    {{- include "redis.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+    app.kubernetes.io/role: replica
+{{- end }}
+
+{{- if include "redis.isSentinel" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "redis.sentinelServiceName" . }}
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+  {{- with .Values.service.sentinelAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: sentinel
+      port: {{ .Values.service.ports.sentinel }}
+      targetPort: sentinel
+  selector:
+    {{- include "redis.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: sentinel
+{{- end }}
+
+{{- if include "redis.isCluster" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "redis.clientServiceName" . }}
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+  {{- with .Values.service.clusterAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: redis
+      port: {{ .Values.service.ports.redis }}
+      targetPort: redis
+    {{- if .Values.metrics.enabled }}
+    - name: metrics
+      port: {{ .Values.service.ports.metrics }}
+      targetPort: metrics
+    {{- end }}
+  selector:
+    {{- include "redis.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+    app.kubernetes.io/role: cluster
+{{- end }}

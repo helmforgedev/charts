@@ -12,6 +12,27 @@ When working on this repository, use these skills:
 - **kubernetes-specialist** — K8s workloads, RBAC, networking, storage, troubleshooting
 - **coding-standards** — code quality and best practices
 - **context7-docs-lookup** — fetch up-to-date Helm/K8s documentation when needed
+- **.claude/skills/helm-chart-change** — repository-local workflow for chart implementation and evolution
+- **.claude/skills/helm-chart-review** — repository-local workflow for review, regression hunting, and test-gap analysis
+- **.claude/skills/helm-release-workflow** — repository-local workflow for CI, semver, and OCI publishing changes
+
+## Task Matrix
+
+Use this matrix to choose the primary skill for the task:
+
+| Task | Primary skill | Secondary skill |
+|------|---------------|-----------------|
+| Add or modify templates in `charts/*/templates/` | `helm-chart-change` | `helm-chart-scaffolding`, `kubernetes-specialist` |
+| Add or change values in `charts/*/values.yaml` | `helm-chart-change` | `helm-chart-scaffolding` |
+| Add a new chart | `helm-chart-change` | `helm-chart-scaffolding`, `kubernetes-specialist` |
+| Review a PR or diff for chart regressions | `helm-chart-review` | `Code Quality`, `kubernetes-specialist` |
+| Check whether `ci/*.yaml` coverage is sufficient | `helm-chart-review` | `Code Quality` |
+| Modify `.github/workflows/ci.yml` or `publish.yml` | `helm-release-workflow` | `DevOps Practices`, `Workflow Automation` |
+| Change conventional-commit or semver behavior | `helm-release-workflow` | `Workflow Automation` |
+| Update Helm/Kubernetes behavior based on official docs | `context7-docs-lookup` | `helm-chart-change` |
+| Perform cluster-semantic validation of manifests | `kubernetes-specialist` | `helm-chart-review` |
+
+Use the local repository skills first when the task is specific to this repository's chart layout, helpers, release model, or review standards.
 
 ## Conventions
 
@@ -27,9 +48,6 @@ Use [Conventional Commits](https://www.conventionalcommits.org/) scoped to the c
 
 Always commit as the repository owner's git identity. Never change git config user.name or user.email. Add co-authorship trailer:
 
-```
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
-```
 
 ### Branches
 
