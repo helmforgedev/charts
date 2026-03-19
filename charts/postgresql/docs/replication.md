@@ -18,6 +18,7 @@ Typical use cases:
 - bootstrap of app and replication users on first initialization
 - optional `postgres_exporter`
 - optional `ServiceMonitor`
+- a stable read-only replicas endpoint for horizontal read scaling
 
 ## What it does not deliver
 
@@ -25,6 +26,7 @@ Typical use cases:
 - primary re-election
 - synchronous replication guarantees
 - connection pooling
+- operator-style topology management
 
 ## Operational requirements
 
@@ -39,7 +41,27 @@ Typical use cases:
 - use `pdb.enabled=true` before routine maintenance in multi-node environments
 - route write traffic only to the primary Service
 - route read traffic only to the replicas Service
+- use the replicas Service for read-only workloads that benefit from horizontal scale
+- do not expect the replicas Service to make lag-aware or query-aware routing decisions
 - treat this mode as read scaling plus recovery help, not full HA
+- if automated failover is a hard requirement, use an operator instead of extending this chart
+
+## Read scaling notes
+
+The replicas Service gives a single endpoint for read-only consumers across multiple replicas.
+
+This is useful for:
+
+- reporting stacks
+- background readers
+- analytics jobs
+- applications with clear separation between write and read paths
+
+Keep in mind:
+
+- balancing happens at the Kubernetes Service level
+- PostgreSQL lag is still an application concern
+- replica reads are not a substitute for strong consistency requirements
 
 ## Example
 

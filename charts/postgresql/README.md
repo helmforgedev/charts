@@ -39,6 +39,7 @@ Recommended reading before installation:
 - [Standalone](docs/standalone.md)
 - [Replication](docs/replication.md)
 - [Replication Operations](docs/replication-operations.md)
+- [HA and Scope Boundaries](docs/ha-and-scope-boundaries.md)
 - [Backup and Restore](docs/backup-restore.md)
 - [Secret Rotation](docs/secret-rotation.md)
 
@@ -53,6 +54,32 @@ Recommended reading before installation:
 - for production needing automatic failover, use a PostgreSQL operator instead of stretching this chart beyond its scope
 - `replication` in this chart means one fixed primary with asynchronous replicas
 - backups remain an operational concern outside this chart and should be implemented with dedicated tooling
+
+## Read traffic model
+
+In `replication` mode, the chart exposes separate Services for different traffic patterns:
+
+- the base client Service for general in-cluster access
+- a dedicated primary Service for write traffic
+- a dedicated replicas Service for read-only traffic
+
+The replicas Service is the endpoint to use for horizontal read scaling when an application, reporting stack, or other read-heavy component can work against asynchronous read-only replicas.
+
+Important limits:
+
+- Kubernetes Service balancing distributes connections across available replicas, but it is not a PostgreSQL-aware query router
+- replica reads may lag behind the primary because replication is asynchronous
+- workloads that require immediate read-after-write consistency should stay on the primary endpoint
+
+## Scope boundary
+
+This chart intentionally stays on the Helm-chart side of the boundary:
+
+- it manages PostgreSQL pods, services, storage, init scripts, metrics, TLS, and basic replication operations
+- it does not attempt to behave like a cluster manager
+- it does not implement automatic failover, leader election, fencing, or reconciliation loops
+
+If you need automated failover, self-healing topology management, switchover workflows, or lifecycle orchestration across primary and replicas, use a PostgreSQL operator instead of extending this chart into that territory.
 
 ## Quick start
 
@@ -141,12 +168,14 @@ metrics:
 - define node placement rules for `replication`, especially when the cluster spans multiple nodes or zones
 - use the `client` or `primary` Service only for writes
 - use the `replicas` Service only for read traffic
+- use the `replicas` Service when you need horizontal scale for read-only workloads
 - treat backup, restore, and failover as operational workflows external to the chart
 - review the operational guides before promoting `replication` to production
 
 Operational documents:
 
 - [Replication Operations](docs/replication-operations.md)
+- [HA and Scope Boundaries](docs/ha-and-scope-boundaries.md)
 - [Backup and Restore](docs/backup-restore.md)
 - [Secret Rotation](docs/secret-rotation.md)
 

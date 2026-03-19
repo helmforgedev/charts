@@ -13,6 +13,7 @@ This chart does not provide:
 - automatic failover
 - automatic primary promotion
 - cluster manager behavior
+- reconciliation of broken topologies after failure
 
 ## Traffic model
 
@@ -31,6 +32,7 @@ This chart does not provide:
 - if the primary fails, the chart will not promote a replica automatically
 - operator teams need a runbook for manual promotion, restore, or rebuild
 - after manual intervention, document whether the old primary will be rebuilt or discarded
+- if the platform requires automatic promotion or topology healing, move that requirement to an operator-based solution
 
 ## Manual promotion notes
 
