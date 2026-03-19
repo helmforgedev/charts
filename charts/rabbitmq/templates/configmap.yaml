@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "rabbitmq.configurationName" . }}
+  labels:
+    {{- include "rabbitmq.labels" . | nindent 4 }}
+data:
+  enabled_plugins: |
+    {{- include "rabbitmq.plugins" . | nindent 4 }}
+  rabbitmq.conf: |
+    loopback_users.guest = false
+    default_vhost = {{ .Values.auth.vhost }}
+    default_queue_type = {{ .Values.queueDefaults.type }}
+    listeners.tcp.default = {{ .Values.service.amqpPort }}
+    management.tcp.port = {{ .Values.service.managementPort }}
+    cluster_partition_handling = {{ .Values.cluster.partitionHandling }}
+    {{- if .Values.metrics.enabled }}
+    prometheus.return_per_object_metrics = true
+    prometheus.tcp.port = {{ .Values.service.metricsPort }}
+    {{- end }}
+    {{- if and .Values.tls.enabled .Values.tls.disableNonTLSListeners }}
+    listeners.tcp = none
+    management.tcp.port = none
+    {{- end }}
+    {{- if .Values.tls.enabled }}
+    listeners.ssl.default = {{ .Values.service.amqpsPort }}
+    ssl_options.cacertfile = /etc/rabbitmq/tls/{{ .Values.tls.caFilename }}
+    ssl_options.certfile = /etc/rabbitmq/tls/{{ .Values.tls.certFilename }}
+    ssl_options.keyfile = /etc/rabbitmq/tls/{{ .Values.tls.keyFilename }}
+    ssl_options.verify = {{ .Values.tls.verify }}
+    ssl_options.fail_if_no_peer_cert = {{ ternary "true" "false" .Values.tls.failIfNoPeerCert }}
+    management.ssl.port = {{ .Values.service.managementTlsPort }}
+    management.ssl.cacertfile = /etc/rabbitmq/tls/{{ .Values.tls.caFilename }}
+    management.ssl.certfile = /etc/rabbitmq/tls/{{ .Values.tls.certFilename }}
+    management.ssl.keyfile = /etc/rabbitmq/tls/{{ .Values.tls.keyFilename }}
+    {{- end }}
+    {{- if eq .Values.architecture "cluster" }}
+    cluster_name = {{ include "rabbitmq.fullname" . }}
+    cluster_formation.peer_discovery_backend = k8s
+    {{- if ne (.Values.cluster.ordinalStart | int) 0 }}
+    cluster_formation.k8s.ordinal_start = {{ .Values.cluster.ordinalStart }}
+    {{- end }}
+    {{- if .Values.cluster.seedNode }}
+    cluster_formation.k8s.seed_node = {{ .Values.cluster.seedNode }}
+    {{- end }}
+    queue_leader_locator = balanced
+    {{- end }}
+    {{- if .Values.config.extra }}
+    {{- .Values.config.extra | nindent 4 }}
+    {{- end }}
+  {{- if .Values.config.advancedConfig }}
+  advanced.config: |
+    {{- .Values.config.advancedConfig | nindent 4 }}
+  {{- end }}
