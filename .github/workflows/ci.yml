@@ -133,6 +133,18 @@ jobs:
               -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
               -exit-on-error
 
+      - name: Validate ci values manifests against K8s schemas
+        run: |
+          for f in charts/${{ matrix.chart }}/ci/*.yaml; do
+            [ -f "$f" ] || continue
+            echo "--- Validating with $f ---"
+            helm template test-release charts/${{ matrix.chart }} -f "$f" \
+              | kubeconform -strict -summary \
+                -schema-location default \
+                -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+                -exit-on-error
+          done
+
   ci:
     name: CI
     runs-on: ubuntu-latest
