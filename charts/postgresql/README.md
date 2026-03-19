@@ -26,6 +26,7 @@ helm install postgresql oci://ghcr.io/mberlofa/helm/postgresql -f values.yaml
 - role-aware readiness checks for primary and replicas in replication mode
 - optional metrics through `postgres_exporter`
 - optional `ServiceMonitor`
+- dedicated metrics Services separated from client traffic
 - topology-specific Services for client traffic, primary traffic, and read replicas
 
 ## How to choose the architecture
@@ -122,7 +123,16 @@ metrics:
 
 - enable `metrics.enabled=true` in monitored environments
 - enable `metrics.serviceMonitor.enabled=true` when Prometheus Operator is available
+- metrics are exposed through dedicated metrics Services, not through the client database Services
 - monitor connection count, replication lag, disk growth, checkpoint behavior, and WAL retention
+
+### Configuration UX
+
+- use `config.preset` for a small set of opinionated PostgreSQL defaults
+- use `config.pgHbaEntries` when you need structured host-based access rules
+- use `*.resourcesPreset` for small and predictable environment sizing before reaching for fully custom resources
+- keep `config.postgresql` and `config.pgHba` for raw overrides when structured values are not enough
+- keep `auth.database`, `auth.username`, and `auth.replicationUsername` as plain values; `existingSecret` is intentionally limited to sensitive runtime data
 
 ## Production notes
 
@@ -151,6 +161,11 @@ Operational documents:
 | `auth.username` | App user created at bootstrap | `app` |
 | `auth.existingSecret` | Existing secret for passwords | `""` |
 | `auth.replicationUsername` | Replication username | `replicator` |
+| `config.preset` | Optional PostgreSQL config preset | `none` |
+| `config.pgHbaEntries` | Structured pg_hba entries | `[]` |
+| `standalone.resourcesPreset` | Resource preset for standalone mode | `none` |
+| `replication.primary.resourcesPreset` | Resource preset for the primary pod | `none` |
+| `replication.readReplicas.resourcesPreset` | Resource preset for replica pods | `none` |
 | `initdb.existingConfigMap` | External ConfigMap for extra init scripts | `""` |
 | `tls.enabled` | Enable PostgreSQL TLS | `false` |
 | `tls.existingSecret` | Existing secret with TLS material | `""` |
@@ -168,6 +183,7 @@ Operational documents:
 | `standalone.persistence.enabled` | Enable PVC for standalone | `true` |
 | `replication.readReplicas.replicaCount` | Number of async read replicas | `2` |
 | `metrics.enabled` | Enable `postgres_exporter` sidecar | `false` |
+| `metrics.resourcesPreset` | Resource preset for `postgres_exporter` | `none` |
 | `metrics.serviceMonitor.enabled` | Enable ServiceMonitor | `false` |
 | `pdb.enabled` | Enable PodDisruptionBudget | `false` |
 
@@ -185,6 +201,9 @@ The `ci/` scenarios validate the main chart behaviors:
 - `scheduling.yaml`
 - `tls.yaml`
 - `tls-networkpolicy.yaml`
+- `config-preset.yaml`
+- `structured-pghba.yaml`
+- `resources-preset.yaml`
 - `replication-recovery-check.yaml`
 - `replication-wal-tuning.yaml`
 
@@ -196,6 +215,8 @@ See `examples/`:
 - `replication.yaml`
 - `initdb-metrics.yaml`
 - `tls.yaml`
+- `structured-config.yaml`
+- `resources-preset.yaml`
 - `replication-production.yaml`
 
 ## Important notes

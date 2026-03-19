@@ -8,14 +8,18 @@ data:
   postgresql.conf: |
     listen_addresses = '*'
     port = {{ .Values.service.port }}
-    max_connections = 200
-    shared_buffers = '256MB'
     wal_level = replica
     hot_standby = on
     max_wal_senders = {{ .Values.replication.wal.maxSenders }}
     max_replication_slots = {{ .Values.replication.wal.maxReplicationSlots }}
     wal_keep_size = '{{ .Values.replication.wal.keepSize }}'
     password_encryption = scram-sha-256
+    {{- if ne .Values.config.preset "none" }}
+    {{ include "postgresql.configPreset" . | nindent 4 }}
+    {{- else }}
+    max_connections = 200
+    shared_buffers = '256MB'
+    {{- end }}
     {{- if .Values.tls.enabled }}
     ssl = on
     ssl_cert_file = '/tls/{{ .Values.tls.certFilename }}'
@@ -49,6 +53,9 @@ data:
     host    replication     {{ .Values.auth.replicationUsername }}  0.0.0.0/0    scram-sha-256
     host    replication     {{ .Values.auth.replicationUsername }}  ::/0         scram-sha-256
     {{- end }}
+    {{- end }}
+    {{- if .Values.config.pgHbaEntries }}
+    {{ include "postgresql.pgHbaEntries" . | nindent 4 }}
     {{- end }}
     {{- with .Values.config.pgHba }}
     {{ . | nindent 4 }}

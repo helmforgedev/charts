@@ -84,6 +84,18 @@ app.kubernetes.io/role: {{ .role }}
 {{- printf "%s-replicas" (include "postgresql.fullname" .) -}}
 {{- end -}}
 
+{{- define "postgresql.metricsServiceName" -}}
+{{- printf "%s-metrics" (include "postgresql.fullname" .) -}}
+{{- end -}}
+
+{{- define "postgresql.primaryMetricsServiceName" -}}
+{{- printf "%s-primary-metrics" (include "postgresql.fullname" .) -}}
+{{- end -}}
+
+{{- define "postgresql.replicasMetricsServiceName" -}}
+{{- printf "%s-replicas-metrics" (include "postgresql.fullname" .) -}}
+{{- end -}}
+
 {{- define "postgresql.primaryHeadlessServiceName" -}}
 {{- printf "%s-primary-headless" (include "postgresql.fullname" .) -}}
 {{- end -}}
@@ -182,6 +194,79 @@ app.kubernetes.io/role: {{ .role }}
     secretKeyRef:
       name: {{ include "postgresql.secretName" . }}
       key: {{ .Values.auth.existingSecretPostgresPasswordKey }}
+{{- end -}}
+
+{{- define "postgresql.configPreset" -}}
+{{- if eq .Values.config.preset "small" -}}
+max_connections = 100
+shared_buffers = '256MB'
+effective_cache_size = '768MB'
+work_mem = '4MB'
+maintenance_work_mem = '64MB'
+{{- else if eq .Values.config.preset "medium" -}}
+max_connections = 200
+shared_buffers = '512MB'
+effective_cache_size = '1536MB'
+work_mem = '8MB'
+maintenance_work_mem = '128MB'
+{{- else if eq .Values.config.preset "large" -}}
+max_connections = 400
+shared_buffers = '1GB'
+effective_cache_size = '3GB'
+work_mem = '16MB'
+maintenance_work_mem = '256MB'
+{{- end -}}
+{{- end -}}
+
+{{- define "postgresql.pgHbaEntries" -}}
+{{- range .Values.config.pgHbaEntries }}
+{{ .type | default "host" }} {{ .database | default "all" }} {{ .user | default "all" }} {{ .address | default "0.0.0.0/0" }} {{ .method | default "scram-sha-256" }}{{- if .options }} {{ .options }}{{- end }}
+{{- end -}}
+{{- end -}}
+
+{{- define "postgresql.resourcesPreset" -}}
+{{- $preset := default "none" .preset -}}
+{{- if eq $preset "small" -}}
+requests:
+  cpu: 250m
+  memory: 512Mi
+limits:
+  cpu: 500m
+  memory: 1Gi
+{{- else if eq $preset "medium" -}}
+requests:
+  cpu: 500m
+  memory: 1Gi
+limits:
+  cpu: "1"
+  memory: 2Gi
+{{- else if eq $preset "large" -}}
+requests:
+  cpu: "1"
+  memory: 2Gi
+limits:
+  cpu: "2"
+  memory: 4Gi
+{{- end -}}
+{{- end -}}
+
+{{- define "postgresql.metricsResourcesPreset" -}}
+{{- $preset := default "none" .Values.metrics.resourcesPreset -}}
+{{- if eq $preset "small" -}}
+requests:
+  cpu: 25m
+  memory: 64Mi
+limits:
+  cpu: 100m
+  memory: 128Mi
+{{- else if eq $preset "medium" -}}
+requests:
+  cpu: 50m
+  memory: 128Mi
+limits:
+  cpu: 200m
+  memory: 256Mi
+{{- end -}}
 {{- end -}}
 
 {{- define "postgresql.volumeClaimTemplate" -}}
