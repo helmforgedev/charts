@@ -1,0 +1,143 @@
+{{- if include "mongodb.isSharded" . }}
+{{- $root := . -}}
+{{- range $shardIdx := until (int .Values.sharded.shards.count) }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "mongodb.fullname" $root }}-shard{{ $shardIdx }}
+  labels:
+    {{- include "mongodb.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: shard
+    mongodb.com/shard: {{ $shardIdx | quote }}
+spec:
+  serviceName: {{ include "mongodb.fullname" $root }}-shard{{ $shardIdx }}-headless
+  replicas: {{ $root.Values.sharded.shards.membersPerShard }}
+  podManagementPolicy: OrderedReady
+  selector:
+    matchLabels:
+      {{- include "mongodb.selectorLabels" $root | nindent 6 }}
+      app.kubernetes.io/component: shard
+      mongodb.com/shard: {{ $shardIdx | quote }}
+  template:
+    metadata:
+      labels:
+        {{- include "mongodb.selectorLabels" $root | nindent 8 }}
+        app.kubernetes.io/component: shard
+        mongodb.com/shard: {{ $shardIdx | quote }}
+    spec:
+      {{- with $root.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ $root.Values.terminationGracePeriodSeconds }}
+      {{- with $root.Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if include "mongodb.needsKeyFile" $root }}
+      initContainers:
+        - name: init-keyfile
+          image: "{{ $root.Values.image.repository }}:{{ $root.Values.image.tag }}"
+          command:
+            - bash
+            - -c
+            - |
+              cp /etc/mongodb/keyfile-readonly/replica-set-key /etc/mongodb/keyfile/replica-set-key
+              chmod 400 /etc/mongodb/keyfile/replica-set-key
+              chown 999:999 /etc/mongodb/keyfile/replica-set-key
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: keyfile-readonly
+              mountPath: /etc/mongodb/keyfile-readonly
+              readOnly: true
+            - name: keyfile
+              mountPath: /etc/mongodb/keyfile
+      {{- end }}
+      containers:
+        - name: mongod
+          image: "{{ $root.Values.image.repository }}:{{ $root.Values.image.tag }}"
+          imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+          args:
+            - "--shardsvr"
+            - "--replSet"
+            - "shard{{ $shardIdx }}RS"
+            - "--bind_ip_all"
+            - "--port"
+            - {{ $root.Values.port | quote }}
+            {{- if include "mongodb.needsKeyFile" $root }}
+            - "--keyFile"
+            - "/etc/mongodb/keyfile/replica-set-key"
+            {{- end }}
+          ports:
+            - name: mongodb
+              containerPort: {{ $root.Values.port }}
+          env:
+            {{- if $root.Values.auth.enabled }}
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mongodb.secretName" $root }}
+                  key: mongodb-root-username
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mongodb.secretName" $root }}
+                  key: mongodb-root-password
+            {{- end }}
+          {{- with $root.Values.sharded.shards.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+            {{- if include "mongodb.needsKeyFile" $root }}
+            - name: keyfile
+              mountPath: /etc/mongodb/keyfile
+              readOnly: true
+            {{- end }}
+      volumes:
+        {{- if include "mongodb.needsKeyFile" $root }}
+        - name: keyfile-readonly
+          secret:
+            secretName: {{ include "mongodb.keySecretName" $root }}
+            defaultMode: 0400
+        - name: keyfile
+          emptyDir: {}
+        {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if $root.Values.sharded.shards.persistence.storageClass }}
+        storageClassName: {{ $root.Values.sharded.shards.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $root.Values.sharded.shards.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mongodb.fullname" $root }}-shard{{ $shardIdx }}-headless
+  labels:
+    {{- include "mongodb.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: shard
+    mongodb.com/shard: {{ $shardIdx | quote }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: mongodb
+      port: {{ $root.Values.port }}
+      targetPort: mongodb
+  selector:
+    {{- include "mongodb.selectorLabels" $root | nindent 4 }}
+    app.kubernetes.io/component: shard
+    mongodb.com/shard: {{ $shardIdx | quote }}
+{{- end }}
+{{- end }}

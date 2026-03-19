@@ -1,0 +1,50 @@
+{{- if or (include "mongodb.isStandalone" .) (include "mongodb.isReplicaSet" .) }}
+---
+# Headless service for StatefulSet DNS resolution
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mongodb.headlessServiceName" . }}
+  labels:
+    {{- include "mongodb.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: mongodb
+      port: {{ .Values.service.port }}
+      targetPort: mongodb
+  selector:
+    {{- include "mongodb.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: mongodb
+---
+# Client service (load-balanced for standalone, or mongos-like entry point)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mongodb.fullname" . }}
+  labels:
+    {{- include "mongodb.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: mongodb
+      port: {{ .Values.service.port }}
+      targetPort: mongodb
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePort }}
+      nodePort: {{ .Values.service.nodePort }}
+      {{- end }}
+    {{- if .Values.metrics.enabled }}
+    - name: metrics
+      port: {{ .Values.metrics.port }}
+      targetPort: metrics
+    {{- end }}
+  selector:
+    {{- include "mongodb.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: mongodb
+{{- end }}

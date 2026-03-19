@@ -1,0 +1,67 @@
+# Production 3-member replica set with monitoring
+# helm install mongodb oci://ghcr.io/mberlofa/helm/mongodb -f replicaset-production.yaml
+
+architecture: replicaset
+
+image:
+  tag: "8.2.6"
+
+auth:
+  enabled: true
+  rootUser: admin
+  # Use existingSecret in production:
+  # existingSecret: mongodb-credentials
+  rootPassword: "changeme-use-existingSecret"
+
+replicaSet:
+  name: rs0
+  members: 3
+
+persistence:
+  size: 50Gi
+  storageClass: ""  # cluster default
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 2Gi
+  limits:
+    cpu: "2"
+    memory: 4Gi
+
+config:
+  storage:
+    wiredTiger:
+      engineConfig:
+        cacheSizeGB: 1.5
+  operationProfiling:
+    mode: slowOp
+    slowOpThresholdMs: 100
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    labels:
+      release: prometheus
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: mongodb
+          topologyKey: kubernetes.io/hostname
+
+initdbDatabase: myapp
+
+initdbScripts:
+  01-create-app-user.js: |
+    db.createUser({
+      user: "appuser",
+      pwd: "apppassword",
+      roles: [{ role: "readWrite", db: "myapp" }]
+    });
