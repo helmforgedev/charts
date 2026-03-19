@@ -113,8 +113,9 @@ Required git flow for agents:
 1. create a branch from `main`
 2. make the change
 3. commit all intended files with the correct conventional commit
-4. push the branch to origin
-5. open the PR targeting `main`
+4. if the current branch already has an open PR, check the PR status before pushing
+5. push the branch to origin
+6. if no PR exists yet, open the PR targeting `main`
 
 Do not use stacked PRs or branch-to-branch PRs in this repository.
 
@@ -130,6 +131,7 @@ Do not use stacked PRs or branch-to-branch PRs in this repository.
 - if a chart supports materially different architectures, document each architecture in `docs/`
 - if a solution has a UI or web entrypoint, the chart must expose configurable ingress support with `ingressClassName`
 - for UI/web solutions, default `ingressClassName` can be `traefik`, but docs must state that operators may use `traefik`, `nginx`, or another cluster-supported ingress class
+- before pushing changes on a branch that already has an open PR, always validate whether that PR is still open, merged, closed, or obsolete
 
 ## Validation Commands
 
@@ -170,6 +172,9 @@ for f in charts/<chart-name>/ci/*.yaml; do helm template test-release charts/<ch
 - chart docs are exclusive to the chart itself; do not reference local filesystem paths, personal machine paths, or unrelated repository paths
 - use relative links for files inside the same chart, such as `docs/*.md` and `examples/*`
 - when external references are needed in chart docs, use only official product or official project documentation
+- always document ingress examples in `values.yaml` using `hosts`, `ingressClassName`, and `tls[].secretName` in the Kubernetes-native shape
+- always use `ingressClassName` as the values key for ingress class selection in Helm charts
+- whenever a chart documents ingress in `values.yaml`, add a commented annotation example using `cert-manager.io/cluster-issuer`
 - do not add design-history documents for users
 - when a new stable rule is discovered during real work, update the smallest relevant standard document in the same branch
 

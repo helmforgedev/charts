@@ -12,7 +12,7 @@ metadata:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  ingressClassName: {{ .Values.ingress.ingressClassName | default "nginx" }}
+  ingressClassName: {{ .Values.ingress.ingressClassName | default "traefik" }}
   {{- if .Values.ingress.tls }}
   tls:
     {{- range .Values.ingress.tls }}
@@ -31,8 +31,13 @@ spec:
       http:
         paths:
           {{- range .paths | default (list "/") }}
+          {{- if kindIs "string" . }}
           - path: {{ . }}
             pathType: Prefix
+          {{- else }}
+          - path: {{ .path | default "/" }}
+            pathType: {{ .pathType | default "Prefix" }}
+          {{- end }}
             backend:
               service:
                 name: {{ $fullName }}

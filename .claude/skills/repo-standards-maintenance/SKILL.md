@@ -35,6 +35,8 @@ Keep repository guidance aligned with actual practice.
 - If workflow history readability is affected, update commit and PR title guidance.
 - If the improvement is product-specific, update chart docs instead of repository-wide docs.
 - In this repository, keep PR flow branch-to-`main` only. Do not encode stacked PR workflows into the standards.
+- If a branch may already have an open PR, update the standards to require checking PR status before pushing more changes.
+- Keep chart docs in English, use relative internal links, use official product references only, and standardize ingress docs around `ingressClassName` plus a commented `cert-manager.io/cluster-issuer` example.
 
 ## Commit Standard
 
