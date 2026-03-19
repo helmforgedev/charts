@@ -36,10 +36,15 @@ helm install redis oci://ghcr.io/mberlofa/helm/redis -f values.yaml
 
 Leitura recomendada antes da instalação:
 
-- [Standalone](/C:/devops/berlofa/github/helm/charts/redis/docs/standalone.md)
-- [Replication](/C:/devops/berlofa/github/helm/charts/redis/docs/replication.md)
-- [Sentinel](/C:/devops/berlofa/github/helm/charts/redis/docs/sentinel.md)
-- [Cluster](/C:/devops/berlofa/github/helm/charts/redis/docs/cluster.md)
+- [Standalone](docs/standalone.md)
+- [Replication](docs/replication.md)
+- [Sentinel](docs/sentinel.md)
+- [Cluster](docs/cluster.md)
+
+## Referências oficiais do produto
+
+- Redis Sentinel: https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/
+- Redis Cluster: https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/
 
 ## Features
 

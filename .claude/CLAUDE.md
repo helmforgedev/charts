@@ -106,6 +106,9 @@ When available, also validate with `kubeconform`.
 - root `README.md`: repository overview, charts list, CI/CD, commit standards
 - chart `README.md`: install, features, examples, values, operational usage
 - chart `docs/*.md`: architecture-specific guidance
+- chart docs must use relative internal links only; never include local machine paths or repository-absolute filesystem paths
+- external references in chart docs must point only to official vendor or project documentation
+- chart documentation should stay exclusive to that chart, not to repository-internal development process
 - do not expose design-history files as end-user documentation
 
 ## Repository Learning Rule
