@@ -20,10 +20,10 @@ workload:
 
 Read before choosing a mode:
 
-- [Deployment](/C:/devops/berlofa/github/helm/charts/generic/docs/deployment.md)
-- [StatefulSet](/C:/devops/berlofa/github/helm/charts/generic/docs/statefulset.md)
-- [DaemonSet](/C:/devops/berlofa/github/helm/charts/generic/docs/daemonset.md)
-- [Batch Jobs and CronJobs](/C:/devops/berlofa/github/helm/charts/generic/docs/batch.md)
+- [Deployment](docs/deployment.md)
+- [StatefulSet](docs/statefulset.md)
+- [DaemonSet](docs/daemonset.md)
+- [Batch Jobs and CronJobs](docs/batch.md)
 
 <details>
 <summary><b>Deployment</b> (default)</summary>
@@ -50,11 +50,17 @@ service:
 
 ingress:
   enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
   hosts:
     - host: app.example.com
-      paths: [/]
+      paths:
+        - path: /
+          pathType: Prefix
   tls:
-    - hosts: [app.example.com]
+    - hosts:
+        - app.example.com
       secretName: app-tls
 ```
 </details>
@@ -313,7 +319,7 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | `service.targetPort` | Target port | `8080` |
 | `service.extraPorts` | Additional service ports | `[]` |
 | `ingress.enabled` | Enable Ingress | `false` |
-| `ingress.ingressClassName` | Ingress class | `nginx` |
+| `ingress.ingressClassName` | Ingress class | `traefik` |
 | `ingress.hosts` | Ingress host rules | `[]` |
 | `ingress.tls` | TLS configuration | `[]` |
 | **Scheduling** | | |

@@ -76,8 +76,9 @@ Mandatory flow:
 1. create a branch from `main`
 2. implement the change
 3. commit all intended files
-4. push the branch
-5. create a PR to `main`
+4. if the branch already has an open PR, check the PR status before pushing
+5. push the branch
+6. if no PR exists yet, create a PR to `main`
 
 ## Chart Authoring Rules
 
@@ -91,6 +92,7 @@ Mandatory flow:
 - when a chart supports distinct architectures, document each one in `docs/`
 - if a solution exposes a UI or web entrypoint, include configurable ingress support with `ingressClassName`
 - for UI/web solutions, `ingressClassName` may default to `traefik`, and docs must mention that `nginx` or another supported ingress class can also be used
+- before pushing on a branch with an existing PR, verify whether the PR is still open, merged, closed, or obsolete
 
 ## Validation
 
@@ -114,6 +116,9 @@ When available, also validate with `kubeconform`.
 - chart docs must use relative internal links only; never include local machine paths or repository-absolute filesystem paths
 - external references in chart docs must point only to official vendor or project documentation
 - chart documentation should stay exclusive to that chart, not to repository-internal development process
+- always document ingress examples in `values.yaml` using `hosts`, `ingressClassName`, and `tls[].secretName`
+- always use `ingressClassName` as the values key for ingress class selection
+- whenever documenting ingress in `values.yaml`, include a commented annotation example with `cert-manager.io/cluster-issuer`
 - do not expose design-history files as end-user documentation
 
 ## Repository Learning Rule
