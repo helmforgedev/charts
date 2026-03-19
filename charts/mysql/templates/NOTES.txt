@@ -1,0 +1,28 @@
+MySQL has been installed.
+
+Useful Services:
+
+- Client Service: {{ include "mysql.clientServiceName" . }}
+{{- if eq .Values.architecture "replication" }}
+- Source Service: {{ include "mysql.sourceServiceName" . }}
+- Replicas Service: {{ include "mysql.replicasServiceName" . }}
+{{- end }}
+
+Root password:
+
+  kubectl get secret {{ include "mysql.secretName" . }} -n {{ .Release.Namespace }} -o jsonpath="{.data.{{ .Values.auth.existingSecretRootPasswordKey }}}" | base64 -d
+
+Connection examples:
+
+  mysql -h {{ include "mysql.clientServiceName" . }} -P {{ .Values.service.port }} -u root -p
+{{- if eq .Values.architecture "replication" }}
+
+Read-only workloads should use:
+
+  mysql -h {{ include "mysql.replicasServiceName" . }} -P {{ .Values.service.port }} -u {{ .Values.auth.username }} -p
+{{- end }}
+
+Important:
+
+- replication mode provides one fixed source and asynchronous read replicas
+- the chart does not implement automatic source promotion or operator-style HA
