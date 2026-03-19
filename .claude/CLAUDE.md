@@ -65,6 +65,41 @@ helm template test charts/<name>
 for f in charts/<name>/ci/*.yaml; do helm template test charts/<name> -f "$f"; done
 ```
 
+## Development Workflow
+
+### Always use PRs for chart changes
+
+Never push chart changes directly to `main`. Follow this flow:
+
+1. Create a feature branch: `feat/<chart>-<description>`, `fix/<chart>-<description>`
+2. Make changes and validate locally:
+   ```bash
+   helm lint charts/<name> --strict
+   helm template test charts/<name>
+   for f in charts/<name>/ci/*.yaml; do helm template test charts/<name> -f "$f"; done
+   ```
+3. Commit, push, and create a PR targeting `main`
+4. CI runs automatically: lint → template → kubeconform (for all changed charts)
+5. After CI passes and PR is approved, merge to `main`
+6. `publish.yml` auto-detects changed charts, bumps semver, publishes to GHCR, and creates a git tag
+
+### Adding a new chart
+
+1. Create `charts/<chart-name>/` with `Chart.yaml`, `values.yaml`, and `templates/`
+2. Add test values in `charts/<chart-name>/ci/*.yaml` (CI runs `helm template` against each)
+3. Add usage examples in `charts/<chart-name>/examples/`
+4. Add `templates/NOTES.txt` with post-install instructions
+5. Create a `README.md` inside the chart directory
+6. Add a row to the root `README.md` charts table
+7. Open a PR — CI validates automatically
+
+### Chart-specific patterns
+
+| Chart | Architecture | Key helpers |
+|-------|-------------|-------------|
+| `generic` | Multi-workload (Deployment/StatefulSet/DaemonSet/Job/CronJob) | `chart.containerSpec`, `chart.podSpec`, `chart.containerImage` |
+| `mongodb` | Multi-architecture (standalone/replicaset/sharded) | `mongodb.isStandalone`, `mongodb.isReplicaSet`, `mongodb.isSharded`, `mongodb.podTemplate` |
+
 ## Documentation Rules
 
 - **Root README**: generic commands with `<placeholders>`, no chart-specific details, no versions

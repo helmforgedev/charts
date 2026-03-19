@@ -1,0 +1,40 @@
+{{- $fullname := include "mongodb.fullname" . -}}
+{{- $namespace := .Release.Namespace -}}
+
+MongoDB has been deployed.
+
+  Architecture: {{ .Values.architecture }}
+  Image:        {{ .Values.image.repository }}:{{ .Values.image.tag }}
+
+{{- if include "mongodb.isStandalone" . }}
+
+  Connection string:
+    mongodb://{{ if .Values.auth.enabled }}$(kubectl get secret -n {{ $namespace }} {{ include "mongodb.secretName" . }} -o jsonpath='{.data.mongodb-root-password}' | base64 -d){{ end }}@{{ $fullname }}.{{ $namespace }}.svc.cluster.local:{{ .Values.service.port }}/admin
+
+{{- else if include "mongodb.isReplicaSet" . }}
+
+  Replica Set: {{ .Values.replicaSet.name }} ({{ include "mongodb.replicaCount" . }} members)
+
+  Connection string:
+    mongodb://{{ if .Values.auth.enabled }}$(kubectl get secret -n {{ $namespace }} {{ include "mongodb.secretName" . }} -o jsonpath='{.data.mongodb-root-password}' | base64 -d){{ end }}@{{ range $i := until (int (include "mongodb.replicaCount" .)) }}{{ if $i }},{{ end }}{{ $fullname }}-{{ $i }}.{{ $fullname }}-headless.{{ $namespace }}.svc.cluster.local:{{ $.Values.port }}{{ end }}/admin?replicaSet={{ .Values.replicaSet.name }}
+
+{{- else if include "mongodb.isSharded" . }}
+
+  Sharded Cluster: {{ .Values.sharded.shards.count }} shards, {{ .Values.sharded.mongos.replicaCount }} mongos routers
+
+  Connection string (via mongos):
+    mongodb://{{ if .Values.auth.enabled }}$(kubectl get secret -n {{ $namespace }} {{ include "mongodb.secretName" . }} -o jsonpath='{.data.mongodb-root-password}' | base64 -d){{ end }}@{{ $fullname }}-mongos.{{ $namespace }}.svc.cluster.local:{{ .Values.sharded.mongos.port }}/admin
+
+{{- end }}
+
+{{- if .Values.metrics.enabled }}
+
+  Metrics:
+    Prometheus exporter is enabled on port {{ .Values.metrics.port }}.
+    {{- if .Values.metrics.serviceMonitor.enabled }}
+    ServiceMonitor is created for Prometheus Operator.
+    {{- end }}
+{{- end }}
+
+To get the root password:
+  kubectl get secret -n {{ $namespace }} {{ include "mongodb.secretName" . }} -o jsonpath='{.data.mongodb-root-password}' | base64 -d; echo
