@@ -36,6 +36,8 @@ Recommended reading before installation:
 
 - [Standalone](docs/standalone.md)
 - [Replication](docs/replication.md)
+- [Replication Operations](docs/replication-operations.md)
+- [Backup and Restore](docs/backup-restore.md)
 
 ## Official product references
 
@@ -117,6 +119,21 @@ metrics:
 - enable `metrics.serviceMonitor.enabled=true` when Prometheus Operator is available
 - monitor connection count, replication lag, disk growth, checkpoint behavior, and WAL retention
 
+## Production notes
+
+- use `auth.existingSecret` instead of inline passwords
+- keep persistence enabled for every stateful topology
+- define node placement rules for `replication`, especially when the cluster spans multiple nodes or zones
+- use the `client` or `primary` Service only for writes
+- use the `replicas` Service only for read traffic
+- treat backup, restore, and failover as operational workflows external to the chart
+- review the operational guides before promoting `replication` to production
+
+Operational documents:
+
+- [Replication Operations](docs/replication-operations.md)
+- [Backup and Restore](docs/backup-restore.md)
+
 ## Main values
 
 | Parameter | Description | Default |
@@ -144,6 +161,9 @@ The `ci/` scenarios validate the main chart behaviors:
 - `initdb.yaml`
 - `existing-secret.yaml`
 - `metrics.yaml`
+- `existing-configmap.yaml`
+- `replication-metrics.yaml`
+- `scheduling.yaml`
 
 ## Examples
 

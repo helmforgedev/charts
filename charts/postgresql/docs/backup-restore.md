@@ -1,0 +1,31 @@
+# Backup and Restore
+
+## Scope
+
+This chart does not implement backups directly. Backup and restore must be handled by platform tooling, scheduled jobs, or external controllers.
+
+## Minimum production expectation
+
+- a tested logical or physical backup workflow
+- retention policy aligned with business and compliance needs
+- restore verification in a non-production environment
+- a documented recovery time expectation
+
+## Recommended direction
+
+- use dedicated PostgreSQL backup tooling or a platform backup solution
+- keep WAL, data retention, and storage sizing aligned with the backup design
+- if replication is enabled, do not assume replicas replace backups
+
+## Restore guidance
+
+- restore into a fresh release or a controlled maintenance workflow
+- verify database integrity and application connectivity before switching traffic
+- document whether restore will overwrite an existing PVC or create a new one
+
+## What to document for operations
+
+- where backups are stored
+- who owns restore approval
+- how often restore tests are executed
+- how secrets and credentials are supplied during recovery
