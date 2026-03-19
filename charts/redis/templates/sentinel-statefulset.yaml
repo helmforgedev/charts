@@ -1,0 +1,70 @@
+{{- if include "redis.isSentinel" . }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "redis.sentinelStatefulSetName" . }}
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "redis.sentinelServiceName" . }}
+  replicas: {{ .Values.sentinel.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "redis.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: sentinel
+  template:
+    metadata:
+      labels:
+        {{- include "redis.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: sentinel
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- include "redis.podSpecCommon" . | nindent 6 }}
+      containers:
+        - name: sentinel
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-ec"]
+          args:
+            - |
+              cp /etc/redis-base/sentinel.conf /tmp/sentinel.conf
+              {{- if .Values.auth.enabled }}
+              echo "sentinel auth-pass mymaster ${REDIS_PASSWORD}" >> /tmp/sentinel.conf
+              {{- end }}
+              exec redis-sentinel /tmp/sentinel.conf
+          ports:
+            - name: sentinel
+              containerPort: {{ .Values.service.ports.sentinel }}
+          {{- if .Values.auth.enabled }}
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "redis.secretName" . }}
+                  key: {{ .Values.auth.existingSecretPasswordKey }}
+          {{- end }}
+          {{- with .Values.sentinel.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/redis-base/sentinel.conf
+              subPath: sentinel.conf
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "redis.configMapName" . }}
+  {{- if .Values.sentinel.persistence.enabled }}
+  volumeClaimTemplates:
+    {{- include "redis.volumeClaimTemplate" (dict "root" . "persistence" .Values.sentinel.persistence) | nindent 4 }}
+  {{- end }}
+{{- end }}
