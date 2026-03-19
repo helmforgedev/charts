@@ -123,10 +123,13 @@ Do not use stacked PRs or branch-to-branch PRs in this repository.
 - design each chart around the application, not around the `generic` chart
 - use upstream product docs and mature public charts as references, not as copy sources
 - keep `values.yaml` small, explicit, and product-oriented
+- document default `values.yaml` keys with inline comments following the repository pattern used by the existing charts
 - use `_helpers.tpl` to remove duplication inside one chart
 - avoid cross-chart abstraction unless it is clearly stable and justified
 - document supported architectures and explicit non-goals before expanding template surface
 - if a chart supports materially different architectures, document each architecture in `docs/`
+- if a solution has a UI or web entrypoint, the chart must expose configurable ingress support with `ingressClassName`
+- for UI/web solutions, default `ingressClassName` can be `traefik`, but docs must state that operators may use `traefik`, `nginx`, or another cluster-supported ingress class
 
 ## Validation Commands
 
@@ -163,6 +166,7 @@ for f in charts/<chart-name>/ci/*.yaml; do helm template test-release charts/<ch
 - root `README.md`: contributor-facing repository behavior, generic commands, no hardcoded chart versions
 - `charts/<name>/README.md`: install, features, values, examples, operational usage
 - `charts/<name>/docs/*.md`: architecture-specific operational guidance
+- chart README files must document the main default values, not only the feature overview
 - chart docs are exclusive to the chart itself; do not reference local filesystem paths, personal machine paths, or unrelated repository paths
 - use relative links for files inside the same chart, such as `docs/*.md` and `examples/*`
 - when external references are needed in chart docs, use only official product or official project documentation
