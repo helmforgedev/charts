@@ -77,6 +77,9 @@ Repository standard:
 - use `ci` for workflow-only changes
 - use `repo` for repository-wide docs and instruction changes
 - keep each commit and each PR focused on one logical change
+- always open PRs from a branch to `main`
+- never open branch-to-branch PRs
+- always follow this sequence: create branch, commit, push, open PR to `main`
 
 Examples:
 

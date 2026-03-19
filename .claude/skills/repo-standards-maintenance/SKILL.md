@@ -34,6 +34,7 @@ Keep repository guidance aligned with actual practice.
 - Prefer one precise rule over a long explanation.
 - If workflow history readability is affected, update commit and PR title guidance.
 - If the improvement is product-specific, update chart docs instead of repository-wide docs.
+- In this repository, keep PR flow branch-to-`main` only. Do not encode stacked PR workflows into the standards.
 
 ## Commit Standard
 

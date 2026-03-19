@@ -64,6 +64,8 @@ Rules:
 - use the same convention for the PR title
 - keep chart work and repository-instruction work in separate commits when practical
 - do not mix unrelated charts in the same commit unless the change is truly shared
+- always open pull requests from the working branch to `main`
+- never open pull requests from one feature branch to another branch
 
 Examples:
 
@@ -105,6 +107,16 @@ fix/mongodb-readiness-probe
 docs/repo-commit-standards
 ci/publish-retry-loop
 ```
+
+Required git flow for agents:
+
+1. create a branch from `main`
+2. make the change
+3. commit all intended files with the correct conventional commit
+4. push the branch to origin
+5. open the PR targeting `main`
+
+Do not use stacked PRs or branch-to-branch PRs in this repository.
 
 ## Helm Chart Authoring Rules
 
