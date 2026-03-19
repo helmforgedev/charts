@@ -57,10 +57,6 @@ Always scope commits to the chart name (e.g., `generic`, `redis-ha`).
 
 Always commit using the repository owner's git config (name and email). Never commit as the agent itself. Use `Co-Authored-By` trailer to indicate AI assistance:
 
-```
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
-```
-
 ### Branch naming
 
 ```
