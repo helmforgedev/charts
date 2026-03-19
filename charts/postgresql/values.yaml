@@ -1,0 +1,246 @@
+# =============================================================================
+# PostgreSQL Helm Chart - Default Values
+# =============================================================================
+# Supported architectures:
+# - standalone
+# - replication
+
+# -- PostgreSQL deployment mode: standalone | replication
+architecture: standalone
+
+# -- Override chart name
+nameOverride: ""
+# -- Override full release name
+fullnameOverride: ""
+
+# -- Labels added to all resources
+commonLabels: {}
+
+# -- Kubernetes cluster domain
+clusterDomain: cluster.local
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- PostgreSQL image repository
+  repository: postgres
+  # -- PostgreSQL image tag
+  tag: "18.3-trixie"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Authentication
+# =============================================================================
+
+auth:
+  # -- PostgreSQL superuser password. Auto-generated if empty and no existingSecret is set.
+  postgresPassword: ""
+  # -- Application database created on first bootstrap
+  database: app
+  # -- Application user created on first bootstrap
+  username: app
+  # -- Application user password. Auto-generated if empty and no existingSecret is set.
+  password: ""
+  # -- Replication user used by read replicas
+  replicationUsername: replicator
+  # -- Replication user password. Auto-generated if empty and no existingSecret is set.
+  replicationPassword: ""
+  # -- Existing secret with PostgreSQL passwords
+  existingSecret: ""
+  # -- Secret key for the PostgreSQL superuser password in auth.existingSecret
+  existingSecretPostgresPasswordKey: postgres-password
+  # -- Secret key for the application user password in auth.existingSecret
+  existingSecretUserPasswordKey: user-password
+  # -- Secret key for the replication user password in auth.existingSecret
+  existingSecretReplicationPasswordKey: replication-password
+
+# =============================================================================
+# PostgreSQL Configuration
+# =============================================================================
+
+config:
+  # -- Extra postgresql.conf content appended to the generated configuration
+  postgresql: ""
+  # -- Extra pg_hba.conf content appended to the generated host-based authentication rules
+  pgHba: ""
+
+# =============================================================================
+# Initialization
+# =============================================================================
+
+initdb:
+  # -- Additional init scripts written into docker-entrypoint-initdb.d
+  scripts: {}
+    # 10-extra.sql: |
+    #   CREATE EXTENSION IF NOT EXISTS pgcrypto;
+  # -- Existing ConfigMap mounted into docker-entrypoint-initdb.d in addition to the generated scripts
+  existingConfigMap: ""
+
+# =============================================================================
+# Standalone
+# =============================================================================
+
+standalone:
+  persistence:
+    # -- Enable PVC for standalone mode
+    enabled: true
+    # -- Storage class for standalone PVC
+    storageClass: ""
+    # -- Access modes for standalone PVC
+    accessModes:
+      - ReadWriteOnce
+    # -- PVC size for standalone mode
+    size: 8Gi
+  # -- Resources for standalone PostgreSQL
+  resources: {}
+
+# =============================================================================
+# Replication
+# =============================================================================
+
+replication:
+  primary:
+    persistence:
+      # -- Enable PVC for the primary StatefulSet
+      enabled: true
+      # -- Storage class for primary PVCs
+      storageClass: ""
+      # -- Access modes for primary PVCs
+      accessModes:
+        - ReadWriteOnce
+      # -- PVC size for the primary pod
+      size: 20Gi
+    # -- Resources for the primary PostgreSQL pod
+    resources: {}
+  readReplicas:
+    # -- Number of read replica pods
+    replicaCount: 2
+    persistence:
+      # -- Enable PVCs for read replicas
+      enabled: true
+      # -- Storage class for replica PVCs
+      storageClass: ""
+      # -- Access modes for replica PVCs
+      accessModes:
+        - ReadWriteOnce
+      # -- PVC size per read replica
+      size: 20Gi
+    # -- Resources for read replica pods
+    resources: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type for PostgreSQL client access
+  type: ClusterIP
+  annotations: {}
+  primaryAnnotations: {}
+  replicasAnnotations: {}
+  # -- PostgreSQL listener port
+  port: 5432
+  # -- Metrics port exposed when metrics.enabled=true
+  metricsPort: 9187
+
+# =============================================================================
+# Metrics
+# =============================================================================
+
+metrics:
+  # -- Enable postgres_exporter sidecar
+  enabled: false
+  image:
+    # -- postgres_exporter image repository
+    repository: quay.io/prometheuscommunity/postgres-exporter
+    # -- postgres_exporter image tag
+    tag: "v0.18.0"
+    pullPolicy: IfNotPresent
+  # -- Resources for postgres_exporter
+  resources: {}
+  serviceMonitor:
+    # -- Create a ServiceMonitor (requires Prometheus Operator)
+    enabled: false
+    interval: 30s
+    labels: {}
+
+# =============================================================================
+# Pod Disruption Budget
+# =============================================================================
+
+pdb:
+  # -- Enable PodDisruptionBudget
+  enabled: false
+  # -- Minimum available pods when PDB is enabled
+  minAvailable: 1
+  # -- Maximum unavailable pods when PDB is enabled
+  maxUnavailable: ""
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  name: ""
+  annotations: {}
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+livenessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+readinessProbe:
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+startupProbe:
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+
+# =============================================================================
+# Scheduling and Security
+# =============================================================================
+
+podSecurityContext:
+  fsGroup: 999
+
+securityContext:
+  runAsUser: 999
+  runAsGroup: 999
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+
+podLabels: {}
+podAnnotations: {}
+annotations: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 120
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []

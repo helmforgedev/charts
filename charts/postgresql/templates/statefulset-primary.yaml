@@ -1,0 +1,146 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "postgresql.primaryStatefulSetName" . }}
+  labels:
+    {{- include "postgresql.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "postgresql.primaryHeadlessServiceName" . }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "postgresql.componentLabels" (dict "root" . "role" (ternary "primary" "standalone" (eq .Values.architecture "replication"))) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "postgresql.componentLabels" (dict "root" . "role" (ternary "primary" "standalone" (eq .Values.architecture "replication"))) | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "postgresql.podSpecCommon" . | nindent 6 }}
+      containers:
+        - name: postgresql
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - -c
+            - config_file=/etc/postgresql/generated/postgresql.conf
+            - -c
+            - hba_file=/etc/postgresql/generated/pg_hba.conf
+          ports:
+            - name: postgres
+              containerPort: {{ .Values.service.port }}
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_DB
+              value: {{ .Values.auth.database | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "postgresql.secretName" . }}
+                  key: {{ .Values.auth.existingSecretPostgresPasswordKey }}
+            - name: APP_DATABASE
+              value: {{ .Values.auth.database | quote }}
+            - name: APP_USERNAME
+              value: {{ .Values.auth.username | quote }}
+            - name: APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "postgresql.secretName" . }}
+                  key: {{ .Values.auth.existingSecretUserPasswordKey }}
+            - name: REPLICATION_USERNAME
+              value: {{ ternary .Values.auth.replicationUsername "" (eq .Values.architecture "replication") | quote }}
+            - name: REPLICATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "postgresql.secretName" . }}
+                  key: {{ .Values.auth.existingSecretReplicationPasswordKey }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            exec:
+              command:
+                {{- include "postgresql.probeCommand" . | nindent 16 }}
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          readinessProbe:
+            exec:
+              command:
+                {{- include "postgresql.probeCommand" . | nindent 16 }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          startupProbe:
+            exec:
+              command:
+                {{- include "postgresql.probeCommand" . | nindent 16 }}
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml (ternary .Values.replication.primary.resources .Values.standalone.resources (eq .Values.architecture "replication")) | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: config
+              mountPath: /etc/postgresql/generated
+            - name: initdb
+              mountPath: /docker-entrypoint-initdb.d
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- if .Values.metrics.enabled }}
+        - name: postgres-exporter
+          image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
+          imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.service.metricsPort }}
+          env:
+            {{- include "postgresql.metricsEnv" . | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.metrics.resources | nindent 12 }}
+        {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "postgresql.configMapName" . }}
+        - name: initdb
+          projected:
+            defaultMode: 0755
+            sources:
+              - configMap:
+                  name: {{ include "postgresql.initdbConfigMapName" . }}
+              {{- if .Values.initdb.existingConfigMap }}
+              - configMap:
+                  name: {{ .Values.initdb.existingConfigMap }}
+              {{- end }}
+        {{- if not (ternary .Values.replication.primary.persistence.enabled .Values.standalone.persistence.enabled (eq .Values.architecture "replication")) }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+  {{- if ternary .Values.replication.primary.persistence.enabled .Values.standalone.persistence.enabled (eq .Values.architecture "replication") }}
+  volumeClaimTemplates:
+    {{- include "postgresql.volumeClaimTemplate" (dict "root" . "persistence" (ternary .Values.replication.primary.persistence .Values.standalone.persistence (eq .Values.architecture "replication"))) | nindent 4 }}
+  {{- end }}
