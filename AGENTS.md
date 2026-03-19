@@ -162,6 +162,9 @@ for f in charts/<chart-name>/ci/*.yaml; do helm template test-release charts/<ch
 - root `README.md`: contributor-facing repository behavior, generic commands, no hardcoded chart versions
 - `charts/<name>/README.md`: install, features, values, examples, operational usage
 - `charts/<name>/docs/*.md`: architecture-specific operational guidance
+- chart docs are exclusive to the chart itself; do not reference local filesystem paths, personal machine paths, or unrelated repository paths
+- use relative links for files inside the same chart, such as `docs/*.md` and `examples/*`
+- when external references are needed in chart docs, use only official product or official project documentation
 - do not add design-history documents for users
 - when a new stable rule is discovered during real work, update the smallest relevant standard document in the same branch
 
