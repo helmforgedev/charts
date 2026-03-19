@@ -4,80 +4,84 @@
 
 OCI Helm chart registry at `ghcr.io/mberlofa/helm`. Charts live under `charts/<name>/`.
 
-## Skills to Use
+## Skills To Use
 
-When working on this repository, use these skills:
+Use these skills when they match the task:
 
-- **helm-chart-scaffolding** — designing, organizing, and managing Helm charts
-- **kubernetes-specialist** — K8s workloads, RBAC, networking, storage, troubleshooting
-- **coding-standards** — code quality and best practices
-- **context7-docs-lookup** — fetch up-to-date Helm/K8s documentation when needed
-- **.claude/skills/helm-chart-change** — repository-local workflow for chart implementation and evolution
-- **.claude/skills/helm-chart-review** — repository-local workflow for review, regression hunting, and test-gap analysis
-- **.claude/skills/helm-release-workflow** — repository-local workflow for CI, semver, and OCI publishing changes
+- `helm-chart-scaffolding`
+- `kubernetes-specialist`
+- `coding-standards`
+- `context7-docs-lookup`
+- `git-workflow`
+- `continuous-learning`
+- `.claude/skills/repo-standards-maintenance`
 
 ## Task Matrix
 
-Use this matrix to choose the primary skill for the task:
-
 | Task | Primary skill | Secondary skill |
 |------|---------------|-----------------|
-| Add or modify templates in `charts/*/templates/` | `helm-chart-change` | `helm-chart-scaffolding`, `kubernetes-specialist` |
-| Add or change values in `charts/*/values.yaml` | `helm-chart-change` | `helm-chart-scaffolding` |
-| Add a new chart | `helm-chart-change` | `helm-chart-scaffolding`, `kubernetes-specialist` |
-| Review a PR or diff for chart regressions | `helm-chart-review` | `Code Quality`, `kubernetes-specialist` |
-| Check whether `ci/*.yaml` coverage is sufficient | `helm-chart-review` | `Code Quality` |
-| Modify `.github/workflows/ci.yml` or `publish.yml` | `helm-release-workflow` | `DevOps Practices`, `Workflow Automation` |
-| Change conventional-commit or semver behavior | `helm-release-workflow` | `Workflow Automation` |
-| Update Helm/Kubernetes behavior based on official docs | `context7-docs-lookup` | `helm-chart-change` |
-| Perform cluster-semantic validation of manifests | `kubernetes-specialist` | `helm-chart-review` |
+| Add or modify templates in `charts/*/templates/` | `helm-chart-scaffolding` | `kubernetes-specialist` |
+| Add or change values in `charts/*/values.yaml` | `helm-chart-scaffolding` | `kubernetes-specialist` |
+| Add a new chart | `helm-chart-scaffolding` | `kubernetes-specialist`, `context7-docs-lookup` |
+| Modify `.github/workflows/*` | `git-workflow` | `Workflow Automation`, `DevOps Practices` |
+| Update commit, branch, or PR conventions | `git-workflow` | `.claude/skills/repo-standards-maintenance` |
+| Notice a reusable repository improvement | `.claude/skills/repo-standards-maintenance` | `continuous-learning` |
+| Review chart regressions or gaps | `Code Quality` | `kubernetes-specialist` |
 
-Use the local repository skills first when the task is specific to this repository's chart layout, helpers, release model, or review standards.
+## Git Rules
 
-## Conventions
+Use Conventional Commits for commit messages and PR titles.
 
-### Commits
+Chart-scoped:
 
-Use [Conventional Commits](https://www.conventionalcommits.org/) scoped to the chart name. This drives automatic semver:
+- `feat(<chart>): ...`
+- `fix(<chart>): ...`
+- `docs(<chart>): ...`
+- `refactor(<chart>): ...`
+- `feat(<chart>)!: ...`
 
-- `feat(generic): ...` → MINOR
-- `fix(generic): ...` → PATCH
-- `feat(generic)!: ...` → MAJOR
+Repository-wide:
 
-### Git Author
+- `ci: ...`
+- `docs(repo): ...`
+- `refactor(repo): ...`
 
-Always commit as the repository owner's git identity. Never change git config user.name or user.email. Add co-authorship trailer:
+Rules:
 
+- always write commit subjects in lowercase
+- always use the exact chart directory name as scope for chart changes
+- keep repository-instruction changes in their own commit when practical
+- keep PR titles in the same Conventional Commit format for readable workflow history
 
-### Branches
+Use the repository owner's git identity. When the agent contributed materially, add:
 
-`feat/`, `fix/`, `refactor/`, `docs/` prefixes. The commit message determines the version bump, not the branch name.
+```text
+Co-Authored-By: OpenAI Codex <codex@openai.com>
+```
 
-## Workflows
+## Branches
 
-| Workflow | Trigger | Purpose |
-|----------|---------|---------|
-| `ci.yml` | PR | lint, template, kubeconform |
-| `publish.yml` | Push main / dispatch | detect → semver → package → push GHCR → git tag (max-parallel: 1 + retry loop) |
+Use:
 
-### What triggers workflows
+- `feat/<chart>-<description>`
+- `fix/<chart>-<description>`
+- `refactor/<chart>-<description>`
+- `docs/<scope>-<description>`
+- `ci/<description>`
 
-Only changes to `templates/`, `values.yaml`, `Chart.yaml`, `ci/` trigger workflows. Changes to `README.md`, `examples/`, `docs/`, `AGENTS.md` are **ignored**.
+## Chart Authoring Rules
 
-`Chart.yaml` **version** is managed by the publish workflow — never edit it manually. **appVersion** is the upstream application/image version and must be set manually — the publish workflow does NOT touch it.
-- `generic`: no fixed image → `appVersion: "1.0.0"` (never changes)
-- All other charts: `appVersion` = default image tag in `values.yaml` (e.g., `mongodb` → `"8.2.6"`). Update both `image.tag` in values.yaml and `appVersion` in Chart.yaml together.
+- design each chart around the application, not around `generic`
+- research official docs and mature public charts before implementing
+- use external charts as references, not as copy sources
+- keep `values.yaml` product-oriented and explicit
+- use helpers to reduce duplication inside one chart
+- avoid cross-chart abstraction until it is clearly justified
+- when a chart supports distinct architectures, document each one in `docs/`
 
-## Helm Development
+## Validation
 
-### Template patterns
-
-- `_helpers.tpl` contains shared helpers (`chart.containerSpec`, `chart.podSpec`) — always reuse them
-- Go template booleans: empty string = falsy. Use `{{- if .Values.x -}}true{{- end -}}` not `{{- .Values.x -}}`
-- Global probes apply to first container only; Jobs/CronJobs skip them via `skipGlobalProbes`
-- Image formats: `named` = `repo:containerName-tag`, `simple` = `repo:tag`
-
-### Validate before pushing
+Run before pushing chart changes:
 
 ```bash
 helm lint charts/<name> --strict
@@ -85,44 +89,27 @@ helm template test charts/<name>
 for f in charts/<name>/ci/*.yaml; do helm template test charts/<name> -f "$f"; done
 ```
 
-## Development Workflow
-
-### Always use PRs for chart changes
-
-Never push chart changes directly to `main`. Follow this flow:
-
-1. Create a feature branch: `feat/<chart>-<description>`, `fix/<chart>-<description>`
-2. Make changes and validate locally:
-   ```bash
-   helm lint charts/<name> --strict
-   helm template test charts/<name>
-   for f in charts/<name>/ci/*.yaml; do helm template test charts/<name> -f "$f"; done
-   ```
-3. Commit, push, and create a PR targeting `main`
-4. CI runs automatically: lint → template → kubeconform (for all changed charts)
-5. After CI passes and PR is approved, merge to `main`
-6. `publish.yml` auto-detects changed charts, bumps semver, publishes to GHCR, and creates a git tag
-
-### Adding a new chart
-
-1. Create `charts/<chart-name>/` with `Chart.yaml`, `values.yaml`, and `templates/`
-2. Add test values in `charts/<chart-name>/ci/*.yaml` (CI runs `helm template` against each)
-3. Add usage examples in `charts/<chart-name>/examples/`
-4. Add `templates/NOTES.txt` with post-install instructions
-5. Create a `README.md` inside the chart directory
-6. Add a row to the root `README.md` charts table
-7. Open a PR — CI validates automatically
-
-### Chart-specific patterns
-
-| Chart | Architecture | Key helpers |
-|-------|-------------|-------------|
-| `generic` | Multi-workload (Deployment/StatefulSet/DaemonSet/Job/CronJob) | `chart.containerSpec`, `chart.podSpec`, `chart.containerImage` |
-| `mongodb` | Multi-architecture (standalone/replicaset/sharded) | `mongodb.isStandalone`, `mongodb.isReplicaSet`, `mongodb.isSharded`, `mongodb.podTemplate` |
+When available, also validate with `kubeconform`.
 
 ## Documentation Rules
 
-- **Root README**: generic commands with `<placeholders>`, no chart-specific details, no versions
-- **Chart README** (`charts/<name>/README.md`): specific install commands, features, values reference
-- Adding a chart → add row to root README charts table + create chart README
-- Never hardcode versions in READMEs — they become stale
+- root `README.md`: repository overview, charts list, CI/CD, commit standards
+- chart `README.md`: install, features, examples, values, operational usage
+- chart `docs/*.md`: architecture-specific guidance
+- do not expose design-history files as end-user documentation
+
+## Repository Learning Rule
+
+When real work reveals a stable reusable improvement:
+
+1. fix the concrete issue
+2. convert it into a short rule if it is likely to recur
+3. update the smallest relevant standard document in the same branch
+
+Preferred targets:
+
+- `README.md`
+- `AGENTS.md`
+- `.claude/CLAUDE.md`
+- `charts/<name>/README.md`
+- `charts/<name>/docs/*.md`

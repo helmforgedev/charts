@@ -8,6 +8,7 @@ Reusable Helm charts for Kubernetes workloads. Published as OCI artifacts to Git
 |-------|-------------|
 | [generic](charts/generic/) | General-purpose chart for any Kubernetes workload |
 | [mongodb](charts/mongodb/) | MongoDB — standalone, replica set, or sharded cluster |
+| [redis](charts/redis/) | Redis — standalone, replication, sentinel, or cluster |
 
 ## Quick Start
 
@@ -28,7 +29,7 @@ Check each chart's README and [git tags](../../tags) for available versions. OCI
 
 Charts are automatically tested and published via two GitHub Actions workflows.
 
-```
+```text
 PR        --> ci.yml      --> [Lint] [Template] [Kubeconform]
 Push main --> publish.yml --> Detect --> Semver --> Package --> Publish to GHCR --> Git tag
 ```
@@ -37,7 +38,7 @@ Both workflows dynamically detect which charts changed and run jobs only for tho
 
 ### Versioning
 
-Versions are calculated automatically from **conventional commits** affecting each chart:
+Versions are calculated automatically from Conventional Commits affecting each chart.
 
 | Commit prefix | Bump | Example |
 |---------------|------|---------|
@@ -45,7 +46,7 @@ Versions are calculated automatically from **conventional commits** affecting ea
 | `feat:` | MINOR | `feat(generic): add DaemonSet support` |
 | `feat!:` or `BREAKING CHANGE` | MAJOR | `feat(generic)!: restructure workload config` |
 
-Tags follow the format `{chart}-v{version}` (e.g., `generic-v1.2.3`).
+Tags follow the format `{chart}-v{version}` (for example `generic-v1.2.3`).
 
 ### Testing
 
@@ -55,21 +56,36 @@ Each chart includes a `ci/` directory with test values files. The pipeline runs 
 
 ### Adding a new chart
 
-1. Create `charts/<chart-name>/` with `Chart.yaml`, `values.yaml`, and `templates/`
-2. Add test values in `charts/<chart-name>/ci/*.yaml`
-3. Add usage examples in `charts/<chart-name>/examples/`
-4. Create a `README.md` inside the chart directory with documentation
-5. Open a PR -- lint, template, and schema validation run automatically
-6. Merge to main -- the chart is versioned and published to GHCR
+1. Research official docs and mature public charts first.
+2. Define the chart proposal, supported architectures, and explicit non-goals.
+3. Create `charts/<chart-name>/` with `Chart.yaml`, `values.yaml`, and `templates/`.
+4. Add test values in `charts/<chart-name>/ci/*.yaml` for the real scenarios supported by that product.
+5. Add usage examples in `charts/<chart-name>/examples/`.
+6. Create a `README.md` inside the chart directory.
+7. Add architecture-specific docs in `charts/<chart-name>/docs/` when the chart supports materially different topologies.
+8. Add the chart to the `## Charts` table in this file.
+9. Open a PR. Lint, template rendering, and schema validation run automatically.
 
-### Commit conventions
+### Commit and PR conventions
 
-Use [Conventional Commits](https://www.conventionalcommits.org/) to drive automatic versioning:
+Use [Conventional Commits](https://www.conventionalcommits.org/) for commit messages and PR titles.
 
-```bash
-git commit -m "feat(generic): add topology spread constraints support"
-git commit -m "fix(generic): correct service targetPort default"
-git commit -m "feat(redis-ha)!: redesign sentinel configuration"
+Repository standard:
+
+- always use lowercase `type(scope): description`
+- always scope chart changes to the chart directory name
+- use `ci` for workflow-only changes
+- use `repo` for repository-wide docs and instruction changes
+- keep each commit and each PR focused on one logical change
+
+Examples:
+
+```text
+feat(redis): add dedicated redis chart
+docs(redis): expand architecture usage guides
+fix(mongodb): correct service selectors
+ci: harden publish workflow retry logic
+docs(repo): refine commit and agent standards
 ```
 
 ## License
