@@ -123,7 +123,7 @@ metrics:
 |-----------|-------------|---------|
 | `architecture` | `standalone` or `replication` | `standalone` |
 | `image.repository` | PostgreSQL image repository | `postgres` |
-| `image.tag` | PostgreSQL image tag | `18.3-bookworm` |
+| `image.tag` | PostgreSQL image tag | `18.3-trixie` |
 | `auth.database` | App database created at bootstrap | `app` |
 | `auth.username` | App user created at bootstrap | `app` |
 | `auth.existingSecret` | Existing secret for passwords | `""` |

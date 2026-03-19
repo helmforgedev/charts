@@ -147,7 +147,7 @@ app.kubernetes.io/role: {{ .role }}
 {{- end -}}
 
 {{- define "postgresql.probeCommand" -}}
-sh
+- sh
 - -ec
 - >-
   PGPASSWORD="${POSTGRES_PASSWORD}" pg_isready -U postgres -h 127.0.0.1 -p {{ .Values.service.port }}
