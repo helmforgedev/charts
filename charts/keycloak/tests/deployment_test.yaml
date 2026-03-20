@@ -46,7 +46,8 @@ tests:
     set:
       mode: production
       hostname.hostname: sso.example.com
-      database.host: pg-host
+      database.external.host: pg-host
+      database.external.password: testpass
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
@@ -83,3 +84,112 @@ tests:
               secretKeyRef:
                 name: test-keycloak-admin
                 key: admin-username
+
+  - it: should not inject database env in dev mode without database
+    template: deployment.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_DB
+          any: true
+
+  - it: should inject database env with postgresql subchart in dev mode
+    template: deployment.yaml
+    set:
+      postgresql.enabled: true
+      postgresql.auth.password: devpass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_DB
+            value: "postgres"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_DB_USERNAME
+            value: "keycloak"
+
+  - it: should inject database env with mysql subchart in dev mode
+    template: deployment.yaml
+    set:
+      mysql.enabled: true
+      mysql.auth.password: devpass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_DB
+            value: "mysql"
+
+  - it: should use subchart postgresql host
+    template: deployment.yaml
+    set:
+      postgresql.enabled: true
+      postgresql.auth.password: devpass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_DB_URL
+            value: "jdbc:postgresql://test-postgresql:5432/keycloak"
+
+  - it: should use subchart mysql host
+    template: deployment.yaml
+    set:
+      mysql.enabled: true
+      mysql.auth.password: devpass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_DB_URL
+            value: "jdbc:mysql://test-mysql:3306/keycloak"
+
+  - it: should use external database host in production mode
+    template: deployment.yaml
+    set:
+      mode: production
+      hostname.hostname: sso.example.com
+      database.external.host: pg-host
+      database.external.password: prodpass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_DB_URL
+            value: "jdbc:postgresql://pg-host:5432/keycloak"
+
+  - it: should reference db secret with subchart postgresql
+    template: deployment.yaml
+    set:
+      postgresql.enabled: true
+      postgresql.auth.password: devpass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-keycloak-db
+                key: db-password
+
+  - it: should reference external existingSecret for db password
+    template: deployment.yaml
+    set:
+      mode: production
+      hostname.hostname: sso.example.com
+      database.external.host: pg-host
+      database.external.existingSecret: my-db-secret
+      database.external.existingSecretPasswordKey: custom-key
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: my-db-secret
+                key: custom-key
