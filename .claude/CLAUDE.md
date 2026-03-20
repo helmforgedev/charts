@@ -95,6 +95,7 @@ Conflict prevention rule:
 
 ## Chart Authoring Rules
 
+- **never edit `version` in `Chart.yaml` manually** — the publish workflow (`publish.yml`) calculates semantic versions automatically from commit messages, updates `Chart.yaml`, tags, and publishes. Manual version edits will conflict with CI.
 - design each chart around the application, not around `generic`
 - research official docs and mature public charts before implementing
 - use external charts as references, not as copy sources
