@@ -1,0 +1,170 @@
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "vaultwarden.fullname" . }}-backup
+  labels:
+    {{- include "vaultwarden.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  suspend: {{ .Values.backup.suspend }}
+  concurrencyPolicy: {{ .Values.backup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "vaultwarden.selectorLabels" . | nindent 12 }}
+        spec:
+          restartPolicy: Never
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          initContainers:
+            {{- if eq (include "vaultwarden.databaseMode" .) "sqlite" }}
+            - name: sqlite-backup
+              image: "{{ .Values.backup.images.sqlite.repository }}:{{ .Values.backup.images.sqlite.tag }}"
+              imagePullPolicy: {{ .Values.backup.images.sqlite.pullPolicy }}
+              command: ["/bin/sh", "/scripts/sqlite-backup.sh"]
+              env:
+                - name: BACKUP_ARCHIVE_PREFIX
+                  value: {{ .Values.backup.archivePrefix | quote }}
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: backup-workdir
+                  mountPath: /backup/out
+                - name: data
+                  mountPath: /data
+                  readOnly: true
+            {{- else if eq (include "vaultwarden.databaseVendor" .) "postgres" }}
+            - name: postgres-backup
+              image: "{{ .Values.backup.images.postgresql.repository }}:{{ .Values.backup.images.postgresql.tag }}"
+              imagePullPolicy: {{ .Values.backup.images.postgresql.pullPolicy }}
+              command: ["/bin/sh", "/scripts/postgres-backup.sh"]
+              env:
+                - name: BACKUP_ARCHIVE_PREFIX
+                  value: {{ .Values.backup.archivePrefix | quote }}
+                - name: PG_DUMP_EXTRA_ARGS
+                  value: {{ .Values.backup.database.postgresDumpArgs | quote }}
+                {{- if and (eq (include "vaultwarden.databaseMode" .) "external") .Values.database.external.existingSecret (not .Values.backup.database.existingSecret) (not .Values.backup.database.host) }}
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.database.external.existingSecret }}
+                      key: {{ .Values.database.external.existingSecretUrlKey }}
+                {{- else }}
+                - name: DB_HOST
+                  value: {{ include "vaultwarden.backupDatabaseHost" . | quote }}
+                - name: DB_PORT
+                  value: {{ include "vaultwarden.backupDatabasePort" . | quote }}
+                - name: DB_NAME
+                  value: {{ include "vaultwarden.backupDatabaseName" . | quote }}
+                - name: DB_USERNAME
+                  value: {{ include "vaultwarden.backupDatabaseUsername" . | quote }}
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "vaultwarden.backupDatabasePasswordSecretName" . }}
+                      key: {{ include "vaultwarden.backupDatabasePasswordSecretKey" . }}
+                {{- end }}
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: backup-workdir
+                  mountPath: /backup/out
+            {{- else if eq (include "vaultwarden.databaseVendor" .) "mysql" }}
+            - name: mysql-backup
+              image: "{{ .Values.backup.images.mysql.repository }}:{{ .Values.backup.images.mysql.tag }}"
+              imagePullPolicy: {{ .Values.backup.images.mysql.pullPolicy }}
+              command: ["/bin/sh", "/scripts/mysql-backup.sh"]
+              env:
+                - name: BACKUP_ARCHIVE_PREFIX
+                  value: {{ .Values.backup.archivePrefix | quote }}
+                - name: MYSQL_DUMP_EXTRA_ARGS
+                  value: {{ .Values.backup.database.mysqlDumpArgs | quote }}
+                - name: DB_HOST
+                  value: {{ include "vaultwarden.backupDatabaseHost" . | quote }}
+                - name: DB_PORT
+                  value: {{ include "vaultwarden.backupDatabasePort" . | quote }}
+                - name: DB_NAME
+                  value: {{ include "vaultwarden.backupDatabaseName" . | quote }}
+                - name: DB_USERNAME
+                  value: {{ include "vaultwarden.backupDatabaseUsername" . | quote }}
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "vaultwarden.backupDatabasePasswordSecretName" . }}
+                      key: {{ include "vaultwarden.backupDatabasePasswordSecretKey" . }}
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: backup-workdir
+                  mountPath: /backup/out
+            {{- end }}
+          containers:
+            - name: upload
+              image: "{{ .Values.backup.images.uploader.repository }}:{{ .Values.backup.images.uploader.tag }}"
+              imagePullPolicy: {{ .Values.backup.images.uploader.pullPolicy }}
+              command: ["/bin/sh", "/scripts/upload-backup.sh"]
+              env:
+                - name: S3_ENDPOINT
+                  value: {{ .Values.backup.s3.endpoint | quote }}
+                - name: S3_BUCKET
+                  value: {{ .Values.backup.s3.bucket | quote }}
+                - name: S3_PREFIX
+                  value: {{ .Values.backup.s3.prefix | quote }}
+                - name: S3_CREATE_BUCKET_IF_NOT_EXISTS
+                  value: {{ ternary "true" "false" .Values.backup.s3.createBucketIfNotExists | quote }}
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "vaultwarden.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretAccessKeyKey }}
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "vaultwarden.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: backup-workdir
+                  mountPath: /backup/out
+          volumes:
+            - name: scripts
+              configMap:
+                name: {{ include "vaultwarden.fullname" . }}-backup-scripts
+                defaultMode: 0755
+            - name: backup-workdir
+              emptyDir: {}
+            {{- if eq (include "vaultwarden.databaseMode" .) "sqlite" }}
+            - name: data
+              persistentVolumeClaim:
+                claimName: {{ include "vaultwarden.persistenceClaimName" . }}
+            {{- end }}
+{{- end }}
