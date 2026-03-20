@@ -8,7 +8,13 @@ audience: users, contributors
 
 # Helm Charts
 
-Reusable Helm charts for Kubernetes workloads. Published to both an HTTPS Helm repository and OCI artifacts on GitHub Container Registry.
+Reusable open source Helm charts for Kubernetes workloads. Published to a traditional Helm repository at `https://repo.helmforge.dev` and as OCI artifacts on GitHub Container Registry.
+
+Project links:
+
+- Website: `https://helmforge.dev`
+- Documentation: `https://helmforge.dev/doc`
+- Helm repository: `https://repo.helmforge.dev`
 
 ## Charts
 

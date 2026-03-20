@@ -12,7 +12,7 @@ Instructions for AI coding agents working on this repository.
 
 ## Repository Overview
 
-This repository contains reusable Helm charts published as OCI artifacts to `ghcr.io/helmforgedev/helm` and as a traditional Helm repository at `https://repo.helmforge.dev`. Each chart lives under `charts/<name>/` with its own `Chart.yaml`, `values.yaml`, `templates/`, `tests/`, `ci/`, `examples/`, `docs/`, and `README.md`.
+This repository contains reusable Helm charts published as OCI artifacts to `ghcr.io/helmforgedev/helm` and as a traditional Helm repository at `https://repo.helmforge.dev`. The public project website is `https://helmforge.dev`, and contributor/user documentation lives at `https://helmforge.dev/doc`. Each chart lives under `charts/<name>/` with its own `Chart.yaml`, `values.yaml`, `templates/`, `tests/`, `ci/`, `examples/`, `docs/`, and `README.md`.
 
 ## Repository Layout
 
