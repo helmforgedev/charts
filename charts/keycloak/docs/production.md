@@ -9,6 +9,7 @@ Use `mode: production` for real reverse-proxy deployments where Keycloak is back
 - external database configuration
 - explicit hostname and proxy modeling
 - separated management service for health and metrics
+- optional separate public and admin ingresses
 - optional multi-replica runtime
 - optional realm import
 - optional providers and themes mounting
@@ -23,6 +24,7 @@ Use `mode: production` for real reverse-proxy deployments where Keycloak is back
 
 - always configure `hostname.hostname`
 - prefer a separate admin hostname when operationally possible
+- use a separate admin ingress when the admin console must use a different ingress class or an internal load balancer policy
 - keep the management service internal
 - document the reverse proxy behavior alongside the chart values
 - use multiple replicas only when the shared database and cache expectations are understood
