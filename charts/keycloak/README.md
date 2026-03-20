@@ -96,7 +96,7 @@ Minimal local example:
 mode: dev
 ```
 
-Production example:
+Production with external database:
 
 ```yaml
 mode: production
@@ -105,11 +105,41 @@ hostname:
   hostname: https://sso.example.com
 
 database:
-  vendor: postgres
-  host: postgresql-rw.default.svc
-  name: keycloak
-  username: keycloak
-  existingSecret: keycloak-db
+  external:
+    vendor: postgres
+    host: postgresql-rw.default.svc
+    name: keycloak
+    username: keycloak
+    existingSecret: keycloak-db
+```
+
+Production with PostgreSQL subchart:
+
+```yaml
+mode: production
+
+hostname:
+  hostname: https://sso.example.com
+
+postgresql:
+  enabled: true
+  auth:
+    database: keycloak
+    username: keycloak
+    password: change-me
+```
+
+Dev with PostgreSQL subchart:
+
+```yaml
+mode: dev
+
+postgresql:
+  enabled: true
+  auth:
+    database: keycloak
+    username: keycloak
+    password: devpassword
 ```
 
 ## Best practices
@@ -117,7 +147,7 @@ database:
 ### Security
 
 - use `mode: production` for all real environments
-- prefer `admin.existingSecret` and `database.existingSecret`
+- prefer `admin.existingSecret` and `database.external.existingSecret`
 - keep the management service internal
 - restrict admin exposure at the reverse proxy layer when using a dedicated admin hostname
 - use [Security and Trust](docs/security-and-trust.md) when database TLS or custom internal CAs are involved
@@ -180,15 +210,23 @@ database:
 | `hostname.hostname` | Public hostname or URL | `""` |
 | `hostname.admin` | Dedicated admin hostname or URL | `""` |
 | `proxy.headers` | Proxy headers mode | `xforwarded` |
-| `database.vendor` | Database vendor in production mode | `postgres` |
-| `database.host` | Database host | `""` |
-| `database.name` | Database name | `keycloak` |
-| `database.username` | Database username | `keycloak` |
-| `database.existingSecret` | Existing secret for database password | `""` |
+| `database.external.vendor` | External database vendor | `postgres` |
+| `database.external.host` | External database host | `""` |
+| `database.external.name` | External database name | `keycloak` |
+| `database.external.username` | External database username | `keycloak` |
+| `database.external.existingSecret` | Existing secret for database password | `""` |
 | `database.tls.enabled` | Enable database TLS settings | `false` |
 | `database.tls.sslMode` | PostgreSQL SSL mode | `verify-full` |
 | `database.tls.existingSecret` | Secret with database CA material | `""` |
 | `database.tls.existingConfigMap` | ConfigMap with database CA material | `""` |
+| `postgresql.enabled` | Enable PostgreSQL subchart | `false` |
+| `postgresql.auth.database` | Subchart database name | `keycloak` |
+| `postgresql.auth.username` | Subchart database username | `keycloak` |
+| `postgresql.auth.password` | Subchart database password | `""` |
+| `mysql.enabled` | Enable MySQL subchart | `false` |
+| `mysql.auth.database` | Subchart database name | `keycloak` |
+| `mysql.auth.username` | Subchart database username | `keycloak` |
+| `mysql.auth.password` | Subchart database password | `""` |
 | `truststore.enabled` | Enable additional truststore paths | `false` |
 | `truststore.existingSecret` | Secret with PEM or PKCS12 trust material | `""` |
 | `truststore.existingConfigMap` | ConfigMap with PEM or PKCS12 trust material | `""` |

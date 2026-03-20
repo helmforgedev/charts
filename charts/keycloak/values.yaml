@@ -83,28 +83,37 @@ proxy:
 # =============================================================================
 # Database
 # =============================================================================
+# Keycloak supports three database modes:
+# 1. Embedded H2 (dev mode only, no config needed)
+# 2. Subchart: set postgresql.enabled=true or mysql.enabled=true
+# 3. External: set database.external.host or database.external.existingSecret
+#
+# In dev mode without a subchart or external database, Keycloak uses its
+# embedded H2 database. In production mode, a subchart or external database
+# is required.
 
 database:
-  # -- Database vendor used in production mode: postgres | mariadb | mysql
-  vendor: postgres
-  # -- Database host required in production mode
-  host: ""
-  # -- Database port
-  port: 5432
-  # -- Database name
-  name: keycloak
-  # -- Database username
-  username: keycloak
-  # -- Database password. Auto-generated if empty and no existingSecret is set.
-  password: ""
-  # -- Existing secret containing database password
-  existingSecret: ""
-  # -- Secret key for database password in database.existingSecret
-  existingSecretPasswordKey: db-password
-  # -- Additional JDBC properties appended to the generated JDBC URL
-  jdbcParameters: ""
+  external:
+    # -- External database vendor: postgres | mysql | mariadb
+    vendor: postgres
+    # -- External database host
+    host: ""
+    # -- External database port (auto-detected from vendor when empty)
+    port: ""
+    # -- External database name
+    name: keycloak
+    # -- External database username
+    username: keycloak
+    # -- External database password. Auto-generated if empty and no existingSecret is set.
+    password: ""
+    # -- Existing secret containing database password
+    existingSecret: ""
+    # -- Secret key for database password in database.external.existingSecret
+    existingSecretPasswordKey: db-password
+    # -- Additional JDBC properties appended to the generated JDBC URL
+    jdbcParameters: ""
   tls:
-    # -- Enable database TLS settings. Automatic JDBC parameter wiring is production-ready for PostgreSQL and can be extended manually through database.jdbcParameters for other vendors.
+    # -- Enable database TLS settings. Automatic JDBC parameter wiring is production-ready for PostgreSQL and can be extended manually through database.external.jdbcParameters for other vendors.
     enabled: false
     # -- PostgreSQL SSL mode used when database.tls.enabled is true
     sslMode: verify-full
@@ -377,3 +386,27 @@ initContainers: []
 extraContainers: []
 extraVolumes: []
 extraVolumeMounts: []
+
+# =============================================================================
+# Optional subcharts
+# =============================================================================
+
+postgresql:
+  # -- Enable the local PostgreSQL chart as the Keycloak database
+  enabled: false
+  architecture: standalone
+  auth:
+    database: keycloak
+    username: keycloak
+    # -- Required when using the PostgreSQL subchart so Keycloak can connect deterministically
+    password: ""
+
+mysql:
+  # -- Enable the local MySQL chart as the Keycloak database
+  enabled: false
+  architecture: standalone
+  auth:
+    database: keycloak
+    username: keycloak
+    # -- Required when using the MySQL subchart so Keycloak can connect deterministically
+    password: ""

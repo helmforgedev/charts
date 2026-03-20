@@ -50,32 +50,152 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "keycloak.databaseMode" -}}
+{{- $hasExternal := or (ne (.Values.database.external.host | default "") "") (ne (.Values.database.external.existingSecret | default "") "") -}}
+{{- $hasPostgresql := .Values.postgresql.enabled | default false -}}
+{{- $hasMysql := .Values.mysql.enabled | default false -}}
+{{- $count := 0 -}}
+{{- if $hasExternal -}}{{- $count = add1 $count -}}{{- end -}}
+{{- if $hasPostgresql -}}{{- $count = add1 $count -}}{{- end -}}
+{{- if $hasMysql -}}{{- $count = add1 $count -}}{{- end -}}
+{{- if gt $count 1 -}}
+  {{- fail "keycloak database selection is ambiguous: configure only one of database.external.host, postgresql.enabled, or mysql.enabled" -}}
+{{- end -}}
+{{- if $hasExternal -}}external
+{{- else if $hasPostgresql -}}postgresql
+{{- else if $hasMysql -}}mysql
+{{- else -}}embedded
+{{- end -}}
+{{- end -}}
+
+{{- define "keycloak.hasDatabase" -}}
+{{- if ne (include "keycloak.databaseMode" .) "embedded" -}}true{{- end -}}
+{{- end -}}
+
+{{- define "keycloak.databaseVendor" -}}
+{{- $mode := include "keycloak.databaseMode" . -}}
+{{- if eq $mode "external" -}}
+{{- .Values.database.external.vendor | default "postgres" -}}
+{{- else if eq $mode "postgresql" -}}
+postgres
+{{- else if eq $mode "mysql" -}}
+mysql
+{{- else -}}
+{{- "" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "keycloak.databaseHost" -}}
+{{- $mode := include "keycloak.databaseMode" . -}}
+{{- if eq $mode "external" -}}
+{{- .Values.database.external.host -}}
+{{- else if eq $mode "postgresql" -}}
+{{- printf "%s-postgresql" .Release.Name -}}
+{{- else if eq $mode "mysql" -}}
+{{- printf "%s-mysql" .Release.Name -}}
+{{- else -}}
+{{- "" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "keycloak.databasePort" -}}
+{{- $mode := include "keycloak.databaseMode" . -}}
+{{- if eq $mode "external" -}}
+  {{- if .Values.database.external.port -}}
+    {{- .Values.database.external.port | toString -}}
+  {{- else -}}
+    {{- $vendor := .Values.database.external.vendor | default "postgres" -}}
+    {{- if eq $vendor "postgres" -}}5432{{- else -}}3306{{- end -}}
+  {{- end -}}
+{{- else if eq $mode "postgresql" -}}
+5432
+{{- else if eq $mode "mysql" -}}
+3306
+{{- else -}}
+{{- "" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "keycloak.databaseName" -}}
+{{- $mode := include "keycloak.databaseMode" . -}}
+{{- if eq $mode "external" -}}
+{{- .Values.database.external.name -}}
+{{- else if eq $mode "postgresql" -}}
+{{- .Values.postgresql.auth.database -}}
+{{- else if eq $mode "mysql" -}}
+{{- .Values.mysql.auth.database -}}
+{{- else -}}
+{{- "" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "keycloak.databaseUsername" -}}
+{{- $mode := include "keycloak.databaseMode" . -}}
+{{- if eq $mode "external" -}}
+{{- .Values.database.external.username -}}
+{{- else if eq $mode "postgresql" -}}
+{{- .Values.postgresql.auth.username -}}
+{{- else if eq $mode "mysql" -}}
+{{- .Values.mysql.auth.username -}}
+{{- else -}}
+{{- "" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "keycloak.databasePasswordValue" -}}
+{{- $mode := include "keycloak.databaseMode" . -}}
+{{- if eq $mode "external" -}}
+{{- .Values.database.external.password -}}
+{{- else if eq $mode "postgresql" -}}
+{{- .Values.postgresql.auth.password -}}
+{{- else if eq $mode "mysql" -}}
+{{- .Values.mysql.auth.password -}}
+{{- else -}}
+{{- "" -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "keycloak.databaseSecretName" -}}
-{{- if .Values.database.existingSecret -}}
-{{- .Values.database.existingSecret -}}
+{{- $mode := include "keycloak.databaseMode" . -}}
+{{- if and (eq $mode "external") .Values.database.external.existingSecret -}}
+{{- .Values.database.external.existingSecret -}}
 {{- else -}}
 {{- printf "%s-db" (include "keycloak.fullname" .) -}}
 {{- end -}}
 {{- end -}}
 
-{{- define "keycloak.realmImportConfigMapName" -}}
-{{- printf "%s-realm-import" (include "keycloak.fullname" .) -}}
+{{- define "keycloak.databaseSecretPasswordKey" -}}
+{{- $mode := include "keycloak.databaseMode" . -}}
+{{- if and (eq $mode "external") .Values.database.external.existingSecret -}}
+{{- .Values.database.external.existingSecretPasswordKey -}}
+{{- else -}}
+db-password
+{{- end -}}
 {{- end -}}
 
 {{- define "keycloak.databasePassword" -}}
-{{- $secretName := include "keycloak.databaseSecretName" . -}}
-{{- if .Values.database.existingSecret -}}
+{{- $mode := include "keycloak.databaseMode" . -}}
+{{- if and (eq $mode "external") .Values.database.external.existingSecret -}}
 {{- "" -}}
-{{- else if .Values.database.password -}}
-{{- .Values.database.password -}}
 {{- else -}}
-{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}
-{{- if and $existing $existing.data (hasKey $existing.data .Values.database.existingSecretPasswordKey) -}}
-{{- index $existing.data .Values.database.existingSecretPasswordKey | b64dec -}}
-{{- else -}}
-{{- randAlphaNum 32 -}}
+  {{- $password := include "keycloak.databasePasswordValue" . -}}
+  {{- if $password -}}
+    {{- $password -}}
+  {{- else -}}
+    {{- $secretName := include "keycloak.databaseSecretName" . -}}
+    {{- $secretKey := include "keycloak.databaseSecretPasswordKey" . -}}
+    {{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}
+    {{- if and $existing $existing.data (hasKey $existing.data $secretKey) -}}
+      {{- index $existing.data $secretKey | b64dec -}}
+    {{- else -}}
+      {{- randAlphaNum 32 -}}
+    {{- end -}}
+  {{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "keycloak.realmImportConfigMapName" -}}
+{{- printf "%s-realm-import" (include "keycloak.fullname" .) -}}
 {{- end -}}
 
 {{- define "keycloak.adminPassword" -}}
@@ -94,31 +214,27 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
-{{- define "keycloak.databasePort" -}}
-{{- if eq .Values.database.vendor "postgres" -}}5432
-{{- else if eq .Values.database.vendor "mysql" -}}3306
-{{- else if eq .Values.database.vendor "mariadb" -}}3306
-{{- else -}}{{ .Values.database.port }}{{- end -}}
-{{- end -}}
-
 {{- define "keycloak.databaseUrl" -}}
-{{- $port := default (include "keycloak.databasePort" .) .Values.database.port -}}
+{{- $vendor := include "keycloak.databaseVendor" . -}}
+{{- $host := include "keycloak.databaseHost" . -}}
+{{- $port := include "keycloak.databasePort" . -}}
+{{- $name := include "keycloak.databaseName" . -}}
 {{- $params := list -}}
-{{- if .Values.database.jdbcParameters -}}
-{{- $params = append $params .Values.database.jdbcParameters -}}
+{{- if and (eq (include "keycloak.databaseMode" .) "external") .Values.database.external.jdbcParameters -}}
+{{- $params = append $params .Values.database.external.jdbcParameters -}}
 {{- end -}}
-{{- if and .Values.database.tls.enabled (eq .Values.database.vendor "postgres") -}}
+{{- if and .Values.database.tls.enabled (eq $vendor "postgres") -}}
 {{- $params = append $params (printf "sslmode=%s" .Values.database.tls.sslMode) -}}
 {{- if or .Values.database.tls.existingSecret .Values.database.tls.existingConfigMap -}}
 {{- $params = append $params (printf "sslrootcert=%s" (include "keycloak.databaseTlsRootCertPath" .)) -}}
 {{- end -}}
 {{- end -}}
-{{- if eq .Values.database.vendor "postgres" -}}
-jdbc:postgresql://{{ required "database.host is required in production mode" .Values.database.host }}:{{ $port }}/{{ required "database.name is required in production mode" .Values.database.name }}
-{{- else if or (eq .Values.database.vendor "mysql") (eq .Values.database.vendor "mariadb") -}}
-jdbc:{{ .Values.database.vendor }}://{{ required "database.host is required in production mode" .Values.database.host }}:{{ $port }}/{{ required "database.name is required in production mode" .Values.database.name }}
+{{- if eq $vendor "postgres" -}}
+jdbc:postgresql://{{ $host }}:{{ $port }}/{{ $name }}
+{{- else if or (eq $vendor "mysql") (eq $vendor "mariadb") -}}
+jdbc:{{ $vendor }}://{{ $host }}:{{ $port }}/{{ $name }}
 {{- else -}}
-{{- fail "database.vendor must be one of: postgres, mysql, mariadb" -}}
+{{- fail "database vendor must be one of: postgres, mysql, mariadb" -}}
 {{- end -}}
 {{- if gt (len $params) 0 }}?{{ join "&" $params }}{{- end -}}
 {{- end -}}
@@ -202,24 +318,26 @@ jdbc:{{ .Values.database.vendor }}://{{ required "database.host is required in p
 - name: KC_TLS_HOSTNAME_VERIFIER
   value: {{ .Values.truststore.tlsHostnameVerifier | quote }}
 {{- end }}
-{{- if include "keycloak.isProduction" . }}
+{{- if include "keycloak.hasDatabase" . }}
 - name: KC_DB
-  value: {{ .Values.database.vendor | quote }}
+  value: {{ include "keycloak.databaseVendor" . | quote }}
 - name: KC_DB_URL
   value: {{ include "keycloak.databaseUrl" . | quote }}
 - name: KC_DB_USERNAME
-  value: {{ required "database.username is required in production mode" .Values.database.username | quote }}
+  value: {{ include "keycloak.databaseUsername" . | quote }}
 - name: KC_DB_PASSWORD
   valueFrom:
     secretKeyRef:
       name: {{ include "keycloak.databaseSecretName" . }}
-      key: {{ .Values.database.existingSecretPasswordKey }}
-{{- if and (gt (int .Values.replicaCount) 1) .Values.cache.enabled }}
+      key: {{ include "keycloak.databaseSecretPasswordKey" . }}
+{{- else if include "keycloak.isProduction" . }}
+{{- fail "production mode requires a database: set postgresql.enabled, mysql.enabled, or database.external.host" }}
+{{- end }}
+{{- if and (include "keycloak.isProduction" .) (gt (int .Values.replicaCount) 1) .Values.cache.enabled }}
 - name: KC_CACHE
   value: ispn
 - name: KC_CACHE_STACK
   value: {{ .Values.cache.stack | quote }}
-{{- end }}
 {{- end }}
 {{- end -}}
 
