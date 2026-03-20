@@ -1,0 +1,40 @@
+mode: production
+
+hostname:
+  hostname: https://sso.example.com
+
+database:
+  vendor: postgres
+  host: postgresql-rw.default.svc
+  port: 5432
+  name: keycloak
+  username: keycloak
+  existingSecret: keycloak-db
+
+extensions:
+  providers:
+    existingSecret: keycloak-providers
+    rolloutToken: providers-v2
+  themes:
+    existingConfigMap: keycloak-themes
+    rolloutToken: themes-v3
+
+extraEnvFrom:
+  - configMapRef:
+      name: keycloak-runtime-env
+
+initContainers:
+  - name: prepare-mounted-content
+    image: busybox:1.36
+    command:
+      - sh
+      - -c
+      - echo preparing providers and themes
+
+extraContainers:
+  - name: support-sidecar
+    image: busybox:1.36
+    command:
+      - sh
+      - -c
+      - tail -f /dev/null

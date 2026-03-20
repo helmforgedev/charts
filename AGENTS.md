@@ -111,13 +111,22 @@ ci/publish-retry-loop
 Required git flow for agents:
 
 1. create a branch from `main`
-2. make the change
-3. commit all intended files with the correct conventional commit
-4. if the current branch already has an open PR, check the PR status before pushing
-5. push the branch to origin
-6. if no PR exists yet, open the PR targeting `main`
+2. if the previous branch for the same work was merged, stop using that feature branch and return to `main`
+3. run `git checkout main` and `git pull --ff-only origin main` immediately before creating the next branch
+4. create the new branch from the updated local `main`, never from an older feature branch even if it looks equivalent
+5. make the change
+6. commit all intended files with the correct conventional commit
+7. if the current branch already has an open PR, check the PR status before pushing
+8. push the branch to origin
+9. if no PR exists yet, open the PR targeting `main`
 
 Do not use stacked PRs or branch-to-branch PRs in this repository.
+
+Important:
+
+- after a PR is merged, do not continue the next phase from that old feature branch
+- always start the next phase from the current `main`
+- branching from a previously merged feature branch is a common source of unnecessary README and values conflicts in this repository
 
 ## Helm Chart Authoring Rules
 

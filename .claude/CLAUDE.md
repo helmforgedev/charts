@@ -74,11 +74,20 @@ Use:
 Mandatory flow:
 
 1. create a branch from `main`
-2. implement the change
-3. commit all intended files
-4. if the branch already has an open PR, check the PR status before pushing
-5. push the branch
-6. if no PR exists yet, create a PR to `main`
+2. if a previous branch for the same line of work was merged, stop working from that branch
+3. run `git checkout main` and `git pull --ff-only origin main` before creating the next branch
+4. create the new branch from the updated local `main`
+5. implement the change
+6. commit all intended files
+7. if the branch already has an open PR, check the PR status before pushing
+8. push the branch
+9. if no PR exists yet, create a PR to `main`
+
+Conflict prevention rule:
+
+- never start a new phase from an older feature branch after its PR was merged
+- always restart from current `main`
+- in this repository, reusing an old feature branch as the base for the next phase commonly creates avoidable conflicts in `README.md`, `values.yaml`, and chart docs
 
 ## Chart Authoring Rules
 
