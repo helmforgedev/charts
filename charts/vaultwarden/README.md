@@ -22,6 +22,9 @@ helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
 
 - [SQLite Mode](docs/sqlite.md)
 - [Ingress and Domain](docs/ingress-and-domain.md)
+- [Backup and Restore](docs/backup-and-restore.md)
+- [Admin Access and Hardening](docs/admin-access-and-hardening.md)
+- [Runtime Configuration and config.json](docs/runtime-configuration-and-config-json.md)
 
 ## Operational direction
 
@@ -43,6 +46,7 @@ helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
 - keep `data.persistence.enabled=true` for real environments
 - back up `/data` regularly
 - do not treat SQLite plus one PVC as HA
+- review [Backup and Restore](docs/backup-and-restore.md) before declaring the deployment production-ready
 
 ### Ingress and domain
 
@@ -64,6 +68,7 @@ helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
 - expose the admin panel carefully and only behind trusted access patterns
 - keep `showPasswordHint=false` on publicly reachable deployments
 - review `orgCreationUsers`, `orgEventsEnabled`, and `emergencyAccessAllowed` instead of relying on product defaults you did not document
+- review [Admin Access and Hardening](docs/admin-access-and-hardening.md) before enabling the admin page in production
 
 ### Important mapped settings
 
@@ -130,6 +135,10 @@ Official reference:
 - v1 does not claim HA
 - v1 does not try to abstract external databases
 - if you disable persistence, the deployment becomes disposable and data loss is expected
+- part of the effective runtime configuration can be persisted in `/data/config.json`
+- backup and restore must treat `/data` as a full state boundary, not only a SQLite file
+- for detached backup automation, validate your PVC access pattern before assuming a separate backup pod can mount the same claim safely
+- the best fit in this repository is a companion backup release with the `generic` chart when your storage semantics allow it
 
 ## Main values
 
@@ -184,6 +193,7 @@ The `ci/` scenarios validate the main chart behaviors:
 - `persistent.yaml`
 - `smtp.yaml`
 - `existing-secret.yaml`
+- `existing-claim.yaml`
 - `ingress.yaml`
 
 ## Examples
@@ -192,5 +202,6 @@ See `examples/`:
 
 - `minimal.yaml`
 - `persistent.yaml`
+- `existing-claim.yaml`
 - `smtp.yaml`
 - `ingress-tls.yaml`
