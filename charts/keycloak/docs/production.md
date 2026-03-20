@@ -30,6 +30,7 @@ Use `mode: production` for real reverse-proxy deployments where Keycloak is back
 - use multiple replicas only when the shared database and cache expectations are understood
 - review [Reverse Proxy and Hostname](reverse-proxy.md) before exposing the chart
 - review [Scaling and Clustering](scaling-and-clustering.md) before increasing replica count
+- review [Security and Trust](security-and-trust.md) when database TLS or private CAs are involved
 
 ## Operational notes
 
@@ -37,3 +38,4 @@ Use `mode: production` for real reverse-proxy deployments where Keycloak is back
 - the public ingress and the admin ingress both route to the application service only
 - the management interface remains internal even when both ingresses are enabled
 - a safe production rollout validates hostname resolution, login flow, admin access, and health endpoints together
+- external secret and truststore rotation require a controlled rollout plan

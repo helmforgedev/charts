@@ -20,6 +20,7 @@ helm install keycloak oci://ghcr.io/mberlofa/helm/keycloak -f values.yaml
 - [Production Mode](docs/production.md)
 - [Reverse Proxy and Hostname](docs/reverse-proxy.md)
 - [Scaling and Clustering](docs/scaling-and-clustering.md)
+- [Security and Trust](docs/security-and-trust.md)
 
 ## What this chart covers
 
@@ -32,6 +33,7 @@ helm install keycloak oci://ghcr.io/mberlofa/helm/keycloak -f values.yaml
 - optional realm import through `/opt/keycloak/data/import`
 - optional provider and theme mounts
 - optional separate ingresses for public and admin traffic
+- optional truststore and external database TLS material
 - optional `ServiceMonitor`
 
 ## How to choose the mode
@@ -45,6 +47,7 @@ Recommended reading before installation:
 - [Production Mode](docs/production.md)
 - [Reverse Proxy and Hostname](docs/reverse-proxy.md)
 - [Scaling and Clustering](docs/scaling-and-clustering.md)
+- [Security and Trust](docs/security-and-trust.md)
 
 ## Official product references
 
@@ -92,6 +95,7 @@ database:
 - prefer `admin.existingSecret` and `database.existingSecret`
 - keep the management service internal
 - restrict admin exposure at the reverse proxy layer when using a dedicated admin hostname
+- use [Security and Trust](docs/security-and-trust.md) when database TLS or custom internal CAs are involved
 
 ### Reverse proxy and hostname
 
@@ -125,6 +129,8 @@ database:
 - keep sticky-session behavior aligned with the ingress controller in front of Keycloak
 - treat `jdbc-ping` as discovery and cache transport plumbing, not as a substitute for a Keycloak operator
 - plan image rollouts and rollbacks together with the external database and reverse-proxy layer
+- generated admin and database secrets trigger rollout on Helm upgrades
+- externally managed secret or truststore changes still require an explicit rollout or restart
 
 ## Main values
 
@@ -145,6 +151,14 @@ database:
 | `database.name` | Database name | `keycloak` |
 | `database.username` | Database username | `keycloak` |
 | `database.existingSecret` | Existing secret for database password | `""` |
+| `database.tls.enabled` | Enable database TLS settings | `false` |
+| `database.tls.sslMode` | PostgreSQL SSL mode | `verify-full` |
+| `database.tls.existingSecret` | Secret with database CA material | `""` |
+| `database.tls.existingConfigMap` | ConfigMap with database CA material | `""` |
+| `truststore.enabled` | Enable additional truststore paths | `false` |
+| `truststore.existingSecret` | Secret with PEM or PKCS12 trust material | `""` |
+| `truststore.existingConfigMap` | ConfigMap with PEM or PKCS12 trust material | `""` |
+| `truststore.tlsHostnameVerifier` | Outbound TLS hostname verification mode | `DEFAULT` |
 | `replicaCount` | Number of Keycloak replicas | `1` |
 | `cache.stack` | Cache stack for multi-replica production | `jdbc-ping` |
 | `realmImport.enabled` | Enable startup realm import | `false` |
@@ -167,6 +181,7 @@ The `ci/` scenarios validate the main chart behaviors:
 - `metrics.yaml`
 - `multi-replica.yaml`
 - `relative-path.yaml`
+- `database-tls.yaml`
 
 ## Rollout guidance
 
@@ -183,3 +198,4 @@ See `examples/`:
 - `external-db-ha.yaml`
 - `realm-import.yaml`
 - `relative-path.yaml`
+- `postgres-tls.yaml`
