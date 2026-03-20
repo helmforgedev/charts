@@ -1,3 +1,11 @@
+---
+title: MongoDB - Standalone
+description: Standalone deployment
+keywords: [mongodb, standalone]
+scope: chart-docs
+audience: users
+---
+
 # MongoDB Standalone
 
 ## When to use

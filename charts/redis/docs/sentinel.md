@@ -1,3 +1,11 @@
+---
+title: Redis - Sentinel
+description: Sentinel HA with failover
+keywords: [redis, sentinel, ha, failover]
+scope: chart-docs
+audience: users
+---
+
 # Redis Sentinel
 
 ## When to use

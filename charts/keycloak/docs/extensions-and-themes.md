@@ -1,3 +1,11 @@
+---
+title: Keycloak - Extensions and Themes
+description: Custom providers and themes
+keywords: [keycloak, extensions, themes, providers]
+scope: chart-docs
+audience: users
+---
+
 # Extensions and Themes
 
 ## When to use this guide

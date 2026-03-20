@@ -1,3 +1,11 @@
+---
+title: MySQL - Replication Ops
+description: Replication maintenance
+keywords: [mysql, replication, operations]
+scope: chart-docs
+audience: users
+---
+
 # Replication Operations
 
 ## Operational contract

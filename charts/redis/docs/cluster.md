@@ -1,3 +1,11 @@
+---
+title: Redis - Cluster
+description: Cluster mode
+keywords: [redis, cluster, sharding]
+scope: chart-docs
+audience: users
+---
+
 # Redis Cluster
 
 ## When to use

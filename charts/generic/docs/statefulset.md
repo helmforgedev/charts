@@ -1,3 +1,11 @@
+---
+title: Generic Chart - StatefulSet
+description: StatefulSet configuration
+keywords: [generic, statefulset, persistence]
+scope: chart-docs
+audience: users
+---
+
 # Generic Chart for StatefulSets
 
 ## When to use

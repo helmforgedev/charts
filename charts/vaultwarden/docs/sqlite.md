@@ -1,3 +1,11 @@
+---
+title: Vaultwarden - SQLite
+description: SQLite storage and WAL
+keywords: [vaultwarden, sqlite, wal]
+scope: chart-docs
+audience: users
+---
+
 # SQLite Mode
 
 ## When to use it

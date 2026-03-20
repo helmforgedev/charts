@@ -1,3 +1,11 @@
+---
+title: MySQL - Secret Rotation
+description: Password rotation
+keywords: [mysql, secret, rotation, password]
+scope: chart-docs
+audience: users
+---
+
 # Secret Rotation
 
 ## Scope

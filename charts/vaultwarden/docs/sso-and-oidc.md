@@ -1,3 +1,11 @@
+---
+title: Vaultwarden - SSO
+description: SSO and OIDC integration
+keywords: [vaultwarden, sso, oidc]
+scope: chart-docs
+audience: users
+---
+
 # SSO and OIDC Guidance
 
 ## Scope in this chart

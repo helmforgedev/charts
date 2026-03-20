@@ -1,3 +1,11 @@
+---
+title: Vaultwarden - Runtime Config
+description: Runtime settings
+keywords: [vaultwarden, configuration, runtime]
+scope: chart-docs
+audience: users
+---
+
 # Runtime Configuration and config.json
 
 ## Why this matters

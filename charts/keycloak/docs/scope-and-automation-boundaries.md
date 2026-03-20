@@ -1,3 +1,11 @@
+---
+title: Keycloak - Scope
+description: Chart scope and boundaries
+keywords: [keycloak, scope, boundaries]
+scope: chart-docs
+audience: users
+---
+
 # Scope and Automation Boundaries
 
 ## Why this guide exists
