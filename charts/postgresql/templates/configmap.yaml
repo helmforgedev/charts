@@ -93,6 +93,13 @@ data:
       AND :'replication_password' <> ''
       AND NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'replication_username') \gexec
     SQL
+
+    # PostgreSQL 15+ revokes CREATE on the public schema for non-superusers.
+    # Grant schema privileges so the application user can run migrations.
+    if [ -n "${APP_DATABASE}" ] && [ -n "${APP_USERNAME}" ]; then
+      psql --username "${POSTGRES_USER}" --dbname "${APP_DATABASE}" \
+        -c "GRANT ALL ON SCHEMA public TO \"${APP_USERNAME}\";"
+    fi
 {{- range $name, $content := .Values.initdb.scripts }}
   {{ $name }}: |
 {{ $content | nindent 4 }}
