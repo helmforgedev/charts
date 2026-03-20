@@ -80,6 +80,12 @@ The chart exposes configurable management probes:
 
 Use the defaults first. Increase startup timing only when the environment consistently needs more time for image pull, JVM bootstrap, or cluster convergence.
 
+For environments with heavier provider or theme loading, the chart also exposes:
+
+- `probes.profile: heavy-startup`
+
+That profile keeps the same probe structure but gives the pod more time to become healthy during startup.
+
 ## Rollout and rollback guidance
 
 For production rollouts:

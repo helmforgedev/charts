@@ -23,6 +23,7 @@ helm install keycloak oci://ghcr.io/mberlofa/helm/keycloak -f values.yaml
 - [Security and Trust](docs/security-and-trust.md)
 - [Extensions and Themes](docs/extensions-and-themes.md)
 - [Scope and Automation Boundaries](docs/scope-and-automation-boundaries.md)
+- [Production Capacity](docs/production-capacity.md)
 
 ## What this chart covers
 
@@ -53,6 +54,7 @@ Recommended reading before installation:
 - [Security and Trust](docs/security-and-trust.md)
 - [Extensions and Themes](docs/extensions-and-themes.md)
 - [Scope and Automation Boundaries](docs/scope-and-automation-boundaries.md)
+- [Production Capacity](docs/production-capacity.md)
 
 ## Official product references
 
@@ -101,6 +103,7 @@ database:
 - keep the management service internal
 - restrict admin exposure at the reverse proxy layer when using a dedicated admin hostname
 - use [Security and Trust](docs/security-and-trust.md) when database TLS or custom internal CAs are involved
+- if `ingress.admin.enabled=true`, always set `hostname.admin` explicitly
 
 ### Reverse proxy and hostname
 
@@ -117,6 +120,7 @@ database:
 - do not use `dev` mode as a hidden production shortcut
 - review [Scaling and Clustering](docs/scaling-and-clustering.md) before raising `replicaCount`
 - review [Scope and Automation Boundaries](docs/scope-and-automation-boundaries.md) before asking the chart to solve autoscaling or operator-style concerns
+- review [Production Capacity](docs/production-capacity.md) before choosing explicit `resources` and `priorityClassName`
 
 ### Realm import and extensions
 
@@ -141,6 +145,8 @@ database:
 - externally managed secret or truststore changes still require an explicit rollout or restart
 - provider and theme source changes can be rolled forward predictably with `rolloutToken`
 - HPA remains intentionally out of scope as a built-in feature for the current chart scope
+- `ingress.admin.enabled=true` requires `hostname.admin` in production mode
+- `probes.profile=heavy-startup` is available for slower bootstrap profiles with heavier providers or themes
 
 ## Main values
 
@@ -173,9 +179,11 @@ database:
 | `cache.stack` | Cache stack for multi-replica production | `jdbc-ping` |
 | `cache.multiReplicaDefaults.enabled` | Apply default scheduling hints for multi-replica workloads | `true` |
 | `cache.multiReplicaDefaults.podAntiAffinity` | Generated pod anti-affinity mode | `preferred` |
+| `resources` | Explicit CPU and memory requests/limits for the main container | `{}` |
 | `probes.liveness.enabled` | Enable liveness probe | `true` |
 | `probes.readiness.enabled` | Enable readiness probe | `true` |
 | `probes.startup.enabled` | Enable startup probe | `true` |
+| `probes.profile` | Probe timing profile | `default` |
 | `extensions.providers.rolloutToken` | Manual rollout token for provider source changes | `""` |
 | `extensions.themes.rolloutToken` | Manual rollout token for theme source changes | `""` |
 | `extraEnvFrom` | Extra envFrom sources injected into the main container | `[]` |
@@ -204,6 +212,8 @@ The `ci/` scenarios validate the main chart behaviors:
 - `database-tls.yaml`
 - `multi-replica-observability.yaml`
 - `extensions.yaml`
+- `heavy-startup.yaml`
+- `production-capacity.yaml`
 
 ## Rollout guidance
 
@@ -220,6 +230,8 @@ See `examples/`:
 - `external-db-ha.yaml`
 - `multi-replica-production.yaml`
 - `extensions-and-themes.yaml`
+- `heavy-startup.yaml`
+- `production-capacity.yaml`
 - `realm-import.yaml`
 - `relative-path.yaml`
 - `postgres-tls.yaml`

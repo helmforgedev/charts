@@ -161,7 +161,10 @@ jdbc:{{ .Values.database.vendor }}://{{ required "database.host is required in p
 {{- if include "keycloak.isProduction" . }}
 - name: KC_HOSTNAME
   value: {{ required "hostname.hostname is required in production mode" .Values.hostname.hostname | quote }}
-{{- if .Values.hostname.admin }}
+{{- if .Values.ingress.admin.enabled }}
+- name: KC_HOSTNAME_ADMIN
+  value: {{ required "hostname.admin is required when ingress.admin.enabled is true in production mode" .Values.hostname.admin | quote }}
+{{- else if .Values.hostname.admin }}
 - name: KC_HOSTNAME_ADMIN
   value: {{ .Values.hostname.admin | quote }}
 {{- end }}
@@ -283,4 +286,34 @@ topologySpreadConstraints:
 
 {{- define "keycloak.defaultTopologySpreadEnabled" -}}
 {{- if and (gt (int .Values.replicaCount) 1) .Values.cache.multiReplicaDefaults.enabled .Values.cache.multiReplicaDefaults.topologySpread.enabled -}}true{{- end -}}
+{{- end -}}
+
+{{- define "keycloak.probeValue" -}}
+{{- $root := .root -}}
+{{- $probe := .probe -}}
+{{- $field := .field -}}
+{{- $profile := default "default" $root.Values.probes.profile -}}
+{{- if eq $profile "heavy-startup" -}}
+  {{- if and (eq $probe "liveness") (eq $field "initialDelaySeconds") -}}120
+  {{- else if and (eq $probe "liveness") (eq $field "periodSeconds") -}}20
+  {{- else if and (eq $probe "liveness") (eq $field "timeoutSeconds") -}}5
+  {{- else if and (eq $probe "liveness") (eq $field "failureThreshold") -}}6
+  {{- else if and (eq $probe "readiness") (eq $field "initialDelaySeconds") -}}60
+  {{- else if and (eq $probe "readiness") (eq $field "periodSeconds") -}}10
+  {{- else if and (eq $probe "readiness") (eq $field "timeoutSeconds") -}}5
+  {{- else if and (eq $probe "readiness") (eq $field "failureThreshold") -}}12
+  {{- else if and (eq $probe "startup") (eq $field "initialDelaySeconds") -}}40
+  {{- else if and (eq $probe "startup") (eq $field "periodSeconds") -}}10
+  {{- else if and (eq $probe "startup") (eq $field "timeoutSeconds") -}}5
+  {{- else if and (eq $probe "startup") (eq $field "failureThreshold") -}}90
+  {{- end -}}
+{{- else -}}
+  {{- if eq $probe "liveness" -}}
+    {{- index $root.Values.probes.liveness $field -}}
+  {{- else if eq $probe "readiness" -}}
+    {{- index $root.Values.probes.readiness $field -}}
+  {{- else if eq $probe "startup" -}}
+    {{- index $root.Values.probes.startup $field -}}
+  {{- end -}}
+{{- end -}}
 {{- end -}}
