@@ -65,8 +65,6 @@ image:
   repository: ghcr.io/example/node-agent
   tag: "0.8.0"
 
-imageTagFormat: simple
-
 containers:
   - name: agent
     ports:
