@@ -23,6 +23,7 @@ helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
 - [SQLite Mode](docs/sqlite.md)
 - [Database Modes and Migrations](docs/database-modes-and-migrations.md)
 - [External Database Backup](docs/external-database-backup.md)
+- [Backup Automation](docs/backup-automation.md)
 - [Ingress and Domain](docs/ingress-and-domain.md)
 - [SMTP and Email](docs/smtp-and-email.md)
 - [Backup and Restore](docs/backup-and-restore.md)
@@ -38,6 +39,7 @@ helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
 - persistent `/data` is the normal path
 - production should prefer an external database or one of the optional database subcharts
 - SQLite is the fallback mode when no external database or subchart is configured
+- built-in backup can archive `/data` for SQLite or run database dumps for DB-backed modes
 - ingress and `domain` should be aligned for attachment links and client behavior
 - websocket traffic uses the same HTTP service and ingress path as the web vault
 
@@ -57,6 +59,14 @@ helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
 - review [Backup and Restore](docs/backup-and-restore.md) before declaring the deployment production-ready
 - review [Data Restore Patterns](docs/data-restore-patterns.md) before binding restored storage into a live release
 - if you use PostgreSQL or MySQL, also review [External Database Backup](docs/external-database-backup.md)
+
+### Built-in backups
+
+- enable `backup.enabled` only after confirming the selected storage mode and S3 endpoint contract
+- in `sqlite` mode the chart archives `/data` and uploads it to the configured bucket
+- in `external`, `postgresql`, and `mysql` modes the chart runs a database dump and uploads the compressed result
+- the built-in backup path is intentionally focused on backup creation, not restore orchestration
+- review [Backup Automation](docs/backup-automation.md) before enabling the CronJob in production
 
 ### Database selection
 
@@ -164,6 +174,7 @@ Official reference:
 - PostgreSQL or MySQL modes still require `/data` backup in addition to database backup
 - SSO and OIDC remain advanced integration topics; this chart documents them but does not model them as first-class values in v2
 - SMTP in production should use explicit timeout, security mode, and certificate validation choices instead of relying on provider defaults you did not document
+- built-in backup is now available directly in the chart and should be preferred over ad-hoc sidecar or detached copy jobs for this product line
 - if you disable persistence, the deployment becomes disposable and data loss is expected
 - part of the effective runtime configuration can be persisted in `/data/config.json`
 - backup and restore must treat `/data` as a full state boundary, not only a SQLite file
@@ -220,6 +231,11 @@ Official reference:
 | `data.persistence.existingClaim` | Existing PVC for `/data` | `""` |
 | `data.persistence.selectorLabels` | PVC selector labels for restore or pre-bound PV flows | `{}` |
 | `data.persistence.size` | PVC size | `5Gi` |
+| `backup.enabled` | Enable built-in backup CronJob | `false` |
+| `backup.schedule` | Backup schedule | `"0 0 * * *"` |
+| `backup.s3.endpoint` | S3-compatible endpoint URL | `""` |
+| `backup.s3.bucket` | Target bucket name | `""` |
+| `backup.s3.existingSecret` | Existing secret with S3 credentials | `""` |
 | `database.sqlite.enableWal` | Enable SQLite WAL mode on startup | `true` |
 | `database.connection.retries` | Number of startup retries while connecting to the database | `15` |
 | `database.connection.timeout` | Database acquisition timeout in seconds | `30` |
@@ -250,6 +266,9 @@ The `ci/` scenarios validate the main chart behaviors:
 - `database-postgresql.yaml`
 - `database-mysql.yaml`
 - `hardening.yaml`
+- `backup-sqlite.yaml`
+- `backup-postgresql.yaml`
+- `backup-mysql.yaml`
 
 ## Examples
 
@@ -268,3 +287,6 @@ See `examples/`:
 - `database-postgresql.yaml`
 - `database-mysql.yaml`
 - `hardening.yaml`
+- `backup-sqlite.yaml`
+- `backup-postgresql.yaml`
+- `backup-mysql.yaml`

@@ -292,3 +292,88 @@ database-url
   {{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "vaultwarden.backupSecretName" -}}
+{{- if .Values.backup.s3.existingSecret -}}
+{{- .Values.backup.s3.existingSecret -}}
+{{- else -}}
+{{- printf "%s-backup" (include "vaultwarden.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "vaultwarden.backupDatabaseOverrideEnabled" -}}
+{{- if or .Values.backup.database.existingSecret .Values.backup.database.host .Values.backup.database.port .Values.backup.database.name .Values.backup.database.username .Values.backup.database.password -}}true{{- end -}}
+{{- end -}}
+
+{{- define "vaultwarden.backupEnabled" -}}
+{{- if .Values.backup.enabled -}}
+  {{- if not .Values.backup.s3.endpoint -}}
+    {{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if not .Values.backup.s3.bucket -}}
+    {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- end -}}
+  {{- if and (eq (include "vaultwarden.databaseMode" .) "sqlite") (not .Values.data.persistence.enabled) -}}
+    {{- fail "backup for sqlite mode requires data.persistence.enabled=true" -}}
+  {{- end -}}
+  {{- if and (eq (include "vaultwarden.databaseMode" .) "external") (eq (include "vaultwarden.databaseVendor" .) "mysql") .Values.database.external.existingSecret (not (include "vaultwarden.backupDatabaseOverrideEnabled" .)) -}}
+    {{- fail "backup for external mysql with database.external.existingSecret requires backup.database overrides or backup.database.existingSecret" -}}
+  {{- end -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{- define "vaultwarden.backupDatabaseHost" -}}
+{{- if .Values.backup.database.host -}}
+{{- .Values.backup.database.host -}}
+{{- else -}}
+{{- include "vaultwarden.databaseHost" . -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "vaultwarden.backupDatabasePort" -}}
+{{- if .Values.backup.database.port -}}
+{{- .Values.backup.database.port | toString -}}
+{{- else -}}
+{{- include "vaultwarden.databasePort" . -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "vaultwarden.backupDatabaseName" -}}
+{{- if .Values.backup.database.name -}}
+{{- .Values.backup.database.name -}}
+{{- else -}}
+{{- include "vaultwarden.databaseName" . -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "vaultwarden.backupDatabaseUsername" -}}
+{{- if .Values.backup.database.username -}}
+{{- .Values.backup.database.username -}}
+{{- else -}}
+{{- include "vaultwarden.databaseUsername" . -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "vaultwarden.backupDatabasePasswordSecretName" -}}
+{{- if .Values.backup.database.existingSecret -}}
+{{- .Values.backup.database.existingSecret -}}
+{{- else if and (eq (include "vaultwarden.databaseMode" .) "external") .Values.database.external.existingSecret -}}
+{{- .Values.database.external.existingSecret -}}
+{{- else -}}
+{{- printf "%s-database" (include "vaultwarden.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "vaultwarden.backupDatabasePasswordSecretKey" -}}
+{{- if .Values.backup.database.existingSecret -}}
+{{- .Values.backup.database.existingSecretPasswordKey -}}
+{{- else if and (eq (include "vaultwarden.databaseMode" .) "external") .Values.database.external.existingSecret -}}
+{{- .Values.database.external.existingSecretUrlKey -}}
+{{- else -}}
+database-password
+{{- end -}}
+{{- end -}}

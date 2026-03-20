@@ -8,25 +8,16 @@ When Vaultwarden runs with:
 - `database.mode=postgresql`
 - or `database.mode=mysql`
 
-backup can no longer be treated as a SQLite-only problem.
-
-You must preserve two separate state planes:
-
-1. database state
-2. Vaultwarden `/data`
+the built-in backup solution in this chart focuses on the database dump.
 
 ## Production recommendation
 
-For production, the strongest operational model is:
+For production, the intended model is:
 
-- use a managed or independently operated PostgreSQL/MySQL service
-- let that database platform own database backup and restore
-- keep Vaultwarden filesystem backup separate and explicit
-
-This produces cleaner responsibilities:
-
-- the database platform handles PITR, retention, and database-consistent restore
-- Vaultwarden backup handles `config.json`, `rsa_key*`, attachments, and sends
+- enable the chart backup CronJob
+- generate compressed PostgreSQL or MySQL dumps
+- upload them to an S3-compatible bucket
+- document restore separately
 
 ## What belongs to the database backup
 
@@ -36,53 +27,11 @@ Back up:
 
 Do not rely on `/data` backup to cover this once SQLite is no longer the active backend.
 
-## What belongs to the `/data` backup
+## What happens to `/data`
 
-Back up:
+For the current chart scope, DB-backed backup automation does not try to archive `/data` in the same job.
 
-- `config.json`
-- `rsa_key*`
-- `attachments/`
-- `sends/`
-
-These remain part of the restore boundary even when the main database is external.
-
-## Recommended architecture
-
-Use two backup workflows:
-
-1. database-native backup workflow
-2. Vaultwarden `/data` backup workflow
-
-### Database-native workflow
-
-Examples:
-
-- managed PostgreSQL backup / PITR
-- managed MySQL backup / PITR
-- platform-native snapshot or dump workflow controlled outside the Vaultwarden chart
-
-### Vaultwarden `/data` workflow
-
-Use a separate release based on the [`generic`](../../generic/README.md) chart with a `CronJob` that archives `/data` to S3-compatible object storage.
-
-This keeps:
-
-- app release lifecycle
-- database lifecycle
-- backup lifecycle
-
-separate and easier to reason about.
-
-## Why this is better than one monolithic backup job
-
-A single job that tries to back up both database and `/data` from the Vaultwarden release usually creates more coupling:
-
-- database credentials leak into the app release boundary
-- restore logic becomes less transparent
-- failure domains become harder to understand
-
-Separate workflows are easier to test and easier to restore from.
+That is a deliberate simplification in favor of a predictable backup artifact centered on the authoritative database state.
 
 ## Restore sequence
 
@@ -93,8 +42,6 @@ Recommended order:
 3. restore `/data`
 4. redeploy or restart Vaultwarden
 5. validate runtime behavior
-
-If you reverse this casually, the application may come up against mismatched filesystem and database state.
 
 ## What to validate after restore
 
@@ -115,12 +62,8 @@ If you use local subcharts:
 
 the same logic still applies.
 
-The main difference is only where the database lifecycle is hosted. Backup remains a two-plane problem:
-
-- database data
-- Vaultwarden `/data`
+The main difference is only where the database lifecycle is hosted. The built-in backup still creates a database dump artifact and uploads it to the configured bucket.
 
 ## References
 
 - Vaultwarden configuration template: https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template
-- Generic chart in this repository: [`charts/generic`](../../generic/README.md)
