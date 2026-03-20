@@ -50,6 +50,20 @@ spec:
       topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if ne (include "vaultwarden.databaseMode" .) "sqlite" }}
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for {{ include "vaultwarden.databaseHost" . }}:{{ include "vaultwarden.databasePort" . }} ..."
+              until nc -z -w2 {{ include "vaultwarden.databaseHost" . }} {{ include "vaultwarden.databasePort" . }}; do
+                sleep 2
+              done
+              echo "Database is reachable."
+      {{- end }}
       containers:
         - name: vaultwarden
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
