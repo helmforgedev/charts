@@ -99,21 +99,29 @@ spec:
               value: {{ .Values.vaultwarden.logLevel | quote }}
             - name: IP_HEADER
               value: {{ .Values.vaultwarden.proxy.ipHeader | quote }}
+            {{- if eq (include "vaultwarden.databaseMode" .) "sqlite" }}
             - name: ENABLE_DB_WAL
-              value: {{ ternary "true" "false" .Values.data.sqlite.enableWal | quote }}
+              value: {{ ternary "true" "false" .Values.database.sqlite.enableWal | quote }}
+            {{- else }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "vaultwarden.databasePasswordSecretName" . }}
+                  key: {{ include "vaultwarden.databasePasswordSecretKey" . }}
+            {{- end }}
             - name: DB_CONNECTION_RETRIES
-              value: {{ .Values.data.database.connectionRetries | quote }}
+              value: {{ .Values.database.connection.retries | quote }}
             - name: DATABASE_TIMEOUT
-              value: {{ .Values.data.database.timeout | quote }}
+              value: {{ .Values.database.connection.timeout | quote }}
             - name: DATABASE_IDLE_TIMEOUT
-              value: {{ .Values.data.database.idleTimeout | quote }}
+              value: {{ .Values.database.connection.idleTimeout | quote }}
             - name: DATABASE_MIN_CONNS
-              value: {{ .Values.data.database.minConnections | quote }}
+              value: {{ .Values.database.connection.minConnections | quote }}
             - name: DATABASE_MAX_CONNS
-              value: {{ .Values.data.database.maxConnections | quote }}
-            {{- if .Values.data.database.connectionInit }}
+              value: {{ .Values.database.connection.maxConnections | quote }}
+            {{- if .Values.database.connection.init }}
             - name: DATABASE_CONN_INIT
-              value: {{ .Values.data.database.connectionInit | quote }}
+              value: {{ .Values.database.connection.init | quote }}
             {{- end }}
             {{- if include "vaultwarden.adminEnabled" . }}
             - name: ADMIN_TOKEN
