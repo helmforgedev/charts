@@ -43,6 +43,31 @@ echo -n 'change-me' | argon2 "$(openssl rand -base64 32)" -e -id -k 65540 -t 3 -
 - admin-interface changes can persist runtime configuration to `/data/config.json`
 - document who is allowed to use the admin panel before enabling it
 
+## Admin token rotation
+
+Recommended sequence:
+
+1. generate a new Argon2 PHC string
+2. update the referenced Kubernetes secret or the Helm value
+3. run a controlled rollout of the Deployment
+4. validate access to the admin page with the new token
+5. invalidate any operational runbook or secret copy that still references the old token
+
+When `admin.existingSecret` is used, rotating the secret alone is not enough. Vaultwarden must restart to consume the new value.
+
+## Pod and network hardening
+
+This chart keeps hardening focused on defaults that match the current Vaultwarden container model:
+
+- `runAsNonRoot=true`
+- dropped Linux capabilities
+- `seccompProfile: RuntimeDefault`
+- `allowPrivilegeEscalation=false`
+
+`readOnlyRootFilesystem` remains disabled by default because operators often need a more explicit runtime validation before enabling it in web workloads that still write temporary files.
+
+If your cluster requires strict east-west traffic controls, enable `networkPolicy` and explicitly allow ingress from your ingress controller namespace and egress to DNS and the selected database path.
+
 ## References
 
 - Vaultwarden configuration template: https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template

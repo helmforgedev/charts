@@ -240,11 +240,18 @@ probes:
 resources: {}
 
 podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
   fsGroup: 1000
   fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
 
 securityContext:
+  runAsNonRoot: true
   allowPrivilegeEscalation: false
+  privileged: false
   readOnlyRootFilesystem: false
   capabilities:
     drop:
@@ -264,6 +271,38 @@ terminationGracePeriodSeconds: 60
 podLabels: {}
 podAnnotations: {}
 annotations: {}
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+
+networkPolicy:
+  # -- Enable a NetworkPolicy for Vaultwarden
+  enabled: false
+  ingress:
+    # -- Allow traffic from pods in the same namespace
+    allowSameNamespace: true
+    # -- Additional ingress peers in native NetworkPolicy format
+    additionalFrom: []
+      # - namespaceSelector:
+      #     matchLabels:
+      #       kubernetes.io/metadata.name: ingress-system
+      #   podSelector:
+      #     matchLabels:
+      #       app.kubernetes.io/name: traefik
+  egress:
+    # -- Enable egress policy management
+    enabled: false
+    # -- Allow DNS egress for name resolution when egress policy is enabled
+    allowDns: true
+    # -- Additional egress peers in native NetworkPolicy format
+    additionalTo: []
+      # - namespaceSelector:
+      #     matchLabels:
+      #       kubernetes.io/metadata.name: database
+      #   podSelector:
+      #     matchLabels:
+      #       app.kubernetes.io/name: postgresql
 
 # =============================================================================
 # Extra
