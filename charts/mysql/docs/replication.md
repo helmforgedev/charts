@@ -34,6 +34,7 @@ Typical use cases:
 - route write traffic only to the source Service
 - route read traffic only to the replicas Service
 - use the replicas Service for read-only workloads that benefit from horizontal scale
+- enable `tls.client.enabled=true` before turning on `tls.requireSecureTransport=true` in replication mode
 - do not expect the replicas Service to make lag-aware or query-aware routing decisions
 - treat this mode as read scaling plus recovery help, not full HA
 - if automated failover is a hard requirement, use an operator instead of extending this chart

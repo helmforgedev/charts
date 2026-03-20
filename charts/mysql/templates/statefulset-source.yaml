@@ -138,6 +138,11 @@ spec:
               mountPath: /config
             - name: initdb
               mountPath: /docker-entrypoint-initdb.d
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -175,6 +180,11 @@ spec:
               - configMap:
                   name: {{ .Values.initdb.existingConfigMap }}
               {{- end }}
+        {{- if .Values.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ include "mysql.tlsSecretName" . }}
+        {{- end }}
         {{- if not (ternary .Values.replication.source.persistence.enabled .Values.standalone.persistence.enabled (eq .Values.architecture "replication")) }}
         - name: data
           emptyDir: {}

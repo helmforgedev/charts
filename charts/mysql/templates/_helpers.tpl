@@ -54,6 +54,10 @@ app.kubernetes.io/role: {{ .role }}
 {{- end -}}
 {{- end -}}
 
+{{- define "mysql.tlsSecretName" -}}
+{{- required "tls.existingSecret is required when tls.enabled=true" .Values.tls.existingSecret -}}
+{{- end -}}
+
 {{- define "mysql.configMapName" -}}
 {{- printf "%s-config" (include "mysql.fullname" .) -}}
 {{- end -}}
@@ -184,12 +188,35 @@ MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysql -h 127.0.0.1 -P {{ .Values.service.port
 
 {{- define "mysql.metricsEnv" -}}
 - name: DATA_SOURCE_NAME
-  value: root:$(MYSQL_ROOT_PASSWORD)@(127.0.0.1:{{ .Values.service.port }})/
+  value: root:$(MYSQL_ROOT_PASSWORD)@(127.0.0.1:{{ .Values.service.port }})/{{ if or .Values.tls.client.enabled .Values.tls.requireSecureTransport }}?tls=skip-verify{{ end }}
 - name: MYSQL_ROOT_PASSWORD
   valueFrom:
     secretKeyRef:
       name: {{ include "mysql.secretName" . }}
       key: {{ .Values.auth.existingSecretRootPasswordKey }}
+{{- end -}}
+
+{{- define "mysql.tlsClientEnabled" -}}
+{{- if or .Values.tls.client.enabled .Values.tls.requireSecureTransport -}}true{{- end -}}
+{{- end -}}
+
+{{- define "mysql.mysqlCliTlsArgs" -}}
+{{- if include "mysql.tlsClientEnabled" . -}}
+{{- $sslMode := upper .Values.tls.client.sslMode -}}
+--ssl-mode={{ $sslMode }}
+{{- if eq $sslMode "VERIFY_CA" }}
+--ssl-ca=/tls/{{ .Values.tls.caFilename }}
+{{- end }}
+{{- end -}}
+{{- end -}}
+
+{{- define "mysql.replicationTlsClause" -}}
+{{- if include "mysql.tlsClientEnabled" . -}}
+SOURCE_SSL=1,
+{{- if eq (upper .Values.tls.client.sslMode) "VERIFY_CA" }}
+SOURCE_SSL_CA='/tls/{{ .Values.tls.caFilename }}',
+{{- end }}
+{{- end -}}
 {{- end -}}
 
 {{- define "mysql.configPreset" -}}

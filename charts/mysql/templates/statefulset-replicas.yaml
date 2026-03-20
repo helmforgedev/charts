@@ -55,7 +55,7 @@ spec:
               replica_parallel_workers = {{ .Values.replication.binlog.replicaParallelWorkers }}
               EOF
 
-              until MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysqladmin ping -h {{ include "mysql.sourceServiceName" . }} -P {{ .Values.service.port }} -uroot --silent; do
+              until MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysqladmin ping -h {{ include "mysql.sourceServiceName" . }} -P {{ .Values.service.port }} -uroot {{ include "mysql.mysqlCliTlsArgs" . }} --silent; do
                 sleep 5
               done
 
@@ -75,6 +75,7 @@ spec:
                 -h {{ include "mysql.sourceServiceName" . }} \
                 -P {{ .Values.service.port }} \
                 -uroot \
+                {{ include "mysql.mysqlCliTlsArgs" . }} \
                 --single-transaction \
                 --set-gtid-purged=ON \
                 --all-databases \
@@ -91,6 +92,7 @@ spec:
                 SOURCE_PORT={{ .Values.service.port }},
                 SOURCE_USER='{{ .Values.auth.replicationUsername }}',
                 SOURCE_PASSWORD='${REPLICATION_PASSWORD}',
+                {{ include "mysql.replicationTlsClause" . | nindent 16 }}
                 SOURCE_AUTO_POSITION=1,
                 GET_SOURCE_PUBLIC_KEY=1;
               START REPLICA;
@@ -115,6 +117,11 @@ spec:
               mountPath: /var/lib/mysql
             - name: config
               mountPath: /config
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
       containers:
         - name: mysql
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -199,6 +206,11 @@ spec:
               mountPath: /var/lib/mysql
             - name: config
               mountPath: /config
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -226,6 +238,11 @@ spec:
         - name: config
           configMap:
             name: {{ include "mysql.configMapName" . }}
+        {{- if .Values.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ include "mysql.tlsSecretName" . }}
+        {{- end }}
         {{- if not .Values.replication.readReplicas.persistence.enabled }}
         - name: data
           emptyDir: {}
