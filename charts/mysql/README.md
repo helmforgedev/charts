@@ -269,3 +269,23 @@ See `examples/`:
 - this chart does not implement automatic source promotion
 - init scripts run only on first initialization of a fresh data directory
 - for failover-oriented production operations, use an operator or dedicated HA solution instead of trying to turn this chart into one
+
+<!-- @AI-METADATA
+type: chart-readme
+title: MySQL Helm Chart
+description: MySQL chart with standalone and replication modes, TLS, metrics
+
+keywords: mysql, database, replication, sql, tls
+
+purpose: Usage guide for the MySQL Helm chart with standalone and replication modes
+scope: Chart
+
+relations:
+  - charts/mysql/DESIGN.md
+  - charts/mysql/docs/standalone.md
+  - charts/mysql/docs/replication.md
+  - charts/mysql/docs/backup-restore.md
+path: charts/mysql/README.md
+version: 1.0
+date: 2026-03-20
+-->

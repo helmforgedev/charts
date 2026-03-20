@@ -99,3 +99,21 @@ If a future requirement proves valuable and coherent, it can be added by:
 
 - Vaultwarden repository: https://github.com/dani-garcia/vaultwarden
 - Vaultwarden configuration template: https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Vaultwarden - Scope
+description: Chart scope and boundaries
+
+keywords: vaultwarden, scope, boundaries
+
+purpose: Chart scope definition and automation boundaries for Vaultwarden
+scope: Chart Architecture
+
+relations:
+  - charts/vaultwarden/README.md
+  - charts/vaultwarden/DESIGN.md
+path: charts/vaultwarden/docs/scope-and-automation-boundaries.md
+version: 1.0
+date: 2026-03-20
+-->

@@ -98,3 +98,20 @@ sentinel:
 
 - move back to `replication` if the application cannot operate with Sentinel
 - move to `cluster` when the primary need becomes shard-based scale rather than failover
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Redis - Sentinel
+description: Sentinel HA with failover
+
+keywords: redis, sentinel, ha, failover
+
+purpose: Redis Sentinel HA with automated failover guide
+scope: Chart Architecture
+
+relations:
+  - charts/redis/README.md
+path: charts/redis/docs/sentinel.md
+version: 1.0
+date: 2026-03-20
+-->

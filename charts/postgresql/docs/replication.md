@@ -90,3 +90,21 @@ replication:
       enabled: true
       size: 50Gi
 ```
+
+<!-- @AI-METADATA
+type: chart-docs
+title: PostgreSQL - Replication
+description: Streaming replication
+
+keywords: postgresql, replication, streaming
+
+purpose: PostgreSQL streaming replication setup guide
+scope: Chart Architecture
+
+relations:
+  - charts/postgresql/README.md
+  - charts/postgresql/docs/replication-operations.md
+path: charts/postgresql/docs/replication.md
+version: 1.0
+date: 2026-03-20
+-->

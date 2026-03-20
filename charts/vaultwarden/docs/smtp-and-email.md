@@ -60,3 +60,20 @@ If any of them are enabled temporarily, treat that as an explicit risk acceptanc
 ## References
 
 - Vaultwarden configuration template: https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Vaultwarden - SMTP
+description: SMTP configuration
+
+keywords: vaultwarden, smtp, email
+
+purpose: SMTP and email configuration guide for Vaultwarden
+scope: Chart Architecture
+
+relations:
+  - charts/vaultwarden/README.md
+path: charts/vaultwarden/docs/smtp-and-email.md
+version: 1.0
+date: 2026-03-20
+-->

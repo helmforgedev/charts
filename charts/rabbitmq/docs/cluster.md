@@ -62,3 +62,20 @@ cluster:
 metrics:
   enabled: true
 ```
+
+<!-- @AI-METADATA
+type: chart-docs
+title: RabbitMQ - Cluster
+description: Cluster deployment
+
+keywords: rabbitmq, cluster, quorum
+
+purpose: RabbitMQ cluster deployment guide with quorum queues
+scope: Chart Architecture
+
+relations:
+  - charts/rabbitmq/README.md
+path: charts/rabbitmq/docs/cluster.md
+version: 1.0
+date: 2026-03-20
+-->

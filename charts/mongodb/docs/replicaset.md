@@ -102,3 +102,20 @@ metrics:
 
 - move back to `standalone` only for non-critical simplified environments
 - move to `sharded` when data size, throughput, or tenant isolation demands shard-based distribution
+
+<!-- @AI-METADATA
+type: chart-docs
+title: MongoDB - ReplicaSet
+description: ReplicaSet architecture
+
+keywords: mongodb, replicaset, ha
+
+purpose: MongoDB ReplicaSet architecture configuration guide
+scope: Chart Architecture
+
+relations:
+  - charts/mongodb/README.md
+path: charts/mongodb/docs/replicaset.md
+version: 1.0
+date: 2026-03-20
+-->

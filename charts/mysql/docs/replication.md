@@ -63,3 +63,21 @@ Keep in mind:
 - balancing happens at the Kubernetes Service level
 - MySQL lag is still an application concern
 - replica reads are not a substitute for strong consistency requirements
+
+<!-- @AI-METADATA
+type: chart-docs
+title: MySQL - Replication
+description: Source-replica replication
+
+keywords: mysql, replication, source, replica
+
+purpose: MySQL source-replica replication setup guide
+scope: Chart Architecture
+
+relations:
+  - charts/mysql/README.md
+  - charts/mysql/docs/replication-operations.md
+path: charts/mysql/docs/replication.md
+version: 1.0
+date: 2026-03-20
+-->

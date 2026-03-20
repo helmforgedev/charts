@@ -85,3 +85,20 @@ containers:
       - name: data
         mountPath: /var/lib/app
 ```
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Generic Chart - StatefulSet
+description: StatefulSet configuration
+
+keywords: generic, statefulset, persistence
+
+purpose: StatefulSet workload configuration guide for the generic chart
+scope: Chart Architecture
+
+relations:
+  - charts/generic/README.md
+path: charts/generic/docs/statefulset.md
+version: 1.0
+date: 2026-03-20
+-->

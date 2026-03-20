@@ -72,3 +72,20 @@ backup:
 
 - [Backup and Restore](backup-and-restore.md)
 - [External Database Backup](external-database-backup.md)
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Vaultwarden - Backup Automation
+description: Automated S3 backup CronJob
+
+keywords: vaultwarden, backup, automation, s3
+
+purpose: Automated S3 backup CronJob setup for Vaultwarden
+scope: Chart Architecture
+
+relations:
+  - charts/vaultwarden/docs/backup-and-restore.md
+path: charts/vaultwarden/docs/backup-automation.md
+version: 1.0
+date: 2026-03-20
+-->

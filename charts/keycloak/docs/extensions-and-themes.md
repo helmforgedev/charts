@@ -121,3 +121,20 @@ extraContainers:
       - -c
       - tail -f /dev/null
 ```
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Keycloak - Extensions and Themes
+description: Custom providers and themes
+
+keywords: keycloak, extensions, themes, providers
+
+purpose: Custom providers and themes configuration guide for Keycloak
+scope: Chart Architecture
+
+relations:
+  - charts/keycloak/README.md
+path: charts/keycloak/docs/extensions-and-themes.md
+version: 1.0
+date: 2026-03-20
+-->

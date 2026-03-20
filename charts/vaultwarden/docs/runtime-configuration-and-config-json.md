@@ -52,3 +52,20 @@ For this chart, backup and restore should therefore always treat `/data/config.j
 ## Reference
 
 - Vaultwarden configuration template: https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Vaultwarden - Runtime Config
+description: Runtime settings
+
+keywords: vaultwarden, configuration, runtime
+
+purpose: Runtime settings and config.json configuration for Vaultwarden
+scope: Chart Architecture
+
+relations:
+  - charts/vaultwarden/README.md
+path: charts/vaultwarden/docs/runtime-configuration-and-config-json.md
+version: 1.0
+date: 2026-03-20
+-->

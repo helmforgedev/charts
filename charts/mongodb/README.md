@@ -265,3 +265,23 @@ Key differences from the Bitnami MongoDB chart:
 | User ID | 999 (mongodb) | 1001 (bitnami) |
 
 When migrating, you'll need to handle the data directory path change. For existing PVCs, use an init container to move data from `/bitnami/mongodb` to `/data/db`, or create new volumes and restore from backup.
+
+<!-- @AI-METADATA
+type: chart-readme
+title: MongoDB Helm Chart
+description: MongoDB chart supporting standalone, replicaset, and sharded architectures
+
+keywords: mongodb, nosql, database, replicaset, sharded
+
+purpose: Usage guide for the MongoDB Helm chart with standalone, replicaset, and sharded modes
+scope: Chart
+
+relations:
+  - charts/mongodb/DESIGN.md
+  - charts/mongodb/docs/standalone.md
+  - charts/mongodb/docs/replicaset.md
+  - charts/mongodb/docs/sharded.md
+path: charts/mongodb/README.md
+version: 1.0
+date: 2026-03-20
+-->

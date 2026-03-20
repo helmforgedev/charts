@@ -70,3 +70,21 @@ Treat this chart as:
 - not a substitute for operator-based HA
 
 If the environment requires HA guarantees beyond manual operational procedures, keep that as a separate solution path instead of expanding this chart into a partial operator.
+
+<!-- @AI-METADATA
+type: chart-docs
+title: PostgreSQL - HA Scope
+description: HA scope and boundaries
+
+keywords: postgresql, ha, scope, boundaries
+
+purpose: PostgreSQL HA scope and automation boundaries
+scope: Chart Architecture
+
+relations:
+  - charts/postgresql/README.md
+  - charts/postgresql/DESIGN.md
+path: charts/postgresql/docs/ha-and-scope-boundaries.md
+version: 1.0
+date: 2026-03-20
+-->

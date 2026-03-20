@@ -376,3 +376,23 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | `podLabels` | Extra pod labels | `{}` |
 | `podAnnotations` | Extra pod annotations | `{}` |
 | `annotations` | Workload resource annotations | `{}` |
+
+<!-- @AI-METADATA
+type: chart-readme
+title: Generic Helm Chart
+description: Multi-purpose Helm chart for Deployments, StatefulSets, DaemonSets, Jobs, CronJobs
+
+keywords: generic, deployment, statefulset, daemonset, job, cronjob
+
+purpose: Usage guide for the generic multi-purpose Helm chart
+scope: Chart
+
+relations:
+  - charts/generic/docs/deployment.md
+  - charts/generic/docs/statefulset.md
+  - charts/generic/docs/daemonset.md
+  - charts/generic/docs/batch.md
+path: charts/generic/README.md
+version: 1.0
+date: 2026-03-20
+-->

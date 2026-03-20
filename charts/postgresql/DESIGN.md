@@ -31,3 +31,20 @@
 - config rendered through `postgresql.conf` and `pg_hba.conf`
 - initdb handled through `docker-entrypoint-initdb.d`
 - services remain explicit instead of hiding write/read paths behind generic abstractions
+
+<!-- @AI-METADATA
+type: design
+title: PostgreSQL Chart Design
+description: Design document for PostgreSQL Helm chart with standalone and replication architectures
+
+keywords: postgresql, design, architecture, standalone, replication
+
+purpose: Document design decisions and non-goals for the PostgreSQL chart
+scope: Chart Design
+
+relations:
+  - charts/postgresql/README.md
+path: charts/postgresql/DESIGN.md
+version: 1.0
+date: 2026-03-20
+-->

@@ -60,3 +60,20 @@ standalone:
     enabled: true
     size: 20Gi
 ```
+
+<!-- @AI-METADATA
+type: chart-docs
+title: PostgreSQL - Standalone
+description: Standalone deployment
+
+keywords: postgresql, standalone
+
+purpose: Standalone PostgreSQL deployment guide
+scope: Chart Architecture
+
+relations:
+  - charts/postgresql/README.md
+path: charts/postgresql/docs/standalone.md
+version: 1.0
+date: 2026-03-20
+-->

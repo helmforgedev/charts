@@ -76,3 +76,20 @@ This is useful in environments where PVs are recreated or pre-provisioned by a r
 
 - [Backup and Restore](backup-and-restore.md)
 - Vaultwarden configuration template: https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Vaultwarden - Restore Patterns
+description: Restore patterns for backends
+
+keywords: vaultwarden, restore, patterns
+
+purpose: Data restore patterns for different Vaultwarden storage backends
+scope: Chart Architecture
+
+relations:
+  - charts/vaultwarden/docs/backup-and-restore.md
+path: charts/vaultwarden/docs/data-restore-patterns.md
+version: 1.0
+date: 2026-03-20
+-->

@@ -90,3 +90,20 @@ hpa:
   minReplicas: 3
   maxReplicas: 10
 ```
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Generic Chart - Deployment
+description: Deployment configuration
+
+keywords: generic, deployment, rolling-update
+
+purpose: Deployment workload configuration guide for the generic chart
+scope: Chart Architecture
+
+relations:
+  - charts/generic/README.md
+path: charts/generic/docs/deployment.md
+version: 1.0
+date: 2026-03-20
+-->

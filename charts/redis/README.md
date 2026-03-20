@@ -195,3 +195,24 @@ See `examples/`:
 - `cluster` requires a Redis Cluster-compatible client
 - if `auth.password` is not set and `auth.existingSecret` is not used, the chart generates a password automatically
 - for production operation, read the architecture document before installing
+
+<!-- @AI-METADATA
+type: chart-readme
+title: Redis Helm Chart
+description: Redis chart with standalone, replication, sentinel, cluster architectures
+
+keywords: redis, cache, in-memory, replication, sentinel, cluster
+
+purpose: Usage guide for the Redis Helm chart with standalone, replication, sentinel, and cluster modes
+scope: Chart
+
+relations:
+  - charts/redis/DESIGN.md
+  - charts/redis/docs/standalone.md
+  - charts/redis/docs/replication.md
+  - charts/redis/docs/sentinel.md
+  - charts/redis/docs/cluster.md
+path: charts/redis/README.md
+version: 1.0
+date: 2026-03-20
+-->

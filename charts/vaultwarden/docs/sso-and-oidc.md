@@ -50,3 +50,20 @@ For this repository, the safest pattern is:
 
 - Vaultwarden OIDC wiki: https://github.com/dani-garcia/vaultwarden/wiki/Enabling-SSO-support-using-OpenId-Connect
 - Vaultwarden configuration template: https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Vaultwarden - SSO
+description: SSO and OIDC integration
+
+keywords: vaultwarden, sso, oidc
+
+purpose: SSO and OIDC integration guidance for Vaultwarden
+scope: Chart Architecture
+
+relations:
+  - charts/vaultwarden/README.md
+path: charts/vaultwarden/docs/sso-and-oidc.md
+version: 1.0
+date: 2026-03-20
+-->

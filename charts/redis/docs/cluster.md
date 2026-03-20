@@ -99,3 +99,20 @@ cluster:
 - when the application only needs one primary and read replicas
 - when the client does not understand Redis Cluster
 - when the data volume still fits comfortably in a single instance
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Redis - Cluster
+description: Cluster mode
+
+keywords: redis, cluster, sharding
+
+purpose: Redis Cluster mode with sharding guide
+scope: Chart Architecture
+
+relations:
+  - charts/redis/README.md
+path: charts/redis/docs/cluster.md
+version: 1.0
+date: 2026-03-20
+-->

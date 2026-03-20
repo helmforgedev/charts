@@ -36,3 +36,20 @@ If applicable, add screenshots to help explain your problem.
 
 **Additional context**
 Add any other context about the problem here.
+
+<!-- @AI-METADATA
+type: issue-template
+title: Bug Report Issue Template
+description: GitHub issue template for reporting bugs in Helm charts
+
+keywords: issue, template, bug, report, github
+
+purpose: Standardize bug report submissions
+scope: Repository
+
+relations:
+  - .github/ISSUE_TEMPLATE/feature_request.md
+path: .github/ISSUE_TEMPLATE/bug_report.md
+version: 1.0
+date: 2026-03-20
+-->

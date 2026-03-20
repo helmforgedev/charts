@@ -253,3 +253,23 @@ See `examples/`:
 - `realm-import.yaml`
 - `relative-path.yaml`
 - `postgres-tls.yaml`
+
+<!-- @AI-METADATA
+type: chart-readme
+title: Keycloak Helm Chart
+description: Keycloak IAM chart with dev/production modes, clustering, ingress
+
+keywords: keycloak, iam, sso, oidc, authentication, identity
+
+purpose: Usage guide for the Keycloak Helm chart with dev/production modes and clustering
+scope: Chart
+
+relations:
+  - charts/keycloak/DESIGN.md
+  - charts/keycloak/docs/production.md
+  - charts/keycloak/docs/dev.md
+  - charts/keycloak/docs/scaling-and-clustering.md
+path: charts/keycloak/README.md
+version: 1.0
+date: 2026-03-20
+-->

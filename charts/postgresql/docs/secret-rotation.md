@@ -32,3 +32,20 @@ This chart supports password and TLS material through existing Kubernetes secret
 - validate one environment at a time
 - document rollback steps before rotation
 - for production, use an external secret manager or an automated secret delivery workflow
+
+<!-- @AI-METADATA
+type: chart-docs
+title: PostgreSQL - Secret Rotation
+description: Password rotation
+
+keywords: postgresql, secret, rotation
+
+purpose: PostgreSQL password rotation procedures
+scope: Chart Architecture
+
+relations:
+  - charts/postgresql/README.md
+path: charts/postgresql/docs/secret-rotation.md
+version: 1.0
+date: 2026-03-20
+-->

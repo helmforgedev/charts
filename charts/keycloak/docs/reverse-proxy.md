@@ -145,3 +145,21 @@ Do not change the relative path in production without validating discovery docum
 
 - Keycloak production configuration: https://www.keycloak.org/server/configuration-production
 - Keycloak hostname configuration: https://www.keycloak.org/server/hostname
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Keycloak - Reverse Proxy
+description: Reverse proxy and ingress config
+
+keywords: keycloak, reverse-proxy, ingress
+
+purpose: Reverse proxy and ingress configuration guide for Keycloak
+scope: Chart Architecture
+
+relations:
+  - charts/keycloak/README.md
+  - charts/keycloak/docs/security-and-trust.md
+path: charts/keycloak/docs/reverse-proxy.md
+version: 1.0
+date: 2026-03-20
+-->

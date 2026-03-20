@@ -54,3 +54,20 @@ singleNode:
     enabled: true
     size: 10Gi
 ```
+
+<!-- @AI-METADATA
+type: chart-docs
+title: RabbitMQ - Single Node
+description: Single-node deployment
+
+keywords: rabbitmq, standalone
+
+purpose: Single-node RabbitMQ deployment guide
+scope: Chart Architecture
+
+relations:
+  - charts/rabbitmq/README.md
+path: charts/rabbitmq/docs/single-node.md
+version: 1.0
+date: 2026-03-20
+-->

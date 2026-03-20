@@ -151,6 +151,20 @@ Key rules for writing helm-unittest tests:
 - whenever documenting ingress in `values.yaml`, include a commented annotation example with `cert-manager.io/cluster-issuer`
 - do not expose design-history files as end-user documentation
 
+## AI Metadata Rules
+
+Every markdown documentation file must include an `<!-- @AI-METADATA -->` HTML comment block at the end. See `docs/ai-metadata-standard.md` for the full specification.
+
+Key rules:
+
+- always add `@AI-METADATA` when creating a new markdown file
+- always preserve existing `@AI-METADATA` blocks when editing files — never remove them
+- update `date` when making significant content changes
+- update `relations` when adding cross-references to other documents
+- use the correct `type` from the standard: `overview`, `chart-readme`, `chart-docs`, `design`, `guide`, `agent-instructions`, `skill-definition`, `issue-template`
+- place the block at the very end of the file after all content
+- use relative paths from the repository root for `path` and `relations`
+
 ## Repository Learning Rule
 
 When real work reveals a stable reusable improvement:
@@ -166,3 +180,21 @@ Preferred targets:
 - `.claude/CLAUDE.md`
 - `charts/<name>/README.md`
 - `charts/<name>/docs/*.md`
+
+<!-- @AI-METADATA
+type: agent-instructions
+title: Claude Code Project Instructions
+description: Project-specific instructions for Claude Code agents working on this Helm repository
+
+keywords: claude-code, agent, instructions, helm, conventions, git, testing
+
+purpose: Configure Claude Code behavior for this Helm chart repository
+scope: Agent Configuration
+
+relations:
+  - AGENTS.md
+  - docs/testing-strategy.md
+path: .claude/CLAUDE.md
+version: 1.0
+date: 2026-03-20
+-->

@@ -71,3 +71,20 @@ kubectl exec -it <release>-mysql-replicas-1 -n <namespace> -- mysql -uroot -p -e
 ```
 
 Adjust names and ordinals to match your release.
+
+<!-- @AI-METADATA
+type: chart-docs
+title: MySQL - Replication Ops
+description: Replication maintenance
+
+keywords: mysql, replication, operations
+
+purpose: MySQL replication maintenance and operational procedures
+scope: Chart Architecture
+
+relations:
+  - charts/mysql/docs/replication.md
+path: charts/mysql/docs/replication-operations.md
+version: 1.0
+date: 2026-03-20
+-->
