@@ -55,8 +55,6 @@ image:
   repository: myapp
   tag: "1.0.0"
 
-imageTagFormat: simple
-
 containers:
   - name: app
     ports:
@@ -199,20 +197,6 @@ initContainers:
     command: ["sh", "-c", "until nc -z db 5432; do sleep 1; done"]
 ```
 
-### Image tag format
-
-Two modes for composing the image tag:
-
-| Format | Result | Use case |
-|--------|--------|----------|
-| `named` (default) | `repo:containerName-tag` | Multi-stage Dockerfiles with named targets |
-| `simple` | `repo:tag` | Standard single-image builds |
-
-```yaml
-imageTagFormat: simple   # myapp:1.0.0
-imageTagFormat: named    # myapp:app-1.0.0
-```
-
 ### Probes
 
 Global probes apply to the **first container** only. Each container can override with its own:
@@ -269,7 +253,6 @@ extraManifests:
 ### Recommended practices
 
 - keep `containers` explicit and small; avoid turning one release into a large bundle of unrelated sidecars
-- use `imageTagFormat: simple` unless you intentionally depend on the `named` pattern
 - define probes per container when more than one container is user-facing
 - enable `pdb`, `hpa`, and `topologySpreadConstraints` for production deployments that need resilience
 - prefer chart examples and `ci/` scenarios as the starting point for new workloads
@@ -311,7 +294,6 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | `image.repository` | Container image repository | `container.registry.io/project/image` |
 | `image.tag` | Image tag | `latest` |
 | `image.pullPolicy` | Pull policy | `Always` |
-| `imageTagFormat` | `named` or `simple` | `named` |
 | `imagePullSecrets` | Registry pull secrets | `[]` |
 | **Containers** | | |
 | `containers` | List of container specs | 1 container on port 8080 |
