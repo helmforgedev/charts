@@ -21,6 +21,7 @@ helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
 ## Architecture guides
 
 - [SQLite Mode](docs/sqlite.md)
+- [Database Modes and Migrations](docs/database-modes-and-migrations.md)
 - [Ingress and Domain](docs/ingress-and-domain.md)
 - [Backup and Restore](docs/backup-and-restore.md)
 - [Admin Access and Hardening](docs/admin-access-and-hardening.md)
@@ -59,6 +60,7 @@ helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
 - fallback to SQLite
 - if you use `database.external.existingSecret`, store a complete `DATABASE_URL` value in that secret
 - if you use `postgresql.enabled=true` or `mysql.enabled=true`, define the application password explicitly so Vaultwarden can build the connection URL
+- review [Database Modes and Migrations](docs/database-modes-and-migrations.md) before changing storage mode in a live environment
 
 ### Ingress and domain
 
@@ -146,6 +148,7 @@ Official reference:
 - v1 does not support multiple replicas
 - v1 does not claim HA
 - this chart now supports `sqlite`, external database configuration, and optional local PostgreSQL or MySQL subcharts
+- production should normally prefer `database.external`
 - if you disable persistence, the deployment becomes disposable and data loss is expected
 - part of the effective runtime configuration can be persisted in `/data/config.json`
 - backup and restore must treat `/data` as a full state boundary, not only a SQLite file
@@ -162,7 +165,10 @@ Official reference:
 | `database.mode` | `auto`, `sqlite`, `external`, `postgresql`, or `mysql` | `auto` |
 | `database.external.vendor` | External database vendor | `postgres` |
 | `database.external.host` | External database host | `""` |
+| `database.external.name` | External database name | `vaultwarden` |
+| `database.external.username` | External database username | `vaultwarden` |
 | `database.external.existingSecret` | Existing secret containing a complete `DATABASE_URL` | `""` |
+| `database.external.existingSecretUrlKey` | Secret key containing the `DATABASE_URL` value | `database-url` |
 | `postgresql.enabled` | Enable the local PostgreSQL subchart | `false` |
 | `mysql.enabled` | Enable the local MySQL subchart | `false` |
 | `vaultwarden.signupsAllowed` | Allow new user signups | `false` |
@@ -214,6 +220,7 @@ The `ci/` scenarios validate the main chart behaviors:
 - `existing-claim.yaml`
 - `ingress.yaml`
 - `database-external.yaml`
+- `database-external-secret.yaml`
 - `database-postgresql.yaml`
 - `database-mysql.yaml`
 
@@ -227,5 +234,6 @@ See `examples/`:
 - `smtp.yaml`
 - `ingress-tls.yaml`
 - `database-external.yaml`
+- `database-external-secret.yaml`
 - `database-postgresql.yaml`
 - `database-mysql.yaml`
