@@ -240,6 +240,27 @@ innodb_log_file_size = 256M
 max_connections = 400
 innodb_buffer_pool_size = 1G
 innodb_log_file_size = 512M
+{{- else if eq .Values.config.preset "oltp" -}}
+max_connections = 300
+innodb_buffer_pool_size = 1G
+innodb_log_file_size = 512M
+innodb_flush_log_at_trx_commit = 1
+sync_binlog = 1
+innodb_io_capacity = 1000
+{{- else if eq .Values.config.preset "read-heavy" -}}
+max_connections = 300
+innodb_buffer_pool_size = 1G
+innodb_log_file_size = 512M
+table_open_cache = 4096
+tmp_table_size = 128M
+max_heap_table_size = 128M
+{{- else if eq .Values.config.preset "analytics" -}}
+max_connections = 150
+innodb_buffer_pool_size = 2G
+innodb_log_file_size = 1G
+tmp_table_size = 256M
+max_heap_table_size = 256M
+sort_buffer_size = 4M
 {{- end -}}
 {{- end -}}
 
