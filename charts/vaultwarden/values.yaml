@@ -1,0 +1,195 @@
+# =============================================================================
+# Vaultwarden Helm Chart — Default Values
+# =============================================================================
+# Focus: sqlite + pvc + ingress + smtp
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+clusterDomain: cluster.local
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Vaultwarden image repository
+  repository: vaultwarden/server
+  # -- Vaultwarden image tag
+  tag: "1.35.4"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Core Settings
+# =============================================================================
+
+# -- Public domain used by Vaultwarden. Strongly recommended when ingress is enabled.
+domain: ""
+
+vaultwarden:
+  # -- Allow new user signups
+  signupsAllowed: false
+  # -- Allow invitation flows
+  invitationsAllowed: true
+  # -- Allow Bitwarden Send
+  sendsAllowed: true
+  websocket:
+    # -- Enable websocket notifications
+    enabled: true
+  logLevel: info
+
+# =============================================================================
+# Admin
+# =============================================================================
+
+admin:
+  # -- Admin token value. Prefer an Argon2 PHC string for production.
+  token: ""
+  # -- Existing secret containing the admin token
+  existingSecret: ""
+  # -- Secret key for the admin token in admin.existingSecret
+  existingSecretTokenKey: admin-token
+
+# =============================================================================
+# SMTP
+# =============================================================================
+
+smtp:
+  # -- Enable SMTP configuration
+  enabled: false
+  host: ""
+  port: 587
+  from: ""
+  fromName: Vaultwarden
+  security: starttls
+  username: ""
+  password: ""
+  # -- Existing secret containing the SMTP password
+  existingSecret: ""
+  # -- Secret key for the SMTP password in smtp.existingSecret
+  existingSecretPasswordKey: smtp-password
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+data:
+  persistence:
+    # -- Persist `/data` with a PVC
+    enabled: true
+    # -- Existing PVC name
+    existingClaim: ""
+    # -- Storage class for the PVC
+    storageClass: ""
+    # -- Access mode for the PVC
+    accessMode: ReadWriteOnce
+    # -- Size of the PVC
+    size: 5Gi
+    # -- Annotations added to the PVC
+    annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- HTTP service port
+  port: 80
+  # -- Container port exposed by Vaultwarden
+  targetPort: 80
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Vaultwarden
+  enabled: false
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts: []
+    # - host: vaultwarden.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+    # - hosts:
+    #     - vaultwarden.example.com
+    #   secretName: vaultwarden-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  liveness:
+    enabled: true
+    path: /alive
+    initialDelaySeconds: 30
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 6
+  readiness:
+    enabled: true
+    path: /alive
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+  startup:
+    enabled: true
+    path: /alive
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 60
+
+podLabels: {}
+podAnnotations: {}
+annotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []

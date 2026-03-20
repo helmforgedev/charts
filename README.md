@@ -13,6 +13,7 @@ Reusable Helm charts for Kubernetes workloads. Published as OCI artifacts to Git
 | [postgresql](charts/postgresql/) | PostgreSQL — standalone or fixed-primary replication with optional metrics |
 | [mysql](charts/mysql/) | MySQL — standalone or fixed-source replication with optional metrics |
 | [keycloak](charts/keycloak/) | Keycloak — dev or production mode with external DB and separated management service |
+| [vaultwarden](charts/vaultwarden/) | Vaultwarden — single-instance with persistent SQLite, ingress, and optional SMTP |
 
 ## Quick Start
 
