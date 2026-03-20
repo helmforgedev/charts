@@ -1,3 +1,11 @@
+---
+title: Generic Chart - Deployment
+description: Deployment configuration
+keywords: [generic, deployment, rolling-update]
+scope: chart-docs
+audience: users
+---
+
 # Generic Chart for Deployments
 
 ## When to use

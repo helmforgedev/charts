@@ -1,10 +1,18 @@
+---
+title: Agent Instructions
+description: AI agent rules for Helm chart development, git workflow, and testing
+keywords: [agents, ai, rules, conventions, git, helm, testing]
+scope: repository
+audience: ai-agents
+---
+
 # Agent Instructions
 
 Instructions for AI coding agents working on this repository.
 
 ## Repository Overview
 
-This repository contains reusable Helm charts published as OCI artifacts to `ghcr.io/mberlofa/helm`. Each chart lives under `charts/<name>/` with its own `Chart.yaml`, `values.yaml`, `templates/`, `ci/`, `examples/`, `docs/`, and `README.md`.
+This repository contains reusable Helm charts published as OCI artifacts to `ghcr.io/helmforgedev/helm` and as a traditional Helm repository at `https://repo.helmforge.dev`. Each chart lives under `charts/<name>/` with its own `Chart.yaml`, `values.yaml`, `templates/`, `tests/`, `ci/`, `examples/`, `docs/`, and `README.md`.
 
 ## Repository Layout
 
@@ -13,10 +21,13 @@ charts/<chart-name>/
   Chart.yaml
   values.yaml
   templates/
+  tests/          # helm-unittest test suites
   ci/
   examples/
   docs/
   README.md
+docs/
+  testing-strategy.md
 .github/workflows/
   ci.yml
   publish.yml
@@ -26,7 +37,7 @@ charts/<chart-name>/
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | Pull requests | `helm lint --strict`, `helm template`, `kubeconform` |
+| `ci.yml` | Pull requests | `helm lint --strict`, `helm template`, `helm unittest`, `kubeconform` |
 | `publish.yml` | Push to `main`, `workflow_dispatch` | detect changed charts, bump semver, package, push to GHCR, create tag |
 
 Changes to `charts/**/templates/`, `charts/**/values.yaml`, `charts/**/Chart.yaml`, and `charts/**/ci/` trigger CI and publish logic.
@@ -150,19 +161,35 @@ Important:
 ```bash
 helm lint charts/<chart-name> --strict
 helm template test-release charts/<chart-name>
+helm unittest charts/<chart-name>
 helm template test-release charts/<chart-name> -f charts/<chart-name>/ci/<test-file>.yaml
 helm template test-release charts/<chart-name> | kubeconform -strict -summary
 for f in charts/<chart-name>/ci/*.yaml; do helm template test-release charts/<chart-name> -f "$f"; done
 ```
 
+## Unit Testing with helm-unittest
+
+Tests live under `charts/<chart-name>/tests/` with naming `<template>_test.yaml`. See `docs/testing-strategy.md` for the full guide.
+
+Critical rules:
+
+- when a template uses `include` to reference another template, add the dependency to the suite `templates` list and use `template:` at each test level
+- `documentIndex` is per-template, not global across all rendered templates
+- Kubernetes adds `protocol: TCP` by default; `contains` assertions must match it
+- check whether secrets use `data` (base64) or `stringData` (plain text)
+- test conditional resources in both enabled and disabled states
+- some PDBs require multiple conditions (e.g., `pdb.enabled` AND `replicaCount > 1`)
+- always run `helm unittest charts/<chart-name>` before pushing
+
 ## Adding a New Chart
 
 1. Research the official product documentation and mature public charts.
 2. Define the product proposal, supported topologies, and non-goals.
-3. Create `Chart.yaml`, `values.yaml`, `templates/`, `ci/`, `examples/`, `docs/`, and `README.md`.
+3. Create `Chart.yaml`, `values.yaml`, `templates/`, `tests/`, `ci/`, `examples/`, `docs/`, and `README.md`.
 4. Build templates that match the real product contract, not a generic abstraction.
-5. Add CI scenarios for each supported topology.
-6. Add examples that reflect realistic usage.
+5. Add helm-unittest test suites for all key templates (workload, service, secret, optional resources).
+6. Add CI scenarios for each supported topology.
+7. Add examples that reflect realistic usage.
 7. Update the root `README.md` charts table.
 8. Run validation locally before pushing.
 
@@ -170,9 +197,10 @@ for f in charts/<chart-name>/ci/*.yaml; do helm template test-release charts/<ch
 
 1. Render before and after the change when behavior could regress.
 2. Ensure all `ci/*.yaml` files still render correctly.
-3. Run `helm lint --strict`.
-4. Update chart docs when behavior, defaults, or supported topologies changed.
-5. Use a conventional commit with the correct scope.
+3. Run `helm lint --strict` and `helm unittest charts/<name>`.
+4. Update or add unit tests when template behavior changes.
+5. Update chart docs when behavior, defaults, or supported topologies changed.
+6. Use a conventional commit with the correct scope.
 
 ## Documentation Rules
 

@@ -1,3 +1,11 @@
+---
+title: MongoDB - Sharded
+description: Sharded cluster deployment
+keywords: [mongodb, sharded, mongos]
+scope: chart-docs
+audience: users
+---
+
 # MongoDB Sharded Cluster
 
 ## When to use

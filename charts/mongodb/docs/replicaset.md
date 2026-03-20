@@ -1,3 +1,11 @@
+---
+title: MongoDB - ReplicaSet
+description: ReplicaSet architecture
+keywords: [mongodb, replicaset, ha]
+scope: chart-docs
+audience: users
+---
+
 # MongoDB Replica Set
 
 ## When to use

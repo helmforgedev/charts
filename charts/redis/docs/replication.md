@@ -1,3 +1,11 @@
+---
+title: Redis - Replication
+description: Primary-replica replication
+keywords: [redis, replication]
+scope: chart-docs
+audience: users
+---
+
 # Redis Replication
 
 ## When to use

@@ -1,0 +1,68 @@
+suite: StatefulSet
+templates:
+  - statefulset.yaml
+  - configmap.yaml
+  - secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should be a StatefulSet
+    template: statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+
+  - it: should have correct name
+    template: statefulset.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: test-rabbitmq
+
+  - it: should use the correct image
+    template: statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "rabbitmq:4.2.4-management"
+
+  - it: should have 1 replica in single-node mode
+    template: statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should have 3 replicas in cluster mode
+    template: statefulset.yaml
+    set:
+      architecture: cluster
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: should expose AMQP port
+    template: statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: amqp
+            containerPort: 5672
+
+  - it: should have probes
+    template: statefulset.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].livenessProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].readinessProbe
+
+  - it: should create VolumeClaimTemplate with default 8Gi
+    template: statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 8Gi

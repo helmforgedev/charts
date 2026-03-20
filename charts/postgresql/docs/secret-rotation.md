@@ -1,3 +1,11 @@
+---
+title: PostgreSQL - Secret Rotation
+description: Password rotation
+keywords: [postgresql, secret, rotation]
+scope: chart-docs
+audience: users
+---
+
 # Secret Rotation
 
 ## Scope

@@ -1,3 +1,11 @@
+---
+title: MySQL - Standalone
+description: Standalone deployment
+keywords: [mysql, standalone]
+scope: chart-docs
+audience: users
+---
+
 # Standalone
 
 ## When to use it

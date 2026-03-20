@@ -1,0 +1,85 @@
+suite: Deployment
+templates:
+  - deployment.yaml
+  - secret.yaml
+  - configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should be a Deployment
+    template: deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: should have correct name
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: test-keycloak
+
+  - it: should use the correct image
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "quay.io/keycloak/keycloak:26.5.5"
+
+  - it: should have 1 replica by default
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should use start-dev in dev mode
+    template: deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: start-dev
+
+  - it: should use start in production mode
+    template: deployment.yaml
+    set:
+      mode: production
+      hostname.hostname: sso.example.com
+      database.host: pg-host
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: start
+
+  - it: should set pod security context
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.securityContext.fsGroupChangePolicy
+          value: OnRootMismatch
+
+  - it: should have probes by default
+    template: deployment.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].livenessProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].readinessProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].startupProbe
+
+  - it: should reference admin secret
+    template: deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_BOOTSTRAP_ADMIN_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: test-keycloak-admin
+                key: admin-username

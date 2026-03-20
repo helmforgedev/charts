@@ -26,6 +26,7 @@ Use these skills when they match the task:
 | Modify `.github/workflows/*` | `git-workflow` | `Workflow Automation`, `DevOps Practices` |
 | Update commit, branch, or PR conventions | `git-workflow` | `.claude/skills/repo-standards-maintenance` |
 | Notice a reusable repository improvement | `.claude/skills/repo-standards-maintenance` | `continuous-learning` |
+| Add or modify unit tests in `charts/*/tests/` | `helm-chart-scaffolding` | `kubernetes-specialist` |
 | Review chart regressions or gaps | `Code Quality` | `kubernetes-specialist` |
 
 ## Git Rules
@@ -113,10 +114,27 @@ Run before pushing chart changes:
 ```bash
 helm lint charts/<name> --strict
 helm template test charts/<name>
+helm unittest charts/<name>
 for f in charts/<name>/ci/*.yaml; do helm template test charts/<name> -f "$f"; done
 ```
 
 When available, also validate with `kubeconform`.
+
+## Unit Testing Rules
+
+Tests live under `charts/<name>/tests/<template>_test.yaml`. See `docs/testing-strategy.md` for the full testing guide.
+
+Key rules for writing helm-unittest tests:
+
+- when a template uses `include` to reference another template (e.g., checksum annotations), add the dependency to the suite `templates` list and use `template:` at the test level to target assertions
+- never rely on `documentIndex` across multiple template files; `documentIndex` is scoped per-template, not globally across all rendered templates
+- use `template: <file>.yaml` at the test level when the suite lists multiple templates
+- use `documentSelector` by `kind` or `metadata.name` when the document order is unstable
+- Kubernetes adds `protocol: TCP` by default; if the rendered output includes it, assertions must include it too
+- check whether secrets use `data` (base64) or `stringData` (plain text) before writing assertions
+- test conditional resources in both enabled and disabled states
+- for PDBs, test the full condition (some require `replicaCount > 1` or specific architecture modes)
+- always run `helm unittest charts/<name>` locally before pushing
 
 ## Documentation Rules
 

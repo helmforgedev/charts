@@ -1,0 +1,75 @@
+suite: StatefulSet
+templates:
+  - statefulset.yaml
+  - configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should be a StatefulSet
+    template: statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+
+  - it: should have correct name
+    template: statefulset.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: test-mongodb
+
+  - it: should use the correct image
+    template: statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "mongo:8.2.6"
+
+  - it: should have 1 replica in standalone mode
+    template: statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should have 3 replicas in replicaset mode
+    template: statefulset.yaml
+    set:
+      architecture: replicaset
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: should expose mongodb port
+    template: statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: mongodb
+            containerPort: 27017
+            protocol: TCP
+
+  - it: should set pod security context
+    template: statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 999
+
+  - it: should have probes
+    template: statefulset.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].livenessProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].readinessProbe
+
+  - it: should create VolumeClaimTemplate with default 8Gi
+    template: statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 8Gi

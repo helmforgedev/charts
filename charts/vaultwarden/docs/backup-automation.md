@@ -1,3 +1,11 @@
+---
+title: Vaultwarden - Backup Automation
+description: Automated S3 backup CronJob
+keywords: [vaultwarden, backup, automation, s3]
+scope: chart-docs
+audience: users
+---
+
 # Backup Automation
 
 ## What the built-in backup does

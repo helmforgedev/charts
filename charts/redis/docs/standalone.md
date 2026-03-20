@@ -1,3 +1,11 @@
+---
+title: Redis - Standalone
+description: Standalone deployment
+keywords: [redis, standalone]
+scope: chart-docs
+audience: users
+---
+
 # Redis Standalone
 
 ## When to use

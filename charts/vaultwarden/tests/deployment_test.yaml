@@ -1,0 +1,94 @@
+suite: Deployment
+templates:
+  - deployment.yaml
+  - secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should be a Deployment
+    template: deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: should have correct name
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: test-vaultwarden
+
+  - it: should use the correct image
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "vaultwarden/server:1.35.4"
+
+  - it: should have 1 replica
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should have correct selector labels
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/name"]
+          value: vaultwarden
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/instance"]
+          value: test
+
+  - it: should set pod security context
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000
+
+  - it: should have probes by default
+    template: deployment.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].livenessProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].readinessProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].startupProbe
+
+  - it: should mount data volume
+    template: deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /data
+
+  - it: should set SIGNUPS_ALLOWED env var
+    template: deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SIGNUPS_ALLOWED
+            value: "false"
+
+  - it: should set ENABLE_WEBSOCKET env var
+    template: deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ENABLE_WEBSOCKET
+            value: "true"

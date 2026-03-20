@@ -1,3 +1,11 @@
+---
+title: PostgreSQL - Replication
+description: Streaming replication
+keywords: [postgresql, replication, streaming]
+scope: chart-docs
+audience: users
+---
+
 # Replication
 
 ## When to use it

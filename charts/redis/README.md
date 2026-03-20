@@ -1,3 +1,11 @@
+---
+title: Redis Helm Chart
+description: Redis chart with standalone, replication, sentinel, cluster architectures
+keywords: [redis, cache, in-memory, replication, sentinel, cluster]
+scope: chart
+audience: users
+---
+
 # Redis
 
 Redis for Kubernetes with support for `standalone`, `replication`, `sentinel`, and `cluster` architectures.

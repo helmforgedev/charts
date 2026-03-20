@@ -1,0 +1,37 @@
+suite: PersistentVolumeClaim
+templates:
+  - pvc.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should create PVC by default
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+
+  - it: should have correct name
+    asserts:
+      - equal:
+          path: metadata.name
+          value: test-vaultwarden-data
+
+  - it: should request 5Gi by default
+    asserts:
+      - equal:
+          path: spec.resources.requests.storage
+          value: 5Gi
+
+  - it: should not create PVC when existingClaim is set
+    set:
+      data.persistence.existingClaim: my-existing-pvc
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not create PVC when persistence is disabled
+    set:
+      data.persistence.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

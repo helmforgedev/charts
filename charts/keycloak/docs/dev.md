@@ -1,3 +1,11 @@
+---
+title: Keycloak - Dev Mode
+description: Development mode setup
+keywords: [keycloak, dev, development]
+scope: chart-docs
+audience: users
+---
+
 # Dev Mode
 
 ## When to use it

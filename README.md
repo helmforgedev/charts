@@ -1,3 +1,11 @@
+---
+title: HelmForge Charts
+description: Helm chart repository overview, installation, charts list, and CI/CD
+keywords: [helm, charts, oci, ghcr, repository, install]
+scope: repository
+audience: users, contributors
+---
+
 # Helm Charts
 
 Reusable Helm charts for Kubernetes workloads. Published to both an HTTPS Helm repository and OCI artifacts on GitHub Container Registry.

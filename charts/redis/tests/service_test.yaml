@@ -1,0 +1,45 @@
+suite: Service
+templates:
+  - service.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render headless and client services
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: should have headless service
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: test-redis-headless
+      - equal:
+          path: spec.clusterIP
+          value: None
+
+  - it: should have client service
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: test-redis-client
+      - equal:
+          path: spec.type
+          value: ClusterIP
+
+  - it: should expose port 6379
+    documentIndex: 1
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: redis
+            port: 6379
+            targetPort: redis

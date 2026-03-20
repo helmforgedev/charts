@@ -1,3 +1,11 @@
+---
+title: Generic Chart - DaemonSet
+description: DaemonSet configuration
+keywords: [generic, daemonset]
+scope: chart-docs
+audience: users
+---
+
 # Generic Chart for DaemonSets
 
 ## When to use

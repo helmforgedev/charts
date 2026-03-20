@@ -1,3 +1,11 @@
+---
+title: PostgreSQL - HA Scope
+description: HA scope and boundaries
+keywords: [postgresql, ha, scope, boundaries]
+scope: chart-docs
+audience: users
+---
+
 # HA and Scope Boundaries
 
 ## What this chart is for

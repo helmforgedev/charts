@@ -1,3 +1,11 @@
+---
+title: Vaultwarden - Restore Patterns
+description: Restore patterns for backends
+keywords: [vaultwarden, restore, patterns]
+scope: chart-docs
+audience: users
+---
+
 # Data Restore Patterns
 
 ## Why this guide exists
