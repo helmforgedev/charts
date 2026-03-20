@@ -41,6 +41,7 @@ Recommended reading before installation:
 - [Replication Operations](docs/replication-operations.md)
 - [Backup and Restore](docs/backup-restore.md)
 - [Secret Rotation](docs/secret-rotation.md)
+- [Configuration Profiles](docs/configuration-profiles.md)
 
 ## Official product references
 
@@ -149,6 +150,7 @@ metrics:
 ### Configuration UX
 
 - use `config.preset` for a small set of opinionated MySQL defaults
+- use workload-oriented presets such as `oltp`, `read-heavy`, or `analytics` when the generic size presets are too vague
 - keep `config.myCnf` for raw overrides when the preset is not enough
 - keep `auth.database`, `auth.username`, and `auth.replicationUsername` as plain values; `existingSecret` is intentionally limited to sensitive runtime data
 
@@ -170,6 +172,7 @@ Operational documents:
 - [Replication Operations](docs/replication-operations.md)
 - [Backup and Restore](docs/backup-restore.md)
 - [Secret Rotation](docs/secret-rotation.md)
+- [Configuration Profiles](docs/configuration-profiles.md)
 
 ## Main values
 
@@ -183,6 +186,10 @@ Operational documents:
 | `auth.existingSecret` | Existing secret for passwords | `""` |
 | `auth.replicationUsername` | Replication username | `replicator` |
 | `config.preset` | Optional MySQL config preset | `none` |
+| `standalone.resourcesPreset` | Standalone resource preset | `none` |
+| `replication.source.resourcesPreset` | Source resource preset | `none` |
+| `replication.readReplicas.resourcesPreset` | Replica resource preset | `none` |
+| `metrics.resourcesPreset` | Exporter resource preset | `none` |
 | `initdb.existingConfigMap` | External ConfigMap for extra init scripts | `""` |
 | `networkPolicy.enabled` | Enable ingress-only NetworkPolicy | `false` |
 | `networkPolicy.metrics.enabled` | Allow metrics scraping through NetworkPolicy | `false` |
@@ -221,6 +228,8 @@ The `ci/` scenarios validate the main chart behaviors:
 - `replication-metrics.yaml`
 - `replication-recovery-check.yaml`
 - `replication-binlog-tuning.yaml`
+- `config-preset.yaml`
+- `resources-preset.yaml`
 - `tls.yaml`
 - `tls-networkpolicy.yaml`
 
@@ -231,6 +240,8 @@ See `examples/`:
 - `standalone.yaml`
 - `replication.yaml`
 - `initdb-metrics.yaml`
+- `config-preset.yaml`
+- `resources-preset.yaml`
 - `tls.yaml`
 - `replication-production.yaml`
 
