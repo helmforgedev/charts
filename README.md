@@ -114,3 +114,21 @@ docs(repo): refine commit and agent standards
 ## License
 
 MIT
+
+<!-- @AI-METADATA
+type: overview
+title: HelmForge Charts
+description: Helm chart repository overview, installation, charts list, and CI/CD
+
+keywords: helm, charts, oci, ghcr, repository, install
+
+purpose: Repository overview with charts list, installation, CI/CD, and contributing guide
+scope: Repository
+
+relations:
+  - AGENTS.md
+  - docs/testing-strategy.md
+path: README.md
+version: 1.0
+date: 2026-03-20
+-->

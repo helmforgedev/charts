@@ -218,6 +218,17 @@ Critical rules:
 - do not add design-history documents for users
 - when a new stable rule is discovered during real work, update the smallest relevant standard document in the same branch
 
+## AI Metadata Standard
+
+Every markdown documentation file must include an `<!-- @AI-METADATA -->` HTML comment block at the very end. See `docs/ai-metadata-standard.md` for the full specification.
+
+Required actions:
+
+- when creating a new markdown file, always append an `@AI-METADATA` block with the correct `type`, `title`, `description`, `keywords`, `purpose`, `scope`, `relations`, `path`, `version`, and `date`
+- when editing an existing file, never remove the `@AI-METADATA` block; update `date` on significant changes
+- use the correct type: `overview`, `chart-readme`, `chart-docs`, `design`, `guide`, `agent-instructions`, `skill-definition`, `issue-template`
+- use relative paths from repo root for `path` and `relations`
+
 ## Repository Learning Loop
 
 Agents must improve repository guidance when a real task exposes a reusable correction.
@@ -234,3 +245,21 @@ Preferred targets:
 - `AGENTS.md` for repository-wide agent rules
 - `.claude/CLAUDE.md` for tool-specific agent guidance
 - chart docs for product-specific operational guidance
+
+<!-- @AI-METADATA
+type: agent-instructions
+title: Agent Instructions
+description: AI agent rules for Helm chart development, git workflow, and testing
+
+keywords: agents, ai, rules, conventions, git, helm, testing
+
+purpose: AI agent rules for Helm chart development, git workflow, testing, and validation
+scope: Repository
+
+relations:
+  - .claude/CLAUDE.md
+  - docs/testing-strategy.md
+path: AGENTS.md
+version: 1.0
+date: 2026-03-20
+-->

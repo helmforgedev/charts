@@ -204,3 +204,21 @@ helm template test charts/<name>
 helm unittest charts/<name>
 for f in charts/<name>/ci/*.yaml; do helm template test charts/<name> -f "$f"; done
 ```
+
+<!-- @AI-METADATA
+type: guide
+title: Testing Strategy
+description: Helm chart testing strategy using helm-unittest, helm lint, kubeconform, and CI automation
+
+keywords: helm-unittest, testing, unit-test, ci, kubeconform, lint, validation, bdd, yaml
+
+purpose: Testing strategy documentation covering helm-unittest, helm lint, kubeconform, and CI
+scope: Testing
+
+relations:
+  - AGENTS.md
+  - .claude/CLAUDE.md
+path: docs/testing-strategy.md
+version: 1.0
+date: 2026-03-20
+-->

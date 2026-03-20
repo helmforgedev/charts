@@ -73,3 +73,20 @@ Keep `vaultwarden.proxy.ipHeader` aligned with the actual reverse proxy behavior
 - `X-Real-IP` is a common default
 - use `X-Forwarded-For` only when that is what your ingress controller actually forwards
 - use `none` if you want Vaultwarden to rely only on the direct remote address
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Vaultwarden - Ingress
+description: Ingress and domain config
+
+keywords: vaultwarden, ingress, domain, tls
+
+purpose: Ingress and domain configuration with TLS for Vaultwarden
+scope: Chart Architecture
+
+relations:
+  - charts/vaultwarden/README.md
+path: charts/vaultwarden/docs/ingress-and-domain.md
+version: 1.0
+date: 2026-03-20
+-->

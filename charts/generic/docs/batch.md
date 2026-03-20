@@ -73,3 +73,20 @@ cronjobs:
     command: ["./bin/cleanup"]
     concurrencyPolicy: Forbid
 ```
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Generic Chart - Batch Workloads
+description: Jobs and CronJobs for the generic chart
+
+keywords: generic, job, cronjob, batch
+
+purpose: Batch workloads (Job and CronJob) configuration guide for the generic chart
+scope: Chart Architecture
+
+relations:
+  - charts/generic/README.md
+path: charts/generic/docs/batch.md
+version: 1.0
+date: 2026-03-20
+-->

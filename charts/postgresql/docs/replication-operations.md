@@ -62,3 +62,20 @@ This chart does not provide:
 - tune `replication.wal.keepSize` according to write volume and expected replica catch-up windows
 - review `replication.wal.maxSenders` and `replication.wal.maxReplicationSlots` when scaling read replicas or external consumers
 - do not treat local WAL retention as a backup strategy
+
+<!-- @AI-METADATA
+type: chart-docs
+title: PostgreSQL - Replication Ops
+description: Replication maintenance
+
+keywords: postgresql, replication, operations
+
+purpose: PostgreSQL replication maintenance and operational procedures
+scope: Chart Architecture
+
+relations:
+  - charts/postgresql/docs/replication.md
+path: charts/postgresql/docs/replication-operations.md
+version: 1.0
+date: 2026-03-20
+-->

@@ -196,3 +196,22 @@ See `examples/`:
 - quorum queues are the recommended production direction in this chart
 - this chart does not attempt to orchestrate federation, shovel, or advanced policy management in v1
 - `management.ingress.className` can be set to `traefik`, `nginx`, or any ingress class available in the target cluster
+
+<!-- @AI-METADATA
+type: chart-readme
+title: RabbitMQ Helm Chart
+description: RabbitMQ chart with single-node and cluster modes, management UI, TLS
+
+keywords: rabbitmq, amqp, messaging, queue, cluster
+
+purpose: Usage guide for the RabbitMQ Helm chart with single-node and cluster modes
+scope: Chart
+
+relations:
+  - charts/rabbitmq/DESIGN.md
+  - charts/rabbitmq/docs/single-node.md
+  - charts/rabbitmq/docs/cluster.md
+path: charts/rabbitmq/README.md
+version: 1.0
+date: 2026-03-20
+-->

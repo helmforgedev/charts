@@ -68,3 +68,21 @@ This gives the pod more time to bootstrap before startup and readiness failures 
 - start with explicit `resources` based on expected concurrency and extension footprint
 - refine those values with real production telemetry
 - keep `priorityClassName` aligned with cluster policy, not with guesswork
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Keycloak - Production Capacity
+description: Resource sizing and capacity
+
+keywords: keycloak, production, resources, sizing
+
+purpose: Resource sizing and capacity planning for Keycloak production deployments
+scope: Chart Architecture
+
+relations:
+  - charts/keycloak/docs/production.md
+  - charts/keycloak/docs/scaling-and-clustering.md
+path: charts/keycloak/docs/production-capacity.md
+version: 1.0
+date: 2026-03-20
+-->

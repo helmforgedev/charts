@@ -52,3 +52,21 @@ Preferred patterns:
 - `refactor(repo): ...`
 
 Keep chart work and repository-standard updates in separate commits when practical.
+
+<!-- @AI-METADATA
+type: skill-definition
+title: Repo Standards Maintenance Skill
+description: Skill for maintaining repository standards, commit conventions, and reusable agent guidance
+
+keywords: skill, standards, conventions, maintenance, agent
+
+purpose: Define the repo-standards-maintenance skill for Claude Code
+scope: Agent Configuration
+
+relations:
+  - .claude/CLAUDE.md
+  - AGENTS.md
+path: .claude/skills/repo-standards-maintenance/SKILL.md
+version: 1.0
+date: 2026-03-20
+-->

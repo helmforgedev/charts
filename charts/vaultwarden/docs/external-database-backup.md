@@ -75,3 +75,21 @@ The main difference is only where the database lifecycle is hosted. The built-in
 ## References
 
 - Vaultwarden configuration template: https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Vaultwarden - External DB Backup
+description: External database backup
+
+keywords: vaultwarden, backup, external-database
+
+purpose: External database backup procedures for Vaultwarden with PostgreSQL or MySQL
+scope: Chart Architecture
+
+relations:
+  - charts/vaultwarden/docs/backup-and-restore.md
+  - charts/vaultwarden/docs/database-modes-and-migrations.md
+path: charts/vaultwarden/docs/external-database-backup.md
+version: 1.0
+date: 2026-03-20
+-->

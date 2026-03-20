@@ -32,3 +32,20 @@ This chart supports password and TLS material through existing Kubernetes secret
 - validate one environment at a time
 - document rollback steps before rotation
 - for production, use an external secret manager or an automated secret delivery workflow
+
+<!-- @AI-METADATA
+type: chart-docs
+title: MySQL - Secret Rotation
+description: Password rotation
+
+keywords: mysql, secret, rotation, password
+
+purpose: MySQL password rotation procedures
+scope: Chart Architecture
+
+relations:
+  - charts/mysql/README.md
+path: charts/mysql/docs/secret-rotation.md
+version: 1.0
+date: 2026-03-20
+-->

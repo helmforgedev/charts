@@ -272,3 +272,23 @@ See `examples/`:
 - this chart does not implement automatic primary election
 - init scripts run only on first initialization of a fresh data directory
 - for failover-oriented production operations, use an operator instead of trying to turn this chart into one
+
+<!-- @AI-METADATA
+type: chart-readme
+title: PostgreSQL Helm Chart
+description: PostgreSQL chart with standalone/replication, TLS, metrics, resource presets
+
+keywords: postgresql, postgres, database, replication, sql
+
+purpose: Usage guide for the PostgreSQL Helm chart with standalone and replication modes
+scope: Chart
+
+relations:
+  - charts/postgresql/DESIGN.md
+  - charts/postgresql/docs/standalone.md
+  - charts/postgresql/docs/replication.md
+  - charts/postgresql/docs/backup-restore.md
+path: charts/postgresql/README.md
+version: 1.0
+date: 2026-03-20
+-->

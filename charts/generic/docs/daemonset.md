@@ -75,3 +75,20 @@ containers:
 tolerations:
   - operator: Exists
 ```
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Generic Chart - DaemonSet
+description: DaemonSet configuration
+
+keywords: generic, daemonset
+
+purpose: DaemonSet workload configuration guide for the generic chart
+scope: Chart Architecture
+
+relations:
+  - charts/generic/README.md
+path: charts/generic/docs/daemonset.md
+version: 1.0
+date: 2026-03-20
+-->

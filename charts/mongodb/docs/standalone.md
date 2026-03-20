@@ -95,3 +95,20 @@ metrics:
 
 - move to `replicaset` when failover and member redundancy become mandatory
 - move to `sharded` when scaling requires distribution across multiple shards, not only redundancy
+
+<!-- @AI-METADATA
+type: chart-docs
+title: MongoDB - Standalone
+description: Standalone deployment
+
+keywords: mongodb, standalone
+
+purpose: Standalone MongoDB deployment guide
+scope: Chart Architecture
+
+relations:
+  - charts/mongodb/README.md
+path: charts/mongodb/docs/standalone.md
+version: 1.0
+date: 2026-03-20
+-->

@@ -84,3 +84,21 @@ For the current chart:
 - validate reverse proxy and sticky-session behavior explicitly
 - treat multi-replica as a production architecture decision, not an autoscaling shortcut
 - keep day-2 operational automation outside the chart unless the control model is genuinely implemented
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Keycloak - Scope
+description: Chart scope and boundaries
+
+keywords: keycloak, scope, boundaries
+
+purpose: Chart scope definition and automation boundaries for Keycloak
+scope: Chart Architecture
+
+relations:
+  - charts/keycloak/README.md
+  - charts/keycloak/DESIGN.md
+path: charts/keycloak/docs/scope-and-automation-boundaries.md
+version: 1.0
+date: 2026-03-20
+-->

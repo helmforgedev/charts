@@ -22,3 +22,20 @@ design notes:
 - default queue type is `quorum`
 - cluster formation uses `rabbitmq_peer_discovery_k8s`
 - no branch from generic abstractions
+
+<!-- @AI-METADATA
+type: design
+title: RabbitMQ Chart Design
+description: Design document for RabbitMQ Helm chart with single-node and cluster modes
+
+keywords: rabbitmq, design, architecture, single-node, cluster, amqp
+
+purpose: Document design decisions and non-goals for the RabbitMQ chart
+scope: Chart Design
+
+relations:
+  - charts/rabbitmq/README.md
+path: charts/rabbitmq/DESIGN.md
+version: 1.0
+date: 2026-03-20
+-->

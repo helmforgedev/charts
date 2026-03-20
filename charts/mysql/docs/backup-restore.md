@@ -39,3 +39,20 @@ After a restore:
 - verify application users and expected databases
 - validate replication state before reintroducing read traffic
 - rebuild replicas from the restored source instead of assuming they can self-heal safely
+
+<!-- @AI-METADATA
+type: chart-docs
+title: MySQL - Backup
+description: Backup and restore
+
+keywords: mysql, backup, restore, mysqldump
+
+purpose: MySQL backup and restore procedures using mysqldump
+scope: Chart Architecture
+
+relations:
+  - charts/mysql/README.md
+path: charts/mysql/docs/backup-restore.md
+version: 1.0
+date: 2026-03-20
+-->

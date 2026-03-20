@@ -246,3 +246,20 @@ Topology-specific:
 ## Ready To Implement
 
 Yes.
+
+<!-- @AI-METADATA
+type: design
+title: Redis Chart Design
+description: Design document for Redis Helm chart with explicit topology and operational tradeoffs
+
+keywords: redis, design, architecture, standalone, replication, sentinel, cluster
+
+purpose: Document design decisions and non-goals for the Redis chart
+scope: Chart Design
+
+relations:
+  - charts/redis/README.md
+path: charts/redis/DESIGN.md
+version: 1.0
+date: 2026-03-20
+-->

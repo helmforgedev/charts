@@ -99,3 +99,20 @@ replication:
 
 - move to `sentinel` when automatic primary promotion becomes a requirement
 - move to `cluster` when the need shifts from read scaling to true shard-based scale
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Redis - Replication
+description: Primary-replica replication
+
+keywords: redis, replication
+
+purpose: Redis primary-replica replication setup guide
+scope: Chart Architecture
+
+relations:
+  - charts/redis/README.md
+path: charts/redis/docs/replication.md
+version: 1.0
+date: 2026-03-20
+-->

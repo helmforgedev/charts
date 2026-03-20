@@ -52,3 +52,21 @@ Use `mode: production` for real reverse-proxy deployments where Keycloak is back
 - external secret and truststore rotation require a controlled rollout plan
 - HPA is intentionally not modeled by the current chart scope
 - `hostname.admin` must be set when the admin ingress is enabled in production mode
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Keycloak - Production Mode
+description: Production deployment with database and TLS
+
+keywords: keycloak, production, database, tls
+
+purpose: Production deployment guide for Keycloak with external database and TLS
+scope: Chart Architecture
+
+relations:
+  - charts/keycloak/README.md
+  - charts/keycloak/docs/dev.md
+path: charts/keycloak/docs/production.md
+version: 1.0
+date: 2026-03-20
+-->

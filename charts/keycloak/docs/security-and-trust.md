@@ -107,3 +107,21 @@ Examples:
 
 - Keycloak trusted certificates: https://www.keycloak.org/server/keycloak-truststore
 - Keycloak production configuration: https://www.keycloak.org/server/configuration-production
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Keycloak - Security
+description: TLS, truststore, database security
+
+keywords: keycloak, security, tls, truststore
+
+purpose: TLS, truststore, and database security configuration for Keycloak
+scope: Chart Architecture
+
+relations:
+  - charts/keycloak/README.md
+  - charts/keycloak/docs/reverse-proxy.md
+path: charts/keycloak/docs/security-and-trust.md
+version: 1.0
+date: 2026-03-20
+-->

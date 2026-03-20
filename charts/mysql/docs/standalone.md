@@ -39,3 +39,20 @@ Typical use cases:
 - use `tls.enabled=true` with `tls.existingSecret` when client connections must be encrypted
 - use `initdb.scripts` only for deterministic first-boot initialization
 - keep backup and restore procedures outside the chart
+
+<!-- @AI-METADATA
+type: chart-docs
+title: MySQL - Standalone
+description: Standalone deployment
+
+keywords: mysql, standalone
+
+purpose: Standalone MySQL deployment guide
+scope: Chart Architecture
+
+relations:
+  - charts/mysql/README.md
+path: charts/mysql/docs/standalone.md
+version: 1.0
+date: 2026-03-20
+-->

@@ -306,3 +306,24 @@ See `examples/`:
 - `backup-sqlite.yaml`
 - `backup-postgresql.yaml`
 - `backup-mysql.yaml`
+
+<!-- @AI-METADATA
+type: chart-readme
+title: Vaultwarden Helm Chart
+description: Vaultwarden password manager with SQLite/PostgreSQL/MySQL, backup, ingress
+
+keywords: vaultwarden, bitwarden, password-manager, backup, sqlite
+
+purpose: Usage guide for the Vaultwarden Helm chart with SQLite/PostgreSQL/MySQL support
+scope: Chart
+
+relations:
+  - charts/vaultwarden/DESIGN.md
+  - charts/vaultwarden/docs/sqlite.md
+  - charts/vaultwarden/docs/database-modes-and-migrations.md
+  - charts/vaultwarden/docs/backup-and-restore.md
+  - charts/vaultwarden/docs/ingress-and-domain.md
+path: charts/vaultwarden/README.md
+version: 1.0
+date: 2026-03-20
+-->

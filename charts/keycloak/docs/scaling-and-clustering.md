@@ -138,3 +138,21 @@ pdb:
 
 - Keycloak caching and transport stacks: https://www.keycloak.org/server/caching
 - Keycloak production configuration: https://www.keycloak.org/server/configuration-production
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Keycloak - Scaling
+description: Multi-replica with cache and clustering
+
+keywords: keycloak, scaling, clustering, jdbc-ping
+
+purpose: Multi-replica Keycloak setup with Infinispan cache and JDBC-based clustering
+scope: Chart Architecture
+
+relations:
+  - charts/keycloak/README.md
+  - charts/keycloak/docs/production-capacity.md
+path: charts/keycloak/docs/scaling-and-clustering.md
+version: 1.0
+date: 2026-03-20
+-->

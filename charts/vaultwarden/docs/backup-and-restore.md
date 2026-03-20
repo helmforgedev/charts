@@ -175,3 +175,21 @@ At minimum, validate:
 ## References used for this guidance
 
 - Vaultwarden configuration template: https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Vaultwarden - Backup
+description: Backup and restore
+
+keywords: vaultwarden, backup, restore
+
+purpose: Backup and restore procedures for Vaultwarden
+scope: Chart Architecture
+
+relations:
+  - charts/vaultwarden/README.md
+  - charts/vaultwarden/docs/backup-automation.md
+path: charts/vaultwarden/docs/backup-and-restore.md
+version: 1.0
+date: 2026-03-20
+-->

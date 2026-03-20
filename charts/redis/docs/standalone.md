@@ -91,3 +91,20 @@ standalone:
 - move to `replication` when separating reads from writes becomes necessary
 - move to `sentinel` when automatic primary failover becomes a requirement
 - move to `cluster` when one node no longer fits the capacity or throughput needs
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Redis - Standalone
+description: Standalone deployment
+
+keywords: redis, standalone
+
+purpose: Standalone Redis deployment guide
+scope: Chart Architecture
+
+relations:
+  - charts/redis/README.md
+path: charts/redis/docs/standalone.md
+version: 1.0
+date: 2026-03-20
+-->

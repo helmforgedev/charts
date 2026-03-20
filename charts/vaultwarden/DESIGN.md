@@ -259,3 +259,20 @@ Do not turn v1 into:
 - a multi-database chart
 - a pseudo-HA architecture
 - a backup platform
+
+<!-- @AI-METADATA
+type: design
+title: Vaultwarden Chart Design
+description: Design document for Vaultwarden Helm chart defining product contract before implementation
+
+keywords: vaultwarden, design, architecture, bitwarden, password-manager
+
+purpose: Document design decisions and non-goals for the Vaultwarden chart
+scope: Chart Design
+
+relations:
+  - charts/vaultwarden/README.md
+path: charts/vaultwarden/DESIGN.md
+version: 1.0
+date: 2026-03-20
+-->

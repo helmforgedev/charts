@@ -169,3 +169,21 @@ At minimum, validate:
 ## References
 
 - Vaultwarden configuration template: https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Vaultwarden - Database Modes
+description: SQLite, PostgreSQL, MySQL selection
+
+keywords: vaultwarden, database, sqlite, postgresql, mysql
+
+purpose: SQLite, PostgreSQL, and MySQL selection and migration guide for Vaultwarden
+scope: Chart Architecture
+
+relations:
+  - charts/vaultwarden/README.md
+  - charts/vaultwarden/docs/sqlite.md
+path: charts/vaultwarden/docs/database-modes-and-migrations.md
+version: 1.0
+date: 2026-03-20
+-->

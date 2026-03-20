@@ -37,3 +37,20 @@ This chart does not implement backups directly. Backup and restore must be handl
 - who owns restore approval
 - how often restore tests are executed
 - how secrets and credentials are supplied during recovery
+
+<!-- @AI-METADATA
+type: chart-docs
+title: PostgreSQL - Backup
+description: Backup and restore
+
+keywords: postgresql, backup, restore, pg_dump
+
+purpose: PostgreSQL backup and restore procedures using pg_dump
+scope: Chart Architecture
+
+relations:
+  - charts/postgresql/README.md
+path: charts/postgresql/docs/backup-restore.md
+version: 1.0
+date: 2026-03-20
+-->

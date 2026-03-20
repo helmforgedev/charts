@@ -80,3 +80,21 @@ If your cluster requires strict east-west traffic controls, enable `networkPolic
 
 - Vaultwarden configuration template: https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template
 - Admin token guidance: https://github.com/dani-garcia/vaultwarden/wiki/Enabling-admin-page#secure-the-admin_token
+
+<!-- @AI-METADATA
+type: chart-docs
+title: Vaultwarden - Admin Access
+description: Admin panel and hardening
+
+keywords: vaultwarden, admin, hardening, argon2
+
+purpose: Admin panel configuration and Argon2 hardening guide for Vaultwarden
+scope: Chart Architecture
+
+relations:
+  - charts/vaultwarden/README.md
+  - charts/vaultwarden/docs/scope-and-automation-boundaries.md
+path: charts/vaultwarden/docs/admin-access-and-hardening.md
+version: 1.0
+date: 2026-03-20
+-->

@@ -409,3 +409,20 @@ Current preference:
 - external DB as the production-first path
 - realm import and extension mounting documented more honestly
 - fewer surprising values that do not map cleanly to runtime behavior
+
+<!-- @AI-METADATA
+type: design
+title: Keycloak Chart Design
+description: Design document for Keycloak Helm chart focusing on production correctness and reverse proxy
+
+keywords: keycloak, design, architecture, production, reverse-proxy, iam
+
+purpose: Document design decisions and non-goals for the Keycloak chart
+scope: Chart Design
+
+relations:
+  - charts/keycloak/README.md
+path: charts/keycloak/DESIGN.md
+version: 1.0
+date: 2026-03-20
+-->

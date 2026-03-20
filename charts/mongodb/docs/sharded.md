@@ -107,3 +107,20 @@ metrics:
 - when the real need is only failover and redundancy
 - when the application does not need shard-based scale
 - when the team is not ready to operate shard keys, balancer behavior, and multi-component MongoDB topology
+
+<!-- @AI-METADATA
+type: chart-docs
+title: MongoDB - Sharded
+description: Sharded cluster deployment
+
+keywords: mongodb, sharded, mongos
+
+purpose: MongoDB sharded cluster deployment guide with mongos routers
+scope: Chart Architecture
+
+relations:
+  - charts/mongodb/README.md
+path: charts/mongodb/docs/sharded.md
+version: 1.0
+date: 2026-03-20
+-->
