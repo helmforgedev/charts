@@ -2,7 +2,7 @@
 
 ## Repository
 
-Helm chart repository at `https://repo.helmforge.dev` and OCI registry at `ghcr.io/helmforgedev/helm`. Charts live under `charts/<name>/`.
+Helm chart repository at `https://repo.helmforge.dev`, OCI registry at `ghcr.io/helmforgedev/helm`, website at `https://helmforge.dev`, and documentation at `https://helmforge.dev/doc`. Charts live under `charts/<name>/`.
 
 ## Skills To Use
 
