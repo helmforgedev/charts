@@ -32,6 +32,7 @@ Use `mode: production` for real reverse-proxy deployments where Keycloak is back
 - review [Scaling and Clustering](scaling-and-clustering.md) before increasing replica count
 - review [Security and Trust](security-and-trust.md) when database TLS or private CAs are involved
 - review [Extensions and Themes](extensions-and-themes.md) before mounting providers, themes, or sidecars
+- review [Scope and Automation Boundaries](scope-and-automation-boundaries.md) before treating the chart like an operator or autoscaling control plane
 
 ## Operational notes
 
@@ -40,3 +41,4 @@ Use `mode: production` for real reverse-proxy deployments where Keycloak is back
 - the management interface remains internal even when both ingresses are enabled
 - a safe production rollout validates hostname resolution, login flow, admin access, and health endpoints together
 - external secret and truststore rotation require a controlled rollout plan
+- HPA is intentionally not modeled by the current chart scope

@@ -17,6 +17,7 @@ Multiple replicas in this chart do not provide:
 - operator-style cluster lifecycle management
 - coordinated failover across application and data layers
 - automatic validation of reverse-proxy affinity behavior
+- built-in Horizontal Pod Autoscaler behavior
 
 ## Current recommendation
 
@@ -26,6 +27,7 @@ For the current chart scope:
 - use multiple replicas only with a stable external database, explicit ingress behavior, and clear rollout procedures
 - keep `cache.enabled: true` when `replicaCount > 1`
 - keep `cache.stack: jdbc-ping` unless there is a tested reason to move away from it
+- keep autoscaling outside the chart until there is a stronger Keycloak-specific operational model
 
 ## About `jdbc-ping`
 

@@ -22,6 +22,7 @@ helm install keycloak oci://ghcr.io/mberlofa/helm/keycloak -f values.yaml
 - [Scaling and Clustering](docs/scaling-and-clustering.md)
 - [Security and Trust](docs/security-and-trust.md)
 - [Extensions and Themes](docs/extensions-and-themes.md)
+- [Scope and Automation Boundaries](docs/scope-and-automation-boundaries.md)
 
 ## What this chart covers
 
@@ -51,6 +52,7 @@ Recommended reading before installation:
 - [Scaling and Clustering](docs/scaling-and-clustering.md)
 - [Security and Trust](docs/security-and-trust.md)
 - [Extensions and Themes](docs/extensions-and-themes.md)
+- [Scope and Automation Boundaries](docs/scope-and-automation-boundaries.md)
 
 ## Official product references
 
@@ -114,6 +116,7 @@ database:
 - prefer PostgreSQL for production examples and guidance
 - do not use `dev` mode as a hidden production shortcut
 - review [Scaling and Clustering](docs/scaling-and-clustering.md) before raising `replicaCount`
+- review [Scope and Automation Boundaries](docs/scope-and-automation-boundaries.md) before asking the chart to solve autoscaling or operator-style concerns
 
 ### Realm import and extensions
 
@@ -137,6 +140,7 @@ database:
 - generated admin and database secrets trigger rollout on Helm upgrades
 - externally managed secret or truststore changes still require an explicit rollout or restart
 - provider and theme source changes can be rolled forward predictably with `rolloutToken`
+- HPA remains intentionally out of scope as a built-in feature for the current chart scope
 
 ## Main values
 
@@ -172,14 +176,11 @@ database:
 | `probes.liveness.enabled` | Enable liveness probe | `true` |
 | `probes.readiness.enabled` | Enable readiness probe | `true` |
 | `probes.startup.enabled` | Enable startup probe | `true` |
-<<<<<<< HEAD
 | `extensions.providers.rolloutToken` | Manual rollout token for provider source changes | `""` |
 | `extensions.themes.rolloutToken` | Manual rollout token for theme source changes | `""` |
 | `extraEnvFrom` | Extra envFrom sources injected into the main container | `[]` |
 | `initContainers` | Additional init containers | `[]` |
 | `extraContainers` | Additional sidecars or helper containers | `[]` |
-=======
->>>>>>> origin/main
 | `realmImport.enabled` | Enable startup realm import | `false` |
 | `ingress.public.enabled` | Enable public ingress for Keycloak | `false` |
 | `ingress.public.ingressClassName` | Public ingress class name | `traefik` |
