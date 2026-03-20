@@ -109,6 +109,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $hasExternal := or (ne (.Values.database.external.host | default "") "") (ne (.Values.database.external.existingSecret | default "") "") -}}
 {{- $hasPostgresql := .Values.postgresql.enabled | default false -}}
 {{- $hasMysql := .Values.mysql.enabled | default false -}}
+{{- $vendor := .Values.database.external.vendor | default "postgres" -}}
+{{- if not (has $vendor (list "postgres" "mysql")) -}}
+{{- fail (printf "database.external.vendor must be one of: postgres, mysql (got %s)" $vendor) -}}
+{{- end -}}
 {{- if eq $mode "auto" -}}
   {{- $count := 0 -}}
   {{- if $hasExternal -}}{{- $count = add1 $count -}}{{- end -}}
@@ -123,14 +127,26 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- else -}}sqlite
   {{- end -}}
 {{- else -}}
+  {{- if and (eq $mode "sqlite") (or $hasExternal $hasPostgresql $hasMysql) -}}
+    {{- fail "database.mode=sqlite cannot be combined with database.external, postgresql.enabled, or mysql.enabled" -}}
+  {{- end -}}
   {{- if and (eq $mode "external") (not $hasExternal) -}}
     {{- fail "database.mode=external requires database.external.host or database.external.existingSecret" -}}
+  {{- end -}}
+  {{- if and (eq $mode "external") (or $hasPostgresql $hasMysql) -}}
+    {{- fail "database.mode=external cannot be combined with postgresql.enabled or mysql.enabled" -}}
   {{- end -}}
   {{- if and (eq $mode "postgresql") (not $hasPostgresql) -}}
     {{- fail "database.mode=postgresql requires postgresql.enabled=true" -}}
   {{- end -}}
+  {{- if and (eq $mode "postgresql") (or $hasExternal $hasMysql) -}}
+    {{- fail "database.mode=postgresql cannot be combined with database.external or mysql.enabled" -}}
+  {{- end -}}
   {{- if and (eq $mode "mysql") (not $hasMysql) -}}
     {{- fail "database.mode=mysql requires mysql.enabled=true" -}}
+  {{- end -}}
+  {{- if and (eq $mode "mysql") (or $hasExternal $hasPostgresql) -}}
+    {{- fail "database.mode=mysql cannot be combined with database.external or postgresql.enabled" -}}
   {{- end -}}
   {{- $mode -}}
 {{- end -}}
@@ -250,6 +266,17 @@ database-url
 {{- if eq $mode "sqlite" -}}
 /data/db.sqlite3
 {{- else -}}
+  {{- if and (eq $mode "external") (not .Values.database.external.existingSecret) -}}
+    {{- if not .Values.database.external.host -}}
+      {{- fail "database.external.host is required when using database.external without database.external.existingSecret" -}}
+    {{- end -}}
+    {{- if not .Values.database.external.name -}}
+      {{- fail "database.external.name is required when using database.external without database.external.existingSecret" -}}
+    {{- end -}}
+    {{- if not .Values.database.external.username -}}
+      {{- fail "database.external.username is required when using database.external without database.external.existingSecret" -}}
+    {{- end -}}
+  {{- end -}}
   {{- $username := include "vaultwarden.databaseUsername" . -}}
   {{- $password := include "vaultwarden.databasePasswordValue" . -}}
   {{- $host := include "vaultwarden.databaseHost" . -}}
