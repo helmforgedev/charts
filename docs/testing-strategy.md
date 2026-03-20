@@ -18,6 +18,9 @@ This repository uses a layered testing approach for Helm charts, combining stati
 | Template | `helm template` | Verify templates render without errors | Every PR, local dev |
 | Unit Test | `helm-unittest` | Assert template output matches expectations | Every PR, local dev |
 | Schema Validation | `kubeconform` | Validate rendered manifests against K8s API schemas | Every PR |
+| Integration | `k3d` + `helm install` | Verify pods start, probes pass, networking works | Local dev, major changes |
+
+For integration testing details, see [Local Testing with k3d](local-testing-k3d.md).
 
 ## helm-unittest
 
