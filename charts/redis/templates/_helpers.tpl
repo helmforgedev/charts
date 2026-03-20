@@ -36,6 +36,7 @@ helm.sh/chart: {{ include "redis.chart" . }}
 {{ include "redis.selectorLabels" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
+app.kubernetes.io/part-of: helmforge
 {{- with .Values.commonLabels }}
 {{ toYaml . }}
 {{- end }}

@@ -19,6 +19,7 @@ helm.sh/chart: {{ include "mysql.chart" . }}
 {{ include "mysql.selectorLabels" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
+app.kubernetes.io/part-of: helmforge
 {{- with .Values.commonLabels }}
 {{ toYaml . }}
 {{- end }}

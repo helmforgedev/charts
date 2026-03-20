@@ -4,8 +4,18 @@ RabbitMQ for Kubernetes with explicit `single-node` and `cluster` modes, optiona
 
 ## Install
 
+### HTTPS repository
+
 ```bash
-helm install rabbitmq oci://ghcr.io/mberlofa/helm/rabbitmq -f values.yaml
+helm repo add helmforge https://repo.helmforge.dev
+helm repo update
+helm install rabbitmq helmforge/rabbitmq -f values.yaml
+```
+
+### OCI registry
+
+```bash
+helm install rabbitmq oci://ghcr.io/helmforgedev/helm/rabbitmq -f values.yaml
 ```
 
 ## Supported architectures

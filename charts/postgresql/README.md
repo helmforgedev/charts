@@ -4,8 +4,18 @@ PostgreSQL for Kubernetes with explicit `standalone` and `replication` modes, do
 
 ## Install
 
+### HTTPS repository
+
 ```bash
-helm install postgresql oci://ghcr.io/mberlofa/helm/postgresql -f values.yaml
+helm repo add helmforge https://repo.helmforge.dev
+helm repo update
+helm install postgresql helmforge/postgresql -f values.yaml
+```
+
+### OCI registry
+
+```bash
+helm install postgresql oci://ghcr.io/helmforgedev/helm/postgresql -f values.yaml
 ```
 
 ## Supported architectures

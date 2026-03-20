@@ -4,8 +4,18 @@ Redis for Kubernetes with support for `standalone`, `replication`, `sentinel`, a
 
 ## Install
 
+### HTTPS repository
+
 ```bash
-helm install redis oci://ghcr.io/mberlofa/helm/redis -f values.yaml
+helm repo add helmforge https://repo.helmforge.dev
+helm repo update
+helm install redis helmforge/redis -f values.yaml
+```
+
+### OCI registry
+
+```bash
+helm install redis oci://ghcr.io/helmforgedev/helm/redis -f values.yaml
 ```
 
 ## What this chart covers
@@ -84,7 +94,7 @@ standalone:
 Apply:
 
 ```bash
-helm install redis oci://ghcr.io/mberlofa/helm/redis -f redis-values.yaml
+helm install redis helmforge/redis -f redis-values.yaml
 ```
 
 ## Best practices

@@ -4,8 +4,18 @@ Vaultwarden for Kubernetes with explicit storage-mode selection, ingress-oriente
 
 ## Install
 
+### HTTPS repository
+
 ```bash
-helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
+helm repo add helmforge https://repo.helmforge.dev
+helm repo update
+helm install vaultwarden helmforge/vaultwarden -f values.yaml
+```
+
+### OCI registry
+
+```bash
+helm install vaultwarden oci://ghcr.io/helmforgedev/helm/vaultwarden -f values.yaml
 ```
 
 ## What this chart covers

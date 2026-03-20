@@ -4,8 +4,18 @@ MySQL for Kubernetes with explicit `standalone` and `replication` modes, documen
 
 ## Install
 
+### HTTPS repository
+
 ```bash
-helm install mysql oci://ghcr.io/mberlofa/helm/mysql -f values.yaml
+helm repo add helmforge https://repo.helmforge.dev
+helm repo update
+helm install mysql helmforge/mysql -f values.yaml
+```
+
+### OCI registry
+
+```bash
+helm install mysql oci://ghcr.io/helmforgedev/helm/mysql -f values.yaml
 ```
 
 ## Supported architectures
