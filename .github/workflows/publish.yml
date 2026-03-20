@@ -175,10 +175,17 @@ jobs:
     if: always() && needs.publish.result == 'success'
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout main
+        uses: actions/checkout@v6
+        with:
+          path: main-src
+          fetch-depth: 1
+
       - name: Checkout gh-pages
         uses: actions/checkout@v6
         with:
           ref: gh-pages
+          path: gh-pages
           fetch-depth: 1
 
       - name: Setup Helm
@@ -192,27 +199,53 @@ jobs:
           pattern: chart-*
           merge-multiple: true
 
-      - name: Merge into repo index
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Ensure all published charts are indexed
         run: |
-          echo "New chart packages:"
-          ls -la .new-charts/ 2>/dev/null || echo "none"
+          cd gh-pages
 
-          # Copy new packages alongside existing ones
-          cp .new-charts/*.tgz . 2>/dev/null || true
+          # Copy artifacts from publish job
+          cp ../.new-charts/*.tgz . 2>/dev/null && echo "Copied artifacts from publish job" || echo "No artifacts from publish job"
 
-          # Rebuild index merging with existing entries
-          if [ -f index.yaml ]; then
-            helm repo index . --url "$PAGES_URL" --merge index.yaml
+          # For each chart, ensure we have the latest .tgz (pull from OCI if missing)
+          for chart_dir in ../main-src/charts/*/; do
+            chart=$(basename "$chart_dir")
+            version=$(grep '^version:' "$chart_dir/Chart.yaml" | awk '{print $2}')
+            tgz="${chart}-${version}.tgz"
+
+            if [ -f "$tgz" ]; then
+              echo "✓ $tgz already present"
+              continue
+            fi
+
+            echo "Pulling $chart v$version from OCI..."
+            helm pull "$OCI_REGISTRY/$chart" --version "$version" 2>/dev/null && echo "✓ Pulled $tgz" || echo "⚠ $tgz not available in OCI (skipped)"
+          done
+
+          echo "Chart packages in gh-pages:"
+          ls -la *.tgz 2>/dev/null || echo "none"
+
+      - name: Rebuild repo index
+        run: |
+          cd gh-pages
+          if ls *.tgz 1>/dev/null 2>&1; then
+            if [ -f index.yaml ]; then
+              helm repo index . --url "$PAGES_URL" --merge index.yaml
+            else
+              helm repo index . --url "$PAGES_URL"
+            fi
           else
-            helm repo index . --url "$PAGES_URL"
+            echo "No chart packages found, skipping index rebuild"
           fi
 
       - name: Commit and push
         run: |
-          rm -rf .new-charts
+          cd gh-pages
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add index.yaml
+          git add index.yaml 2>/dev/null || true
           git add *.tgz 2>/dev/null || true
           git diff --cached --quiet && echo "No changes to index, skip" || {
             git commit -m "ci: update helm repo index [skip ci]"
