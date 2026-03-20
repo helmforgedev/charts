@@ -15,6 +15,12 @@ helm install keycloak oci://ghcr.io/mberlofa/helm/keycloak -f values.yaml
 | `dev` | local testing, bootstrap validation, temporary environments | [docs/dev.md](docs/dev.md) |
 | `production` | reverse-proxy deployments with an external database | [docs/production.md](docs/production.md) |
 
+## Architecture guides
+
+- [Production Mode](docs/production.md)
+- [Reverse Proxy and Hostname](docs/reverse-proxy.md)
+- [Scaling and Clustering](docs/scaling-and-clustering.md)
+
 ## What this chart covers
 
 - explicit `dev` and `production` runtime modes
@@ -37,6 +43,8 @@ Recommended reading before installation:
 
 - [Dev Mode](docs/dev.md)
 - [Production Mode](docs/production.md)
+- [Reverse Proxy and Hostname](docs/reverse-proxy.md)
+- [Scaling and Clustering](docs/scaling-and-clustering.md)
 
 ## Official product references
 
@@ -91,12 +99,14 @@ database:
 - set `hostname.admin` when the admin console should live on a separate host
 - align `proxy.headers` with your ingress or reverse proxy behavior
 - use the public ingress for user-facing traffic and a separate admin ingress when the admin console should sit behind a different ingress class or internal load balancer
+- review [Reverse Proxy and Hostname](docs/reverse-proxy.md) before exposing the chart publicly
 
 ### Database and runtime
 
 - treat the external database as part of the critical-path design
 - prefer PostgreSQL for production examples and guidance
 - do not use `dev` mode as a hidden production shortcut
+- review [Scaling and Clustering](docs/scaling-and-clustering.md) before raising `replicaCount`
 
 ### Realm import and extensions
 
@@ -111,6 +121,10 @@ database:
 - public and admin ingresses both route only to the application service
 - the admin ingress exists to separate exposure policy, hostname, and ingress class from the public ingress
 - if `replicaCount > 1`, keep cache and cluster expectations explicit in the deployment plan
+- prefer separate public and admin hostnames when the admin console needs tighter exposure rules
+- keep sticky-session behavior aligned with the ingress controller in front of Keycloak
+- treat `jdbc-ping` as discovery and cache transport plumbing, not as a substitute for a Keycloak operator
+- plan image rollouts and rollbacks together with the external database and reverse-proxy layer
 
 ## Main values
 
@@ -152,6 +166,14 @@ The `ci/` scenarios validate the main chart behaviors:
 - `ingress.yaml`
 - `metrics.yaml`
 - `multi-replica.yaml`
+- `relative-path.yaml`
+
+## Rollout guidance
+
+- treat image updates and chart updates as production changes that require a rollback plan
+- test ingress, hostname, and relative path behavior together after every rollout
+- if providers or themes are mounted, confirm compatibility against the target Keycloak version before rolling out
+- when running multiple replicas, roll out behind a stable reverse proxy and validate cluster convergence before widening traffic
 
 ## Examples
 
@@ -160,3 +182,4 @@ See `examples/`:
 - `minimal.yaml`
 - `external-db-ha.yaml`
 - `realm-import.yaml`
+- `relative-path.yaml`

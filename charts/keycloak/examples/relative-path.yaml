@@ -1,0 +1,49 @@
+mode: production
+
+http:
+  relativePath: /auth
+
+hostname:
+  hostname: https://sso.example.com/auth
+  admin: https://admin-sso.example.com/auth
+
+proxy:
+  headers: xforwarded
+
+database:
+  vendor: postgres
+  host: postgresql-rw.default.svc
+  port: 5432
+  name: keycloak
+  username: keycloak
+  existingSecret: keycloak-db
+
+ingress:
+  public:
+    enabled: true
+    ingressClassName: traefik
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt
+    hosts:
+      - host: sso.example.com
+        paths:
+          - path: /auth
+            pathType: Prefix
+    tls:
+      - hosts:
+          - sso.example.com
+        secretName: keycloak-tls
+  admin:
+    enabled: true
+    ingressClassName: internal-nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-internal
+    hosts:
+      - host: admin-sso.example.com
+        paths:
+          - path: /auth
+            pathType: Prefix
+    tls:
+      - hosts:
+          - admin-sso.example.com
+        secretName: keycloak-admin-tls
