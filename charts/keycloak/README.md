@@ -25,7 +25,7 @@ helm install keycloak oci://ghcr.io/mberlofa/helm/keycloak -f values.yaml
 - separate management service for health and metrics
 - optional realm import through `/opt/keycloak/data/import`
 - optional provider and theme mounts
-- optional ingress for public traffic only
+- optional separate ingresses for public and admin traffic
 - optional `ServiceMonitor`
 
 ## How to choose the mode
@@ -49,7 +49,7 @@ Recommended reading before installation:
 
 - `production` is the normal path for real environments
 - production expects a reverse proxy or ingress in front of Keycloak
-- the management interface is kept separate and must not be exposed through the public ingress
+- the management interface is kept separate and must not be exposed through the public or admin ingress
 - multi-replica runtime is supported, but it must be treated as a cache/discovery concern and not just a Deployment scaling flag
 
 ## Quick start
@@ -90,7 +90,7 @@ database:
 - always set `hostname.hostname` in production mode
 - set `hostname.admin` when the admin console should live on a separate host
 - align `proxy.headers` with your ingress or reverse proxy behavior
-- keep ingress focused on the public application service only
+- use the public ingress for user-facing traffic and a separate admin ingress when the admin console should sit behind a different ingress class or internal load balancer
 
 ### Database and runtime
 
@@ -108,7 +108,8 @@ database:
 
 - production mode fails fast when hostname or database configuration is missing
 - management health and metrics stay on the management service
-- public ingress routes only to the application service
+- public and admin ingresses both route only to the application service
+- the admin ingress exists to separate exposure policy, hostname, and ingress class from the public ingress
 - if `replicaCount > 1`, keep cache and cluster expectations explicit in the deployment plan
 
 ## Main values
@@ -133,8 +134,10 @@ database:
 | `replicaCount` | Number of Keycloak replicas | `1` |
 | `cache.stack` | Cache stack for multi-replica production | `jdbc-ping` |
 | `realmImport.enabled` | Enable startup realm import | `false` |
-| `ingress.enabled` | Enable ingress for Keycloak | `false` |
-| `ingress.ingressClassName` | Ingress class name | `traefik` |
+| `ingress.public.enabled` | Enable public ingress for Keycloak | `false` |
+| `ingress.public.ingressClassName` | Public ingress class name | `traefik` |
+| `ingress.admin.enabled` | Enable separate admin ingress | `false` |
+| `ingress.admin.ingressClassName` | Admin ingress class name | `traefik` |
 | `metrics.enabled` | Enable Keycloak metrics | `false` |
 | `metrics.serviceMonitor.enabled` | Enable ServiceMonitor | `false` |
 | `networkPolicy.enabled` | Enable NetworkPolicy | `false` |
