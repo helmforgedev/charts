@@ -43,10 +43,10 @@ helm install <release-name> helmforge/<chart-name> --version <version> -f values
 ### OCI registry
 
 ```bash
-helm install <release-name> oci://ghcr.io/helmforgedev/charts/<chart-name> --version <version> -f values.yaml
+helm install <release-name> oci://ghcr.io/helmforgedev/helm/<chart-name> --version <version> -f values.yaml
 
 # Show default values
-helm show values oci://ghcr.io/helmforgedev/charts/<chart-name> --version <version>
+helm show values oci://ghcr.io/helmforgedev/helm/<chart-name> --version <version>
 ```
 
 Check each chart's README and [git tags](../../tags) for available versions.

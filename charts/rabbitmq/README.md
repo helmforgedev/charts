@@ -23,7 +23,7 @@ helm install rabbitmq helmforge/rabbitmq -f values.yaml
 ### OCI registry
 
 ```bash
-helm install rabbitmq oci://ghcr.io/helmforgedev/charts/rabbitmq -f values.yaml
+helm install rabbitmq oci://ghcr.io/helmforgedev/helm/rabbitmq -f values.yaml
 ```
 
 ## Supported architectures

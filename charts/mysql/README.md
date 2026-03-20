@@ -23,7 +23,7 @@ helm install mysql helmforge/mysql -f values.yaml
 ### OCI registry
 
 ```bash
-helm install mysql oci://ghcr.io/helmforgedev/charts/mysql -f values.yaml
+helm install mysql oci://ghcr.io/helmforgedev/helm/mysql -f values.yaml
 ```
 
 ## Supported architectures

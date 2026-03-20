@@ -23,7 +23,7 @@ helm install redis helmforge/redis -f values.yaml
 ### OCI registry
 
 ```bash
-helm install redis oci://ghcr.io/helmforgedev/charts/redis -f values.yaml
+helm install redis oci://ghcr.io/helmforgedev/helm/redis -f values.yaml
 ```
 
 ## What this chart covers

@@ -23,7 +23,7 @@ helm install vaultwarden helmforge/vaultwarden -f values.yaml
 ### OCI registry
 
 ```bash
-helm install vaultwarden oci://ghcr.io/helmforgedev/charts/vaultwarden -f values.yaml
+helm install vaultwarden oci://ghcr.io/helmforgedev/helm/vaultwarden -f values.yaml
 ```
 
 ## What this chart covers

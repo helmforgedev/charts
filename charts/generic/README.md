@@ -23,7 +23,7 @@ helm install my-release helmforge/generic -f values.yaml
 ### OCI registry
 
 ```bash
-helm install my-release oci://ghcr.io/helmforgedev/charts/generic -f values.yaml
+helm install my-release oci://ghcr.io/helmforgedev/helm/generic -f values.yaml
 ```
 
 ## Workload Types

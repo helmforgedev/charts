@@ -23,7 +23,7 @@ helm install mongodb helmforge/mongodb -f values.yaml
 ### OCI registry
 
 ```bash
-helm install mongodb oci://ghcr.io/helmforgedev/charts/mongodb -f values.yaml
+helm install mongodb oci://ghcr.io/helmforgedev/helm/mongodb -f values.yaml
 ```
 
 ## Quick Start

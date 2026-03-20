@@ -23,7 +23,7 @@ helm install postgresql helmforge/postgresql -f values.yaml
 ### OCI registry
 
 ```bash
-helm install postgresql oci://ghcr.io/helmforgedev/charts/postgresql -f values.yaml
+helm install postgresql oci://ghcr.io/helmforgedev/helm/postgresql -f values.yaml
 ```
 
 ## Supported architectures

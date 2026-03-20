@@ -23,7 +23,7 @@ helm install keycloak helmforge/keycloak -f values.yaml
 ### OCI registry
 
 ```bash
-helm install keycloak oci://ghcr.io/helmforgedev/charts/keycloak -f values.yaml
+helm install keycloak oci://ghcr.io/helmforgedev/helm/keycloak -f values.yaml
 ```
 
 ## Supported modes
