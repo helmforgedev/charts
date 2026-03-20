@@ -36,7 +36,7 @@ helm.sh/chart: {{ include "mongodb.chart" . }}
 {{ include "mongodb.selectorLabels" . }}
 app.kubernetes.io/version: {{ .Values.image.tag | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
-app.kubernetes.io/component: database
+app.kubernetes.io/part-of: helmforge
 {{- with .Values.commonLabels }}
 {{ toYaml . }}
 {{- end }}

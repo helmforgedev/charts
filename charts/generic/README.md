@@ -4,8 +4,18 @@ A single chart that handles **Deployments**, **StatefulSets**, **DaemonSets**, *
 
 ## Install
 
+### HTTPS repository
+
 ```bash
-helm install my-release oci://ghcr.io/mberlofa/helm/generic --version 1.0.0 -f values.yaml
+helm repo add helmforge https://repo.helmforge.dev
+helm repo update
+helm install my-release helmforge/generic -f values.yaml
+```
+
+### OCI registry
+
+```bash
+helm install my-release oci://ghcr.io/helmforgedev/helm/generic -f values.yaml
 ```
 
 ## Workload Types

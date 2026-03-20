@@ -4,8 +4,18 @@ Keycloak for Kubernetes with explicit `dev` and `production` modes, external dat
 
 ## Install
 
+### HTTPS repository
+
 ```bash
-helm install keycloak oci://ghcr.io/mberlofa/helm/keycloak -f values.yaml
+helm repo add helmforge https://repo.helmforge.dev
+helm repo update
+helm install keycloak helmforge/keycloak -f values.yaml
+```
+
+### OCI registry
+
+```bash
+helm install keycloak oci://ghcr.io/helmforgedev/helm/keycloak -f values.yaml
 ```
 
 ## Supported modes

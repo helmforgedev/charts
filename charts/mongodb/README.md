@@ -2,20 +2,32 @@
 
 MongoDB Helm chart using the **official [`mongo`](https://hub.docker.com/_/mongo) Docker image**. Supports standalone, replica set, and sharded cluster architectures — no Bitnami dependency.
 
+## Install
+
+### HTTPS repository
+
+```bash
+helm repo add helmforge https://repo.helmforge.dev
+helm repo update
+helm install mongodb helmforge/mongodb -f values.yaml
+```
+
+### OCI registry
+
+```bash
+helm install mongodb oci://ghcr.io/helmforgedev/helm/mongodb -f values.yaml
+```
+
 ## Quick Start
 
 ```bash
 # Standalone with auth
-helm install mongodb oci://ghcr.io/mberlofa/helm/mongodb \
-  --set auth.rootPassword=changeme
+helm install mongodb helmforge/mongodb --set auth.rootPassword=changeme
 
 # Replica set (3 members)
-helm install mongodb oci://ghcr.io/mberlofa/helm/mongodb \
+helm install mongodb helmforge/mongodb \
   --set architecture=replicaset \
   --set auth.rootPassword=changeme
-
-# From a values file
-helm install mongodb oci://ghcr.io/mberlofa/helm/mongodb -f values.yaml
 ```
 
 ## Architectures
@@ -28,9 +40,9 @@ helm install mongodb oci://ghcr.io/mberlofa/helm/mongodb -f values.yaml
 
 Read before choosing an architecture:
 
-- [Standalone](/C:/devops/berlofa/github/helm/charts/mongodb/docs/standalone.md)
-- [Replica Set](/C:/devops/berlofa/github/helm/charts/mongodb/docs/replicaset.md)
-- [Sharded](/C:/devops/berlofa/github/helm/charts/mongodb/docs/sharded.md)
+- [Standalone](docs/standalone.md)
+- [Replica Set](docs/replicaset.md)
+- [Sharded](docs/sharded.md)
 
 ## Key Features
 
