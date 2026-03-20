@@ -48,31 +48,35 @@ spec:
             - name: failure-detector
               containerPort: 57800
             {{- end }}
-          {{- if .Values.health.enabled }}
+          {{- if and .Values.health.enabled .Values.probes.liveness.enabled }}
           livenessProbe:
             httpGet:
               path: /health/live
               port: management
-            initialDelaySeconds: 60
-            periodSeconds: 20
-            timeoutSeconds: 5
-            failureThreshold: 6
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if and .Values.health.enabled .Values.probes.readiness.enabled }}
           readinessProbe:
             httpGet:
               path: /health/ready
               port: management
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 6
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- if and .Values.health.enabled .Values.probes.startup.enabled }}
           startupProbe:
             httpGet:
               path: /health/started
               port: management
-            initialDelaySeconds: 20
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 60
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
           {{- end }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
