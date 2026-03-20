@@ -1,20 +1,20 @@
-{{- if .Values.ingress.enabled }}
+{{- if .Values.ingress.public.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ include "keycloak.fullname" . }}
   labels:
     {{- include "keycloak.labels" . | nindent 4 }}
-  {{- with .Values.ingress.annotations }}
+  {{- with .Values.ingress.public.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  {{- if .Values.ingress.ingressClassName }}
-  ingressClassName: {{ .Values.ingress.ingressClassName }}
+  {{- if .Values.ingress.public.ingressClassName }}
+  ingressClassName: {{ .Values.ingress.public.ingressClassName }}
   {{- end }}
   rules:
-    {{- range .Values.ingress.hosts }}
+    {{- range .Values.ingress.public.hosts }}
     - host: {{ .host }}
       http:
         paths:
@@ -28,7 +28,43 @@ spec:
                   name: http
           {{- end }}
     {{- end }}
-  {{- with .Values.ingress.tls }}
+  {{- with .Values.ingress.public.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- if .Values.ingress.admin.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "keycloak.fullname" . }}-admin
+  labels:
+    {{- include "keycloak.labels" . | nindent 4 }}
+  {{- with .Values.ingress.admin.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.admin.ingressClassName }}
+  ingressClassName: {{ .Values.ingress.admin.ingressClassName }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.admin.hosts }}
+    - host: {{ .host }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ default "Prefix" .pathType }}
+            backend:
+              service:
+                name: {{ include "keycloak.fullname" $ }}
+                port:
+                  name: http
+          {{- end }}
+    {{- end }}
+  {{- with .Values.ingress.admin.tls }}
   tls:
     {{- toYaml . | nindent 4 }}
   {{- end }}
