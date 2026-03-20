@@ -36,6 +36,7 @@ Keep repository guidance aligned with actual practice.
 - If the improvement is product-specific, update chart docs instead of repository-wide docs.
 - In this repository, keep PR flow branch-to-`main` only. Do not encode stacked PR workflows into the standards.
 - If a branch may already have an open PR, update the standards to require checking PR status before pushing more changes.
+- If a PR was merged and more work is needed, require agents to return to `main`, run `git pull --ff-only origin main`, and create a fresh branch from updated `main` instead of continuing from the old feature branch.
 - Keep chart docs in English, use relative internal links, use official product references only, and standardize ingress docs around `ingressClassName` plus a commented `cert-manager.io/cluster-issuer` example.
 
 ## Commit Standard

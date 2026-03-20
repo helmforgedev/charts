@@ -21,6 +21,7 @@ helm install keycloak oci://ghcr.io/mberlofa/helm/keycloak -f values.yaml
 - [Reverse Proxy and Hostname](docs/reverse-proxy.md)
 - [Scaling and Clustering](docs/scaling-and-clustering.md)
 - [Security and Trust](docs/security-and-trust.md)
+- [Extensions and Themes](docs/extensions-and-themes.md)
 
 ## What this chart covers
 
@@ -34,6 +35,7 @@ helm install keycloak oci://ghcr.io/mberlofa/helm/keycloak -f values.yaml
 - optional provider and theme mounts
 - optional separate ingresses for public and admin traffic
 - optional truststore and external database TLS material
+- controlled extension hooks through `extraEnvFrom`, `initContainers`, and `extraContainers`
 - optional `ServiceMonitor`
 
 ## How to choose the mode
@@ -48,6 +50,7 @@ Recommended reading before installation:
 - [Reverse Proxy and Hostname](docs/reverse-proxy.md)
 - [Scaling and Clustering](docs/scaling-and-clustering.md)
 - [Security and Trust](docs/security-and-trust.md)
+- [Extensions and Themes](docs/extensions-and-themes.md)
 
 ## Official product references
 
@@ -117,6 +120,7 @@ database:
 - use realm import for bootstrap and lower-environment seeding
 - do not treat startup import as a full reconciliation control plane
 - mount providers and themes explicitly so restart behavior stays predictable
+- review [Extensions and Themes](docs/extensions-and-themes.md) before adding providers, themes, or sidecars
 
 ## Production notes
 
@@ -132,6 +136,7 @@ database:
 - plan image rollouts and rollbacks together with the external database and reverse-proxy layer
 - generated admin and database secrets trigger rollout on Helm upgrades
 - externally managed secret or truststore changes still require an explicit rollout or restart
+- provider and theme source changes can be rolled forward predictably with `rolloutToken`
 
 ## Main values
 
@@ -167,6 +172,14 @@ database:
 | `probes.liveness.enabled` | Enable liveness probe | `true` |
 | `probes.readiness.enabled` | Enable readiness probe | `true` |
 | `probes.startup.enabled` | Enable startup probe | `true` |
+<<<<<<< HEAD
+| `extensions.providers.rolloutToken` | Manual rollout token for provider source changes | `""` |
+| `extensions.themes.rolloutToken` | Manual rollout token for theme source changes | `""` |
+| `extraEnvFrom` | Extra envFrom sources injected into the main container | `[]` |
+| `initContainers` | Additional init containers | `[]` |
+| `extraContainers` | Additional sidecars or helper containers | `[]` |
+=======
+>>>>>>> origin/main
 | `realmImport.enabled` | Enable startup realm import | `false` |
 | `ingress.public.enabled` | Enable public ingress for Keycloak | `false` |
 | `ingress.public.ingressClassName` | Public ingress class name | `traefik` |
@@ -189,6 +202,7 @@ The `ci/` scenarios validate the main chart behaviors:
 - `relative-path.yaml`
 - `database-tls.yaml`
 - `multi-replica-observability.yaml`
+- `extensions.yaml`
 
 ## Rollout guidance
 
@@ -204,6 +218,7 @@ See `examples/`:
 - `minimal.yaml`
 - `external-db-ha.yaml`
 - `multi-replica-production.yaml`
+- `extensions-and-themes.yaml`
 - `realm-import.yaml`
 - `relative-path.yaml`
 - `postgres-tls.yaml`

@@ -19,11 +19,17 @@ spec:
       annotations:
         checksum/secrets: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
         checksum/realm-import: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/providers: {{ printf "%s|%s|%s" .Values.extensions.providers.existingConfigMap .Values.extensions.providers.existingSecret .Values.extensions.providers.rolloutToken | sha256sum }}
+        checksum/themes: {{ printf "%s|%s|%s" .Values.extensions.themes.existingConfigMap .Values.extensions.themes.existingSecret .Values.extensions.themes.rolloutToken | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
       {{- include "keycloak.podSpecCommon" . | nindent 6 }}
+      {{- with .Values.initContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: keycloak
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -37,6 +43,10 @@ spec:
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- with .Values.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.http.port }}
@@ -108,6 +118,9 @@ spec:
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       volumes:
         {{- if .Values.realmImport.enabled }}
         - name: realm-import

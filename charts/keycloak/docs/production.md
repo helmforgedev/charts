@@ -31,6 +31,7 @@ Use `mode: production` for real reverse-proxy deployments where Keycloak is back
 - review [Reverse Proxy and Hostname](reverse-proxy.md) before exposing the chart
 - review [Scaling and Clustering](scaling-and-clustering.md) before increasing replica count
 - review [Security and Trust](security-and-trust.md) when database TLS or private CAs are involved
+- review [Extensions and Themes](extensions-and-themes.md) before mounting providers, themes, or sidecars
 
 ## Operational notes
 
