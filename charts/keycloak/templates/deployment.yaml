@@ -1,0 +1,142 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "keycloak.fullname" . }}
+  labels:
+    {{- include "keycloak.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "keycloak.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "keycloak.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/realm-import: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "keycloak.podSpecCommon" . | nindent 6 }}
+      containers:
+        - name: keycloak
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /opt/keycloak/bin/kc.sh
+          args:
+            {{- include "keycloak.commandArgs" . | nindent 12 }}
+          env:
+            {{- include "keycloak.runtimeEnv" . | nindent 12 }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.http.port }}
+            - name: management
+              containerPort: {{ .Values.http.managementPort }}
+            {{- if gt (int .Values.replicaCount) 1 }}
+            - name: jgroups
+              containerPort: 7800
+            - name: failure-detector
+              containerPort: 57800
+            {{- end }}
+          {{- if .Values.health.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: management
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: management
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          startupProbe:
+            httpGet:
+              path: /health/started
+              port: management
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 60
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.realmImport.enabled }}
+            - name: realm-import
+              mountPath: /opt/keycloak/data/import
+            {{- end }}
+            {{- if or .Values.extensions.providers.existingConfigMap .Values.extensions.providers.existingSecret }}
+            - name: providers
+              mountPath: /opt/keycloak/providers
+            {{- end }}
+            {{- if or .Values.extensions.themes.existingConfigMap .Values.extensions.themes.existingSecret }}
+            - name: themes
+              mountPath: /opt/keycloak/themes
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        {{- if .Values.realmImport.enabled }}
+        - name: realm-import
+          {{- if or .Values.realmImport.files .Values.realmImport.existingConfigMap }}
+          projected:
+            sources:
+              {{- if .Values.realmImport.files }}
+              - configMap:
+                  name: {{ include "keycloak.realmImportConfigMapName" . }}
+              {{- end }}
+              {{- if .Values.realmImport.existingConfigMap }}
+              - configMap:
+                  name: {{ .Values.realmImport.existingConfigMap }}
+              {{- end }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- end }}
+        {{- if or .Values.extensions.providers.existingConfigMap .Values.extensions.providers.existingSecret }}
+        - name: providers
+          projected:
+            sources:
+              {{- if .Values.extensions.providers.existingConfigMap }}
+              - configMap:
+                  name: {{ .Values.extensions.providers.existingConfigMap }}
+              {{- end }}
+              {{- if .Values.extensions.providers.existingSecret }}
+              - secret:
+                  name: {{ .Values.extensions.providers.existingSecret }}
+              {{- end }}
+        {{- end }}
+        {{- if or .Values.extensions.themes.existingConfigMap .Values.extensions.themes.existingSecret }}
+        - name: themes
+          projected:
+            sources:
+              {{- if .Values.extensions.themes.existingConfigMap }}
+              - configMap:
+                  name: {{ .Values.extensions.themes.existingConfigMap }}
+              {{- end }}
+              {{- if .Values.extensions.themes.existingSecret }}
+              - secret:
+                  name: {{ .Values.extensions.themes.existingSecret }}
+              {{- end }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}

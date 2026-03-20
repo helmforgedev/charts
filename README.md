@@ -12,6 +12,7 @@ Reusable Helm charts for Kubernetes workloads. Published as OCI artifacts to Git
 | [rabbitmq](charts/rabbitmq/) | RabbitMQ — single-node or cluster with management UI and optional TLS |
 | [postgresql](charts/postgresql/) | PostgreSQL — standalone or fixed-primary replication with optional metrics |
 | [mysql](charts/mysql/) | MySQL — standalone or fixed-source replication with optional metrics |
+| [keycloak](charts/keycloak/) | Keycloak — dev or production mode with external DB and separated management service |
 
 ## Quick Start
 

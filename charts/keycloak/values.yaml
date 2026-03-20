@@ -1,0 +1,292 @@
+# =============================================================================
+# Keycloak Helm Chart — Default Values
+# =============================================================================
+# Supported modes:
+# - dev
+# - production
+
+# -- Keycloak runtime mode: dev | production
+mode: dev
+
+# -- Override chart name
+nameOverride: ""
+# -- Override full release name
+fullnameOverride: ""
+
+# -- Labels added to all resources
+commonLabels: {}
+
+# -- Kubernetes cluster domain
+clusterDomain: cluster.local
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Keycloak image repository
+  repository: quay.io/keycloak/keycloak
+  # -- Keycloak image tag
+  tag: "26.5.5"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Bootstrap Admin
+# =============================================================================
+
+admin:
+  # -- Bootstrap admin username used on first startup
+  username: admin
+  # -- Bootstrap admin password. Auto-generated if empty and no existingSecret is set.
+  password: ""
+  # -- Existing secret containing bootstrap admin credentials
+  existingSecret: ""
+  # -- Secret key for admin username in admin.existingSecret
+  existingSecretUsernameKey: admin-username
+  # -- Secret key for admin password in admin.existingSecret
+  existingSecretPasswordKey: admin-password
+
+# =============================================================================
+# HTTP and Management
+# =============================================================================
+
+http:
+  # -- Keep HTTP enabled inside the cluster. Production deployments are expected to terminate TLS at a trusted reverse proxy or ingress.
+  enabled: true
+  # -- Application HTTP port
+  port: 8080
+  # -- Management interface port used for health and metrics
+  managementPort: 9000
+  # -- HTTP relative path, for example `/auth`
+  relativePath: /
+
+# =============================================================================
+# Hostname and Reverse Proxy
+# =============================================================================
+
+hostname:
+  # -- Public Keycloak hostname or URL. Required in production mode.
+  hostname: ""
+  # -- Optional dedicated admin hostname or URL
+  admin: ""
+  # -- Enforce strict hostname handling
+  strict: true
+  # -- Enable dynamic backchannel URL resolution
+  backchannelDynamic: false
+
+proxy:
+  # -- Proxy headers mode passed to Keycloak, for example `xforwarded` or `forwarded`
+  headers: xforwarded
+
+# =============================================================================
+# Database
+# =============================================================================
+
+database:
+  # -- Database vendor used in production mode: postgres | mariadb | mysql
+  vendor: postgres
+  # -- Database host required in production mode
+  host: ""
+  # -- Database port
+  port: 5432
+  # -- Database name
+  name: keycloak
+  # -- Database username
+  username: keycloak
+  # -- Database password. Auto-generated if empty and no existingSecret is set.
+  password: ""
+  # -- Existing secret containing database password
+  existingSecret: ""
+  # -- Secret key for database password in database.existingSecret
+  existingSecretPasswordKey: db-password
+  # -- Additional JDBC properties appended to the generated JDBC URL
+  jdbcParameters: ""
+  tls:
+    # -- Enable database TLS URL parameters
+    enabled: false
+    # -- Existing secret holding database client TLS material when operators need to mount it manually
+    existingSecret: ""
+
+# =============================================================================
+# Runtime and Clustering
+# =============================================================================
+
+# -- Number of Keycloak replicas
+replicaCount: 1
+
+cache:
+  # -- Enable distributed cache settings in production mode
+  enabled: true
+  # -- Cache stack used when replicaCount > 1 in production mode
+  stack: jdbc-ping
+
+# =============================================================================
+# Realm Import
+# =============================================================================
+
+realmImport:
+  # -- Enable startup realm import using `--import-realm`
+  enabled: false
+  # -- Inline realm files written to a generated ConfigMap
+  files: {}
+    # realm.json: |
+    #   { "realm": "example", "enabled": true }
+  # -- Existing ConfigMap mounted into `/opt/keycloak/data/import`
+  existingConfigMap: ""
+
+# =============================================================================
+# Providers and Themes
+# =============================================================================
+
+extensions:
+  providers:
+    # -- Existing ConfigMap mounted into `/opt/keycloak/providers`
+    existingConfigMap: ""
+    # -- Existing Secret mounted into `/opt/keycloak/providers`
+    existingSecret: ""
+  themes:
+    # -- Existing ConfigMap mounted into `/opt/keycloak/themes`
+    existingConfigMap: ""
+    # -- Existing Secret mounted into `/opt/keycloak/themes`
+    existingSecret: ""
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type for application traffic
+  type: ClusterIP
+  # -- Annotations for the application service
+  annotations: {}
+  managementAnnotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Keycloak UI and public endpoints
+  enabled: false
+  # -- Ingress class name for Keycloak ingress (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Keycloak ingress hosts
+  hosts: []
+    # - host: sso.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Keycloak ingress TLS configuration
+  tls: []
+    # - hosts:
+    #     - sso.example.com
+    #   secretName: keycloak-tls
+
+# =============================================================================
+# Health and Metrics
+# =============================================================================
+
+health:
+  # -- Enable Keycloak health endpoints
+  enabled: true
+
+metrics:
+  # -- Enable Keycloak metrics endpoint
+  enabled: false
+  serviceMonitor:
+    # -- Create a ServiceMonitor targeting the management service
+    enabled: false
+    interval: 30s
+    labels: {}
+
+# =============================================================================
+# Pod Disruption Budget
+# =============================================================================
+
+pdb:
+  # -- Enable PodDisruptionBudget
+  enabled: false
+  # -- Minimum available pods when PDB is enabled
+  minAvailable: 1
+  # -- Maximum unavailable pods when PDB is enabled
+  maxUnavailable: ""
+
+# =============================================================================
+# NetworkPolicy
+# =============================================================================
+
+networkPolicy:
+  # -- Create a NetworkPolicy for Keycloak pods
+  enabled: false
+  ingress:
+    # -- Allow app traffic from the same namespace
+    allowSameNamespace: true
+    # -- Additional ingress "from" rules for application traffic
+    extraFrom: []
+  management:
+    # -- Allow management traffic from the same namespace
+    allowSameNamespace: true
+    # -- Additional ingress "from" rules for management traffic
+    extraFrom: []
+  clustering:
+    # -- Allow intra-cluster cache transport traffic between Keycloak pods when replicaCount > 1
+    enabled: true
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  name: ""
+  annotations: {}
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 120
+
+podLabels: {}
+podAnnotations: {}
+annotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []
