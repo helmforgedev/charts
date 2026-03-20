@@ -26,6 +26,7 @@ helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
 - [Ingress and Domain](docs/ingress-and-domain.md)
 - [Backup and Restore](docs/backup-and-restore.md)
 - [Admin Access and Hardening](docs/admin-access-and-hardening.md)
+- [SSO and OIDC Guidance](docs/sso-and-oidc.md)
 - [Runtime Configuration and config.json](docs/runtime-configuration-and-config-json.md)
 
 ## Operational direction
@@ -82,6 +83,8 @@ helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
 - keep signups disabled unless the instance is intended for self-service use
 - prefer a hashed `ADMIN_TOKEN` value
 - expose the admin panel carefully and only behind trusted access patterns
+- enable `networkPolicy` in clusters where traffic should be explicitly restricted
+- keep `runAsNonRoot`, dropped capabilities, and `RuntimeDefault` seccomp unless the platform proves a concrete incompatibility
 - keep `showPasswordHint=false` on publicly reachable deployments
 - review `orgCreationUsers`, `orgEventsEnabled`, and `emergencyAccessAllowed` instead of relying on product defaults you did not document
 - review [Admin Access and Hardening](docs/admin-access-and-hardening.md) before enabling the admin page in production
@@ -152,6 +155,7 @@ Official reference:
 - this chart now supports `sqlite`, external database configuration, and optional local PostgreSQL or MySQL subcharts
 - production should normally prefer `database.external`
 - PostgreSQL or MySQL modes still require `/data` backup in addition to database backup
+- SSO and OIDC remain advanced integration topics; this chart documents them but does not model them as first-class values in v2
 - if you disable persistence, the deployment becomes disposable and data loss is expected
 - part of the effective runtime configuration can be persisted in `/data/config.json`
 - backup and restore must treat `/data` as a full state boundary, not only a SQLite file
@@ -210,6 +214,7 @@ Official reference:
 | `database.connection.init` | Optional SQL run for each new connection | `""` |
 | `ingress.enabled` | Enable ingress | `false` |
 | `ingress.ingressClassName` | Ingress class name | `traefik` |
+| `networkPolicy.enabled` | Enable NetworkPolicy rendering | `false` |
 | `resources` | Pod resources | `{}` |
 
 ## CI scenarios
@@ -226,6 +231,7 @@ The `ci/` scenarios validate the main chart behaviors:
 - `database-external-secret.yaml`
 - `database-postgresql.yaml`
 - `database-mysql.yaml`
+- `hardening.yaml`
 
 ## Examples
 
@@ -240,3 +246,4 @@ See `examples/`:
 - `database-external-secret.yaml`
 - `database-postgresql.yaml`
 - `database-mysql.yaml`
+- `hardening.yaml`
