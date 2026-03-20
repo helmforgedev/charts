@@ -161,14 +161,6 @@ jobs:
             sleep $((attempt * 2))
           done
 
-      - name: Upload chart package as artifact
-        if: steps.semver.outputs.skip != 'true'
-        uses: actions/upload-artifact@v5
-        with:
-          name: chart-${{ matrix.chart }}
-          path: .dist/*.tgz
-          retention-days: 1
-
   update-index:
     name: Update Helm repo index
     needs: [detect, publish]
@@ -192,24 +184,13 @@ jobs:
         run: |
           curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | DESIRED_VERSION=${{ env.HELM_VERSION }} bash
 
-      - name: Download new chart packages
-        uses: actions/download-artifact@v5
-        with:
-          path: .new-charts
-          pattern: chart-*
-          merge-multiple: true
-
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - name: Ensure all published charts are indexed
+      - name: Sync chart packages from OCI
         run: |
           cd gh-pages
 
-          # Copy artifacts from publish job
-          cp ../.new-charts/*.tgz . 2>/dev/null && echo "Copied artifacts from publish job" || echo "No artifacts from publish job"
-
-          # For each chart, ensure we have the latest .tgz (pull from OCI if missing)
           for chart_dir in ../main-src/charts/*/; do
             chart=$(basename "$chart_dir")
             version=$(grep '^version:' "$chart_dir/Chart.yaml" | awk '{print $2}')
@@ -221,11 +202,13 @@ jobs:
             fi
 
             echo "Pulling $chart v$version from OCI..."
-            helm pull "$OCI_REGISTRY/$chart" --version "$version" 2>/dev/null && echo "✓ Pulled $tgz" || echo "⚠ $tgz not available in OCI (skipped)"
+            helm pull "$OCI_REGISTRY/$chart" --version "$version" 2>/dev/null \
+              && echo "✓ Pulled $tgz" \
+              || echo "⚠ $tgz not available in OCI (skipped)"
           done
 
-          echo "Chart packages in gh-pages:"
-          ls -la *.tgz 2>/dev/null || echo "none"
+          echo "Chart packages:"
+          ls -1 *.tgz 2>/dev/null || echo "none"
 
       - name: Rebuild repo index
         run: |
