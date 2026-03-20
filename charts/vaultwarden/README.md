@@ -1,6 +1,6 @@
 # Vaultwarden
 
-Vaultwarden for Kubernetes with explicit persistent SQLite storage, ingress-oriented deployment, and clear modeling for admin token and SMTP.
+Vaultwarden for Kubernetes with explicit storage-mode selection, ingress-oriented deployment, and clear modeling for admin token and SMTP.
 
 ## Install
 
@@ -12,7 +12,7 @@ helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
 
 - single-instance Vaultwarden deployment
 - persistent `/data` storage through PVC
-- SQLite as the v1 storage model
+- storage modes for `sqlite`, external database, local PostgreSQL chart, or local MySQL chart
 - optional ingress with `ingressClassName`
 - optional SMTP configuration
 - optional admin token through inline value or `existingSecret`
@@ -30,7 +30,8 @@ helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
 
 - this chart is intentionally single-instance in v1
 - persistent `/data` is the normal path
-- SQLite is the default and recommended mode for the current chart scope
+- production should prefer an external database or one of the optional database subcharts
+- SQLite is the fallback mode when no external database or subchart is configured
 - ingress and `domain` should be aligned for attachment links and client behavior
 - websocket traffic uses the same HTTP service and ingress path as the web vault
 
@@ -48,6 +49,17 @@ helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
 - do not treat SQLite plus one PVC as HA
 - review [Backup and Restore](docs/backup-and-restore.md) before declaring the deployment production-ready
 
+### Database selection
+
+- for production, prefer `database.external` or one of the optional subcharts
+- `database.mode=auto` uses this precedence:
+- `database.external.host` or `database.external.existingSecret`
+- `postgresql.enabled=true`
+- `mysql.enabled=true`
+- fallback to SQLite
+- if you use `database.external.existingSecret`, store a complete `DATABASE_URL` value in that secret
+- if you use `postgresql.enabled=true` or `mysql.enabled=true`, define the application password explicitly so Vaultwarden can build the connection URL
+
 ### Ingress and domain
 
 - configure `domain` for real deployments
@@ -57,8 +69,8 @@ helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
 
 ### SQLite and runtime database settings
 
-- keep `data.sqlite.enableWal=true` unless you have a specific reason to change it and understand the tradeoff
-- review `data.database.*` before applying very small or very large resource profiles
+- keep `database.sqlite.enableWal=true` unless you have a specific reason to change it and understand the tradeoff
+- review `database.connection.*` before applying very small or very large resource profiles
 - remember that SQLite and `/data` persistence remain part of the same operational boundary in this chart
 
 ### Security
@@ -133,7 +145,7 @@ Official reference:
 
 - v1 does not support multiple replicas
 - v1 does not claim HA
-- v1 does not try to abstract external databases
+- this chart now supports `sqlite`, external database configuration, and optional local PostgreSQL or MySQL subcharts
 - if you disable persistence, the deployment becomes disposable and data loss is expected
 - part of the effective runtime configuration can be persisted in `/data/config.json`
 - backup and restore must treat `/data` as a full state boundary, not only a SQLite file
@@ -147,6 +159,12 @@ Official reference:
 | `image.repository` | Vaultwarden image repository | `vaultwarden/server` |
 | `image.tag` | Vaultwarden image tag | `1.35.4` |
 | `domain` | Public Vaultwarden domain | `""` |
+| `database.mode` | `auto`, `sqlite`, `external`, `postgresql`, or `mysql` | `auto` |
+| `database.external.vendor` | External database vendor | `postgres` |
+| `database.external.host` | External database host | `""` |
+| `database.external.existingSecret` | Existing secret containing a complete `DATABASE_URL` | `""` |
+| `postgresql.enabled` | Enable the local PostgreSQL subchart | `false` |
+| `mysql.enabled` | Enable the local MySQL subchart | `false` |
 | `vaultwarden.signupsAllowed` | Allow new user signups | `false` |
 | `vaultwarden.signupsVerify` | Require email verification for new signups | `false` |
 | `vaultwarden.signupsVerifyResendTime` | Seconds before another verification email can be sent | `3600` |
@@ -174,13 +192,13 @@ Official reference:
 | `data.persistence.enabled` | Persist `/data` | `true` |
 | `data.persistence.existingClaim` | Existing PVC for `/data` | `""` |
 | `data.persistence.size` | PVC size | `5Gi` |
-| `data.sqlite.enableWal` | Enable SQLite WAL mode on startup | `true` |
-| `data.database.connectionRetries` | Number of startup retries while connecting to the database | `15` |
-| `data.database.timeout` | Database acquisition timeout in seconds | `30` |
-| `data.database.idleTimeout` | Idle database connection timeout in seconds | `600` |
-| `data.database.minConnections` | Minimum database connection pool size | `2` |
-| `data.database.maxConnections` | Maximum database connection pool size | `10` |
-| `data.database.connectionInit` | Optional SQL run for each new connection | `""` |
+| `database.sqlite.enableWal` | Enable SQLite WAL mode on startup | `true` |
+| `database.connection.retries` | Number of startup retries while connecting to the database | `15` |
+| `database.connection.timeout` | Database acquisition timeout in seconds | `30` |
+| `database.connection.idleTimeout` | Idle database connection timeout in seconds | `600` |
+| `database.connection.minConnections` | Minimum database connection pool size | `2` |
+| `database.connection.maxConnections` | Maximum database connection pool size | `10` |
+| `database.connection.init` | Optional SQL run for each new connection | `""` |
 | `ingress.enabled` | Enable ingress | `false` |
 | `ingress.ingressClassName` | Ingress class name | `traefik` |
 | `resources` | Pod resources | `{}` |
@@ -195,6 +213,9 @@ The `ci/` scenarios validate the main chart behaviors:
 - `existing-secret.yaml`
 - `existing-claim.yaml`
 - `ingress.yaml`
+- `database-external.yaml`
+- `database-postgresql.yaml`
+- `database-mysql.yaml`
 
 ## Examples
 
@@ -205,3 +226,6 @@ See `examples/`:
 - `existing-claim.yaml`
 - `smtp.yaml`
 - `ingress-tls.yaml`
+- `database-external.yaml`
+- `database-postgresql.yaml`
+- `database-mysql.yaml`

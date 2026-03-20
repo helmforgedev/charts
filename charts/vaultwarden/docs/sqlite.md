@@ -2,7 +2,7 @@
 
 ## When to use it
 
-Use this mode for small and medium self-hosted Vaultwarden deployments where a single instance is acceptable.
+Use this mode for small and medium self-hosted Vaultwarden deployments where a single instance is acceptable and no external database path is being used.
 
 ## What it delivers
 
@@ -22,3 +22,4 @@ Use this mode for small and medium self-hosted Vaultwarden deployments where a s
 - back up `/data` regularly
 - do not scale the deployment above one replica
 - treat SQLite as the v1 default, not as a clustering strategy
+- treat SQLite as the automatic fallback mode, not as the recommended production database path when external PostgreSQL or MySQL is available

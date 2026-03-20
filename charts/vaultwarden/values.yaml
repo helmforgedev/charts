@@ -110,16 +110,24 @@ smtp:
   existingSecretPasswordKey: smtp-password
 
 # =============================================================================
-# Persistence
+# Database and Persistence
 # =============================================================================
 
-data:
+database:
+  # -- Database mode selection: auto | sqlite | external | postgresql | mysql
+  # -- In auto mode the chart uses this precedence:
+  # -- 1. database.external.host
+  # --    or database.external.existingSecret
+  # -- 2. postgresql.enabled
+  # -- 3. mysql.enabled
+  # -- 4. sqlite fallback
+  mode: auto
   sqlite:
     # -- Enable SQLite WAL mode on startup. Review the official guidance before changing this.
     enableWal: true
-  database:
+  connection:
     # -- Number of retries while connecting to the database on startup. Use 0 for infinite retries.
-    connectionRetries: 15
+    retries: 15
     # -- Timeout in seconds when acquiring a database connection
     timeout: 30
     # -- Timeout in seconds before idle database connections are closed
@@ -129,7 +137,24 @@ data:
     # -- Maximum number of database connections in the pool
     maxConnections: 10
     # -- Optional initialization SQL run for each new database connection
-    connectionInit: ""
+    init: ""
+  external:
+    # -- External database vendor: postgres | mysql
+    vendor: postgres
+    host: ""
+    port: ""
+    name: vaultwarden
+    username: vaultwarden
+    # -- Password used to build DATABASE_URL when database.external.existingSecret is not used
+    password: ""
+    # -- Existing secret containing a complete DATABASE_URL value
+    existingSecret: ""
+    # -- Secret key for the DATABASE_URL value in database.external.existingSecret
+    existingSecretUrlKey: database-url
+    # -- Optional query string appended to the generated DATABASE_URL, without the leading '?'
+    parameters: ""
+
+data:
   persistence:
     # -- Persist `/data` with a PVC
     enabled: true
@@ -247,3 +272,27 @@ annotations: {}
 extraEnv: []
 extraVolumes: []
 extraVolumeMounts: []
+
+# =============================================================================
+# Optional subcharts
+# =============================================================================
+
+postgresql:
+  # -- Enable the local PostgreSQL chart as the Vaultwarden database
+  enabled: false
+  architecture: standalone
+  auth:
+    database: vaultwarden
+    username: vaultwarden
+    # -- Required when using the PostgreSQL subchart so Vaultwarden can build DATABASE_URL deterministically
+    password: ""
+
+mysql:
+  # -- Enable the local MySQL chart as the Vaultwarden database
+  enabled: false
+  architecture: standalone
+  auth:
+    database: vaultwarden
+    username: vaultwarden
+    # -- Required when using the MySQL subchart so Vaultwarden can build DATABASE_URL deterministically
+    password: ""
