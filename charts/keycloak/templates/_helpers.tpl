@@ -102,6 +102,16 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "keycloak.databaseUrl" -}}
 {{- $port := default (include "keycloak.databasePort" .) .Values.database.port -}}
+{{- $params := list -}}
+{{- if .Values.database.jdbcParameters -}}
+{{- $params = append $params .Values.database.jdbcParameters -}}
+{{- end -}}
+{{- if and .Values.database.tls.enabled (eq .Values.database.vendor "postgres") -}}
+{{- $params = append $params (printf "sslmode=%s" .Values.database.tls.sslMode) -}}
+{{- if or .Values.database.tls.existingSecret .Values.database.tls.existingConfigMap -}}
+{{- $params = append $params (printf "sslrootcert=%s" (include "keycloak.databaseTlsRootCertPath" .)) -}}
+{{- end -}}
+{{- end -}}
 {{- if eq .Values.database.vendor "postgres" -}}
 jdbc:postgresql://{{ required "database.host is required in production mode" .Values.database.host }}:{{ $port }}/{{ required "database.name is required in production mode" .Values.database.name }}
 {{- else if or (eq .Values.database.vendor "mysql") (eq .Values.database.vendor "mariadb") -}}
@@ -109,7 +119,19 @@ jdbc:{{ .Values.database.vendor }}://{{ required "database.host is required in p
 {{- else -}}
 {{- fail "database.vendor must be one of: postgres, mysql, mariadb" -}}
 {{- end -}}
-{{- if .Values.database.jdbcParameters }}?{{ .Values.database.jdbcParameters }}{{- end -}}
+{{- if gt (len $params) 0 }}?{{ join "&" $params }}{{- end -}}
+{{- end -}}
+
+{{- define "keycloak.databaseTlsRootCertPath" -}}
+{{- printf "%s/%s" .Values.database.tls.mountPath .Values.database.tls.rootCertFilename -}}
+{{- end -}}
+
+{{- define "keycloak.hasDatabaseTlsVolume" -}}
+{{- if and .Values.database.tls.enabled (or .Values.database.tls.existingSecret .Values.database.tls.existingConfigMap) -}}true{{- end -}}
+{{- end -}}
+
+{{- define "keycloak.hasTruststoreVolume" -}}
+{{- if and .Values.truststore.enabled (or .Values.truststore.existingSecret .Values.truststore.existingConfigMap) -}}true{{- end -}}
 {{- end -}}
 
 {{- define "keycloak.startCommand" -}}
@@ -170,6 +192,12 @@ jdbc:{{ .Values.database.vendor }}://{{ required "database.host is required in p
   value: {{ ternary "true" "false" .Values.health.enabled | quote }}
 - name: KC_METRICS_ENABLED
   value: {{ ternary "true" "false" .Values.metrics.enabled | quote }}
+{{- if .Values.truststore.enabled }}
+- name: KC_TRUSTSTORE_PATHS
+  value: {{ .Values.truststore.mountPath | quote }}
+- name: KC_TLS_HOSTNAME_VERIFIER
+  value: {{ .Values.truststore.tlsHostnameVerifier | quote }}
+{{- end }}
 {{- if include "keycloak.isProduction" . }}
 - name: KC_DB
   value: {{ .Values.database.vendor | quote }}

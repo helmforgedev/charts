@@ -17,6 +17,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        checksum/secrets: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
         checksum/realm-import: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
@@ -90,6 +91,16 @@ spec:
             - name: themes
               mountPath: /opt/keycloak/themes
             {{- end }}
+            {{- if include "keycloak.hasDatabaseTlsVolume" . }}
+            - name: database-tls
+              mountPath: {{ .Values.database.tls.mountPath }}
+              readOnly: true
+            {{- end }}
+            {{- if include "keycloak.hasTruststoreVolume" . }}
+            - name: truststore
+              mountPath: {{ .Values.truststore.mountPath }}
+              readOnly: true
+            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -135,6 +146,32 @@ spec:
               {{- if .Values.extensions.themes.existingSecret }}
               - secret:
                   name: {{ .Values.extensions.themes.existingSecret }}
+              {{- end }}
+        {{- end }}
+        {{- if include "keycloak.hasDatabaseTlsVolume" . }}
+        - name: database-tls
+          projected:
+            sources:
+              {{- if .Values.database.tls.existingConfigMap }}
+              - configMap:
+                  name: {{ .Values.database.tls.existingConfigMap }}
+              {{- end }}
+              {{- if .Values.database.tls.existingSecret }}
+              - secret:
+                  name: {{ .Values.database.tls.existingSecret }}
+              {{- end }}
+        {{- end }}
+        {{- if include "keycloak.hasTruststoreVolume" . }}
+        - name: truststore
+          projected:
+            sources:
+              {{- if .Values.truststore.existingConfigMap }}
+              - configMap:
+                  name: {{ .Values.truststore.existingConfigMap }}
+              {{- end }}
+              {{- if .Values.truststore.existingSecret }}
+              - secret:
+                  name: {{ .Values.truststore.existingSecret }}
               {{- end }}
         {{- end }}
         {{- with .Values.extraVolumes }}
