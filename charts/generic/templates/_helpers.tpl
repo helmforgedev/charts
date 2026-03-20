@@ -89,7 +89,6 @@ Usage: {{ include "chart.isWorkload" (dict "root" . "kind" "Deployment") }}
 Container image string.
 Accepts a dict with: root (global context), container (container spec).
 If the container defines image.repository, it overrides the global.
-Tag format: if global imageTagFormat is "named", uses "{name}-{tag}", otherwise just "{tag}".
 */}}
 {{- define "chart.containerImage" -}}
 {{- $globalRepo := .root.Values.image.repository -}}
@@ -104,11 +103,7 @@ Tag format: if global imageTagFormat is "named", uses "{name}-{tag}", otherwise 
     {{- $tag = .container.image.tag -}}
   {{- end -}}
 {{- end -}}
-{{- if eq (.root.Values.imageTagFormat | default "named") "named" -}}
-{{ printf "%s:%s-%s" $repo .container.name ($tag | toString) }}
-{{- else -}}
 {{ printf "%s:%s" $repo ($tag | toString) }}
-{{- end -}}
 {{- end -}}
 
 {{/*

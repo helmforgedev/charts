@@ -60,8 +60,6 @@ image:
   repository: ghcr.io/example/maintenance
   tag: "1.4.0"
 
-imageTagFormat: simple
-
 jobs:
   - name: db-migrate
     command: ["./bin/migrate"]

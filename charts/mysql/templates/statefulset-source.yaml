@@ -32,7 +32,7 @@ spec:
             - sh
             - -ec
             - |
-              cat /config/my.cnf > /etc/mysql/conf.d/zz-chart.cnf
+              cp /config/my.cnf /etc/mysql/conf.d/zz-chart.cnf
               cat > /etc/mysql/conf.d/zz-role.cnf <<EOF
               [mysqld]
               server_id = {{ ternary .Values.replication.source.serverId .Values.standalone.serverId (eq .Values.architecture "replication") }}
@@ -136,6 +136,8 @@ spec:
               mountPath: /var/lib/mysql
             - name: config
               mountPath: /config
+            - name: mysql-conf
+              mountPath: /etc/mysql/conf.d
             - name: initdb
               mountPath: /docker-entrypoint-initdb.d
             {{- if .Values.tls.enabled }}
@@ -167,6 +169,8 @@ spec:
             {{- end }}
         {{- end }}
       volumes:
+        - name: mysql-conf
+          emptyDir: {}
         - name: config
           configMap:
             name: {{ include "mysql.configMapName" . }}

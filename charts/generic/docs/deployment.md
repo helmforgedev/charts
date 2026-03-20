@@ -67,8 +67,6 @@ image:
   repository: ghcr.io/example/api
   tag: "1.2.0"
 
-imageTagFormat: simple
-
 containers:
   - name: app
     ports:

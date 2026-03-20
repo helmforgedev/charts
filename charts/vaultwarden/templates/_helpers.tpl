@@ -30,6 +30,15 @@ app.kubernetes.io/name: {{ include "vaultwarden.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{- define "vaultwarden.domain" -}}
+{{- $d := .Values.domain | default "" -}}
+{{- if and (ne $d "") (not (or (hasPrefix "http://" $d) (hasPrefix "https://" $d))) -}}
+{{- printf "https://%s" $d -}}
+{{- else -}}
+{{- $d -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "vaultwarden.adminSecretName" -}}
 {{- if .Values.admin.existingSecret -}}
 {{- .Values.admin.existingSecret -}}

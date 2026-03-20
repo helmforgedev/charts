@@ -75,8 +75,6 @@ image:
   repository: ghcr.io/example/stateful-app
   tag: "2.0.0"
 
-imageTagFormat: simple
-
 containers:
   - name: app
     ports:
