@@ -40,10 +40,12 @@ Recommended reading before installation:
 - [Replication](docs/replication.md)
 - [Replication Operations](docs/replication-operations.md)
 - [Backup and Restore](docs/backup-restore.md)
+- [Secret Rotation](docs/secret-rotation.md)
 
 ## Official product references
 
 - MySQL replication: https://dev.mysql.com/doc/refman/8.4/en/replication.html
+- MySQL encrypted connections: https://dev.mysql.com/doc/refman/8.4/en/using-encrypted-connections.html
 - MySQL group replication: https://dev.mysql.com/doc/refman/8.4/en/group-replication.html
 - MySQL official image: https://hub.docker.com/_/mysql
 
@@ -116,7 +118,10 @@ metrics:
 
 - prefer `auth.existingSecret` in production
 - keep client access internal unless there is a strong reason to expose MySQL outside the cluster network
+- enable `tls.enabled=true` with an externally-managed certificate secret when clients must use encrypted TCP connections
+- use `tls.requireSecureTransport=true` only when your clients and replication flows are ready to use TLS
 - use `networkPolicy.enabled=true` or external platform controls when possible
+- if metrics are scraped through Prometheus, pair `networkPolicy.enabled=true` with `networkPolicy.metrics.enabled=true`
 - rotate passwords through secret management workflows instead of editing values inline
 
 ### Replication and availability
@@ -149,11 +154,13 @@ metrics:
 ## Production notes
 
 - use `auth.existingSecret` instead of inline passwords
+- use `tls.existingSecret` for server certificates instead of trying to inline PEM material in values
 - keep persistence enabled for every stateful topology
 - define node placement rules for `replication`, especially when the cluster spans multiple nodes or zones
 - use the `client` or `source` Service only for writes
 - use the `replicas` Service only for read traffic
 - use the `replicas` Service when you need horizontal scale for read-only workloads
+- when enabling TLS, plan certificate rotation as a rollout event because mounted secrets are not hot-reloaded by mysqld
 - treat backup, restore, and failover as operational workflows external to the chart
 - review the architecture guides before promoting `replication` to production
 
@@ -161,6 +168,7 @@ Operational documents:
 
 - [Replication Operations](docs/replication-operations.md)
 - [Backup and Restore](docs/backup-restore.md)
+- [Secret Rotation](docs/secret-rotation.md)
 
 ## Main values
 
@@ -176,6 +184,12 @@ Operational documents:
 | `config.preset` | Optional MySQL config preset | `none` |
 | `initdb.existingConfigMap` | External ConfigMap for extra init scripts | `""` |
 | `networkPolicy.enabled` | Enable ingress-only NetworkPolicy | `false` |
+| `networkPolicy.metrics.enabled` | Allow metrics scraping through NetworkPolicy | `false` |
+| `tls.enabled` | Enable server TLS from an existing secret | `false` |
+| `tls.existingSecret` | Existing secret with CA, certificate, and key | `""` |
+| `tls.requireSecureTransport` | Require TLS for TCP client connections | `false` |
+| `tls.client.enabled` | Use TLS for chart-managed TCP clients | `false` |
+| `tls.client.sslMode` | MySQL CLI SSL mode for internal chart-managed clients | `REQUIRED` |
 | `livenessProbe.enabled` | Enable livenessProbe | `true` |
 | `readinessProbe.enabled` | Enable readinessProbe | `true` |
 | `startupProbe.enabled` | Enable startupProbe | `true` |
@@ -201,6 +215,8 @@ The `ci/` scenarios validate the main chart behaviors:
 - `metrics.yaml`
 - `existing-configmap.yaml`
 - `replication-metrics.yaml`
+- `tls.yaml`
+- `tls-networkpolicy.yaml`
 
 ## Examples
 
@@ -209,6 +225,7 @@ See `examples/`:
 - `standalone.yaml`
 - `replication.yaml`
 - `initdb-metrics.yaml`
+- `tls.yaml`
 
 ## Important notes
 

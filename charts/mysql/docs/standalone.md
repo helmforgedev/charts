@@ -28,5 +28,6 @@ Typical use cases:
 
 - keep persistence enabled in production
 - use `auth.existingSecret` instead of inline passwords
+- use `tls.enabled=true` with `tls.existingSecret` when client connections must be encrypted
 - use `initdb.scripts` only for deterministic first-boot initialization
 - keep backup and restore procedures outside the chart
