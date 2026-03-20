@@ -1,24 +1,15 @@
 # Backup and Restore
 
-## What must be backed up
+## What the built-in backup focuses on
 
-For the current chart scope, a valid backup is never just "the database".
+The built-in backup feature is mode-aware:
 
-Back up the full `/data` lifecycle set:
+- SQLite mode backs up `/data`
+- database-backed modes back up the database dump
 
-- `db.sqlite3`
-- `config.json`
-- `rsa_key*`
-- `attachments/`
-- `sends/`
+This is intentional.
 
-Then add the database component that matches the selected storage mode:
-
-- SQLite: `db.sqlite3`
-- external PostgreSQL/MySQL: the external database itself
-- local PostgreSQL/MySQL subchart: the subchart-managed database itself
-
-If any of these pieces are missing, restore may succeed technically but still be incomplete operationally.
+The chart focuses on producing a reliable backup artifact for the authoritative state of the chosen mode instead of trying to bundle every possible secondary file into one generic process.
 
 ## Why backup is not trivial here
 
@@ -35,25 +26,18 @@ That means backup and restore must be designed around both:
 
 ## Recommended architecture
 
-The most practical production architecture for this repository is:
+The intended production architecture is now:
 
 1. `vaultwarden` as the main application release
-2. an object storage bucket compatible with S3
-3. a separate backup release using the [`generic`](../../generic/README.md) chart as a `CronJob`
-4. a backup container that understands Vaultwarden data layout and pushes archives to object storage
-5. monitoring for backup success and failure
-
-This keeps backup lifecycle independent from the main release:
-
-- schedule changes do not require touching the application chart
-- credentials for object storage stay separated from the application
-- restore workflows stay explicit instead of pretending to be automatic
+2. the built-in backup `CronJob` enabled inside this chart
+3. an S3-compatible bucket as backup target
+4. documentation and runbooks that explain restore separately from backup generation
 
 ## SQLite-specific limitation
 
 Do not treat every Kubernetes storage class as equivalent.
 
-For a separate backup pod to mount the same data claim safely, your platform must support the access pattern you are planning:
+For the SQLite backup CronJob to mount the same data claim safely, your platform must support the access pattern you are planning:
 
 - `ReadWriteMany` storage is the cleanest option for a separate backup pod
 - `ReadWriteOnce` may work only under stricter node-placement conditions and is not the safest default assumption for a detached backup job
@@ -63,36 +47,21 @@ If your platform uses a strict `ReadWriteOnce` PVC and cannot guarantee the moun
 - snapshot-capable storage with `VolumeSnapshot` orchestration
 - or a future in-pod backup design that shares the already-mounted volume
 
-For the current repository scope, the recommended documented automation is a separate backup release only when the storage semantics are compatible.
+For the current chart scope, the built-in SQLite backup assumes that the scheduled backup pod can safely mount the same claim and read `/data`.
 
 ## External database and local subchart backups
 
-When Vaultwarden runs with PostgreSQL or MySQL, backup responsibility splits into two planes:
+When Vaultwarden runs with PostgreSQL or MySQL, the built-in backup is centered on the database dump.
 
-1. database backup
-2. `/data` backup
-
-This is operationally better than SQLite for production, but it is not "database only".
-
-You still need `/data` for:
-
-- `config.json`
-- `rsa_key*`
-- `attachments/`
-- `sends/`
+That matches the current product decision for this chart: the important operational backup artifact in DB-backed modes is the database itself.
 
 ### External database mode
 
 Recommended production pattern:
 
-- let your database platform own database backup, PITR, retention, and restore
-- let the Vaultwarden backup job own `/data`
-- validate restore with both components together
-
-That means:
-
-- PostgreSQL/MySQL backup should follow the standards of the database platform
-- the companion `generic` CronJob should focus on `/data` artifacts unless you intentionally run a second, database-aware backup workflow
+- let the built-in backup CronJob generate the database dump artifact
+- send the compressed dump to an S3-compatible bucket
+- treat restore as a documented operational workflow, not as an automatic chart action
 
 ### Local PostgreSQL/MySQL subchart mode
 
@@ -103,12 +72,7 @@ If you enable:
 - `postgresql.enabled=true`
 - or `mysql.enabled=true`
 
-you must back up:
-
-- the database data path handled by that subchart
-- Vaultwarden `/data`
-
-Do not assume that backing up `/data` alone is sufficient once Vaultwarden is no longer using SQLite.
+the built-in backup still follows the same logic: create a database dump and upload it.
 
 ## Object storage recommendations
 
@@ -122,88 +86,11 @@ Use an S3-compatible bucket with:
 
 That is the difference between "we upload a file somewhere" and a backup posture that survives operator error and accidental overwrites.
 
-## Recommended automation pattern with the generic chart
+## Backup automation in this chart
 
-The [`generic`](../../generic/README.md) chart is a good fit for the backup automation because the backup workload is a product-specific batch process, not part of the Vaultwarden runtime itself.
+The built-in backup feature is now the preferred automation path for Vaultwarden in this repository.
 
-Suggested pattern:
-
-- `workload.enabled=false`
-- one `CronJob`
-- PVC mounted read-only when the storage pattern allows it
-- rclone configuration and object storage credentials injected through secrets
-- notifications sent on success and failure
-
-Illustrative example:
-
-```yaml
-workload:
-  enabled: false
-
-image:
-  repository: ttionya/vaultwarden-backup
-  tag: latest
-  pullPolicy: IfNotPresent
-
-imageTagFormat: simple
-
-env:
-  - name: DATA_DIR
-    value: /data
-  - name: RCLONE_REMOTE_NAME
-    value: BitwardenBackup
-  - name: RCLONE_REMOTE_DIR
-    value: /vaultwarden/prod
-  - name: CRON
-    value: "0 15 2 * * *"
-  - name: BACKUP_KEEP_DAYS
-    value: "30"
-  - name: BACKUP_FILE_SUFFIX
-    value: "%Y%m%d-%H%M%S"
-  - name: ZIP_ENABLE
-    value: "TRUE"
-  - name: ZIP_TYPE
-    value: "7z"
-  - name: TIMEZONE
-    value: America/Sao_Paulo
-  - name: DISPLAY_NAME
-    value: vaultwarden-prod
-  - name: PING_URL_WHEN_SUCCESS
-    valueFrom:
-      secretKeyRef:
-        name: vaultwarden-backup-monitoring
-        key: ping-success
-  - name: PING_URL_WHEN_FAILURE
-    valueFrom:
-      secretKeyRef:
-        name: vaultwarden-backup-monitoring
-        key: ping-failure
-
-envFrom:
-  - secretRef:
-      name: vaultwarden-backup-rclone
-
-persistence:
-  volumes:
-    - name: vaultwarden-data
-      persistentVolumeClaim:
-        claimName: vaultwarden-data
-  mounts:
-    - name: vaultwarden-data
-      mountPath: /data
-      readOnly: true
-
-cronjobs:
-  - name: backup
-    schedule: "0 15 2 * * *"
-    concurrencyPolicy: Forbid
-    successfulJobsHistoryLimit: 3
-    failedJobsHistoryLimit: 3
-    containers:
-      - name: backup
-```
-
-Adjust the claim name, secrets, schedule, and storage assumptions to your cluster reality.
+Review [Backup Automation](backup-automation.md) for the CronJob contract and configuration.
 
 ## Restore principles
 
@@ -280,4 +167,3 @@ At minimum, validate:
 ## References used for this guidance
 
 - Vaultwarden configuration template: https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template
-- Generic chart in this repository: [`charts/generic`](../../generic/README.md)
