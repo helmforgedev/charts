@@ -14,12 +14,24 @@ Root password:
 
 Connection examples:
 
-  mysql -h {{ include "mysql.clientServiceName" . }} -P {{ .Values.service.port }} -u root -p
+  mysql -h {{ include "mysql.clientServiceName" . }} -P {{ .Values.service.port }} -u {{ .Values.auth.username }} -p
 {{- if eq .Values.architecture "replication" }}
 
 Read-only workloads should use:
 
   mysql -h {{ include "mysql.replicasServiceName" . }} -P {{ .Values.service.port }} -u {{ .Values.auth.username }} -p
+
+Writable workloads should use:
+
+  mysql -h {{ include "mysql.sourceServiceName" . }} -P {{ .Values.service.port }} -u {{ .Values.auth.username }} -p
+{{- end }}
+
+Initial troubleshooting:
+
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl logs -n {{ .Release.Namespace }} {{ include "mysql.sourceStatefulSetName" . }}-0
+{{- if eq .Values.architecture "replication" }}
+  kubectl logs -n {{ .Release.Namespace }} {{ include "mysql.replicaStatefulSetName" . }}-0
 {{- end }}
 
 Important:
