@@ -88,6 +88,9 @@ Conflict prevention rule:
 - never start a new phase from an older feature branch after its PR was merged
 - always restart from current `main`
 - in this repository, reusing an old feature branch as the base for the next phase commonly creates avoidable conflicts in `README.md`, `values.yaml`, and chart docs
+- before starting the next phase for the same chart or workstream, verify that the previous PR was merged and refresh local `main` from `origin/main`
+- do not assume local `main` is current after a merge; this repository can add a publish/release commit immediately after the PR merge
+- when resuming work on a chart that was just merged, treat `merge commit + automated release commit` as the normal expected state to avoid stale-base conflicts
 
 ## Chart Authoring Rules
 

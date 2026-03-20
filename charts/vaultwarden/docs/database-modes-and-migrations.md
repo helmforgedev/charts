@@ -146,7 +146,6 @@ Restore both:
 External DB mode reduces the role of SQLite, but it does not eliminate the need to preserve `/data`.
 
 For a deeper backup model for these modes, review [External Database Backup](external-database-backup.md).
-
 ## Validation after migration or restore
 
 At minimum, validate:

@@ -127,6 +127,9 @@ Important:
 - after a PR is merged, do not continue the next phase from that old feature branch
 - always start the next phase from the current `main`
 - branching from a previously merged feature branch is a common source of unnecessary README and values conflicts in this repository
+- before starting the next phase for the same chart or workstream, verify that the previous PR was merged and that local `main` was refreshed from `origin/main`
+- in this repository, `main` may advance again immediately after merge because the publish workflow creates release commits; a stale local `main` can conflict even if you think you branched from `main`
+- when a chart PR was merged recently, assume both the merge commit and an automated release commit may exist on `main` until verified otherwise
 
 ## Helm Chart Authoring Rules
 
