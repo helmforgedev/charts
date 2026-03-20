@@ -1,6 +1,6 @@
 # Helm Charts
 
-Reusable Helm charts for Kubernetes workloads. Published as OCI artifacts to GitHub Container Registry.
+Reusable Helm charts for Kubernetes workloads. Published to both an HTTPS Helm repository and OCI artifacts on GitHub Container Registry.
 
 ## Charts
 
@@ -17,18 +17,25 @@ Reusable Helm charts for Kubernetes workloads. Published as OCI artifacts to Git
 
 ## Quick Start
 
+### HTTPS repository
+
 ```bash
-# Install a chart
-helm install <release-name> oci://ghcr.io/mberlofa/helm/<chart-name> --version <version> -f values.yaml
-
-# Show default values
-helm show values oci://ghcr.io/mberlofa/helm/<chart-name> --version <version>
-
-# Pull chart locally
-helm pull oci://ghcr.io/mberlofa/helm/<chart-name> --version <version>
+helm repo add helmforge https://repo.helmforge.dev
+helm repo update
+helm search repo helmforge/
+helm install <release-name> helmforge/<chart-name> --version <version> -f values.yaml
 ```
 
-Check each chart's README and [git tags](../../tags) for available versions. OCI registries do not support `helm search repo`.
+### OCI registry
+
+```bash
+helm install <release-name> oci://ghcr.io/helmforgedev/helm/<chart-name> --version <version> -f values.yaml
+
+# Show default values
+helm show values oci://ghcr.io/helmforgedev/helm/<chart-name> --version <version>
+```
+
+Check each chart's README and [git tags](../../tags) for available versions.
 
 ## CI/CD
 
@@ -36,7 +43,7 @@ Charts are automatically tested and published via two GitHub Actions workflows.
 
 ```text
 PR        --> ci.yml      --> [Lint] [Template] [Kubeconform]
-Push main --> publish.yml --> Detect --> Semver --> Package --> Publish to GHCR --> Git tag
+Push main --> publish.yml --> Detect --> Semver --> Package --> Publish to GHCR + Pages --> Git tag
 ```
 
 Both workflows dynamically detect which charts changed and run jobs only for those charts using a matrix strategy. Changes to docs (`README.md`, `examples/`, `docs/`) are ignored.
