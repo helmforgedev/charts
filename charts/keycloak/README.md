@@ -125,6 +125,7 @@ database:
 - public and admin ingresses both route only to the application service
 - the admin ingress exists to separate exposure policy, hostname, and ingress class from the public ingress
 - if `replicaCount > 1`, keep cache and cluster expectations explicit in the deployment plan
+- if `replicaCount > 1` and no custom scheduling is set, the chart applies soft pod anti-affinity and topology spread defaults
 - prefer separate public and admin hostnames when the admin console needs tighter exposure rules
 - keep sticky-session behavior aligned with the ingress controller in front of Keycloak
 - treat `jdbc-ping` as discovery and cache transport plumbing, not as a substitute for a Keycloak operator
@@ -161,6 +162,11 @@ database:
 | `truststore.tlsHostnameVerifier` | Outbound TLS hostname verification mode | `DEFAULT` |
 | `replicaCount` | Number of Keycloak replicas | `1` |
 | `cache.stack` | Cache stack for multi-replica production | `jdbc-ping` |
+| `cache.multiReplicaDefaults.enabled` | Apply default scheduling hints for multi-replica workloads | `true` |
+| `cache.multiReplicaDefaults.podAntiAffinity` | Generated pod anti-affinity mode | `preferred` |
+| `probes.liveness.enabled` | Enable liveness probe | `true` |
+| `probes.readiness.enabled` | Enable readiness probe | `true` |
+| `probes.startup.enabled` | Enable startup probe | `true` |
 | `realmImport.enabled` | Enable startup realm import | `false` |
 | `ingress.public.enabled` | Enable public ingress for Keycloak | `false` |
 | `ingress.public.ingressClassName` | Public ingress class name | `traefik` |
@@ -182,6 +188,7 @@ The `ci/` scenarios validate the main chart behaviors:
 - `multi-replica.yaml`
 - `relative-path.yaml`
 - `database-tls.yaml`
+- `multi-replica-observability.yaml`
 
 ## Rollout guidance
 
@@ -196,6 +203,7 @@ See `examples/`:
 
 - `minimal.yaml`
 - `external-db-ha.yaml`
+- `multi-replica-production.yaml`
 - `realm-import.yaml`
 - `relative-path.yaml`
 - `postgres-tls.yaml`

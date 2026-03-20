@@ -237,16 +237,50 @@ terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
 nodeSelector:
   {{- toYaml . | nindent 2 }}
 {{- end }}
-{{- with .Values.affinity }}
+{{- if .Values.affinity }}
 affinity:
-  {{- toYaml . | nindent 2 }}
+  {{- toYaml .Values.affinity | nindent 2 }}
+{{- else if include "keycloak.defaultAffinityEnabled" . }}
+affinity:
+  podAntiAffinity:
+    {{- if eq .Values.cache.multiReplicaDefaults.podAntiAffinity "required" }}
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            {{- include "keycloak.selectorLabels" . | nindent 12 }}
+        topologyKey: kubernetes.io/hostname
+    {{- else }}
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              {{- include "keycloak.selectorLabels" . | nindent 14 }}
+          topologyKey: kubernetes.io/hostname
+    {{- end }}
 {{- end }}
 {{- with .Values.tolerations }}
 tolerations:
   {{- toYaml . | nindent 2 }}
 {{- end }}
-{{- with .Values.topologySpreadConstraints }}
+{{- if .Values.topologySpreadConstraints }}
 topologySpreadConstraints:
-  {{- toYaml . | nindent 2 }}
+  {{- toYaml .Values.topologySpreadConstraints | nindent 2 }}
+{{- else if include "keycloak.defaultTopologySpreadEnabled" . }}
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: {{ .Values.cache.multiReplicaDefaults.topologySpread.topologyKey }}
+    whenUnsatisfiable: {{ .Values.cache.multiReplicaDefaults.topologySpread.whenUnsatisfiable }}
+    labelSelector:
+      matchLabels:
+        {{- include "keycloak.selectorLabels" . | nindent 8 }}
 {{- end }}
+{{- end -}}
+
+{{- define "keycloak.defaultAffinityEnabled" -}}
+{{- if and (gt (int .Values.replicaCount) 1) .Values.cache.multiReplicaDefaults.enabled (ne .Values.cache.multiReplicaDefaults.podAntiAffinity "none") -}}true{{- end -}}
+{{- end -}}
+
+{{- define "keycloak.defaultTopologySpreadEnabled" -}}
+{{- if and (gt (int .Values.replicaCount) 1) .Values.cache.multiReplicaDefaults.enabled .Values.cache.multiReplicaDefaults.topologySpread.enabled -}}true{{- end -}}
 {{- end -}}

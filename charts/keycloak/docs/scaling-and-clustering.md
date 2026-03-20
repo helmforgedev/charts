@@ -47,12 +47,36 @@ When running multiple replicas in production:
 - use a `PodDisruptionBudget`
 - avoid single-node packing for all replicas
 
+The chart now applies scheduling defaults automatically when all of these are true:
+
+- `replicaCount > 1`
+- `cache.multiReplicaDefaults.enabled: true`
+- `affinity` is not set explicitly
+- `topologySpreadConstraints` is not set explicitly
+
+Default behavior:
+
+- soft pod anti-affinity on `kubernetes.io/hostname`
+- topology spread on `kubernetes.io/hostname` with `ScheduleAnyway`
+
+If the environment needs stricter placement, define `affinity` or `topologySpreadConstraints` explicitly and the chart will stop injecting the defaults.
+
 The chart already exposes:
 
 - `affinity`
 - `topologySpreadConstraints`
 - `pdb`
 - `priorityClassName`
+
+## Probe tuning
+
+The chart exposes configurable management probes:
+
+- `probes.liveness`
+- `probes.readiness`
+- `probes.startup`
+
+Use the defaults first. Increase startup timing only when the environment consistently needs more time for image pull, JVM bootstrap, or cluster convergence.
 
 ## Rollout and rollback guidance
 
