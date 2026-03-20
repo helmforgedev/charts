@@ -179,10 +179,18 @@ MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysql -h 127.0.0.1 -P {{ .Values.service.port
 {{- end -}}
 
 {{- define "mysql.replicaReadinessCommandString" -}}
-{{- if and (eq .Values.architecture "replication") .Values.replication.readReplicas.probes.requireReadOnly -}}
-MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysql -h 127.0.0.1 -P {{ .Values.service.port }} -uroot -Nse "SELECT IF(@@global.read_only = 1, 1, 0)" | grep -qx 1
+{{- if and (eq .Values.architecture "replication") (or .Values.replication.readReplicas.probes.requireReadOnly .Values.replication.readReplicas.probes.requireRunningReplication) -}}
+MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysql -h 127.0.0.1 -P {{ .Values.service.port }} -uroot -Nse "SELECT IF(@@global.read_only = 1{{- if .Values.replication.readReplicas.probes.requireRunningReplication }} AND EXISTS (SELECT 1 FROM performance_schema.replication_connection_status WHERE SERVICE_STATE = 'ON') AND EXISTS (SELECT 1 FROM performance_schema.replication_applier_status WHERE SERVICE_STATE = 'ON'){{- end }}, 1, 0)" | grep -qx 1
 {{- else -}}
 {{ include "mysql.probeCommandString" . }}
+{{- end -}}
+{{- end -}}
+
+{{- define "mysql.binlogExpireLogsSeconds" -}}
+{{- if gt (int .Values.replication.binlog.retentionDays) 0 -}}
+{{- mul (int .Values.replication.binlog.retentionDays) 86400 -}}
+{{- else -}}
+{{- .Values.replication.binlog.expireLogsSeconds -}}
 {{- end -}}
 {{- end -}}
 

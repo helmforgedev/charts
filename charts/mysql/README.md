@@ -130,6 +130,7 @@ metrics:
 - place source and replicas across different nodes or zones when the cluster supports it
 - use `pdb.enabled=true` when running multiple replicas and planning maintenance windows
 - review the default replication PDB and placement behavior before overriding them globally
+- consider `replication.readReplicas.probes.requireRunningReplication=true` for environments where replica readiness should confirm replication threads are healthy
 - keep `startupProbe` conservative for MySQL, especially on larger volumes and replica catch-up paths
 
 ### Initialization
@@ -195,10 +196,13 @@ Operational documents:
 | `startupProbe.enabled` | Enable startupProbe | `true` |
 | `replication.source.probes.requireWritable` | Require source readiness to confirm writable state | `true` |
 | `replication.readReplicas.probes.requireReadOnly` | Require replica readiness to confirm read-only state | `true` |
+| `replication.readReplicas.probes.requireRunningReplication` | Require replica readiness to confirm replication threads are running | `false` |
 | `replication.binlog.format` | Binlog format used by the source | `ROW` |
+| `replication.binlog.retentionDays` | Binlog retention in days | `7` |
 | `replication.pdb.enabled` | Enable replication PDB by default | `true` |
 | `replication.scheduling.enableDefaultPodAntiAffinity` | Enable default anti-affinity in replication mode | `true` |
 | `replication.scheduling.enableDefaultTopologySpread` | Enable default topology spread in replication mode | `true` |
+| `replication.replicaTuning.parallelWorkers` | Parallel applier workers on replicas | `4` |
 | `standalone.persistence.enabled` | Enable PVC for standalone | `true` |
 | `replication.readReplicas.replicaCount` | Number of async read replicas | `2` |
 | `metrics.enabled` | Enable `mysqld-exporter` sidecar | `false` |
@@ -215,6 +219,8 @@ The `ci/` scenarios validate the main chart behaviors:
 - `metrics.yaml`
 - `existing-configmap.yaml`
 - `replication-metrics.yaml`
+- `replication-recovery-check.yaml`
+- `replication-binlog-tuning.yaml`
 - `tls.yaml`
 - `tls-networkpolicy.yaml`
 
@@ -226,6 +232,7 @@ See `examples/`:
 - `replication.yaml`
 - `initdb-metrics.yaml`
 - `tls.yaml`
+- `replication-production.yaml`
 
 ## Important notes
 
