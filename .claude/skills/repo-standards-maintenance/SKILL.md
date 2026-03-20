@@ -37,6 +37,7 @@ Keep repository guidance aligned with actual practice.
 - In this repository, keep PR flow branch-to-`main` only. Do not encode stacked PR workflows into the standards.
 - If a branch may already have an open PR, update the standards to require checking PR status before pushing more changes.
 - If a PR was merged and more work is needed, require agents to return to `main`, run `git pull --ff-only origin main`, and create a fresh branch from updated `main` instead of continuing from the old feature branch.
+- If a chart PR is usually followed by an automated publish or release commit on `main`, update the standards to require verifying that `main` advanced after merge before branching for the next phase.
 - Keep chart docs in English, use relative internal links, use official product references only, and standardize ingress docs around `ingressClassName` plus a commented `cert-manager.io/cluster-issuer` example.
 
 ## Commit Standard

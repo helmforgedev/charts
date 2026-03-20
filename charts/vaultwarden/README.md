@@ -22,6 +22,7 @@ helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
 
 - [SQLite Mode](docs/sqlite.md)
 - [Database Modes and Migrations](docs/database-modes-and-migrations.md)
+- [External Database Backup](docs/external-database-backup.md)
 - [Ingress and Domain](docs/ingress-and-domain.md)
 - [Backup and Restore](docs/backup-and-restore.md)
 - [Admin Access and Hardening](docs/admin-access-and-hardening.md)
@@ -49,6 +50,7 @@ helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
 - back up `/data` regularly
 - do not treat SQLite plus one PVC as HA
 - review [Backup and Restore](docs/backup-and-restore.md) before declaring the deployment production-ready
+- if you use PostgreSQL or MySQL, also review [External Database Backup](docs/external-database-backup.md)
 
 ### Database selection
 
@@ -149,6 +151,7 @@ Official reference:
 - v1 does not claim HA
 - this chart now supports `sqlite`, external database configuration, and optional local PostgreSQL or MySQL subcharts
 - production should normally prefer `database.external`
+- PostgreSQL or MySQL modes still require `/data` backup in addition to database backup
 - if you disable persistence, the deployment becomes disposable and data loss is expected
 - part of the effective runtime configuration can be persisted in `/data/config.json`
 - backup and restore must treat `/data` as a full state boundary, not only a SQLite file
