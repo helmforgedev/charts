@@ -24,6 +24,7 @@ helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
 - [Database Modes and Migrations](docs/database-modes-and-migrations.md)
 - [External Database Backup](docs/external-database-backup.md)
 - [Ingress and Domain](docs/ingress-and-domain.md)
+- [SMTP and Email](docs/smtp-and-email.md)
 - [Backup and Restore](docs/backup-and-restore.md)
 - [Admin Access and Hardening](docs/admin-access-and-hardening.md)
 - [SSO and OIDC Guidance](docs/sso-and-oidc.md)
@@ -70,7 +71,9 @@ helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
 - configure `domain` for real deployments
 - terminate TLS at ingress or reverse proxy
 - keep ingress hosts and `domain` aligned
+- if Vaultwarden is exposed behind a path or non-default HTTPS port, keep that full external URL in `domain`
 - keep `vaultwarden.proxy.ipHeader` aligned with your ingress controller or reverse proxy behavior
+- review ingress/controller timeouts if websocket notifications are important for your users
 
 ### SQLite and runtime database settings
 
@@ -156,6 +159,7 @@ Official reference:
 - production should normally prefer `database.external`
 - PostgreSQL or MySQL modes still require `/data` backup in addition to database backup
 - SSO and OIDC remain advanced integration topics; this chart documents them but does not model them as first-class values in v2
+- SMTP in production should use explicit timeout, security mode, and certificate validation choices instead of relying on provider defaults you did not document
 - if you disable persistence, the deployment becomes disposable and data loss is expected
 - part of the effective runtime configuration can be persisted in `/data/config.json`
 - backup and restore must treat `/data` as a full state boundary, not only a SQLite file
@@ -201,6 +205,10 @@ Official reference:
 | `smtp.enabled` | Enable SMTP configuration | `false` |
 | `smtp.host` | SMTP host | `""` |
 | `smtp.from` | SMTP sender address | `""` |
+| `smtp.timeout` | SMTP timeout in seconds | `15` |
+| `smtp.authMechanism` | Comma-separated SMTP auth mechanisms | `""` |
+| `smtp.heloName` | HELO name sent to the SMTP server | `""` |
+| `smtp.embedImages` | Embed images in email messages | `true` |
 | `smtp.existingSecret` | Existing secret containing the SMTP password | `""` |
 | `data.persistence.enabled` | Persist `/data` | `true` |
 | `data.persistence.existingClaim` | Existing PVC for `/data` | `""` |
@@ -224,9 +232,11 @@ The `ci/` scenarios validate the main chart behaviors:
 - `minimal.yaml`
 - `persistent.yaml`
 - `smtp.yaml`
+- `smtp-complete.yaml`
 - `existing-secret.yaml`
 - `existing-claim.yaml`
 - `ingress.yaml`
+- `ingress-tls.yaml`
 - `database-external.yaml`
 - `database-external-secret.yaml`
 - `database-postgresql.yaml`
@@ -241,7 +251,9 @@ See `examples/`:
 - `persistent.yaml`
 - `existing-claim.yaml`
 - `smtp.yaml`
+- `smtp-complete.yaml`
 - `ingress-tls.yaml`
+- `domain-with-path.yaml`
 - `database-external.yaml`
 - `database-external-secret.yaml`
 - `database-postgresql.yaml`
