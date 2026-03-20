@@ -22,6 +22,7 @@ permissions:
 env:
   HELM_VERSION: v3.18.4
   OCI_REGISTRY: oci://ghcr.io/${{ github.repository_owner }}/helm
+  PAGES_URL: https://repo.helmforge.dev
 
 jobs:
   detect:
@@ -136,12 +137,12 @@ jobs:
         if: steps.semver.outputs.skip != 'true'
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - name: Package and push chart
+      - name: Package and push to OCI
         if: steps.semver.outputs.skip != 'true'
         run: |
           helm package charts/${{ matrix.chart }} --destination .dist
           for pkg in .dist/*.tgz; do
-            echo "Publishing $pkg"
+            echo "Publishing $pkg to OCI"
             helm push "$pkg" "$OCI_REGISTRY"
           done
 
@@ -159,3 +160,60 @@ jobs:
             echo "Push failed (attempt $attempt/5), retrying in $((attempt * 2))s..."
             sleep $((attempt * 2))
           done
+
+      - name: Upload chart package as artifact
+        if: steps.semver.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: chart-${{ matrix.chart }}
+          path: .dist/*.tgz
+          retention-days: 1
+
+  update-index:
+    name: Update Helm repo index
+    needs: [detect, publish]
+    if: always() && needs.publish.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout gh-pages
+        uses: actions/checkout@v6
+        with:
+          ref: gh-pages
+          fetch-depth: 1
+
+      - name: Setup Helm
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | DESIRED_VERSION=${{ env.HELM_VERSION }} bash
+
+      - name: Download new chart packages
+        uses: actions/download-artifact@v4
+        with:
+          path: .new-charts
+          pattern: chart-*
+          merge-multiple: true
+
+      - name: Merge into repo index
+        run: |
+          echo "New chart packages:"
+          ls -la .new-charts/ 2>/dev/null || echo "none"
+
+          # Copy new packages alongside existing ones
+          cp .new-charts/*.tgz . 2>/dev/null || true
+
+          # Rebuild index merging with existing entries
+          if [ -f index.yaml ]; then
+            helm repo index . --url "$PAGES_URL" --merge index.yaml
+          else
+            helm repo index . --url "$PAGES_URL"
+          fi
+
+      - name: Commit and push
+        run: |
+          rm -rf .new-charts
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.yaml '*.tgz'
+          git diff --cached --quiet && echo "No changes to index, skip" || {
+            git commit -m "ci: update helm repo index [skip ci]"
+            git push origin gh-pages
+          }
