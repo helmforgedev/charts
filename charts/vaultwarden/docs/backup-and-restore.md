@@ -209,6 +209,13 @@ Adjust the claim name, secrets, schedule, and storage assumptions to your cluste
 
 Restore should be treated as a controlled maintenance event.
 
+Restore is not just file copy plus restart. You must preserve consistency between:
+
+- database mode
+- `/data`
+- the effective runtime configuration kept in `config.json`
+- the release values that will be used after restart
+
 Minimum restore sequence for SQLite:
 
 1. stop Vaultwarden traffic
@@ -217,6 +224,8 @@ Minimum restore sequence for SQLite:
 4. verify `config.json`, `rsa_key*`, `attachments/`, and `sends/`
 5. start the application again
 6. validate login, attachments, sends, and admin access
+
+For SQLite, do not mix a newly generated empty `db.sqlite3` with restored `attachments/`, `rsa_key*`, or `config.json`. Restore the whole boundary together.
 
 Minimum restore sequence for external PostgreSQL/MySQL:
 
@@ -227,6 +236,13 @@ Minimum restore sequence for external PostgreSQL/MySQL:
 5. start Vaultwarden again
 6. validate login, organizations, attachments, sends, and admin access
 
+When the restored database points to a different operational environment, verify:
+
+- `domain`
+- SMTP sender identity
+- reverse proxy headers
+- any SSO or admin-access assumptions
+
 Minimum restore sequence for local PostgreSQL/MySQL subcharts:
 
 1. stop Vaultwarden traffic
@@ -235,6 +251,19 @@ Minimum restore sequence for local PostgreSQL/MySQL subcharts:
 4. confirm the selected `database.mode` and subchart values still match the restored state
 5. start the release again
 6. validate login, organizations, attachments, sends, and admin access
+
+For local subcharts, do not assume the app and database can be restored independently without checking release values. The Helm release still needs to describe the same database mode after recovery.
+
+## PVC restore patterns
+
+The chart supports two explicit restore-friendly patterns:
+
+1. `data.persistence.existingClaim`
+2. a dynamically created PVC with `data.persistence.selectorLabels`
+
+Use these only when you intentionally want Vaultwarden to reattach to restored storage.
+
+For concrete guidance, review [Data Restore Patterns](data-restore-patterns.md).
 
 ## Validation after restore
 

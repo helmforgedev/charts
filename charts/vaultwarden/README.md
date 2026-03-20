@@ -26,6 +26,7 @@ helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
 - [Ingress and Domain](docs/ingress-and-domain.md)
 - [SMTP and Email](docs/smtp-and-email.md)
 - [Backup and Restore](docs/backup-and-restore.md)
+- [Data Restore Patterns](docs/data-restore-patterns.md)
 - [Admin Access and Hardening](docs/admin-access-and-hardening.md)
 - [SSO and OIDC Guidance](docs/sso-and-oidc.md)
 - [Runtime Configuration and config.json](docs/runtime-configuration-and-config-json.md)
@@ -51,7 +52,9 @@ helm install vaultwarden oci://ghcr.io/mberlofa/helm/vaultwarden -f values.yaml
 - keep `data.persistence.enabled=true` for real environments
 - back up `/data` regularly
 - do not treat SQLite plus one PVC as HA
+- use `data.persistence.existingClaim` or `selectorLabels` deliberately during restore workflows, not casually during normal install paths
 - review [Backup and Restore](docs/backup-and-restore.md) before declaring the deployment production-ready
+- review [Data Restore Patterns](docs/data-restore-patterns.md) before binding restored storage into a live release
 - if you use PostgreSQL or MySQL, also review [External Database Backup](docs/external-database-backup.md)
 
 ### Database selection
@@ -165,6 +168,7 @@ Official reference:
 - backup and restore must treat `/data` as a full state boundary, not only a SQLite file
 - for detached backup automation, validate your PVC access pattern before assuming a separate backup pod can mount the same claim safely
 - the best fit in this repository is a companion backup release with the `generic` chart when your storage semantics allow it
+- if a restore uses pre-provisioned storage, validate `existingClaim` or PVC selector behavior before starting traffic
 
 ## Main values
 
@@ -212,6 +216,7 @@ Official reference:
 | `smtp.existingSecret` | Existing secret containing the SMTP password | `""` |
 | `data.persistence.enabled` | Persist `/data` | `true` |
 | `data.persistence.existingClaim` | Existing PVC for `/data` | `""` |
+| `data.persistence.selectorLabels` | PVC selector labels for restore or pre-bound PV flows | `{}` |
 | `data.persistence.size` | PVC size | `5Gi` |
 | `database.sqlite.enableWal` | Enable SQLite WAL mode on startup | `true` |
 | `database.connection.retries` | Number of startup retries while connecting to the database | `15` |
@@ -235,6 +240,7 @@ The `ci/` scenarios validate the main chart behaviors:
 - `smtp-complete.yaml`
 - `existing-secret.yaml`
 - `existing-claim.yaml`
+- `restore-selector.yaml`
 - `ingress.yaml`
 - `ingress-tls.yaml`
 - `database-external.yaml`
@@ -250,6 +256,7 @@ See `examples/`:
 - `minimal.yaml`
 - `persistent.yaml`
 - `existing-claim.yaml`
+- `restore-selector.yaml`
 - `smtp.yaml`
 - `smtp-complete.yaml`
 - `ingress-tls.yaml`
