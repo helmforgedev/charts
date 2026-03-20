@@ -1,0 +1,73 @@
+suite: Standalone StatefulSet
+templates:
+  - standalone-statefulset.yaml
+  - configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should be a StatefulSet in standalone mode
+    template: standalone-statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+
+  - it: should have correct name
+    template: standalone-statefulset.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: test-redis
+
+  - it: should not render in replication mode
+    template: standalone-statefulset.yaml
+    set:
+      architecture: replication
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should use the correct image
+    template: standalone-statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "redis:8.6.0"
+
+  - it: should have 1 replica
+    template: standalone-statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should expose redis port
+    template: standalone-statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: redis
+            containerPort: 6379
+
+  - it: should set security context
+    template: standalone-statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 999
+
+  - it: should have probes
+    template: standalone-statefulset.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].livenessProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].readinessProbe
+
+  - it: should create VolumeClaimTemplate with default 8Gi
+    template: standalone-statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 8Gi

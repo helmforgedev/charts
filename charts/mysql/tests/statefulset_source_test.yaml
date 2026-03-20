@@ -1,0 +1,116 @@
+suite: StatefulSet Source
+templates:
+  - statefulset-source.yaml
+  - configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should be a StatefulSet
+    template: statefulset-source.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+
+  - it: should have correct name in standalone mode
+    template: statefulset-source.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: test-mysql
+
+  - it: should have correct name in replication mode
+    template: statefulset-source.yaml
+    set:
+      architecture: replication
+    asserts:
+      - equal:
+          path: metadata.name
+          value: test-mysql-source
+
+  - it: should use the correct image
+    template: statefulset-source.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "mysql:8.4"
+
+  - it: should always have 1 replica
+    template: statefulset-source.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should use default port 3306
+    template: statefulset-source.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: mysql
+            containerPort: 3306
+
+  - it: should set security context
+    template: statefulset-source.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 999
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+
+  - it: should set pod security context
+    template: statefulset-source.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 999
+
+  - it: should have probes by default
+    template: statefulset-source.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].livenessProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].readinessProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].startupProbe
+
+  - it: should create VolumeClaimTemplate with default 8Gi
+    template: statefulset-source.yaml
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 8Gi
+
+  - it: should reference existing secret when configured
+    template: statefulset-source.yaml
+    set:
+      auth.existingSecret: my-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MYSQL_ROOT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: my-secret
+                key: mysql-root-password
+
+  - it: should not have metrics sidecar by default
+    template: statefulset-source.yaml
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 1
+
+  - it: should add metrics sidecar when enabled
+    template: statefulset-source.yaml
+    set:
+      metrics.enabled: true
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 2
