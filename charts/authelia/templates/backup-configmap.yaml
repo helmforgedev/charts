@@ -1,0 +1,51 @@
+{{- if .Values.backup.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "authelia.fullname" . }}-backup-scripts
+  labels:
+    {{- include "authelia.labels" . | nindent 4 }}
+data:
+  {{- $dbType := include "authelia.dbType" . }}
+  {{- if eq $dbType "sqlite" }}
+  sqlite-backup.sh: |
+    #!/bin/sh
+    set -e
+    TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+    ARCHIVE="/backup/{{ .Values.backup.archivePrefix }}-${TIMESTAMP}.tar.gz"
+    echo "Creating SQLite backup archive..."
+    tar -czf "${ARCHIVE}" -C /data .
+    echo "Archive created: ${ARCHIVE}"
+  {{- else if eq $dbType "postgres" }}
+  pg-backup.sh: |
+    #!/bin/sh
+    set -e
+    TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+    DUMP="/backup/{{ .Values.backup.archivePrefix }}-${TIMESTAMP}.sql.gz"
+    echo "Dumping PostgreSQL database..."
+    PGPASSWORD="${DB_PASSWORD}" pg_dump -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" --clean --if-exists | gzip > "${DUMP}"
+    echo "Dump created: ${DUMP}"
+  {{- else }}
+  mysql-backup.sh: |
+    #!/bin/sh
+    set -e
+    TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+    DUMP="/backup/{{ .Values.backup.archivePrefix }}-${TIMESTAMP}.sql.gz"
+    echo "Dumping MySQL database..."
+    mysqldump -h "${DB_HOST}" -P "${DB_PORT}" -u "${DB_USER}" -p"${DB_PASSWORD}" "${DB_NAME}" --single-transaction --quick --skip-lock-tables --no-tablespaces | gzip > "${DUMP}"
+    echo "Dump created: ${DUMP}"
+  {{- end }}
+  upload-backup.sh: |
+    #!/bin/sh
+    set -e
+    ARCHIVE=$(ls -t /backup/*.gz 2>/dev/null | head -1)
+    if [ -z "${ARCHIVE}" ]; then
+      echo "No backup archive found"; exit 1
+    fi
+    mc alias set s3 "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}"
+    {{- if .Values.backup.s3.createBucketIfNotExists }}
+    mc mb --ignore-existing "s3/${S3_BUCKET}"
+    {{- end }}
+    mc cp "${ARCHIVE}" "s3/${S3_BUCKET}/${S3_PREFIX}/$(basename "${ARCHIVE}")"
+    echo "Upload complete: $(basename "${ARCHIVE}")"
+{{- end }}

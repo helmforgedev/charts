@@ -1,0 +1,241 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "authelia.fullname" . }}
+  labels:
+    {{- include "authelia.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "authelia.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include "authelia.configuration" . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "authelia.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ .Values.serviceAccount.name | default (include "authelia.fullname" .) }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if and (ne (include "authelia.dbType" .) "sqlite") (not .Values.redis.enabled) }}
+      {{- $dbHost := include "authelia.dbHost" . }}
+      {{- $dbPort := include "authelia.dbPort" . }}
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z -w2 {{ $dbHost }} {{ $dbPort }}; do
+                echo "Waiting for database at {{ $dbHost }}:{{ $dbPort }}..."
+                sleep 2
+              done
+              echo "Database is ready."
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- else if and (ne (include "authelia.dbType" .) "sqlite") .Values.redis.enabled }}
+      {{- $dbHost := include "authelia.dbHost" . }}
+      {{- $dbPort := include "authelia.dbPort" . }}
+      {{- $redisHost := include "authelia.redisHost" . }}
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z -w2 {{ $dbHost }} {{ $dbPort }}; do
+                echo "Waiting for database at {{ $dbHost }}:{{ $dbPort }}..."
+                sleep 2
+              done
+              echo "Database is ready."
+              until nc -z -w2 {{ $redisHost }} 6379; do
+                echo "Waiting for Redis at {{ $redisHost }}:6379..."
+                sleep 2
+              done
+              echo "Redis is ready."
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- else if .Values.redis.enabled }}
+      {{- $redisHost := include "authelia.redisHost" . }}
+      initContainers:
+        - name: wait-for-redis
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z -w2 {{ $redisHost }} 6379; do
+                echo "Waiting for Redis at {{ $redisHost }}:6379..."
+                sleep 2
+              done
+              echo "Redis is ready."
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- end }}
+      containers:
+        - name: authelia
+          image: {{ include "authelia.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET_FILE
+              value: /secrets/jwt-secret
+            - name: AUTHELIA_SESSION_SECRET_FILE
+              value: /secrets/session-secret
+            - name: AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE
+              value: /secrets/storage-encryption-key
+            {{- if .Values.secrets.oidcHmacSecret }}
+            - name: AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET_FILE
+              value: /secrets/oidc-hmac-secret
+            {{- end }}
+            {{- $dbType := include "authelia.dbType" . }}
+            {{- if eq $dbType "postgres" }}
+            - name: AUTHELIA_STORAGE_POSTGRES_PASSWORD_FILE
+              value: /secrets/db-password
+            {{- else if eq $dbType "mysql" }}
+            - name: AUTHELIA_STORAGE_MYSQL_PASSWORD_FILE
+              value: /secrets/db-password
+            {{- end }}
+            {{- if .Values.redis.enabled }}
+            {{- if .Values.redis.auth.password }}
+            - name: AUTHELIA_SESSION_REDIS_PASSWORD_FILE
+              value: /secrets/redis-password
+            {{- end }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 9091
+              protocol: TCP
+            {{- if .Values.config.telemetry.metrics.enabled }}
+            - name: metrics
+              containerPort: 9959
+              protocol: TCP
+            {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.probes.startup.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /config/configuration.yml
+              subPath: configuration.yml
+              readOnly: true
+            - name: secrets
+              mountPath: /secrets
+              readOnly: true
+            {{- if .Values.usersDatabase.enabled }}
+            - name: users
+              mountPath: /config/users_database.yml
+              subPath: {{ include "authelia.usersDbSecretKey" . }}
+              readOnly: true
+            {{- end }}
+            - name: data
+              mountPath: /data
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: config
+          secret:
+            secretName: {{ include "authelia.fullname" . }}-config
+        - name: secrets
+          secret:
+            secretName: {{ include "authelia.secretName" . }}
+        {{- if .Values.usersDatabase.enabled }}
+        - name: users
+          secret:
+            secretName: {{ include "authelia.usersDbSecretName" . }}
+        {{- end }}
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "authelia.dataClaimName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}

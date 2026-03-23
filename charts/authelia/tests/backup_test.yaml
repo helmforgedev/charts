@@ -1,0 +1,82 @@
+suite: Backup
+templates:
+  - templates/backup-cronjob.yaml
+  - templates/backup-configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render by default
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render configmap by default
+    template: templates/backup-configmap.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render CronJob when backup is enabled
+    template: templates/backup-cronjob.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: my-bucket
+      backup.s3.accessKey: AKID
+      backup.s3.secretKey: SKEY
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.schedule
+          value: "0 2 * * *"
+
+  - it: should render ConfigMap with sqlite backup script by default
+    template: templates/backup-configmap.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: my-bucket
+      backup.s3.accessKey: AKID
+      backup.s3.secretKey: SKEY
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - isNotNull:
+          path: data["sqlite-backup.sh"]
+
+  - it: should render ConfigMap with pg-backup script for postgres
+    template: templates/backup-configmap.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: my-bucket
+      backup.s3.accessKey: AKID
+      backup.s3.secretKey: SKEY
+      database.type: postgres
+      postgresql.enabled: true
+      postgresql.auth.password: test123
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - isNotNull:
+          path: data["pg-backup.sh"]
+
+  - it: should render ConfigMap with mysql-backup script for mysql
+    template: templates/backup-configmap.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: my-bucket
+      backup.s3.accessKey: AKID
+      backup.s3.secretKey: SKEY
+      database.type: mysql
+      mysql.enabled: true
+      mysql.auth.password: test123
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - isNotNull:
+          path: data["mysql-backup.sh"]
