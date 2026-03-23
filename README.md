@@ -32,6 +32,7 @@ Project links:
 | [pihole](charts/pihole/) | Pi-hole — DNS sinkhole with custom records, Unbound recursive DNS, and Prometheus metrics |
 | [wordpress](charts/wordpress/) | WordPress — CMS with MySQL subchart or external database, S3 backup, and Prometheus metrics |
 | [answer](charts/answer/) | Apache Answer — Q&A platform with SQLite, PostgreSQL, or MySQL, auto-install, and S3 backup |
+| [n8n](charts/n8n/) | n8n — workflow automation with SQLite, PostgreSQL, or MySQL, Redis queue mode, and S3 backup |
 
 ## Quick Start
 

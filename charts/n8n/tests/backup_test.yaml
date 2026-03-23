@@ -1,0 +1,74 @@
+suite: Backup
+templates:
+  - templates/backup-cronjob.yaml
+  - templates/backup-configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render by default
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render CronJob when backup enabled (sqlite)
+    template: templates/backup-cronjob.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: AKIA123
+      backup.s3.secretKey: secret123
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].name
+          value: sqlite-backup
+
+  - it: should use postgres init for postgresql
+    template: templates/backup-cronjob.yaml
+    set:
+      postgresql.enabled: true
+      postgresql.auth.password: test
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: AKIA123
+      backup.s3.secretKey: secret123
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].name
+          value: postgres-backup
+
+  - it: should use mysql init for mysql
+    template: templates/backup-cronjob.yaml
+    set:
+      mysql.enabled: true
+      mysql.auth.password: test
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: AKIA123
+      backup.s3.secretKey: secret123
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].name
+          value: mysql-backup
+
+  - it: should render backup scripts configmap
+    template: templates/backup-configmap.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: AKIA123
+      backup.s3.secretKey: secret123
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - exists:
+          path: data["sqlite-backup.sh"]
+      - exists:
+          path: data["upload-backup.sh"]

@@ -1,0 +1,135 @@
+{{- if .Values.queue.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "n8n.fullname" . }}-worker
+  labels:
+    {{- include "n8n.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  replicas: {{ .Values.queue.workers }}
+  selector:
+    matchLabels:
+      {{- include "n8n.workerLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "n8n.workerLabels" . | nindent 8 }}
+      annotations:
+        checksum/secrets: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "n8n.serviceAccountName" . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        {{- if ne (include "n8n.databaseMode" .) "sqlite" }}
+        - name: wait-for-db
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for {{ include "n8n.databaseHost" . }}:{{ include "n8n.databasePort" . }} ..."
+              until nc -z -w2 {{ include "n8n.databaseHost" . }} {{ include "n8n.databasePort" . }}; do
+                sleep 2
+              done
+              echo "Database is reachable."
+        {{- end }}
+        - name: wait-for-redis
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for {{ include "n8n.redisHost" . }}:{{ include "n8n.redisPort" . }} ..."
+              until nc -z -w2 {{ include "n8n.redisHost" . }} {{ include "n8n.redisPort" . }}; do
+                sleep 2
+              done
+              echo "Redis is reachable."
+      containers:
+        - name: worker
+          image: {{ include "n8n.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["n8n", "worker", "--concurrency={{ .Values.queue.concurrency }}"]
+          env:
+            - name: DB_TYPE
+              value: {{ include "n8n.dbType" . | quote }}
+            {{- $dbMode := include "n8n.databaseMode" . }}
+            {{- if ne $dbMode "sqlite" }}
+            {{- $vendor := include "n8n.databaseVendor" . }}
+            {{- $prefix := ternary "DB_POSTGRESDB" "DB_MYSQLDB" (eq $vendor "postgres") }}
+            - name: {{ $prefix }}_HOST
+              value: {{ include "n8n.databaseHost" . | quote }}
+            - name: {{ $prefix }}_PORT
+              value: {{ include "n8n.databasePort" . | quote }}
+            - name: {{ $prefix }}_DATABASE
+              value: {{ include "n8n.databaseName" . | quote }}
+            - name: {{ $prefix }}_USER
+              value: {{ include "n8n.databaseUsername" . | quote }}
+            - name: {{ $prefix }}_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "n8n.databaseSecretName" . }}
+                  key: {{ include "n8n.databaseSecretKey" . }}
+            {{- else }}
+            - name: DB_SQLITE_PATH
+              value: {{ .Values.database.sqlite.file | quote }}
+            {{- end }}
+            - name: N8N_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "n8n.encryptionKeySecretName" . }}
+                  key: {{ include "n8n.encryptionKeySecretKey" . }}
+            - name: EXECUTIONS_MODE
+              value: queue
+            - name: QUEUE_BULL_REDIS_HOST
+              value: {{ include "n8n.redisHost" . | quote }}
+            - name: QUEUE_BULL_REDIS_PORT
+              value: {{ include "n8n.redisPort" . | quote }}
+            {{- if include "n8n.hasRedisPassword" . }}
+            - name: QUEUE_BULL_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "n8n.redisSecretName" . }}
+                  key: {{ include "n8n.redisSecretKey" . }}
+            {{- end }}
+            {{- with .Values.n8n.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.queue.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /home/node/.n8n
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (printf "%s-data" (include "n8n.fullname" .)) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}

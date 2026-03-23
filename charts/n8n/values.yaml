@@ -1,0 +1,490 @@
+# =============================================================================
+# n8n Helm Chart
+# =============================================================================
+# Workflow automation platform. Supports SQLite (default), PostgreSQL, MySQL,
+# and optional Redis-backed queue mode for scaling.
+# https://docs.n8n.io/
+# =============================================================================
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+
+# -- Override the full release name used in resource names
+fullnameOverride: ""
+
+# -- Labels added to every resource created by this chart
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Container image repository
+  repository: n8nio/n8n
+  # -- Container image tag (defaults to appVersion)
+  tag: ""
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# =============================================================================
+# n8n Configuration
+# =============================================================================
+
+n8n:
+  # -- Encryption key for credentials (auto-generated if empty)
+  encryptionKey: ""
+
+  # -- Webhook URL for external access (auto-detected from ingress if empty)
+  # Example: "https://n8n.example.com"
+  webhookUrl: ""
+
+  # -- Editor base URL (auto-detected from ingress if empty)
+  editorBaseUrl: ""
+
+  # -- Log level: info, warn, error, debug
+  logLevel: info
+
+  # -- Log output: console, file
+  logOutput: console
+
+  # -- Additional environment variables for the n8n container
+  # extraEnv:
+  #   - name: GENERIC_TIMEZONE
+  #     value: "UTC"
+  #   - name: N8N_DIAGNOSTICS_ENABLED
+  #     value: "false"
+  extraEnv: []
+
+# =============================================================================
+# Queue Mode (Redis)
+# =============================================================================
+# When enabled, n8n runs in queue mode using Redis as the message broker.
+# This allows horizontal scaling with separate worker processes.
+# =============================================================================
+
+queue:
+  # -- Enable queue mode (requires Redis)
+  enabled: false
+
+  # -- Number of worker replicas
+  workers: 1
+
+  # -- Worker concurrency (workflows per worker)
+  concurrency: 10
+
+  # -- Resources for worker pods
+  resources: {}
+
+  external:
+    # -- Use an external Redis instead of the subchart
+    host: ""
+    # -- External Redis port
+    port: 6379
+    # -- External Redis password
+    password: ""
+    # -- Existing secret for external Redis password
+    existingSecret: ""
+    # -- Key in the existing secret for the Redis password
+    existingSecretPasswordKey: redis-password
+
+# =============================================================================
+# Encryption Key Secret
+# =============================================================================
+
+encryptionKey:
+  # -- Use an existing secret for the encryption key
+  existingSecret: ""
+  # -- Key in the existing secret
+  existingSecretKey: encryption-key
+
+# =============================================================================
+# Database
+# =============================================================================
+# n8n supports SQLite (default), PostgreSQL, and MySQL.
+#
+# Mode detection (when mode is auto):
+# 1. database.external.host or database.external.existingSecret → external
+# 2. postgresql.enabled → PostgreSQL subchart
+# 3. mysql.enabled → MySQL subchart
+# 4. Fallback → SQLite (default, zero configuration)
+# =============================================================================
+
+database:
+  # -- Database mode: auto | sqlite | external | postgresql | mysql
+  mode: auto
+
+  sqlite:
+    # -- SQLite database file path
+    file: /home/node/.n8n/database.sqlite
+
+  external:
+    # -- Database vendor: postgres | mysql
+    vendor: postgres
+
+    # -- External database hostname
+    host: ""
+
+    # -- External database port (auto-detected from vendor if empty)
+    port: ""
+
+    # -- Database name
+    name: n8n
+
+    # -- Database username
+    username: n8n
+
+    # -- Database password (ignored when existingSecret is set)
+    password: ""
+
+    # -- Existing secret for the database password
+    existingSecret: ""
+
+    # -- Key in the existing secret for the database password
+    existingSecretPasswordKey: database-password
+
+# =============================================================================
+# PostgreSQL Subchart
+# =============================================================================
+
+postgresql:
+  # -- Deploy PostgreSQL as a subchart
+  enabled: false
+
+  # -- PostgreSQL architecture (standalone or replication)
+  architecture: standalone
+
+  auth:
+    # -- Database name created on first run
+    database: n8n
+    # -- Database username created on first run
+    username: n8n
+    # -- Database password (auto-generated if empty)
+    password: ""
+    # -- Root password (auto-generated if empty)
+    rootPassword: ""
+
+  primary:
+    persistence:
+      # -- Enable persistence for PostgreSQL data
+      enabled: true
+      # -- PVC size for PostgreSQL
+      size: 8Gi
+
+# =============================================================================
+# MySQL Subchart
+# =============================================================================
+
+mysql:
+  # -- Deploy MySQL as a subchart
+  enabled: false
+
+  # -- MySQL architecture (standalone or replication)
+  architecture: standalone
+
+  auth:
+    # -- Database name created on first run
+    database: n8n
+    # -- Database username created on first run
+    username: n8n
+    # -- Database password (auto-generated if empty)
+    password: ""
+    # -- Root password (auto-generated if empty)
+    rootPassword: ""
+
+  primary:
+    persistence:
+      # -- Enable persistence for MySQL data
+      enabled: true
+      # -- PVC size for MySQL
+      size: 8Gi
+
+# =============================================================================
+# Redis Subchart (for queue mode)
+# =============================================================================
+
+redis:
+  # -- Deploy Redis as a subchart (required for queue mode unless external Redis)
+  enabled: false
+
+  # -- Redis architecture
+  architecture: standalone
+
+  auth:
+    # -- Redis password (auto-generated if empty)
+    password: ""
+
+  primary:
+    persistence:
+      # -- Enable persistence for Redis data
+      enabled: true
+      # -- PVC size for Redis
+      size: 1Gi
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistent storage for /home/node/.n8n
+  enabled: true
+
+  # -- Storage class (leave empty for cluster default)
+  storageClass: ""
+
+  # -- Access mode for the PVC
+  accessMode: ReadWriteOnce
+
+  # -- Size of the persistent volume
+  size: 5Gi
+
+  # -- Use an existing PVC instead of creating one
+  existingClaim: ""
+
+  # -- Annotations for the PVC
+  annotations: {}
+
+# =============================================================================
+# Resources
+# =============================================================================
+
+# -- CPU and memory requests/limits for the n8n container
+resources: {}
+  # requests:
+  #   cpu: 250m
+  #   memory: 256Mi
+  # limits:
+  #   cpu: "1"
+  #   memory: 1Gi
+
+# =============================================================================
+# Security Context
+# =============================================================================
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+startupProbe:
+  # -- Enable startup probe
+  enabled: true
+  # -- Path for HTTP GET probe
+  path: /healthz
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 30
+
+livenessProbe:
+  # -- Enable liveness probe
+  enabled: true
+  # -- Path for HTTP GET probe
+  path: /healthz
+  initialDelaySeconds: 0
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  # -- Enable readiness probe
+  enabled: true
+  # -- Path for HTTP GET probe
+  path: /healthz
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+
+  # -- HTTP port
+  port: 80
+
+  # -- Annotations for the service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for n8n
+  enabled: false
+
+  # -- Ingress class name
+  # ingressClassName: traefik
+  ingressClassName: ""
+
+  # -- Ingress annotations
+  # annotations:
+  #   cert-manager.io/cluster-issuer: letsencrypt-prod
+  annotations: {}
+
+  # -- Ingress hosts
+  # hosts:
+  #   - host: n8n.example.com
+  #     paths:
+  #       - path: /
+  #         pathType: Prefix
+  hosts: []
+
+  # -- Ingress TLS configuration
+  # tls:
+  #   - secretName: n8n-tls
+  #     hosts:
+  #       - n8n.example.com
+  tls: []
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount
+  create: false
+
+  # -- Name override (auto-generated if empty)
+  name: ""
+
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Backup (CronJob + S3)
+# =============================================================================
+
+backup:
+  # -- Enable scheduled backups to S3-compatible storage
+  enabled: false
+
+  # -- Cron schedule for backups (default: daily at 03:00 UTC)
+  schedule: "0 3 * * *"
+
+  # -- Suspend the CronJob without deleting it
+  suspend: false
+
+  # -- Concurrency policy: Forbid, Replace, Allow
+  concurrencyPolicy: Forbid
+
+  # -- Number of successful job records to keep
+  successfulJobsHistoryLimit: 3
+
+  # -- Number of failed job records to keep
+  failedJobsHistoryLimit: 3
+
+  # -- Maximum retries per backup job
+  backoffLimit: 1
+
+  # -- Prefix for backup archive filenames
+  archivePrefix: n8n
+
+  images:
+    # -- Image used for SQLite backup (must have tar)
+    sqlite: alpine:3.22
+    # -- Image used for PostgreSQL backup (must have pg_dump)
+    postgresql: postgres:18.3-alpine
+    # -- Image used for MySQL backup (must have mysqldump)
+    mysql: mysql:8.4
+    # -- Image used for S3 upload (MinIO client)
+    uploader: minio/mc:RELEASE.2025-04-08T15-18-23Z
+
+  # -- Resources for backup containers
+  resources: {}
+
+  s3:
+    # -- S3-compatible endpoint URL
+    endpoint: ""
+
+    # -- Target bucket name
+    bucket: ""
+
+    # -- Key prefix within the bucket
+    prefix: n8n
+
+    # -- Auto-create the bucket if it does not exist
+    createBucketIfNotExists: true
+
+    # -- Use an existing secret for S3 credentials
+    existingSecret: ""
+
+    # -- Key in the existing secret for the access key
+    existingSecretAccessKeyKey: access-key
+
+    # -- Key in the existing secret for the secret key
+    existingSecretSecretKeyKey: secret-key
+
+    # -- Inline S3 access key (ignored when existingSecret is set)
+    accessKey: ""
+
+    # -- Inline S3 secret key (ignored when existingSecret is set)
+    secretKey: ""
+
+  # -- Override database credentials for backup (uses app credentials if empty)
+  database:
+    host: ""
+    port: ""
+    name: ""
+    username: ""
+    password: ""
+    existingSecret: ""
+    existingSecretPasswordKey: database-password
+    postgresDumpArgs: ""
+    mysqlDumpArgs: "--single-transaction --quick --skip-lock-tables --no-tablespaces"
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+# -- Node selector for pod scheduling
+nodeSelector: {}
+
+# -- Tolerations for pod scheduling
+tolerations: []
+
+# -- Affinity rules for pod scheduling
+affinity: {}
+
+# -- Topology spread constraints
+topologySpreadConstraints: []
+
+# -- Priority class name
+priorityClassName: ""
+
+# -- Grace period for shutdown (seconds)
+terminationGracePeriodSeconds: 30
+
+# =============================================================================
+# Pod-Level Metadata
+# =============================================================================
+
+# -- Additional labels for the pod
+podLabels: {}
+
+# -- Additional annotations for the pod
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+# -- Additional volume mounts for the n8n container
+extraVolumeMounts: []
+
+# -- Additional volumes for the pod
+extraVolumes: []
+
+# -- Extra Kubernetes manifests to deploy alongside the chart
+extraManifests: []
