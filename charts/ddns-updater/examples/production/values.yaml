@@ -1,0 +1,41 @@
+# Production deployment with external secret, ingress, and persistence.
+#
+# Prerequisites:
+#   1. Create a Kubernetes secret with your config.json:
+#      kubectl create secret generic ddns-config \
+#        --from-file=config.json=./config.json
+#   2. Adjust the ingress host and TLS settings below.
+
+config:
+  existingSecret: ddns-config
+  existingSecretKey: config.json
+
+ddns:
+  period: 5m
+  logLevel: info
+
+persistence:
+  enabled: true
+  size: 256Mi
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 16Mi
+  limits:
+    memory: 64Mi
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+  hosts:
+    - host: ddns.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - ddns.example.com
+      secretName: ddns-tls
