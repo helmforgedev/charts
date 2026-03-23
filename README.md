@@ -31,6 +31,7 @@ Project links:
 | [minecraft](charts/minecraft/) | Minecraft — Java Edition server with Vanilla, Paper, Forge, Fabric, GeyserMC cross-play, S3 backup, and monitoring |
 | [pihole](charts/pihole/) | Pi-hole — DNS sinkhole with custom records, Unbound recursive DNS, and Prometheus metrics |
 | [wordpress](charts/wordpress/) | WordPress — CMS with MySQL subchart or external database, S3 backup, and Prometheus metrics |
+| [answer](charts/answer/) | Apache Answer — Q&A platform with SQLite, PostgreSQL, or MySQL, auto-install, and S3 backup |
 
 ## Quick Start
 

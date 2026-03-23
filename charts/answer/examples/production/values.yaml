@@ -1,0 +1,57 @@
+# Production setup — PostgreSQL + ingress + backup
+answer:
+  siteName: "Company Q&A"
+  siteUrl: "https://qa.example.com"
+  contactEmail: support@example.com
+  logLevel: WARN
+
+admin:
+  name: admin
+  password: "strong-admin-password"
+  email: admin@example.com
+
+postgresql:
+  enabled: true
+  auth:
+    database: answer
+    username: answer
+    password: "strong-db-password"
+  primary:
+    persistence:
+      size: 20Gi
+
+persistence:
+  enabled: true
+  size: 10Gi
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: qa.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: answer-tls
+      hosts:
+        - qa.example.com
+
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: company-backups
+    prefix: answer
+    existingSecret: backup-s3-credentials
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
