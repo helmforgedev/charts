@@ -1,0 +1,294 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "minecraft.fullname" . }}
+  labels:
+    {{- include "minecraft.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "minecraft.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        {{- include "minecraft.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: server
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "minecraft.serviceAccountName" . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: minecraft
+          image: {{ include "minecraft.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: EULA
+              value: {{ .Values.server.eula | quote }}
+            - name: TYPE
+              value: {{ .Values.server.type | quote }}
+            - name: VERSION
+              value: {{ .Values.server.version | quote }}
+            - name: MOTD
+              value: {{ .Values.server.motd | quote }}
+            - name: DIFFICULTY
+              value: {{ .Values.server.difficulty | quote }}
+            - name: MODE
+              value: {{ .Values.server.gameMode | quote }}
+            - name: MAX_PLAYERS
+              value: {{ .Values.server.maxPlayers | quote }}
+            - name: VIEW_DISTANCE
+              value: {{ .Values.server.viewDistance | quote }}
+            - name: SIMULATION_DISTANCE
+              value: {{ .Values.server.simulationDistance | quote }}
+            - name: LEVEL_TYPE
+              value: {{ .Values.server.levelType | quote }}
+            - name: LEVEL
+              value: {{ .Values.server.worldSaveName | quote }}
+            - name: PVP
+              value: {{ .Values.server.pvp | quote }}
+            - name: ALLOW_NETHER
+              value: {{ .Values.server.allowNether | quote }}
+            - name: ALLOW_FLIGHT
+              value: {{ .Values.server.allowFlight | quote }}
+            - name: ENABLE_COMMAND_BLOCK
+              value: {{ .Values.server.enableCommandBlock | quote }}
+            - name: FORCE_GAMEMODE
+              value: {{ .Values.server.forceGameMode | quote }}
+            - name: HARDCORE
+              value: {{ .Values.server.hardcore | quote }}
+            - name: SPAWN_PROTECTION
+              value: {{ .Values.server.spawnProtection | quote }}
+            - name: SERVER_PORT
+              value: {{ .Values.server.port | quote }}
+            - name: ONLINE_MODE
+              value: {{ .Values.auth.onlineMode | quote }}
+            {{- if .Values.server.seed }}
+            - name: SEED
+              value: {{ .Values.server.seed | quote }}
+            {{- end }}
+            {{- if .Values.auth.whitelist }}
+            - name: WHITELIST
+              value: {{ .Values.auth.whitelist | quote }}
+            - name: ENFORCE_WHITELIST
+              value: {{ .Values.auth.enforceWhitelist | quote }}
+            {{- end }}
+            {{- if .Values.auth.ops }}
+            - name: OPS
+              value: {{ .Values.auth.ops | quote }}
+            {{- end }}
+            # -- JVM settings
+            - name: MEMORY
+              value: {{ .Values.jvm.memory | quote }}
+            {{- if .Values.jvm.initMemory }}
+            - name: INIT_MEMORY
+              value: {{ .Values.jvm.initMemory | quote }}
+            {{- end }}
+            {{- if .Values.jvm.maxMemory }}
+            - name: MAX_MEMORY
+              value: {{ .Values.jvm.maxMemory | quote }}
+            {{- end }}
+            {{- if .Values.jvm.useAikarFlags }}
+            - name: USE_AIKAR_FLAGS
+              value: "true"
+            {{- end }}
+            {{- if .Values.jvm.jvmOpts }}
+            - name: JVM_OPTS
+              value: {{ .Values.jvm.jvmOpts | quote }}
+            {{- end }}
+            {{- if .Values.jvm.xxOpts }}
+            - name: JVM_XX_OPTS
+              value: {{ .Values.jvm.xxOpts | quote }}
+            {{- end }}
+            # -- RCON settings
+            {{- if .Values.rcon.enabled }}
+            - name: ENABLE_RCON
+              value: "true"
+            - name: RCON_PORT
+              value: {{ .Values.rcon.port | quote }}
+            - name: RCON_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "minecraft.secretName" . }}
+                  key: {{ include "minecraft.secretKey" . }}
+            {{- else }}
+            - name: ENABLE_RCON
+              value: "false"
+            {{- end }}
+            # -- Mods & Plugins
+            {{- if .Values.mods.modrinthProjects }}
+            - name: MODRINTH_PROJECTS
+              value: {{ .Values.mods.modrinthProjects | quote }}
+            {{- end }}
+            {{- if .Values.mods.curseforgeApiKey }}
+            - name: CF_API_KEY
+              value: {{ .Values.mods.curseforgeApiKey | quote }}
+            {{- end }}
+            {{- if .Values.mods.autoCurseforgeSlug }}
+            - name: CF_SLUG
+              value: {{ .Values.mods.autoCurseforgeSlug | quote }}
+            {{- end }}
+            {{- if .Values.mods.spigetResources }}
+            - name: SPIGET_RESOURCES
+              value: {{ .Values.mods.spigetResources | quote }}
+            {{- end }}
+            {{- if .Values.mods.downloadUrls }}
+            - name: MODS
+              value: {{ .Values.mods.downloadUrls | quote }}
+            {{- end }}
+            # -- Resource Pack
+            {{- if .Values.resourcePack.url }}
+            - name: RESOURCE_PACK
+              value: {{ .Values.resourcePack.url | quote }}
+            {{- end }}
+            {{- if .Values.resourcePack.sha1 }}
+            - name: RESOURCE_PACK_SHA1
+              value: {{ .Values.resourcePack.sha1 | quote }}
+            {{- end }}
+            {{- if .Values.resourcePack.enforce }}
+            - name: RESOURCE_PACK_ENFORCE
+              value: "true"
+            {{- end }}
+            # -- Extra server.properties
+            {{- range $key, $value := .Values.server.extraProperties }}
+            - name: {{ printf "CUSTOM_SERVER_PROPERTIES_%s" ($key | upper | replace "-" "_") }}
+              value: {{ $value | quote }}
+            {{- end }}
+            # -- Extra env vars
+            {{- with .Values.server.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            # -- Extra args
+            {{- if .Values.server.extraArgs }}
+            - name: EXTRA_ARGS
+              value: {{ .Values.server.extraArgs | quote }}
+            {{- end }}
+            # -- GeyserMC
+            {{- if .Values.geyser.enabled }}
+            - name: GEYSER_BEDROCK_PORT
+              value: {{ .Values.geyser.port | quote }}
+            {{- end }}
+          ports:
+            - name: minecraft
+              containerPort: {{ .Values.server.port }}
+              protocol: TCP
+            {{- if .Values.rcon.enabled }}
+            - name: rcon
+              containerPort: {{ .Values.rcon.port }}
+              protocol: TCP
+            {{- end }}
+            {{- if .Values.geyser.enabled }}
+            - name: bedrock
+              containerPort: {{ .Values.geyser.port }}
+              protocol: UDP
+            {{- end }}
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            exec:
+              command:
+                - mc-health
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            exec:
+              command:
+                - mc-health
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            exec:
+              command:
+                - mc-health
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- if .Values.metrics.enabled }}
+        - name: mc-monitor
+          image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
+          imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
+          args:
+            - export-for-prometheus
+          env:
+            - name: EXPORT_SERVERS
+              value: "localhost:{{ .Values.server.port }}"
+            - name: EXPORT_PORT
+              value: {{ .Values.metrics.port | quote }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.metrics.port }}
+              protocol: TCP
+        {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ default (include "minecraft.fullname" .) .Values.persistence.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}

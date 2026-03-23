@@ -1,0 +1,494 @@
+# =============================================================================
+# Minecraft Server Helm Chart
+# =============================================================================
+# Uses itzg/minecraft-server — the de facto standard Minecraft container image.
+# Supports Vanilla, Paper, Spigot, Forge, Fabric, Quilt, and more.
+# https://docker-minecraft-server.readthedocs.io/
+# =============================================================================
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+
+# -- Override the full release name used in resource names
+fullnameOverride: ""
+
+# -- Labels added to every resource created by this chart
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Container image repository
+  repository: itzg/minecraft-server
+  # -- Container image tag (defaults to appVersion; use java21 for LTS)
+  tag: ""
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# =============================================================================
+# Minecraft Server
+# =============================================================================
+
+server:
+  # -- Accept the Minecraft EULA (required, must be true)
+  eula: true
+
+  # -- Server type: VANILLA, PAPER, SPIGOT, BUKKIT, FORGE, FABRIC, QUILT,
+  #    FTBA, CURSEFORGE, MODRINTH, AUTO_CURSEFORGE
+  type: VANILLA
+
+  # -- Minecraft version (LATEST, SNAPSHOT, or specific like 1.21.4)
+  version: LATEST
+
+  # -- Message of the day displayed in the server list
+  motd: "A Minecraft Server powered by HelmForge"
+
+  # -- Game difficulty: peaceful, easy, normal, hard
+  difficulty: normal
+
+  # -- Default game mode: survival, creative, adventure, spectator
+  gameMode: survival
+
+  # -- Maximum number of concurrent players
+  maxPlayers: 20
+
+  # -- View distance in chunks (lower improves performance)
+  viewDistance: 10
+
+  # -- Simulation distance in chunks
+  simulationDistance: 10
+
+  # -- World seed (leave empty for random)
+  seed: ""
+
+  # -- World name (directory under /data)
+  worldSaveName: world
+
+  # -- Level type: DEFAULT, FLAT, LARGEBIOMES, AMPLIFIED, CUSTOMIZED
+  levelType: DEFAULT
+
+  # -- Enable player vs player combat
+  pvp: true
+
+  # -- Enable the Nether dimension
+  allowNether: true
+
+  # -- Allow flight (required for some mods)
+  allowFlight: false
+
+  # -- Enable command blocks
+  enableCommandBlock: false
+
+  # -- Force players into the default game mode on join
+  forceGameMode: false
+
+  # -- Enable hardcore mode (permanent death)
+  hardcore: false
+
+  # -- Spawn protection radius (0 to disable)
+  spawnProtection: 16
+
+  # -- Server port for Java Edition clients
+  port: 25565
+
+  # -- Extra server.properties entries as key-value pairs
+  # extraProperties:
+  #   max-world-size: "29999984"
+  #   entity-broadcast-range-percentage: "100"
+  extraProperties: {}
+
+  # -- Additional environment variables for the server container
+  # extraEnv:
+  #   - name: CUSTOM_VAR
+  #     value: "custom-value"
+  extraEnv: []
+
+  # -- Additional arguments passed to the server JAR
+  extraArgs: ""
+
+# =============================================================================
+# JVM / Performance
+# =============================================================================
+
+jvm:
+  # -- JVM memory allocation (sets both -Xms and -Xmx)
+  memory: 1G
+
+  # -- Override initial heap size independently
+  initMemory: ""
+
+  # -- Override maximum heap size independently
+  maxMemory: ""
+
+  # -- Use Aikar's optimized GC flags (recommended for production)
+  useAikarFlags: false
+
+  # -- Additional JVM options (space-delimited)
+  jvmOpts: ""
+
+  # -- Additional -XX JVM options
+  xxOpts: ""
+
+# =============================================================================
+# Authentication & Access Control
+# =============================================================================
+
+auth:
+  # -- Enable Mojang online authentication (set to false for offline/proxy mode)
+  onlineMode: true
+
+  # -- Comma-separated list of whitelisted player names or UUIDs
+  whitelist: ""
+
+  # -- Enforce whitelist immediately when changed
+  enforceWhitelist: false
+
+  # -- Comma-separated list of operator (admin) player names or UUIDs
+  ops: ""
+
+# =============================================================================
+# GeyserMC Cross-Play (Bedrock Clients)
+# =============================================================================
+
+geyser:
+  # -- Enable GeyserMC plugin for Bedrock cross-play
+  # Requires server.type to be PAPER, SPIGOT, or compatible plugin server.
+  # Bedrock clients connect on UDP port 19132 by default.
+  enabled: false
+
+  # -- Bedrock listener port
+  port: 19132
+
+# =============================================================================
+# RCON (Remote Console)
+# =============================================================================
+
+rcon:
+  # -- Enable RCON remote administration
+  enabled: true
+
+  # -- RCON port
+  port: 25575
+
+  # -- RCON password (auto-generated if empty and no existingSecret)
+  password: ""
+
+  # -- Use an existing secret for the RCON password
+  existingSecret: ""
+
+  # -- Key in the existing secret that contains the RCON password
+  existingSecretKey: rcon-password
+
+  # -- Expose RCON as a separate Service
+  serviceEnabled: false
+
+  # -- RCON service type (keep ClusterIP for security)
+  serviceType: ClusterIP
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistent storage for server data (/data)
+  enabled: true
+
+  # -- Storage class (leave empty for cluster default)
+  storageClass: ""
+
+  # -- Access mode for the PVC
+  accessMode: ReadWriteOnce
+
+  # -- Size of the persistent volume
+  size: 10Gi
+
+  # -- Use an existing PVC instead of creating one
+  existingClaim: ""
+
+  # -- Annotations for the PVC
+  annotations: {}
+
+# =============================================================================
+# Resources
+# =============================================================================
+
+# -- CPU and memory requests/limits for the server container
+resources: {}
+  # requests:
+  #   cpu: 500m
+  #   memory: 1Gi
+  # limits:
+  #   cpu: "2"
+  #   memory: 2Gi
+
+# =============================================================================
+# Security Context
+# =============================================================================
+
+podSecurityContext:
+  # -- Group ID for volume ownership
+  fsGroup: 1000
+
+securityContext:
+  # -- User ID for the server process
+  runAsUser: 1000
+  # -- Group ID for the server process
+  runAsGroup: 1000
+  # -- Prevent privilege escalation
+  allowPrivilegeEscalation: false
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+startupProbe:
+  # -- Enable startup probe (recommended for slow-loading modpacks)
+  enabled: true
+  # -- Initial delay before first check
+  initialDelaySeconds: 30
+  # -- Interval between checks
+  periodSeconds: 10
+  # -- Timeout per check
+  timeoutSeconds: 5
+  # -- Number of failures before the container is restarted
+  failureThreshold: 30
+
+livenessProbe:
+  # -- Enable liveness probe
+  enabled: true
+  initialDelaySeconds: 0
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  # -- Enable readiness probe
+  enabled: true
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type for the game port
+  type: LoadBalancer
+
+  # -- Game port (must match server.port)
+  port: 25565
+
+  # -- Node port (only used when service.type is NodePort)
+  nodePort: ""
+
+  # -- Annotations for the game service
+  annotations: {}
+
+  # -- External traffic policy (set to Local for source IP preservation)
+  # externalTrafficPolicy: Local
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount
+  create: false
+
+  # -- Name override (auto-generated if empty)
+  name: ""
+
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Metrics (mc-monitor)
+# =============================================================================
+
+metrics:
+  # -- Enable Prometheus metrics via mc-monitor sidecar
+  enabled: false
+
+  image:
+    # -- mc-monitor image repository
+    repository: itzg/mc-monitor
+    # -- mc-monitor image tag
+    tag: 0.16.1
+    # -- mc-monitor pull policy
+    pullPolicy: IfNotPresent
+
+  # -- Port for the Prometheus metrics endpoint
+  port: 8080
+
+  # -- ServiceMonitor for Prometheus Operator
+  serviceMonitor:
+    # -- Create a ServiceMonitor resource
+    enabled: false
+    # -- Scrape interval
+    interval: 30s
+    # -- Additional labels for the ServiceMonitor
+    labels: {}
+
+# =============================================================================
+# Backup (CronJob + S3)
+# =============================================================================
+# Follows the same pattern as the vaultwarden chart: a CronJob creates a
+# compressed archive of /data and uploads it to S3-compatible storage using
+# the MinIO client. RCON is used to run save-all / save-off before the
+# backup and save-on after it completes.
+# =============================================================================
+
+backup:
+  # -- Enable scheduled backups to S3-compatible storage
+  enabled: false
+
+  # -- Cron schedule for backups (default: daily at 04:00 UTC)
+  schedule: "0 4 * * *"
+
+  # -- Suspend the CronJob without deleting it
+  suspend: false
+
+  # -- Concurrency policy: Forbid, Replace, Allow
+  concurrencyPolicy: Forbid
+
+  # -- Number of successful job records to keep
+  successfulJobsHistoryLimit: 3
+
+  # -- Number of failed job records to keep
+  failedJobsHistoryLimit: 3
+
+  # -- Maximum retries per backup job
+  backoffLimit: 1
+
+  # -- Prefix for backup archive filenames
+  archivePrefix: minecraft
+
+  # -- Directories to exclude from the backup archive (space-separated)
+  excludes: "*.jar cache logs"
+
+  images:
+    # -- Image used for RCON commands and tar archiving
+    # -- Image used for RCON commands and tar archiving (must have sh, tar, and rcon-cli)
+    worker: itzg/minecraft-server:java21
+    # -- Image used for S3 upload (MinIO client)
+    uploader: minio/mc:RELEASE.2025-04-08T15-18-23Z
+
+  # -- Resources for backup containers
+  resources: {}
+
+  s3:
+    # -- S3-compatible endpoint URL (e.g., https://s3.amazonaws.com, https://minio.example.com)
+    endpoint: ""
+
+    # -- Target bucket name
+    bucket: ""
+
+    # -- Key prefix within the bucket
+    prefix: minecraft
+
+    # -- Auto-create the bucket if it does not exist
+    createBucketIfNotExists: true
+
+    # -- Use an existing secret for S3 credentials
+    existingSecret: ""
+
+    # -- Key in the existing secret for the access key
+    existingSecretAccessKeyKey: access-key
+
+    # -- Key in the existing secret for the secret key
+    existingSecretSecretKeyKey: secret-key
+
+    # -- Inline S3 access key (ignored when existingSecret is set)
+    accessKey: ""
+
+    # -- Inline S3 secret key (ignored when existingSecret is set)
+    secretKey: ""
+
+# =============================================================================
+# Mods & Plugins
+# =============================================================================
+
+mods:
+  # -- Modrinth project slugs or IDs (comma-separated)
+  # modrinthProjects: "geyser,floodgate"
+  modrinthProjects: ""
+
+  # -- CurseForge API key (required for CurseForge downloads)
+  curseforgeApiKey: ""
+
+  # -- Auto CurseForge modpack slug (requires server.type: AUTO_CURSEFORGE)
+  autoCurseforgeSlug: ""
+
+  # -- Spiget resource IDs for Bukkit/Spigot plugins (comma-separated)
+  spigetResources: ""
+
+  # -- URLs to download plugins or mods from (newline-separated)
+  # downloadUrls: |
+  #   https://example.com/plugin.jar
+  downloadUrls: ""
+
+# =============================================================================
+# Resource Pack
+# =============================================================================
+
+resourcePack:
+  # -- URL to a server resource pack
+  url: ""
+
+  # -- SHA-1 hash of the resource pack for verification
+  sha1: ""
+
+  # -- Force clients to accept the resource pack
+  enforce: false
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+# -- Node selector for pod scheduling
+nodeSelector: {}
+
+# -- Tolerations for pod scheduling
+tolerations: []
+
+# -- Affinity rules for pod scheduling
+affinity: {}
+
+# -- Topology spread constraints
+topologySpreadConstraints: []
+
+# -- Priority class name
+priorityClassName: ""
+
+# -- Grace period for server shutdown (seconds, allow time for save-all)
+terminationGracePeriodSeconds: 120
+
+# =============================================================================
+# Pod-Level Metadata
+# =============================================================================
+
+# -- Additional labels for the pod
+podLabels: {}
+
+# -- Additional annotations for the pod
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+# -- Additional volume mounts for the server container
+extraVolumeMounts: []
+
+# -- Additional volumes for the pod
+extraVolumes: []
+
+# -- Extra Kubernetes manifests to deploy alongside the chart
+extraManifests: []

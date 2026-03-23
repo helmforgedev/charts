@@ -1,0 +1,142 @@
+suite: Service
+templates:
+  - templates/service.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render game service
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: test-minecraft
+
+  - it: should use LoadBalancer type by default
+    asserts:
+      - equal:
+          path: spec.type
+          value: LoadBalancer
+
+  - it: should expose minecraft port
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: minecraft
+            port: 25565
+            targetPort: minecraft
+            protocol: TCP
+
+  - it: should expose rcon port in main service when rcon enabled
+    set:
+      rcon.enabled: true
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: rcon
+            port: 25575
+            targetPort: rcon
+            protocol: TCP
+
+  - it: should not expose rcon port when rcon disabled
+    set:
+      rcon.enabled: false
+    asserts:
+      - notContains:
+          path: spec.ports
+          content:
+            name: rcon
+            port: 25575
+            targetPort: rcon
+            protocol: TCP
+
+  - it: should expose bedrock port when geyser enabled
+    set:
+      geyser.enabled: true
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: bedrock
+            port: 19132
+            targetPort: bedrock
+            protocol: UDP
+
+  - it: should not expose bedrock port by default
+    asserts:
+      - notContains:
+          path: spec.ports
+          content:
+            name: bedrock
+            port: 19132
+            targetPort: bedrock
+            protocol: UDP
+
+  - it: should set NodePort when configured
+    set:
+      service.type: NodePort
+      service.nodePort: 30565
+    asserts:
+      - equal:
+          path: spec.type
+          value: NodePort
+      - contains:
+          path: spec.ports
+          content:
+            name: minecraft
+            port: 25565
+            targetPort: minecraft
+            protocol: TCP
+            nodePort: 30565
+
+  - it: should apply service annotations
+    set:
+      service.annotations:
+        my-annotation: test
+    asserts:
+      - equal:
+          path: metadata.annotations.my-annotation
+          value: test
+
+  - it: should not render RCON service by default
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: should render RCON service when enabled
+    set:
+      rcon.enabled: true
+      rcon.serviceEnabled: true
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: should name RCON service correctly
+    set:
+      rcon.enabled: true
+      rcon.serviceEnabled: true
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: metadata.name
+          value: test-minecraft-rcon
+
+  - it: should set RCON service as ClusterIP
+    set:
+      rcon.enabled: true
+      rcon.serviceEnabled: true
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - contains:
+          path: spec.ports
+          content:
+            name: rcon
+            port: 25575
+            targetPort: rcon
+            protocol: TCP

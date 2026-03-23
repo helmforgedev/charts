@@ -1,0 +1,66 @@
+# Production Paper server with optimized JVM, whitelist, metrics, and backup
+# helm install minecraft oci://ghcr.io/helmforgedev/helm/minecraft -f production.yaml
+
+server:
+  eula: true
+  type: PAPER
+  version: LATEST
+  motd: "Production Minecraft Server"
+  difficulty: normal
+  gameMode: survival
+  maxPlayers: 50
+  viewDistance: 8
+  simulationDistance: 8
+  pvp: true
+
+jvm:
+  memory: 4G
+  useAikarFlags: true
+
+auth:
+  onlineMode: true
+  whitelist: "player1,player2,player3"
+  enforceWhitelist: true
+  ops: "player1"
+
+rcon:
+  enabled: true
+  existingSecret: minecraft-rcon
+  existingSecretKey: rcon-password
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+
+backup:
+  enabled: true
+  schedule: "0 4 * * *"
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: my-minecraft-backups
+    prefix: production
+    existingSecret: minecraft-backup-s3
+
+persistence:
+  enabled: true
+  size: 50Gi
+
+resources:
+  requests:
+    cpu: "1"
+    memory: 4Gi
+  limits:
+    cpu: "4"
+    memory: 8Gi
+
+terminationGracePeriodSeconds: 180
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: node-role.kubernetes.io/game
+              operator: Exists

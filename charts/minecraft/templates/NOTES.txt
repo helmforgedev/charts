@@ -1,0 +1,78 @@
+Minecraft Server has been deployed!
+
+Server Type: {{ .Values.server.type }}
+Version:     {{ .Values.server.version }}
+Game Mode:   {{ .Values.server.gameMode }}
+Difficulty:  {{ .Values.server.difficulty }}
+Max Players: {{ .Values.server.maxPlayers }}
+
+{{- if eq .Values.service.type "LoadBalancer" }}
+
+To get the server address, run:
+
+  export SERVER_IP=$(kubectl get svc {{ include "minecraft.fullname" . }} \
+    --namespace {{ .Release.Namespace }} \
+    -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+  echo "Connect to: ${SERVER_IP}:{{ .Values.service.port }}"
+
+{{- else if eq .Values.service.type "NodePort" }}
+
+To get the server address, run:
+
+  export NODE_PORT=$(kubectl get svc {{ include "minecraft.fullname" . }} \
+    --namespace {{ .Release.Namespace }} \
+    -o jsonpath='{.spec.ports[?(@.name=="minecraft")].nodePort}')
+  export NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="ExternalIP")].address}')
+  echo "Connect to: ${NODE_IP}:${NODE_PORT}"
+
+{{- else }}
+
+The server is available within the cluster at:
+
+  {{ include "minecraft.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+
+{{- end }}
+
+{{- if .Values.geyser.enabled }}
+
+GeyserMC Cross-Play (Bedrock):
+
+  Bedrock clients can connect on UDP port {{ .Values.geyser.port }}.
+{{- end }}
+
+{{- if .Values.rcon.enabled }}
+
+RCON:
+
+  To retrieve the RCON password:
+
+    kubectl get secret {{ include "minecraft.secretName" . }} \
+      --namespace {{ .Release.Namespace }} \
+      -o jsonpath='{.data.{{ include "minecraft.secretKey" . }}}' | base64 -d
+
+  To connect via RCON from inside the cluster:
+
+    kubectl run rcon-cli --rm -it --restart=Never \
+      --image=itzg/rcon-cli -- \
+      --host {{ include "minecraft.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local \
+      --port {{ .Values.rcon.port }} \
+      --password <RCON_PASSWORD>
+{{- end }}
+
+{{- if .Values.metrics.enabled }}
+
+Metrics:
+
+  Prometheus metrics are available on port {{ .Values.metrics.port }} at /metrics.
+  {{- if .Values.metrics.serviceMonitor.enabled }}
+  A ServiceMonitor has been created for Prometheus Operator auto-discovery.
+  {{- end }}
+{{- end }}
+
+{{- if .Values.backup.enabled }}
+
+Backup:
+
+  Backups are scheduled via CronJob: {{ .Values.backup.schedule }}
+  Target: s3://{{ .Values.backup.s3.bucket }}/{{ .Values.backup.s3.prefix }}/
+{{- end }}

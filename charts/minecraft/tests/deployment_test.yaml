@@ -1,0 +1,270 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-minecraft
+
+  - it: should use Recreate strategy
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should set replicas to 1
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should set EULA to true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: EULA
+            value: "true"
+
+  - it: should set server type from values
+    set:
+      server.type: PAPER
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TYPE
+            value: PAPER
+
+  - it: should set JVM memory
+    set:
+      jvm.memory: 4G
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MEMORY
+            value: "4G"
+
+  - it: should enable Aikar flags when configured
+    set:
+      jvm.useAikarFlags: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: USE_AIKAR_FLAGS
+            value: "true"
+
+  - it: should set RCON password from secret
+    set:
+      rcon.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: RCON_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-minecraft
+                key: rcon-password
+
+  - it: should use existing secret for RCON
+    set:
+      rcon.enabled: true
+      rcon.existingSecret: my-rcon-secret
+      rcon.existingSecretKey: password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: RCON_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: my-rcon-secret
+                key: password
+
+  - it: should disable RCON when not enabled
+    set:
+      rcon.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ENABLE_RCON
+            value: "false"
+
+  - it: should expose minecraft port
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: minecraft
+            containerPort: 25565
+            protocol: TCP
+
+  - it: should expose rcon port when enabled
+    set:
+      rcon.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: rcon
+            containerPort: 25575
+            protocol: TCP
+
+  - it: should expose bedrock port when geyser is enabled
+    set:
+      geyser.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: bedrock
+            containerPort: 19132
+            protocol: UDP
+
+  - it: should use mc-health for probes
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.exec.command[0]
+          value: mc-health
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.exec.command[0]
+          value: mc-health
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[0]
+          value: mc-health
+
+  - it: should mount data volume
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /data
+
+  - it: should use PVC when persistence is enabled
+    set:
+      persistence.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: test-minecraft
+
+  - it: should use emptyDir when persistence is disabled
+    set:
+      persistence.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+
+  - it: should use existing PVC claim
+    set:
+      persistence.enabled: true
+      persistence.existingClaim: my-existing-pvc
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: my-existing-pvc
+
+  - it: should add mc-monitor sidecar when metrics enabled
+    set:
+      metrics.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: mc-monitor
+
+  - it: should not add mc-monitor sidecar by default
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 1
+
+  - it: should set resources when specified
+    set:
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: "2"
+          memory: 4Gi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 500m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 1Gi
+
+  - it: should set termination grace period
+    set:
+      terminationGracePeriodSeconds: 180
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 180
+
+  - it: should set whitelist env vars when configured
+    set:
+      auth.whitelist: "player1,player2"
+      auth.enforceWhitelist: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WHITELIST
+            value: "player1,player2"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ENFORCE_WHITELIST
+            value: "true"
+
+  - it: should set ops when configured
+    set:
+      auth.ops: "admin1"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OPS
+            value: "admin1"
+
+  - it: should set modrinth projects when configured
+    set:
+      mods.modrinthProjects: "geyser,floodgate"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MODRINTH_PROJECTS
+            value: "geyser,floodgate"
+
+  - it: should set security context
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 1000

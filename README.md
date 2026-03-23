@@ -28,6 +28,7 @@ Project links:
 | [mysql](charts/mysql/) | MySQL — standalone or fixed-source replication with optional metrics |
 | [keycloak](charts/keycloak/) | Keycloak — dev or production mode with external DB and separated management service |
 | [vaultwarden](charts/vaultwarden/) | Vaultwarden — single-instance with persistent SQLite, ingress, and optional SMTP |
+| [minecraft](charts/minecraft/) | Minecraft — Java Edition server with Vanilla, Paper, Forge, Fabric, GeyserMC cross-play, S3 backup, and monitoring |
 
 ## Quick Start
 
