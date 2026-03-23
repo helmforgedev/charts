@@ -1,0 +1,50 @@
+suite: ServiceMonitor
+templates:
+  - templates/servicemonitor.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render when only metrics enabled
+    set:
+      metrics.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render when both metrics and serviceMonitor enabled
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+      - equal:
+          path: metadata.name
+          value: test-minecraft
+
+  - it: should set scrape interval
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+      metrics.serviceMonitor.interval: 15s
+    asserts:
+      - equal:
+          path: spec.endpoints[0].interval
+          value: 15s
+
+  - it: should apply extra labels
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+      metrics.serviceMonitor.labels:
+        release: prometheus
+    asserts:
+      - equal:
+          path: metadata.labels.release
+          value: prometheus

@@ -1,0 +1,148 @@
+{{- if include "minecraft.backupEnabled" . }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "minecraft.fullname" . }}-backup
+  labels:
+    {{- include "minecraft.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  suspend: {{ .Values.backup.suspend }}
+  concurrencyPolicy: {{ .Values.backup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "minecraft.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: backup
+    spec:
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "minecraft.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.podSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          restartPolicy: Never
+          initContainers:
+            - name: pre-backup
+              image: {{ .Values.backup.images.worker }}
+              command: ["/bin/sh", "/scripts/pre-backup.sh"]
+              env:
+                - name: RCON_HOST
+                  value: {{ include "minecraft.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+                - name: RCON_PORT
+                  value: {{ .Values.rcon.port | quote }}
+                - name: RCON_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "minecraft.secretName" . }}
+                      key: {{ include "minecraft.secretKey" . }}
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+            - name: archive
+              image: {{ .Values.backup.images.worker }}
+              command: ["/bin/sh", "/scripts/archive-backup.sh"]
+              env:
+                - name: BACKUP_ARCHIVE_PREFIX
+                  value: {{ .Values.backup.archivePrefix | quote }}
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: data
+                  mountPath: /data
+                  readOnly: true
+                - name: backup-workdir
+                  mountPath: /backup/out
+          containers:
+            - name: upload
+              image: {{ .Values.backup.images.uploader }}
+              command: ["/bin/sh", "/scripts/upload-backup.sh"]
+              env:
+                - name: S3_ENDPOINT
+                  value: {{ .Values.backup.s3.endpoint | quote }}
+                - name: S3_BUCKET
+                  value: {{ .Values.backup.s3.bucket | quote }}
+                - name: S3_PREFIX
+                  value: {{ .Values.backup.s3.prefix | quote }}
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "minecraft.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretAccessKeyKey }}
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "minecraft.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: backup-workdir
+                  mountPath: /backup/out
+            - name: post-backup
+              image: {{ .Values.backup.images.worker }}
+              command: ["/bin/sh", "/scripts/post-backup.sh"]
+              env:
+                - name: RCON_HOST
+                  value: {{ include "minecraft.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+                - name: RCON_PORT
+                  value: {{ .Values.rcon.port | quote }}
+                - name: RCON_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "minecraft.secretName" . }}
+                      key: {{ include "minecraft.secretKey" . }}
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+          volumes:
+            - name: scripts
+              configMap:
+                name: {{ include "minecraft.backupConfigMapName" . }}
+                defaultMode: 0755
+            - name: data
+              persistentVolumeClaim:
+                claimName: {{ default (include "minecraft.fullname" .) .Values.persistence.existingClaim }}
+            - name: backup-workdir
+              emptyDir: {}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

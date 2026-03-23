@@ -1,0 +1,62 @@
+{{- if include "minecraft.backupEnabled" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "minecraft.backupConfigMapName" . }}
+  labels:
+    {{- include "minecraft.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+data:
+  pre-backup.sh: |
+    #!/bin/sh
+    set -e
+    echo "[backup] Sending save-all flush to Minecraft server..."
+    rcon-cli --host "${RCON_HOST}" --port "${RCON_PORT}" --password "${RCON_PASSWORD}" save-all flush
+    sleep 5
+    echo "[backup] Sending save-off to Minecraft server..."
+    rcon-cli --host "${RCON_HOST}" --port "${RCON_PORT}" --password "${RCON_PASSWORD}" save-off
+    echo "[backup] Server saves disabled. Ready for backup."
+
+  archive-backup.sh: |
+    #!/bin/sh
+    set -e
+    TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
+    ARCHIVE="${BACKUP_ARCHIVE_PREFIX}-${TIMESTAMP}.tar.gz"
+    echo "[backup] Creating archive: ${ARCHIVE}"
+    tar czf "/backup/out/${ARCHIVE}" \
+      --exclude='*.jar' \
+      {{- if .Values.backup.excludes }}
+      {{- range (splitList " " .Values.backup.excludes) }}
+      --exclude='{{ . }}' \
+      {{- end }}
+      {{- end }}
+      -C /data .
+    echo "/backup/out/${ARCHIVE}" > /backup/out/backup-file
+    echo "[backup] Archive created: $(du -h /backup/out/${ARCHIVE} | cut -f1)"
+
+  post-backup.sh: |
+    #!/bin/sh
+    set -e
+    echo "[backup] Sending save-on to Minecraft server..."
+    rcon-cli --host "${RCON_HOST}" --port "${RCON_PORT}" --password "${RCON_PASSWORD}" save-on
+    echo "[backup] Server saves re-enabled."
+
+  upload-backup.sh: |
+    #!/bin/sh
+    set -e
+    BACKUP_FILE=$(cat /backup/out/backup-file)
+    ARCHIVE_NAME=$(basename "${BACKUP_FILE}")
+
+    echo "[backup] Configuring S3 client..."
+    mc alias set backup "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}"
+
+    {{- if .Values.backup.s3.createBucketIfNotExists }}
+    echo "[backup] Ensuring bucket exists..."
+    mc mb --ignore-existing "backup/${S3_BUCKET}"
+    {{- end }}
+
+    TARGET="backup/${S3_BUCKET}/${S3_PREFIX}/${ARCHIVE_NAME}"
+    echo "[backup] Uploading ${ARCHIVE_NAME} to ${TARGET}..."
+    mc cp "${BACKUP_FILE}" "${TARGET}"
+    echo "[backup] Upload complete."
+{{- end }}
