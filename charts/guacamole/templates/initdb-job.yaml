@@ -1,0 +1,120 @@
+{{- if .Values.initDb.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "guacamole.fullname" . }}-initdb
+  labels:
+    {{- include "guacamole.labels" . | nindent 4 }}
+    app.kubernetes.io/component: initdb
+  annotations:
+    helm.sh/hook: post-install
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "guacamole.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: initdb
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z -w2 {{ include "guacamole.dbHost" . }} {{ include "guacamole.dbPort" . }}; do
+                echo "waiting for database..."
+                sleep 2
+              done
+        - name: generate-schema
+          image: {{ include "guacamole.image" . | quote }}
+          command:
+            - sh
+            - -c
+            - |
+              /opt/guacamole/bin/initdb.sh --{{ include "guacamole.dbType" . }} > /schema/initdb.sql
+          volumeMounts:
+            - name: schema
+              mountPath: /schema
+      containers:
+        {{- if eq (include "guacamole.dbType" .) "postgresql" }}
+        - name: apply-schema
+          image: "{{ .Values.backup.images.postgresql.repository }}:{{ .Values.backup.images.postgresql.tag }}"
+          env:
+            - name: PGHOST
+              value: {{ include "guacamole.dbHost" . | quote }}
+            - name: PGPORT
+              value: {{ include "guacamole.dbPort" . | quote }}
+            - name: PGDATABASE
+              value: {{ include "guacamole.dbName" . | quote }}
+            - name: PGUSER
+              value: {{ include "guacamole.dbUsername" . | quote }}
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "guacamole.dbSecretName" . }}
+                  key: {{ include "guacamole.dbSecretPasswordKey" . }}
+          command:
+            - sh
+            - -c
+            - |
+              echo "Checking if schema already exists..."
+              TABLE_COUNT=$(psql -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'guacamole_user'")
+              if [ "$TABLE_COUNT" -gt 0 ]; then
+                echo "Schema already initialized, skipping."
+              else
+                echo "Initializing database schema..."
+                psql -f /schema/initdb.sql
+                echo "Schema initialized successfully."
+              fi
+          {{- with .Values.initDb.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: schema
+              mountPath: /schema
+              readOnly: true
+        {{- else }}
+        - name: apply-schema
+          image: "{{ .Values.backup.images.mysql.repository }}:{{ .Values.backup.images.mysql.tag }}"
+          env:
+            - name: MYSQL_HOST
+              value: {{ include "guacamole.dbHost" . | quote }}
+            - name: MYSQL_TCP_PORT
+              value: {{ include "guacamole.dbPort" . | quote }}
+            - name: MYSQL_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "guacamole.dbSecretName" . }}
+                  key: {{ include "guacamole.dbSecretPasswordKey" . }}
+          command:
+            - sh
+            - -c
+            - |
+              echo "Checking if schema already exists..."
+              TABLE_COUNT=$(mysql -u {{ include "guacamole.dbUsername" . }} {{ include "guacamole.dbName" . }} -sNe "SELECT count(*) FROM information_schema.tables WHERE table_schema = '{{ include "guacamole.dbName" . }}' AND table_name = 'guacamole_user'")
+              if [ "$TABLE_COUNT" -gt 0 ]; then
+                echo "Schema already initialized, skipping."
+              else
+                echo "Initializing database schema..."
+                mysql -u {{ include "guacamole.dbUsername" . }} {{ include "guacamole.dbName" . }} < /schema/initdb.sql
+                echo "Schema initialized successfully."
+              fi
+          {{- with .Values.initDb.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: schema
+              mountPath: /schema
+              readOnly: true
+        {{- end }}
+      volumes:
+        - name: schema
+          emptyDir: {}
+{{- end }}

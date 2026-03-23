@@ -1,0 +1,69 @@
+suite: InitDB Job
+templates:
+  - templates/initdb-job.yaml
+  - templates/secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render Job when initDb enabled
+    template: templates/initdb-job.yaml
+    set:
+      postgresql.auth.password: test
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: post-install
+
+  - it: should not render when initDb disabled
+    template: templates/initdb-job.yaml
+    set:
+      initDb.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should have wait-for-db and generate-schema init containers
+    template: templates/initdb-job.yaml
+    set:
+      postgresql.auth.password: test
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: generate-schema
+
+  - it: should use postgresql apply container by default
+    template: templates/initdb-job.yaml
+    set:
+      postgresql.auth.password: test
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: apply-schema
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PGHOST
+            value: "test-postgresql"
+
+  - it: should use mysql apply container when mysql type
+    template: templates/initdb-job.yaml
+    set:
+      database.type: mysql
+      mysql.enabled: true
+      mysql.auth.password: test
+      postgresql.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: apply-schema
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MYSQL_HOST
+            value: "test-mysql"

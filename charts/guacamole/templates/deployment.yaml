@@ -1,0 +1,244 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "guacamole.fullname" . }}
+  labels:
+    {{- include "guacamole.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "guacamole.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "guacamole.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/secrets: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z -w2 {{ include "guacamole.dbHost" . }} {{ include "guacamole.dbPort" . }}; do
+                echo "waiting for database..."
+                sleep 2
+              done
+      containers:
+        - name: guacamole
+          image: {{ include "guacamole.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: GUACD_HOSTNAME
+              value: "localhost"
+            - name: GUACD_PORT
+              value: {{ .Values.guacd.port | quote }}
+            {{- if .Values.guacamole.contextPath }}
+            - name: WEBAPP_CONTEXT
+              value: {{ .Values.guacamole.contextPath | quote }}
+            {{- end }}
+            {{- if eq (include "guacamole.dbType" .) "postgresql" }}
+            - name: POSTGRESQL_HOSTNAME
+              value: {{ include "guacamole.dbHost" . | quote }}
+            - name: POSTGRESQL_PORT
+              value: {{ include "guacamole.dbPort" . | quote }}
+            - name: POSTGRESQL_DATABASE
+              value: {{ include "guacamole.dbName" . | quote }}
+            - name: POSTGRESQL_USER
+              value: {{ include "guacamole.dbUsername" . | quote }}
+            - name: POSTGRESQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "guacamole.dbSecretName" . }}
+                  key: {{ include "guacamole.dbSecretPasswordKey" . }}
+            {{- else }}
+            - name: MYSQL_HOSTNAME
+              value: {{ include "guacamole.dbHost" . | quote }}
+            - name: MYSQL_PORT
+              value: {{ include "guacamole.dbPort" . | quote }}
+            - name: MYSQL_DATABASE
+              value: {{ include "guacamole.dbName" . | quote }}
+            - name: MYSQL_USER
+              value: {{ include "guacamole.dbUsername" . | quote }}
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "guacamole.dbSecretName" . }}
+                  key: {{ include "guacamole.dbSecretPasswordKey" . }}
+            {{- end }}
+            {{- if .Values.proxy.enabled }}
+            - name: REMOTE_IP_VALVE_ENABLED
+              value: "true"
+            {{- if .Values.proxy.allowedIpsRegex }}
+            - name: PROXY_ALLOWED_IPS_REGEX
+              value: {{ .Values.proxy.allowedIpsRegex | quote }}
+            {{- end }}
+            - name: PROXY_IP_HEADER
+              value: {{ .Values.proxy.ipHeader | quote }}
+            - name: PROXY_PROTOCOL_HEADER
+              value: {{ .Values.proxy.protocolHeader | quote }}
+            {{- end }}
+            {{- if .Values.oidc.enabled }}
+            - name: OPENID_AUTHORIZATION_ENDPOINT
+              value: {{ .Values.oidc.authorizationEndpoint | quote }}
+            - name: OPENID_JWKS_ENDPOINT
+              value: {{ .Values.oidc.jwksEndpoint | quote }}
+            - name: OPENID_ISSUER
+              value: {{ .Values.oidc.issuer | quote }}
+            - name: OPENID_CLIENT_ID
+              value: {{ .Values.oidc.clientId | quote }}
+            - name: OPENID_REDIRECT_URI
+              value: {{ include "guacamole.oidcRedirectUri" . | quote }}
+            - name: OPENID_SCOPE
+              value: {{ .Values.oidc.scope | quote }}
+            - name: OPENID_USERNAME_CLAIM_TYPE
+              value: {{ .Values.oidc.usernameClaim | quote }}
+            - name: OPENID_GROUPS_CLAIM_TYPE
+              value: {{ .Values.oidc.groupsClaim | quote }}
+            - name: OPENID_ALLOWED_CLOCK_SKEW
+              value: {{ .Values.oidc.allowedClockSkew | quote }}
+            - name: OPENID_MAX_TOKEN_VALIDITY
+              value: {{ .Values.oidc.maxTokenValidity | quote }}
+            {{- end }}
+            {{- if .Values.saml.enabled }}
+            {{- if .Values.saml.idpMetadataUrl }}
+            - name: SAML_IDP_METADATA_URL
+              value: {{ .Values.saml.idpMetadataUrl | quote }}
+            {{- end }}
+            {{- if .Values.saml.idpUrl }}
+            - name: SAML_IDP_URL
+              value: {{ .Values.saml.idpUrl | quote }}
+            {{- end }}
+            - name: SAML_ENTITY_ID
+              value: {{ include "guacamole.samlEntityId" . | quote }}
+            - name: SAML_CALLBACK_URL
+              value: {{ include "guacamole.samlCallbackUrl" . | quote }}
+            - name: SAML_STRICT
+              value: {{ .Values.saml.strict | quote }}
+            - name: SAML_DEBUG
+              value: {{ .Values.saml.debug | quote }}
+            - name: SAML_COMPRESS_REQUEST
+              value: {{ .Values.saml.compressRequest | quote }}
+            - name: SAML_COMPRESS_RESPONSE
+              value: {{ .Values.saml.compressResponse | quote }}
+            - name: SAML_GROUP_ATTRIBUTE
+              value: {{ .Values.saml.groupAttribute | quote }}
+            {{- end }}
+            {{- if .Values.totp.enabled }}
+            - name: TOTP_ENABLED
+              value: "true"
+            {{- end }}
+            {{- with .Values.guacamole.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.probes.startup.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.extraVolumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        - name: guacd
+          image: {{ include "guacamole.guacdImage" . | quote }}
+          imagePullPolicy: {{ .Values.guacd.image.pullPolicy }}
+          ports:
+            - name: guacd
+              containerPort: {{ .Values.guacd.port }}
+              protocol: TCP
+          env:
+            - name: GUACD_LOG_LEVEL
+              value: {{ .Values.guacd.logLevel | quote }}
+          livenessProbe:
+            tcpSocket:
+              port: guacd
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: guacd
+            periodSeconds: 10
+            failureThreshold: 3
+          {{- with .Values.guacd.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.extraVolumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

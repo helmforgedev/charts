@@ -1,0 +1,121 @@
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "guacamole.fullname" . }}-backup
+  labels:
+    {{- include "guacamole.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  suspend: {{ .Values.backup.suspend }}
+  concurrencyPolicy: {{ .Values.backup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "guacamole.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          initContainers:
+            {{- if eq (include "guacamole.dbType" .) "postgresql" }}
+            - name: postgres-backup
+              image: "{{ .Values.backup.images.postgresql.repository }}:{{ .Values.backup.images.postgresql.tag }}"
+              imagePullPolicy: {{ .Values.backup.images.postgresql.pullPolicy }}
+              command: ["/bin/sh", "/scripts/postgres-backup.sh"]
+              env:
+                - name: PGHOST
+                  value: {{ include "guacamole.dbHost" . | quote }}
+                - name: PGPORT
+                  value: {{ include "guacamole.dbPort" . | quote }}
+                - name: PGDATABASE
+                  value: {{ include "guacamole.dbName" . | quote }}
+                - name: PGUSER
+                  value: {{ include "guacamole.dbUsername" . | quote }}
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "guacamole.dbSecretName" . }}
+                      key: {{ include "guacamole.dbSecretPasswordKey" . }}
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: backup-scratch
+                  mountPath: /backup
+                - name: scripts
+                  mountPath: /scripts
+            {{- else }}
+            - name: mysql-backup
+              image: "{{ .Values.backup.images.mysql.repository }}:{{ .Values.backup.images.mysql.tag }}"
+              imagePullPolicy: {{ .Values.backup.images.mysql.pullPolicy }}
+              command: ["/bin/sh", "/scripts/mysql-backup.sh"]
+              env:
+                - name: MYSQL_HOST
+                  value: {{ include "guacamole.dbHost" . | quote }}
+                - name: MYSQL_TCP_PORT
+                  value: {{ include "guacamole.dbPort" . | quote }}
+                - name: MYSQL_DATABASE
+                  value: {{ include "guacamole.dbName" . | quote }}
+                - name: MYSQL_USER
+                  value: {{ include "guacamole.dbUsername" . | quote }}
+                - name: MYSQL_PWD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "guacamole.dbSecretName" . }}
+                      key: {{ include "guacamole.dbSecretPasswordKey" . }}
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: backup-scratch
+                  mountPath: /backup
+                - name: scripts
+                  mountPath: /scripts
+            {{- end }}
+          containers:
+            - name: upload
+              image: "{{ .Values.backup.images.uploader.repository }}:{{ .Values.backup.images.uploader.tag }}"
+              imagePullPolicy: {{ .Values.backup.images.uploader.pullPolicy }}
+              command: ["/bin/sh", "/scripts/upload-backup.sh"]
+              env:
+                - name: S3_ENDPOINT
+                  value: {{ .Values.backup.s3.endpoint | quote }}
+                - name: S3_BUCKET
+                  value: {{ .Values.backup.s3.bucket | quote }}
+                - name: S3_PREFIX
+                  value: {{ .Values.backup.s3.prefix | quote }}
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "guacamole.backupSecretName" . }}
+                      key: {{ include "guacamole.backupSecretAccessKeyKey" . }}
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "guacamole.backupSecretName" . }}
+                      key: {{ include "guacamole.backupSecretSecretKeyKey" . }}
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: backup-scratch
+                  mountPath: /backup
+                  readOnly: true
+                - name: scripts
+                  mountPath: /scripts
+          volumes:
+            - name: backup-scratch
+              emptyDir: {}
+            - name: scripts
+              configMap:
+                name: {{ include "guacamole.fullname" . }}-backup-scripts
+                defaultMode: 0755
+{{- end }}
