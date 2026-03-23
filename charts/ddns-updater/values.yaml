@@ -1,0 +1,206 @@
+# =============================================================================
+# DDNS Updater Helm Chart — Default Values
+# =============================================================================
+# Focus: dynamic DNS updates for 50+ providers with web UI
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- ddns-updater container image
+  repository: qmcgaw/ddns-updater
+  # -- Image tag (defaults to appVersion)
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# DDNS Configuration
+# =============================================================================
+
+config:
+  # -- DNS records to keep updated (rendered as config.json secret)
+  # -- Each entry must have a "provider" field plus provider-specific fields
+  # -- @default -- `[]`
+  settings: []
+    # - provider: cloudflare
+    #   zone_identifier: "cf-zone-id"
+    #   domain: "example.com"
+    #   host: "@"
+    #   ttl: 300
+    #   token: "cf-api-token"
+    #   proxied: false
+    #   ip_version: "ipv4"
+    # - provider: duckdns
+    #   domain: "myhost.duckdns.org"
+    #   token: "duck-token"
+    # - provider: namecheap
+    #   domain: "example.com"
+    #   host: "home"
+    #   password: "ddns-password"
+
+  # -- Use an existing secret containing config.json instead of inline settings
+  existingSecret: ""
+  # -- Key inside the existing secret
+  existingSecretKey: config.json
+
+# =============================================================================
+# Application Options
+# =============================================================================
+
+ddns:
+  # -- Period between IP checks
+  period: 5m
+  # -- HTTP timeout for IP detection and API calls
+  httpTimeout: 10s
+  # -- Public IP fetchers (all, http, dns)
+  publicIpFetchers: all
+  # -- Update cooldown period per record
+  updateCooldownPeriod: 5m
+  # -- Log level (debug, info, warning, error)
+  logLevel: info
+  # -- Web UI listen port
+  port: 8000
+  # -- Web UI root URL path (useful behind a reverse proxy)
+  rootUrl: /
+  # -- Extra environment variables for the container
+  # -- @default -- `[]`
+  extraEnv: []
+    # - name: PUBLICIP_HTTP_PROVIDERS
+    #   value: "ipify,ifconfig"
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistence for update history (updates.json)
+  enabled: true
+  # -- Storage size
+  size: 256Mi
+  # -- Storage class
+  storageClass: ""
+  # -- Access modes
+  accessModes:
+    - ReadWriteOnce
+  # -- Use an existing PVC
+  existingClaim: ""
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- Web UI service port
+  port: 80
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for the web UI
+  enabled: false
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts: []
+    # - host: ddns.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+    # - hosts:
+    #     - ddns.example.com
+    #   secretName: ddns-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    path: /
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 12
+  liveness:
+    enabled: true
+    path: /
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    path: /
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+  # requests:
+  #   cpu: 10m
+  #   memory: 16Mi
+  # limits:
+  #   memory: 64Mi
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []
