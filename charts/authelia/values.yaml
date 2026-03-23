@@ -1,0 +1,488 @@
+# =============================================================================
+# Authelia Helm Chart — Default Values
+# =============================================================================
+# Focus: authentication/authorization with SSO, MFA, OpenID Connect, forward auth
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Authelia container image
+  repository: authelia/authelia
+  # -- Image tag (defaults to appVersion)
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Authelia Configuration
+# =============================================================================
+# This block is rendered as configuration.yml and mounted into the container.
+# Sensitive values (secrets) are injected via env vars from a separate Secret.
+# See https://www.authelia.com/configuration/prologue/introduction/
+
+config:
+  # -- Theme: light, dark, grey, auto
+  theme: light
+
+  # -- Server configuration
+  server:
+    address: "tcp://:9091/"
+    # -- Disable healthcheck.sh env file (recommended for Kubernetes)
+    disable_healthcheck: true
+    buffers:
+      read: 4096
+      write: 4096
+    timeouts:
+      read: 6s
+      write: 6s
+      idle: 30s
+
+  # -- Log configuration
+  log:
+    level: info
+    format: text
+
+  # -- Telemetry / Prometheus metrics
+  telemetry:
+    metrics:
+      enabled: false
+      address: "tcp://:9959/metrics"
+
+  # -- TOTP configuration
+  totp:
+    disable: false
+    issuer: authelia.com
+    algorithm: SHA1
+    digits: 6
+    period: 30
+    secret_size: 32
+
+  # -- WebAuthn configuration
+  webauthn:
+    disable: false
+    display_name: Authelia
+    timeout: 60s
+
+  # -- NTP configuration
+  ntp:
+    address: "udp://time.cloudflare.com:123"
+    version: 4
+    max_desync: 3s
+    disable_startup_check: false
+
+  # -- Authentication backend (file or ldap — mutually exclusive)
+  # -- @default -- file-based with /config/users_database.yml
+  authentication_backend:
+    password_reset:
+      disable: false
+    refresh_interval: 5m
+    file:
+      path: /config/users_database.yml
+      password:
+        algorithm: argon2
+        argon2:
+          variant: argon2id
+          iterations: 3
+          memory: 65536
+          parallelism: 4
+          key_length: 32
+          salt_length: 16
+    # ldap:
+    #   address: "ldaps://127.0.0.1:636"
+    #   implementation: custom
+    #   timeout: 20s
+    #   start_tls: false
+    #   base_dn: "dc=example,dc=com"
+    #   additional_users_dn: "ou=users"
+    #   users_filter: "(&({username_attribute}={input})(objectClass=person))"
+    #   additional_groups_dn: "ou=groups"
+    #   groups_filter: "(&(member={dn})(objectClass=groupOfNames))"
+    #   user: "cn=admin,dc=example,dc=com"
+    #   password: ""
+
+  # -- Password policy
+  password_policy:
+    standard:
+      enabled: false
+      min_length: 8
+      max_length: 0
+      require_uppercase: true
+      require_lowercase: true
+      require_number: true
+      require_special: true
+    zxcvbn:
+      enabled: false
+      min_score: 3
+
+  # -- Access control rules
+  access_control:
+    default_policy: deny
+    rules: []
+      # - domain: "public.example.com"
+      #   policy: bypass
+      # - domain: "*.example.com"
+      #   policy: one_factor
+      # - domain: "secure.example.com"
+      #   policy: two_factor
+
+  # -- Session configuration
+  # -- session.secret is injected via AUTHELIA_SESSION_SECRET env var
+  session:
+    name: authelia_session
+    same_site: lax
+    inactivity: 5m
+    expiration: 1h
+    remember_me: 1M
+    cookies:
+      - domain: example.com
+        authelia_url: "https://auth.example.com"
+        default_redirection_url: "https://www.example.com"
+
+  # -- Regulation (brute force protection)
+  regulation:
+    max_retries: 3
+    find_time: 2m
+    ban_time: 5m
+
+  # -- Storage configuration
+  # -- Overridden by the chart based on database.type
+  # -- storage.encryption_key is injected via AUTHELIA_STORAGE_ENCRYPTION_KEY env var
+  storage:
+    local:
+      path: /data/db.sqlite3
+
+  # -- Notifier configuration (filesystem or smtp — mutually exclusive)
+  notifier:
+    disable_startup_check: false
+    filesystem:
+      filename: /data/notification.txt
+    # smtp:
+    #   address: "submissions://smtp.example.com:465"
+    #   sender: "Authelia <authelia@example.com>"
+    #   subject: "[Authelia] {title}"
+    #   timeout: 5s
+    #   disable_require_tls: false
+    #   disable_html_emails: false
+    #   username: ""
+    #   password: ""
+
+  # -- Identity providers (OpenID Connect)
+  # identity_providers:
+  #   oidc:
+  #     clients:
+  #       - client_id: myapp
+  #         client_name: My Application
+  #         client_secret: ""
+  #         public: false
+  #         authorization_policy: two_factor
+  #         redirect_uris:
+  #           - https://myapp.example.com/callback
+
+# =============================================================================
+# Secrets
+# =============================================================================
+# Sensitive values injected via AUTHELIA_* env vars from a Kubernetes Secret.
+# Provide values inline or reference an existing secret.
+
+secrets:
+  # -- JWT secret for identity validation (required, 64+ chars recommended)
+  jwtSecret: ""
+  # -- Session encryption secret (required, 64+ chars recommended)
+  sessionSecret: ""
+  # -- Storage encryption key (required, 20+ chars minimum)
+  storageEncryptionKey: ""
+  # -- OIDC HMAC secret (required only when using OIDC)
+  oidcHmacSecret: ""
+  # -- Existing secret containing all credential keys
+  existingSecret: ""
+  # -- Key mappings for the existing secret
+  existingSecretJwtKey: jwt-secret
+  existingSecretSessionKey: session-secret
+  existingSecretStorageEncryptionKey: storage-encryption-key
+  existingSecretOidcHmacKey: oidc-hmac-secret
+
+# =============================================================================
+# Users Database (file-based authentication)
+# =============================================================================
+
+usersDatabase:
+  # -- Enable file-based user database mounted at /config/users_database.yml
+  enabled: true
+  # -- Existing secret containing the users_database.yml file
+  existingSecret: ""
+  # -- Key in the existing secret
+  existingSecretKey: users_database.yml
+  # -- Inline user definitions (rendered as users_database.yml)
+  # -- @default -- `{}`
+  users: {}
+    # john:
+    #   disabled: false
+    #   displayname: "John Doe"
+    #   email: "john@example.com"
+    #   password: "$argon2id$v=19$m=65536,t=3,p=4$..."
+    #   groups:
+    #     - admins
+    #     - dev
+
+# =============================================================================
+# Database
+# =============================================================================
+
+database:
+  # -- Database type: sqlite, postgres, mysql
+  type: sqlite
+  # -- External database configuration (used when subcharts are disabled)
+  external:
+    host: ""
+    port: ""
+    name: authelia
+    username: authelia
+    password: ""
+    # -- Schema name (PostgreSQL only)
+    schema: public
+    # -- Existing secret containing the database password
+    existingSecret: ""
+    # -- Key in the existing secret containing the password
+    existingSecretPasswordKey: password
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistence for /data (SQLite DB, notification files)
+  enabled: true
+  # -- Storage size
+  size: 1Gi
+  # -- Storage class
+  storageClass: ""
+  # -- Access modes
+  accessModes:
+    - ReadWriteOnce
+  # -- Use an existing PVC
+  existingClaim: ""
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- HTTP service port
+  port: 80
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Metrics Service
+# =============================================================================
+
+metrics:
+  # -- Enable a separate metrics service (requires config.telemetry.metrics.enabled)
+  enabled: false
+  service:
+    # -- Metrics service port
+    port: 9959
+    # -- Annotations for the metrics service
+    annotations: {}
+  # -- Enable Prometheus ServiceMonitor
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Authelia
+  enabled: false
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts: []
+    # - host: auth.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+    # - hosts:
+    #     - auth.example.com
+    #   secretName: authelia-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    path: /api/health
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    path: /api/health
+    initialDelaySeconds: 0
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 5
+  readiness:
+    enabled: true
+    path: /api/health
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Backup
+# =============================================================================
+
+backup:
+  # -- Enable built-in backup CronJob (SQLite tar or pg_dump/mysqldump + S3 upload)
+  enabled: false
+  # -- Backup schedule in Cron format
+  schedule: "0 2 * * *"
+  # -- Suspend backup execution
+  suspend: false
+  # -- CronJob concurrency policy
+  concurrencyPolicy: Forbid
+  # -- Successful job history retained
+  successfulJobsHistoryLimit: 3
+  # -- Failed job history retained
+  failedJobsHistoryLimit: 3
+  # -- Job backoff limit
+  backoffLimit: 1
+  # -- Prefix for backup archive names
+  archivePrefix: authelia
+  # -- Resources for backup containers
+  resources: {}
+  images:
+    uploader:
+      repository: minio/mc
+      tag: "RELEASE.2025-08-13T08-35-41Z"
+      pullPolicy: IfNotPresent
+    sqlite:
+      repository: busybox
+      tag: "1.37"
+      pullPolicy: IfNotPresent
+    postgresql:
+      repository: postgres
+      tag: "18.3-trixie"
+      pullPolicy: IfNotPresent
+    mysql:
+      repository: mysql
+      tag: "8.4"
+      pullPolicy: IfNotPresent
+  s3:
+    # -- S3-compatible endpoint URL
+    endpoint: ""
+    # -- Target bucket name
+    bucket: ""
+    # -- Optional prefix inside the bucket
+    prefix: authelia
+    # -- Create bucket if not exists
+    createBucketIfNotExists: true
+    # -- Existing secret containing access-key and secret-key
+    existingSecret: ""
+    existingSecretAccessKeyKey: access-key
+    existingSecretSecretKeyKey: secret-key
+    # -- Inline access key
+    accessKey: ""
+    # -- Inline secret key
+    secretKey: ""
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []
+
+# =============================================================================
+# Subcharts
+# =============================================================================
+
+postgresql:
+  # -- Enable the local PostgreSQL chart
+  enabled: false
+  architecture: standalone
+  auth:
+    database: authelia
+    username: authelia
+    # -- Required when using the PostgreSQL subchart
+    password: ""
+
+mysql:
+  # -- Enable the local MySQL chart
+  enabled: false
+  architecture: standalone
+  auth:
+    database: authelia
+    username: authelia
+    # -- Required when using the MySQL subchart
+    password: ""
+
+redis:
+  # -- Enable the local Redis chart for session storage
+  enabled: false
+  architecture: standalone
+  auth:
+    # -- Required when using the Redis subchart
+    password: ""

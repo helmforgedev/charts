@@ -1,0 +1,81 @@
+# Production Authelia with PostgreSQL, Redis, SMTP, ingress, and backup
+
+secrets:
+  existingSecret: authelia-credentials
+  # The existing secret must contain keys:
+  #   jwt-secret, session-secret, storage-encryption-key, oidc-hmac-secret (optional)
+
+database:
+  type: postgres
+
+postgresql:
+  enabled: true
+  auth:
+    password: "strong-db-password"
+
+redis:
+  enabled: true
+  auth:
+    password: "strong-redis-password"
+
+config:
+  log:
+    level: info
+    format: json
+
+  session:
+    cookies:
+      - domain: example.com
+        authelia_url: "https://auth.example.com"
+        default_redirection_url: "https://www.example.com"
+
+  access_control:
+    default_policy: deny
+    rules:
+      - domain: "public.example.com"
+        policy: bypass
+      - domain: "*.example.com"
+        policy: two_factor
+
+  notifier:
+    filesystem: null
+    smtp:
+      address: "submissions://smtp.example.com:465"
+      sender: "Authelia <no-reply@example.com>"
+      subject: "[Authelia] {title}"
+      username: "smtp-user"
+      password: "smtp-password"
+
+  telemetry:
+    metrics:
+      enabled: true
+      address: "tcp://:9959/metrics"
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+  hosts:
+    - host: auth.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - auth.example.com
+      secretName: authelia-tls
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+
+backup:
+  enabled: true
+  schedule: "0 3 * * *"
+  s3:
+    endpoint: "https://s3.example.com"
+    bucket: "backups"
+    prefix: "authelia"
+    existingSecret: authelia-backup-s3

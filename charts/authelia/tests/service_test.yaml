@@ -1,0 +1,59 @@
+suite: Service
+templates:
+  - templates/service.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Service
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: test-authelia
+      - equal:
+          path: spec.type
+          value: ClusterIP
+
+  - it: should use default port 80
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: http
+            port: 80
+            targetPort: http
+            protocol: TCP
+
+  - it: should not render metrics service by default
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: should render metrics service when metrics is enabled
+    set:
+      metrics.enabled: true
+      config.telemetry.metrics.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: should use correct metrics port
+    set:
+      metrics.enabled: true
+      config.telemetry.metrics.enabled: true
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: metadata.name
+          value: test-authelia-metrics
+      - contains:
+          path: spec.ports
+          content:
+            name: metrics
+            port: 9959
+            targetPort: metrics
+            protocol: TCP
