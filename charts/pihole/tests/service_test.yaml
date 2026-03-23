@@ -1,0 +1,120 @@
+suite: Services
+templates:
+  - templates/service-dns.yaml
+  - templates/service-web.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render DNS service
+    template: templates/service-dns.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: test-pihole-dns
+
+  - it: should render DNS service as LoadBalancer by default
+    template: templates/service-dns.yaml
+    asserts:
+      - equal:
+          path: spec.type
+          value: LoadBalancer
+
+  - it: should expose TCP and UDP DNS ports
+    template: templates/service-dns.yaml
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: dns-tcp
+            port: 53
+            targetPort: dns-tcp
+            protocol: TCP
+      - contains:
+          path: spec.ports
+          content:
+            name: dns-udp
+            port: 53
+            targetPort: dns-udp
+            protocol: UDP
+
+  - it: should set loadBalancerIP when configured
+    template: templates/service-dns.yaml
+    set:
+      serviceDns.loadBalancerIP: "192.168.1.53"
+    asserts:
+      - equal:
+          path: spec.loadBalancerIP
+          value: "192.168.1.53"
+
+  - it: should set externalTrafficPolicy when configured
+    template: templates/service-dns.yaml
+    set:
+      serviceDns.externalTrafficPolicy: Local
+    asserts:
+      - equal:
+          path: spec.externalTrafficPolicy
+          value: Local
+
+  - it: should set DNS service annotations
+    template: templates/service-dns.yaml
+    set:
+      serviceDns.annotations:
+        metallb.universe.tf/address-pool: dns-pool
+    asserts:
+      - equal:
+          path: metadata.annotations["metallb.universe.tf/address-pool"]
+          value: dns-pool
+
+  - it: should render web service
+    template: templates/service-web.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: test-pihole-web
+
+  - it: should render web service as ClusterIP by default
+    template: templates/service-web.yaml
+    asserts:
+      - equal:
+          path: spec.type
+          value: ClusterIP
+
+  - it: should expose HTTP port on web service
+    template: templates/service-web.yaml
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: http
+            port: 80
+            targetPort: http
+            protocol: TCP
+
+  - it: should expose metrics port on web service when metrics enabled
+    template: templates/service-web.yaml
+    set:
+      metrics.enabled: true
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: metrics
+            port: 9617
+            targetPort: metrics
+            protocol: TCP
+
+  - it: should not expose metrics port by default
+    template: templates/service-web.yaml
+    asserts:
+      - notContains:
+          path: spec.ports
+          content:
+            name: metrics
+            port: 9617
+            targetPort: metrics
+            protocol: TCP

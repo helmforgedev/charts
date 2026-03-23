@@ -1,0 +1,50 @@
+Pi-hole has been deployed!
+
+{{- if eq .Values.serviceDns.type "LoadBalancer" }}
+
+DNS Service:
+  Your DNS service is exposed via LoadBalancer.
+  {{- if .Values.serviceDns.loadBalancerIP }}
+  Configure your clients to use DNS server: {{ .Values.serviceDns.loadBalancerIP }}
+  {{- else }}
+  Get the DNS IP with:
+    kubectl get svc {{ include "pihole.fullname" . }}-dns -n {{ .Release.Namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+  {{- end }}
+{{- else }}
+  DNS is available at: {{ include "pihole.fullname" . }}-dns.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.serviceDns.port }}
+{{- end }}
+
+Web Admin:
+{{- if .Values.ingress.enabled }}
+  {{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}/admin
+  {{- end }}
+{{- else }}
+  kubectl port-forward svc/{{ include "pihole.fullname" . }}-web -n {{ .Release.Namespace }} 8080:{{ .Values.serviceWeb.port }}
+  Then visit: http://localhost:8080/admin
+{{- end }}
+
+Admin Password:
+{{- if .Values.admin.existingSecret }}
+  Using existing secret: {{ .Values.admin.existingSecret }}
+{{- else if .Values.admin.password }}
+  Using the password from values.
+{{- else }}
+  Auto-generated. Retrieve with:
+    kubectl get secret {{ include "pihole.fullname" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.password}' | base64 -d
+{{- end }}
+
+{{- if .Values.unbound.enabled }}
+
+Unbound (Recursive DNS):
+  Unbound sidecar is enabled. Pi-hole uses 127.0.0.1#{{ .Values.unbound.port }} for recursive DNS resolution.
+{{- end }}
+
+{{- if .Values.metrics.enabled }}
+
+Metrics:
+  Prometheus metrics are available on port {{ .Values.metrics.port }}.
+  {{- if .Values.metrics.serviceMonitor.enabled }}
+  A ServiceMonitor has been created for Prometheus Operator.
+  {{- end }}
+{{- end }}
