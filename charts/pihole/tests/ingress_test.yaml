@@ -1,0 +1,97 @@
+suite: Ingress
+templates:
+  - templates/ingress.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render ingress by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render ingress when enabled
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: pihole.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: metadata.name
+          value: test-pihole
+
+  - it: should set ingressClassName
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: traefik
+      ingress.hosts:
+        - host: pihole.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: traefik
+
+  - it: should configure hosts and paths
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: pihole.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - equal:
+          path: spec.rules[0].host
+          value: pihole.example.com
+      - equal:
+          path: spec.rules[0].http.paths[0].path
+          value: /
+      - equal:
+          path: spec.rules[0].http.paths[0].pathType
+          value: Prefix
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.name
+          value: test-pihole-web
+
+  - it: should configure TLS
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: pihole.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+      ingress.tls:
+        - secretName: pihole-tls
+          hosts:
+            - pihole.example.com
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: pihole-tls
+      - equal:
+          path: spec.tls[0].hosts[0]
+          value: pihole.example.com
+
+  - it: should set annotations
+    set:
+      ingress.enabled: true
+      ingress.annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      ingress.hosts:
+        - host: pihole.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - equal:
+          path: metadata.annotations["cert-manager.io/cluster-issuer"]
+          value: letsencrypt-prod

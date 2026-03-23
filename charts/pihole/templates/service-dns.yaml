@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pihole.fullname" . }}-dns
+  labels:
+    {{- include "pihole.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dns
+  {{- with .Values.serviceDns.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.serviceDns.type }}
+  {{- with .Values.serviceDns.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.serviceDns.loadBalancerIP }}
+  loadBalancerIP: {{ . }}
+  {{- end }}
+  selector:
+    {{- include "pihole.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: pihole
+  ports:
+    - name: dns-tcp
+      port: {{ .Values.serviceDns.port }}
+      targetPort: dns-tcp
+      protocol: TCP
+    - name: dns-udp
+      port: {{ .Values.serviceDns.port }}
+      targetPort: dns-udp
+      protocol: UDP

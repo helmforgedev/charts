@@ -1,0 +1,392 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-pihole
+
+  - it: should use Recreate strategy
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should set replicas to 1
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should set timezone env var
+    template: templates/deployment.yaml
+    set:
+      pihole.timezone: America/Sao_Paulo
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TZ
+            value: "America/Sao_Paulo"
+
+  - it: should set upstream DNS env var
+    template: templates/deployment.yaml
+    set:
+      pihole.upstreamDns: "1.1.1.1;1.0.0.1"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FTLCONF_dns_upstreams
+            value: "1.1.1.1;1.0.0.1"
+
+  - it: should set listening mode env var
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FTLCONF_dns_listeningMode
+            value: "ALL"
+
+  - it: should enable DNSSEC when configured
+    template: templates/deployment.yaml
+    set:
+      pihole.dnssec: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FTLCONF_dns_dnssec
+            value: "true"
+
+  - it: should not set DNSSEC by default
+    template: templates/deployment.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FTLCONF_dns_dnssec
+            value: "true"
+
+  - it: should set dnsmasq.d env var
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FTLCONF_misc_etc_dnsmasq_d
+            value: "true"
+
+  - it: should include extra env vars
+    template: templates/deployment.yaml
+    set:
+      pihole.extraEnv:
+        - name: FTLCONF_dns_cache_size
+          value: "10000"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FTLCONF_dns_cache_size
+            value: "10000"
+
+  - it: should expose DNS and HTTP ports
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: dns-tcp
+            containerPort: 53
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: dns-udp
+            containerPort: 53
+            protocol: UDP
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 80
+            protocol: TCP
+
+  - it: should expose DHCP port when enabled
+    template: templates/deployment.yaml
+    set:
+      dhcp.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: dhcp
+            containerPort: 67
+            protocol: UDP
+
+  - it: should not expose DHCP port by default
+    template: templates/deployment.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: dhcp
+            containerPort: 67
+            protocol: UDP
+
+  - it: should enable hostNetwork when DHCP hostNetwork is true
+    template: templates/deployment.yaml
+    set:
+      dhcp.hostNetwork: true
+    asserts:
+      - equal:
+          path: spec.template.spec.hostNetwork
+          value: true
+      - equal:
+          path: spec.template.spec.dnsPolicy
+          value: ClusterFirstWithHostNet
+
+  - it: should render startup probe when enabled
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /admin/
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.port
+          value: http
+
+  - it: should not render startup probe when disabled
+    template: templates/deployment.yaml
+    set:
+      startupProbe.enabled: false
+    asserts:
+      - isNull:
+          path: spec.template.spec.containers[0].startupProbe
+
+  - it: should render liveness probe when enabled
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /admin/
+
+  - it: should render readiness probe when enabled
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /admin/
+
+  - it: should mount pihole-data volume
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: pihole-data
+            mountPath: /etc/pihole
+
+  - it: should use PVC for pihole-data by default
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: pihole-data
+            persistentVolumeClaim:
+              claimName: test-pihole
+
+  - it: should use emptyDir when persistence disabled
+    template: templates/deployment.yaml
+    set:
+      persistence.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: pihole-data
+            emptyDir: {}
+
+  - it: should set security context with capabilities
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.add
+          value:
+            - NET_BIND_SERVICE
+            - NET_RAW
+            - SYS_NICE
+            - CHOWN
+
+  - it: should set resources when configured
+    template: templates/deployment.yaml
+    set:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 512Mi
+
+  - it: should set terminationGracePeriodSeconds
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 30
+
+  - it: should set node selector when configured
+    template: templates/deployment.yaml
+    set:
+      nodeSelector:
+        kubernetes.io/os: linux
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            kubernetes.io/os: linux
+
+  - it: should set tolerations when configured
+    template: templates/deployment.yaml
+    set:
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations[0].key
+          value: node-role.kubernetes.io/master
+
+  - it: should render metrics sidecar when enabled
+    template: templates/deployment.yaml
+    set:
+      metrics.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: exporter
+      - equal:
+          path: spec.template.spec.containers[1].image
+          value: "ekofr/pihole-exporter:v0.4.0"
+
+  - it: should not render metrics sidecar by default
+    template: templates/deployment.yaml
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 1
+
+  - it: should render unbound sidecar when enabled
+    template: templates/deployment.yaml
+    set:
+      unbound.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: unbound
+      - equal:
+          path: spec.template.spec.containers[1].image
+          value: "mvance/unbound:1.22.0"
+
+  - it: should override upstream DNS to unbound when enabled
+    template: templates/deployment.yaml
+    set:
+      unbound.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FTLCONF_dns_upstreams
+            value: "127.0.0.1#5335"
+
+  - it: should mount custom records when configured
+    template: templates/deployment.yaml
+    set:
+      dns.customRecords:
+        - "192.168.1.10 nas.local"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: custom-records
+            mountPath: /etc/pihole/custom.list
+            subPath: custom.list
+            readOnly: true
+
+  - it: should mount cname records when configured
+    template: templates/deployment.yaml
+    set:
+      dns.cnameRecords:
+        - "cname=alias.local,target.local"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: custom-cname
+            mountPath: /etc/dnsmasq.d/05-custom-cname.conf
+            subPath: 05-custom-cname.conf
+            readOnly: true
+
+  - it: should mount custom dnsmasq config when configured
+    template: templates/deployment.yaml
+    set:
+      dns.customDnsmasq:
+        - "server=/corp.example.com/10.0.0.1"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: custom-dnsmasq
+            mountPath: /etc/dnsmasq.d/06-custom.conf
+            subPath: 06-custom.conf
+            readOnly: true
+
+  - it: should include checksum annotation for configmap
+    template: templates/deployment.yaml
+    set:
+      dns.customRecords:
+        - "192.168.1.10 nas.local"
+    asserts:
+      - isNotNull:
+          path: spec.template.metadata.annotations["checksum/config"]
+
+  - it: should set pod labels when configured
+    template: templates/deployment.yaml
+    set:
+      podLabels:
+        custom-label: custom-value
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.custom-label
+          value: custom-value
+
+  - it: should set pod annotations when configured
+    template: templates/deployment.yaml
+    set:
+      podAnnotations:
+        custom-annotation: custom-value
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations.custom-annotation
+          value: custom-value

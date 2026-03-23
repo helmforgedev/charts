@@ -1,0 +1,387 @@
+# =============================================================================
+# Pi-hole DNS Sinkhole Helm Chart
+# =============================================================================
+# Uses pihole/pihole — the official Pi-hole container image.
+# Provides network-wide ad blocking via DNS filtering.
+# https://docs.pi-hole.net/
+# =============================================================================
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+
+# -- Override the full release name used in resource names
+fullnameOverride: ""
+
+# -- Labels added to every resource created by this chart
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Container image repository
+  repository: pihole/pihole
+  # -- Container image tag (defaults to appVersion)
+  tag: ""
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# =============================================================================
+# Pi-hole Configuration
+# =============================================================================
+
+pihole:
+  # -- Timezone for logs and scheduled tasks
+  timezone: UTC
+
+  # -- Upstream DNS servers (semicolon-delimited)
+  # Examples: "8.8.8.8;8.8.4.4", "1.1.1.1;1.0.0.1"
+  # When unbound sidecar is enabled, this is overridden to "127.0.0.1#5335"
+  upstreamDns: "8.8.8.8;8.8.4.4"
+
+  # -- DNS listening mode: LOCAL, ALL, SINGLE, BIND
+  # Set to ALL when using Kubernetes services
+  listeningMode: ALL
+
+  # -- Enable DNSSEC validation
+  dnssec: false
+
+  # -- Additional environment variables for the Pi-hole container
+  # extraEnv:
+  #   - name: FTLCONF_dns_cache_size
+  #     value: "10000"
+  extraEnv: []
+
+# =============================================================================
+# Web Admin
+# =============================================================================
+
+admin:
+  # -- Web admin password (auto-generated if empty and no existingSecret)
+  password: ""
+
+  # -- Use an existing secret for the admin password
+  existingSecret: ""
+
+  # -- Key in the existing secret that contains the admin password
+  existingSecretKey: password
+
+# =============================================================================
+# DNS Records & Blocklists
+# =============================================================================
+
+dns:
+  # -- Custom local DNS A records
+  # Each entry: "IP HOSTNAME"
+  # customRecords:
+  #   - "192.168.1.10 nas.local"
+  #   - "192.168.1.20 printer.local"
+  customRecords: []
+
+  # -- Custom CNAME records (dnsmasq format)
+  # cnameRecords:
+  #   - "cname=alias.local,target.local"
+  cnameRecords: []
+
+  # -- Custom dnsmasq configuration lines
+  # customDnsmasq:
+  #   - "server=/corp.example.com/10.0.0.1"
+  #   - "address=/blocked.example.com/0.0.0.0"
+  customDnsmasq: []
+
+  # -- Blocklist URLs for gravity database
+  # adlists:
+  #   - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+  #   - https://s3.amazonaws.com/lists.disconnect.me/simple_tracking.txt
+  adlists: []
+
+  # -- Whitelisted domains
+  whitelist: []
+
+  # -- Blacklisted domains
+  blacklist: []
+
+  # -- Regex filters for blocking
+  regex: []
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistent storage for /etc/pihole
+  enabled: true
+
+  # -- Storage class (leave empty for cluster default)
+  storageClass: ""
+
+  # -- Access mode for the PVC
+  accessMode: ReadWriteOnce
+
+  # -- Size of the persistent volume
+  size: 1Gi
+
+  # -- Use an existing PVC instead of creating one
+  existingClaim: ""
+
+  # -- Annotations for the PVC
+  annotations: {}
+
+# =============================================================================
+# Resources
+# =============================================================================
+
+# -- CPU and memory requests/limits for the Pi-hole container
+resources: {}
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # limits:
+  #   cpu: 500m
+  #   memory: 512Mi
+
+# =============================================================================
+# Security Context
+# =============================================================================
+
+podSecurityContext: {}
+
+securityContext:
+  # -- Linux capabilities required by Pi-hole
+  capabilities:
+    add:
+      - NET_BIND_SERVICE
+      - NET_RAW
+      - SYS_NICE
+      - CHOWN
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+startupProbe:
+  # -- Enable startup probe
+  enabled: true
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 30
+
+livenessProbe:
+  # -- Enable liveness probe
+  enabled: true
+  initialDelaySeconds: 0
+  periodSeconds: 15
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+readinessProbe:
+  # -- Enable readiness probe
+  enabled: true
+  initialDelaySeconds: 0
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# =============================================================================
+# DNS Service
+# =============================================================================
+
+serviceDns:
+  # -- Service type for DNS
+  type: LoadBalancer
+
+  # -- DNS port
+  port: 53
+
+  # -- Annotations for the DNS service
+  annotations: {}
+
+  # -- External traffic policy (set to Local for client IP preservation)
+  # externalTrafficPolicy: Local
+
+  # -- Load balancer IP (set a fixed IP for DNS stability)
+  # loadBalancerIP: "192.168.1.53"
+
+# =============================================================================
+# Web Service
+# =============================================================================
+
+serviceWeb:
+  # -- Service type for web admin
+  type: ClusterIP
+
+  # -- Web admin HTTP port
+  port: 80
+
+  # -- Annotations for the web service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for the web admin interface
+  enabled: false
+
+  # -- Ingress class name
+  # ingressClassName: traefik
+  ingressClassName: ""
+
+  # -- Ingress annotations
+  # annotations:
+  #   cert-manager.io/cluster-issuer: letsencrypt-prod
+  annotations: {}
+
+  # -- Ingress hosts
+  # hosts:
+  #   - host: pihole.example.com
+  #     paths:
+  #       - path: /
+  #         pathType: Prefix
+  hosts: []
+
+  # -- Ingress TLS configuration
+  # tls:
+  #   - secretName: pihole-tls
+  #     hosts:
+  #       - pihole.example.com
+  tls: []
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount
+  create: false
+
+  # -- Name override (auto-generated if empty)
+  name: ""
+
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Metrics (pihole-exporter)
+# =============================================================================
+
+metrics:
+  # -- Enable Prometheus metrics via pihole-exporter sidecar
+  enabled: false
+
+  image:
+    # -- pihole-exporter image repository
+    repository: ekofr/pihole-exporter
+    # -- pihole-exporter image tag
+    tag: v0.4.0
+    # -- pihole-exporter pull policy
+    pullPolicy: IfNotPresent
+
+  # -- Port for the Prometheus metrics endpoint
+  port: 9617
+
+  # -- ServiceMonitor for Prometheus Operator
+  serviceMonitor:
+    # -- Create a ServiceMonitor resource
+    enabled: false
+    # -- Scrape interval
+    interval: 30s
+    # -- Additional labels for the ServiceMonitor
+    labels: {}
+
+# =============================================================================
+# Unbound Sidecar (Recursive DNS)
+# =============================================================================
+# Unbound performs full recursive DNS resolution, querying root nameservers
+# directly. This eliminates dependency on third-party DNS providers.
+# When enabled, Pi-hole upstream DNS is automatically set to 127.0.0.1#5335.
+# =============================================================================
+
+unbound:
+  # -- Enable Unbound sidecar for recursive DNS resolution
+  enabled: false
+
+  image:
+    # -- Unbound image repository
+    repository: mvance/unbound
+    # -- Unbound image tag
+    tag: 1.22.0
+    # -- Unbound pull policy
+    pullPolicy: IfNotPresent
+
+  # -- Unbound listening port inside the pod
+  port: 5335
+
+  # -- Resources for the Unbound sidecar
+  resources: {}
+    # requests:
+    #   cpu: 50m
+    #   memory: 64Mi
+    # limits:
+    #   cpu: 200m
+    #   memory: 128Mi
+
+# =============================================================================
+# DHCP (Advanced)
+# =============================================================================
+# DHCP requires hostNetwork or special network configuration.
+# Not recommended in most Kubernetes environments.
+# =============================================================================
+
+dhcp:
+  # -- Enable DHCP server
+  enabled: false
+
+  # -- Use host network for DHCP broadcasts
+  hostNetwork: false
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+# -- Node selector for pod scheduling
+nodeSelector: {}
+
+# -- Tolerations for pod scheduling
+tolerations: []
+
+# -- Affinity rules for pod scheduling
+affinity: {}
+
+# -- Topology spread constraints
+topologySpreadConstraints: []
+
+# -- Priority class name
+priorityClassName: ""
+
+# -- Grace period for shutdown (seconds)
+terminationGracePeriodSeconds: 30
+
+# =============================================================================
+# Pod-Level Metadata
+# =============================================================================
+
+# -- Additional labels for the pod
+podLabels: {}
+
+# -- Additional annotations for the pod
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+# -- Additional volume mounts for the Pi-hole container
+extraVolumeMounts: []
+
+# -- Additional volumes for the pod
+extraVolumes: []
+
+# -- Extra Kubernetes manifests to deploy alongside the chart
+extraManifests: []
