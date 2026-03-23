@@ -1,0 +1,339 @@
+# =============================================================================
+# Apache Guacamole Helm Chart — Default Values
+# =============================================================================
+# Focus: guacamole + guacd + postgresql + oidc/saml + backup
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Images
+# =============================================================================
+
+image:
+  # -- Guacamole web application image
+  repository: guacamole/guacamole
+  # -- Image tag (defaults to appVersion)
+  tag: ""
+  pullPolicy: IfNotPresent
+
+guacd:
+  image:
+    # -- guacd daemon image
+    repository: guacamole/guacd
+    # -- guacd image tag (defaults to appVersion)
+    tag: ""
+    pullPolicy: IfNotPresent
+  # -- guacd daemon port
+  port: 4822
+  # -- guacd log level (info, debug, warning, error)
+  logLevel: info
+  # -- Resources for the guacd container
+  resources: {}
+
+imagePullSecrets: []
+
+# =============================================================================
+# Guacamole Configuration
+# =============================================================================
+
+guacamole:
+  # -- Web application context path (use "ROOT" to serve at /)
+  contextPath: ROOT
+  # -- Extra environment variables for the Guacamole container
+  # -- @default -- `[]`
+  extraEnv: []
+    # - name: GUACAMOLE_HOME
+    #   value: /etc/guacamole
+
+# =============================================================================
+# Reverse Proxy
+# =============================================================================
+
+proxy:
+  # -- Enable Tomcat RemoteIpValve for reverse proxy
+  enabled: true
+  # -- Trusted proxy IP regex
+  allowedIpsRegex: ""
+  # -- Header for client IP
+  ipHeader: X-Forwarded-For
+  # -- Header for protocol
+  protocolHeader: X-Forwarded-Proto
+
+# =============================================================================
+# OIDC (OpenID Connect)
+# =============================================================================
+
+oidc:
+  # -- Enable OpenID Connect authentication
+  enabled: false
+  # -- Authorization endpoint URI
+  authorizationEndpoint: ""
+  # -- JWKS endpoint URI for token validation
+  jwksEndpoint: ""
+  # -- Expected token issuer
+  issuer: ""
+  # -- Client ID
+  clientId: ""
+  # -- Redirect URI (auto-detected from ingress if empty)
+  redirectUri: ""
+  # -- Space-separated scopes
+  scope: "openid email profile"
+  # -- JWT claim for username
+  usernameClaim: "preferred_username"
+  # -- JWT claim for groups
+  groupsClaim: "groups"
+  # -- Allowed clock skew in seconds
+  allowedClockSkew: 30
+  # -- Maximum token validity in minutes
+  maxTokenValidity: 300
+
+# =============================================================================
+# SAML
+# =============================================================================
+
+saml:
+  # -- Enable SAML authentication
+  enabled: false
+  # -- IdP metadata URL
+  idpMetadataUrl: ""
+  # -- IdP URL (used if metadata URL unavailable)
+  idpUrl: ""
+  # -- Service provider entity ID
+  entityId: ""
+  # -- Callback URL (auto-detected from ingress if empty)
+  callbackUrl: ""
+  # -- Enforce certificate validation
+  strict: true
+  # -- Enable debug logging
+  debug: false
+  # -- Compress requests
+  compressRequest: true
+  # -- Compress responses
+  compressResponse: true
+  # -- Group attribute name
+  groupAttribute: "groups"
+
+# =============================================================================
+# TOTP (Two-Factor Authentication)
+# =============================================================================
+
+totp:
+  # -- Enable TOTP two-factor authentication
+  enabled: false
+
+# =============================================================================
+# Database
+# =============================================================================
+
+database:
+  # -- Database type: postgresql or mysql
+  type: postgresql
+  # -- External database configuration (used when neither subchart is enabled)
+  external:
+    host: ""
+    port: ""
+    name: guacamole_db
+    username: guacamole_user
+    password: ""
+    # -- Existing secret containing the database password
+    existingSecret: ""
+    # -- Key in the existing secret containing the password
+    existingSecretPasswordKey: password
+
+# =============================================================================
+# Database Init Job
+# =============================================================================
+
+initDb:
+  # -- Run a Job to initialize the database schema on install
+  enabled: true
+  # -- Resources for the init job
+  resources: {}
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- HTTP service port
+  port: 80
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Guacamole
+  enabled: false
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts: []
+    # - host: guacamole.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+    # - hosts:
+    #     - guacamole.example.com
+    #   secretName: guacamole-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    path: /
+    initialDelaySeconds: 15
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    path: /
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    path: /
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Backup
+# =============================================================================
+
+backup:
+  # -- Enable built-in backup CronJob (database dump + S3 upload)
+  enabled: false
+  # -- Backup schedule in Cron format
+  schedule: "0 2 * * *"
+  # -- Suspend backup execution
+  suspend: false
+  # -- CronJob concurrency policy
+  concurrencyPolicy: Forbid
+  # -- Successful job history retained
+  successfulJobsHistoryLimit: 3
+  # -- Failed job history retained
+  failedJobsHistoryLimit: 3
+  # -- Job backoff limit
+  backoffLimit: 1
+  # -- Prefix for backup archive names
+  archivePrefix: guacamole
+  # -- Resources for backup containers
+  resources: {}
+  images:
+    uploader:
+      repository: minio/mc
+      tag: "RELEASE.2025-08-13T08-35-41Z"
+      pullPolicy: IfNotPresent
+    postgresql:
+      repository: postgres
+      tag: "17.5-bookworm"
+      pullPolicy: IfNotPresent
+    mysql:
+      repository: mysql
+      tag: "8.4"
+      pullPolicy: IfNotPresent
+  s3:
+    # -- S3-compatible endpoint URL
+    endpoint: ""
+    # -- Target bucket name
+    bucket: ""
+    # -- Optional prefix inside the bucket
+    prefix: guacamole
+    # -- Create bucket if not exists
+    createBucketIfNotExists: true
+    # -- Existing secret containing access-key and secret-key
+    existingSecret: ""
+    existingSecretAccessKeyKey: access-key
+    existingSecretSecretKeyKey: secret-key
+    # -- Inline access key
+    accessKey: ""
+    # -- Inline secret key
+    secretKey: ""
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []
+
+# =============================================================================
+# Subcharts
+# =============================================================================
+
+postgresql:
+  # -- Enable the local PostgreSQL chart
+  enabled: true
+  architecture: standalone
+  auth:
+    database: guacamole_db
+    username: guacamole_user
+    # -- Required when using the PostgreSQL subchart
+    password: ""
+
+mysql:
+  # -- Enable the local MySQL chart
+  enabled: false
+  architecture: standalone
+  auth:
+    database: guacamole_db
+    username: guacamole_user
+    # -- Required when using the MySQL subchart
+    password: ""

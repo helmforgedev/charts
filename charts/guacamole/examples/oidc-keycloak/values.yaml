@@ -1,0 +1,42 @@
+# Guacamole with Keycloak OIDC integration
+#
+# Prerequisites:
+# 1. Create a client in Keycloak:
+#    - Client ID: guacamole
+#    - Client Protocol: openid-connect
+#    - Access Type: public
+#    - Valid Redirect URIs: https://guacamole.example.com/*
+#    - Web Origins: https://guacamole.example.com
+# 2. Configure mappers to include "groups" claim in tokens
+# 3. Create users/groups in Keycloak as needed
+
+postgresql:
+  auth:
+    password: "change-me"
+
+oidc:
+  enabled: true
+  # Replace with your Keycloak realm URLs
+  authorizationEndpoint: https://keycloak.example.com/realms/master/protocol/openid-connect/auth
+  jwksEndpoint: https://keycloak.example.com/realms/master/protocol/openid-connect/certs
+  issuer: https://keycloak.example.com/realms/master
+  clientId: guacamole
+  # redirectUri auto-detected from ingress when empty
+  scope: "openid email profile"
+  usernameClaim: "preferred_username"
+  groupsClaim: "groups"
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+  hosts:
+    - host: guacamole.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - guacamole.example.com
+      secretName: guacamole-tls

@@ -1,0 +1,66 @@
+suite: Backup
+templates:
+  - templates/backup-cronjob.yaml
+  - templates/backup-configmap.yaml
+  - templates/secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render CronJob by default
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render CronJob with postgres backup
+    template: templates/backup-cronjob.yaml
+    set:
+      postgresql.auth.password: test
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: AKIA123
+      backup.s3.secretKey: secret123
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].name
+          value: postgres-backup
+
+  - it: should render CronJob with mysql backup
+    template: templates/backup-cronjob.yaml
+    set:
+      database.type: mysql
+      mysql.enabled: true
+      mysql.auth.password: test
+      postgresql.enabled: false
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: AKIA123
+      backup.s3.secretKey: secret123
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].name
+          value: mysql-backup
+
+  - it: should render backup ConfigMap
+    template: templates/backup-configmap.yaml
+    set:
+      postgresql.auth.password: test
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: AKIA123
+      backup.s3.secretKey: secret123
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - exists:
+          path: data["postgres-backup.sh"]
+      - exists:
+          path: data["upload-backup.sh"]
