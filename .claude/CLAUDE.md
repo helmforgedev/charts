@@ -123,12 +123,15 @@ When available, also validate with `kubeconform`.
 
 ## Local k3d Validation (New Charts)
 
-When creating a new chart, always deploy and validate it on a local k3d cluster before considering it done:
+When creating a new chart, always deploy and validate it on a local k3d cluster **before merging the PR**:
 
-1. Create a k3d cluster if one is not already running (`k3d cluster create test`).
-2. Install the chart with default values and verify pods reach `Running`/`Completed` state.
-3. Install at least one non-default CI scenario and verify the application is reachable.
-4. Clean up test releases after validation (`helm uninstall`).
+1. Push and open the PR, wait for CI to pass.
+2. Create a k3d cluster if one is not already running (`k3d cluster create test`).
+3. Install the chart with default values and verify pods reach `Running`/`Completed` state.
+4. Install at least one non-default CI scenario and verify the application is reachable.
+5. Fix any issues found before merging — commit fixes to the same PR branch.
+6. Clean up test releases after validation (`helm uninstall`).
+7. Merge the PR only after k3d validation succeeds.
 
 ## Unit Testing Rules
 

@@ -192,7 +192,9 @@ Critical rules:
 7. Add examples that reflect realistic usage.
 8. Update the root `README.md` charts table.
 9. Run validation locally before pushing.
-10. Deploy and validate the chart on a local k3d cluster before considering it done. Install the chart with default values and at least one non-default CI scenario, verify pods are running and the application is reachable.
+10. Push and open a PR, wait for CI to pass.
+11. Deploy and validate the chart on a local k3d cluster **before merging the PR**. Install the chart with default values and at least one non-default CI scenario, verify pods are running and the application is reachable. Fix any issues found before merging.
+12. Merge the PR only after k3d validation succeeds.
 
 ## Modifying an Existing Chart
 
