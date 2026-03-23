@@ -37,6 +37,7 @@ Project links:
 | [guacamole](charts/guacamole/) | Apache Guacamole — remote desktop gateway with guacd, PostgreSQL or MySQL, OIDC/SAML SSO, and S3 backup |
 | [cloudflared](charts/cloudflared/) | Cloudflare Tunnel — secure outbound-only connections with HA, PDB, and Prometheus metrics |
 | [ddns-updater](charts/ddns-updater/) | DDNS Updater — dynamic DNS for 50+ providers with web UI and persistent history |
+| [uptime-kuma](charts/uptime-kuma/) | Uptime Kuma — self-hosted monitoring with SQLite or MariaDB, status pages, and S3 backup |
 
 ## Quick Start
 

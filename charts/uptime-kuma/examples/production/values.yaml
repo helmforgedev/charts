@@ -1,0 +1,44 @@
+# Production deployment with MariaDB, ingress, and backup.
+
+database:
+  type: mariadb
+
+mysql:
+  enabled: true
+  auth:
+    password: "change-me-strong-password"
+
+persistence:
+  enabled: true
+  size: 5Gi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 512Mi
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+  hosts:
+    - host: status.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - status.example.com
+      secretName: uptime-kuma-tls
+
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  s3:
+    endpoint: https://s3.example.com
+    bucket: backups
+    prefix: uptime-kuma
+    existingSecret: backup-s3-credentials

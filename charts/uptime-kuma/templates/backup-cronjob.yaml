@@ -1,0 +1,114 @@
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "uptime-kuma.fullname" . }}-backup
+  labels:
+    {{- include "uptime-kuma.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  suspend: {{ .Values.backup.suspend }}
+  concurrencyPolicy: {{ .Values.backup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "uptime-kuma.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          initContainers:
+            {{- if eq (include "uptime-kuma.dbType" .) "sqlite" }}
+            - name: sqlite-backup
+              image: busybox:1.37
+              command: ["/bin/sh", "/scripts/sqlite-backup.sh"]
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: data
+                  mountPath: /app/data
+                  readOnly: true
+                - name: backup-scratch
+                  mountPath: /backup
+                - name: scripts
+                  mountPath: /scripts
+            {{- else }}
+            - name: mysql-backup
+              image: "{{ .Values.backup.images.mysql.repository }}:{{ .Values.backup.images.mysql.tag }}"
+              imagePullPolicy: {{ .Values.backup.images.mysql.pullPolicy }}
+              command: ["/bin/sh", "/scripts/mysql-backup.sh"]
+              env:
+                - name: DB_HOST
+                  value: {{ include "uptime-kuma.dbHost" . | quote }}
+                - name: DB_PORT
+                  value: {{ include "uptime-kuma.dbPort" . | quote }}
+                - name: DB_NAME
+                  value: {{ include "uptime-kuma.dbName" . | quote }}
+                - name: DB_USER
+                  value: {{ include "uptime-kuma.dbUsername" . | quote }}
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "uptime-kuma.dbSecretName" . }}
+                      key: {{ include "uptime-kuma.dbSecretPasswordKey" . }}
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: backup-scratch
+                  mountPath: /backup
+                - name: scripts
+                  mountPath: /scripts
+            {{- end }}
+          containers:
+            - name: upload
+              image: "{{ .Values.backup.images.uploader.repository }}:{{ .Values.backup.images.uploader.tag }}"
+              imagePullPolicy: {{ .Values.backup.images.uploader.pullPolicy }}
+              command: ["/bin/sh", "/scripts/upload-backup.sh"]
+              env:
+                - name: S3_ENDPOINT
+                  value: {{ .Values.backup.s3.endpoint | quote }}
+                - name: S3_BUCKET
+                  value: {{ .Values.backup.s3.bucket | quote }}
+                - name: S3_PREFIX
+                  value: {{ .Values.backup.s3.prefix | quote }}
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "uptime-kuma.backupSecretName" . }}
+                      key: {{ include "uptime-kuma.backupSecretAccessKeyKey" . }}
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "uptime-kuma.backupSecretName" . }}
+                      key: {{ include "uptime-kuma.backupSecretSecretKeyKey" . }}
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: backup-scratch
+                  mountPath: /backup
+                  readOnly: true
+                - name: scripts
+                  mountPath: /scripts
+          volumes:
+            {{- if eq (include "uptime-kuma.dbType" .) "sqlite" }}
+            - name: data
+              persistentVolumeClaim:
+                claimName: {{ include "uptime-kuma.dataClaimName" . }}
+            {{- end }}
+            - name: backup-scratch
+              emptyDir: {}
+            - name: scripts
+              configMap:
+                name: {{ include "uptime-kuma.fullname" . }}-backup-scripts
+                defaultMode: 0755
+{{- end }}

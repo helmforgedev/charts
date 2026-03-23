@@ -1,0 +1,61 @@
+suite: Backup
+templates:
+  - templates/backup-cronjob.yaml
+  - templates/backup-configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render by default
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render CronJob when backup enabled (sqlite)
+    template: templates/backup-cronjob.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: key
+      backup.s3.secretKey: secret
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.schedule
+          value: "0 2 * * *"
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].name
+          value: sqlite-backup
+
+  - it: should render CronJob with mysql backup for mariadb mode
+    template: templates/backup-cronjob.yaml
+    set:
+      database.type: mariadb
+      mysql.enabled: true
+      mysql.auth.password: test
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: key
+      backup.s3.secretKey: secret
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].name
+          value: mysql-backup
+
+  - it: should render backup ConfigMap with sqlite script
+    template: templates/backup-configmap.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: backups
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - exists:
+          path: data["sqlite-backup.sh"]
