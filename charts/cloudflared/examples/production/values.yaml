@@ -1,0 +1,45 @@
+# Production deployment with HA, monitoring, and resource limits.
+#
+# Prerequisites:
+#   1. Create a tunnel in the Cloudflare dashboard.
+#   2. Store the token in a Kubernetes secret:
+#      kubectl create secret generic cloudflare-tunnel \
+#        --from-literal=token=eyJhIjoiY2Y...
+#   3. Configure public hostnames in the dashboard.
+
+tunnel:
+  existingSecret: cloudflare-tunnel
+  existingSecretKey: token
+
+replicaCount: 2
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 128Mi
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  labels:
+    release: prometheus
+
+cloudflared:
+  logLevel: info
+
+podAnnotations:
+  cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: cloudflared

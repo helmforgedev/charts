@@ -1,0 +1,171 @@
+# =============================================================================
+# Cloudflare Tunnel (cloudflared) Helm Chart — Default Values
+# =============================================================================
+# Focus: secure outbound tunnel to Cloudflare's network
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- cloudflared container image
+  repository: cloudflare/cloudflared
+  # -- Image tag (defaults to appVersion)
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Tunnel Configuration
+# =============================================================================
+
+tunnel:
+  # -- Tunnel token obtained from the Cloudflare dashboard
+  token: ""
+  # -- Use an existing secret containing the tunnel token
+  existingSecret: ""
+  # -- Key inside the existing secret
+  existingSecretKey: token
+
+# =============================================================================
+# cloudflared Options
+# =============================================================================
+
+cloudflared:
+  # -- Log level (info, debug, warn, error, fatal)
+  logLevel: info
+  # -- Disable auto-update (recommended in containers)
+  noAutoupdate: true
+  # -- Metrics listen port (serves /ready and /metrics)
+  metricsPort: 2000
+  # -- Extra arguments appended to the cloudflared command
+  extraArgs: []
+  # -- Extra environment variables for the container
+  # -- @default -- `[]`
+  extraEnv: []
+    # - name: TUNNEL_LOGLEVEL
+    #   value: debug
+
+# =============================================================================
+# Replicas & Availability
+# =============================================================================
+
+# -- Number of replicas (Cloudflare recommends 2+ for HA)
+replicaCount: 2
+
+pdb:
+  # -- Create a PodDisruptionBudget
+  enabled: true
+  # -- Minimum available replicas during disruption
+  minAvailable: 1
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Service (metrics)
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- Metrics service port
+  port: 2000
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Metrics / Monitoring
+# =============================================================================
+
+metrics:
+  # -- Expose metrics service
+  enabled: true
+
+serviceMonitor:
+  # -- Create a Prometheus ServiceMonitor
+  enabled: false
+  # -- Scrape interval
+  interval: 30s
+  # -- Extra labels for the ServiceMonitor
+  labels: {}
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    path: /ready
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 12
+  liveness:
+    enabled: true
+    path: /ready
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    path: /ready
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+  # requests:
+  #   cpu: 50m
+  #   memory: 64Mi
+  # limits:
+  #   memory: 128Mi
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []

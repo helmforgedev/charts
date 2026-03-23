@@ -1,0 +1,233 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    template: templates/deployment.yaml
+    set:
+      tunnel.token: "test-token"
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-cloudflared
+
+  - it: should use 2 replicas by default
+    template: templates/deployment.yaml
+    set:
+      tunnel.token: "test-token"
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+
+  - it: should set custom replica count
+    template: templates/deployment.yaml
+    set:
+      tunnel.token: "test-token"
+      replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: should set the correct image
+    template: templates/deployment.yaml
+    set:
+      tunnel.token: "test-token"
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "cloudflare/cloudflared:.*"
+
+  - it: should use custom image tag
+    template: templates/deployment.yaml
+    set:
+      tunnel.token: "test-token"
+      image.tag: "2025.1.0"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "cloudflare/cloudflared:2025.1.0"
+
+  - it: should set the cloudflared command with default args
+    template: templates/deployment.yaml
+    set:
+      tunnel.token: "test-token"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "tunnel"
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "--no-autoupdate"
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "--loglevel"
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "info"
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "run"
+
+  - it: should set debug log level
+    template: templates/deployment.yaml
+    set:
+      tunnel.token: "test-token"
+      cloudflared.logLevel: debug
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "debug"
+
+  - it: should pass extra args
+    template: templates/deployment.yaml
+    set:
+      tunnel.token: "test-token"
+      cloudflared.extraArgs:
+        - "--edge-ip-version"
+        - "4"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "--edge-ip-version"
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "4"
+
+  - it: should reference tunnel token from inline secret
+    template: templates/deployment.yaml
+    set:
+      tunnel.token: "test-token"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[0].name
+          value: TUNNEL_TOKEN
+      - equal:
+          path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
+          value: test-cloudflared-tunnel
+      - equal:
+          path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.key
+          value: token
+
+  - it: should reference existing secret for tunnel token
+    template: templates/deployment.yaml
+    set:
+      tunnel.existingSecret: my-tunnel-secret
+      tunnel.existingSecretKey: my-key
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
+          value: my-tunnel-secret
+      - equal:
+          path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.key
+          value: my-key
+
+  - it: should expose metrics port
+    template: templates/deployment.yaml
+    set:
+      tunnel.token: "test-token"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].name
+          value: metrics
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 2000
+
+  - it: should set probes on /ready endpoint
+    template: templates/deployment.yaml
+    set:
+      tunnel.token: "test-token"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /ready
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /ready
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /ready
+
+  - it: should set extra env vars
+    template: templates/deployment.yaml
+    set:
+      tunnel.token: "test-token"
+      cloudflared.extraEnv:
+        - name: MY_VAR
+          value: my-value
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MY_VAR
+            value: my-value
+
+  - it: should set resources when specified
+    template: templates/deployment.yaml
+    set:
+      tunnel.token: "test-token"
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 50m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 128Mi
+
+  - it: should set service account when created
+    template: templates/deployment.yaml
+    set:
+      tunnel.token: "test-token"
+      serviceAccount.create: true
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: test-cloudflared
+
+  - it: should not set service account by default
+    template: templates/deployment.yaml
+    set:
+      tunnel.token: "test-token"
+    asserts:
+      - notExists:
+          path: spec.template.spec.serviceAccountName
+
+  - it: should omit --no-autoupdate when disabled
+    template: templates/deployment.yaml
+    set:
+      tunnel.token: "test-token"
+      cloudflared.noAutoupdate: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].command
+          content: "--no-autoupdate"
+
+  - it: should set pod labels and annotations
+    template: templates/deployment.yaml
+    set:
+      tunnel.token: "test-token"
+      podLabels:
+        custom: label
+      podAnnotations:
+        custom: annotation
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.custom
+          value: label
+      - equal:
+          path: spec.template.metadata.annotations.custom
+          value: annotation
