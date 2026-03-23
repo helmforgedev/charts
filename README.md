@@ -29,6 +29,7 @@ Project links:
 | [keycloak](charts/keycloak/) | Keycloak — dev or production mode with external DB and separated management service |
 | [vaultwarden](charts/vaultwarden/) | Vaultwarden — single-instance with persistent SQLite, ingress, and optional SMTP |
 | [minecraft](charts/minecraft/) | Minecraft — Java Edition server with Vanilla, Paper, Forge, Fabric, GeyserMC cross-play, S3 backup, and monitoring |
+| [pihole](charts/pihole/) | Pi-hole — DNS sinkhole with custom records, Unbound recursive DNS, and Prometheus metrics |
 
 ## Quick Start
 

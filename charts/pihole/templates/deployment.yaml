@@ -1,0 +1,242 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pihole.fullname" . }}
+  labels:
+    {{- include "pihole.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pihole
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "pihole.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: pihole
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "pihole.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: pihole
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "pihole.serviceAccountName" . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.dhcp.hostNetwork }}
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: pihole
+          image: {{ include "pihole.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: TZ
+              value: {{ .Values.pihole.timezone | quote }}
+            - name: FTLCONF_dns_upstreams
+              value: {{ include "pihole.upstreamDns" . | quote }}
+            - name: FTLCONF_dns_listeningMode
+              value: {{ .Values.pihole.listeningMode | quote }}
+            {{- if .Values.pihole.dnssec }}
+            - name: FTLCONF_dns_dnssec
+              value: "true"
+            {{- end }}
+            - name: FTLCONF_webserver_api_password
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pihole.secretName" . }}
+                  key: {{ include "pihole.secretKey" . }}
+            - name: FTLCONF_misc_etc_dnsmasq_d
+              value: "true"
+            {{- with .Values.pihole.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: dns-tcp
+              containerPort: 53
+              protocol: TCP
+            - name: dns-udp
+              containerPort: 53
+              protocol: UDP
+            - name: http
+              containerPort: 80
+              protocol: TCP
+            {{- if .Values.dhcp.enabled }}
+            - name: dhcp
+              containerPort: 67
+              protocol: UDP
+            {{- end }}
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: /admin/
+              port: http
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /admin/
+              port: http
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /admin/
+              port: http
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: pihole-data
+              mountPath: /etc/pihole
+            - name: dnsmasq-config
+              mountPath: /etc/dnsmasq.d
+            {{- if .Values.dns.customRecords }}
+            - name: custom-records
+              mountPath: /etc/pihole/custom.list
+              subPath: custom.list
+              readOnly: true
+            {{- end }}
+            {{- if .Values.dns.cnameRecords }}
+            - name: custom-cname
+              mountPath: /etc/dnsmasq.d/05-custom-cname.conf
+              subPath: 05-custom-cname.conf
+              readOnly: true
+            {{- end }}
+            {{- if .Values.dns.customDnsmasq }}
+            - name: custom-dnsmasq
+              mountPath: /etc/dnsmasq.d/06-custom.conf
+              subPath: 06-custom.conf
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- if .Values.metrics.enabled }}
+        - name: exporter
+          image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
+          imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
+          env:
+            - name: PIHOLE_HOSTNAME
+              value: "127.0.0.1"
+            - name: PIHOLE_PORT
+              value: "80"
+            - name: PIHOLE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pihole.secretName" . }}
+                  key: {{ include "pihole.secretKey" . }}
+            - name: PORT
+              value: {{ .Values.metrics.port | quote }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.metrics.port }}
+              protocol: TCP
+        {{- end }}
+        {{- if .Values.unbound.enabled }}
+        - name: unbound
+          image: "{{ .Values.unbound.image.repository }}:{{ .Values.unbound.image.tag }}"
+          imagePullPolicy: {{ .Values.unbound.image.pullPolicy }}
+          ports:
+            - name: unbound-tcp
+              containerPort: {{ .Values.unbound.port }}
+              protocol: TCP
+            - name: unbound-udp
+              containerPort: {{ .Values.unbound.port }}
+              protocol: UDP
+          {{- with .Values.unbound.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
+      volumes:
+        - name: pihole-data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ default (include "pihole.fullname" .) .Values.persistence.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: dnsmasq-config
+          emptyDir: {}
+        {{- if .Values.dns.customRecords }}
+        - name: custom-records
+          configMap:
+            name: {{ include "pihole.configMapName" . }}
+            items:
+              - key: custom.list
+                path: custom.list
+        {{- end }}
+        {{- if .Values.dns.cnameRecords }}
+        - name: custom-cname
+          configMap:
+            name: {{ include "pihole.configMapName" . }}
+            items:
+              - key: 05-custom-cname.conf
+                path: 05-custom-cname.conf
+        {{- end }}
+        {{- if .Values.dns.customDnsmasq }}
+        - name: custom-dnsmasq
+          configMap:
+            name: {{ include "pihole.configMapName" . }}
+            items:
+              - key: 06-custom.conf
+                path: 06-custom.conf
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}

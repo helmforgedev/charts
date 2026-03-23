@@ -1,0 +1,69 @@
+# Production Pi-hole with Unbound recursive DNS, ingress, and monitoring
+
+pihole:
+  timezone: America/Sao_Paulo
+  dnssec: true
+
+admin:
+  existingSecret: pihole-admin
+  existingSecretKey: password
+
+unbound:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+dns:
+  customRecords:
+    - "192.168.1.1 router.home"
+    - "192.168.1.10 nas.home"
+  cnameRecords:
+    - "cname=media.home,nas.home"
+
+persistence:
+  enabled: true
+  storageClass: local-path
+  size: 2Gi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+serviceDns:
+  type: LoadBalancer
+  loadBalancerIP: "192.168.1.53"
+  externalTrafficPolicy: Local
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: pihole.home
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: pihole-tls
+      hosts:
+        - pihole.home
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: prometheus
+
+nodeSelector:
+  kubernetes.io/os: linux
