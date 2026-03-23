@@ -1,0 +1,181 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-uptime-kuma
+
+  - it: should use Recreate strategy
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should use 1 replica
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should set the correct image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "louislam/uptime-kuma:2.2.1"
+
+  - it: should set custom image tag
+    set:
+      image.tag: "2.1.0"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "louislam/uptime-kuma:2.1.0"
+
+  - it: should set default env vars for SQLite mode
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPTIME_KUMA_PORT
+            value: "3001"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATA_DIR
+            value: /app/data
+
+  - it: should not have init containers in SQLite mode
+    asserts:
+      - notExists:
+          path: spec.template.spec.initContainers
+
+  - it: should set MariaDB env vars when database type is mariadb
+    set:
+      database.type: mariadb
+      mysql.enabled: true
+      mysql.auth.password: test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPTIME_KUMA_DB_TYPE
+            value: mariadb
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPTIME_KUMA_DB_HOSTNAME
+            value: test-mysql
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPTIME_KUMA_DB_NAME
+            value: uptime_kuma
+
+  - it: should have wait-for-db init container in mariadb mode
+    set:
+      database.type: mariadb
+      mysql.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+
+  - it: should set external database host when subchart is disabled
+    set:
+      database.type: mariadb
+      mysql.enabled: false
+      database.external.host: db.example.com
+      database.external.port: "3307"
+      database.external.name: my_kuma
+      database.external.username: kuma_user
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPTIME_KUMA_DB_HOSTNAME
+            value: db.example.com
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPTIME_KUMA_DB_PORT
+            value: "3307"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPTIME_KUMA_DB_NAME
+            value: my_kuma
+
+  - it: should mount data volume
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /app/data
+
+  - it: should use PVC for data when persistence enabled
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          value: test-uptime-kuma-data
+
+  - it: should use emptyDir when persistence disabled
+    set:
+      persistence.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].emptyDir
+          value: {}
+
+  - it: should set probes on root path
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /
+
+  - it: should set extra env vars
+    set:
+      uptimeKuma.extraEnv:
+        - name: NODE_EXTRA_CA_CERTS
+          value: /app/data/ca.pem
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NODE_EXTRA_CA_CERTS
+            value: /app/data/ca.pem
+
+  - it: should set disableFrameSameOrigin
+    set:
+      uptimeKuma.disableFrameSameOrigin: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPTIME_KUMA_DISABLE_FRAME_SAMEORIGIN
+            value: "true"
+
+  - it: should set resources
+    set:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
