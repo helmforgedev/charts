@@ -139,7 +139,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "authelia.redisHost" -}}
 {{- if .Values.redis.enabled -}}
-  {{- printf "%s-redis" .Release.Name -}}
+  {{- printf "%s-redis-client" .Release.Name -}}
 {{- end -}}
 {{- end -}}
 
