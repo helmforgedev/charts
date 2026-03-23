@@ -1,0 +1,60 @@
+# Production setup — PostgreSQL + Redis queue + ingress + backup
+n8n:
+  webhookUrl: "https://n8n.example.com/"
+  logLevel: warn
+
+postgresql:
+  enabled: true
+  auth:
+    database: n8n
+    username: n8n
+    password: "strong-db-password"
+  primary:
+    persistence:
+      size: 20Gi
+
+queue:
+  enabled: true
+  workers: 2
+  concurrency: 10
+
+redis:
+  enabled: true
+  auth:
+    password: "strong-redis-password"
+
+persistence:
+  enabled: true
+  size: 10Gi
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: n8n.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: n8n-tls
+      hosts:
+        - n8n.example.com
+
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: company-backups
+    prefix: n8n
+    existingSecret: backup-s3-credentials
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
