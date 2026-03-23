@@ -1,0 +1,45 @@
+# Production Komga with ingress, memory tuning, and backup
+komga:
+  timezone: "America/Sao_Paulo"
+  javaMemory: "-Xmx2g"
+  sessionTimeout: "7d"
+
+persistence:
+  config:
+    enabled: true
+    size: 5Gi
+  data:
+    enabled: true
+    size: 500Gi
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+  hosts:
+    - host: komga.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - komga.example.com
+      secretName: komga-tls
+
+backup:
+  enabled: true
+  schedule: "0 3 * * *"
+  archivePrefix: komga-prod
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: my-backups
+    prefix: komga
+    existingSecret: komga-s3-credentials
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    memory: 3Gi

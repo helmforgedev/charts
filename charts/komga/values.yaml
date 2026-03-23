@@ -1,0 +1,233 @@
+# =============================================================================
+# Komga Helm Chart — Default Values
+# =============================================================================
+# Focus: SQLite media server + persistent config/data + ingress + backup
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Komga image repository
+  repository: gotson/komga
+  # -- Komga image tag (defaults to appVersion)
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Komga Configuration
+# =============================================================================
+
+komga:
+  # -- Server port inside the container
+  port: 25600
+  # -- Base URL path for reverse proxy (e.g. "/komga")
+  contextPath: /
+  # -- Session timeout duration (e.g. "30m", "7d")
+  sessionTimeout: "30m"
+  # -- Timezone (e.g. "America/Sao_Paulo", "UTC")
+  timezone: "UTC"
+  # -- Java memory limit (e.g. "-Xmx1g", "-Xmx2g")
+  javaMemory: ""
+  # -- Extra environment variables
+  # -- @default -- `[]`
+  extraEnv: []
+    # - name: MY_VAR
+    #   value: "my-value"
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount for Komga
+  create: false
+  # -- ServiceAccount name (defaults to fullname)
+  name: ""
+  # -- Annotations added to the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  config:
+    # -- Persist /config with a PVC (database and application config)
+    enabled: true
+    # -- Existing PVC name for config
+    existingClaim: ""
+    # -- Storage class for the config PVC
+    storageClass: ""
+    # -- Access mode for the config PVC
+    accessMode: ReadWriteOnce
+    # -- Size of the config PVC
+    size: 2Gi
+    # -- Annotations added to the config PVC
+    annotations: {}
+
+  data:
+    # -- Persist /data with a PVC (comics/manga libraries)
+    enabled: true
+    # -- Existing PVC name for data
+    existingClaim: ""
+    # -- Storage class for the data PVC
+    storageClass: ""
+    # -- Access mode for the data PVC
+    accessMode: ReadWriteOnce
+    # -- Size of the data PVC
+    size: 50Gi
+    # -- Annotations added to the data PVC
+    annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- HTTP service port
+  port: 80
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Komga
+  enabled: false
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts: []
+    # - host: komga.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+    # - hosts:
+    #     - komga.example.com
+    #   secretName: komga-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    path: /
+    initialDelaySeconds: 15
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    path: /
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    path: /
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Backup
+# =============================================================================
+
+backup:
+  # -- Enable built-in backup CronJob support (SQLite database tar + S3 upload)
+  enabled: false
+  # -- Backup schedule in Cron format
+  schedule: "0 2 * * *"
+  # -- Suspend backup execution
+  suspend: false
+  # -- CronJob concurrency policy
+  concurrencyPolicy: Forbid
+  # -- Successful job history retained
+  successfulJobsHistoryLimit: 3
+  # -- Failed job history retained
+  failedJobsHistoryLimit: 3
+  # -- Job backoff limit
+  backoffLimit: 1
+  # -- Prefix used in generated backup archive names
+  archivePrefix: komga
+  # -- Resources for backup containers
+  resources: {}
+  images:
+    uploader:
+      repository: minio/mc
+      tag: "RELEASE.2025-08-13T08-35-41Z"
+      pullPolicy: IfNotPresent
+    sqlite:
+      repository: alpine
+      tag: "3.22"
+      pullPolicy: IfNotPresent
+  s3:
+    # -- S3-compatible endpoint URL
+    endpoint: ""
+    # -- Target bucket name
+    bucket: ""
+    # -- Optional key prefix inside the bucket
+    prefix: komga
+    # -- Create the bucket automatically when it does not exist
+    createBucketIfNotExists: true
+    # -- Existing secret containing access-key and secret-key
+    existingSecret: ""
+    existingSecretAccessKeyKey: access-key
+    existingSecretSecretKeyKey: secret-key
+    # -- Inline access key
+    accessKey: ""
+    # -- Inline secret key
+    secretKey: ""
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []
