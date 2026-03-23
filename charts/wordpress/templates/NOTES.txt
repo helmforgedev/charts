@@ -1,0 +1,53 @@
+WordPress has been deployed!
+
+Web Interface:
+{{- if .Values.ingress.enabled }}
+  {{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+  {{- end }}
+{{- else }}
+  kubectl port-forward svc/{{ include "wordpress.fullname" . }} -n {{ .Release.Namespace }} 8080:{{ .Values.service.port }}
+  Then visit: http://localhost:8080
+{{- end }}
+
+Admin Panel:
+{{- if .Values.ingress.enabled }}
+  {{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}/wp-admin
+  {{- end }}
+{{- else }}
+  http://localhost:8080/wp-admin
+{{- end }}
+
+Admin Credentials:
+  Username: {{ .Values.wordpress.adminUser }}
+{{- if .Values.admin.existingSecret }}
+  Password: Using existing secret {{ .Values.admin.existingSecret }}
+{{- else if .Values.wordpress.adminPassword }}
+  Password: Using the password from values.
+{{- else }}
+  Password (auto-generated):
+    kubectl get secret {{ include "wordpress.adminSecretName" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.admin-password}' | base64 -d
+{{- end }}
+
+Database:
+  Mode: {{ include "wordpress.databaseMode" . }}
+  Host: {{ include "wordpress.databaseHost" . }}:{{ include "wordpress.databasePort" . }}
+  Name: {{ include "wordpress.databaseName" . }}
+
+{{- if .Values.backup.enabled }}
+
+Backup:
+  Schedule: {{ .Values.backup.schedule }}
+  S3 Endpoint: {{ .Values.backup.s3.endpoint }}
+  S3 Bucket: {{ .Values.backup.s3.bucket }}/{{ .Values.backup.s3.prefix }}
+{{- end }}
+
+{{- if .Values.metrics.enabled }}
+
+Metrics:
+  Prometheus metrics are available on port {{ .Values.metrics.port }}.
+  {{- if .Values.metrics.serviceMonitor.enabled }}
+  A ServiceMonitor has been created for Prometheus Operator.
+  {{- end }}
+{{- end }}

@@ -1,0 +1,464 @@
+# =============================================================================
+# WordPress Helm Chart
+# =============================================================================
+# Uses the official wordpress Docker image (Apache variant).
+# Supports MySQL subchart or external MySQL/MariaDB database.
+# https://wordpress.org/documentation/
+# =============================================================================
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+
+# -- Override the full release name used in resource names
+fullnameOverride: ""
+
+# -- Labels added to every resource created by this chart
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Container image repository
+  repository: wordpress
+  # -- Container image tag (defaults to appVersion)
+  tag: ""
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# =============================================================================
+# WordPress Configuration
+# =============================================================================
+
+wordpress:
+  # -- Full external URL of the site (auto-detected from ingress if empty)
+  # Examples: "https://blog.example.com", "http://localhost:8080"
+  siteUrl: ""
+
+  # -- Site title shown in the admin and browser tab
+  siteTitle: "WordPress"
+
+  # -- Admin username for initial setup
+  adminUser: admin
+
+  # -- Admin password (auto-generated if empty and no existingSecret)
+  adminPassword: ""
+
+  # -- Admin email address
+  adminEmail: admin@example.com
+
+  # -- Database table prefix
+  tablePrefix: "wp_"
+
+  # -- Enable WordPress debug mode (WP_DEBUG)
+  debug: false
+
+  # -- Extra PHP code injected into wp-config.php via WORDPRESS_CONFIG_EXTRA
+  # configExtra: |
+  #   define('WP_MEMORY_LIMIT', '256M');
+  #   define('WP_POST_REVISIONS', 5);
+  configExtra: ""
+
+  # -- Additional environment variables for the WordPress container
+  # extraEnv:
+  #   - name: PHP_MEMORY_LIMIT
+  #     value: "256M"
+  extraEnv: []
+
+# =============================================================================
+# Admin Credentials
+# =============================================================================
+
+admin:
+  # -- Use an existing secret for admin credentials
+  existingSecret: ""
+
+  # -- Key in the existing secret for the admin password
+  existingSecretPasswordKey: admin-password
+
+# =============================================================================
+# Database
+# =============================================================================
+# WordPress requires MySQL or MariaDB.
+#
+# Mode detection (when mode is auto):
+# 1. database.external.host or database.external.existingSecret → external
+# 2. mysql.enabled → MySQL subchart
+# 3. Fail — WordPress cannot run without a database
+# =============================================================================
+
+database:
+  # -- Database mode: auto | external | mysql
+  mode: auto
+
+  external:
+    # -- External database hostname
+    host: ""
+
+    # -- External database port
+    port: 3306
+
+    # -- Database name
+    name: wordpress
+
+    # -- Database username
+    username: wordpress
+
+    # -- Database password (ignored when existingSecret is set)
+    password: ""
+
+    # -- Existing secret for the database password
+    existingSecret: ""
+
+    # -- Key in the existing secret for the database password
+    existingSecretPasswordKey: database-password
+
+# =============================================================================
+# MySQL Subchart
+# =============================================================================
+# When mysql.enabled is true and database.mode is auto or mysql, the chart
+# deploys a MySQL instance as a subchart dependency.
+# =============================================================================
+
+mysql:
+  # -- Deploy MySQL as a subchart
+  enabled: true
+
+  # -- MySQL architecture (standalone or replication)
+  architecture: standalone
+
+  auth:
+    # -- Database name created on first run
+    database: wordpress
+    # -- Database username created on first run
+    username: wordpress
+    # -- Database password (auto-generated if empty)
+    password: ""
+    # -- Root password (auto-generated if empty)
+    rootPassword: ""
+
+  primary:
+    persistence:
+      # -- Enable persistence for MySQL data
+      enabled: true
+      # -- PVC size for MySQL
+      size: 8Gi
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistent storage for /var/www/html
+  enabled: true
+
+  # -- Storage class (leave empty for cluster default)
+  storageClass: ""
+
+  # -- Access mode for the PVC
+  accessMode: ReadWriteOnce
+
+  # -- Size of the persistent volume
+  size: 5Gi
+
+  # -- Use an existing PVC instead of creating one
+  existingClaim: ""
+
+  # -- Annotations for the PVC
+  annotations: {}
+
+# =============================================================================
+# Resources
+# =============================================================================
+
+# -- CPU and memory requests/limits for the WordPress container
+resources: {}
+  # requests:
+  #   cpu: 250m
+  #   memory: 256Mi
+  # limits:
+  #   cpu: "1"
+  #   memory: 512Mi
+
+# =============================================================================
+# Security Context
+# =============================================================================
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+startupProbe:
+  # -- Enable startup probe
+  enabled: true
+  # -- Path for HTTP GET probe
+  path: /wp-admin/install.php
+  initialDelaySeconds: 15
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+
+livenessProbe:
+  # -- Enable liveness probe
+  enabled: true
+  # -- Path for HTTP GET probe
+  path: /wp-login.php
+  initialDelaySeconds: 0
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  # -- Enable readiness probe
+  enabled: true
+  # -- Path for HTTP GET probe
+  path: /wp-login.php
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+
+  # -- HTTP port
+  port: 80
+
+  # -- Annotations for the service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for WordPress
+  enabled: false
+
+  # -- Ingress class name
+  # ingressClassName: traefik
+  ingressClassName: ""
+
+  # -- Ingress annotations
+  # annotations:
+  #   cert-manager.io/cluster-issuer: letsencrypt-prod
+  annotations: {}
+
+  # -- Ingress hosts
+  # hosts:
+  #   - host: blog.example.com
+  #     paths:
+  #       - path: /
+  #         pathType: Prefix
+  hosts: []
+
+  # -- Ingress TLS configuration
+  # tls:
+  #   - secretName: wordpress-tls
+  #     hosts:
+  #       - blog.example.com
+  tls: []
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount
+  create: false
+
+  # -- Name override (auto-generated if empty)
+  name: ""
+
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Metrics (Apache Exporter)
+# =============================================================================
+
+metrics:
+  # -- Enable Prometheus metrics via apache-exporter sidecar
+  enabled: false
+
+  image:
+    # -- apache-exporter image repository
+    repository: lusotycoon/apache-exporter
+    # -- apache-exporter image tag
+    tag: v1.0.8
+    # -- apache-exporter pull policy
+    pullPolicy: IfNotPresent
+
+  # -- Port for the Prometheus metrics endpoint
+  port: 9117
+
+  # -- ServiceMonitor for Prometheus Operator
+  serviceMonitor:
+    # -- Create a ServiceMonitor resource
+    enabled: false
+    # -- Scrape interval
+    interval: 30s
+    # -- Additional labels for the ServiceMonitor
+    labels: {}
+
+# =============================================================================
+# Backup (CronJob + S3)
+# =============================================================================
+# Follows the vaultwarden backup pattern: a CronJob creates a database dump
+# and archives wp-content, then uploads both to S3-compatible storage using
+# the MinIO client.
+# =============================================================================
+
+backup:
+  # -- Enable scheduled backups to S3-compatible storage
+  enabled: false
+
+  # -- Cron schedule for backups (default: daily at 03:00 UTC)
+  schedule: "0 3 * * *"
+
+  # -- Suspend the CronJob without deleting it
+  suspend: false
+
+  # -- Concurrency policy: Forbid, Replace, Allow
+  concurrencyPolicy: Forbid
+
+  # -- Number of successful job records to keep
+  successfulJobsHistoryLimit: 3
+
+  # -- Number of failed job records to keep
+  failedJobsHistoryLimit: 3
+
+  # -- Maximum retries per backup job
+  backoffLimit: 1
+
+  # -- Prefix for backup archive filenames
+  archivePrefix: wordpress
+
+  images:
+    # -- Image used for mysqldump (must have mysqldump binary)
+    worker: mysql:8.4
+    # -- Image used for file archiving (must have tar)
+    archiver: alpine:3.22
+    # -- Image used for S3 upload (MinIO client)
+    uploader: minio/mc:RELEASE.2025-04-08T15-18-23Z
+
+  # -- Resources for backup containers
+  resources: {}
+
+  s3:
+    # -- S3-compatible endpoint URL
+    endpoint: ""
+
+    # -- Target bucket name
+    bucket: ""
+
+    # -- Key prefix within the bucket
+    prefix: wordpress
+
+    # -- Auto-create the bucket if it does not exist
+    createBucketIfNotExists: true
+
+    # -- Use an existing secret for S3 credentials
+    existingSecret: ""
+
+    # -- Key in the existing secret for the access key
+    existingSecretAccessKeyKey: access-key
+
+    # -- Key in the existing secret for the secret key
+    existingSecretSecretKeyKey: secret-key
+
+    # -- Inline S3 access key (ignored when existingSecret is set)
+    accessKey: ""
+
+    # -- Inline S3 secret key (ignored when existingSecret is set)
+    secretKey: ""
+
+  # -- Override database credentials for backup (uses app credentials if empty)
+  database:
+    # -- Override database host for backup
+    host: ""
+    # -- Override database port for backup
+    port: ""
+    # -- Override database name for backup
+    name: ""
+    # -- Override database username for backup
+    username: ""
+    # -- Override database password for backup
+    password: ""
+    # -- Existing secret for backup database credentials
+    existingSecret: ""
+    # -- Key in existing secret for the backup database password
+    existingSecretPasswordKey: database-password
+    # -- Extra arguments for mysqldump
+    mysqldumpArgs: "--single-transaction --quick --skip-lock-tables --no-tablespaces"
+
+# =============================================================================
+# PHP Configuration
+# =============================================================================
+
+php:
+  # -- Custom php.ini settings injected via ConfigMap
+  # ini: |
+  #   upload_max_filesize = 64M
+  #   post_max_size = 64M
+  #   memory_limit = 256M
+  #   max_execution_time = 300
+  ini: ""
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+# -- Node selector for pod scheduling
+nodeSelector: {}
+
+# -- Tolerations for pod scheduling
+tolerations: []
+
+# -- Affinity rules for pod scheduling
+affinity: {}
+
+# -- Topology spread constraints
+topologySpreadConstraints: []
+
+# -- Priority class name
+priorityClassName: ""
+
+# -- Grace period for shutdown (seconds)
+terminationGracePeriodSeconds: 30
+
+# =============================================================================
+# Pod-Level Metadata
+# =============================================================================
+
+# -- Additional labels for the pod
+podLabels: {}
+
+# -- Additional annotations for the pod
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+# -- Additional volume mounts for the WordPress container
+extraVolumeMounts: []
+
+# -- Additional volumes for the pod
+extraVolumes: []
+
+# -- Extra Kubernetes manifests to deploy alongside the chart
+extraManifests: []

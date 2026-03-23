@@ -1,0 +1,304 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-wordpress
+
+  - it: should use Recreate strategy
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should set replicas to 1
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should use default image tag with appVersion
+    template: templates/deployment.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "wordpress:.*-apache"
+
+  - it: should set WORDPRESS_DB_HOST env var
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WORDPRESS_DB_HOST
+            value: "test-mysql:3306"
+
+  - it: should set WORDPRESS_DB_NAME env var
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WORDPRESS_DB_NAME
+            value: "wordpress"
+
+  - it: should set WORDPRESS_DB_USER env var
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WORDPRESS_DB_USER
+            value: "wordpress"
+
+  - it: should set WORDPRESS_DB_PASSWORD from secret
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WORDPRESS_DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-wordpress-database
+                key: database-password
+
+  - it: should set table prefix
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WORDPRESS_TABLE_PREFIX
+            value: "wp_"
+
+  - it: should enable debug mode when configured
+    template: templates/deployment.yaml
+    set:
+      wordpress.debug: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WORDPRESS_DEBUG
+            value: "1"
+
+  - it: should not set debug by default
+    template: templates/deployment.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WORDPRESS_DEBUG
+            value: "1"
+
+  - it: should set config extra when configured
+    template: templates/deployment.yaml
+    set:
+      wordpress.configExtra: "define('WP_MEMORY_LIMIT', '256M');"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WORDPRESS_CONFIG_EXTRA
+            value: "define('WP_MEMORY_LIMIT', '256M');"
+
+  - it: should include extra env vars
+    template: templates/deployment.yaml
+    set:
+      wordpress.extraEnv:
+        - name: PHP_MEMORY_LIMIT
+          value: "256M"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PHP_MEMORY_LIMIT
+            value: "256M"
+
+  - it: should expose HTTP port
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 80
+            protocol: TCP
+
+  - it: should include wait-for-db init container
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: "busybox:1.37"
+
+  - it: should render startup probe when enabled
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /wp-admin/install.php
+
+  - it: should not render startup probe when disabled
+    template: templates/deployment.yaml
+    set:
+      startupProbe.enabled: false
+    asserts:
+      - isNull:
+          path: spec.template.spec.containers[0].startupProbe
+
+  - it: should render liveness probe
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /wp-login.php
+
+  - it: should render readiness probe
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /wp-login.php
+
+  - it: should mount wordpress-data volume
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: wordpress-data
+            mountPath: /var/www/html
+
+  - it: should use PVC by default
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: wordpress-data
+            persistentVolumeClaim:
+              claimName: test-wordpress
+
+  - it: should use emptyDir when persistence disabled
+    template: templates/deployment.yaml
+    set:
+      persistence.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: wordpress-data
+            emptyDir: {}
+
+  - it: should mount php.ini when configured
+    template: templates/deployment.yaml
+    set:
+      php.ini: |
+        upload_max_filesize = 64M
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: php-config
+            mountPath: /usr/local/etc/php/conf.d/custom.ini
+            subPath: custom.ini
+            readOnly: true
+
+  - it: should set resources when configured
+    template: templates/deployment.yaml
+    set:
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 250m
+
+  - it: should render metrics sidecar when enabled
+    template: templates/deployment.yaml
+    set:
+      metrics.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: metrics
+      - equal:
+          path: spec.template.spec.containers[1].image
+          value: "lusotycoon/apache-exporter:v1.0.8"
+
+  - it: should not render metrics sidecar by default
+    template: templates/deployment.yaml
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 1
+
+  - it: should use external DB host when configured
+    template: templates/deployment.yaml
+    set:
+      mysql.enabled: false
+      database.external.host: db.example.com
+      database.external.password: secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WORDPRESS_DB_HOST
+            value: "db.example.com:3306"
+
+  - it: should set node selector
+    template: templates/deployment.yaml
+    set:
+      nodeSelector:
+        kubernetes.io/os: linux
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            kubernetes.io/os: linux
+
+  - it: should set terminationGracePeriodSeconds
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 30
+
+  - it: should set pod labels
+    template: templates/deployment.yaml
+    set:
+      podLabels:
+        custom: value
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.custom
+          value: value
+
+  - it: should set pod annotations
+    template: templates/deployment.yaml
+    set:
+      podAnnotations:
+        custom: value
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations.custom
+          value: value

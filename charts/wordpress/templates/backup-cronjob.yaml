@@ -1,0 +1,118 @@
+{{- if (include "wordpress.backupEnabled" .) }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "wordpress.fullname" . }}-backup
+  labels:
+    {{- include "wordpress.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  suspend: {{ .Values.backup.suspend }}
+  concurrencyPolicy: {{ .Values.backup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "wordpress.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: Never
+          initContainers:
+            - name: dump-database
+              image: {{ .Values.backup.images.worker | quote }}
+              command: ["/bin/sh", "/scripts/dump-database.sh"]
+              env:
+                - name: MYSQL_HOST
+                  value: {{ include "wordpress.backupDatabaseHost" . | quote }}
+                - name: MYSQL_PORT
+                  value: {{ include "wordpress.backupDatabasePort" . | quote }}
+                - name: MYSQL_DATABASE
+                  value: {{ include "wordpress.backupDatabaseName" . | quote }}
+                - name: MYSQL_USER
+                  value: {{ include "wordpress.backupDatabaseUsername" . | quote }}
+                - name: MYSQL_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "wordpress.backupDatabasePasswordSecretName" . }}
+                      key: {{ include "wordpress.backupDatabasePasswordSecretKey" . }}
+                - name: MYSQL_DUMP_EXTRA_ARGS
+                  value: {{ .Values.backup.database.mysqldumpArgs | quote }}
+              volumeMounts:
+                - name: backup-out
+                  mountPath: /backup/out
+                - name: backup-scripts
+                  mountPath: /scripts
+                  readOnly: true
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+            - name: archive-content
+              image: {{ .Values.backup.images.archiver | quote }}
+              command: ["/bin/sh", "/scripts/archive-content.sh"]
+              volumeMounts:
+                - name: backup-out
+                  mountPath: /backup/out
+                - name: backup-scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: wordpress-data
+                  mountPath: /var/www/html
+                  readOnly: true
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+          containers:
+            - name: upload
+              image: {{ .Values.backup.images.uploader | quote }}
+              command: ["/bin/sh", "/scripts/upload-backup.sh"]
+              env:
+                - name: S3_ENDPOINT
+                  value: {{ .Values.backup.s3.endpoint | quote }}
+                - name: S3_BUCKET
+                  value: {{ .Values.backup.s3.bucket | quote }}
+                - name: S3_PREFIX
+                  value: {{ .Values.backup.s3.prefix | quote }}
+                - name: S3_CREATE_BUCKET_IF_NOT_EXISTS
+                  value: {{ .Values.backup.s3.createBucketIfNotExists | quote }}
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "wordpress.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretAccessKeyKey | default "access-key" }}
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "wordpress.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretSecretKeyKey | default "secret-key" }}
+              volumeMounts:
+                - name: backup-out
+                  mountPath: /backup/out
+                - name: backup-scripts
+                  mountPath: /scripts
+                  readOnly: true
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+          volumes:
+            - name: backup-out
+              emptyDir: {}
+            - name: backup-scripts
+              configMap:
+                name: {{ include "wordpress.fullname" . }}-backup
+                defaultMode: 0755
+            - name: wordpress-data
+              {{- if .Values.persistence.enabled }}
+              persistentVolumeClaim:
+                claimName: {{ default (include "wordpress.fullname" .) .Values.persistence.existingClaim }}
+              {{- else }}
+              emptyDir: {}
+              {{- end }}
+{{- end }}

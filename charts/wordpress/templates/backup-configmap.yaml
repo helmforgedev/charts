@@ -1,0 +1,65 @@
+{{- if (include "wordpress.backupEnabled" .) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "wordpress.fullname" . }}-backup
+  labels:
+    {{- include "wordpress.labels" . | nindent 4 }}
+data:
+  dump-database.sh: |
+    #!/bin/sh
+    set -e
+    TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+    ARCHIVE="{{ .Values.backup.archivePrefix }}-db-${TIMESTAMP}.sql.gz"
+    OUT_DIR="/backup/out"
+    mkdir -p "${OUT_DIR}"
+
+    echo "Dumping database ${MYSQL_DATABASE} from ${MYSQL_HOST}:${MYSQL_PORT}..."
+    MYSQL_PWD="${MYSQL_PASSWORD}" mysqldump \
+      -h "${MYSQL_HOST}" \
+      -P "${MYSQL_PORT}" \
+      -u "${MYSQL_USER}" \
+      ${MYSQL_DUMP_EXTRA_ARGS} \
+      "${MYSQL_DATABASE}" | gzip > "${OUT_DIR}/${ARCHIVE}"
+
+    echo "Database dump complete: ${ARCHIVE} ($(du -h "${OUT_DIR}/${ARCHIVE}" | cut -f1))"
+    echo "${OUT_DIR}/${ARCHIVE}" > "${OUT_DIR}/db-backup-file"
+
+  archive-content.sh: |
+    #!/bin/sh
+    set -e
+    TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+    ARCHIVE="{{ .Values.backup.archivePrefix }}-content-${TIMESTAMP}.tar.gz"
+    OUT_DIR="/backup/out"
+    mkdir -p "${OUT_DIR}"
+
+    echo "Archiving wp-content..."
+    tar -C /var/www/html -czf "${OUT_DIR}/${ARCHIVE}" wp-content
+
+    echo "Archive complete: ${ARCHIVE} ($(du -h "${OUT_DIR}/${ARCHIVE}" | cut -f1))"
+    echo "${OUT_DIR}/${ARCHIVE}" > "${OUT_DIR}/content-backup-file"
+
+  upload-backup.sh: |
+    #!/bin/sh
+    set -e
+    OUT_DIR="/backup/out"
+
+    echo "Configuring S3 alias..."
+    mc alias set backup "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}"
+
+    if [ "${S3_CREATE_BUCKET_IF_NOT_EXISTS}" = "true" ]; then
+      mc mb --ignore-existing "backup/${S3_BUCKET}"
+    fi
+
+    for MARKER_FILE in "${OUT_DIR}/db-backup-file" "${OUT_DIR}/content-backup-file"; do
+      if [ -f "${MARKER_FILE}" ]; then
+        ARCHIVE=$(cat "${MARKER_FILE}")
+        DEST="backup/${S3_BUCKET}/${S3_PREFIX}/$(basename "${ARCHIVE}")"
+        echo "Uploading ${ARCHIVE} to ${DEST}..."
+        mc cp "${ARCHIVE}" "${DEST}"
+        echo "Upload complete."
+      fi
+    done
+
+    echo "All backups uploaded successfully."
+{{- end }}

@@ -1,0 +1,82 @@
+# Production WordPress with ingress, backup, and monitoring
+
+wordpress:
+  siteUrl: "https://blog.example.com"
+  siteTitle: "My Production Blog"
+  adminEmail: admin@example.com
+  configExtra: |
+    define('WP_MEMORY_LIMIT', '256M');
+    define('WP_POST_REVISIONS', 10);
+    define('DISALLOW_FILE_EDIT', true);
+
+admin:
+  existingSecret: wordpress-admin
+
+mysql:
+  enabled: true
+  auth:
+    database: wordpress
+    username: wordpress
+    existingSecret: wordpress-mysql
+  primary:
+    persistence:
+      size: 20Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+
+persistence:
+  enabled: true
+  size: 10Gi
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+php:
+  ini: |
+    upload_max_filesize = 64M
+    post_max_size = 64M
+    memory_limit = 256M
+    max_execution_time = 300
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: blog.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: wordpress-tls
+      hosts:
+        - blog.example.com
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: prometheus
+
+backup:
+  enabled: true
+  schedule: "0 3 * * *"
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: wordpress-backups
+    existingSecret: wordpress-s3
+
+nodeSelector:
+  kubernetes.io/os: linux

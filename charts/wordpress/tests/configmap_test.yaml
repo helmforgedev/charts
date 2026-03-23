@@ -1,0 +1,26 @@
+suite: ConfigMap
+templates:
+  - templates/configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render configmap by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render configmap with php.ini
+    set:
+      php.ini: |
+        upload_max_filesize = 64M
+        post_max_size = 64M
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: test-wordpress-config
+      - matchRegex:
+          path: data["custom.ini"]
+          pattern: "upload_max_filesize = 64M"
