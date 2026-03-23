@@ -190,8 +190,9 @@ Critical rules:
 5. Add helm-unittest test suites for all key templates (workload, service, secret, optional resources).
 6. Add CI scenarios for each supported topology.
 7. Add examples that reflect realistic usage.
-7. Update the root `README.md` charts table.
-8. Run validation locally before pushing.
+8. Update the root `README.md` charts table.
+9. Run validation locally before pushing.
+10. Deploy and validate the chart on a local k3d cluster before considering it done. Install the chart with default values and at least one non-default CI scenario, verify pods are running and the application is reachable.
 
 ## Modifying an Existing Chart
 

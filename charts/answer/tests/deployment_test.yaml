@@ -1,0 +1,351 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-answer
+
+  - it: should use default image
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "apache/answer:2.0.0"
+
+  - it: should allow custom image tag
+    template: templates/deployment.yaml
+    set:
+      image.tag: "1.7.1"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "apache/answer:1.7.1"
+
+  - it: should set container port to 80
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 80
+            protocol: TCP
+
+  - it: should mount data volume
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /data
+
+  - it: should use PVC when persistence enabled
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: test-answer-data
+
+  - it: should use emptyDir when persistence disabled
+    template: templates/deployment.yaml
+    set:
+      persistence.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+
+  - it: should set SQLite env vars by default
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AUTO_INSTALL
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_TYPE
+            value: sqlite3
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_FILE
+            value: /data/answer.db
+
+  - it: should not have init containers in sqlite mode
+    template: templates/deployment.yaml
+    asserts:
+      - notExists:
+          path: spec.template.spec.initContainers
+
+  - it: should add wait-for-db init container for postgresql
+    template: templates/deployment.yaml
+    set:
+      postgresql.enabled: true
+      postgresql.auth.password: test
+    asserts:
+      - exists:
+          path: spec.template.spec.initContainers
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: "busybox:1.37"
+
+  - it: should set postgres env vars for postgresql subchart
+    template: templates/deployment.yaml
+    set:
+      postgresql.enabled: true
+      postgresql.auth.password: test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_TYPE
+            value: postgres
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_HOST
+            value: "test-postgresql:5432"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_NAME
+            value: answer
+
+  - it: should set mysql env vars for mysql subchart
+    template: templates/deployment.yaml
+    set:
+      mysql.enabled: true
+      mysql.auth.password: test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_TYPE
+            value: mysql
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_HOST
+            value: "test-mysql:3306"
+
+  - it: should set external db env vars
+    template: templates/deployment.yaml
+    set:
+      database.external.vendor: postgres
+      database.external.host: db.example.com
+      database.external.name: myqa
+      database.external.username: qauser
+      database.external.password: secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_TYPE
+            value: postgres
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_HOST
+            value: "db.example.com:5432"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_NAME
+            value: myqa
+
+  - it: should set admin password from secret
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-answer-admin
+                key: admin-password
+
+  - it: should use existing admin secret
+    template: templates/deployment.yaml
+    set:
+      admin.existingSecret: my-admin-secret
+      admin.existingSecretPasswordKey: pw
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: my-admin-secret
+                key: pw
+
+  - it: should set site name
+    template: templates/deployment.yaml
+    set:
+      answer.siteName: "Test Q&A"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SITE_NAME
+            value: "Test Q&A"
+
+  - it: should auto-detect site URL from ingress
+    template: templates/deployment.yaml
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: qa.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SITE_URL
+            value: "https://qa.example.com"
+
+  - it: should prefer explicit site URL over ingress
+    template: templates/deployment.yaml
+    set:
+      answer.siteUrl: "https://custom.example.com"
+      ingress.enabled: true
+      ingress.hosts:
+        - host: qa.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SITE_URL
+            value: "https://custom.example.com"
+
+  - it: should set log level
+    template: templates/deployment.yaml
+    set:
+      answer.logLevel: DEBUG
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LOG_LEVEL
+            value: DEBUG
+
+  - it: should render startup probe by default
+    template: templates/deployment.yaml
+    asserts:
+      - exists:
+          path: spec.template.spec.containers[0].startupProbe
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /healthz
+
+  - it: should disable startup probe
+    template: templates/deployment.yaml
+    set:
+      startupProbe.enabled: false
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe
+
+  - it: should set resources when defined
+    template: templates/deployment.yaml
+    set:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+
+  - it: should add extra env vars
+    template: templates/deployment.yaml
+    set:
+      answer.extraEnv:
+        - name: TIMEZONE
+          value: "UTC"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TIMEZONE
+            value: "UTC"
+
+  - it: should set pod labels
+    template: templates/deployment.yaml
+    set:
+      podLabels:
+        custom: label
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.custom
+          value: label
+
+  - it: should set pod annotations
+    template: templates/deployment.yaml
+    set:
+      podAnnotations:
+        custom: annotation
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations.custom
+          value: annotation
+
+  - it: should set node selector
+    template: templates/deployment.yaml
+    set:
+      nodeSelector:
+        disktype: ssd
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector.disktype
+          value: ssd
+
+  - it: should set service account when created
+    template: templates/deployment.yaml
+    set:
+      serviceAccount.create: true
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: test-answer
+
+  - it: should use existing PVC
+    template: templates/deployment.yaml
+    set:
+      persistence.existingClaim: my-pvc
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: my-pvc

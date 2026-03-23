@@ -1,0 +1,460 @@
+# =============================================================================
+# Apache Answer Helm Chart
+# =============================================================================
+# Open-source Q&A platform for teams and communities.
+# Supports SQLite (default), MySQL, and PostgreSQL.
+# https://answer.apache.org/
+# =============================================================================
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+
+# -- Override the full release name used in resource names
+fullnameOverride: ""
+
+# -- Labels added to every resource created by this chart
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Container image repository
+  repository: apache/answer
+  # -- Container image tag (defaults to appVersion)
+  tag: ""
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# =============================================================================
+# Answer Configuration
+# =============================================================================
+
+answer:
+  # -- Full external URL of the site (auto-detected from ingress if empty)
+  # Examples: "https://qa.example.com", "http://localhost:9080"
+  siteUrl: ""
+
+  # -- Site name displayed in the browser tab and header
+  siteName: "Apache Answer"
+
+  # -- Default language for the UI
+  language: "en-US"
+
+  # -- Contact email shown in the site footer and admin
+  contactEmail: admin@example.com
+
+  # -- Enable automatic installation via environment variables
+  # When true, the first boot runs unattended setup using the values below.
+  autoInstall: true
+
+  # -- Log level: DEBUG, INFO, WARN, ERROR
+  logLevel: INFO
+
+  # -- Additional environment variables for the Answer container
+  # extraEnv:
+  #   - name: TIMEZONE
+  #     value: "UTC"
+  extraEnv: []
+
+# =============================================================================
+# Admin Credentials
+# =============================================================================
+
+admin:
+  # -- Admin username for initial setup
+  name: admin
+
+  # -- Admin password (auto-generated if empty and no existingSecret)
+  password: ""
+
+  # -- Admin email address
+  email: admin@example.com
+
+  # -- Use an existing secret for admin credentials
+  existingSecret: ""
+
+  # -- Key in the existing secret for the admin password
+  existingSecretPasswordKey: admin-password
+
+# =============================================================================
+# Database
+# =============================================================================
+# Apache Answer supports SQLite, MySQL, and PostgreSQL.
+#
+# Mode detection (when mode is auto):
+# 1. database.external.host or database.external.existingSecret → external
+# 2. postgresql.enabled → PostgreSQL subchart
+# 3. mysql.enabled → MySQL subchart
+# 4. Fallback → SQLite (default, zero configuration)
+# =============================================================================
+
+database:
+  # -- Database mode: auto | sqlite | external | postgresql | mysql
+  mode: auto
+
+  sqlite:
+    # -- SQLite database file path inside the data volume
+    file: /data/answer.db
+
+  external:
+    # -- Database vendor: postgres | mysql
+    vendor: postgres
+
+    # -- External database hostname
+    host: ""
+
+    # -- External database port (auto-detected from vendor if empty)
+    port: ""
+
+    # -- Database name
+    name: answer
+
+    # -- Database username
+    username: answer
+
+    # -- Database password (ignored when existingSecret is set)
+    password: ""
+
+    # -- Existing secret for the database password
+    existingSecret: ""
+
+    # -- Key in the existing secret for the database password
+    existingSecretPasswordKey: database-password
+
+# =============================================================================
+# PostgreSQL Subchart
+# =============================================================================
+
+postgresql:
+  # -- Deploy PostgreSQL as a subchart
+  enabled: false
+
+  # -- PostgreSQL architecture (standalone or replication)
+  architecture: standalone
+
+  auth:
+    # -- Database name created on first run
+    database: answer
+    # -- Database username created on first run
+    username: answer
+    # -- Database password (auto-generated if empty)
+    password: ""
+    # -- Root password (auto-generated if empty)
+    rootPassword: ""
+
+  primary:
+    persistence:
+      # -- Enable persistence for PostgreSQL data
+      enabled: true
+      # -- PVC size for PostgreSQL
+      size: 8Gi
+
+# =============================================================================
+# MySQL Subchart
+# =============================================================================
+
+mysql:
+  # -- Deploy MySQL as a subchart
+  enabled: false
+
+  # -- MySQL architecture (standalone or replication)
+  architecture: standalone
+
+  auth:
+    # -- Database name created on first run
+    database: answer
+    # -- Database username created on first run
+    username: answer
+    # -- Database password (auto-generated if empty)
+    password: ""
+    # -- Root password (auto-generated if empty)
+    rootPassword: ""
+
+  primary:
+    persistence:
+      # -- Enable persistence for MySQL data
+      enabled: true
+      # -- PVC size for MySQL
+      size: 8Gi
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistent storage for /data
+  enabled: true
+
+  # -- Storage class (leave empty for cluster default)
+  storageClass: ""
+
+  # -- Access mode for the PVC
+  accessMode: ReadWriteOnce
+
+  # -- Size of the persistent volume
+  size: 5Gi
+
+  # -- Use an existing PVC instead of creating one
+  existingClaim: ""
+
+  # -- Annotations for the PVC
+  annotations: {}
+
+# =============================================================================
+# Resources
+# =============================================================================
+
+# -- CPU and memory requests/limits for the Answer container
+resources: {}
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # limits:
+  #   cpu: 500m
+  #   memory: 512Mi
+
+# =============================================================================
+# Security Context
+# =============================================================================
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+startupProbe:
+  # -- Enable startup probe
+  enabled: true
+  # -- Path for HTTP GET probe
+  path: /healthz
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 30
+
+livenessProbe:
+  # -- Enable liveness probe
+  enabled: true
+  # -- Path for HTTP GET probe
+  path: /healthz
+  initialDelaySeconds: 0
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  # -- Enable readiness probe
+  enabled: true
+  # -- Path for HTTP GET probe
+  path: /healthz
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+
+  # -- HTTP port
+  port: 80
+
+  # -- Annotations for the service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Answer
+  enabled: false
+
+  # -- Ingress class name
+  # ingressClassName: traefik
+  ingressClassName: ""
+
+  # -- Ingress annotations
+  # annotations:
+  #   cert-manager.io/cluster-issuer: letsencrypt-prod
+  annotations: {}
+
+  # -- Ingress hosts
+  # hosts:
+  #   - host: qa.example.com
+  #     paths:
+  #       - path: /
+  #         pathType: Prefix
+  hosts: []
+
+  # -- Ingress TLS configuration
+  # tls:
+  #   - secretName: answer-tls
+  #     hosts:
+  #       - qa.example.com
+  tls: []
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount
+  create: false
+
+  # -- Name override (auto-generated if empty)
+  name: ""
+
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Backup (CronJob + S3)
+# =============================================================================
+# Database-aware backup: SQLite archives the full /data directory,
+# PostgreSQL uses pg_dump, MySQL uses mysqldump. All upload to S3.
+# =============================================================================
+
+backup:
+  # -- Enable scheduled backups to S3-compatible storage
+  enabled: false
+
+  # -- Cron schedule for backups (default: daily at 03:00 UTC)
+  schedule: "0 3 * * *"
+
+  # -- Suspend the CronJob without deleting it
+  suspend: false
+
+  # -- Concurrency policy: Forbid, Replace, Allow
+  concurrencyPolicy: Forbid
+
+  # -- Number of successful job records to keep
+  successfulJobsHistoryLimit: 3
+
+  # -- Number of failed job records to keep
+  failedJobsHistoryLimit: 3
+
+  # -- Maximum retries per backup job
+  backoffLimit: 1
+
+  # -- Prefix for backup archive filenames
+  archivePrefix: answer
+
+  images:
+    # -- Image used for SQLite backup (must have tar)
+    sqlite: alpine:3.22
+    # -- Image used for PostgreSQL backup (must have pg_dump)
+    postgresql: postgres:18.3-alpine
+    # -- Image used for MySQL backup (must have mysqldump)
+    mysql: mysql:8.4
+    # -- Image used for S3 upload (MinIO client)
+    uploader: minio/mc:RELEASE.2025-04-08T15-18-23Z
+
+  # -- Resources for backup containers
+  resources: {}
+
+  s3:
+    # -- S3-compatible endpoint URL
+    endpoint: ""
+
+    # -- Target bucket name
+    bucket: ""
+
+    # -- Key prefix within the bucket
+    prefix: answer
+
+    # -- Auto-create the bucket if it does not exist
+    createBucketIfNotExists: true
+
+    # -- Use an existing secret for S3 credentials
+    existingSecret: ""
+
+    # -- Key in the existing secret for the access key
+    existingSecretAccessKeyKey: access-key
+
+    # -- Key in the existing secret for the secret key
+    existingSecretSecretKeyKey: secret-key
+
+    # -- Inline S3 access key (ignored when existingSecret is set)
+    accessKey: ""
+
+    # -- Inline S3 secret key (ignored when existingSecret is set)
+    secretKey: ""
+
+  # -- Override database credentials for backup (uses app credentials if empty)
+  database:
+    # -- Override database host for backup
+    host: ""
+    # -- Override database port for backup
+    port: ""
+    # -- Override database name for backup
+    name: ""
+    # -- Override database username for backup
+    username: ""
+    # -- Override database password for backup
+    password: ""
+    # -- Existing secret for backup database credentials
+    existingSecret: ""
+    # -- Key in existing secret for the backup database password
+    existingSecretPasswordKey: database-password
+    # -- Extra arguments for pg_dump
+    postgresDumpArgs: ""
+    # -- Extra arguments for mysqldump
+    mysqlDumpArgs: "--single-transaction --quick --skip-lock-tables --no-tablespaces"
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+# -- Node selector for pod scheduling
+nodeSelector: {}
+
+# -- Tolerations for pod scheduling
+tolerations: []
+
+# -- Affinity rules for pod scheduling
+affinity: {}
+
+# -- Topology spread constraints
+topologySpreadConstraints: []
+
+# -- Priority class name
+priorityClassName: ""
+
+# -- Grace period for shutdown (seconds)
+terminationGracePeriodSeconds: 30
+
+# =============================================================================
+# Pod-Level Metadata
+# =============================================================================
+
+# -- Additional labels for the pod
+podLabels: {}
+
+# -- Additional annotations for the pod
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+# -- Additional volume mounts for the Answer container
+extraVolumeMounts: []
+
+# -- Additional volumes for the pod
+extraVolumes: []
+
+# -- Extra Kubernetes manifests to deploy alongside the chart
+extraManifests: []

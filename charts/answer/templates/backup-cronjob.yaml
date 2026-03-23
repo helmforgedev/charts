@@ -1,0 +1,158 @@
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "answer.fullname" . }}-backup
+  labels:
+    {{- include "answer.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  suspend: {{ .Values.backup.suspend }}
+  concurrencyPolicy: {{ .Values.backup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "answer.selectorLabels" . | nindent 12 }}
+        spec:
+          restartPolicy: Never
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          initContainers:
+            {{- if eq (include "answer.databaseMode" .) "sqlite" }}
+            - name: sqlite-backup
+              image: {{ .Values.backup.images.sqlite | quote }}
+              command: ["/bin/sh", "/scripts/sqlite-backup.sh"]
+              env:
+                - name: BACKUP_ARCHIVE_PREFIX
+                  value: {{ .Values.backup.archivePrefix | quote }}
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: backup-workdir
+                  mountPath: /backup/out
+                - name: data
+                  mountPath: /data
+                  readOnly: true
+            {{- else if eq (include "answer.databaseVendor" .) "postgres" }}
+            - name: postgres-backup
+              image: {{ .Values.backup.images.postgresql | quote }}
+              command: ["/bin/sh", "/scripts/postgres-backup.sh"]
+              env:
+                - name: BACKUP_ARCHIVE_PREFIX
+                  value: {{ .Values.backup.archivePrefix | quote }}
+                - name: PG_DUMP_EXTRA_ARGS
+                  value: {{ .Values.backup.database.postgresDumpArgs | quote }}
+                - name: DB_HOST
+                  value: {{ include "answer.backupDatabaseHost" . | quote }}
+                - name: DB_PORT
+                  value: {{ include "answer.backupDatabasePort" . | quote }}
+                - name: DB_NAME
+                  value: {{ include "answer.backupDatabaseName" . | quote }}
+                - name: DB_USERNAME
+                  value: {{ include "answer.backupDatabaseUsername" . | quote }}
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "answer.backupDatabasePasswordSecretName" . }}
+                      key: {{ include "answer.backupDatabasePasswordSecretKey" . }}
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: backup-workdir
+                  mountPath: /backup/out
+            {{- else if eq (include "answer.databaseVendor" .) "mysql" }}
+            - name: mysql-backup
+              image: {{ .Values.backup.images.mysql | quote }}
+              command: ["/bin/sh", "/scripts/mysql-backup.sh"]
+              env:
+                - name: BACKUP_ARCHIVE_PREFIX
+                  value: {{ .Values.backup.archivePrefix | quote }}
+                - name: MYSQL_DUMP_EXTRA_ARGS
+                  value: {{ .Values.backup.database.mysqlDumpArgs | quote }}
+                - name: DB_HOST
+                  value: {{ include "answer.backupDatabaseHost" . | quote }}
+                - name: DB_PORT
+                  value: {{ include "answer.backupDatabasePort" . | quote }}
+                - name: DB_NAME
+                  value: {{ include "answer.backupDatabaseName" . | quote }}
+                - name: DB_USERNAME
+                  value: {{ include "answer.backupDatabaseUsername" . | quote }}
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "answer.backupDatabasePasswordSecretName" . }}
+                      key: {{ include "answer.backupDatabasePasswordSecretKey" . }}
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: backup-workdir
+                  mountPath: /backup/out
+            {{- end }}
+          containers:
+            - name: upload
+              image: {{ .Values.backup.images.uploader | quote }}
+              command: ["/bin/sh", "/scripts/upload-backup.sh"]
+              env:
+                - name: S3_ENDPOINT
+                  value: {{ .Values.backup.s3.endpoint | quote }}
+                - name: S3_BUCKET
+                  value: {{ .Values.backup.s3.bucket | quote }}
+                - name: S3_PREFIX
+                  value: {{ .Values.backup.s3.prefix | quote }}
+                - name: S3_CREATE_BUCKET_IF_NOT_EXISTS
+                  value: {{ ternary "true" "false" .Values.backup.s3.createBucketIfNotExists | quote }}
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "answer.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretAccessKeyKey }}
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "answer.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: backup-workdir
+                  mountPath: /backup/out
+          volumes:
+            - name: scripts
+              configMap:
+                name: {{ include "answer.fullname" . }}-backup-scripts
+                defaultMode: 0755
+            - name: backup-workdir
+              emptyDir: {}
+            {{- if eq (include "answer.databaseMode" .) "sqlite" }}
+            - name: data
+              persistentVolumeClaim:
+                claimName: {{ .Values.persistence.existingClaim | default (printf "%s-data" (include "answer.fullname" .)) }}
+            {{- end }}
+{{- end }}

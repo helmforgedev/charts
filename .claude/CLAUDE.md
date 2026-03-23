@@ -121,6 +121,15 @@ for f in charts/<name>/ci/*.yaml; do helm template test charts/<name> -f "$f"; d
 
 When available, also validate with `kubeconform`.
 
+## Local k3d Validation (New Charts)
+
+When creating a new chart, always deploy and validate it on a local k3d cluster before considering it done:
+
+1. Create a k3d cluster if one is not already running (`k3d cluster create test`).
+2. Install the chart with default values and verify pods reach `Running`/`Completed` state.
+3. Install at least one non-default CI scenario and verify the application is reachable.
+4. Clean up test releases after validation (`helm uninstall`).
+
 ## Unit Testing Rules
 
 Tests live under `charts/<name>/tests/<template>_test.yaml`. See `docs/testing-strategy.md` for the full testing guide.
