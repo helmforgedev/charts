@@ -1,0 +1,152 @@
+suite: Backup
+templates:
+  - templates/backup-cronjob.yaml
+  - templates/backup-configmap.yaml
+release:
+  name: test
+  namespace: default
+chart:
+  appVersion: "6.9.4"
+tests:
+  - it: should not render backup by default
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render backup configmap by default
+    template: templates/backup-configmap.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render CronJob when backup enabled
+    template: templates/backup-cronjob.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: key
+      backup.s3.secretKey: secret
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: metadata.name
+          value: test-wordpress-backup
+
+  - it: should set backup schedule
+    template: templates/backup-cronjob.yaml
+    set:
+      backup.enabled: true
+      backup.schedule: "0 4 * * *"
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: key
+      backup.s3.secretKey: secret
+    asserts:
+      - equal:
+          path: spec.schedule
+          value: "0 4 * * *"
+
+  - it: should have dump-database init container
+    template: templates/backup-cronjob.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: key
+      backup.s3.secretKey: secret
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].name
+          value: dump-database
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].image
+          value: "mysql:8.4"
+
+  - it: should have archive-content init container
+    template: templates/backup-cronjob.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: key
+      backup.s3.secretKey: secret
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[1].name
+          value: archive-content
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[1].image
+          value: "alpine:3.22"
+
+  - it: should have upload container
+    template: templates/backup-cronjob.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: key
+      backup.s3.secretKey: secret
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].name
+          value: upload
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].image
+          value: "minio/mc:RELEASE.2025-04-08T15-18-23Z"
+
+  - it: should render backup configmap when enabled
+    template: templates/backup-configmap.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: key
+      backup.s3.secretKey: secret
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - isNotNull:
+          path: data["dump-database.sh"]
+      - isNotNull:
+          path: data["archive-content.sh"]
+      - isNotNull:
+          path: data["upload-backup.sh"]
+
+  - it: should use backup database override when set
+    template: templates/backup-cronjob.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: key
+      backup.s3.secretKey: secret
+      backup.database.host: backup-db.example.com
+      backup.database.port: "3307"
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: MYSQL_HOST
+            value: "backup-db.example.com"
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: MYSQL_PORT
+            value: "3307"
+
+  - it: should set concurrency policy
+    template: templates/backup-cronjob.yaml
+    set:
+      backup.enabled: true
+      backup.concurrencyPolicy: Replace
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: key
+      backup.s3.secretKey: secret
+    asserts:
+      - equal:
+          path: spec.concurrencyPolicy
+          value: Replace

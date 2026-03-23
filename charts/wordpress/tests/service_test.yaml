@@ -1,0 +1,61 @@
+suite: Service
+templates:
+  - templates/service.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Service
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: test-wordpress
+
+  - it: should be ClusterIP by default
+    asserts:
+      - equal:
+          path: spec.type
+          value: ClusterIP
+
+  - it: should expose HTTP port
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: http
+            port: 80
+            targetPort: http
+            protocol: TCP
+
+  - it: should expose metrics port when enabled
+    set:
+      metrics.enabled: true
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: metrics
+            port: 9117
+            targetPort: metrics
+            protocol: TCP
+
+  - it: should not expose metrics port by default
+    asserts:
+      - notContains:
+          path: spec.ports
+          content:
+            name: metrics
+            port: 9117
+            targetPort: metrics
+            protocol: TCP
+
+  - it: should set service annotations
+    set:
+      service.annotations:
+        service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    asserts:
+      - equal:
+          path: metadata.annotations["service.beta.kubernetes.io/aws-load-balancer-type"]
+          value: nlb
