@@ -1,0 +1,215 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "n8n.fullname" . }}
+  labels:
+    {{- include "n8n.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "n8n.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "n8n.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/secrets: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "n8n.serviceAccountName" . }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- $dbMode := include "n8n.databaseMode" . }}
+      {{- $needsInit := or (ne $dbMode "sqlite") .Values.queue.enabled }}
+      {{- if $needsInit }}
+      initContainers:
+        {{- if ne $dbMode "sqlite" }}
+        - name: wait-for-db
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for {{ include "n8n.databaseHost" . }}:{{ include "n8n.databasePort" . }} ..."
+              until nc -z -w2 {{ include "n8n.databaseHost" . }} {{ include "n8n.databasePort" . }}; do
+                sleep 2
+              done
+              echo "Database is reachable."
+        {{- end }}
+        {{- if .Values.queue.enabled }}
+        - name: wait-for-redis
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for {{ include "n8n.redisHost" . }}:{{ include "n8n.redisPort" . }} ..."
+              until nc -z -w2 {{ include "n8n.redisHost" . }} {{ include "n8n.redisPort" . }}; do
+                sleep 2
+              done
+              echo "Redis is reachable."
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: n8n
+          image: {{ include "n8n.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 5678
+              protocol: TCP
+          env:
+            - name: DB_TYPE
+              value: {{ include "n8n.dbType" . | quote }}
+            {{- if ne $dbMode "sqlite" }}
+            {{- $vendor := include "n8n.databaseVendor" . }}
+            {{- $prefix := ternary "DB_POSTGRESDB" "DB_MYSQLDB" (eq $vendor "postgres") }}
+            - name: {{ $prefix }}_HOST
+              value: {{ include "n8n.databaseHost" . | quote }}
+            - name: {{ $prefix }}_PORT
+              value: {{ include "n8n.databasePort" . | quote }}
+            - name: {{ $prefix }}_DATABASE
+              value: {{ include "n8n.databaseName" . | quote }}
+            - name: {{ $prefix }}_USER
+              value: {{ include "n8n.databaseUsername" . | quote }}
+            - name: {{ $prefix }}_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "n8n.databaseSecretName" . }}
+                  key: {{ include "n8n.databaseSecretKey" . }}
+            {{- else }}
+            - name: DB_SQLITE_PATH
+              value: {{ .Values.database.sqlite.file | quote }}
+            {{- end }}
+            - name: N8N_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "n8n.encryptionKeySecretName" . }}
+                  key: {{ include "n8n.encryptionKeySecretKey" . }}
+            - name: N8N_PORT
+              value: "5678"
+            {{- if .Values.n8n.webhookUrl }}
+            - name: WEBHOOK_URL
+              value: {{ .Values.n8n.webhookUrl | quote }}
+            {{- else if and .Values.ingress.enabled .Values.ingress.hosts }}
+            - name: WEBHOOK_URL
+              value: {{ printf "https://%s/" (index .Values.ingress.hosts 0).host | quote }}
+            {{- end }}
+            {{- if .Values.n8n.editorBaseUrl }}
+            - name: N8N_EDITOR_BASE_URL
+              value: {{ .Values.n8n.editorBaseUrl | quote }}
+            {{- else if and .Values.ingress.enabled .Values.ingress.hosts }}
+            - name: N8N_EDITOR_BASE_URL
+              value: {{ printf "https://%s/" (index .Values.ingress.hosts 0).host | quote }}
+            {{- end }}
+            - name: N8N_LOG_LEVEL
+              value: {{ .Values.n8n.logLevel | quote }}
+            - name: N8N_LOG_OUTPUT
+              value: {{ .Values.n8n.logOutput | quote }}
+            {{- if .Values.queue.enabled }}
+            - name: EXECUTIONS_MODE
+              value: queue
+            - name: QUEUE_BULL_REDIS_HOST
+              value: {{ include "n8n.redisHost" . | quote }}
+            - name: QUEUE_BULL_REDIS_PORT
+              value: {{ include "n8n.redisPort" . | quote }}
+            {{- if include "n8n.hasRedisPassword" . }}
+            - name: QUEUE_BULL_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "n8n.redisSecretName" . }}
+                  key: {{ include "n8n.redisSecretKey" . }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.n8n.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.startupProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /home/node/.n8n
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (printf "%s-data" (include "n8n.fullname" .)) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
