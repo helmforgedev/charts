@@ -1,0 +1,186 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-ddns-updater
+
+  - it: should use Recreate strategy
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should use 1 replica
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should set the correct image with v prefix
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "qmcgaw/ddns-updater:v2.9.0"
+
+  - it: should set custom image tag
+    template: templates/deployment.yaml
+    set:
+      image.tag: "v2.8.0"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "qmcgaw/ddns-updater:v2.8.0"
+
+  - it: should set default env vars
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PERIOD
+            value: "5m"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LOG_LEVEL
+            value: "info"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LISTENING_ADDRESS
+            value: ":8000"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CONFIG_FILEPATH
+            value: "/updater/config/config.json"
+
+  - it: should set custom period and log level
+    template: templates/deployment.yaml
+    set:
+      ddns.period: 10m
+      ddns.logLevel: debug
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PERIOD
+            value: "10m"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LOG_LEVEL
+            value: "debug"
+
+  - it: should mount config from secret
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: config
+            mountPath: /updater/config
+            readOnly: true
+      - equal:
+          path: spec.template.spec.volumes[0].name
+          value: config
+      - equal:
+          path: spec.template.spec.volumes[0].secret.secretName
+          value: test-ddns-updater-config
+
+  - it: should use existing secret for config
+    template: templates/deployment.yaml
+    set:
+      config.existingSecret: my-ddns-config
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].secret.secretName
+          value: my-ddns-config
+
+  - it: should use PVC for data when persistence enabled
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /updater/data
+      - equal:
+          path: spec.template.spec.volumes[1].persistentVolumeClaim.claimName
+          value: test-ddns-updater-data
+
+  - it: should use emptyDir when persistence disabled
+    template: templates/deployment.yaml
+    set:
+      persistence.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[1].emptyDir
+          value: {}
+
+  - it: should set probes on root path
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /
+
+  - it: should set extra env vars
+    template: templates/deployment.yaml
+    set:
+      ddns.extraEnv:
+        - name: PUBLICIP_HTTP_PROVIDERS
+          value: ipify
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PUBLICIP_HTTP_PROVIDERS
+            value: ipify
+
+  - it: should set resources when specified
+    template: templates/deployment.yaml
+    set:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 10m
+
+  - it: should include config checksum annotation
+    template: templates/deployment.yaml
+    asserts:
+      - exists:
+          path: spec.template.metadata.annotations["checksum/config"]
+
+  - it: should set service account when created
+    template: templates/deployment.yaml
+    set:
+      serviceAccount.create: true
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: test-ddns-updater

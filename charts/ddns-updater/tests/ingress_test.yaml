@@ -1,0 +1,57 @@
+suite: Ingress
+templates:
+  - templates/ingress.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render when enabled
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: ddns.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.rules[0].host
+          value: ddns.example.com
+
+  - it: should set TLS
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: ddns.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+      ingress.tls:
+        - hosts:
+            - ddns.example.com
+          secretName: ddns-tls
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: ddns-tls
+
+  - it: should set ingressClassName
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: nginx
+      ingress.hosts:
+        - host: ddns.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
