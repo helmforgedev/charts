@@ -39,6 +39,7 @@ Project links:
 | [ddns-updater](charts/ddns-updater/) | DDNS Updater — dynamic DNS for 50+ providers with web UI and persistent history |
 | [uptime-kuma](charts/uptime-kuma/) | Uptime Kuma — self-hosted monitoring with SQLite or MariaDB, status pages, and S3 backup |
 | [authelia](charts/authelia/) | Authelia — SSO, MFA, and OpenID Connect authentication server with forward auth for reverse proxies |
+| [adguard-home](charts/adguard-home/) | AdGuard Home — network-wide DNS ad/tracker blocker with sync and S3 backup |
 
 ## Quick Start
 
