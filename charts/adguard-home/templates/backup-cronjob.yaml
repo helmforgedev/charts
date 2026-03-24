@@ -1,0 +1,89 @@
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "adguard-home.fullname" . }}-backup
+  labels:
+    {{- include "adguard-home.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  suspend: {{ .Values.backup.suspend }}
+  concurrencyPolicy: {{ .Values.backup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "adguard-home.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          initContainers:
+            - name: archive
+              image: "{{ .Values.backup.images.archiver.repository }}:{{ .Values.backup.images.archiver.tag }}"
+              imagePullPolicy: {{ .Values.backup.images.archiver.pullPolicy }}
+              command: ["/bin/sh", "/scripts/backup.sh"]
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: conf
+                  mountPath: /opt/adguardhome/conf
+                  readOnly: true
+                - name: work
+                  mountPath: /opt/adguardhome/work
+                  readOnly: true
+                - name: backup-scratch
+                  mountPath: /backup
+                - name: scripts
+                  mountPath: /scripts
+          containers:
+            - name: upload
+              image: "{{ .Values.backup.images.uploader.repository }}:{{ .Values.backup.images.uploader.tag }}"
+              imagePullPolicy: {{ .Values.backup.images.uploader.pullPolicy }}
+              command: ["/bin/sh", "/scripts/upload-backup.sh"]
+              env:
+                - name: S3_ENDPOINT
+                  value: {{ .Values.backup.s3.endpoint | quote }}
+                - name: S3_BUCKET
+                  value: {{ .Values.backup.s3.bucket | quote }}
+                - name: S3_PREFIX
+                  value: {{ .Values.backup.s3.prefix | quote }}
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "adguard-home.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretAccessKeyKey | default "access-key" }}
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "adguard-home.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretSecretKeyKey | default "secret-key" }}
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: backup-scratch
+                  mountPath: /backup
+                  readOnly: true
+                - name: scripts
+                  mountPath: /scripts
+          volumes:
+            - name: conf
+              persistentVolumeClaim:
+                claimName: {{ include "adguard-home.confClaimName" . }}
+            - name: work
+              persistentVolumeClaim:
+                claimName: {{ include "adguard-home.workClaimName" . }}
+            - name: backup-scratch
+              emptyDir: {}
+            - name: scripts
+              configMap:
+                name: {{ include "adguard-home.fullname" . }}-backup-scripts
+                defaultMode: 0755
+{{- end }}

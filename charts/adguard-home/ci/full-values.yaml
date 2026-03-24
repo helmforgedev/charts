@@ -1,0 +1,108 @@
+# CI scenario: full deployment with config, sync, backup, ingress, and resources
+config:
+  adGuardHome:
+    http:
+      pprof:
+        port: 6060
+        enabled: false
+      address: 0.0.0.0:80
+      session_ttl: 720h
+    users:
+      - name: admin
+        password: "$2y$10$hW1sBKsFxvB8gKIYQl1w4O/4LHDoqq1mA92Dg6rNULYAx4YPamq0K"
+    dns:
+      bind_hosts:
+        - 0.0.0.0
+      port: 53
+      upstream_dns:
+        - https://dns.cloudflare.com/dns-query
+        - https://dns.google/dns-query
+      bootstrap_dns:
+        - 1.1.1.1
+        - 8.8.8.8
+      protection_enabled: true
+      filtering_enabled: true
+      cache_size: 4194304
+    filtering:
+      protection_enabled: true
+      filtering_enabled: true
+    filters:
+      - enabled: true
+        url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt
+        name: AdGuard DNS filter
+        id: 1
+      - enabled: true
+        url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_2.txt
+        name: AdAway Default Blocklist
+        id: 2
+    querylog:
+      enabled: true
+      interval: 24h
+    statistics:
+      enabled: true
+      interval: 24h
+    schema_version: 29
+
+persistence:
+  conf:
+    size: 512Mi
+  work:
+    size: 5Gi
+
+serviceAccount:
+  create: true
+
+service:
+  dns:
+    type: ClusterIP
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: adguard.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - adguard.example.com
+      secretName: adguard-home-tls
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+sync:
+  enabled: true
+  origin:
+    url: "http://adguard-primary:80"
+    username: admin
+    password: changeme
+  replicas:
+    - url: "http://adguard-replica:80"
+      username: admin
+      password: changeme
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  s3:
+    endpoint: https://s3.us-east-1.amazonaws.com
+    bucket: adguard-backups
+    prefix: production
+    accessKey: AKIAIOSFODNN7EXAMPLE
+    secretKey: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY

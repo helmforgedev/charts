@@ -1,0 +1,62 @@
+suite: Service
+templates:
+  - templates/service.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render web and dns services
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: should render web service with ClusterIP
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: test-adguard-home-web
+      - equal:
+          path: spec.type
+          value: ClusterIP
+
+  - it: should render dns service with LoadBalancer
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: test-adguard-home-dns
+      - equal:
+          path: spec.type
+          value: LoadBalancer
+
+  - it: should have DNS TCP and UDP ports
+    documentIndex: 1
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: dns-tcp
+            port: 53
+            targetPort: dns-tcp
+            protocol: TCP
+      - contains:
+          path: spec.ports
+          content:
+            name: dns-udp
+            port: 53
+            targetPort: dns-udp
+            protocol: UDP
+
+  - it: should set loadBalancerIP when specified
+    documentIndex: 1
+    set:
+      service.dns.loadBalancerIP: "192.168.1.100"
+    asserts:
+      - equal:
+          path: spec.loadBalancerIP
+          value: "192.168.1.100"

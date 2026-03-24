@@ -1,0 +1,89 @@
+{{- if .Values.sync.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "adguard-home.fullname" . }}-sync
+  labels:
+    {{- include "adguard-home.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sync
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "adguard-home.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: sync
+  template:
+    metadata:
+      labels:
+        {{- include "adguard-home.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: sync
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: sync
+          image: "{{ .Values.sync.image.repository }}:{{ .Values.sync.image.tag }}"
+          imagePullPolicy: {{ .Values.sync.image.pullPolicy }}
+          {{- if .Values.sync.apiPort }}
+          ports:
+            - name: api
+              containerPort: {{ .Values.sync.apiPort }}
+              protocol: TCP
+          {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ include "adguard-home.syncSecretName" . }}
+          env:
+            - name: CRON
+              value: {{ .Values.sync.cron | quote }}
+            - name: RUN_ON_START
+              value: {{ .Values.sync.runOnStart | quote }}
+            - name: API_PORT
+              value: {{ .Values.sync.apiPort | quote }}
+            {{- if .Values.sync.features.dns.serverConfig }}
+            - name: FEATURES_DNS_SERVER_CONFIG
+              value: "true"
+            {{- end }}
+            {{- if .Values.sync.features.dns.accessLists }}
+            - name: FEATURES_DNS_ACCESS_LISTS
+              value: "true"
+            {{- end }}
+            {{- if .Values.sync.features.dns.rewrites }}
+            - name: FEATURES_DNS_REWRITES
+              value: "true"
+            {{- end }}
+            {{- if .Values.sync.features.dhcp.serverConfig }}
+            - name: FEATURES_DHCP_SERVER_CONFIG
+              value: "true"
+            {{- end }}
+            {{- if .Values.sync.features.dhcp.staticLeases }}
+            - name: FEATURES_DHCP_STATIC_LEASES
+              value: "true"
+            {{- end }}
+            {{- if .Values.sync.features.general.settings }}
+            - name: FEATURES_GENERAL_SETTINGS
+              value: "true"
+            {{- end }}
+            {{- if .Values.sync.features.general.protection }}
+            - name: FEATURES_GENERAL_PROTECTION
+              value: "true"
+            {{- end }}
+            {{- if .Values.sync.features.general.clients }}
+            - name: FEATURES_CLIENTS
+              value: "true"
+            {{- end }}
+            {{- if .Values.sync.features.general.filters }}
+            - name: FEATURES_FILTERS
+              value: "true"
+            {{- end }}
+            {{- if .Values.sync.features.general.services }}
+            - name: FEATURES_SERVICES
+              value: "true"
+            {{- end }}
+          {{- with .Values.sync.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

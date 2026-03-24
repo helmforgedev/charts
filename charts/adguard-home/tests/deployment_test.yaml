@@ -1,0 +1,145 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment with defaults
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-adguard-home
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should use correct image with v prefix
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "adguard/adguardhome:v0.107.73"
+
+  - it: should expose setup wizard port 3000 by default (no config)
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 3000
+            protocol: TCP
+
+  - it: should expose port 80 when config is provided
+    template: templates/deployment.yaml
+    set:
+      config.adGuardHome:
+        http:
+          address: "0.0.0.0:80"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 80
+            protocol: TCP
+
+  - it: should expose DNS ports
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: dns-tcp
+            containerPort: 53
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: dns-udp
+            containerPort: 53
+            protocol: UDP
+
+  - it: should mount conf and work volumes
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: conf
+            mountPath: /opt/adguardhome/conf
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: work
+            mountPath: /opt/adguardhome/work
+
+  - it: should not have init container when no config
+    template: templates/deployment.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.initContainers
+
+  - it: should have copy-config init container when config is set
+    template: templates/deployment.yaml
+    set:
+      config.adGuardHome:
+        http:
+          address: "0.0.0.0:80"
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.initContainers
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: copy-config
+
+  - it: should use PVC for conf and work by default
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: conf
+            persistentVolumeClaim:
+              claimName: test-adguard-home-conf
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: work
+            persistentVolumeClaim:
+              claimName: test-adguard-home-work
+
+  - it: should use emptyDir when persistence disabled
+    template: templates/deployment.yaml
+    set:
+      persistence.conf.enabled: false
+      persistence.work.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: conf
+            emptyDir: {}
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: work
+            emptyDir: {}
+
+  - it: should have startup, liveness, and readiness probes
+    template: templates/deployment.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].startupProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].livenessProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].readinessProbe

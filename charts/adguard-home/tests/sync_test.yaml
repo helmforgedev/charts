@@ -1,0 +1,75 @@
+suite: Sync
+templates:
+  - templates/sync-deployment.yaml
+  - templates/sync-secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render deployment by default
+    template: templates/sync-deployment.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render secret by default
+    template: templates/sync-secret.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render sync deployment when enabled
+    template: templates/sync-deployment.yaml
+    set:
+      sync.enabled: true
+      sync.origin.url: "http://primary:80"
+      sync.origin.username: admin
+      sync.origin.password: test
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-adguard-home-sync
+
+  - it: should render sync secret when enabled
+    template: templates/sync-secret.yaml
+    set:
+      sync.enabled: true
+      sync.origin.url: "http://primary:80"
+      sync.origin.username: admin
+      sync.origin.password: test
+      sync.replicas:
+        - url: "http://replica:80"
+          username: admin
+          password: replica-pass
+    asserts:
+      - isKind:
+          of: Secret
+      - equal:
+          path: stringData.ORIGIN_URL
+          value: "http://primary:80"
+      - equal:
+          path: stringData.REPLICA1_URL
+          value: "http://replica:80"
+
+  - it: should not render sync secret when existingSecret is set
+    template: templates/sync-secret.yaml
+    set:
+      sync.enabled: true
+      sync.existingSecret: my-sync-creds
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should use correct sync image
+    template: templates/sync-deployment.yaml
+    set:
+      sync.enabled: true
+      sync.origin.url: "http://primary:80"
+      sync.origin.username: admin
+      sync.origin.password: test
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/bakito/adguardhome-sync:v0.9.0"

@@ -1,0 +1,331 @@
+# =============================================================================
+# AdGuard Home Helm Chart — Default Values
+# =============================================================================
+# Focus: network-wide DNS ad/tracker blocking with optional sync and backup
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- AdGuard Home container image
+  repository: adguard/adguardhome
+  # -- Image tag (defaults to "v" + appVersion)
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# AdGuard Home Configuration
+# =============================================================================
+# When config.adGuardHome is non-empty, it is rendered as AdGuardHome.yaml
+# and copied into /opt/adguardhome/conf on first run (skips setup wizard).
+# Leave empty to use the interactive setup wizard on first access (port 3000).
+
+config:
+  # -- Pre-seed AdGuard Home configuration (rendered as AdGuardHome.yaml)
+  # -- When set, the setup wizard is skipped entirely.
+  # -- @default -- `{}` (empty — wizard mode)
+  adGuardHome: {}
+    # http:
+    #   pprof:
+    #     port: 6060
+    #     enabled: false
+    #   address: 0.0.0.0:80
+    #   session_ttl: 720h
+    # users:
+    #   - name: admin
+    #     password: "$2y$10$..."   # bcrypt hash
+    # dns:
+    #   bind_hosts:
+    #     - 0.0.0.0
+    #   port: 53
+    #   upstream_dns:
+    #     - https://dns.cloudflare.com/dns-query
+    #     - https://dns.google/dns-query
+    #   bootstrap_dns:
+    #     - 1.1.1.1
+    #     - 8.8.8.8
+    #   protection_enabled: true
+    #   filtering_enabled: true
+    #   blocking_mode: default
+    #   cache_size: 4194304
+    #   cache_ttl_min: 0
+    #   cache_ttl_max: 0
+    # filtering:
+    #   protection_enabled: true
+    #   filtering_enabled: true
+    # filters:
+    #   - enabled: true
+    #     url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt
+    #     name: AdGuard DNS filter
+    #     id: 1
+    #   - enabled: true
+    #     url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_2.txt
+    #     name: AdAway Default Blocklist
+    #     id: 2
+    # querylog:
+    #   enabled: true
+    #   interval: 24h
+    # statistics:
+    #   enabled: true
+    #   interval: 24h
+    # schema_version: 29
+
+  # -- Existing secret containing AdGuardHome.yaml (key: AdGuardHome.yaml)
+  existingSecret: ""
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Configuration volume (/opt/adguardhome/conf — AdGuardHome.yaml, TLS certs)
+  conf:
+    enabled: true
+    size: 256Mi
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    existingClaim: ""
+  # -- Working data volume (/opt/adguardhome/work — query log, stats, filters)
+  work:
+    enabled: true
+    size: 2Gi
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    existingClaim: ""
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Services
+# =============================================================================
+
+service:
+  # -- Web UI service (HTTP admin panel)
+  web:
+    type: ClusterIP
+    port: 80
+    annotations: {}
+  # -- DNS service (separate for LoadBalancer/NodePort use)
+  dns:
+    # -- Service type — use LoadBalancer for external DNS access
+    type: LoadBalancer
+    port: 53
+    annotations: {}
+    # -- Load balancer IP (optional, for static IP assignment)
+    loadBalancerIP: ""
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for the web UI
+  enabled: false
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts: []
+    # - host: adguard.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+    # - hosts:
+    #     - adguard.example.com
+    #   secretName: adguard-home-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# AdGuardHome Sync (optional)
+# =============================================================================
+# Deploys bakito/adguardhome-sync to synchronize configuration from an origin
+# AdGuard Home instance to one or more replicas.
+# See: https://github.com/bakito/adguardhome-sync
+
+sync:
+  # -- Enable the adguardhome-sync Deployment
+  enabled: false
+  image:
+    repository: ghcr.io/bakito/adguardhome-sync
+    tag: "v0.9.0"
+    pullPolicy: IfNotPresent
+  # -- Origin AdGuard Home instance (source of truth)
+  origin:
+    # -- URL of the origin AdGuard Home web UI
+    url: ""
+    # -- Admin username
+    username: ""
+    # -- Admin password
+    password: ""
+  # -- Replica instances to sync configuration to
+  # -- @default -- `[]`
+  replicas: []
+    # - url: http://adguard-replica.example.com
+    #   username: admin
+    #   password: changeme
+  # -- Sync schedule in Cron format (empty = continuous daemon mode)
+  cron: "*/10 * * * *"
+  # -- Run sync immediately on startup
+  runOnStart: true
+  # -- API port for sync status endpoint (0 = disabled)
+  apiPort: 8080
+  # -- Features to synchronize
+  features:
+    dns:
+      serverConfig: true
+      accessLists: true
+      rewrites: true
+    dhcp:
+      serverConfig: true
+      staticLeases: true
+    general:
+      settings: true
+      protection: true
+      clients: true
+      filters: true
+      services: true
+  # -- Resources for the sync container
+  resources: {}
+  # -- Existing secret for sync credentials
+  # -- Must contain keys: ORIGIN_URL, ORIGIN_USERNAME, ORIGIN_PASSWORD
+  # -- and optionally: REPLICA_<N>_URL, REPLICA_<N>_USERNAME, REPLICA_<N>_PASSWORD
+  existingSecret: ""
+
+# =============================================================================
+# Backup
+# =============================================================================
+
+backup:
+  # -- Enable built-in backup CronJob (tar of conf + work + S3 upload)
+  enabled: false
+  # -- Backup schedule in Cron format
+  schedule: "0 2 * * *"
+  # -- Suspend backup execution
+  suspend: false
+  # -- CronJob concurrency policy
+  concurrencyPolicy: Forbid
+  # -- Successful job history retained
+  successfulJobsHistoryLimit: 3
+  # -- Failed job history retained
+  failedJobsHistoryLimit: 3
+  # -- Job backoff limit
+  backoffLimit: 1
+  # -- Prefix for backup archive names
+  archivePrefix: adguard-home
+  # -- Resources for backup containers
+  resources: {}
+  images:
+    archiver:
+      repository: busybox
+      tag: "1.37"
+      pullPolicy: IfNotPresent
+    uploader:
+      repository: minio/mc
+      tag: "RELEASE.2025-08-13T08-35-41Z"
+      pullPolicy: IfNotPresent
+  s3:
+    # -- S3-compatible endpoint URL
+    endpoint: ""
+    # -- Target bucket name
+    bucket: ""
+    # -- Optional prefix inside the bucket
+    prefix: adguard-home
+    # -- Create bucket if not exists
+    createBucketIfNotExists: true
+    # -- Existing secret containing access-key and secret-key
+    existingSecret: ""
+    existingSecretAccessKeyKey: access-key
+    existingSecretSecretKeyKey: secret-key
+    # -- Inline access key
+    accessKey: ""
+    # -- Inline secret key
+    secretKey: ""
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []
