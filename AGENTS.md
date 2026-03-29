@@ -161,6 +161,16 @@ helm template test-release charts/<chart-name> | kubeconform -strict -summary
 for f in charts/<chart-name>/ci/*.yaml; do helm template test-release charts/<chart-name> -f "$f"; done
 ```
 
+Before any `helm install`, `helm upgrade`, `helm uninstall`, or runtime validation command against a local test cluster:
+
+- run `kubectl config current-context`
+- confirm the active context is the intended local `k3d` context
+- treat context verification as a hard gate, not as an optional check
+- never install into any non-local context during chart validation work
+- never run `helm install`, `helm upgrade`, or `helm uninstall` until the local `k3d` context is explicitly confirmed
+- if the active context is not the intended `k3d` context, stop and switch or fix the context first
+- remember that installing into the wrong context can impact shared or production-like clusters
+
 ## Unit Testing with helm-unittest
 
 Tests live under `charts/<chart-name>/tests/` with naming `<template>_test.yaml`. See `docs/testing-strategy.md` for the full guide.
@@ -178,17 +188,26 @@ Critical rules:
 ## Adding a New Chart
 
 1. Research the official product documentation and mature public charts.
-2. Define the product proposal, supported topologies, and non-goals.
-3. Create `Chart.yaml`, `values.yaml`, `templates/`, `tests/`, `ci/`, `examples/`, `docs/`, and `README.md`.
-4. Build templates that match the real product contract, not a generic abstraction.
-5. Add helm-unittest test suites for all key templates (workload, service, secret, optional resources).
-6. Add CI scenarios for each supported topology.
-7. Add examples that reflect realistic usage.
-8. Update the root `README.md` charts table.
-9. Run validation locally before pushing.
-10. Push and open a PR, wait for CI to pass.
-11. Deploy and validate the chart on a local k3d cluster **before merging the PR**. Install the chart with default values and at least one non-default CI scenario, verify pods are running and the application is reachable. Fix any issues found before merging.
-12. Merge the PR only after k3d validation succeeds.
+2. Confirm the latest stable application version from the official project repository before setting `appVersion`, image tags, or versioned examples.
+3. Use an official runtime image when the upstream project provides one. If not, document that clearly and base examples or validation images on the official source or package instead of a third-party image.
+4. Define the product proposal, supported topologies, and non-goals.
+5. Create `Chart.yaml`, `values.yaml`, `templates/`, `tests/`, `ci/`, `examples/`, `docs/`, and `README.md`.
+6. Build templates that match the real product contract, not a generic abstraction.
+7. Add helm-unittest test suites for all key templates (workload, service, secret, optional resources).
+8. Add CI scenarios for each supported topology.
+9. Add examples that reflect realistic usage.
+10. Update the root `README.md` charts table.
+11. Run validation locally before pushing.
+12. Push and open a PR, wait for CI to pass.
+13. Deploy and validate the chart on a local k3d cluster **before merging the PR**. Install the chart with default values and at least one non-default CI scenario, verify pods are running and the application is reachable. Fix any issues found before merging.
+14. Merge the PR only after k3d validation succeeds.
+
+Safety rule for local validation:
+
+- before the first install, verify `kubectl config current-context` points to the local `k3d` cluster
+- do not assume a newly created cluster became the active context automatically
+- treat that verification as mandatory before every install, upgrade, or uninstall used in validation
+- if context verification fails, do not run any install or uninstall command until the local context is confirmed
 
 ## Modifying an Existing Chart
 
