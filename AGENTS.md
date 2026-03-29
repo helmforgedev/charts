@@ -92,12 +92,6 @@ docs(repo): refine commit and agent standards
 
 Always commit with the repository owner's configured git identity. Never change `user.name` or `user.email`.
 
-When the agent materially contributed to the change, add this trailer:
-
-```text
-Co-Authored-By: OpenAI Codex <codex@openai.com>
-```
-
 ## Branch Naming
 
 Use branches that reflect the main scope:

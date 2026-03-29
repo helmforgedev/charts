@@ -56,11 +56,7 @@ Rules:
 - always open PRs from the working branch to `main`
 - never create branch-to-branch PRs in this repository
 
-Use the repository owner's git identity. When the agent contributed materially, add:
-
-```text
-Co-Authored-By: OpenAI Codex <codex@openai.com>
-```
+Use the repository owner's git identity.
 
 ## Branches
 
