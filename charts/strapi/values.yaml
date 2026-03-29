@@ -1,0 +1,503 @@
+# =============================================================================
+# Strapi Helm Chart
+# =============================================================================
+# Headless CMS for APIs, websites, and custom admin experiences.
+# This chart is designed for a prebuilt Strapi project image, not for building
+# the project source code inside Kubernetes.
+# https://strapi.io/
+# =============================================================================
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+
+# -- Override the full release name used in resource names
+fullnameOverride: ""
+
+# -- Labels added to every resource created by this chart
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Container image repository for your Strapi project
+  repository: vshadbolt/strapi
+  # -- Container image tag
+  tag: "5.35.0"
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# =============================================================================
+# Strapi Configuration
+# =============================================================================
+
+strapi:
+  # -- Host interface
+  host: 0.0.0.0
+
+  # -- Container port exposed by Strapi
+  port: 1337
+
+  # -- Public URL of the Strapi instance (auto-detected from ingress if empty)
+  # Example: "https://cms.example.com"
+  url: ""
+
+  # -- Node environment
+  nodeEnv: production
+
+  # -- Disable telemetry
+  telemetryDisabled: true
+
+  # -- Start command override
+  command: []
+
+  # -- Start arguments override
+  args: []
+
+  # -- Additional environment variables for the Strapi container
+  # extraEnv:
+  #   - name: STRAPI_TELEMETRY_DISABLED
+  #     value: "true"
+  extraEnv: []
+
+# =============================================================================
+# Application Secrets
+# =============================================================================
+# Strapi requires APP_KEYS, API_TOKEN_SALT, ADMIN_JWT_SECRET, JWT_SECRET,
+# and TRANSFER_TOKEN_SALT. The chart auto-generates them if not provided.
+# =============================================================================
+
+secrets:
+  # -- Use an existing secret containing all Strapi app secrets
+  existingSecret: ""
+
+  # -- Existing secret key for APP_KEYS (comma-separated)
+  existingSecretAppKeysKey: app-keys
+
+  # -- Existing secret key for API token salt
+  existingSecretApiTokenSaltKey: api-token-salt
+
+  # -- Existing secret key for admin JWT secret
+  existingSecretAdminJwtSecretKey: admin-jwt-secret
+
+  # -- Existing secret key for application JWT secret
+  existingSecretJwtSecretKey: jwt-secret
+
+  # -- Existing secret key for transfer token salt
+  existingSecretTransferTokenSaltKey: transfer-token-salt
+
+  # -- Explicit APP_KEYS value (comma-separated). Auto-generated if empty.
+  appKeys: ""
+
+  # -- Explicit API token salt. Auto-generated if empty.
+  apiTokenSalt: ""
+
+  # -- Explicit admin JWT secret. Auto-generated if empty.
+  adminJwtSecret: ""
+
+  # -- Explicit application JWT secret. Auto-generated if empty.
+  jwtSecret: ""
+
+  # -- Explicit transfer token salt. Auto-generated if empty.
+  transferTokenSalt: ""
+
+# =============================================================================
+# Database
+# =============================================================================
+# Strapi supports SQLite, PostgreSQL, and MySQL.
+#
+# Mode detection (when mode is auto):
+# 1. database.external.host or database.external.existingSecret -> external
+# 2. postgresql.enabled -> PostgreSQL subchart
+# 3. mysql.enabled -> MySQL subchart
+# 4. Fallback -> SQLite
+# =============================================================================
+
+database:
+  # -- Database mode: auto | sqlite | external | postgresql | mysql
+  mode: auto
+
+  sqlite:
+    # -- Directory mounted for the SQLite database file
+    directory: /opt/app/.tmp
+
+    # -- SQLite database filename
+    filename: data.db
+
+  external:
+    # -- External database vendor: postgres | mysql
+    vendor: postgres
+
+    # -- External database hostname
+    host: ""
+
+    # -- External database port (auto-detected from vendor if empty)
+    port: ""
+
+    # -- Database name
+    name: strapi
+
+    # -- Database username
+    username: strapi
+
+    # -- Database password (ignored when existingSecret is set)
+    password: ""
+
+    # -- Existing secret for the database password
+    existingSecret: ""
+
+    # -- Key in the existing secret for the database password
+    existingSecretPasswordKey: database-password
+
+    ssl:
+      # -- Set DATABASE_SSL=true
+      enabled: false
+
+# =============================================================================
+# PostgreSQL Subchart
+# =============================================================================
+
+postgresql:
+  # -- Deploy PostgreSQL as a subchart
+  enabled: false
+
+  # -- PostgreSQL architecture (standalone or replication)
+  architecture: standalone
+
+  auth:
+    # -- Database name created on first run
+    database: strapi
+    # -- Database username created on first run
+    username: strapi
+    # -- Database password (auto-generated if empty)
+    password: ""
+    # -- Root password (auto-generated if empty)
+    rootPassword: ""
+
+  primary:
+    persistence:
+      # -- Enable persistence for PostgreSQL data
+      enabled: true
+      # -- PVC size for PostgreSQL
+      size: 8Gi
+
+# =============================================================================
+# MySQL Subchart
+# =============================================================================
+
+mysql:
+  # -- Deploy MySQL as a subchart
+  enabled: false
+
+  # -- MySQL architecture (standalone or replication)
+  architecture: standalone
+
+  auth:
+    # -- Database name created on first run
+    database: strapi
+    # -- Database username created on first run
+    username: strapi
+    # -- Database password (auto-generated if empty)
+    password: ""
+    # -- Root password (auto-generated if empty)
+    rootPassword: ""
+
+  primary:
+    persistence:
+      # -- Enable persistence for MySQL data
+      enabled: true
+      # -- PVC size for MySQL
+      size: 8Gi
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistent storage for uploads and SQLite data
+  enabled: true
+
+  # -- Storage class (leave empty for cluster default)
+  storageClass: ""
+
+  # -- Access mode for the PVC
+  accessMode: ReadWriteOnce
+
+  # -- Size of the persistent volume
+  size: 5Gi
+
+  # -- Use an existing PVC instead of creating one
+  existingClaim: ""
+
+  # -- Annotations for the PVC
+  annotations: {}
+
+  uploads:
+    # -- Uploads directory inside the Strapi container
+    mountPath: /opt/app/public/uploads
+
+    # -- PVC subPath used for uploads data
+    subPath: uploads
+
+  sqlite:
+    # -- PVC subPath used for SQLite data
+    subPath: sqlite
+
+# =============================================================================
+# Resources
+# =============================================================================
+
+# -- CPU and memory requests/limits for the Strapi container
+resources: {}
+  # requests:
+  #   cpu: 250m
+  #   memory: 512Mi
+  # limits:
+  #   cpu: "1"
+  #   memory: 1Gi
+
+# =============================================================================
+# Security Context
+# =============================================================================
+
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+startupProbe:
+  # -- Enable startup probe
+  enabled: true
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 30
+
+livenessProbe:
+  # -- Enable liveness probe
+  enabled: true
+  initialDelaySeconds: 0
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  # -- Enable readiness probe
+  enabled: true
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+
+  # -- HTTP port exposed by the Service
+  port: 80
+
+  # -- Annotations for the service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Strapi
+  enabled: false
+
+  # -- Ingress class name
+  # ingressClassName: traefik
+  ingressClassName: ""
+
+  # -- Ingress annotations
+  # annotations:
+  #   cert-manager.io/cluster-issuer: letsencrypt-prod
+  annotations: {}
+
+  # -- Ingress hosts
+  # hosts:
+  #   - host: cms.example.com
+  #     paths:
+  #       - path: /
+  #         pathType: Prefix
+  hosts: []
+
+  # -- Ingress TLS configuration
+  # tls:
+  #   - secretName: strapi-tls
+  #     hosts:
+  #       - cms.example.com
+  tls: []
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount
+  create: false
+
+  # -- Name override (auto-generated if empty)
+  name: ""
+
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Backup (CronJob + S3)
+# =============================================================================
+# SQLite mode archives the persistent data directories. PostgreSQL and MySQL
+# produce a database dump and optionally an uploads archive when persistence is
+# enabled. All artifacts are uploaded to S3-compatible storage.
+# =============================================================================
+
+backup:
+  # -- Enable scheduled backups to S3-compatible storage
+  enabled: false
+
+  # -- Cron schedule for backups (default: daily at 03:00 UTC)
+  schedule: "0 3 * * *"
+
+  # -- Suspend the CronJob without deleting it
+  suspend: false
+
+  # -- Concurrency policy: Forbid, Replace, Allow
+  concurrencyPolicy: Forbid
+
+  # -- Number of successful job records to keep
+  successfulJobsHistoryLimit: 3
+
+  # -- Number of failed job records to keep
+  failedJobsHistoryLimit: 3
+
+  # -- Maximum retries per backup job
+  backoffLimit: 1
+
+  # -- Prefix for backup archive filenames
+  archivePrefix: strapi
+
+  images:
+    # -- Image used for local file backup jobs (must have tar)
+    utility: alpine:3.22
+    # -- Image used for PostgreSQL backup (must have pg_dump)
+    postgresql: postgres:18.3-alpine
+    # -- Image used for MySQL backup (must have mysqldump)
+    mysql: mysql:8.4
+    # -- Image used for S3 upload (MinIO client)
+    uploader: minio/mc:RELEASE.2025-04-08T15-18-23Z
+
+  # -- Resources for backup containers
+  resources: {}
+
+  s3:
+    # -- S3-compatible endpoint URL
+    endpoint: ""
+
+    # -- Target bucket name
+    bucket: ""
+
+    # -- Key prefix within the bucket
+    prefix: strapi
+
+    # -- Auto-create the bucket if it does not exist
+    createBucketIfNotExists: true
+
+    # -- Use an existing secret for S3 credentials
+    existingSecret: ""
+
+    # -- Key in the existing secret for the access key
+    existingSecretAccessKeyKey: access-key
+
+    # -- Key in the existing secret for the secret key
+    existingSecretSecretKeyKey: secret-key
+
+    # -- Inline S3 access key (ignored when existingSecret is set)
+    accessKey: ""
+
+    # -- Inline S3 secret key (ignored when existingSecret is set)
+    secretKey: ""
+
+  # -- Override database credentials for backup (uses app credentials if empty)
+  database:
+    # -- Override database host for backup
+    host: ""
+    # -- Override database port for backup
+    port: ""
+    # -- Override database name for backup
+    name: ""
+    # -- Override database username for backup
+    username: ""
+    # -- Existing secret for backup database credentials
+    existingSecret: ""
+    # -- Key in existing secret for the backup database password
+    existingSecretPasswordKey: database-password
+    # -- Extra arguments for pg_dump
+    postgresDumpArgs: ""
+    # -- Extra arguments for mysqldump
+    mysqlDumpArgs: "--single-transaction --quick --skip-lock-tables --no-tablespaces"
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+# -- Node selector for pod scheduling
+nodeSelector: {}
+
+# -- Tolerations for pod scheduling
+tolerations: []
+
+# -- Affinity rules for pod scheduling
+affinity: {}
+
+# -- Topology spread constraints
+topologySpreadConstraints: []
+
+# -- Priority class name
+priorityClassName: ""
+
+# -- Grace period for shutdown (seconds)
+terminationGracePeriodSeconds: 30
+
+# =============================================================================
+# Pod-Level Metadata
+# =============================================================================
+
+# -- Additional labels for the pod
+podLabels: {}
+
+# -- Additional annotations for the pod
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+# -- Additional volume mounts for the Strapi container
+extraVolumeMounts: []
+
+# -- Additional volumes for the pod
+extraVolumes: []
+
+# -- Extra Kubernetes manifests to deploy alongside the chart
+extraManifests: []
