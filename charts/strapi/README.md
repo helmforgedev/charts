@@ -129,6 +129,7 @@ database:
 - Override `image.repository` and `image.tag` with your own prebuilt Strapi project image for production use.
 - SQLite is supported for simple deployments, but server-based databases are recommended for production workloads.
 - Horizontal scaling is intentionally out of scope for this v1 chart because default local uploads persistence is single-writer oriented.
+- For ingress, set `ingress.ingressClassName` to the class used in your cluster, such as `traefik`, `nginx`, or another supported controller.
 
 ## More Information
 

@@ -127,6 +127,7 @@ For bundled PostgreSQL or MySQL, the chart creates a release-scoped database sec
 - prefer PostgreSQL for most production Strapi workloads
 - use `database.mode=external` when the database lifecycle is managed by another team or platform
 - keep uploads persistence enabled even with an external database unless your Strapi project already uses object storage
+- when exposing Strapi through ingress, set `ingress.ingressClassName` to the controller your cluster supports, such as `traefik` or `nginx`
 
 <!-- @AI-METADATA
 type: chart-docs
