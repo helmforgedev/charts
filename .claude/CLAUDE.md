@@ -94,6 +94,8 @@ Conflict prevention rule:
 - **never edit `version` in `Chart.yaml` manually** — the publish workflow (`publish.yml`) calculates semantic versions automatically from commit messages, updates `Chart.yaml`, tags, and publishes. Manual version edits will conflict with CI.
 - design each chart around the application, not around `generic`
 - research official docs and mature public charts before implementing
+- confirm the latest stable application version from the official project repository before setting `appVersion`, image tags, or versioned examples
+- use an official runtime image when upstream provides one; if it does not, document that clearly and validate with an image built from the official source or package
 - use external charts as references, not as copy sources
 - keep `values.yaml` product-oriented and explicit
 - document default `values.yaml` keys with inline comments following the repository pattern already used by the documented charts
@@ -117,6 +119,16 @@ for f in charts/<name>/ci/*.yaml; do helm template test charts/<name> -f "$f"; d
 
 When available, also validate with `kubeconform`.
 
+Before any local `helm install`, `helm upgrade`, `helm uninstall`, or runtime validation command:
+
+- run `kubectl config current-context`
+- confirm the context is the intended local `k3d` context
+- treat context verification as a hard gate, not as an optional check
+- never perform local validation installs against a non-local cluster context
+- never run `helm install`, `helm upgrade`, or `helm uninstall` until the local `k3d` context is explicitly confirmed
+- if the context is wrong or unclear, stop and fix it before continuing
+- remember that installing into the wrong context can impact shared or production-like clusters
+
 ## Local k3d Validation (New Charts)
 
 When creating a new chart, always deploy and validate it on a local k3d cluster **before merging the PR**:
@@ -128,6 +140,13 @@ When creating a new chart, always deploy and validate it on a local k3d cluster 
 5. Fix any issues found before merging — commit fixes to the same PR branch.
 6. Clean up test releases after validation (`helm uninstall`).
 7. Merge the PR only after k3d validation succeeds.
+
+Critical safety rule:
+
+- do not assume cluster creation switched `kubectl` automatically
+- verify the active context explicitly before the first install
+- repeat that verification before every validation install, upgrade, or uninstall
+- if `kubectl config current-context` is not the expected local `k3d` context, do not install
 
 ## Unit Testing Rules
 
