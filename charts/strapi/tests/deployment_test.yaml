@@ -1,0 +1,157 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-strapi
+
+  - it: should use default image
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "vshadbolt/strapi:5.35.0"
+
+  - it: should set container port to 1337
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 1337
+            protocol: TCP
+
+  - it: should set sqlite env vars by default
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_CLIENT
+            value: sqlite
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_FILENAME
+            value: /opt/app/.tmp/data.db
+
+  - it: should mount uploads path by default
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /opt/app/public/uploads
+            subPath: uploads
+
+  - it: should mount sqlite directory in sqlite mode
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /opt/app/.tmp
+            subPath: sqlite
+
+  - it: should add wait-for-db for postgresql
+    template: templates/deployment.yaml
+    set:
+      postgresql.enabled: true
+      postgresql.auth.password: test
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+
+  - it: should set postgres env vars
+    template: templates/deployment.yaml
+    set:
+      postgresql.enabled: true
+      postgresql.auth.password: test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_CLIENT
+            value: postgres
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_HOST
+            value: test-postgresql
+
+  - it: should set mysql env vars
+    template: templates/deployment.yaml
+    set:
+      mysql.enabled: true
+      mysql.auth.password: test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_CLIENT
+            value: mysql
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_HOST
+            value: test-mysql
+
+  - it: should use app secret for required Strapi secrets
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: APP_KEYS
+            valueFrom:
+              secretKeyRef:
+                name: test-strapi-app
+                key: app-keys
+
+  - it: should auto-detect URL from ingress
+    template: templates/deployment.yaml
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: cms.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: URL
+            value: https://cms.example.com
+
+  - it: should use emptyDir when persistence disabled
+    template: templates/deployment.yaml
+    set:
+      persistence.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+
+  - it: should render tcp startup probe by default
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.tcpSocket.port
+          value: http

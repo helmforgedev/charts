@@ -1,0 +1,65 @@
+{{- if .Values.backup.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "strapi.fullname" . }}-backup-scripts
+  labels:
+    {{- include "strapi.labels" . | nindent 4 }}
+data:
+  sqlite-backup.sh: |
+    #!/bin/sh
+    set -eu
+    timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+    archive="/backup/out/${BACKUP_ARCHIVE_PREFIX}-sqlite-${timestamp}.tar.gz"
+    mkdir -p /backup/out
+    tar -C /data -czf "${archive}" .
+  uploads-backup.sh: |
+    #!/bin/sh
+    set -eu
+    if [ ! -d /data ]; then
+      exit 0
+    fi
+    timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+    archive="/backup/out/${BACKUP_ARCHIVE_PREFIX}-uploads-${timestamp}.tar.gz"
+    mkdir -p /backup/out
+    tar -C /data -czf "${archive}" .
+  postgres-backup.sh: |
+    #!/bin/sh
+    set -eu
+    timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+    archive="/backup/out/${BACKUP_ARCHIVE_PREFIX}-postgresql-${timestamp}.sql.gz"
+    mkdir -p /backup/out
+    export PGPASSWORD="${DB_PASSWORD}"
+    pg_dump ${PG_DUMP_EXTRA_ARGS:-} \
+      --host="${DB_HOST}" \
+      --port="${DB_PORT}" \
+      --username="${DB_USERNAME}" \
+      --dbname="${DB_NAME}" | gzip -c > "${archive}"
+  mysql-backup.sh: |
+    #!/bin/sh
+    set -eu
+    timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+    archive="/backup/out/${BACKUP_ARCHIVE_PREFIX}-mysql-${timestamp}.sql.gz"
+    mkdir -p /backup/out
+    export MYSQL_PWD="${DB_PASSWORD}"
+    mysqldump ${MYSQL_DUMP_EXTRA_ARGS:-} \
+      --host="${DB_HOST}" \
+      --port="${DB_PORT}" \
+      --user="${DB_USERNAME}" \
+      "${DB_NAME}" | gzip -c > "${archive}"
+  upload-backup.sh: |
+    #!/bin/sh
+    set -eu
+    target="backup/${S3_BUCKET}"
+    if [ -n "${S3_PREFIX:-}" ]; then
+      target="${target}/${S3_PREFIX}"
+    fi
+    mc alias set backup "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}"
+    if [ "${S3_CREATE_BUCKET_IF_NOT_EXISTS}" = "true" ]; then
+      mc mb --ignore-existing "backup/${S3_BUCKET}"
+    fi
+    for file in /backup/out/*; do
+      [ -f "${file}" ] || continue
+      mc cp "${file}" "${target}/"
+    done
+{{- end }}

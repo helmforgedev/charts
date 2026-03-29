@@ -1,0 +1,213 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "strapi.fullname" . }}
+  labels:
+    {{- include "strapi.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "strapi.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "strapi.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/secrets: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "strapi.serviceAccountName" . }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if ne (include "strapi.databaseMode" .) "sqlite" }}
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for {{ include "strapi.databaseHost" . }}:{{ include "strapi.databasePort" . }} ..."
+              until nc -z -w2 {{ include "strapi.databaseHost" . }} {{ include "strapi.databasePort" . }}; do
+                sleep 2
+              done
+              echo "Database is reachable."
+      {{- end }}
+      containers:
+        - name: strapi
+          image: {{ include "strapi.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.strapi.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.strapi.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.strapi.port }}
+              protocol: TCP
+          env:
+            - name: NODE_ENV
+              value: {{ .Values.strapi.nodeEnv | quote }}
+            - name: HOST
+              value: {{ .Values.strapi.host | quote }}
+            - name: PORT
+              value: {{ .Values.strapi.port | toString | quote }}
+            {{- if .Values.strapi.url }}
+            - name: URL
+              value: {{ .Values.strapi.url | quote }}
+            {{- else if and .Values.ingress.enabled .Values.ingress.hosts }}
+            - name: URL
+              value: {{ printf "https://%s" (index .Values.ingress.hosts 0).host | quote }}
+            {{- end }}
+            - name: STRAPI_TELEMETRY_DISABLED
+              value: {{ ternary "true" "false" .Values.strapi.telemetryDisabled | quote }}
+            - name: APP_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "strapi.appSecretName" . }}
+                  key: {{ include "strapi.appSecretKey" (dict "field" "appKeys" "Values" .Values) }}
+            - name: API_TOKEN_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "strapi.appSecretName" . }}
+                  key: {{ include "strapi.appSecretKey" (dict "field" "apiTokenSalt" "Values" .Values) }}
+            - name: ADMIN_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "strapi.appSecretName" . }}
+                  key: {{ include "strapi.appSecretKey" (dict "field" "adminJwtSecret" "Values" .Values) }}
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "strapi.appSecretName" . }}
+                  key: {{ include "strapi.appSecretKey" (dict "field" "jwtSecret" "Values" .Values) }}
+            - name: TRANSFER_TOKEN_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "strapi.appSecretName" . }}
+                  key: {{ include "strapi.appSecretKey" (dict "field" "transferTokenSalt" "Values" .Values) }}
+            - name: DATABASE_CLIENT
+              value: {{ include "strapi.dbClient" . | quote }}
+            {{- if ne (include "strapi.databaseMode" .) "sqlite" }}
+            - name: DATABASE_HOST
+              value: {{ include "strapi.databaseHost" . | quote }}
+            - name: DATABASE_PORT
+              value: {{ include "strapi.databasePort" . | quote }}
+            - name: DATABASE_NAME
+              value: {{ include "strapi.databaseName" . | quote }}
+            - name: DATABASE_USERNAME
+              value: {{ include "strapi.databaseUsername" . | quote }}
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "strapi.databaseSecretName" . }}
+                  key: {{ include "strapi.databaseSecretKey" . }}
+            - name: DATABASE_SSL
+              value: {{ include "strapi.databaseSsl" . | quote }}
+            {{- else }}
+            - name: DATABASE_FILENAME
+              value: {{ include "strapi.sqlitePath" . | quote }}
+            {{- end }}
+            {{- with .Values.strapi.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.uploads.mountPath }}
+              {{- if .Values.persistence.enabled }}
+              subPath: {{ .Values.persistence.uploads.subPath }}
+              {{- end }}
+            {{- if eq (include "strapi.databaseMode" .) "sqlite" }}
+            - name: data
+              mountPath: {{ .Values.database.sqlite.directory }}
+              {{- if .Values.persistence.enabled }}
+              subPath: {{ .Values.persistence.sqlite.subPath }}
+              {{- end }}
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (printf "%s-data" (include "strapi.fullname" .)) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
