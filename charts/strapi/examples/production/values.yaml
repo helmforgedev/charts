@@ -1,0 +1,34 @@
+# Production Strapi with PostgreSQL subchart, ingress, and backups
+image:
+  repository: ghcr.io/example/my-strapi
+  tag: "1.0.0"
+
+postgresql:
+  enabled: true
+  auth:
+    database: strapi
+    username: strapi
+    password: change-me
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: cms.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: strapi-tls
+      hosts:
+        - cms.example.com
+
+backup:
+  enabled: true
+  schedule: "0 3 * * *"
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: strapi-backups
+    existingSecret: strapi-s3

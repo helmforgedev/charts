@@ -1,0 +1,35 @@
+suite: Backup
+templates:
+  - templates/backup-configmap.yaml
+  - templates/backup-cronjob.yaml
+release:
+  name: test
+tests:
+  - it: should not render backup resources by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render backup configmap and cronjob
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: templates/backup-configmap.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+
+  - it: should render backup cronjob when enabled
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - isKind:
+          of: CronJob
