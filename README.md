@@ -95,15 +95,26 @@ Each chart includes a `ci/` directory with test values files. The pipeline runs 
 
 ### Adding a new chart
 
-1. Research official docs and mature public charts first.
-2. Define the chart proposal, supported architectures, and explicit non-goals.
-3. Create `charts/<chart-name>/` with `Chart.yaml`, `values.yaml`, and `templates/`.
-4. Add test values in `charts/<chart-name>/ci/*.yaml` for the real scenarios supported by that product.
-5. Add usage examples in `charts/<chart-name>/examples/`.
-6. Create a `README.md` inside the chart directory.
-7. Add architecture-specific docs in `charts/<chart-name>/docs/` when the chart supports materially different topologies.
-8. Add the chart to the `## Charts` table in this file.
-9. Open a PR. Lint, template rendering, and schema validation run automatically.
+1. Research official docs, official releases, and mature public charts first.
+2. Confirm the latest stable application version from the official project repository before choosing `appVersion`, defaults, or examples.
+3. Prefer official container images when they exist. If the product does not publish a maintained official runtime image, document that clearly and build examples around an image created from the official source or package.
+4. Define the chart proposal, supported architectures, and explicit non-goals.
+5. Create `charts/<chart-name>/` with `Chart.yaml`, `values.yaml`, and `templates/`.
+6. Add test values in `charts/<chart-name>/ci/*.yaml` for the real scenarios supported by that product.
+7. Add usage examples in `charts/<chart-name>/examples/`.
+8. Create a `README.md` inside the chart directory.
+9. Add architecture-specific docs in `charts/<chart-name>/docs/` when the chart supports materially different topologies.
+10. Add the chart to the `## Charts` table in this file.
+11. Validate locally, including a real install on a local cluster when the chart is new or materially changed.
+12. Open a PR. Lint, template rendering, and schema validation run automatically.
+
+Local validation safety:
+
+- always check `kubectl config current-context` before any install or uninstall used for local chart validation
+- only run validation installs when the active context is the intended local `k3d` cluster
+- treat that context check as a mandatory gate before every validation install, upgrade, or uninstall
+- never assume a fresh local cluster became the active context automatically
+- never continue if the active context is wrong or unclear, because that can affect shared or production-like clusters
 
 ### Commit and PR conventions
 
