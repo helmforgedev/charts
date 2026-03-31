@@ -197,6 +197,33 @@ app.kubernetes.io/role: {{ .role }}
       key: {{ .Values.auth.existingSecretPostgresPasswordKey }}
 {{- end -}}
 
+{{- define "postgresql.backupSecretName" -}}
+{{- if .Values.backup.s3.existingSecret -}}
+{{- .Values.backup.s3.existingSecret -}}
+{{- else -}}
+{{- printf "%s-backup" (include "postgresql.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "postgresql.backupEnabled" -}}
+{{- if .Values.backup.enabled -}}
+  {{- if not .Values.backup.s3.endpoint -}}
+    {{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if not .Values.backup.s3.bucket -}}
+    {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- end -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{- define "postgresql.backupHost" -}}
+{{- include "postgresql.primaryServiceName" . -}}
+{{- end -}}
+
 {{- define "postgresql.configPreset" -}}
 {{- if eq .Values.config.preset "small" -}}
 max_connections = 100

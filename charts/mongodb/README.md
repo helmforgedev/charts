@@ -51,6 +51,7 @@ Read before choosing an architecture:
 - [Standalone](docs/standalone.md)
 - [Replica Set](docs/replicaset.md)
 - [Sharded](docs/sharded.md)
+- [Backup and Restore](docs/backup-restore.md)
 
 ## Key Features
 
@@ -58,6 +59,7 @@ Read before choosing an architecture:
 - **Auto keyFile generation** — replica set internal auth handled automatically
 - **Helm hook Jobs** — idempotent `rs.initiate()` and shard registration
 - **Prometheus exporter** — optional `percona/mongodb_exporter` sidecar + ServiceMonitor
+- **Built-in S3 backups** — scheduled `mongodump` archive upload for standalone, replica set, and sharded topologies
 - **Init scripts** — `.sh` and `.js` files via ConfigMap (`/docker-entrypoint-initdb.d/`)
 - **Custom mongod.conf** — mount via ConfigMap
 - **Security defaults** — `fsGroup: 999`, startup/liveness/readiness probes
@@ -192,6 +194,16 @@ sharded:
 | `metrics.port` | Exporter port | `9216` |
 | `metrics.serviceMonitor.enabled` | Create ServiceMonitor | `false` |
 
+### Backup
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `backup.enabled` | Enable built-in S3 backup CronJob | `false` |
+| `backup.schedule` | Backup schedule | `"0 3 * * *"` |
+| `backup.s3.endpoint` | S3-compatible endpoint URL | `""` |
+| `backup.s3.bucket` | Target bucket name | `""` |
+| `backup.database.mongoDumpArgs` | Extra `mongodump` flags | `""` |
+
 ### Service
 
 | Parameter | Description | Default |
@@ -236,6 +248,7 @@ See the [`examples/`](examples/) directory:
 - [`docs/standalone.md`](docs/standalone.md) — when to use a single-node deployment
 - [`docs/replicaset.md`](docs/replicaset.md) — when to use replica set topology and what it requires operationally
 - [`docs/sharded.md`](docs/sharded.md) — when to use sharding, mongos, config servers, and multiple shards
+- [`docs/backup-restore.md`](docs/backup-restore.md) — S3 backup strategy and restore guidance
 
 ## Connection Strings
 
@@ -283,5 +296,5 @@ relations:
   - charts/mongodb/docs/sharded.md
 path: charts/mongodb/README.md
 version: 1.0
-date: 2026-03-20
+date: 2026-03-31
 -->

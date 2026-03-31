@@ -1,0 +1,70 @@
+suite: Backup
+templates:
+  - backup-configmap.yaml
+  - backup-cronjob.yaml
+  - secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render backup resources by default
+    template: backup-configmap.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render backup cronjob by default
+    template: backup-cronjob.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render backup configmap for postgresql subchart mode
+    set:
+      postgresql.enabled: true
+      postgresql.auth.password: devpass
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: backup-configmap.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+
+  - it: should render backup cronjob for postgresql subchart mode
+    set:
+      postgresql.enabled: true
+      postgresql.auth.password: devpass
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: backup-cronjob.yaml
+    asserts:
+      - isKind:
+          of: CronJob
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: DB_HOST
+            value: test-postgresql
+
+  - it: should render backup cronjob for mysql subchart mode
+    set:
+      mysql.enabled: true
+      mysql.auth.password: devpass
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: backup-cronjob.yaml
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: DB_HOST
+            value: test-mysql

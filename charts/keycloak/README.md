@@ -40,6 +40,7 @@ helm install keycloak oci://ghcr.io/helmforgedev/helm/keycloak -f values.yaml
 - [Scaling and Clustering](docs/scaling-and-clustering.md)
 - [Security and Trust](docs/security-and-trust.md)
 - [Extensions and Themes](docs/extensions-and-themes.md)
+- [Backup and Restore](docs/backup.md)
 - [Scope and Automation Boundaries](docs/scope-and-automation-boundaries.md)
 - [Production Capacity](docs/production-capacity.md)
 
@@ -55,6 +56,7 @@ helm install keycloak oci://ghcr.io/helmforgedev/helm/keycloak -f values.yaml
 - optional provider and theme mounts
 - optional separate ingresses for public and admin traffic
 - optional truststore and external database TLS material
+- optional database-aware S3 backup CronJob for PostgreSQL/MySQL-backed modes
 - controlled extension hooks through `extraEnvFrom`, `initContainers`, and `extraContainers`
 - optional `ServiceMonitor`
 
@@ -71,6 +73,7 @@ Recommended reading before installation:
 - [Scaling and Clustering](docs/scaling-and-clustering.md)
 - [Security and Trust](docs/security-and-trust.md)
 - [Extensions and Themes](docs/extensions-and-themes.md)
+- [Backup and Restore](docs/backup.md)
 - [Scope and Automation Boundaries](docs/scope-and-automation-boundaries.md)
 - [Production Capacity](docs/production-capacity.md)
 
@@ -165,6 +168,7 @@ postgresql:
 
 - treat the external database as part of the critical-path design
 - prefer PostgreSQL for production examples and guidance
+- enable built-in backup only when the release uses PostgreSQL, MySQL, or MariaDB instead of embedded H2
 - do not use `dev` mode as a hidden production shortcut
 - review [Scaling and Clustering](docs/scaling-and-clustering.md) before raising `replicaCount`
 - review [Scope and Automation Boundaries](docs/scope-and-automation-boundaries.md) before asking the chart to solve autoscaling or operator-style concerns
@@ -190,6 +194,7 @@ postgresql:
 - treat `jdbc-ping` as discovery and cache transport plumbing, not as a substitute for a Keycloak operator
 - plan image rollouts and rollbacks together with the external database and reverse-proxy layer
 - generated admin and database secrets trigger rollout on Helm upgrades
+- built-in backup targets the selected Keycloak database and uploads the compressed dump to S3-compatible storage
 - externally managed secret or truststore changes still require an explicit rollout or restart
 - provider and theme source changes can be rolled forward predictably with `rolloutToken`
 - HPA remains intentionally out of scope as a built-in feature for the current chart scope
@@ -219,6 +224,10 @@ postgresql:
 | `database.tls.sslMode` | PostgreSQL SSL mode | `verify-full` |
 | `database.tls.existingSecret` | Secret with database CA material | `""` |
 | `database.tls.existingConfigMap` | ConfigMap with database CA material | `""` |
+| `backup.enabled` | Enable built-in S3 backup CronJob for database-backed modes | `false` |
+| `backup.schedule` | Backup schedule | `"0 3 * * *"` |
+| `backup.s3.endpoint` | S3-compatible endpoint URL | `""` |
+| `backup.s3.bucket` | Target bucket name | `""` |
 | `postgresql.enabled` | Enable PostgreSQL subchart | `false` |
 | `postgresql.auth.database` | Subchart database name | `keycloak` |
 | `postgresql.auth.username` | Subchart database username | `keycloak` |
@@ -309,5 +318,5 @@ relations:
   - charts/keycloak/docs/scaling-and-clustering.md
 path: charts/keycloak/README.md
 version: 1.0
-date: 2026-03-20
+date: 2026-03-31
 -->

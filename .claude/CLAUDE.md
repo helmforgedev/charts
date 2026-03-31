@@ -128,6 +128,7 @@ Before any local `helm install`, `helm upgrade`, `helm uninstall`, or runtime va
 - never run `helm install`, `helm upgrade`, or `helm uninstall` until the local `k3d` context is explicitly confirmed
 - if the context is wrong or unclear, stop and fix it before continuing
 - remember that installing into the wrong context can impact shared or production-like clusters
+- if the chart adds or changes S3 backup behavior, validate the backup CronJob against a local MinIO endpoint on the local `k3d` cluster before merging
 
 ## Local k3d Validation (New Charts)
 
@@ -140,6 +141,7 @@ When creating a new chart, always deploy and validate it on a local k3d cluster 
 5. Fix any issues found before merging — commit fixes to the same PR branch.
 6. Clean up test releases after validation (`helm uninstall`).
 7. Merge the PR only after k3d validation succeeds.
+8. If the chart adds or changes backup behavior, run the backup flow end-to-end against local MinIO and confirm the artifact lands in object storage.
 
 Critical safety rule:
 
@@ -147,6 +149,7 @@ Critical safety rule:
 - verify the active context explicitly before the first install
 - repeat that verification before every validation install, upgrade, or uninstall
 - if `kubectl config current-context` is not the expected local `k3d` context, do not install
+- treat MinIO-backed backup execution as mandatory local validation for backup-capable chart changes
 
 ## Unit Testing Rules
 

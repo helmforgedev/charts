@@ -1,0 +1,139 @@
+{{- if include "keycloak.backupEnabled" . }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "keycloak.fullname" . }}-backup
+  labels:
+    {{- include "keycloak.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  suspend: {{ .Values.backup.suspend }}
+  concurrencyPolicy: {{ .Values.backup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "keycloak.selectorLabels" . | nindent 12 }}
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "keycloak.serviceAccountName" . }}
+          terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          initContainers:
+            - name: {{ include "keycloak.backupDatabaseVendor" . }}-backup
+              image: "{{- if eq (include "keycloak.backupDatabaseVendor" .) "postgres" -}}{{ .Values.backup.images.postgresql.repository }}:{{ .Values.backup.images.postgresql.tag }}{{- else -}}{{ .Values.backup.images.mysql.repository }}:{{ .Values.backup.images.mysql.tag }}{{- end }}"
+              imagePullPolicy: {{- if eq (include "keycloak.backupDatabaseVendor" .) "postgres" }} {{ .Values.backup.images.postgresql.pullPolicy }}{{- else }} {{ .Values.backup.images.mysql.pullPolicy }}{{- end }}
+              command:
+                - /bin/sh
+                - {{- if eq (include "keycloak.backupDatabaseVendor" .) "postgres" }} /scripts/postgres-backup.sh{{- else }} /scripts/mysql-backup.sh{{- end }}
+              env:
+                - name: BACKUP_ARCHIVE_PREFIX
+                  value: {{ .Values.backup.archivePrefix | quote }}
+                - name: DB_HOST
+                  value: {{ include "keycloak.databaseHost" . | quote }}
+                - name: DB_PORT
+                  value: {{ include "keycloak.databasePort" . | quote }}
+                - name: DB_NAME
+                  value: {{ include "keycloak.databaseName" . | quote }}
+                - name: DB_USERNAME
+                  value: {{ include "keycloak.databaseUsername" . | quote }}
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "keycloak.databaseSecretName" . }}
+                      key: {{ include "keycloak.databaseSecretPasswordKey" . }}
+                {{- if eq (include "keycloak.backupDatabaseVendor" .) "postgres" }}
+                - name: PG_DUMP_EXTRA_ARGS
+                  value: {{ .Values.backup.database.postgresDumpArgs | quote }}
+                {{- if .Values.database.tls.enabled }}
+                - name: PGSSLMODE
+                  value: {{ .Values.database.tls.sslMode | quote }}
+                {{- if include "keycloak.hasDatabaseTlsVolume" . }}
+                - name: PGSSLROOTCERT
+                  value: {{ include "keycloak.databaseTlsRootCertPath" . | quote }}
+                {{- end }}
+                {{- end }}
+                {{- else }}
+                - name: MYSQL_DUMP_EXTRA_ARGS
+                  value: {{ .Values.backup.database.mysqlDumpArgs | quote }}
+                {{- end }}
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: backup-workdir
+                  mountPath: /backup/out
+                {{- if and (eq (include "keycloak.backupDatabaseVendor" .) "postgres") (include "keycloak.hasDatabaseTlsVolume" .) }}
+                - name: database-tls
+                  mountPath: {{ .Values.database.tls.mountPath }}
+                  readOnly: true
+                {{- end }}
+          containers:
+            - name: upload
+              image: "{{ .Values.backup.images.uploader.repository }}:{{ .Values.backup.images.uploader.tag }}"
+              imagePullPolicy: {{ .Values.backup.images.uploader.pullPolicy }}
+              command: ["/bin/sh", "/scripts/upload-backup.sh"]
+              env:
+                - name: S3_ENDPOINT
+                  value: {{ .Values.backup.s3.endpoint | quote }}
+                - name: S3_BUCKET
+                  value: {{ .Values.backup.s3.bucket | quote }}
+                - name: S3_PREFIX
+                  value: {{ .Values.backup.s3.prefix | quote }}
+                - name: S3_CREATE_BUCKET_IF_NOT_EXISTS
+                  value: {{ ternary "true" "false" .Values.backup.s3.createBucketIfNotExists | quote }}
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "keycloak.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretAccessKeyKey }}
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "keycloak.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: backup-workdir
+                  mountPath: /backup/out
+          volumes:
+            - name: scripts
+              configMap:
+                name: {{ include "keycloak.fullname" . }}-backup-scripts
+                defaultMode: 0755
+            - name: backup-workdir
+              emptyDir: {}
+            {{- if and (eq (include "keycloak.backupDatabaseVendor" .) "postgres") (include "keycloak.hasDatabaseTlsVolume" .) }}
+            - name: database-tls
+              {{- if .Values.database.tls.existingSecret }}
+              secret:
+                secretName: {{ .Values.database.tls.existingSecret }}
+              {{- else }}
+              configMap:
+                name: {{ .Values.database.tls.existingConfigMap }}
+              {{- end }}
+            {{- end }}
+{{- end }}

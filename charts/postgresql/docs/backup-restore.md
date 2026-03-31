@@ -8,9 +8,16 @@ audience: users
 
 # Backup and Restore
 
-## Scope
+## Built-in backup strategy
 
-This chart does not implement backups directly. Backup and restore must be handled by platform tooling, scheduled jobs, or external controllers.
+This chart now includes an optional backup CronJob that runs `pg_dumpall`, compresses the output, and uploads the archive to S3-compatible storage.
+
+The built-in backup always targets the writable endpoint:
+
+- `standalone`: the single PostgreSQL pod through the chart client Service
+- `replication`: the fixed primary through the primary/client Service
+
+Because `pg_dumpall` is used, the generated archive includes all logical databases plus global objects such as roles.
 
 ## Minimum production expectation
 
@@ -21,7 +28,8 @@ This chart does not implement backups directly. Backup and restore must be handl
 
 ## Recommended direction
 
-- use dedicated PostgreSQL backup tooling or a platform backup solution
+- use dedicated PostgreSQL backup tooling or a platform backup solution when you need more than full logical dumps
+- use the built-in S3 backup for regular full logical dumps when that matches your recovery model
 - keep WAL, data retention, and storage sizing aligned with the backup design
 - if replication is enabled, do not assume replicas replace backups
 
@@ -30,6 +38,7 @@ This chart does not implement backups directly. Backup and restore must be handl
 - restore into a fresh release or a controlled maintenance workflow
 - verify database integrity and application connectivity before switching traffic
 - document whether restore will overwrite an existing PVC or create a new one
+- re-enable scheduled backups only after the restored environment is validated
 
 ## What to document for operations
 
@@ -52,5 +61,5 @@ relations:
   - charts/postgresql/README.md
 path: charts/postgresql/docs/backup-restore.md
 version: 1.0
-date: 2026-03-20
+date: 2026-03-31
 -->

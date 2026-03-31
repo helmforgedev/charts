@@ -219,6 +219,37 @@ MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysql -h 127.0.0.1 -P {{ .Values.service.port
 {{- end -}}
 {{- end -}}
 
+{{- define "mysql.backupSecretName" -}}
+{{- if .Values.backup.s3.existingSecret -}}
+{{- .Values.backup.s3.existingSecret -}}
+{{- else -}}
+{{- printf "%s-backup" (include "mysql.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "mysql.backupEnabled" -}}
+{{- if .Values.backup.enabled -}}
+  {{- if not .Values.backup.s3.endpoint -}}
+    {{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if not .Values.backup.s3.bucket -}}
+    {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- end -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{- define "mysql.backupHost" -}}
+{{- include "mysql.sourceServiceName" . -}}
+{{- end -}}
+
+{{- define "mysql.backupTlsVolumeEnabled" -}}
+{{- if include "mysql.tlsClientEnabled" . -}}true{{- end -}}
+{{- end -}}
+
 {{- define "mysql.replicationTlsClause" -}}
 {{- if include "mysql.tlsClientEnabled" . -}}
 SOURCE_SSL=1,

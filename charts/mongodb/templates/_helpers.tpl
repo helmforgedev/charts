@@ -143,6 +143,45 @@ Return true if keyFile is needed (replicaset or sharded with auth).
 {{- if and .Values.auth.enabled (or (include "mongodb.isReplicaSet" .) (include "mongodb.isSharded" .)) -}}true{{- end -}}
 {{- end -}}
 
+{{- define "mongodb.backupSecretName" -}}
+{{- if .Values.backup.s3.existingSecret -}}
+{{- .Values.backup.s3.existingSecret -}}
+{{- else -}}
+{{- printf "%s-backup" (include "mongodb.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "mongodb.backupEnabled" -}}
+{{- if .Values.backup.enabled -}}
+  {{- if not .Values.backup.s3.endpoint -}}
+    {{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if not .Values.backup.s3.bucket -}}
+    {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- end -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{- define "mongodb.backupHost" -}}
+{{- if include "mongodb.isSharded" . -}}
+{{- printf "%s-mongos" (include "mongodb.fullname" .) -}}
+{{- else -}}
+{{- include "mongodb.fullname" . -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "mongodb.backupPort" -}}
+{{- if include "mongodb.isSharded" . -}}
+{{- .Values.sharded.mongos.port | toString -}}
+{{- else -}}
+{{- .Values.service.port | toString -}}
+{{- end -}}
+{{- end -}}
+
 {{/*
 Replica count for data members.
 */}}

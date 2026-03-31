@@ -44,6 +44,7 @@ helm install mysql oci://ghcr.io/helmforgedev/helm/mysql -f values.yaml
 - role-aware readiness checks for source and replicas in replication mode
 - optional metrics through `mysqld-exporter`
 - optional `ServiceMonitor`
+- built-in S3 backup CronJob using `mysqldump --all-databases`
 - dedicated metrics Services separated from client traffic
 - topology-specific Services for client traffic, source traffic, and read replicas
 
@@ -72,7 +73,7 @@ Recommended reading before installation:
 
 - for production needing automatic failover, use an operator or another HA-specific solution instead of stretching this chart beyond its scope
 - `replication` in this chart means one fixed source with asynchronous read replicas
-- backups remain an operational concern outside this chart and should be implemented with dedicated tooling
+- built-in logical backup to S3 is available for standalone and replication topologies
 
 ## Read traffic model
 
@@ -182,7 +183,8 @@ metrics:
 - use the `replicas` Service only for read traffic
 - use the `replicas` Service when you need horizontal scale for read-only workloads
 - when enabling TLS, plan certificate rotation as a rollout event because mounted secrets are not hot-reloaded by mysqld
-- treat backup, restore, and failover as operational workflows external to the chart
+- built-in backup dumps all MySQL databases from the writable source endpoint and uploads the compressed archive to S3-compatible storage
+- treat restore validation, retention policy, and failover as operational workflows that still require explicit runbooks
 - review the architecture guides before promoting `replication` to production
 
 Operational documents:
@@ -216,6 +218,11 @@ Operational documents:
 | `tls.requireSecureTransport` | Require TLS for TCP client connections | `false` |
 | `tls.client.enabled` | Use TLS for chart-managed TCP clients | `false` |
 | `tls.client.sslMode` | MySQL CLI SSL mode for internal chart-managed clients | `REQUIRED` |
+| `backup.enabled` | Enable built-in S3 backup CronJob | `false` |
+| `backup.schedule` | Backup schedule | `"0 3 * * *"` |
+| `backup.s3.endpoint` | S3-compatible endpoint URL | `""` |
+| `backup.s3.bucket` | Target bucket name | `""` |
+| `backup.database.mysqldumpArgs` | Extra `mysqldump` flags used before `--all-databases` | `"--single-transaction --quick --skip-lock-tables --no-tablespaces --routines --events --triggers"` |
 | `livenessProbe.enabled` | Enable livenessProbe | `true` |
 | `readinessProbe.enabled` | Enable readinessProbe | `true` |
 | `startupProbe.enabled` | Enable startupProbe | `true` |
@@ -287,5 +294,5 @@ relations:
   - charts/mysql/docs/backup-restore.md
 path: charts/mysql/README.md
 version: 1.0
-date: 2026-03-20
+date: 2026-03-31
 -->

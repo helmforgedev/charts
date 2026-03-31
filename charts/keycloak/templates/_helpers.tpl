@@ -243,6 +243,41 @@ jdbc:{{ $vendor }}://{{ $host }}:{{ $port }}/{{ $name }}
 {{- printf "%s/%s" .Values.database.tls.mountPath .Values.database.tls.rootCertFilename -}}
 {{- end -}}
 
+{{- define "keycloak.backupSecretName" -}}
+{{- if .Values.backup.s3.existingSecret -}}
+{{- .Values.backup.s3.existingSecret -}}
+{{- else -}}
+{{- printf "%s-backup" (include "keycloak.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "keycloak.backupDatabaseVendor" -}}
+{{- $vendor := include "keycloak.databaseVendor" . -}}
+{{- if or (eq $vendor "mysql") (eq $vendor "mariadb") -}}
+mysql
+{{- else -}}
+{{- $vendor -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "keycloak.backupEnabled" -}}
+{{- if .Values.backup.enabled -}}
+  {{- if not (include "keycloak.hasDatabase" .) -}}
+    {{- fail "backup.enabled requires a real database; embedded H2 is not supported for backups" -}}
+  {{- end -}}
+  {{- if not .Values.backup.s3.endpoint -}}
+    {{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if not .Values.backup.s3.bucket -}}
+    {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- end -}}
+true
+{{- end -}}
+{{- end -}}
+
 {{- define "keycloak.hasDatabaseTlsVolume" -}}
 {{- if and .Values.database.tls.enabled (or .Values.database.tls.existingSecret .Values.database.tls.existingConfigMap) -}}true{{- end -}}
 {{- end -}}

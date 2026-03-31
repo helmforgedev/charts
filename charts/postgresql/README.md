@@ -44,6 +44,7 @@ helm install postgresql oci://ghcr.io/helmforgedev/helm/postgresql -f values.yam
 - role-aware readiness checks for primary and replicas in replication mode
 - optional metrics through `postgres_exporter`
 - optional `ServiceMonitor`
+- built-in S3 backup CronJob using `pg_dumpall`
 - dedicated metrics Services separated from client traffic
 - topology-specific Services for client traffic, primary traffic, and read replicas
 
@@ -71,7 +72,7 @@ Recommended reading before installation:
 
 - for production needing automatic failover, use a PostgreSQL operator instead of stretching this chart beyond its scope
 - `replication` in this chart means one fixed primary with asynchronous replicas
-- backups remain an operational concern outside this chart and should be implemented with dedicated tooling
+- built-in logical backup to S3 is available for standalone and replication topologies
 
 ## Read traffic model
 
@@ -187,7 +188,8 @@ metrics:
 - use the `client` or `primary` Service only for writes
 - use the `replicas` Service only for read traffic
 - use the `replicas` Service when you need horizontal scale for read-only workloads
-- treat backup, restore, and failover as operational workflows external to the chart
+- built-in backup dumps all PostgreSQL databases and global objects from the writable primary endpoint and uploads the compressed archive to S3-compatible storage
+- treat restore validation, retention policy, WAL strategy, and failover as operational workflows that still require explicit runbooks
 - review the operational guides before promoting `replication` to production
 
 Operational documents:
@@ -217,6 +219,11 @@ Operational documents:
 | `tls.enabled` | Enable PostgreSQL TLS | `false` |
 | `tls.existingSecret` | Existing secret with TLS material | `""` |
 | `tls.sslMode` | Internal libpq sslmode | `require` |
+| `backup.enabled` | Enable built-in S3 backup CronJob | `false` |
+| `backup.schedule` | Backup schedule | `"0 3 * * *"` |
+| `backup.s3.endpoint` | S3-compatible endpoint URL | `""` |
+| `backup.s3.bucket` | Target bucket name | `""` |
+| `backup.database.pgDumpAllArgs` | Extra `pg_dumpall` flags | `"--clean --if-exists"` |
 | `networkPolicy.enabled` | Enable ingress-only NetworkPolicy | `false` |
 | `livenessProbe.enabled` | Enable livenessProbe | `true` |
 | `readinessProbe.enabled` | Enable readinessProbe | `true` |
@@ -290,5 +297,5 @@ relations:
   - charts/postgresql/docs/backup-restore.md
 path: charts/postgresql/README.md
 version: 1.0
-date: 2026-03-20
+date: 2026-03-31
 -->
