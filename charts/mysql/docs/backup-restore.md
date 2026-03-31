@@ -38,11 +38,40 @@ Use the built-in S3 backup for regular logical dumps, and add external tooling w
 - test restores periodically
 - document restore procedures for both standalone and replication topologies
 
-## Restore notes
+## Restore workflow
+
+Prefer restoring into a fresh release, validating it, and only then switching application traffic.
+
+### 1. Download the archive
+
+```bash
+mc cp backup/my-mysql-backups/mysql/mysql-mysql-20260331T162812Z.sql.gz /tmp/
+gzip -dc /tmp/mysql-mysql-20260331T162812Z.sql.gz > /tmp/mysql-restore.sql
+```
+
+### 2. Restore into the writable endpoint
+
+Standalone or replication source:
+
+```bash
+mysql \
+  --host <mysql-host> \
+  --port 3306 \
+  --user root \
+  --password < /tmp/mysql-restore.sql
+```
+
+### 3. Rebuild replicas if replication is enabled
+
+Do not assume existing replicas will safely converge after a full logical restore. Recreate or re-seed replicas from the restored source according to your replication runbook.
+
+### 4. Validate before reopening traffic
 
 After a restore:
 
 - verify application users and expected databases
+- verify tables, routines, events, and triggers expected by applications
+- confirm writes succeed on the restored writable endpoint
 - validate replication state before reintroducing read traffic
 - rebuild replicas from the restored source instead of assuming they can self-heal safely
 - re-enable scheduled backups only after the restored environment is validated

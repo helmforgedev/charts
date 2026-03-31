@@ -26,16 +26,24 @@ backup:
 
 For production, use `backup.s3.existingSecret` instead of inline credentials.
 
+## Restore principles
+
+Prefer restoring into a fresh release, validating it, and only then switching traffic or webhook producers.
+
+When n8n uses SQLite, the restore boundary is the full `/home/node/.n8n` directory, not only `database.sqlite`.
+
+When n8n uses PostgreSQL or MySQL, restore the database dump and then validate encryption-key continuity before resuming executions.
+
 ## Restore
 
 ### SQLite
 
 ```bash
 mc cp backup/my-backups/n8n/n8n-sqlite-20260323T030000Z.tar.gz /tmp/
-kubectl scale deploy <release>-n8n --replicas=0
-kubectl cp /tmp/n8n-sqlite-20260323T030000Z.tar.gz <pod>:/home/node/.n8n/
-kubectl exec <pod> -- tar -xzf /home/node/.n8n/n8n-sqlite-20260323T030000Z.tar.gz -C /home/node/.n8n/
-kubectl scale deploy <release>-n8n --replicas=1
+kubectl scale deploy <release>-n8n --replicas=0 -n <namespace>
+# attach the restored PVC or copy the archive into the mounted volume path
+tar -xzf /tmp/n8n-sqlite-20260323T030000Z.tar.gz -C <restored-volume-mount>
+kubectl scale deploy <release>-n8n --replicas=1 -n <namespace>
 ```
 
 ### PostgreSQL
@@ -45,6 +53,22 @@ mc cp backup/my-backups/n8n/n8n-postgresql-20260323T030000Z.sql.gz /tmp/
 gunzip /tmp/n8n-postgresql-20260323T030000Z.sql.gz
 psql -h <host> -U n8n -d n8n < /tmp/n8n-postgresql-20260323T030000Z.sql
 ```
+
+### MySQL
+
+```bash
+mc cp backup/my-backups/n8n/n8n-mysql-20260323T030000Z.sql.gz /tmp/
+gunzip /tmp/n8n-mysql-20260323T030000Z.sql.gz
+mysql -h <host> -u n8n -p n8n < /tmp/n8n-mysql-20260323T030000Z.sql
+```
+
+## Post-restore validation
+
+- confirm the release still uses the expected encryption key secret
+- verify n8n startup and editor login
+- verify credentials can still be decrypted
+- verify webhook URLs and execution mode settings match the intended environment
+- only re-enable scheduled backups after the restored environment is validated
 
 <!-- @AI-METADATA
 type: chart-docs
@@ -61,5 +85,5 @@ relations:
   - charts/n8n/docs/database.md
 path: charts/n8n/docs/backup.md
 version: 1.0
-date: 2026-03-23
+date: 2026-03-31
 -->

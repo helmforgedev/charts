@@ -36,10 +36,41 @@ It does not replace:
 - test restores in a non-production environment
 - document whether restores target standalone, replica set, or sharded topologies
 
-## Restore notes
+## Restore workflow
+
+Prefer restoring into a fresh release or a maintenance window where writes are fully stopped.
+
+### 1. Download the archive
+
+```bash
+mc cp backup/my-mongodb-backups/mongodb/mongodb-mongodb-20260331T163124Z.archive.gz /tmp/
+```
+
+### 2. Restore with `mongorestore`
+
+Standalone or replica set entrypoint:
+
+```bash
+mongorestore \
+  --host <mongodb-host> \
+  --port 27017 \
+  --username <admin-user> \
+  --password <admin-password> \
+  --authenticationDatabase admin \
+  --archive=/tmp/mongodb-mongodb-20260331T163124Z.archive.gz \
+  --gzip
+```
+
+Sharded topology:
+
+- restore through the `mongos` endpoint, not directly to individual shard members
+- keep the topology shape aligned with the original backup expectation before running restore
+
+### 3. Validate before reopening traffic
 
 - restore into a controlled maintenance workflow
 - validate users, roles, and expected databases after restore
+- validate expected collections and indexes for critical application paths
 - for sharded environments, verify mongos routing and shard registration before resuming application traffic
 - re-enable scheduled backups only after the restored environment is validated
 

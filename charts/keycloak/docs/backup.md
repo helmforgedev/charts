@@ -39,10 +39,56 @@ The built-in workflow is intentionally focused on backup creation, not restore o
 - validate restore procedures in a non-production environment before declaring the deployment production-ready
 - if extensions, themes, or realm-import inputs are managed outside the database, back them up through their own source-of-truth workflow as well
 
-## Restore notes
+## Restore workflow
+
+Prefer restoring into a fresh release or a maintenance window with Keycloak traffic stopped.
+
+### 1. Download the archive
+
+PostgreSQL example:
+
+```bash
+mc cp backup/keycloak-backups/keycloak/keycloak-postgresql-20260331T163305Z.sql.gz /tmp/
+gzip -dc /tmp/keycloak-postgresql-20260331T163305Z.sql.gz > /tmp/keycloak-restore.sql
+```
+
+MySQL example:
+
+```bash
+mc cp backup/keycloak-backups/keycloak/keycloak-mysql-20260331T163305Z.sql.gz /tmp/
+gzip -dc /tmp/keycloak-mysql-20260331T163305Z.sql.gz > /tmp/keycloak-restore.sql
+```
+
+### 2. Restore into the Keycloak database
+
+PostgreSQL:
+
+```bash
+psql \
+  --host <postgres-host> \
+  --port 5432 \
+  --username <keycloak-db-user> \
+  --dbname <keycloak-db-name> \
+  --file /tmp/keycloak-restore.sql
+```
+
+MySQL:
+
+```bash
+mysql \
+  --host <mysql-host> \
+  --port 3306 \
+  --user <keycloak-db-user> \
+  --password \
+  <keycloak-db-name> < /tmp/keycloak-restore.sql
+```
+
+### 3. Validate before reopening traffic
 
 - restore into a controlled maintenance workflow
 - verify Keycloak startup, admin login, and expected realms/clients before reopening traffic
+- validate users, identity providers, and critical client secrets expected by the environment
+- if themes, providers, or realm-import files are managed outside the database, restore those inputs independently before validation
 - re-enable scheduled backups only after the restored environment is validated
 
 <!-- @AI-METADATA

@@ -33,10 +33,39 @@ Because `pg_dumpall` is used, the generated archive includes all logical databas
 - keep WAL, data retention, and storage sizing aligned with the backup design
 - if replication is enabled, do not assume replicas replace backups
 
-## Restore guidance
+## Restore workflow
+
+Prefer restoring into a fresh release, validating it, and only then switching application traffic.
+
+### 1. Download and extract the archive
+
+```bash
+mc cp backup/my-postgresql-backups/postgresql/postgresql-postgresql-20260331T162911Z.sql.gz /tmp/
+gzip -dc /tmp/postgresql-postgresql-20260331T162911Z.sql.gz > /tmp/postgresql-restore.sql
+```
+
+### 2. Restore into the writable endpoint
+
+```bash
+psql \
+  --host <postgres-host> \
+  --port 5432 \
+  --username postgres \
+  --dbname postgres \
+  --file /tmp/postgresql-restore.sql
+```
+
+Because the built-in backup uses `pg_dumpall`, the restore stream includes roles and all logical databases. Run it with a superuser or equivalent administrative role.
+
+### 3. Rebuild replicas if replication is enabled
+
+Treat replicas as disposable read copies. Recreate them from the restored primary instead of assuming they can continue from stale state safely.
+
+### 4. Validate before reopening traffic
 
 - restore into a fresh release or a controlled maintenance workflow
 - verify database integrity and application connectivity before switching traffic
+- verify expected roles, databases, extensions, and schema objects after restore
 - document whether restore will overwrite an existing PVC or create a new one
 - re-enable scheduled backups only after the restored environment is validated
 
