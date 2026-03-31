@@ -1,0 +1,40 @@
+# Production deployment with ingress, backup, and custom timezone
+heimdall:
+  puid: 1000
+  pgid: 1000
+  timezone: "America/New_York"
+
+persistence:
+  enabled: true
+  size: 2Gi
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: dashboard.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: heimdall-tls
+      hosts:
+        - dashboard.example.com
+
+backup:
+  enabled: true
+  schedule: "0 3 * * *"
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: my-backups
+    prefix: heimdall
+    existingSecret: heimdall-s3-credentials

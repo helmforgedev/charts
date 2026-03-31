@@ -1,0 +1,221 @@
+# =============================================================================
+# Heimdall Helm Chart
+# =============================================================================
+# Uses the linuxserver/heimdall Docker image.
+# Application dashboard for organizing and launching self-hosted services.
+# Persists configuration and SQLite database in /config.
+# =============================================================================
+
+# -- Override the chart name
+nameOverride: ""
+# -- Override the full release name
+fullnameOverride: ""
+# -- Labels to add to all resources
+commonLabels: {}
+
+image:
+  # -- Container image repository
+  repository: linuxserver/heimdall
+  # -- Image tag (defaults to Chart.appVersion)
+  tag: ""
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# =============================================================================
+# Heimdall Configuration
+# =============================================================================
+
+heimdall:
+  # -- User ID for file permissions
+  puid: 1000
+  # -- Group ID for file permissions
+  pgid: 1000
+  # -- Timezone (e.g., "America/New_York", "Europe/London")
+  timezone: "UTC"
+  # -- Extra environment variables
+  extraEnv: []
+  # - name: APP_NAME
+  #   value: "My Dashboard"
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistent storage for /config
+  enabled: true
+  # -- Storage class (empty for cluster default)
+  storageClass: ""
+  # -- Access mode
+  accessMode: ReadWriteOnce
+  # -- Volume size
+  size: 1Gi
+  # -- Use an existing PVC
+  existingClaim: ""
+  # -- PVC annotations
+  annotations: {}
+
+# =============================================================================
+# S3 Backup
+# =============================================================================
+
+backup:
+  # -- Enable S3 backup CronJob
+  enabled: false
+  # -- Cron schedule (default: daily at 03:00 UTC)
+  schedule: "0 3 * * *"
+  # -- Suspend the CronJob
+  suspend: false
+  # -- Concurrency policy
+  concurrencyPolicy: Forbid
+  # -- Successful job history limit
+  successfulJobsHistoryLimit: 3
+  # -- Failed job history limit
+  failedJobsHistoryLimit: 3
+  # -- Backoff limit
+  backoffLimit: 1
+  # -- Archive filename prefix
+  archivePrefix: heimdall
+
+  images:
+    # -- Image for creating tar archives
+    archiver: alpine:3.22
+    # -- Image for uploading to S3
+    uploader: minio/mc:RELEASE.2025-04-08T15-18-23Z
+
+  # -- Resource requests and limits for backup jobs
+  resources: {}
+
+  s3:
+    # -- S3-compatible endpoint URL
+    endpoint: ""
+    # -- S3 bucket name
+    bucket: ""
+    # -- S3 key prefix
+    prefix: heimdall
+    # -- Create bucket if it does not exist
+    createBucketIfNotExists: true
+    # -- Existing secret with S3 credentials
+    existingSecret: ""
+    # -- Key in existing secret for access key
+    existingSecretAccessKeyKey: access-key
+    # -- Key in existing secret for secret key
+    existingSecretSecretKeyKey: secret-key
+    # -- S3 access key (use existingSecret in production)
+    accessKey: ""
+    # -- S3 secret key (use existingSecret in production)
+    secretKey: ""
+
+# =============================================================================
+# Pod Configuration
+# =============================================================================
+
+resources: {}
+  # requests:
+  #   cpu: 50m
+  #   memory: 128Mi
+  # limits:
+  #   memory: 256Mi
+
+podSecurityContext: {}
+
+securityContext: {}
+
+startupProbe:
+  # -- Enable startup probe
+  enabled: true
+  path: /
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 12
+
+livenessProbe:
+  # -- Enable liveness probe
+  enabled: true
+  path: /
+  initialDelaySeconds: 0
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  # -- Enable readiness probe
+  enabled: true
+  path: /
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- Service port
+  port: 80
+  # -- Annotations for the service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress
+  enabled: false
+  # -- Ingress class name (traefik, nginx, etc.)
+  ingressClassName: ""
+  # -- Ingress annotations
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+  # -- Ingress hosts
+  hosts: []
+    # - host: dashboard.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- TLS configuration
+  tls: []
+    # - secretName: heimdall-tls
+    #   hosts:
+    #     - dashboard.example.com
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a service account
+  create: false
+  # -- Service account name
+  name: ""
+  # -- Annotations for the service account
+  annotations: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+podLabels: {}
+podAnnotations: {}
+extraVolumeMounts: []
+extraVolumes: []
+extraManifests: []

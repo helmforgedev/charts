@@ -42,6 +42,7 @@ Project links:
 | [velero](charts/velero/) | alpha | Velero — Kubernetes backup, restore, migration, schedules, and S3-compatible object storage |
 | [kafka](charts/kafka/) | alpha | Kafka — KRaft single-broker and production-oriented cluster modes with persistent storage and optional metrics |
 | [phpmyadmin](charts/phpmyadmin/) | alpha | phpMyAdmin — web-based MySQL/MariaDB administration with multi-server, auto-login, and custom config support |
+| [heimdall](charts/heimdall/) | alpha | Heimdall — application dashboard with persistent config, S3 backup, and ingress support |
 
 ### Maturity levels
 

@@ -1,0 +1,49 @@
+suite: backup-cronjob
+templates:
+  - templates/backup-cronjob.yaml
+tests:
+  - it: should not render when backup is disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render when backup is enabled
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: my-backups
+      backup.s3.existingSecret: s3-creds
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.schedule
+          value: "0 3 * * *"
+
+  - it: should use custom schedule
+    set:
+      backup.enabled: true
+      backup.schedule: "0 6 * * 0"
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: my-backups
+      backup.s3.existingSecret: s3-creds
+    asserts:
+      - equal:
+          path: spec.schedule
+          value: "0 6 * * 0"
+
+  - it: should reference existing S3 secret
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: my-backups
+      backup.s3.existingSecret: my-s3-secret
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: S3_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: my-s3-secret
+                key: access-key

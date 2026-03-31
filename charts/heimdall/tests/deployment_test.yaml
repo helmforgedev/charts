@@ -1,0 +1,103 @@
+suite: deployment
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: should render a Deployment
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-heimdall
+
+  - it: should use correct image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "linuxserver/heimdall:2.7.6"
+
+  - it: should set PUID, PGID, and TZ env vars
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PUID
+            value: "1000"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PGID
+            value: "1000"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TZ
+            value: "UTC"
+
+  - it: should allow custom timezone
+    set:
+      heimdall.timezone: "America/New_York"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TZ
+            value: "America/New_York"
+
+  - it: should mount config volume when persistence is enabled
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: config
+            mountPath: /config
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: config
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME-heimdall
+
+  - it: should not mount config volume when persistence is disabled
+    set:
+      persistence.enabled: false
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].volumeMounts
+
+  - it: should use Recreate strategy when persistence is enabled
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should have single replica
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should expose http port
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 80
+            protocol: TCP
+
+  - it: should include startup probe by default
+    asserts:
+      - exists:
+          path: spec.template.spec.containers[0].startupProbe
+
+  - it: should use existing claim when set
+    set:
+      persistence.existingClaim: my-existing-pvc
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: config
+            persistentVolumeClaim:
+              claimName: my-existing-pvc

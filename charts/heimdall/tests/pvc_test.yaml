@@ -1,0 +1,33 @@
+suite: pvc
+templates:
+  - templates/pvc.yaml
+tests:
+  - it: should render PVC when persistence is enabled
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: spec.resources.requests.storage
+          value: 1Gi
+
+  - it: should not render when persistence is disabled
+    set:
+      persistence.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render when using existing claim
+    set:
+      persistence.existingClaim: my-pvc
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should set custom size
+    set:
+      persistence.size: 5Gi
+    asserts:
+      - equal:
+          path: spec.resources.requests.storage
+          value: 5Gi
