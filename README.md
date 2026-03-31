@@ -86,6 +86,17 @@ Versions are calculated automatically from Conventional Commits affecting each c
 
 Tags follow the format `{chart}-v{version}` (for example `generic-v1.2.3`).
 
+### Release Notes
+
+Every chart release automatically creates a [GitHub Release](https://github.com/helmforgedev/charts/releases) with categorized notes generated from Conventional Commits:
+
+- **Breaking Changes** — commits with `!:` or `BREAKING CHANGE`
+- **Features** — `feat(...):`
+- **Bug Fixes** — `fix(...):`
+- **Other Changes** — `docs`, `refactor`, `ci`, etc.
+
+Each release includes install instructions for both OCI and Helm repository.
+
 ### Testing
 
 Each chart includes a `ci/` directory with test values files. The pipeline runs `helm template` against every `ci/*.yaml` file automatically, in addition to default values, lint, and kubeconform schema validation.

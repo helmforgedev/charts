@@ -88,6 +88,7 @@ jobs:
             echo "No previous tag found for $CHART, starting at 1.0.0"
             NEXT_VERSION="1.0.0"
             BUMP_TYPE="initial"
+            echo "previous_tag=" >> "$GITHUB_OUTPUT"
           else
             CURRENT_VERSION="${LATEST_TAG#${CHART}-v}"
             echo "Latest tag: $LATEST_TAG (version: $CURRENT_VERSION)"
@@ -115,6 +116,8 @@ jobs:
               BUMP_TYPE="patch"
               NEXT_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
             fi
+
+            echo "previous_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
           fi
 
           echo "version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
@@ -160,6 +163,84 @@ jobs:
             echo "Push failed (attempt $attempt/5), retrying in $((attempt * 2))s..."
             sleep $((attempt * 2))
           done
+
+      - name: Generate release notes
+        if: steps.semver.outputs.skip != 'true'
+        run: |
+          CHART="${{ matrix.chart }}"
+          VERSION="${{ steps.semver.outputs.version }}"
+          PREV_TAG="${{ steps.semver.outputs.previous_tag }}"
+          BUMP="${{ steps.semver.outputs.bump }}"
+          NOTES_FILE="/tmp/release-notes.md"
+
+          {
+            echo "## $CHART v$VERSION"
+            echo ""
+
+            if [ "$BUMP" = "initial" ]; then
+              echo "Initial release of the **$CHART** chart."
+              echo ""
+              COMMITS=$(git log --pretty=format:"- %s" -- "charts/${CHART}/" | head -50)
+            else
+              COMMITS=$(git log "${PREV_TAG}..HEAD" --pretty=format:"- %s" -- "charts/${CHART}/")
+            fi
+
+            # Categorize commits
+            BREAKING=$(echo "$COMMITS" | grep -E '^\- [a-z]+(\(.+\))?!:' || true)
+            FEATURES=$(echo "$COMMITS" | grep -E '^\- feat(\(.+\))?:' | grep -v '!:' || true)
+            FIXES=$(echo "$COMMITS" | grep -E '^\- fix(\(.+\))?:' | grep -v '!:' || true)
+            OTHER=$(echo "$COMMITS" | grep -vE '^\- (feat|fix)(\(.+\))?\!?:' | grep -vE '^\- [a-z]+(\(.+\))?!:' | grep -v '^\s*$' || true)
+
+            if [ -n "$BREAKING" ]; then
+              echo "### Breaking Changes"
+              echo "$BREAKING"
+              echo ""
+            fi
+
+            if [ -n "$FEATURES" ]; then
+              echo "### Features"
+              echo "$FEATURES"
+              echo ""
+            fi
+
+            if [ -n "$FIXES" ]; then
+              echo "### Bug Fixes"
+              echo "$FIXES"
+              echo ""
+            fi
+
+            if [ -n "$OTHER" ]; then
+              echo "### Other Changes"
+              echo "$OTHER"
+              echo ""
+            fi
+
+            echo "---"
+            echo ""
+            echo "### Install"
+            echo ""
+            echo '```bash'
+            echo "# OCI registry"
+            echo "helm install $CHART oci://ghcr.io/helmforgedev/helm/$CHART --version $VERSION"
+            echo ""
+            echo "# Helm repository"
+            echo "helm repo add helmforge https://repo.helmforge.dev"
+            echo "helm install $CHART helmforge/$CHART --version $VERSION"
+            echo '```'
+          } > "$NOTES_FILE"
+
+          echo "Generated release notes:"
+          cat "$NOTES_FILE"
+
+      - name: Create GitHub Release
+        if: steps.semver.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.semver.outputs.tag }}" \
+            --title "${{ matrix.chart }} v${{ steps.semver.outputs.version }}" \
+            --notes-file /tmp/release-notes.md \
+            --verify-tag
 
   update-index:
     name: Update Helm repo index

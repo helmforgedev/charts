@@ -30,13 +30,15 @@ docs/
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
 | `ci.yml` | Pull requests | `helm lint --strict`, `helm template`, `helm unittest`, `kubeconform` |
-| `publish.yml` | Push to `main`, `workflow_dispatch` | detect changed charts, bump semver, package, push to GHCR, create tag |
+| `publish.yml` | Push to `main`, `workflow_dispatch` | detect changed charts, bump semver, package, push to GHCR, create tag, create GitHub Release with notes |
 
 Changes to `charts/**/templates/`, `charts/**/values.yaml`, `charts/**/Chart.yaml`, and `charts/**/ci/` trigger CI and publish logic.
 
 Changes to `README.md`, `examples/`, `docs/`, `AGENTS.md`, `.claude/CLAUDE.md`, and `.gitignore` do not trigger publish.
 
 `Chart.yaml` version is managed by CI. Never edit chart version manually.
+
+Releases, tags, and release notes are fully automated. Never create GitHub Releases, git tags, or changelogs manually. Write clear Conventional Commit messages — they become the release notes.
 
 ## Commit and PR Standard
 

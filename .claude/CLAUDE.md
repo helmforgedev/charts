@@ -213,6 +213,35 @@ Key rules:
 - place the block at the very end of the file after all content
 - use relative paths from the repository root for `path` and `relations`
 
+## Release Notes and Versioning
+
+Releases are fully automated by the `publish.yml` workflow. Do not create releases, tags, or changelogs manually.
+
+How the pipeline works:
+
+1. PR merges to `main` trigger `publish.yml`
+2. The workflow detects changed charts and calculates the next semantic version from Conventional Commits
+3. It packages the chart, pushes to OCI and the Helm repo index
+4. It creates an annotated git tag (`{chart}-v{version}`)
+5. It generates categorized release notes and creates a GitHub Release
+
+Release notes are auto-generated from commits between the previous tag and HEAD for each chart. Commits are categorized as:
+
+- **Breaking Changes**: commits with `!:` or `BREAKING CHANGE` in the body
+- **Features**: `feat(...):`
+- **Bug Fixes**: `fix(...):`
+- **Other Changes**: `docs`, `refactor`, `ci`, etc.
+
+Rules:
+
+- never create GitHub Releases manually — the pipeline owns this
+- never edit `version` in `Chart.yaml` — the pipeline calculates and updates it
+- never create or push git tags manually — the pipeline creates annotated tags
+- write clear, descriptive Conventional Commit messages — they become the release notes
+- keep each commit focused on one logical change so release notes are readable
+- if a commit message is unclear or vague, the release notes will reflect that — invest in good commit messages
+- breaking changes must use `!:` in the commit subject or `BREAKING CHANGE` in the body so they are highlighted in release notes
+
 ## Repository Learning Rule
 
 When real work reveals a stable reusable improvement:
