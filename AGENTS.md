@@ -214,20 +214,21 @@ Critical rules:
 ## Adding a New Chart
 
 1. Research the official product documentation and mature public charts.
-2. Confirm the latest stable application version from the official project repository before setting `appVersion`, image tags, or versioned examples.
-3. Use an official runtime image when the upstream project provides one. If not, document that clearly and base examples or validation images on the official source or package instead of a third-party image.
-4. Define the product proposal, supported topologies, and non-goals.
-5. Create `Chart.yaml`, `values.yaml`, `templates/`, `tests/`, `ci/`, `examples/`, `docs/`, and `README.md`. The `Chart.yaml` must include ArtifactHub annotations (see below).
-6. Build templates that match the real product contract, not a generic abstraction.
-7. Add helm-unittest test suites for all key templates (workload, service, secret, optional resources).
-8. Add CI scenarios for each supported topology.
-9. Add examples that reflect realistic usage.
-10. Update the root `README.md` charts table.
-11. Run validation locally before pushing.
-12. Push and open a PR, wait for CI to pass.
-13. Deploy and validate the chart on a local k3d cluster **before merging the PR**. Install the chart with default values and at least one non-default CI scenario, verify pods are running and the application is reachable. Fix any issues found before merging.
-14. Merge the PR only after k3d validation succeeds.
-15. If the chart creates or changes backup behavior, validate the backup flow end-to-end against a local MinIO deployment and confirm the expected artifact reaches object storage.
+2. Confirm the latest stable application version from both the official GitHub releases page and the official Docker Hub tags before setting `appVersion`, image tags, or versioned examples.
+3. Only pin a version when the same release exists in both places; if GitHub and Docker Hub do not match, stop and document the mismatch before choosing a tag.
+4. Use an official runtime image when the upstream project provides one. If not, document that clearly and base examples or validation images on the official source or package instead of a third-party image.
+5. Define the product proposal, supported topologies, and non-goals.
+6. Create `Chart.yaml`, `values.yaml`, `templates/`, `tests/`, `ci/`, `examples/`, `docs/`, and `README.md`. The `Chart.yaml` must include ArtifactHub annotations (see below).
+7. Build templates that match the real product contract, not a generic abstraction.
+8. Add helm-unittest test suites for all key templates (workload, service, secret, optional resources).
+9. Add CI scenarios for each supported topology.
+10. Add examples that reflect realistic usage.
+11. Update the root `README.md` charts table.
+12. Run validation locally before pushing.
+13. Push and open a PR, wait for CI to pass.
+14. Deploy and validate the chart on a local k3d cluster **before merging the PR**. Install the chart with default values and at least one non-default CI scenario, verify pods are running and the application is reachable. Fix any issues found before merging.
+15. Merge the PR only after k3d validation succeeds.
+16. If the chart creates or changes backup behavior, validate the backup flow end-to-end against a local MinIO deployment and confirm the expected artifact reaches object storage.
 
 Safety rule for local validation:
 
@@ -236,6 +237,9 @@ Safety rule for local validation:
 - treat that verification as mandatory before every install, upgrade, or uninstall used in validation
 - if context verification fails, do not run any install or uninstall command until the local context is confirmed
 - when validating backup-capable charts, treat MinIO-backed backup execution as part of local validation rather than as an optional follow-up
+- for every new chart and every chart release update, local k3d validation is mandatory before merge
+- that validation must cover at least the default install plus the main non-default supported scenario for the change
+- do not treat CI-only rendering or unit tests as sufficient for a new chart or release bump
 
 ## Modifying an Existing Chart
 

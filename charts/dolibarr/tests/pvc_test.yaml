@@ -1,0 +1,38 @@
+suite: PVC
+templates:
+  - templates/pvc.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render both PVCs by default
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: test-dolibarr-documents
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: test-dolibarr-custom
+        documentIndex: 1
+
+  - it: should not create the documents PVC when using an existing claim
+    set:
+      persistence.documents.existingClaim: existing-docs
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: test-dolibarr-custom
+        documentIndex: 0
+
+  - it: should not create any PVC when both claims are external
+    set:
+      persistence.documents.existingClaim: existing-docs
+      persistence.custom.existingClaim: existing-custom
+    asserts:
+      - hasDocuments:
+          count: 0

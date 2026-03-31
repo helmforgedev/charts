@@ -94,7 +94,8 @@ Conflict prevention rule:
 - **never edit `version` in `Chart.yaml` manually** — the publish workflow (`publish.yml`) calculates semantic versions automatically from commit messages, updates `Chart.yaml`, tags, and publishes. Manual version edits will conflict with CI.
 - design each chart around the application, not around `generic`
 - research official docs and mature public charts before implementing
-- confirm the latest stable application version from the official project repository before setting `appVersion`, image tags, or versioned examples
+- confirm the latest stable application version from both the official GitHub releases page and the official Docker Hub tags before setting `appVersion`, image tags, or versioned examples
+- only pin a version when the same release exists in both places; if GitHub and Docker Hub do not match, stop and document the mismatch before choosing a tag
 - use an official runtime image when upstream provides one; if it does not, document that clearly and validate with an image built from the official source or package
 - use external charts as references, not as copy sources
 - keep `values.yaml` product-oriented and explicit
@@ -167,6 +168,9 @@ Critical safety rule:
 - repeat that verification before every validation install, upgrade, or uninstall
 - if `kubectl config current-context` is not the expected local `k3d` context, do not install
 - treat MinIO-backed backup execution as mandatory local validation for backup-capable chart changes
+- for every new chart and every chart release update, local k3d validation is mandatory before merge
+- validate at least the default install and the main non-default supported scenario affected by the change
+- CI-only template rendering, linting, or unit tests are not sufficient for a new chart or a release bump
 
 ## Unit Testing Rules
 
@@ -291,5 +295,5 @@ relations:
   - docs/testing-strategy.md
 path: .claude/CLAUDE.md
 version: 1.0
-date: 2026-03-20
+date: 2026-03-31
 -->

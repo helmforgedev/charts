@@ -1,0 +1,229 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dolibarr.fullname" . }}
+  labels:
+    {{- include "dolibarr.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dolibarr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "dolibarr.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: dolibarr
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "dolibarr.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: dolibarr
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "dolibarr.serviceAccountName" . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for database at ${DB_HOST}:${DB_PORT}..."
+              until nc -z -w2 "${DB_HOST}" "${DB_PORT}"; do
+                echo "Database not ready, retrying in 2s..."
+                sleep 2
+              done
+              echo "Database is ready."
+          env:
+            - name: DB_HOST
+              value: {{ include "dolibarr.databaseHost" . | quote }}
+            - name: DB_PORT
+              value: {{ include "dolibarr.databasePort" . | quote }}
+      containers:
+        - name: dolibarr
+          image: {{ include "dolibarr.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: DOLI_INSTALL_AUTO
+              value: {{ ternary "1" "0" (.Values.dolibarr.installAuto | default true) | quote }}
+            - name: DOLI_INIT_DEMO
+              value: {{ ternary "1" "0" (.Values.dolibarr.initDemo | default false) | quote }}
+            - name: DOLI_PROD
+              value: {{ ternary "1" "0" (.Values.dolibarr.prod | default true) | quote }}
+            - name: DOLI_DB_TYPE
+              value: "mysqli"
+            - name: DOLI_DB_HOST
+              value: {{ include "dolibarr.databaseHost" . | quote }}
+            - name: DOLI_DB_HOST_PORT
+              value: {{ include "dolibarr.databasePort" . | quote }}
+            - name: DOLI_DB_NAME
+              value: {{ include "dolibarr.databaseName" . | quote }}
+            - name: DOLI_DB_USER
+              value: {{ include "dolibarr.databaseUsername" . | quote }}
+            - name: DOLI_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "dolibarr.databaseSecretName" . }}
+                  key: {{ include "dolibarr.databaseSecretKey" . }}
+            - name: DOLI_DB_SSL
+              value: {{ include "dolibarr.databaseSsl" . | quote }}
+            - name: DOLI_ADMIN_LOGIN
+              value: {{ .Values.admin.login | quote }}
+            - name: DOLI_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "dolibarr.adminSecretName" . }}
+                  key: {{ include "dolibarr.adminSecretKey" . }}
+            - name: DOLI_INSTANCE_UNIQUE_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "dolibarr.runtimeSecretName" . }}
+                  key: {{ include "dolibarr.runtimeInstanceUniqueIdKey" . }}
+            - name: PHP_INI_DATE_TIMEZONE
+              value: {{ .Values.dolibarr.timezone | quote }}
+            {{- $urlRoot := include "dolibarr.urlRoot" . }}
+            {{- if $urlRoot }}
+            - name: DOLI_URL_ROOT
+              value: {{ $urlRoot | quote }}
+            {{- end }}
+            {{- if .Values.dolibarr.companyName }}
+            - name: DOLI_COMPANY_NAME
+              value: {{ .Values.dolibarr.companyName | quote }}
+            {{- end }}
+            {{- if .Values.dolibarr.companyCountryCode }}
+            - name: DOLI_COMPANY_COUNTRYCODE
+              value: {{ .Values.dolibarr.companyCountryCode | quote }}
+            {{- end }}
+            {{- if .Values.dolibarr.auth }}
+            - name: DOLI_AUTH
+              value: {{ .Values.dolibarr.auth | quote }}
+            {{- end }}
+            {{- if .Values.dolibarr.enableModules }}
+            - name: DOLI_ENABLE_MODULES
+              value: {{ .Values.dolibarr.enableModules | quote }}
+            {{- end }}
+            - name: DOLI_CRON
+              value: "0"
+            {{- if .Values.php.memoryLimit }}
+            - name: PHP_INI_MEMORY_LIMIT
+              value: {{ .Values.php.memoryLimit | quote }}
+            {{- end }}
+            {{- if .Values.php.uploadMaxFilesize }}
+            - name: PHP_INI_UPLOAD_MAX_FILESIZE
+              value: {{ .Values.php.uploadMaxFilesize | quote }}
+            {{- end }}
+            {{- if .Values.php.postMaxSize }}
+            - name: PHP_INI_POST_MAX_SIZE
+              value: {{ .Values.php.postMaxSize | quote }}
+            {{- end }}
+            {{- if .Values.php.maxExecutionTime }}
+            - name: PHP_INI_MAX_EXECUTION_TIME
+              value: {{ .Values.php.maxExecutionTime | quote }}
+            {{- end }}
+            {{- with .Values.dolibarr.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.startupProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: documents
+              mountPath: /var/www/documents
+            - name: custom
+              mountPath: /var/www/html/custom
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: documents
+          {{- if .Values.persistence.documents.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "dolibarr.documentsPvcName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: custom
+          {{- if .Values.persistence.custom.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "dolibarr.customPvcName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}

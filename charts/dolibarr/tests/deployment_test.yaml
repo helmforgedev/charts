@@ -1,0 +1,187 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-dolibarr
+
+  - it: should use Recreate strategy
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should use the appVersion image tag by default
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: dolibarr/dolibarr:23.0.0
+
+  - it: should set database env vars for the MySQL subchart
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DOLI_DB_HOST
+            value: "test-mysql"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DOLI_DB_HOST_PORT
+            value: "3306"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DOLI_DB_NAME
+            value: "dolibarr"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DOLI_DB_USER
+            value: "dolibarr"
+
+  - it: should set the admin password from the generated secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DOLI_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-dolibarr-admin
+                key: admin-password
+
+  - it: should set instance unique id from the runtime secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DOLI_INSTANCE_UNIQUE_ID
+            valueFrom:
+              secretKeyRef:
+                name: test-dolibarr-runtime
+                key: instance-unique-id
+
+  - it: should configure unattended setup by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DOLI_INSTALL_AUTO
+            value: "1"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DOLI_PROD
+            value: "1"
+
+  - it: should disable demo data by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DOLI_INIT_DEMO
+            value: "0"
+
+  - it: should disable cron by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DOLI_CRON
+            value: "0"
+
+  - it: should include the wait-for-db init container
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: busybox:1.37
+
+  - it: should mount both Dolibarr PVCs
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: documents
+            mountPath: /var/www/documents
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: custom
+            mountPath: /var/www/html/custom
+
+  - it: should use PVCs by default
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: documents
+            persistentVolumeClaim:
+              claimName: test-dolibarr-documents
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: custom
+            persistentVolumeClaim:
+              claimName: test-dolibarr-custom
+
+  - it: should use emptyDir when persistence is disabled
+    set:
+      persistence.documents.enabled: false
+      persistence.custom.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: documents
+            emptyDir: {}
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: custom
+            emptyDir: {}
+
+  - it: should use the external database when configured
+    set:
+      mysql.enabled: false
+      database.mode: external
+      database.external.host: mariadb.example.com
+      database.external.password: secret
+      database.external.ssl: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DOLI_DB_HOST
+            value: "mariadb.example.com"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DOLI_DB_SSL
+            value: "1"
+
+  - it: should auto-detect the ingress host as DOLI_URL_ROOT
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: dolibarr.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DOLI_URL_ROOT
+            value: "http://dolibarr.example.com"
