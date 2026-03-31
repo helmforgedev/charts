@@ -106,6 +106,23 @@ Conflict prevention rule:
 - for UI/web solutions, `ingressClassName` may default to `traefik`, and docs must mention that `nginx` or another supported ingress class can also be used
 - before pushing on a branch with an existing PR, verify whether the PR is still open, merged, closed, or obsolete
 
+## ArtifactHub Annotations
+
+Every `Chart.yaml` must include ArtifactHub annotations for chart discovery. When creating a new chart, always add:
+
+```yaml
+annotations:
+  artifacthub.io/license: MIT
+  artifacthub.io/category: <category>
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://helmforge.dev/docs/charts/<chart-name>
+    - name: Source
+      url: https://github.com/helmforgedev/charts/tree/main/charts/<chart-name>
+```
+
+Valid categories: `database`, `streaming-messaging`, `security`, `networking`, `monitoring-logging`, `integration-delivery`, `storage`, `gaming`. See `AGENTS.md` for details.
+
 ## Validation
 
 Run before pushing chart changes:

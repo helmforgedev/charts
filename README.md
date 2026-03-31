@@ -8,6 +8,11 @@ audience: users, contributors
 
 # Helm Charts
 
+[![CI](https://github.com/helmforgedev/charts/actions/workflows/ci.yml/badge.svg)](https://github.com/helmforgedev/charts/actions/workflows/ci.yml)
+[![Publish](https://github.com/helmforgedev/charts/actions/workflows/publish.yml/badge.svg)](https://github.com/helmforgedev/charts/actions/workflows/publish.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/helmforge)](https://artifacthub.io/packages/search?repo=helmforge)
+
 Reusable open source Helm charts for Kubernetes workloads. Published to a traditional Helm repository at `https://repo.helmforge.dev` and as OCI artifacts on GitHub Container Registry.
 
 Project links:

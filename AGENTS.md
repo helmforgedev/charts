@@ -150,6 +150,27 @@ Important:
 - for UI/web solutions, default `ingressClassName` can be `traefik`, but docs must state that operators may use `traefik`, `nginx`, or another cluster-supported ingress class
 - before pushing changes on a branch that already has an open PR, always validate whether that PR is still open, merged, closed, or obsolete
 
+## ArtifactHub Annotations
+
+Every `Chart.yaml` must include an `annotations` block with ArtifactHub metadata. This is required for chart discovery on [Artifact Hub](https://artifacthub.io/).
+
+Required annotations:
+
+```yaml
+annotations:
+  artifacthub.io/license: MIT
+  artifacthub.io/category: <category>
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://helmforge.dev/docs/charts/<chart-name>
+    - name: Source
+      url: https://github.com/helmforgedev/charts/tree/main/charts/<chart-name>
+```
+
+Valid categories: `database`, `streaming-messaging`, `security`, `networking`, `monitoring-logging`, `integration-delivery`, `storage`, `gaming`.
+
+Choose the category that best matches the chart's primary purpose. When adding a new chart, always include these annotations in the initial `Chart.yaml`.
+
 ## Validation Commands
 
 ```bash
@@ -192,7 +213,7 @@ Critical rules:
 2. Confirm the latest stable application version from the official project repository before setting `appVersion`, image tags, or versioned examples.
 3. Use an official runtime image when the upstream project provides one. If not, document that clearly and base examples or validation images on the official source or package instead of a third-party image.
 4. Define the product proposal, supported topologies, and non-goals.
-5. Create `Chart.yaml`, `values.yaml`, `templates/`, `tests/`, `ci/`, `examples/`, `docs/`, and `README.md`.
+5. Create `Chart.yaml`, `values.yaml`, `templates/`, `tests/`, `ci/`, `examples/`, `docs/`, and `README.md`. The `Chart.yaml` must include ArtifactHub annotations (see below).
 6. Build templates that match the real product contract, not a generic abstraction.
 7. Add helm-unittest test suites for all key templates (workload, service, secret, optional resources).
 8. Add CI scenarios for each supported topology.
