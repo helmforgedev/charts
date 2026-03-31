@@ -1,0 +1,168 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "phpmyadmin.fullname" . }}
+  labels:
+    {{- include "phpmyadmin.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "phpmyadmin.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "phpmyadmin.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- if .Values.config.customConfig }}
+        checksum/config: {{ .Values.config.customConfig | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "phpmyadmin.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      containers:
+        - name: phpmyadmin
+          image: {{ include "phpmyadmin.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          env:
+            {{- if .Values.phpmyadmin.hosts }}
+            - name: PMA_HOSTS
+              value: {{ .Values.phpmyadmin.hosts | quote }}
+            {{- else if .Values.phpmyadmin.host }}
+            - name: PMA_HOST
+              value: {{ .Values.phpmyadmin.host | quote }}
+            {{- end }}
+            - name: PMA_PORT
+              value: {{ .Values.phpmyadmin.port | quote }}
+            {{- if .Values.phpmyadmin.uploadLimit }}
+            - name: UPLOAD_LIMIT
+              value: {{ .Values.phpmyadmin.uploadLimit | quote }}
+            {{- end }}
+            {{- if .Values.phpmyadmin.absoluteUri }}
+            - name: PMA_ABSOLUTE_URI
+              value: {{ .Values.phpmyadmin.absoluteUri | quote }}
+            {{- end }}
+            {{- if or .Values.auth.username .Values.auth.existingSecret }}
+            - name: PMA_USER
+              {{- if .Values.auth.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.existingSecret }}
+                  key: {{ .Values.auth.existingSecretUsernameKey }}
+              {{- else }}
+              value: {{ .Values.auth.username | quote }}
+              {{- end }}
+            - name: PMA_PASSWORD
+              {{- if .Values.auth.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.existingSecret }}
+                  key: {{ .Values.auth.existingSecretPasswordKey }}
+              {{- else if .Values.auth.password }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "phpmyadmin.authSecretName" . }}
+                  key: password
+              {{- end }}
+            {{- end }}
+            {{- with .Values.phpmyadmin.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.startupProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if or .Values.config.customConfig .Values.config.existingConfigMap .Values.extraVolumeMounts }}
+          volumeMounts:
+            {{- if or .Values.config.customConfig .Values.config.existingConfigMap }}
+            - name: custom-config
+              mountPath: /etc/phpmyadmin/config.user.inc.php
+              subPath: config.user.inc.php
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+      {{- if or .Values.config.customConfig .Values.config.existingConfigMap .Values.extraVolumes }}
+      volumes:
+        {{- if or .Values.config.customConfig .Values.config.existingConfigMap }}
+        - name: custom-config
+          configMap:
+            name: {{ include "phpmyadmin.configMapName" . }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

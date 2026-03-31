@@ -1,0 +1,213 @@
+suite: deployment
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: should render a Deployment
+    set:
+      phpmyadmin.host: mysql.default.svc
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-phpmyadmin
+
+  - it: should set PMA_HOST when host is configured
+    set:
+      phpmyadmin.host: mysql.default.svc
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_HOST
+            value: "mysql.default.svc"
+
+  - it: should set PMA_HOSTS when hosts is configured
+    set:
+      phpmyadmin.hosts: "mysql-1.svc,mysql-2.svc"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_HOSTS
+            value: "mysql-1.svc,mysql-2.svc"
+
+  - it: should prefer PMA_HOSTS over PMA_HOST when both are set
+    set:
+      phpmyadmin.host: mysql.default.svc
+      phpmyadmin.hosts: "mysql-1.svc,mysql-2.svc"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_HOSTS
+            value: "mysql-1.svc,mysql-2.svc"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_HOST
+            value: "mysql.default.svc"
+
+  - it: should set PMA_PORT
+    set:
+      phpmyadmin.host: mysql.default.svc
+      phpmyadmin.port: 3307
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_PORT
+            value: "3307"
+
+  - it: should set UPLOAD_LIMIT
+    set:
+      phpmyadmin.host: mysql.default.svc
+      phpmyadmin.uploadLimit: "128M"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPLOAD_LIMIT
+            value: "128M"
+
+  - it: should set PMA_ABSOLUTE_URI
+    set:
+      phpmyadmin.host: mysql.default.svc
+      phpmyadmin.absoluteUri: "https://pma.example.com/"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_ABSOLUTE_URI
+            value: "https://pma.example.com/"
+
+  - it: should set auto-login env vars when auth is configured
+    set:
+      phpmyadmin.host: mysql.default.svc
+      auth.username: admin
+      auth.password: secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_USER
+            value: "admin"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-phpmyadmin-auth
+                key: password
+
+  - it: should use existing secret for auto-login
+    set:
+      phpmyadmin.host: mysql.default.svc
+      auth.existingSecret: my-auth-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_USER
+            valueFrom:
+              secretKeyRef:
+                name: my-auth-secret
+                key: username
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: my-auth-secret
+                key: password
+
+  - it: should not set auto-login env vars when auth is empty
+    set:
+      phpmyadmin.host: mysql.default.svc
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_USER
+          any: true
+
+  - it: should mount custom config when set
+    set:
+      phpmyadmin.host: mysql.default.svc
+      config.customConfig: |
+        <?php $cfg['ShowPhpInfo'] = true;
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: custom-config
+            mountPath: /etc/phpmyadmin/config.user.inc.php
+            subPath: config.user.inc.php
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: custom-config
+            configMap:
+              name: RELEASE-NAME-phpmyadmin-config
+
+  - it: should not mount config volume when not configured
+    set:
+      phpmyadmin.host: mysql.default.svc
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].volumeMounts
+
+  - it: should use correct image
+    set:
+      phpmyadmin.host: mysql.default.svc
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "phpmyadmin/phpmyadmin:5.2.3"
+
+  - it: should allow image tag override
+    set:
+      phpmyadmin.host: mysql.default.svc
+      image.tag: "5.2.2"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "phpmyadmin/phpmyadmin:5.2.2"
+
+  - it: should set replica count
+    set:
+      phpmyadmin.host: mysql.default.svc
+      replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: should include startup probe by default
+    set:
+      phpmyadmin.host: mysql.default.svc
+    asserts:
+      - exists:
+          path: spec.template.spec.containers[0].startupProbe
+
+  - it: should disable startup probe when set
+    set:
+      phpmyadmin.host: mysql.default.svc
+      startupProbe.enabled: false
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe
+
+  - it: should expose http port
+    set:
+      phpmyadmin.host: mysql.default.svc
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 80
+            protocol: TCP

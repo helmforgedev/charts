@@ -1,0 +1,71 @@
+suite: ingress
+templates:
+  - templates/ingress.yaml
+tests:
+  - it: should not render when disabled
+    set:
+      ingress.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render when enabled
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: pma.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+
+  - it: should set ingressClassName
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: traefik
+      ingress.hosts:
+        - host: pma.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: "traefik"
+
+  - it: should set TLS
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: pma.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+      ingress.tls:
+        - secretName: pma-tls
+          hosts:
+            - pma.example.com
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: pma-tls
+      - contains:
+          path: spec.tls[0].hosts
+          content: pma.example.com
+
+  - it: should set annotations
+    set:
+      ingress.enabled: true
+      ingress.annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      ingress.hosts:
+        - host: pma.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - equal:
+          path: metadata.annotations["cert-manager.io/cluster-issuer"]
+          value: letsencrypt-prod

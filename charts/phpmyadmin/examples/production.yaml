@@ -1,0 +1,35 @@
+# Production deployment with ingress and auto-login via existing secret
+phpmyadmin:
+  host: mysql-primary.production.svc.cluster.local
+  port: 3306
+  uploadLimit: "256M"
+  absoluteUri: "https://pma.example.com/"
+
+auth:
+  existingSecret: mysql-admin-credentials
+  existingSecretUsernameKey: username
+  existingSecretPasswordKey: password
+
+replicaCount: 2
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: pma.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: phpmyadmin-tls
+      hosts:
+        - pma.example.com

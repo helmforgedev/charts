@@ -1,0 +1,27 @@
+suite: configmap
+templates:
+  - templates/configmap.yaml
+tests:
+  - it: should not render when no custom config is set
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render when customConfig is set
+    set:
+      config.customConfig: |
+        <?php $cfg['ShowPhpInfo'] = true;
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["config.user.inc.php"]
+          pattern: "ShowPhpInfo"
+
+  - it: should not render when using existing ConfigMap
+    set:
+      config.customConfig: "test"
+      config.existingConfigMap: my-config
+    asserts:
+      - hasDocuments:
+          count: 0

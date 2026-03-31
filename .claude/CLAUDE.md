@@ -169,16 +169,15 @@ Before any local `helm install`, `helm upgrade`, `helm uninstall`, or runtime va
 
 ## Local k3d Validation (New Charts)
 
-When creating a new chart, always deploy and validate it on a local k3d cluster **before merging the PR**:
+When creating a new chart, always deploy and validate it on a local k3d cluster **before pushing the PR**:
 
-1. Push and open the PR, wait for CI to pass.
-2. Create a k3d cluster if one is not already running (`k3d cluster create test`).
-3. Install the chart with default values and verify pods reach `Running`/`Completed` state.
-4. Install at least one non-default CI scenario and verify the application is reachable.
-5. Fix any issues found before merging — commit fixes to the same PR branch.
-6. Clean up test releases after validation (`helm uninstall`).
-7. Merge the PR only after k3d validation succeeds.
-8. If the chart adds or changes backup behavior, run the backup flow end-to-end against local MinIO and confirm the artifact lands in object storage.
+1. Create a k3d cluster if one is not already running (`k3d cluster create test`).
+2. Install the chart with default values and verify pods reach `Running`/`Completed` state.
+3. Install at least one non-default CI scenario and verify the application is reachable.
+4. Fix any issues found locally before committing — iterate until the chart works.
+5. Clean up test releases after validation (`helm uninstall`).
+6. Only push and open the PR after k3d validation succeeds.
+7. If the chart adds or changes backup behavior, run the backup flow end-to-end against local MinIO and confirm the artifact lands in object storage before pushing.
 
 Critical safety rule:
 
@@ -187,9 +186,10 @@ Critical safety rule:
 - repeat that verification before every validation install, upgrade, or uninstall
 - if `kubectl config current-context` is not the expected local `k3d` context, do not install
 - treat MinIO-backed backup execution as mandatory local validation for backup-capable chart changes
-- for every new chart and every chart release update, local k3d validation is mandatory before merge
+- for every new chart and every chart release update, local k3d validation is mandatory before pushing the PR
 - validate at least the default install and the main non-default supported scenario affected by the change
 - CI-only template rendering, linting, or unit tests are not sufficient for a new chart or a release bump
+- never push a new chart PR without having validated it on k3d first
 
 ## Unit Testing Rules
 

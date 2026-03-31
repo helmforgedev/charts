@@ -1,0 +1,188 @@
+# =============================================================================
+# phpMyAdmin Helm Chart
+# =============================================================================
+# Uses the official phpmyadmin/phpmyadmin Docker image.
+# Stateless — no persistent storage required.
+# Connects to any MySQL/MariaDB server via PMA_HOST.
+# =============================================================================
+
+# -- Override the chart name
+nameOverride: ""
+# -- Override the full release name
+fullnameOverride: ""
+# -- Labels to add to all resources
+commonLabels: {}
+
+image:
+  # -- Container image repository
+  repository: phpmyadmin/phpmyadmin
+  # -- Image tag (defaults to Chart.appVersion)
+  tag: ""
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# -- Number of replicas (phpMyAdmin is stateless)
+replicaCount: 1
+
+# =============================================================================
+# phpMyAdmin Configuration
+# =============================================================================
+
+phpmyadmin:
+  # -- MySQL/MariaDB host to connect to (required)
+  host: ""
+  # -- Comma-separated list of MySQL hosts for multi-server mode
+  hosts: ""
+  # -- MySQL port
+  port: 3306
+  # -- Max upload size for SQL imports (e.g., "64M", "128M")
+  uploadLimit: "64M"
+  # -- Absolute URI when behind a reverse proxy (e.g., https://pma.example.com/)
+  absoluteUri: ""
+  # -- Extra environment variables
+  extraEnv: []
+  # - name: PMA_VERBOSE
+  #   value: "MyServer"
+
+# =============================================================================
+# Authentication (optional auto-login)
+# =============================================================================
+
+auth:
+  # -- MySQL username for auto-login (leave empty for login form)
+  username: ""
+  # -- MySQL password for auto-login
+  password: ""
+  # -- Existing secret containing auto-login credentials
+  existingSecret: ""
+  # -- Key in existing secret for the username
+  existingSecretUsernameKey: username
+  # -- Key in existing secret for the password
+  existingSecretPasswordKey: password
+
+# =============================================================================
+# Custom Configuration
+# =============================================================================
+
+config:
+  # -- Raw content for config.user.inc.php (mounted as ConfigMap)
+  customConfig: ""
+  # -- Existing ConfigMap with config.user.inc.php
+  existingConfigMap: ""
+
+# =============================================================================
+# Pod Configuration
+# =============================================================================
+
+resources: {}
+  # requests:
+  #   cpu: 50m
+  #   memory: 128Mi
+  # limits:
+  #   memory: 256Mi
+
+podSecurityContext: {}
+  # fsGroup: 1000
+
+securityContext: {}
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+startupProbe:
+  # -- Enable startup probe
+  enabled: true
+  path: /
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 12
+
+livenessProbe:
+  # -- Enable liveness probe
+  enabled: true
+  path: /
+  initialDelaySeconds: 0
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  # -- Enable readiness probe
+  enabled: true
+  path: /
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- Service port
+  port: 80
+  # -- Annotations for the service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress
+  enabled: false
+  # -- Ingress class name (traefik, nginx, etc.)
+  ingressClassName: ""
+  # -- Ingress annotations
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+  # -- Ingress hosts
+  hosts: []
+    # - host: pma.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- TLS configuration
+  tls: []
+    # - secretName: phpmyadmin-tls
+    #   hosts:
+    #     - pma.example.com
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a service account
+  create: false
+  # -- Service account name
+  name: ""
+  # -- Annotations for the service account
+  annotations: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+podLabels: {}
+podAnnotations: {}
+extraVolumeMounts: []
+extraVolumes: []
+extraManifests: []

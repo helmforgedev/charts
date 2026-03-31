@@ -41,6 +41,7 @@ Project links:
 | [adguard-home](charts/adguard-home/) | beta | AdGuard Home — network-wide DNS ad/tracker blocker with sync and S3 backup |
 | [velero](charts/velero/) | alpha | Velero — Kubernetes backup, restore, migration, schedules, and S3-compatible object storage |
 | [kafka](charts/kafka/) | alpha | Kafka — KRaft single-broker and production-oriented cluster modes with persistent storage and optional metrics |
+| [phpmyadmin](charts/phpmyadmin/) | alpha | phpMyAdmin — web-based MySQL/MariaDB administration with multi-server, auto-login, and custom config support |
 
 ### Maturity levels
 
