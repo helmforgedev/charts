@@ -1,0 +1,43 @@
+suite: single-broker
+templates:
+  - templates/statefulset-single.yaml
+  - templates/service-client.yaml
+  - templates/service-headless.yaml
+  - templates/secret.yaml
+  - templates/configmap-scripts.yaml
+  - templates/configmap-metrics.yaml
+tests:
+  - it: renders a single-broker statefulset with the latest official image
+    template: templates/statefulset-single.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: apache/kafka:4.2.0
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: client
+            containerPort: 9092
+            protocol: TCP
+
+  - it: renders the KRaft secret when no existing secret is provided
+    template: templates/secret.yaml
+    asserts:
+      - isKind:
+          of: Secret
+      - isNotNull:
+          path: stringData.kafka-cluster-id
+
+  - it: renders the client service
+    template: templates/service-client.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.ports[0].port
+          value: 9092

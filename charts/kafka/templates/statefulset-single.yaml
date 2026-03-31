@@ -1,0 +1,195 @@
+{{- if eq .Values.architecture "single-broker" }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "kafka.singleStatefulSetName" . }}
+  labels:
+    {{- include "kafka.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "kafka.singleHeadlessServiceName" . }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "kafka.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: single-broker
+  template:
+    metadata:
+      labels:
+        {{- include "kafka.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: single-broker
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/kraft-secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/scripts: {{ include (print $.Template.BasePath "/configmap-scripts.yaml") . | sha256sum }}
+        {{- if .Values.metrics.enabled }}
+        checksum/metrics-config: {{ include (print $.Template.BasePath "/configmap-metrics.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "kafka.serviceAccountName" . }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.metrics.enabled }}
+      initContainers:
+        - name: copy-jmx-agent
+          image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
+          imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              cp /opt/bitnami/jmx-exporter/jmx_prometheus_javaagent.jar /jmx/jmx_prometheus_javaagent.jar
+              chmod 0444 /jmx/jmx_prometheus_javaagent.jar
+          volumeMounts:
+            - name: jmx-agent
+              mountPath: /jmx
+      {{- end }}
+      containers:
+        - name: kafka
+          image: {{ include "kafka.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - /opt/helmforge/kafka/start.sh
+          env:
+            - name: KAFKA_COMPONENT
+              value: single-broker
+            - name: KAFKA_DATA_DIR
+              value: /var/lib/kafka/data
+            {{- if .Values.metrics.enabled }}
+            - name: KAFKA_OPTS
+              value: "-javaagent:/opt/bitnami/jmx-exporter/jmx_prometheus_javaagent.jar={{ .Values.metrics.port }}:/etc/jmx-exporter/config.yaml"
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: client
+              containerPort: {{ .Values.listeners.client.port }}
+              protocol: TCP
+            - name: controller
+              containerPort: {{ .Values.listeners.controller.port }}
+              protocol: TCP
+            {{- if .Values.metrics.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.metrics.port }}
+              protocol: TCP
+            {{- end }}
+          livenessProbe:
+            tcpSocket:
+              port: client
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:{{ .Values.listeners.client.port }} >/dev/null 2>&1
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          startupProbe:
+            tcpSocket:
+              port: client
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          {{- with .Values.singleBroker.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/kafka/data
+            - name: kraft-secret
+              mountPath: /etc/kafka/kraft-secret
+              readOnly: true
+            - name: kafka-scripts
+              mountPath: /opt/helmforge/kafka
+              readOnly: true
+            {{- if .Values.metrics.enabled }}
+            - name: jmx-agent
+              mountPath: /opt/bitnami/jmx-exporter
+              readOnly: true
+            - name: jmx-config
+              mountPath: /etc/jmx-exporter
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: kraft-secret
+          secret:
+            secretName: {{ include "kafka.kraftSecretName" . }}
+        - name: kafka-scripts
+          configMap:
+            name: {{ include "kafka.scriptsConfigMapName" . }}
+            defaultMode: 0555
+        {{- if .Values.metrics.enabled }}
+        - name: jmx-agent
+          emptyDir: {}
+        - name: jmx-config
+          configMap:
+            name: {{ include "kafka.metricsConfigMapName" . }}
+        {{- end }}
+        {{- if not .Values.singleBroker.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+  {{- if .Values.singleBroker.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          {{- toYaml .Values.singleBroker.persistence.accessModes | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ .Values.singleBroker.persistence.size }}
+        {{- with .Values.singleBroker.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+  {{- end }}
+{{- end }}

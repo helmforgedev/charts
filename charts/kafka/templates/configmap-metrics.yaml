@@ -1,0 +1,29 @@
+{{- if .Values.metrics.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kafka.metricsConfigMapName" . }}
+  labels:
+    {{- include "kafka.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    startDelaySeconds: 0
+    lowercaseOutputName: true
+    lowercaseOutputLabelNames: true
+    rules:
+      - pattern: 'kafka.server<type=(.+), name=(.+)><>Value'
+        name: kafka_server_$1_$2
+        type: GAUGE
+      - pattern: 'kafka.server<type=(.+), name=(.+)PerSec\w*><>Count'
+        name: kafka_server_$1_$2_total
+        type: COUNTER
+      - pattern: 'kafka.network<type=(.+), name=(.+)><>Count'
+        name: kafka_network_$1_$2_total
+        type: COUNTER
+      - pattern: 'kafka.log<type=(.+), name=(.+)><>Value'
+        name: kafka_log_$1_$2
+        type: GAUGE
+      - pattern: 'java.lang<type=Memory><HeapMemoryUsage>(used|max|committed)'
+        name: jvm_memory_heap_$1_bytes
+        type: GAUGE
+{{- end }}

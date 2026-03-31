@@ -1,0 +1,132 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kafka.scriptsConfigMapName" . }}
+  labels:
+    {{- include "kafka.labels" . | nindent 4 }}
+data:
+  start.sh: |
+    #!/bin/sh
+    set -eu
+
+    ordinal="${HOSTNAME##*-}"
+    component="${KAFKA_COMPONENT}"
+    config_file="/tmp/server.properties"
+    data_dir="${KAFKA_DATA_DIR}"
+    cluster_id="$(cat /etc/kafka/kraft-secret/{{ .Values.kraft.existingSecretClusterIdKey }})"
+    mkdir -p "${data_dir}"
+
+    cat > "${config_file}" <<EOF
+    node.id=__NODE_ID__
+    process.roles=__PROCESS_ROLES__
+    controller.listener.names=CONTROLLER
+    controller.quorum.bootstrap.servers={{ include "kafka.controllerBootstrapServers" . }}
+    listener.security.protocol.map=CLIENT:PLAINTEXT,CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT
+    listeners=__LISTENERS__
+    advertised.listeners=__ADVERTISED_LISTENERS__
+    log.dirs=${data_dir}
+    num.partitions={{ .Values.config.numPartitions }}
+    auto.create.topics.enable={{ .Values.config.autoCreateTopicsEnabled }}
+    delete.topic.enable={{ .Values.config.deleteTopicEnabled }}
+    log.retention.hours={{ .Values.config.logRetentionHours }}
+    log.segment.bytes={{ .Values.config.logSegmentBytes | int64 }}
+    offsets.topic.replication.factor=__OFFSETS_TOPIC_RF__
+    transaction.state.log.replication.factor=__TRANSACTION_TOPIC_RF__
+    transaction.state.log.min.isr=__TRANSACTION_MIN_ISR__
+    min.insync.replicas=__MIN_ISR__
+    EOF
+
+    {{- with .Values.config.common }}
+    cat >> "${config_file}" <<'EOF'
+    {{ . }}
+    EOF
+    {{- end }}
+
+    if [ "${component}" = "single-broker" ]; then
+      sed -i \
+        -e "s|__NODE_ID__|0|g" \
+        -e "s|__PROCESS_ROLES__|broker,controller|g" \
+        -e "s|__LISTENERS__|CLIENT://:{{ .Values.listeners.client.port }},CONTROLLER://:{{ .Values.listeners.controller.port }}|g" \
+        -e "s|__ADVERTISED_LISTENERS__|CLIENT://{{ include "kafka.clientServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.listeners.client.port }}|g" \
+        -e "s|__OFFSETS_TOPIC_RF__|1|g" \
+        -e "s|__TRANSACTION_TOPIC_RF__|1|g" \
+        -e "s|__TRANSACTION_MIN_ISR__|1|g" \
+        -e "s|__MIN_ISR__|1|g" \
+        "${config_file}"
+      {{- with .Values.config.singleBroker }}
+      cat >> "${config_file}" <<'EOF'
+      {{ . }}
+      EOF
+      {{- end }}
+      echo "inter.broker.listener.name=CLIENT" >> "${config_file}"
+      if [ ! -f "${data_dir}/meta.properties" ]; then
+        /opt/kafka/bin/kafka-storage.sh format \
+          --ignore-formatted \
+          --config "${config_file}" \
+          --cluster-id "${cluster_id}" \
+          --standalone
+      fi
+    elif [ "${component}" = "controller" ]; then
+      initial_controllers=""
+      controller_count="{{ .Values.cluster.controllers.replicaCount }}"
+      advertised_controller="${HOSTNAME}.{{ include "kafka.controllerHeadlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}"
+      i=0
+      while [ "${i}" -lt "${controller_count}" ]; do
+        if [ -n "${initial_controllers}" ]; then
+          initial_controllers="${initial_controllers},"
+        fi
+        dir_id="$(cat /etc/kafka/kraft-secret/{{ .Values.kraft.existingSecretControllerDirectoryIdPrefix }}-${i}-directory-id)"
+        initial_controllers="${initial_controllers}${i}@{{ include "kafka.controllerStatefulSetName" . }}-${i}.{{ include "kafka.controllerHeadlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.listeners.controller.port }}:${dir_id}"
+        i=$((i + 1))
+      done
+      sed -i \
+        -e "s|__NODE_ID__|${ordinal}|g" \
+        -e "s|__PROCESS_ROLES__|controller|g" \
+        -e "s|__LISTENERS__|CONTROLLER://:{{ .Values.listeners.controller.port }}|g" \
+        -e "s|__ADVERTISED_LISTENERS__|CONTROLLER://${advertised_controller}:{{ .Values.listeners.controller.port }}|g" \
+        -e "s|__OFFSETS_TOPIC_RF__|{{ include "kafka.internalReplicationFactor" . }}|g" \
+        -e "s|__TRANSACTION_TOPIC_RF__|{{ include "kafka.internalReplicationFactor" . }}|g" \
+        -e "s|__TRANSACTION_MIN_ISR__|{{ include "kafka.minInSyncReplicas" . }}|g" \
+        -e "s|__MIN_ISR__|{{ include "kafka.minInSyncReplicas" . }}|g" \
+        "${config_file}"
+      {{- with .Values.config.controller }}
+      cat >> "${config_file}" <<'EOF'
+      {{ . }}
+      EOF
+      {{- end }}
+      if [ ! -f "${data_dir}/meta.properties" ]; then
+        /opt/kafka/bin/kafka-storage.sh format \
+          --ignore-formatted \
+          --config "${config_file}" \
+          --cluster-id "${cluster_id}" \
+          --initial-controllers "${initial_controllers}"
+      fi
+    else
+      broker_id=$(({{ .Values.cluster.controllers.replicaCount }} + ordinal))
+      advertised_host="${HOSTNAME}.{{ include "kafka.brokerHeadlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}"
+      sed -i \
+        -e "s|__NODE_ID__|${broker_id}|g" \
+        -e "s|__PROCESS_ROLES__|broker|g" \
+        -e "s|__LISTENERS__|CLIENT://:{{ .Values.listeners.client.port }},INTERNAL://:{{ .Values.listeners.interBroker.port }}|g" \
+        -e "s|__ADVERTISED_LISTENERS__|CLIENT://${advertised_host}:{{ .Values.listeners.client.port }},INTERNAL://${advertised_host}:{{ .Values.listeners.interBroker.port }}|g" \
+        -e "s|__OFFSETS_TOPIC_RF__|{{ include "kafka.internalReplicationFactor" . }}|g" \
+        -e "s|__TRANSACTION_TOPIC_RF__|{{ include "kafka.internalReplicationFactor" . }}|g" \
+        -e "s|__TRANSACTION_MIN_ISR__|{{ include "kafka.minInSyncReplicas" . }}|g" \
+        -e "s|__MIN_ISR__|{{ include "kafka.minInSyncReplicas" . }}|g" \
+        "${config_file}"
+      echo "inter.broker.listener.name=INTERNAL" >> "${config_file}"
+      {{- with .Values.config.broker }}
+      cat >> "${config_file}" <<'EOF'
+      {{ . }}
+      EOF
+      {{- end }}
+      if [ ! -f "${data_dir}/meta.properties" ]; then
+        /opt/kafka/bin/kafka-storage.sh format \
+          --ignore-formatted \
+          --config "${config_file}" \
+          --cluster-id "${cluster_id}" \
+          --no-initial-controllers
+      fi
+    fi
+
+    exec /opt/kafka/bin/kafka-server-start.sh "${config_file}"

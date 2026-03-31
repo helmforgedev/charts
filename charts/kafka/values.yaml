@@ -1,0 +1,230 @@
+# =============================================================================
+# Kafka Helm Chart — Default Values
+# =============================================================================
+# Supports: single-broker | cluster
+# Uses the official Apache Kafka image (https://hub.docker.com/r/apache/kafka)
+
+# -- Architecture: single-broker | cluster
+architecture: single-broker
+
+# -- Override release name
+nameOverride: ""
+fullnameOverride: ""
+
+# -- Labels added to all resources
+commonLabels: {}
+
+# -- Kubernetes cluster domain
+clusterDomain: cluster.local
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Kafka image repository
+  repository: apache/kafka
+  # -- Kafka image tag
+  tag: "4.2.0"
+  # -- Kafka image pull policy
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# KRaft Metadata
+# =============================================================================
+
+kraft:
+  # -- Existing secret containing the KRaft cluster ID and controller directory IDs
+  existingSecret: ""
+  # -- Secret key for the cluster ID inside kraft.existingSecret
+  existingSecretClusterIdKey: kafka-cluster-id
+  # -- Prefix for controller directory IDs inside kraft.existingSecret (for example controller-0-directory-id)
+  existingSecretControllerDirectoryIdPrefix: controller
+  # -- Explicit cluster ID used when kraft.existingSecret is not set
+  clusterId: ""
+
+# =============================================================================
+# Listeners and Services
+# =============================================================================
+
+listeners:
+  client:
+    # -- Client listener port
+    port: 9092
+  controller:
+    # -- Controller listener port
+    port: 9093
+  interBroker:
+    # -- Inter-broker listener port (cluster mode only)
+    port: 9094
+
+service:
+  # -- Client bootstrap service type
+  type: ClusterIP
+  # -- Annotations applied to the client service
+  annotations: {}
+  # -- Extra labels applied to the client service
+  labels: {}
+
+# =============================================================================
+# Configuration
+# =============================================================================
+
+config:
+  # -- Number of partitions used as the broker default
+  numPartitions: 3
+  # -- Enable automatic topic creation
+  autoCreateTopicsEnabled: false
+  # -- Allow topic deletion
+  deleteTopicEnabled: true
+  # -- Default log retention in hours
+  logRetentionHours: 168
+  # -- Default segment size in bytes
+  logSegmentBytes: 1073741824
+  # -- Extra configuration appended to every generated server.properties
+  common: ""
+  # -- Extra configuration appended only in single-broker mode
+  singleBroker: ""
+  # -- Extra configuration appended only on controllers in cluster mode
+  controller: ""
+  # -- Extra configuration appended only on brokers in cluster mode
+  broker: ""
+
+# =============================================================================
+# Single Broker Topology
+# =============================================================================
+
+singleBroker:
+  persistence:
+    # -- Enable PVCs in single-broker mode
+    enabled: true
+    # -- Storage class for single-broker mode
+    storageClass: ""
+    # -- Access modes for single-broker mode
+    accessModes:
+      - ReadWriteOnce
+    # -- PVC size for single-broker mode
+    size: 8Gi
+  resources: {}
+
+# =============================================================================
+# Cluster Topology
+# =============================================================================
+
+cluster:
+  # -- Minimum in-sync replicas for internal topics and recommended production default
+  minInSyncReplicas: 2
+  controllers:
+    # -- Number of dedicated controller replicas
+    replicaCount: 3
+    persistence:
+      # -- Enable controller PVCs
+      enabled: true
+      # -- Storage class for controller PVCs
+      storageClass: ""
+      # -- Access modes for controller PVCs
+      accessModes:
+        - ReadWriteOnce
+      # -- PVC size per controller
+      size: 8Gi
+    resources: {}
+  brokers:
+    # -- Number of dedicated broker replicas
+    replicaCount: 3
+    persistence:
+      # -- Enable broker PVCs
+      enabled: true
+      # -- Storage class for broker PVCs
+      storageClass: ""
+      # -- Access modes for broker PVCs
+      accessModes:
+        - ReadWriteOnce
+      # -- PVC size per broker
+      size: 20Gi
+    resources: {}
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- Existing ServiceAccount name
+  name: ""
+  # -- Annotations added to the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Pod Disruption Budget
+# =============================================================================
+
+pdb:
+  # -- Enable PodDisruptionBudgets where replica count allows them
+  enabled: false
+  # -- Minimum available brokers/controllers when the PDB is enabled
+  minAvailable: 1
+
+# =============================================================================
+# Metrics
+# =============================================================================
+
+metrics:
+  # -- Enable Prometheus metrics through the JMX exporter javaagent
+  enabled: false
+  image:
+    # -- JMX exporter image used only to copy the javaagent jar
+    repository: bitnami/jmx-exporter
+    # -- JMX exporter image tag
+    tag: "1.5.0"
+    # -- JMX exporter image pull policy
+    pullPolicy: IfNotPresent
+  # -- Metrics port exposed by the javaagent
+  port: 5556
+  serviceMonitor:
+    # -- Create ServiceMonitor resources (requires Prometheus Operator)
+    enabled: false
+    # -- ServiceMonitor interval
+    interval: 30s
+    # -- ServiceMonitor labels
+    labels: {}
+
+# =============================================================================
+# Security and Scheduling
+# =============================================================================
+
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+
+podLabels: {}
+podAnnotations: {}
+annotations: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 120
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+# -- Extra environment variables for Kafka containers
+extraEnv: []
+# -- Extra volume mounts for Kafka containers
+extraVolumeMounts: []
+# -- Extra volumes for Kafka pods
+extraVolumes: []
+# -- Arbitrary extra manifests rendered with tpl
+extraManifests: []

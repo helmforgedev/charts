@@ -1,0 +1,64 @@
+{{- if eq .Values.architecture "single-broker" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kafka.singleHeadlessServiceName" . }}
+  labels:
+    {{- include "kafka.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "kafka.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: single-broker
+  ports:
+    - name: client
+      port: {{ .Values.listeners.client.port }}
+      targetPort: client
+      protocol: TCP
+    - name: controller
+      port: {{ .Values.listeners.controller.port }}
+      targetPort: controller
+      protocol: TCP
+{{- else }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kafka.controllerHeadlessServiceName" . }}
+  labels:
+    {{- include "kafka.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "kafka.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+  ports:
+    - name: controller
+      port: {{ .Values.listeners.controller.port }}
+      targetPort: controller
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kafka.brokerHeadlessServiceName" . }}
+  labels:
+    {{- include "kafka.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "kafka.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: broker
+  ports:
+    - name: client
+      port: {{ .Values.listeners.client.port }}
+      targetPort: client
+      protocol: TCP
+    - name: internal
+      port: {{ .Values.listeners.interBroker.port }}
+      targetPort: internal
+      protocol: TCP
+{{- end }}

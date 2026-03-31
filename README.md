@@ -47,6 +47,7 @@ Project links:
 | [authelia](charts/authelia/) | Authelia — SSO, MFA, and OpenID Connect authentication server with forward auth for reverse proxies |
 | [adguard-home](charts/adguard-home/) | AdGuard Home — network-wide DNS ad/tracker blocker with sync and S3 backup |
 | [velero](charts/velero/) | Velero — Kubernetes backup, restore, migration, schedules, and S3-compatible object storage |
+| [kafka](charts/kafka/) | Kafka — KRaft single-broker and production-oriented cluster modes with persistent storage and optional metrics |
 
 ## Quick Start
 

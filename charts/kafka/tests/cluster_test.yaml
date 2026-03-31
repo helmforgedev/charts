@@ -1,0 +1,63 @@
+suite: cluster
+templates:
+  - templates/statefulset-cluster.yaml
+  - templates/service-headless.yaml
+  - templates/pdb.yaml
+  - templates/secret.yaml
+  - templates/configmap-scripts.yaml
+  - templates/configmap-metrics.yaml
+tests:
+  - it: renders the controller statefulset in cluster mode
+    set:
+      architecture: cluster
+    template: templates/statefulset-cluster.yaml
+    documentSelector:
+      path: metadata.name
+      value: RELEASE-NAME-kafka-controller
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: renders the broker statefulset in cluster mode
+    set:
+      architecture: cluster
+    template: templates/statefulset-cluster.yaml
+    documentSelector:
+      path: metadata.name
+      value: RELEASE-NAME-kafka-broker
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.replicas
+          value: 3
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: internal
+            containerPort: 9094
+            protocol: TCP
+
+  - it: renders controller directory ids in the secret for cluster mode
+    set:
+      architecture: cluster
+    template: templates/secret.yaml
+    asserts:
+      - isNotNull:
+          path: stringData.controller-0-directory-id
+      - isNotNull:
+          path: stringData.controller-1-directory-id
+      - isNotNull:
+          path: stringData.controller-2-directory-id
+
+  - it: renders pod disruption budgets when enabled
+    set:
+      architecture: cluster
+      pdb.enabled: true
+    template: templates/pdb.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
