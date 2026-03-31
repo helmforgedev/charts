@@ -1,11 +1,3 @@
----
-title: Keycloak - Production Mode
-description: Production deployment with database and TLS
-keywords: [keycloak, production, database, tls]
-scope: chart-docs
-audience: users
----
-
 # Production Mode
 
 ## When to use it

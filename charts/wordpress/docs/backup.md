@@ -1,11 +1,3 @@
----
-title: WordPress Backup & Restore
-description: S3 backup strategy and restore procedures for WordPress on Kubernetes
-keywords: [wordpress, backup, restore, s3, mysqldump, minio]
-scope: chart-docs
-audience: users, operators
----
-
 # Backup & Restore
 
 The chart includes a CronJob-based backup system that creates database dumps and wp-content archives, then uploads both to S3-compatible storage.

@@ -1,11 +1,3 @@
----
-title: Vaultwarden - External DB Backup
-description: External database backup
-keywords: [vaultwarden, backup, external-database]
-scope: chart-docs
-audience: users
----
-
 # External Database Backup
 
 ## Why this guide exists

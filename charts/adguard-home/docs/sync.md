@@ -1,11 +1,3 @@
----
-title: AdGuardHome Sync
-description: Multi-instance configuration synchronization using adguardhome-sync
-keywords: [adguard, sync, multi-instance, replication]
-scope: chart-docs
-audience: users, operators
----
-
 # AdGuardHome Sync
 
 This chart optionally deploys [adguardhome-sync](https://github.com/bakito/adguardhome-sync) to synchronize configuration from an origin AdGuard Home instance to one or more replicas.

@@ -1,11 +1,3 @@
----
-title: Kafka - Single Broker
-description: When to use the single-broker Kafka topology and what its limits are
-keywords: [kafka, kraft, single-broker, development]
-scope: chart-docs
-audience: users
----
-
 # Single Broker
 
 Use `architecture=single-broker` for development, CI, demos, and low-risk internal workloads where broker-node redundancy is not required.

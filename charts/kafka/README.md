@@ -1,11 +1,3 @@
----
-title: Kafka Helm Chart
-description: Apache Kafka chart with KRaft single-broker and production-oriented cluster modes
-keywords: [kafka, kraft, streaming, messaging, cluster]
-scope: chart
-audience: users
----
-
 # Kafka
 
 Apache Kafka for Kubernetes using the official [`apache/kafka`](https://hub.docker.com/r/apache/kafka) image and a KRaft-only design. This chart intentionally supports two clear topologies:

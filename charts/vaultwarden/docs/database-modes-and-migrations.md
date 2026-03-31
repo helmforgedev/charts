@@ -1,11 +1,3 @@
----
-title: Vaultwarden - Database Modes
-description: SQLite, PostgreSQL, MySQL selection
-keywords: [vaultwarden, database, sqlite, postgresql, mysql]
-scope: chart-docs
-audience: users
----
-
 # Database Modes and Migrations
 
 ## Supported modes

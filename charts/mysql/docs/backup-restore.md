@@ -1,11 +1,3 @@
----
-title: MySQL - Backup
-description: Backup and restore
-keywords: [mysql, backup, restore, mysqldump]
-scope: chart-docs
-audience: users
----
-
 # Backup and Restore
 
 ## Built-in backup strategy

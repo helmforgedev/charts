@@ -1,11 +1,3 @@
----
-title: MongoDB - Backup
-description: Backup and restore
-keywords: [mongodb, backup, restore, mongodump]
-scope: chart-docs
-audience: users
----
-
 # Backup and Restore
 
 ## Built-in backup strategy

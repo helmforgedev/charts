@@ -1,11 +1,3 @@
----
-title: Velero - Filesystem Backup
-description: Filesystem backup guidance for the Velero node-agent
-keywords: [velero, node-agent, filesystem-backup, kopia]
-scope: chart-docs
-audience: users
----
-
 # Filesystem Backup
 
 Enable `nodeAgent.enabled=true` when you need filesystem backup for pod volumes.

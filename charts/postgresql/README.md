@@ -1,11 +1,3 @@
----
-title: PostgreSQL Helm Chart
-description: PostgreSQL chart with standalone/replication, TLS, metrics, resource presets
-keywords: [postgresql, postgres, database, replication, sql]
-scope: chart
-audience: users
----
-
 # PostgreSQL
 
 PostgreSQL for Kubernetes with explicit `standalone` and `replication` modes, documented bootstrap behavior, optional init scripts, and optional metrics.

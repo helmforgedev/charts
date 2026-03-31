@@ -1,11 +1,3 @@
----
-title: Generic Chart - Batch Workloads
-description: Jobs and CronJobs for the generic chart
-keywords: [generic, job, cronjob, batch]
-scope: chart-docs
-audience: users
----
-
 # Generic Chart for Jobs and CronJobs
 
 ## When to use

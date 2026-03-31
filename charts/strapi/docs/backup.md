@@ -1,11 +1,3 @@
----
-title: Strapi Backup & Restore
-description: S3 backup strategy and restore considerations for Strapi uploads and database data
-keywords: [strapi, backup, restore, s3, sqlite, postgresql, mysql]
-scope: chart-docs
-audience: users, operators
----
-
 # Strapi Backup & Restore
 
 The Strapi chart can run a scheduled CronJob that uploads backup artifacts to S3-compatible object storage.

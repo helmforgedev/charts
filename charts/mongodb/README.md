@@ -1,11 +1,3 @@
----
-title: MongoDB Helm Chart
-description: MongoDB chart supporting standalone, replicaset, and sharded architectures
-keywords: [mongodb, nosql, database, replicaset, sharded]
-scope: chart
-audience: users
----
-
 # MongoDB Helm Chart
 
 MongoDB Helm chart using the **official [`mongo`](https://hub.docker.com/_/mongo) Docker image**. Supports standalone, replica set, and sharded cluster architectures — no Bitnami dependency.

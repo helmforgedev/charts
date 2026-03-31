@@ -1,11 +1,3 @@
----
-title: Strapi Database Modes
-description: Guide for configuring Strapi with SQLite, PostgreSQL, or MySQL in the HelmForge chart
-keywords: [strapi, sqlite, postgresql, mysql, database, helm]
-scope: chart-docs
-audience: users, operators
----
-
 # Strapi Database Modes
 
 The Strapi chart supports three database strategies:

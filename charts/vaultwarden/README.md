@@ -1,11 +1,3 @@
----
-title: Vaultwarden Helm Chart
-description: Vaultwarden password manager with SQLite/PostgreSQL/MySQL, backup, ingress
-keywords: [vaultwarden, bitwarden, password-manager, backup, sqlite]
-scope: chart
-audience: users
----
-
 # Vaultwarden
 
 Vaultwarden for Kubernetes with explicit storage-mode selection, ingress-oriented deployment, and clear modeling for admin token and SMTP.

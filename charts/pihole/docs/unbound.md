@@ -1,11 +1,3 @@
----
-title: Unbound Recursive DNS
-description: Privacy-focused recursive DNS resolution with Pi-hole and Unbound sidecar
-keywords: [unbound, recursive-dns, privacy, pihole, dnssec]
-scope: chart-docs
-audience: users, operators
----
-
 # Unbound Recursive DNS
 
 When Unbound is enabled, Pi-hole uses a local Unbound sidecar for recursive DNS resolution instead of forwarding queries to third-party DNS providers like Google or Cloudflare. This eliminates the need to trust external resolvers with your DNS queries.

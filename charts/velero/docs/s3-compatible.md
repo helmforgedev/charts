@@ -1,11 +1,3 @@
----
-title: Velero - S3-Compatible Storage
-description: Configure Velero with S3-compatible object storage such as MinIO
-keywords: [velero, s3, minio, backupstoragelocation]
-scope: chart-docs
-audience: users
----
-
 # S3-Compatible Storage
 
 This chart is intentionally optimized for S3-compatible object storage in v1.

@@ -1,11 +1,3 @@
----
-title: Vaultwarden - SMTP
-description: SMTP configuration
-keywords: [vaultwarden, smtp, email]
-scope: chart-docs
-audience: users
----
-
 # SMTP and Email
 
 ## Why it matters

@@ -1,11 +1,3 @@
----
-title: Testing Strategy
-description: Helm chart testing strategy using helm-unittest, helm lint, kubeconform, and CI automation
-keywords: [helm-unittest, testing, unit-test, ci, kubeconform, lint, validation, bdd, yaml]
-scope: repository
-audience: contributors, ai-agents
----
-
 # Testing Strategy
 
 This repository uses a layered testing approach for Helm charts, combining static analysis, unit testing, and schema validation.

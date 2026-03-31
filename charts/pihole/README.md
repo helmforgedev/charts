@@ -1,11 +1,3 @@
----
-title: Pi-hole Helm Chart
-description: Deploy Pi-hole DNS sinkhole on Kubernetes with custom DNS records, Unbound recursive DNS, Prometheus metrics, and ingress support
-keywords: [pihole, dns, ad-blocker, helm, kubernetes, unbound, dnsmasq]
-scope: chart
-audience: users, operators
----
-
 # Pi-hole DNS Sinkhole
 
 A Helm chart for deploying [Pi-hole](https://pi-hole.net/) on Kubernetes using the official [pihole/pihole](https://hub.docker.com/r/pihole/pihole) container image.

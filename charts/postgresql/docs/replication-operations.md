@@ -1,11 +1,3 @@
----
-title: PostgreSQL - Replication Ops
-description: Replication maintenance
-keywords: [postgresql, replication, operations]
-scope: chart-docs
-audience: users
----
-
 # Replication Operations
 
 ## Operational contract

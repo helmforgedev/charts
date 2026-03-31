@@ -1,11 +1,3 @@
----
-title: MySQL - Config Profiles
-description: Configuration presets
-keywords: [mysql, configuration, profiles, tuning]
-scope: chart-docs
-audience: users
----
-
 # Configuration Profiles
 
 ## Goal

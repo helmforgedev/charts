@@ -1,11 +1,3 @@
----
-title: RabbitMQ - Single Node
-description: Single-node deployment
-keywords: [rabbitmq, standalone]
-scope: chart-docs
-audience: users
----
-
 # RabbitMQ Single Node
 
 ## When to use

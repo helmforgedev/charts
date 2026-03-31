@@ -1,11 +1,3 @@
----
-title: WordPress Database Modes
-description: Guide for configuring WordPress database using MySQL subchart or external database
-keywords: [wordpress, mysql, mariadb, database, helm]
-scope: chart-docs
-audience: users, operators
----
-
 # Database Modes
 
 WordPress requires MySQL or MariaDB. This chart supports two database modes with automatic detection.

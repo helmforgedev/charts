@@ -1,11 +1,3 @@
----
-title: PostgreSQL - Backup
-description: Backup and restore
-keywords: [postgresql, backup, restore, pg_dump]
-scope: chart-docs
-audience: users
----
-
 # Backup and Restore
 
 ## Built-in backup strategy

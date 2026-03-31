@@ -1,11 +1,3 @@
----
-title: WordPress Helm Chart
-description: Deploy WordPress on Kubernetes with MySQL subchart or external database, S3 backup, and Prometheus metrics
-keywords: [wordpress, cms, blog, php, mysql, helm, kubernetes, backup]
-scope: chart
-audience: users, operators
----
-
 # WordPress
 
 A Helm chart for deploying [WordPress](https://wordpress.org/) on Kubernetes using the official [wordpress](https://hub.docker.com/_/wordpress) Docker image (Apache variant).

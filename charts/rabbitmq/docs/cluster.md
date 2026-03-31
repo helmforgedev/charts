@@ -1,11 +1,3 @@
----
-title: RabbitMQ - Cluster
-description: Cluster deployment
-keywords: [rabbitmq, cluster, quorum]
-scope: chart-docs
-audience: users
----
-
 # RabbitMQ Cluster
 
 ## When to use

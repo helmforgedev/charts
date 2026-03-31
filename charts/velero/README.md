@@ -1,11 +1,3 @@
----
-title: Velero Helm Chart
-description: Velero chart for Kubernetes backup, restore, and migration with S3-compatible object storage
-keywords: [velero, backup, restore, disaster-recovery, s3]
-scope: chart
-audience: users
----
-
 # Velero Helm Chart
 
 Deploy [Velero](https://velero.io/) on Kubernetes for cluster backup, restore, migration, and filesystem backup workflows.

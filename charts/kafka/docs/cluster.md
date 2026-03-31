@@ -1,11 +1,3 @@
----
-title: Kafka - Cluster
-description: Production-oriented Kafka KRaft cluster topology with dedicated controllers and brokers
-keywords: [kafka, kraft, cluster, controllers, brokers]
-scope: chart-docs
-audience: users
----
-
 # Cluster
 
 Use `architecture=cluster` for production-oriented Kafka deployments that need dedicated KRaft controllers, replicated internal topics, and broker redundancy.

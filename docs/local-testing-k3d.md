@@ -1,11 +1,3 @@
----
-title: Local Testing with k3d
-description: Guide for local integration testing of Helm charts using k3d (k3s in Docker)
-keywords: [k3d, k3s, local-testing, integration, kubernetes, docker, validation]
-scope: repository
-audience: contributors, ai-agents
----
-
 # Local Testing with k3d
 
 This guide covers how to run Helm charts locally using [k3d](https://k3d.io), a lightweight Kubernetes distribution that runs k3s inside Docker containers. Use this for integration testing beyond what `helm template` and `helm-unittest` can validate.

@@ -1,11 +1,3 @@
----
-title: Keycloak - Scaling
-description: Multi-replica with cache and clustering
-keywords: [keycloak, scaling, clustering, jdbc-ping]
-scope: chart-docs
-audience: users
----
-
 # Scaling and Clustering
 
 ## When to use this guide

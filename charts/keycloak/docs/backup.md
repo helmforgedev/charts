@@ -1,11 +1,3 @@
----
-title: Keycloak - Backup
-description: Database backup and restore
-keywords: [keycloak, backup, restore, postgres, mysql]
-scope: chart-docs
-audience: users
----
-
 # Backup and Restore
 
 ## Scope

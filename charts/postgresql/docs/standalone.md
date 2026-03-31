@@ -1,11 +1,3 @@
----
-title: PostgreSQL - Standalone
-description: Standalone deployment
-keywords: [postgresql, standalone]
-scope: chart-docs
-audience: users
----
-
 # Standalone
 
 ## When to use it

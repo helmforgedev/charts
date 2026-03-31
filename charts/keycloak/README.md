@@ -1,11 +1,3 @@
----
-title: Keycloak Helm Chart
-description: Keycloak IAM chart with dev/production modes, clustering, ingress
-keywords: [keycloak, iam, sso, oidc, authentication, identity]
-scope: chart
-audience: users
----
-
 # Keycloak
 
 Keycloak for Kubernetes with explicit `dev` and `production` modes, external database modeling for real deployments, and a clear separation between public traffic and the management interface.

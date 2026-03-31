@@ -1,11 +1,3 @@
----
-title: Vaultwarden - Ingress
-description: Ingress and domain config
-keywords: [vaultwarden, ingress, domain, tls]
-scope: chart-docs
-audience: users
----
-
 # Ingress and Domain
 
 ## Why it matters

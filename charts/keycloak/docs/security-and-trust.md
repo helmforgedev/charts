@@ -1,11 +1,3 @@
----
-title: Keycloak - Security
-description: TLS, truststore, database security
-keywords: [keycloak, security, tls, truststore]
-scope: chart-docs
-audience: users
----
-
 # Security and Trust
 
 ## When to use this guide

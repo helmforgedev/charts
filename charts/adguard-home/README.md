@@ -1,11 +1,3 @@
----
-title: AdGuard Home Helm Chart
-description: Deploy AdGuard Home DNS ad/tracker blocker on Kubernetes with sync and S3 backup
-keywords: [adguard-home, dns, ad-blocker, tracker-blocker, helm, kubernetes]
-scope: chart
-audience: users, operators
----
-
 # AdGuard Home
 
 A Helm chart for deploying [AdGuard Home](https://adguard.com/adguard-home/overview.html) on Kubernetes using the official [adguard/adguardhome](https://hub.docker.com/r/adguard/adguardhome) container image.

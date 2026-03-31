@@ -1,11 +1,3 @@
----
-title: AdGuard Home Backup
-description: Automated S3 backups for AdGuard Home configuration and data
-keywords: [adguard, backup, s3, minio, cronjob]
-scope: chart-docs
-audience: users, operators
----
-
 # AdGuard Home Backup
 
 This chart includes an optional CronJob that creates tar archives of AdGuard Home data and uploads them to an S3-compatible storage backend.

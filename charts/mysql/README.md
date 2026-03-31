@@ -1,11 +1,3 @@
----
-title: MySQL Helm Chart
-description: MySQL chart with standalone and replication modes, TLS, metrics
-keywords: [mysql, database, replication, sql, tls]
-scope: chart
-audience: users
----
-
 # MySQL
 
 MySQL for Kubernetes with explicit `standalone` and `replication` modes, documented bootstrap behavior, optional init scripts, and optional metrics.

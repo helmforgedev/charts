@@ -1,11 +1,3 @@
----
-title: Vaultwarden - Scope
-description: Chart scope and boundaries
-keywords: [vaultwarden, scope, boundaries]
-scope: chart-docs
-audience: users
----
-
 # Scope and Automation Boundaries
 
 ## What this chart is

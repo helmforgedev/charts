@@ -1,11 +1,3 @@
----
-title: Vaultwarden - Backup
-description: Backup and restore
-keywords: [vaultwarden, backup, restore]
-scope: chart-docs
-audience: users
----
-
 # Backup and Restore
 
 ## What the built-in backup focuses on

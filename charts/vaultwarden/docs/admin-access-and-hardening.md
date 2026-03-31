@@ -1,11 +1,3 @@
----
-title: Vaultwarden - Admin Access
-description: Admin panel and hardening
-keywords: [vaultwarden, admin, hardening, argon2]
-scope: chart-docs
-audience: users
----
-
 # Admin Access and Hardening
 
 ## Admin panel basics

@@ -1,20 +1,13 @@
----
-title: AI Metadata Standard
-description: Standard for @AI-METADATA footer blocks in documentation files
-keywords: [ai-metadata, standard, documentation, agents, discoverability]
-scope: repository
-audience: contributors, ai-agents
----
-
 # AI Metadata Standard
 
-Every markdown documentation file in this repository must include an `@AI-METADATA` HTML comment block at the end of the file. This block provides structured, machine-readable metadata that helps AI agents quickly understand each document's purpose, scope, and relationships without reading the full content.
+Every markdown documentation file in this repository must include an `@AI-METADATA` HTML comment block at the end of the file. This block provides structured, machine-readable metadata that helps AI agents quickly understand each document's purpose, scope, and relationships without reading the full content, without polluting normal Markdown reading on GitHub.
 
 ## Why
 
 - **Fast document discovery**: agents can scan metadata blocks to find relevant docs without parsing full content
 - **Relationship mapping**: `relations` field creates a navigable graph between related documents
-- **Complementary to frontmatter**: YAML frontmatter at the top serves rendering tools; `@AI-METADATA` at the bottom serves AI agents with richer semantic fields
+- **Invisible in normal reading**: HTML comment metadata stays out of the rendered document flow on GitHub and similar Markdown viewers
+- **Plain Markdown friendly**: do not add YAML frontmatter to `.md` files in `helm/`; reserve frontmatter for rendered site content such as `site/src/pages/**/*.mdx`
 
 ## Block Format
 
@@ -89,6 +82,7 @@ date: <YYYY-MM-DD>
 8. **Place the block at the very end** of the file, after all content
 9. **Leave one blank line** between the last content line and the `<!-- @AI-METADATA` opening
 10. **Match the `type` field** to the document's actual classification from the types table above
+11. **Do not add YAML frontmatter** to plain `.md` files in `helm/`
 
 ## Example
 
@@ -109,7 +103,7 @@ relations:
   - charts/redis/README.md
 path: charts/redis/docs/standalone.md
 version: 1.0
-date: 2026-03-20
+date: 2026-03-31
 -->
 ```
 

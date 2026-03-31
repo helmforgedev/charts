@@ -1,11 +1,3 @@
----
-title: HelmForge Charts
-description: Helm chart repository overview, installation, charts list, and CI/CD
-keywords: [helm, charts, oci, ghcr, repository, install]
-scope: repository
-audience: users, contributors
----
-
 # Helm Charts
 
 [![CI](https://github.com/helmforgedev/charts/actions/workflows/ci.yml/badge.svg)](https://github.com/helmforgedev/charts/actions/workflows/ci.yml)

@@ -1,11 +1,3 @@
----
-title: Minecraft Server Helm Chart
-description: Deploy Minecraft Java Edition servers on Kubernetes with support for Vanilla, Paper, Forge, Fabric, GeyserMC cross-play, S3 backup, and Prometheus monitoring
-keywords: [minecraft, helm, kubernetes, paper, forge, fabric, geyser, bedrock, game-server]
-scope: chart
-audience: users, operators
----
-
 # Minecraft Server
 
 A Helm chart for deploying Minecraft Java Edition servers on Kubernetes using the [itzg/minecraft-server](https://docker-minecraft-server.readthedocs.io/) container image.

@@ -1,11 +1,3 @@
----
-title: RabbitMQ Helm Chart
-description: RabbitMQ chart with single-node and cluster modes, management UI, TLS
-keywords: [rabbitmq, amqp, messaging, queue, cluster]
-scope: chart
-audience: users
----
-
 # RabbitMQ
 
 RabbitMQ for Kubernetes with explicit `single-node` and `cluster` modes, optional Management UI, optional TLS, optional metrics, and dedicated operational docs for each architecture.

@@ -1,11 +1,3 @@
----
-title: Agent Instructions
-description: AI agent rules for Helm chart development, git workflow, and testing
-keywords: [agents, ai, rules, conventions, git, helm, testing]
-scope: repository
-audience: ai-agents
----
-
 # Agent Instructions
 
 Instructions for AI coding agents working on this repository.
@@ -252,6 +244,7 @@ Safety rule for local validation:
 - chart docs are exclusive to the chart itself; do not reference local filesystem paths, personal machine paths, or unrelated repository paths
 - use relative links for files inside the same chart, such as `docs/*.md` and `examples/*`
 - when external references are needed in chart docs, use only official product or official project documentation
+- do not add YAML frontmatter to plain `.md` files in `helm/`; keep metadata in the `@AI-METADATA` HTML comment block so GitHub reading stays clean
 - always document ingress examples in `values.yaml` using `hosts`, `ingressClassName`, and `tls[].secretName` in the Kubernetes-native shape
 - always use `ingressClassName` as the values key for ingress class selection in Helm charts
 - whenever a chart documents ingress in `values.yaml`, add a commented annotation example using `cert-manager.io/cluster-issuer`
@@ -301,5 +294,5 @@ relations:
   - docs/testing-strategy.md
 path: AGENTS.md
 version: 1.0
-date: 2026-03-20
+date: 2026-03-31
 -->

@@ -1,11 +1,3 @@
----
-title: Keycloak - Production Capacity
-description: Resource sizing and capacity
-keywords: [keycloak, production, resources, sizing]
-scope: chart-docs
-audience: users
----
-
 # Production Capacity
 
 ## When to use this guide

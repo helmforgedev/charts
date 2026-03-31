@@ -1,11 +1,3 @@
----
-title: Keycloak - Reverse Proxy
-description: Reverse proxy and ingress config
-keywords: [keycloak, reverse-proxy, ingress]
-scope: chart-docs
-audience: users
----
-
 # Reverse Proxy and Hostname
 
 ## When to read this

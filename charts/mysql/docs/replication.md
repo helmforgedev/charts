@@ -1,11 +1,3 @@
----
-title: MySQL - Replication
-description: Source-replica replication
-keywords: [mysql, replication, source, replica]
-scope: chart-docs
-audience: users
----
-
 # Replication
 
 ## When to use it
