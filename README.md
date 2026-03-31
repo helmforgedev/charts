@@ -98,6 +98,27 @@ Tags follow the format `{chart}-v{version}` (for example `generic-v1.2.3`).
 
 Each chart includes a `ci/` directory with test values files. The pipeline runs `helm template` against every `ci/*.yaml` file automatically, in addition to default values, lint, and kubeconform schema validation.
 
+### Kubernetes Compatibility
+
+All charts require **Helm 3** (`apiVersion: v2`) and target **Kubernetes 1.26+**.
+
+| Kubernetes Version | Status |
+|--------------------|--------|
+| 1.26.x | Supported (minimum) |
+| 1.27.x | Supported |
+| 1.28.x | Supported |
+| 1.29.x | Supported |
+| 1.30.x | Supported |
+| 1.31.x | Supported |
+| 1.32.x | Supported |
+| 1.33.x | Supported |
+| 1.34.x | Supported |
+| 1.35.x | Supported |
+
+CI validates rendered manifests with [kubeconform](https://github.com/yannh/kubeconform) against the default Kubernetes JSON schemas. Local validation uses [k3d](https://k3d.io/) clusters.
+
+Charts use standard stable APIs (`apps/v1`, `batch/v1`, `networking.k8s.io/v1`) and avoid alpha/beta API versions to maximize compatibility.
+
 ## Contributing
 
 ### Adding a new chart
