@@ -157,9 +157,19 @@ jobs:
           git add charts/${{ matrix.chart }}/Chart.yaml
           git diff --cached --quiet && echo "Chart.yaml already at target version, skip commit" || \
             git commit -m "release(${{ matrix.chart }}): ${{ steps.semver.outputs.version }} [skip ci]"
-          git tag -a "${{ steps.semver.outputs.tag }}" -m "Release ${{ matrix.chart }} v${{ steps.semver.outputs.version }}"
+
+          # Rebase before tagging so the tag points to the final commit
           for attempt in 1 2 3 4 5; do
-            git pull --rebase origin main && git push origin main --follow-tags && break
+            git pull --rebase origin main && break
+            echo "Rebase failed (attempt $attempt/5), retrying in $((attempt * 2))s..."
+            sleep $((attempt * 2))
+          done
+
+          # Tag after rebase so --follow-tags can push it
+          git tag -a "${{ steps.semver.outputs.tag }}" -m "Release ${{ matrix.chart }} v${{ steps.semver.outputs.version }}"
+
+          for attempt in 1 2 3 4 5; do
+            git push origin main --follow-tags && break
             echo "Push failed (attempt $attempt/5), retrying in $((attempt * 2))s..."
             sleep $((attempt * 2))
           done
