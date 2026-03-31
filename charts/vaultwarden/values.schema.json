@@ -1,0 +1,854 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Vaultwarden Helm Chart Values",
+  "description": "Configuration values for the Vaultwarden Helm chart. Deploys a self-hosted Bitwarden-compatible password manager with SQLite, PostgreSQL, or MySQL support.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name used in resource names"
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the full release name used in resource names"
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Labels added to every resource created by this chart"
+    },
+    "clusterDomain": {
+      "type": "string",
+      "description": "Kubernetes cluster domain"
+    },
+    "image": {
+      "type": "object",
+      "description": "Vaultwarden container image settings",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Vaultwarden image repository"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Vaultwarden image tag"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries",
+      "items": {
+        "type": "object"
+      }
+    },
+    "domain": {
+      "type": "string",
+      "description": "Public domain used by Vaultwarden. Strongly recommended when ingress is enabled."
+    },
+    "vaultwarden": {
+      "type": "object",
+      "description": "Core Vaultwarden application settings",
+      "properties": {
+        "signupsAllowed": {
+          "type": "boolean",
+          "description": "Allow new user signups"
+        },
+        "signupsVerify": {
+          "type": "boolean",
+          "description": "Require email verification for new signups"
+        },
+        "signupsVerifyResendTime": {
+          "type": "integer",
+          "description": "Seconds before another signup verification email can be sent"
+        },
+        "signupsVerifyResendLimit": {
+          "type": "integer",
+          "description": "Maximum number of signup verification re-sends triggered by login attempts"
+        },
+        "signupsDomainsWhitelist": {
+          "type": "array",
+          "description": "Domain allowlist for signups when signupsAllowed is false",
+          "items": {
+            "type": "string"
+          }
+        },
+        "invitationsAllowed": {
+          "type": "boolean",
+          "description": "Allow invitation flows"
+        },
+        "invitationOrgName": {
+          "type": "string",
+          "description": "Name used in invitation emails that do not belong to a specific organization"
+        },
+        "invitationExpirationHours": {
+          "type": "integer",
+          "description": "Hours before invite and verification tokens expire"
+        },
+        "sendsAllowed": {
+          "type": "boolean",
+          "description": "Allow Bitwarden Send"
+        },
+        "emergencyAccessAllowed": {
+          "type": "boolean",
+          "description": "Allow emergency access features"
+        },
+        "emailChangeAllowed": {
+          "type": "boolean",
+          "description": "Allow users to change their email addresses"
+        },
+        "orgEventsEnabled": {
+          "type": "boolean",
+          "description": "Enable organization event logging"
+        },
+        "orgCreationUsers": {
+          "type": "string",
+          "description": "Which users may create organizations: empty string, all, none, or comma-separated emails"
+        },
+        "passwordIterations": {
+          "type": "integer",
+          "description": "Default number of server-side password hashing iterations"
+        },
+        "passwordHintsAllowed": {
+          "type": "boolean",
+          "description": "Allow users to set and view password hints"
+        },
+        "showPasswordHint": {
+          "type": "boolean",
+          "description": "Show password hints directly on the login page when SMTP is unavailable"
+        },
+        "websocket": {
+          "type": "object",
+          "description": "Websocket notification settings",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable websocket notifications"
+            }
+          }
+        },
+        "logLevel": {
+          "type": "string",
+          "description": "Vaultwarden log level",
+          "enum": ["trace", "debug", "info", "warn", "error", "off"]
+        },
+        "proxy": {
+          "type": "object",
+          "description": "Reverse proxy settings",
+          "properties": {
+            "ipHeader": {
+              "type": "string",
+              "description": "Header used by Vaultwarden to identify the client IP behind a reverse proxy"
+            }
+          }
+        }
+      }
+    },
+    "admin": {
+      "type": "object",
+      "description": "Admin panel configuration",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "Admin token value. Prefer an Argon2 PHC string for production."
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing secret containing the admin token"
+        },
+        "existingSecretTokenKey": {
+          "type": "string",
+          "description": "Secret key for the admin token in admin.existingSecret"
+        }
+      }
+    },
+    "smtp": {
+      "type": "object",
+      "description": "SMTP email configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable SMTP configuration"
+        },
+        "host": {
+          "type": "string",
+          "description": "SMTP server hostname"
+        },
+        "port": {
+          "type": "integer",
+          "description": "SMTP server port"
+        },
+        "from": {
+          "type": "string",
+          "description": "Sender email address"
+        },
+        "fromName": {
+          "type": "string",
+          "description": "Sender display name"
+        },
+        "timeout": {
+          "type": "integer",
+          "description": "SMTP connection timeout in seconds"
+        },
+        "security": {
+          "type": "string",
+          "description": "SMTP security mode",
+          "enum": ["starttls", "force_tls", "off"]
+        },
+        "username": {
+          "type": "string",
+          "description": "SMTP authentication username"
+        },
+        "password": {
+          "type": "string",
+          "description": "SMTP authentication password"
+        },
+        "authMechanism": {
+          "type": "string",
+          "description": "Comma-separated SMTP auth mechanisms, for example: Plain,Login"
+        },
+        "heloName": {
+          "type": "string",
+          "description": "Optional HELO name sent to the SMTP server"
+        },
+        "embedImages": {
+          "type": "boolean",
+          "description": "Embed images as email attachments"
+        },
+        "debug": {
+          "type": "boolean",
+          "description": "Enable verbose SMTP troubleshooting logs"
+        },
+        "acceptInvalidCerts": {
+          "type": "boolean",
+          "description": "Accept invalid SMTP certificates. Dangerous and not recommended."
+        },
+        "acceptInvalidHostnames": {
+          "type": "boolean",
+          "description": "Accept invalid SMTP hostnames. Dangerous and not recommended."
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing secret containing the SMTP password"
+        },
+        "existingSecretPasswordKey": {
+          "type": "string",
+          "description": "Secret key for the SMTP password in smtp.existingSecret"
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "description": "Database configuration",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "description": "Database mode selection: auto | sqlite | external | postgresql | mysql",
+          "enum": ["auto", "sqlite", "external", "postgresql", "mysql"]
+        },
+        "sqlite": {
+          "type": "object",
+          "description": "SQLite-specific settings",
+          "properties": {
+            "enableWal": {
+              "type": "boolean",
+              "description": "Enable SQLite WAL mode on startup"
+            }
+          }
+        },
+        "connection": {
+          "type": "object",
+          "description": "Database connection pool settings",
+          "properties": {
+            "retries": {
+              "type": "integer",
+              "description": "Number of retries while connecting to the database on startup. Use 0 for infinite retries."
+            },
+            "timeout": {
+              "type": "integer",
+              "description": "Timeout in seconds when acquiring a database connection"
+            },
+            "idleTimeout": {
+              "type": "integer",
+              "description": "Timeout in seconds before idle database connections are closed"
+            },
+            "minConnections": {
+              "type": "integer",
+              "description": "Minimum number of database connections in the pool"
+            },
+            "maxConnections": {
+              "type": "integer",
+              "description": "Maximum number of database connections in the pool"
+            },
+            "init": {
+              "type": "string",
+              "description": "Optional initialization SQL run for each new database connection"
+            }
+          }
+        },
+        "external": {
+          "type": "object",
+          "description": "External database connection settings",
+          "properties": {
+            "vendor": {
+              "type": "string",
+              "description": "External database vendor",
+              "enum": ["postgres", "mysql"]
+            },
+            "host": {
+              "type": "string",
+              "description": "External database hostname"
+            },
+            "port": {
+              "type": ["string", "integer"],
+              "description": "External database port"
+            },
+            "name": {
+              "type": "string",
+              "description": "Database name"
+            },
+            "username": {
+              "type": "string",
+              "description": "Database username"
+            },
+            "password": {
+              "type": "string",
+              "description": "Password used to build DATABASE_URL when database.external.existingSecret is not used"
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing secret containing a complete DATABASE_URL value"
+            },
+            "existingSecretUrlKey": {
+              "type": "string",
+              "description": "Secret key for the DATABASE_URL value in database.external.existingSecret"
+            },
+            "parameters": {
+              "type": "string",
+              "description": "Optional query string appended to the generated DATABASE_URL, without the leading '?'"
+            }
+          }
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "description": "Data persistence configuration",
+      "properties": {
+        "persistence": {
+          "type": "object",
+          "description": "PVC settings for /data",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Persist /data with a PVC"
+            },
+            "existingClaim": {
+              "type": "string",
+              "description": "Existing PVC name"
+            },
+            "selectorLabels": {
+              "type": "object",
+              "description": "Optional selector labels for pre-existing PV matching"
+            },
+            "storageClass": {
+              "type": "string",
+              "description": "Storage class for the PVC"
+            },
+            "accessMode": {
+              "type": "string",
+              "description": "Access mode for the PVC",
+              "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany"]
+            },
+            "size": {
+              "type": "string",
+              "description": "Size of the PVC"
+            },
+            "annotations": {
+              "type": "object",
+              "description": "Annotations added to the PVC"
+            }
+          }
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "description": "Kubernetes Service configuration",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Service type",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer"]
+        },
+        "port": {
+          "type": "integer",
+          "description": "HTTP service port"
+        },
+        "targetPort": {
+          "type": "integer",
+          "description": "Container port exposed by Vaultwarden"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the Service"
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "description": "Ingress configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable ingress for Vaultwarden"
+        },
+        "ingressClassName": {
+          "type": "string",
+          "description": "Ingress class name (for example: traefik, nginx)"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Ingress annotations"
+        },
+        "hosts": {
+          "type": "array",
+          "description": "Ingress hosts",
+          "items": {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string"
+              },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "pathType": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tls": {
+          "type": "array",
+          "description": "Ingress TLS configuration",
+          "items": {
+            "type": "object",
+            "properties": {
+              "hosts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "secretName": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "probes": {
+      "type": "object",
+      "description": "Health probe configuration",
+      "properties": {
+        "liveness": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "path": {
+              "type": "string"
+            },
+            "initialDelaySeconds": {
+              "type": "integer"
+            },
+            "periodSeconds": {
+              "type": "integer"
+            },
+            "timeoutSeconds": {
+              "type": "integer"
+            },
+            "failureThreshold": {
+              "type": "integer"
+            }
+          }
+        },
+        "readiness": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "path": {
+              "type": "string"
+            },
+            "initialDelaySeconds": {
+              "type": "integer"
+            },
+            "periodSeconds": {
+              "type": "integer"
+            },
+            "timeoutSeconds": {
+              "type": "integer"
+            },
+            "failureThreshold": {
+              "type": "integer"
+            }
+          }
+        },
+        "startup": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "path": {
+              "type": "string"
+            },
+            "initialDelaySeconds": {
+              "type": "integer"
+            },
+            "periodSeconds": {
+              "type": "integer"
+            },
+            "timeoutSeconds": {
+              "type": "integer"
+            },
+            "failureThreshold": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "CPU and memory requests/limits for the Vaultwarden container"
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod-level security context"
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Container-level security context"
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector for pod scheduling"
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations for pod scheduling",
+      "items": {
+        "type": "object"
+      }
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Affinity rules for pod scheduling"
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "description": "Topology spread constraints",
+      "items": {
+        "type": "object"
+      }
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Priority class name"
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Grace period for shutdown in seconds"
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Additional labels for the pod"
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Additional annotations for the pod"
+    },
+    "annotations": {
+      "type": "object",
+      "description": "Annotations for the Deployment"
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "Network policy configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable a NetworkPolicy for Vaultwarden"
+        },
+        "ingress": {
+          "type": "object",
+          "properties": {
+            "allowSameNamespace": {
+              "type": "boolean",
+              "description": "Allow traffic from pods in the same namespace"
+            },
+            "additionalFrom": {
+              "type": "array",
+              "description": "Additional ingress peers in native NetworkPolicy format",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "egress": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable egress policy management"
+            },
+            "allowDns": {
+              "type": "boolean",
+              "description": "Allow DNS egress for name resolution when egress policy is enabled"
+            },
+            "additionalTo": {
+              "type": "array",
+              "description": "Additional egress peers in native NetworkPolicy format",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "backup": {
+      "type": "object",
+      "description": "Built-in backup CronJob configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable built-in backup CronJob support"
+        },
+        "schedule": {
+          "type": "string",
+          "description": "Backup schedule in Cron format"
+        },
+        "suspend": {
+          "type": "boolean",
+          "description": "Suspend backup execution"
+        },
+        "concurrencyPolicy": {
+          "type": "string",
+          "description": "CronJob concurrency policy",
+          "enum": ["Forbid", "Replace", "Allow"]
+        },
+        "successfulJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Successful job history retained by the CronJob"
+        },
+        "failedJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Failed job history retained by the CronJob"
+        },
+        "backoffLimit": {
+          "type": "integer",
+          "description": "Job backoff limit"
+        },
+        "archivePrefix": {
+          "type": "string",
+          "description": "Prefix used in generated backup archive names"
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resources applied to the backup uploader and dump/archive init container"
+        },
+        "images": {
+          "type": "object",
+          "description": "Container images used by backup jobs",
+          "properties": {
+            "uploader": {
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
+            },
+            "sqlite": {
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
+            },
+            "postgresql": {
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
+            },
+            "mysql": {
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
+            }
+          }
+        },
+        "s3": {
+          "type": "object",
+          "description": "S3-compatible storage configuration for backups",
+          "properties": {
+            "endpoint": {
+              "type": "string",
+              "description": "S3-compatible endpoint URL"
+            },
+            "bucket": {
+              "type": "string",
+              "description": "Target bucket name"
+            },
+            "prefix": {
+              "type": "string",
+              "description": "Optional key prefix inside the bucket"
+            },
+            "createBucketIfNotExists": {
+              "type": "boolean",
+              "description": "Create the bucket automatically when it does not exist yet"
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing secret containing access-key and secret-key"
+            },
+            "existingSecretAccessKeyKey": {
+              "type": "string",
+              "description": "Secret key name for the access key inside backup.s3.existingSecret"
+            },
+            "existingSecretSecretKeyKey": {
+              "type": "string",
+              "description": "Secret key name for the secret key inside backup.s3.existingSecret"
+            },
+            "accessKey": {
+              "type": "string",
+              "description": "Inline access key used when backup.s3.existingSecret is not set"
+            },
+            "secretKey": {
+              "type": "string",
+              "description": "Inline secret key used when backup.s3.existingSecret is not set"
+            }
+          }
+        },
+        "database": {
+          "type": "object",
+          "description": "Optional override for dump connectivity",
+          "properties": {
+            "host": { "type": "string", "description": "Optional override for dump connectivity host" },
+            "port": { "type": ["string", "integer"], "description": "Optional override port for dump connectivity" },
+            "name": { "type": "string", "description": "Optional override database name for dump connectivity" },
+            "username": { "type": "string", "description": "Optional override username for dump connectivity" },
+            "password": { "type": "string", "description": "Optional override password for dump connectivity" },
+            "existingSecret": { "type": "string", "description": "Existing secret with structured dump connectivity values" },
+            "existingSecretHostKey": { "type": "string" },
+            "existingSecretPortKey": { "type": "string" },
+            "existingSecretNameKey": { "type": "string" },
+            "existingSecretUsernameKey": { "type": "string" },
+            "existingSecretPasswordKey": { "type": "string" },
+            "postgresDumpArgs": { "type": "string", "description": "Extra arguments passed to pg_dump" },
+            "mysqlDumpArgs": { "type": "string", "description": "Extra arguments passed to mysqldump" }
+          }
+        }
+      }
+    },
+    "extraEnv": {
+      "type": "array",
+      "description": "Additional environment variables",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraVolumes": {
+      "type": "array",
+      "description": "Additional volumes for the pod",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "description": "Additional volume mounts for the container",
+      "items": {
+        "type": "object"
+      }
+    },
+    "postgresql": {
+      "type": "object",
+      "description": "PostgreSQL subchart configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the local PostgreSQL chart as the Vaultwarden database"
+        },
+        "architecture": {
+          "type": "string",
+          "description": "PostgreSQL architecture"
+        },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "database": { "type": "string" },
+            "username": { "type": "string" },
+            "password": {
+              "type": "string",
+              "description": "Required when using the PostgreSQL subchart so Vaultwarden can build DATABASE_URL deterministically"
+            }
+          }
+        }
+      }
+    },
+    "mysql": {
+      "type": "object",
+      "description": "MySQL subchart configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the local MySQL chart as the Vaultwarden database"
+        },
+        "architecture": {
+          "type": "string",
+          "description": "MySQL architecture"
+        },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "database": { "type": "string" },
+            "username": { "type": "string" },
+            "password": {
+              "type": "string",
+              "description": "Required when using the MySQL subchart so Vaultwarden can build DATABASE_URL deterministically"
+            }
+          }
+        }
+      }
+    }
+  }
+}

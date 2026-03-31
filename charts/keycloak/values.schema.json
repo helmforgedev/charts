@@ -1,0 +1,783 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Keycloak Helm Chart Values",
+  "description": "Configuration values for the Keycloak Helm chart. Deploys Keycloak identity and access management with dev or production mode, PostgreSQL/MySQL support, clustering, and realm import.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "mode": {
+      "type": "string",
+      "description": "Keycloak runtime mode: dev | production",
+      "enum": ["dev", "production"]
+    },
+    "nameOverride": {
+      "type": "string",
+      "description": "Override chart name"
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override full release name"
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Labels added to all resources"
+    },
+    "clusterDomain": {
+      "type": "string",
+      "description": "Kubernetes cluster domain"
+    },
+    "image": {
+      "type": "object",
+      "description": "Keycloak container image settings",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Keycloak image repository"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Keycloak image tag"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries",
+      "items": { "type": "object" }
+    },
+    "admin": {
+      "type": "object",
+      "description": "Bootstrap admin credentials",
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "Bootstrap admin username used on first startup"
+        },
+        "password": {
+          "type": "string",
+          "description": "Bootstrap admin password. Auto-generated if empty and no existingSecret is set."
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing secret containing bootstrap admin credentials"
+        },
+        "existingSecretUsernameKey": {
+          "type": "string",
+          "description": "Secret key for admin username in admin.existingSecret"
+        },
+        "existingSecretPasswordKey": {
+          "type": "string",
+          "description": "Secret key for admin password in admin.existingSecret"
+        }
+      }
+    },
+    "http": {
+      "type": "object",
+      "description": "HTTP and management interface configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Keep HTTP enabled inside the cluster"
+        },
+        "port": {
+          "type": "integer",
+          "description": "Application HTTP port"
+        },
+        "managementPort": {
+          "type": "integer",
+          "description": "Management interface port used for health and metrics"
+        },
+        "relativePath": {
+          "type": "string",
+          "description": "HTTP relative path, for example /auth"
+        }
+      }
+    },
+    "hostname": {
+      "type": "object",
+      "description": "Hostname and reverse proxy configuration",
+      "properties": {
+        "hostname": {
+          "type": "string",
+          "description": "Public Keycloak hostname or URL. Required in production mode."
+        },
+        "admin": {
+          "type": "string",
+          "description": "Optional dedicated admin hostname or URL"
+        },
+        "strict": {
+          "type": "boolean",
+          "description": "Enforce strict hostname handling"
+        },
+        "backchannelDynamic": {
+          "type": "boolean",
+          "description": "Enable dynamic backchannel URL resolution"
+        }
+      }
+    },
+    "proxy": {
+      "type": "object",
+      "description": "Reverse proxy settings",
+      "properties": {
+        "headers": {
+          "type": "string",
+          "description": "Proxy headers mode passed to Keycloak, for example xforwarded or forwarded",
+          "enum": ["xforwarded", "forwarded"]
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "description": "Database configuration",
+      "properties": {
+        "external": {
+          "type": "object",
+          "description": "External database connection settings",
+          "properties": {
+            "vendor": {
+              "type": "string",
+              "description": "External database vendor: postgres | mysql | mariadb",
+              "enum": ["postgres", "mysql", "mariadb"]
+            },
+            "host": {
+              "type": "string",
+              "description": "External database host"
+            },
+            "port": {
+              "type": ["string", "integer"],
+              "description": "External database port (auto-detected from vendor when empty)"
+            },
+            "name": {
+              "type": "string",
+              "description": "External database name"
+            },
+            "username": {
+              "type": "string",
+              "description": "External database username"
+            },
+            "password": {
+              "type": "string",
+              "description": "External database password"
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing secret containing database password"
+            },
+            "existingSecretPasswordKey": {
+              "type": "string",
+              "description": "Secret key for database password in database.external.existingSecret"
+            },
+            "jdbcParameters": {
+              "type": "string",
+              "description": "Additional JDBC properties appended to the generated JDBC URL"
+            }
+          }
+        },
+        "tls": {
+          "type": "object",
+          "description": "Database TLS settings",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable database TLS settings"
+            },
+            "sslMode": {
+              "type": "string",
+              "description": "PostgreSQL SSL mode used when database.tls.enabled is true"
+            },
+            "mountPath": {
+              "type": "string",
+              "description": "Mount path for database TLS material"
+            },
+            "rootCertFilename": {
+              "type": "string",
+              "description": "Root CA filename mounted under database.tls.mountPath"
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing secret holding database CA material"
+            },
+            "existingConfigMap": {
+              "type": "string",
+              "description": "Existing ConfigMap holding database CA material"
+            }
+          }
+        }
+      }
+    },
+    "backup": {
+      "type": "object",
+      "description": "Built-in backup CronJob configuration for database-backed modes",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable built-in backup CronJob support for database-backed modes"
+        },
+        "schedule": {
+          "type": "string",
+          "description": "Backup schedule in Cron format"
+        },
+        "suspend": {
+          "type": "boolean",
+          "description": "Suspend backup execution"
+        },
+        "concurrencyPolicy": {
+          "type": "string",
+          "description": "CronJob concurrency policy",
+          "enum": ["Forbid", "Replace", "Allow"]
+        },
+        "successfulJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Successful job history retained by the CronJob"
+        },
+        "failedJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Failed job history retained by the CronJob"
+        },
+        "backoffLimit": {
+          "type": "integer",
+          "description": "Job backoff limit"
+        },
+        "archivePrefix": {
+          "type": "string",
+          "description": "Prefix used in generated backup archive names"
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resources applied to the backup dump and upload containers"
+        },
+        "images": {
+          "type": "object",
+          "description": "Container images used by backup jobs",
+          "properties": {
+            "uploader": {
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
+            },
+            "postgresql": {
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
+            },
+            "mysql": {
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
+            }
+          }
+        },
+        "s3": {
+          "type": "object",
+          "description": "S3-compatible storage configuration for backups",
+          "properties": {
+            "endpoint": { "type": "string", "description": "S3-compatible endpoint URL" },
+            "bucket": { "type": "string", "description": "Target bucket name" },
+            "prefix": { "type": "string", "description": "Optional key prefix inside the bucket" },
+            "createBucketIfNotExists": { "type": "boolean", "description": "Create the bucket automatically when it does not exist yet" },
+            "existingSecret": { "type": "string", "description": "Existing secret containing access-key and secret-key" },
+            "existingSecretAccessKeyKey": { "type": "string", "description": "Secret key name for the access key inside backup.s3.existingSecret" },
+            "existingSecretSecretKeyKey": { "type": "string", "description": "Secret key name for the secret key inside backup.s3.existingSecret" },
+            "accessKey": { "type": "string", "description": "Inline access key used when backup.s3.existingSecret is not set" },
+            "secretKey": { "type": "string", "description": "Inline secret key used when backup.s3.existingSecret is not set" }
+          }
+        },
+        "database": {
+          "type": "object",
+          "description": "Database dump configuration",
+          "properties": {
+            "postgresDumpArgs": { "type": "string", "description": "Extra arguments passed to pg_dump" },
+            "mysqlDumpArgs": { "type": "string", "description": "Extra arguments passed to mysqldump" }
+          }
+        }
+      }
+    },
+    "truststore": {
+      "type": "object",
+      "description": "Additional trusted certificates for outbound TLS connections",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable additional trusted certificates for outbound TLS connections used by Keycloak"
+        },
+        "mountPath": {
+          "type": "string",
+          "description": "Mount path added to Keycloak truststore paths"
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing secret holding PEM or unencrypted PKCS12 trust material"
+        },
+        "existingConfigMap": {
+          "type": "string",
+          "description": "Existing ConfigMap holding PEM or unencrypted PKCS12 trust material"
+        },
+        "tlsHostnameVerifier": {
+          "type": "string",
+          "description": "TLS hostname verification mode for outbound HTTPS and SMTP traffic",
+          "enum": ["DEFAULT", "ANY", "WILDCARD", "STRICT"]
+        }
+      }
+    },
+    "replicaCount": {
+      "type": "integer",
+      "description": "Number of Keycloak replicas"
+    },
+    "cache": {
+      "type": "object",
+      "description": "Distributed cache and clustering settings",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable distributed cache settings in production mode"
+        },
+        "stack": {
+          "type": "string",
+          "description": "Cache stack used when replicaCount > 1 in production mode"
+        },
+        "multiReplicaDefaults": {
+          "type": "object",
+          "description": "Production-oriented scheduling defaults for multi-replica deployments",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Apply production-oriented scheduling defaults when replicaCount > 1"
+            },
+            "podAntiAffinity": {
+              "type": "string",
+              "description": "Pod anti-affinity mode automatically applied for multi-replica deployments",
+              "enum": ["preferred", "required", "none"]
+            },
+            "topologySpread": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Apply a topology spread constraint automatically for multi-replica deployments"
+                },
+                "topologyKey": {
+                  "type": "string",
+                  "description": "Topology key used by the generated spread constraint"
+                },
+                "whenUnsatisfiable": {
+                  "type": "string",
+                  "description": "whenUnsatisfiable policy used by the generated spread constraint",
+                  "enum": ["DoNotSchedule", "ScheduleAnyway"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "realmImport": {
+      "type": "object",
+      "description": "Startup realm import configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable startup realm import using --import-realm"
+        },
+        "files": {
+          "type": "object",
+          "description": "Inline realm files written to a generated ConfigMap"
+        },
+        "existingConfigMap": {
+          "type": "string",
+          "description": "Existing ConfigMap mounted into /opt/keycloak/data/import"
+        }
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Providers and themes configuration",
+      "properties": {
+        "providers": {
+          "type": "object",
+          "properties": {
+            "existingConfigMap": { "type": "string", "description": "Existing ConfigMap mounted into /opt/keycloak/providers" },
+            "existingSecret": { "type": "string", "description": "Existing Secret mounted into /opt/keycloak/providers" },
+            "rolloutToken": { "type": "string", "description": "Manual rollout token to force a restart when external provider content changes" }
+          }
+        },
+        "themes": {
+          "type": "object",
+          "properties": {
+            "existingConfigMap": { "type": "string", "description": "Existing ConfigMap mounted into /opt/keycloak/themes" },
+            "existingSecret": { "type": "string", "description": "Existing Secret mounted into /opt/keycloak/themes" },
+            "rolloutToken": { "type": "string", "description": "Manual rollout token to force a restart when external theme content changes" }
+          }
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "description": "Kubernetes Service configuration",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Service type for application traffic",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer"]
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the application service"
+        },
+        "managementAnnotations": {
+          "type": "object",
+          "description": "Annotations for the management service"
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "description": "Ingress configuration with separate public and admin ingresses",
+      "properties": {
+        "public": {
+          "type": "object",
+          "description": "Public UI and application endpoints ingress",
+          "properties": {
+            "enabled": { "type": "boolean", "description": "Enable ingress for Keycloak public UI and application endpoints" },
+            "ingressClassName": { "type": "string", "description": "Ingress class name for the public ingress" },
+            "annotations": { "type": "object" },
+            "hosts": {
+              "type": "array",
+              "description": "Public ingress hosts",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "host": { "type": "string" },
+                  "paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": { "type": "string" },
+                        "pathType": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "tls": {
+              "type": "array",
+              "description": "Public ingress TLS configuration",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "hosts": { "type": "array", "items": { "type": "string" } },
+                  "secretName": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "admin": {
+          "type": "object",
+          "description": "Admin console and admin endpoints ingress",
+          "properties": {
+            "enabled": { "type": "boolean", "description": "Enable a separate ingress for the admin console and admin endpoints" },
+            "ingressClassName": { "type": "string", "description": "Ingress class name for the admin ingress" },
+            "annotations": { "type": "object" },
+            "hosts": {
+              "type": "array",
+              "description": "Admin ingress hosts",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "host": { "type": "string" },
+                  "paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": { "type": "string" },
+                        "pathType": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "tls": {
+              "type": "array",
+              "description": "Admin ingress TLS configuration",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "hosts": { "type": "array", "items": { "type": "string" } },
+                  "secretName": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "health": {
+      "type": "object",
+      "description": "Keycloak health endpoints",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable Keycloak health endpoints"
+        }
+      }
+    },
+    "probes": {
+      "type": "object",
+      "description": "Health probe configuration",
+      "properties": {
+        "profile": {
+          "type": "string",
+          "description": "Probe profile: default or heavy-startup",
+          "enum": ["default", "heavy-startup"]
+        },
+        "liveness": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean", "description": "Enable the liveness probe" },
+            "initialDelaySeconds": { "type": "integer" },
+            "periodSeconds": { "type": "integer" },
+            "timeoutSeconds": { "type": "integer" },
+            "failureThreshold": { "type": "integer" }
+          }
+        },
+        "readiness": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean", "description": "Enable the readiness probe" },
+            "initialDelaySeconds": { "type": "integer" },
+            "periodSeconds": { "type": "integer" },
+            "timeoutSeconds": { "type": "integer" },
+            "failureThreshold": { "type": "integer" }
+          }
+        },
+        "startup": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean", "description": "Enable the startup probe" },
+            "initialDelaySeconds": { "type": "integer" },
+            "periodSeconds": { "type": "integer" },
+            "timeoutSeconds": { "type": "integer" },
+            "failureThreshold": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Keycloak metrics configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable Keycloak metrics endpoint"
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean", "description": "Create a ServiceMonitor targeting the management service" },
+            "interval": { "type": "string", "description": "Scrape interval" },
+            "labels": { "type": "object", "description": "Additional labels for the ServiceMonitor" }
+          }
+        }
+      }
+    },
+    "pdb": {
+      "type": "object",
+      "description": "PodDisruptionBudget configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable PodDisruptionBudget"
+        },
+        "minAvailable": {
+          "type": "integer",
+          "description": "Minimum available pods when PDB is enabled"
+        },
+        "maxUnavailable": {
+          "type": "string",
+          "description": "Maximum unavailable pods when PDB is enabled"
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "NetworkPolicy configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Create a NetworkPolicy for Keycloak pods"
+        },
+        "ingress": {
+          "type": "object",
+          "properties": {
+            "allowSameNamespace": { "type": "boolean", "description": "Allow app traffic from the same namespace" },
+            "extraFrom": { "type": "array", "description": "Additional ingress from rules for application traffic", "items": { "type": "object" } }
+          }
+        },
+        "management": {
+          "type": "object",
+          "properties": {
+            "allowSameNamespace": { "type": "boolean", "description": "Allow management traffic from the same namespace" },
+            "extraFrom": { "type": "array", "description": "Additional ingress from rules for management traffic", "items": { "type": "object" } }
+          }
+        },
+        "clustering": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean", "description": "Allow intra-cluster cache transport traffic between Keycloak pods when replicaCount > 1" }
+          }
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount configuration",
+      "properties": {
+        "create": { "type": "boolean", "description": "Create a ServiceAccount" },
+        "name": { "type": "string" },
+        "annotations": { "type": "object" }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "CPU and memory requests/limits for the Keycloak container"
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod-level security context"
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Container-level security context"
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector for pod scheduling"
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations for pod scheduling",
+      "items": { "type": "object" }
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Affinity rules for pod scheduling"
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "description": "Topology spread constraints",
+      "items": { "type": "object" }
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Priority class name"
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Grace period for shutdown in seconds"
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Additional labels for the pod"
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Additional annotations for the pod"
+    },
+    "annotations": {
+      "type": "object",
+      "description": "Annotations for the Deployment/StatefulSet"
+    },
+    "extraEnv": {
+      "type": "array",
+      "description": "Additional environment variables",
+      "items": { "type": "object" }
+    },
+    "extraEnvFrom": {
+      "type": "array",
+      "description": "Additional envFrom sources",
+      "items": { "type": "object" }
+    },
+    "initContainers": {
+      "type": "array",
+      "description": "Init containers for the pod",
+      "items": { "type": "object" }
+    },
+    "extraContainers": {
+      "type": "array",
+      "description": "Additional sidecar containers",
+      "items": { "type": "object" }
+    },
+    "extraVolumes": {
+      "type": "array",
+      "description": "Additional volumes for the pod",
+      "items": { "type": "object" }
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "description": "Additional volume mounts for the Keycloak container",
+      "items": { "type": "object" }
+    },
+    "postgresql": {
+      "type": "object",
+      "description": "PostgreSQL subchart configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the local PostgreSQL chart as the Keycloak database"
+        },
+        "architecture": { "type": "string" },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "database": { "type": "string" },
+            "username": { "type": "string" },
+            "password": {
+              "type": "string",
+              "description": "Required when using the PostgreSQL subchart so Keycloak can connect deterministically"
+            }
+          }
+        }
+      }
+    },
+    "mysql": {
+      "type": "object",
+      "description": "MySQL subchart configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the local MySQL chart as the Keycloak database"
+        },
+        "architecture": { "type": "string" },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "database": { "type": "string" },
+            "username": { "type": "string" },
+            "password": {
+              "type": "string",
+              "description": "Required when using the MySQL subchart so Keycloak can connect deterministically"
+            }
+          }
+        }
+      }
+    }
+  }
+}

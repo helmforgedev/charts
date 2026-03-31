@@ -1,0 +1,763 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "AdGuard Home Helm Chart Values",
+  "description": "Values for the AdGuard Home Helm chart — network-wide DNS ad/tracker blocking with optional sync and backup",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name used in resource names",
+      "default": ""
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the full release name used in resource names",
+      "default": ""
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Labels added to every resource created by this chart"
+    },
+    "image": {
+      "type": "object",
+      "description": "Container image configuration",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "AdGuard Home container image",
+          "default": "adguard/adguardhome"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Image tag (defaults to \"v\" + appVersion)",
+          "default": ""
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy",
+          "enum": ["Always", "IfNotPresent", "Never"],
+          "default": "IfNotPresent"
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries",
+      "items": {
+        "type": "object"
+      }
+    },
+    "config": {
+      "type": "object",
+      "description": "AdGuard Home configuration",
+      "additionalProperties": false,
+      "properties": {
+        "adGuardHome": {
+          "type": "object",
+          "description": "Pre-seed AdGuard Home configuration (rendered as AdGuardHome.yaml). When set, the setup wizard is skipped entirely."
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing secret containing AdGuardHome.yaml (key: AdGuardHome.yaml)",
+          "default": ""
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "description": "Persistence configuration",
+      "additionalProperties": false,
+      "properties": {
+        "conf": {
+          "type": "object",
+          "description": "Configuration volume (/opt/adguardhome/conf — AdGuardHome.yaml, TLS certs)",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable persistence for configuration",
+              "default": true
+            },
+            "size": {
+              "type": "string",
+              "description": "Storage size",
+              "default": "256Mi"
+            },
+            "storageClass": {
+              "type": "string",
+              "description": "Storage class (leave empty for cluster default)",
+              "default": ""
+            },
+            "accessModes": {
+              "type": "array",
+              "description": "Access modes for the PVC",
+              "items": {
+                "type": "string"
+              },
+              "default": ["ReadWriteOnce"]
+            },
+            "existingClaim": {
+              "type": "string",
+              "description": "Use an existing PVC instead of creating one",
+              "default": ""
+            }
+          }
+        },
+        "work": {
+          "type": "object",
+          "description": "Working data volume (/opt/adguardhome/work — query log, stats, filters)",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable persistence for working data",
+              "default": true
+            },
+            "size": {
+              "type": "string",
+              "description": "Storage size",
+              "default": "2Gi"
+            },
+            "storageClass": {
+              "type": "string",
+              "description": "Storage class (leave empty for cluster default)",
+              "default": ""
+            },
+            "accessModes": {
+              "type": "array",
+              "description": "Access modes for the PVC",
+              "items": {
+                "type": "string"
+              },
+              "default": ["ReadWriteOnce"]
+            },
+            "existingClaim": {
+              "type": "string",
+              "description": "Use an existing PVC instead of creating one",
+              "default": ""
+            }
+          }
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount configuration",
+      "additionalProperties": false,
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a ServiceAccount",
+          "default": false
+        },
+        "name": {
+          "type": "string",
+          "description": "ServiceAccount name",
+          "default": ""
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the ServiceAccount"
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "description": "Service configuration",
+      "additionalProperties": false,
+      "properties": {
+        "web": {
+          "type": "object",
+          "description": "Web UI service (HTTP admin panel)",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "Service type",
+              "enum": ["ClusterIP", "NodePort", "LoadBalancer"],
+              "default": "ClusterIP"
+            },
+            "port": {
+              "type": "integer",
+              "description": "Web UI service port",
+              "default": 80
+            },
+            "annotations": {
+              "type": "object",
+              "description": "Annotations for the web service"
+            }
+          }
+        },
+        "dns": {
+          "type": "object",
+          "description": "DNS service (separate for LoadBalancer/NodePort use)",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "Service type — use LoadBalancer for external DNS access",
+              "enum": ["ClusterIP", "NodePort", "LoadBalancer"],
+              "default": "LoadBalancer"
+            },
+            "port": {
+              "type": "integer",
+              "description": "DNS service port",
+              "default": 53
+            },
+            "annotations": {
+              "type": "object",
+              "description": "Annotations for the DNS service"
+            },
+            "loadBalancerIP": {
+              "type": "string",
+              "description": "Load balancer IP (optional, for static IP assignment)",
+              "default": ""
+            }
+          }
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "description": "Ingress configuration for the web UI",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable ingress for the web UI",
+          "default": false
+        },
+        "ingressClassName": {
+          "type": "string",
+          "description": "Ingress class name (for example: traefik, nginx)",
+          "default": "traefik"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the ingress"
+        },
+        "hosts": {
+          "type": "array",
+          "description": "Ingress hosts",
+          "items": {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string"
+              },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "pathType": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tls": {
+          "type": "array",
+          "description": "Ingress TLS configuration",
+          "items": {
+            "type": "object",
+            "properties": {
+              "hosts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "secretName": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "probes": {
+      "type": "object",
+      "description": "Health probe configuration",
+      "additionalProperties": false,
+      "properties": {
+        "startup": {
+          "type": "object",
+          "description": "Startup probe configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "httpGet": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "port": {
+                  "type": "string"
+                }
+              }
+            },
+            "initialDelaySeconds": {
+              "type": "integer"
+            },
+            "periodSeconds": {
+              "type": "integer"
+            },
+            "timeoutSeconds": {
+              "type": "integer"
+            },
+            "failureThreshold": {
+              "type": "integer"
+            }
+          }
+        },
+        "liveness": {
+          "type": "object",
+          "description": "Liveness probe configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "httpGet": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "port": {
+                  "type": "string"
+                }
+              }
+            },
+            "initialDelaySeconds": {
+              "type": "integer"
+            },
+            "periodSeconds": {
+              "type": "integer"
+            },
+            "timeoutSeconds": {
+              "type": "integer"
+            },
+            "failureThreshold": {
+              "type": "integer"
+            }
+          }
+        },
+        "readiness": {
+          "type": "object",
+          "description": "Readiness probe configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "httpGet": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "port": {
+                  "type": "string"
+                }
+              }
+            },
+            "initialDelaySeconds": {
+              "type": "integer"
+            },
+            "periodSeconds": {
+              "type": "integer"
+            },
+            "timeoutSeconds": {
+              "type": "integer"
+            },
+            "failureThreshold": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "CPU and memory requests/limits for the main container"
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod-level security context"
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Container-level security context"
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector for pod scheduling"
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations for pod scheduling",
+      "items": {
+        "type": "object"
+      }
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Affinity rules for pod scheduling"
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "description": "Topology spread constraints",
+      "items": {
+        "type": "object"
+      }
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Priority class name",
+      "default": ""
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Grace period for shutdown (seconds)",
+      "default": 30
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Additional labels for the pod"
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Additional annotations for the pod"
+    },
+    "sync": {
+      "type": "object",
+      "description": "AdGuardHome Sync configuration (bakito/adguardhome-sync)",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the adguardhome-sync Deployment",
+          "default": false
+        },
+        "image": {
+          "type": "object",
+          "description": "Sync container image configuration",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "default": "ghcr.io/bakito/adguardhome-sync"
+            },
+            "tag": {
+              "type": "string",
+              "default": "v0.9.0"
+            },
+            "pullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"],
+              "default": "IfNotPresent"
+            }
+          }
+        },
+        "origin": {
+          "type": "object",
+          "description": "Origin AdGuard Home instance (source of truth)",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "URL of the origin AdGuard Home web UI",
+              "default": ""
+            },
+            "username": {
+              "type": "string",
+              "description": "Admin username",
+              "default": ""
+            },
+            "password": {
+              "type": "string",
+              "description": "Admin password",
+              "default": ""
+            }
+          }
+        },
+        "replicas": {
+          "type": "array",
+          "description": "Replica instances to sync configuration to",
+          "items": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "username": {
+                "type": "string"
+              },
+              "password": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "cron": {
+          "type": "string",
+          "description": "Sync schedule in Cron format (empty = continuous daemon mode)",
+          "default": "*/10 * * * *"
+        },
+        "runOnStart": {
+          "type": "boolean",
+          "description": "Run sync immediately on startup",
+          "default": true
+        },
+        "apiPort": {
+          "type": "integer",
+          "description": "API port for sync status endpoint (0 = disabled)",
+          "default": 8080
+        },
+        "features": {
+          "type": "object",
+          "description": "Features to synchronize",
+          "properties": {
+            "dns": {
+              "type": "object",
+              "properties": {
+                "serverConfig": {
+                  "type": "boolean"
+                },
+                "accessLists": {
+                  "type": "boolean"
+                },
+                "rewrites": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "dhcp": {
+              "type": "object",
+              "properties": {
+                "serverConfig": {
+                  "type": "boolean"
+                },
+                "staticLeases": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "general": {
+              "type": "object",
+              "properties": {
+                "settings": {
+                  "type": "boolean"
+                },
+                "protection": {
+                  "type": "boolean"
+                },
+                "clients": {
+                  "type": "boolean"
+                },
+                "filters": {
+                  "type": "boolean"
+                },
+                "services": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resources for the sync container"
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing secret for sync credentials (must contain keys: ORIGIN_URL, ORIGIN_USERNAME, ORIGIN_PASSWORD)",
+          "default": ""
+        }
+      }
+    },
+    "backup": {
+      "type": "object",
+      "description": "Built-in backup CronJob configuration (tar of conf + work + S3 upload)",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable built-in backup CronJob",
+          "default": false
+        },
+        "schedule": {
+          "type": "string",
+          "description": "Backup schedule in Cron format",
+          "default": "0 2 * * *"
+        },
+        "suspend": {
+          "type": "boolean",
+          "description": "Suspend backup execution",
+          "default": false
+        },
+        "concurrencyPolicy": {
+          "type": "string",
+          "description": "CronJob concurrency policy",
+          "enum": ["Allow", "Forbid", "Replace"],
+          "default": "Forbid"
+        },
+        "successfulJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Successful job history retained",
+          "default": 3
+        },
+        "failedJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Failed job history retained",
+          "default": 3
+        },
+        "backoffLimit": {
+          "type": "integer",
+          "description": "Job backoff limit",
+          "default": 1
+        },
+        "archivePrefix": {
+          "type": "string",
+          "description": "Prefix for backup archive names",
+          "default": "adguard-home"
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resources for backup containers"
+        },
+        "images": {
+          "type": "object",
+          "description": "Container images for backup jobs",
+          "properties": {
+            "archiver": {
+              "type": "object",
+              "properties": {
+                "repository": {
+                  "type": "string",
+                  "default": "busybox"
+                },
+                "tag": {
+                  "type": "string",
+                  "default": "1.37"
+                },
+                "pullPolicy": {
+                  "type": "string",
+                  "enum": ["Always", "IfNotPresent", "Never"],
+                  "default": "IfNotPresent"
+                }
+              }
+            },
+            "uploader": {
+              "type": "object",
+              "properties": {
+                "repository": {
+                  "type": "string",
+                  "default": "minio/mc"
+                },
+                "tag": {
+                  "type": "string"
+                },
+                "pullPolicy": {
+                  "type": "string",
+                  "enum": ["Always", "IfNotPresent", "Never"],
+                  "default": "IfNotPresent"
+                }
+              }
+            }
+          }
+        },
+        "s3": {
+          "type": "object",
+          "description": "S3-compatible storage configuration",
+          "properties": {
+            "endpoint": {
+              "type": "string",
+              "description": "S3-compatible endpoint URL",
+              "default": ""
+            },
+            "bucket": {
+              "type": "string",
+              "description": "Target bucket name",
+              "default": ""
+            },
+            "prefix": {
+              "type": "string",
+              "description": "Optional prefix inside the bucket",
+              "default": "adguard-home"
+            },
+            "createBucketIfNotExists": {
+              "type": "boolean",
+              "description": "Create bucket if not exists",
+              "default": true
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing secret containing access-key and secret-key",
+              "default": ""
+            },
+            "existingSecretAccessKeyKey": {
+              "type": "string",
+              "description": "Key in existing secret for access key",
+              "default": "access-key"
+            },
+            "existingSecretSecretKeyKey": {
+              "type": "string",
+              "description": "Key in existing secret for secret key",
+              "default": "secret-key"
+            },
+            "accessKey": {
+              "type": "string",
+              "description": "Inline access key",
+              "default": ""
+            },
+            "secretKey": {
+              "type": "string",
+              "description": "Inline secret key",
+              "default": ""
+            }
+          }
+        }
+      }
+    },
+    "extraEnv": {
+      "type": "array",
+      "description": "Extra environment variables for the container",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraVolumes": {
+      "type": "array",
+      "description": "Additional volumes for the pod",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "description": "Additional volume mounts for the container",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraManifests": {
+      "type": "array",
+      "description": "Extra Kubernetes manifests to deploy alongside the chart",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

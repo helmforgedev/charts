@@ -1,0 +1,518 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "WordPress Helm Chart Values",
+  "description": "Configuration values for the WordPress Helm chart. Deploys WordPress with the official Docker image (Apache variant) and MySQL/MariaDB database support.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name used in resource names"
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the full release name used in resource names"
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Labels added to every resource created by this chart"
+    },
+    "image": {
+      "type": "object",
+      "description": "WordPress container image settings",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Container image repository"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Container image tag (defaults to appVersion)"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries",
+      "items": { "type": "object" }
+    },
+    "wordpress": {
+      "type": "object",
+      "description": "WordPress application configuration",
+      "properties": {
+        "siteUrl": {
+          "type": "string",
+          "description": "Full external URL of the site (auto-detected from ingress if empty)"
+        },
+        "siteTitle": {
+          "type": "string",
+          "description": "Site title shown in the admin and browser tab"
+        },
+        "adminUser": {
+          "type": "string",
+          "description": "Admin username for initial setup"
+        },
+        "adminPassword": {
+          "type": "string",
+          "description": "Admin password (auto-generated if empty and no existingSecret)"
+        },
+        "adminEmail": {
+          "type": "string",
+          "description": "Admin email address"
+        },
+        "tablePrefix": {
+          "type": "string",
+          "description": "Database table prefix"
+        },
+        "debug": {
+          "type": "boolean",
+          "description": "Enable WordPress debug mode (WP_DEBUG)"
+        },
+        "configExtra": {
+          "type": "string",
+          "description": "Extra PHP code injected into wp-config.php via WORDPRESS_CONFIG_EXTRA"
+        },
+        "extraEnv": {
+          "type": "array",
+          "description": "Additional environment variables for the WordPress container",
+          "items": { "type": "object" }
+        }
+      }
+    },
+    "admin": {
+      "type": "object",
+      "description": "Admin credentials secret configuration",
+      "properties": {
+        "existingSecret": {
+          "type": "string",
+          "description": "Use an existing secret for admin credentials"
+        },
+        "existingSecretPasswordKey": {
+          "type": "string",
+          "description": "Key in the existing secret for the admin password"
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "description": "Database configuration",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "description": "Database mode: auto | external | mysql",
+          "enum": ["auto", "external", "mysql"]
+        },
+        "external": {
+          "type": "object",
+          "description": "External database settings",
+          "properties": {
+            "host": {
+              "type": "string",
+              "description": "External database hostname"
+            },
+            "port": {
+              "type": "integer",
+              "description": "External database port"
+            },
+            "name": {
+              "type": "string",
+              "description": "Database name"
+            },
+            "username": {
+              "type": "string",
+              "description": "Database username"
+            },
+            "password": {
+              "type": "string",
+              "description": "Database password (ignored when existingSecret is set)"
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing secret for the database password"
+            },
+            "existingSecretPasswordKey": {
+              "type": "string",
+              "description": "Key in the existing secret for the database password"
+            }
+          }
+        }
+      }
+    },
+    "mysql": {
+      "type": "object",
+      "description": "MySQL subchart configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Deploy MySQL as a subchart"
+        },
+        "architecture": {
+          "type": "string",
+          "description": "MySQL architecture (standalone or replication)"
+        },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "database": { "type": "string", "description": "Database name created on first run" },
+            "username": { "type": "string", "description": "Database username created on first run" },
+            "password": { "type": "string", "description": "Database password (auto-generated if empty)" },
+            "rootPassword": { "type": "string", "description": "Root password (auto-generated if empty)" }
+          }
+        },
+        "primary": {
+          "type": "object",
+          "properties": {
+            "persistence": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean", "description": "Enable persistence for MySQL data" },
+                "size": { "type": "string", "description": "PVC size for MySQL" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "description": "Persistent storage for /var/www/html",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable persistent storage for /var/www/html"
+        },
+        "storageClass": {
+          "type": "string",
+          "description": "Storage class (leave empty for cluster default)"
+        },
+        "accessMode": {
+          "type": "string",
+          "description": "Access mode for the PVC",
+          "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany"]
+        },
+        "size": {
+          "type": "string",
+          "description": "Size of the persistent volume"
+        },
+        "existingClaim": {
+          "type": "string",
+          "description": "Use an existing PVC instead of creating one"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the PVC"
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "CPU and memory requests/limits for the WordPress container"
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod-level security context"
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Container-level security context"
+    },
+    "startupProbe": {
+      "type": "object",
+      "description": "Startup probe configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable startup probe" },
+        "path": { "type": "string", "description": "Path for HTTP GET probe" },
+        "initialDelaySeconds": { "type": "integer" },
+        "periodSeconds": { "type": "integer" },
+        "timeoutSeconds": { "type": "integer" },
+        "failureThreshold": { "type": "integer" }
+      }
+    },
+    "livenessProbe": {
+      "type": "object",
+      "description": "Liveness probe configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable liveness probe" },
+        "path": { "type": "string", "description": "Path for HTTP GET probe" },
+        "initialDelaySeconds": { "type": "integer" },
+        "periodSeconds": { "type": "integer" },
+        "timeoutSeconds": { "type": "integer" },
+        "failureThreshold": { "type": "integer" }
+      }
+    },
+    "readinessProbe": {
+      "type": "object",
+      "description": "Readiness probe configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable readiness probe" },
+        "path": { "type": "string", "description": "Path for HTTP GET probe" },
+        "initialDelaySeconds": { "type": "integer" },
+        "periodSeconds": { "type": "integer" },
+        "timeoutSeconds": { "type": "integer" },
+        "failureThreshold": { "type": "integer" }
+      }
+    },
+    "service": {
+      "type": "object",
+      "description": "Kubernetes Service configuration",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Service type",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer"]
+        },
+        "port": {
+          "type": "integer",
+          "description": "HTTP port"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the service"
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "description": "Ingress configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable ingress for WordPress"
+        },
+        "ingressClassName": {
+          "type": "string",
+          "description": "Ingress class name"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Ingress annotations"
+        },
+        "hosts": {
+          "type": "array",
+          "description": "Ingress hosts",
+          "items": {
+            "type": "object",
+            "properties": {
+              "host": { "type": "string" },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": { "type": "string" },
+                    "pathType": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tls": {
+          "type": "array",
+          "description": "Ingress TLS configuration",
+          "items": {
+            "type": "object",
+            "properties": {
+              "hosts": { "type": "array", "items": { "type": "string" } },
+              "secretName": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount configuration",
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a dedicated ServiceAccount"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name override (auto-generated if empty)"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the ServiceAccount"
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Prometheus metrics via apache-exporter sidecar",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable Prometheus metrics via apache-exporter sidecar"
+        },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": { "type": "string", "description": "apache-exporter image repository" },
+            "tag": { "type": "string", "description": "apache-exporter image tag" },
+            "pullPolicy": { "type": "string", "description": "apache-exporter pull policy", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
+        "port": {
+          "type": "integer",
+          "description": "Port for the Prometheus metrics endpoint"
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "description": "ServiceMonitor for Prometheus Operator",
+          "properties": {
+            "enabled": { "type": "boolean", "description": "Create a ServiceMonitor resource" },
+            "interval": { "type": "string", "description": "Scrape interval" },
+            "labels": { "type": "object", "description": "Additional labels for the ServiceMonitor" }
+          }
+        }
+      }
+    },
+    "backup": {
+      "type": "object",
+      "description": "Scheduled backup to S3-compatible storage",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable scheduled backups to S3-compatible storage"
+        },
+        "schedule": {
+          "type": "string",
+          "description": "Cron schedule for backups (default: daily at 03:00 UTC)"
+        },
+        "suspend": {
+          "type": "boolean",
+          "description": "Suspend the CronJob without deleting it"
+        },
+        "concurrencyPolicy": {
+          "type": "string",
+          "description": "Concurrency policy: Forbid, Replace, Allow",
+          "enum": ["Forbid", "Replace", "Allow"]
+        },
+        "successfulJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Number of successful job records to keep"
+        },
+        "failedJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Number of failed job records to keep"
+        },
+        "backoffLimit": {
+          "type": "integer",
+          "description": "Maximum retries per backup job"
+        },
+        "archivePrefix": {
+          "type": "string",
+          "description": "Prefix for backup archive filenames"
+        },
+        "images": {
+          "type": "object",
+          "description": "Container images used by backup jobs",
+          "properties": {
+            "worker": { "type": "string", "description": "Image used for mysqldump (must have mysqldump binary)" },
+            "archiver": { "type": "string", "description": "Image used for file archiving (must have tar)" },
+            "uploader": { "type": "string", "description": "Image used for S3 upload (MinIO client)" }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resources for backup containers"
+        },
+        "s3": {
+          "type": "object",
+          "description": "S3-compatible storage configuration",
+          "properties": {
+            "endpoint": { "type": "string", "description": "S3-compatible endpoint URL" },
+            "bucket": { "type": "string", "description": "Target bucket name" },
+            "prefix": { "type": "string", "description": "Key prefix within the bucket" },
+            "createBucketIfNotExists": { "type": "boolean", "description": "Auto-create the bucket if it does not exist" },
+            "existingSecret": { "type": "string", "description": "Use an existing secret for S3 credentials" },
+            "existingSecretAccessKeyKey": { "type": "string", "description": "Key in the existing secret for the access key" },
+            "existingSecretSecretKeyKey": { "type": "string", "description": "Key in the existing secret for the secret key" },
+            "accessKey": { "type": "string", "description": "Inline S3 access key (ignored when existingSecret is set)" },
+            "secretKey": { "type": "string", "description": "Inline S3 secret key (ignored when existingSecret is set)" }
+          }
+        },
+        "database": {
+          "type": "object",
+          "description": "Override database credentials for backup (uses app credentials if empty)",
+          "properties": {
+            "host": { "type": "string", "description": "Override database host for backup" },
+            "port": { "type": ["string", "integer"], "description": "Override database port for backup" },
+            "name": { "type": "string", "description": "Override database name for backup" },
+            "username": { "type": "string", "description": "Override database username for backup" },
+            "password": { "type": "string", "description": "Override database password for backup" },
+            "existingSecret": { "type": "string", "description": "Existing secret for backup database credentials" },
+            "existingSecretPasswordKey": { "type": "string", "description": "Key in existing secret for the backup database password" },
+            "mysqldumpArgs": { "type": "string", "description": "Extra arguments for mysqldump" }
+          }
+        }
+      }
+    },
+    "php": {
+      "type": "object",
+      "description": "PHP configuration",
+      "properties": {
+        "ini": {
+          "type": "string",
+          "description": "Custom php.ini settings injected via ConfigMap"
+        }
+      }
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector for pod scheduling"
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations for pod scheduling",
+      "items": { "type": "object" }
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Affinity rules for pod scheduling"
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "description": "Topology spread constraints",
+      "items": { "type": "object" }
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Priority class name"
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Grace period for shutdown (seconds)"
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Additional labels for the pod"
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Additional annotations for the pod"
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "description": "Additional volume mounts for the WordPress container",
+      "items": { "type": "object" }
+    },
+    "extraVolumes": {
+      "type": "array",
+      "description": "Additional volumes for the pod",
+      "items": { "type": "object" }
+    },
+    "extraManifests": {
+      "type": "array",
+      "description": "Extra Kubernetes manifests to deploy alongside the chart",
+      "items": { "type": "object" }
+    }
+  }
+}

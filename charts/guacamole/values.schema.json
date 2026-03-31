@@ -1,0 +1,586 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Apache Guacamole Helm Chart",
+  "description": "Remote desktop gateway supporting VNC, RDP, and SSH via a web browser. Includes guacamole, guacd, database, and OIDC/SAML support.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name used in resource names."
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the full release name used in resource names."
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Labels added to every resource created by this chart."
+    },
+    "image": {
+      "type": "object",
+      "description": "Guacamole web application image configuration.",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Guacamole web application image."
+        },
+        "tag": {
+          "type": "string",
+          "description": "Image tag (defaults to appVersion)."
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy.",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "guacd": {
+      "type": "object",
+      "description": "guacd daemon configuration.",
+      "properties": {
+        "image": {
+          "type": "object",
+          "description": "guacd daemon image configuration.",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "description": "guacd daemon image."
+            },
+            "tag": {
+              "type": "string",
+              "description": "guacd image tag (defaults to appVersion)."
+            },
+            "pullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            }
+          }
+        },
+        "port": {
+          "type": "integer",
+          "description": "guacd daemon port."
+        },
+        "logLevel": {
+          "type": "string",
+          "description": "guacd log level (info, debug, warning, error).",
+          "enum": ["info", "debug", "warning", "error"]
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resources for the guacd container."
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries.",
+      "items": { "type": "object" }
+    },
+    "guacamole": {
+      "type": "object",
+      "description": "Guacamole web application configuration.",
+      "properties": {
+        "contextPath": {
+          "type": "string",
+          "description": "Web application context path (use \"ROOT\" to serve at /)."
+        },
+        "extraEnv": {
+          "type": "array",
+          "description": "Extra environment variables for the Guacamole container.",
+          "items": { "type": "object" }
+        }
+      }
+    },
+    "proxy": {
+      "type": "object",
+      "description": "Reverse proxy configuration.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable Tomcat RemoteIpValve for reverse proxy."
+        },
+        "allowedIpsRegex": {
+          "type": "string",
+          "description": "Trusted proxy IP regex."
+        },
+        "ipHeader": {
+          "type": "string",
+          "description": "Header for client IP."
+        },
+        "protocolHeader": {
+          "type": "string",
+          "description": "Header for protocol."
+        }
+      }
+    },
+    "oidc": {
+      "type": "object",
+      "description": "OpenID Connect authentication configuration.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable OpenID Connect authentication."
+        },
+        "authorizationEndpoint": {
+          "type": "string",
+          "description": "Authorization endpoint URI."
+        },
+        "jwksEndpoint": {
+          "type": "string",
+          "description": "JWKS endpoint URI for token validation."
+        },
+        "issuer": {
+          "type": "string",
+          "description": "Expected token issuer."
+        },
+        "clientId": {
+          "type": "string",
+          "description": "Client ID."
+        },
+        "redirectUri": {
+          "type": "string",
+          "description": "Redirect URI (auto-detected from ingress if empty)."
+        },
+        "scope": {
+          "type": "string",
+          "description": "Space-separated scopes."
+        },
+        "usernameClaim": {
+          "type": "string",
+          "description": "JWT claim for username."
+        },
+        "groupsClaim": {
+          "type": "string",
+          "description": "JWT claim for groups."
+        },
+        "allowedClockSkew": {
+          "type": "integer",
+          "description": "Allowed clock skew in seconds."
+        },
+        "maxTokenValidity": {
+          "type": "integer",
+          "description": "Maximum token validity in minutes."
+        }
+      }
+    },
+    "saml": {
+      "type": "object",
+      "description": "SAML authentication configuration.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable SAML authentication."
+        },
+        "idpMetadataUrl": {
+          "type": "string",
+          "description": "IdP metadata URL."
+        },
+        "idpUrl": {
+          "type": "string",
+          "description": "IdP URL (used if metadata URL unavailable)."
+        },
+        "entityId": {
+          "type": "string",
+          "description": "Service provider entity ID."
+        },
+        "callbackUrl": {
+          "type": "string",
+          "description": "Callback URL (auto-detected from ingress if empty)."
+        },
+        "strict": {
+          "type": "boolean",
+          "description": "Enforce certificate validation."
+        },
+        "debug": {
+          "type": "boolean",
+          "description": "Enable debug logging."
+        },
+        "compressRequest": {
+          "type": "boolean",
+          "description": "Compress requests."
+        },
+        "compressResponse": {
+          "type": "boolean",
+          "description": "Compress responses."
+        },
+        "groupAttribute": {
+          "type": "string",
+          "description": "Group attribute name."
+        }
+      }
+    },
+    "totp": {
+      "type": "object",
+      "description": "TOTP two-factor authentication configuration.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable TOTP two-factor authentication."
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "description": "Database configuration.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Database type: postgresql or mysql.",
+          "enum": ["postgresql", "mysql"]
+        },
+        "external": {
+          "type": "object",
+          "description": "External database configuration (used when neither subchart is enabled).",
+          "properties": {
+            "host": { "type": "string" },
+            "port": { "type": ["string", "integer"] },
+            "name": { "type": "string" },
+            "username": { "type": "string" },
+            "password": { "type": "string" },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing secret containing the database password."
+            },
+            "existingSecretPasswordKey": {
+              "type": "string",
+              "description": "Key in the existing secret containing the password."
+            }
+          }
+        }
+      }
+    },
+    "initDb": {
+      "type": "object",
+      "description": "Database init job configuration.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Run a Job to initialize the database schema on install."
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resources for the init job."
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount configuration.",
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a ServiceAccount."
+        },
+        "name": {
+          "type": "string",
+          "description": "ServiceAccount name."
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the ServiceAccount."
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "description": "Service configuration.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Service type.",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer"]
+        },
+        "port": {
+          "type": "integer",
+          "description": "HTTP service port."
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the Service."
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "description": "Ingress configuration for Guacamole.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable ingress for Guacamole."
+        },
+        "ingressClassName": {
+          "type": "string",
+          "description": "Ingress class name (for example: traefik, nginx)."
+        },
+        "annotations": {
+          "type": "object"
+        },
+        "hosts": {
+          "type": "array",
+          "description": "Ingress hosts.",
+          "items": { "type": "object" }
+        },
+        "tls": {
+          "type": "array",
+          "description": "Ingress TLS configuration.",
+          "items": { "type": "object" }
+        }
+      }
+    },
+    "probes": {
+      "type": "object",
+      "description": "Health probe configuration.",
+      "properties": {
+        "startup": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string" },
+            "initialDelaySeconds": { "type": "integer" },
+            "periodSeconds": { "type": "integer" },
+            "timeoutSeconds": { "type": "integer" },
+            "failureThreshold": { "type": "integer" }
+          }
+        },
+        "liveness": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string" },
+            "initialDelaySeconds": { "type": "integer" },
+            "periodSeconds": { "type": "integer" },
+            "timeoutSeconds": { "type": "integer" },
+            "failureThreshold": { "type": "integer" }
+          }
+        },
+        "readiness": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string" },
+            "initialDelaySeconds": { "type": "integer" },
+            "periodSeconds": { "type": "integer" },
+            "timeoutSeconds": { "type": "integer" },
+            "failureThreshold": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "CPU and memory requests/limits."
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod-level security context."
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Container-level security context."
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector for pod scheduling."
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations for pod scheduling.",
+      "items": { "type": "object" }
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Affinity rules for pod scheduling."
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "description": "Topology spread constraints.",
+      "items": { "type": "object" }
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Priority class name."
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Grace period for shutdown (seconds)."
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Additional labels for the pod."
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Additional annotations for the pod."
+    },
+    "backup": {
+      "type": "object",
+      "description": "Built-in backup CronJob (database dump + S3 upload).",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable built-in backup CronJob."
+        },
+        "schedule": {
+          "type": "string",
+          "description": "Backup schedule in Cron format."
+        },
+        "suspend": {
+          "type": "boolean",
+          "description": "Suspend backup execution."
+        },
+        "concurrencyPolicy": {
+          "type": "string",
+          "description": "CronJob concurrency policy.",
+          "enum": ["Forbid", "Replace", "Allow"]
+        },
+        "successfulJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Successful job history retained."
+        },
+        "failedJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Failed job history retained."
+        },
+        "backoffLimit": {
+          "type": "integer",
+          "description": "Job backoff limit."
+        },
+        "archivePrefix": {
+          "type": "string",
+          "description": "Prefix for backup archive names."
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resources for backup containers."
+        },
+        "images": {
+          "type": "object",
+          "description": "Container images used by backup jobs.",
+          "properties": {
+            "uploader": {
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
+            },
+            "postgresql": {
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
+            },
+            "mysql": {
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
+            }
+          }
+        },
+        "s3": {
+          "type": "object",
+          "description": "S3-compatible storage configuration for backups.",
+          "properties": {
+            "endpoint": {
+              "type": "string",
+              "description": "S3-compatible endpoint URL."
+            },
+            "bucket": {
+              "type": "string",
+              "description": "Target bucket name."
+            },
+            "prefix": {
+              "type": "string",
+              "description": "Optional prefix inside the bucket."
+            },
+            "createBucketIfNotExists": {
+              "type": "boolean",
+              "description": "Create bucket if not exists."
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing secret containing access-key and secret-key."
+            },
+            "existingSecretAccessKeyKey": { "type": "string" },
+            "existingSecretSecretKeyKey": { "type": "string" },
+            "accessKey": {
+              "type": "string",
+              "description": "Inline access key."
+            },
+            "secretKey": {
+              "type": "string",
+              "description": "Inline secret key."
+            }
+          }
+        }
+      }
+    },
+    "extraVolumes": {
+      "type": "array",
+      "description": "Additional volumes for the pod.",
+      "items": { "type": "object" }
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "description": "Additional volume mounts for the container.",
+      "items": { "type": "object" }
+    },
+    "extraManifests": {
+      "type": "array",
+      "description": "Extra manifests to deploy alongside the chart.",
+      "items": { "type": "object" }
+    },
+    "postgresql": {
+      "type": "object",
+      "description": "PostgreSQL subchart configuration.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the local PostgreSQL chart."
+        },
+        "architecture": { "type": "string" },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "database": { "type": "string" },
+            "username": { "type": "string" },
+            "password": {
+              "type": "string",
+              "description": "Required when using the PostgreSQL subchart."
+            }
+          }
+        }
+      }
+    },
+    "mysql": {
+      "type": "object",
+      "description": "MySQL subchart configuration.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the local MySQL chart."
+        },
+        "architecture": { "type": "string" },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "database": { "type": "string" },
+            "username": { "type": "string" },
+            "password": {
+              "type": "string",
+              "description": "Required when using the MySQL subchart."
+            }
+          }
+        }
+      }
+    }
+  }
+}

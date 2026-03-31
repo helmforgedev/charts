@@ -1,0 +1,525 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Redis Helm Chart Values",
+  "description": "Default values for the Redis Helm chart. Supports standalone, replication, sentinel, and cluster architectures.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "architecture": {
+      "type": "string",
+      "description": "Redis topology to deploy: standalone | replication | sentinel | cluster",
+      "enum": ["standalone", "replication", "sentinel", "cluster"]
+    },
+    "nameOverride": {
+      "type": "string",
+      "description": "Override chart name"
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override full release name"
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Extra labels applied to all resources"
+    },
+    "image": {
+      "type": "object",
+      "description": "Redis container image settings",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Redis image repository"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Redis image tag"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries",
+      "items": {
+        "type": "object"
+      }
+    },
+    "auth": {
+      "type": "object",
+      "description": "Redis authentication settings",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable password authentication"
+        },
+        "password": {
+          "type": "string",
+          "description": "Redis password. Auto-generated if empty and auth.enabled=true"
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing secret with the Redis password"
+        },
+        "existingSecretPasswordKey": {
+          "type": "string",
+          "description": "Secret key name for the password in auth.existingSecret"
+        }
+      }
+    },
+    "tls": {
+      "type": "object",
+      "description": "TLS configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable TLS. Requires tls.existingSecret."
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing secret with tls.crt, tls.key and ca.crt"
+        },
+        "certFilename": {
+          "type": "string",
+          "description": "TLS certificate filename"
+        },
+        "keyFilename": {
+          "type": "string",
+          "description": "TLS private key filename"
+        },
+        "caFilename": {
+          "type": "string",
+          "description": "TLS CA certificate filename"
+        }
+      }
+    },
+    "standalone": {
+      "type": "object",
+      "description": "Standalone architecture settings",
+      "properties": {
+        "persistence": {
+          "type": "object",
+          "description": "Persistence settings for standalone mode",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable persistence"
+            },
+            "storageClass": {
+              "type": "string",
+              "description": "Storage class for the PVC"
+            },
+            "accessModes": {
+              "type": "array",
+              "description": "Access modes for the PVC",
+              "items": {
+                "type": "string"
+              }
+            },
+            "size": {
+              "type": "string",
+              "description": "PVC size"
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resource requests and limits"
+        }
+      }
+    },
+    "replication": {
+      "type": "object",
+      "description": "Replication architecture settings",
+      "properties": {
+        "replicaCount": {
+          "type": "integer",
+          "description": "Number of replica nodes"
+        },
+        "primary": {
+          "type": "object",
+          "description": "Primary node settings",
+          "properties": {
+            "persistence": {
+              "type": "object",
+              "description": "Persistence settings for the primary node",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "storageClass": { "type": "string" },
+                "accessModes": { "type": "array", "items": { "type": "string" } },
+                "size": { "type": "string" }
+              }
+            },
+            "resources": {
+              "type": "object",
+              "description": "Resource requests and limits for the primary node"
+            }
+          }
+        },
+        "replica": {
+          "type": "object",
+          "description": "Replica node settings",
+          "properties": {
+            "persistence": {
+              "type": "object",
+              "description": "Persistence settings for replica nodes",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "storageClass": { "type": "string" },
+                "accessModes": { "type": "array", "items": { "type": "string" } },
+                "size": { "type": "string" }
+              }
+            },
+            "resources": {
+              "type": "object",
+              "description": "Resource requests and limits for replica nodes"
+            }
+          }
+        }
+      }
+    },
+    "sentinel": {
+      "type": "object",
+      "description": "Sentinel architecture settings",
+      "properties": {
+        "replicaCount": {
+          "type": "integer",
+          "description": "Number of sentinel replicas"
+        },
+        "quorum": {
+          "type": "integer",
+          "description": "Quorum for sentinel failover"
+        },
+        "downAfterMilliseconds": {
+          "type": "integer",
+          "description": "Milliseconds before marking a node as down"
+        },
+        "failoverTimeout": {
+          "type": "integer",
+          "description": "Failover timeout in milliseconds"
+        },
+        "parallelSyncs": {
+          "type": "integer",
+          "description": "Number of parallel syncs during failover"
+        },
+        "persistence": {
+          "type": "object",
+          "description": "Persistence settings for sentinel",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "storageClass": { "type": "string" },
+            "accessModes": { "type": "array", "items": { "type": "string" } },
+            "size": { "type": "string" }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resource requests and limits for sentinel"
+        }
+      }
+    },
+    "cluster": {
+      "type": "object",
+      "description": "Cluster architecture settings",
+      "properties": {
+        "nodes": {
+          "type": "integer",
+          "description": "Total number of cluster nodes"
+        },
+        "replicasPerMaster": {
+          "type": "integer",
+          "description": "Number of replicas per master node"
+        },
+        "initJob": {
+          "type": "object",
+          "description": "Cluster initialization job settings",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable the cluster init job"
+            },
+            "backoffLimit": {
+              "type": "integer",
+              "description": "Job backoff limit"
+            },
+            "activeDeadlineSeconds": {
+              "type": "integer",
+              "description": "Job active deadline in seconds"
+            }
+          }
+        },
+        "persistence": {
+          "type": "object",
+          "description": "Persistence settings for cluster nodes",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "storageClass": { "type": "string" },
+            "accessModes": { "type": "array", "items": { "type": "string" } },
+            "size": { "type": "string" }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resource requests and limits for cluster nodes"
+        }
+      }
+    },
+    "config": {
+      "type": "object",
+      "description": "Extra Redis and Sentinel configuration",
+      "properties": {
+        "redis": {
+          "type": "string",
+          "description": "Extra Redis configuration appended to the generated redis.conf"
+        },
+        "sentinel": {
+          "type": "string",
+          "description": "Extra Sentinel configuration appended to the generated sentinel.conf"
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "description": "Service configuration",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Service type",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer"]
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations applied to the service"
+        },
+        "clientAnnotations": {
+          "type": "object",
+          "description": "Annotations applied to the client service"
+        },
+        "primaryAnnotations": {
+          "type": "object",
+          "description": "Annotations applied to the primary service"
+        },
+        "replicaAnnotations": {
+          "type": "object",
+          "description": "Annotations applied to the replica service"
+        },
+        "sentinelAnnotations": {
+          "type": "object",
+          "description": "Annotations applied to the sentinel service"
+        },
+        "clusterAnnotations": {
+          "type": "object",
+          "description": "Annotations applied to the cluster service"
+        },
+        "ports": {
+          "type": "object",
+          "description": "Service port configuration",
+          "properties": {
+            "redis": {
+              "type": "integer",
+              "description": "Redis port"
+            },
+            "sentinel": {
+              "type": "integer",
+              "description": "Sentinel port"
+            },
+            "metrics": {
+              "type": "integer",
+              "description": "Metrics exporter port"
+            }
+          }
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount configuration",
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a ServiceAccount"
+        },
+        "name": {
+          "type": "string",
+          "description": "Existing ServiceAccount name"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations added to the ServiceAccount"
+        }
+      }
+    },
+    "livenessProbe": {
+      "type": "object",
+      "description": "Liveness probe configuration",
+      "properties": {
+        "initialDelaySeconds": { "type": "integer" },
+        "periodSeconds": { "type": "integer" },
+        "timeoutSeconds": { "type": "integer" },
+        "failureThreshold": { "type": "integer" }
+      }
+    },
+    "readinessProbe": {
+      "type": "object",
+      "description": "Readiness probe configuration",
+      "properties": {
+        "initialDelaySeconds": { "type": "integer" },
+        "periodSeconds": { "type": "integer" },
+        "timeoutSeconds": { "type": "integer" },
+        "failureThreshold": { "type": "integer" }
+      }
+    },
+    "startupProbe": {
+      "type": "object",
+      "description": "Startup probe configuration",
+      "properties": {
+        "initialDelaySeconds": { "type": "integer" },
+        "periodSeconds": { "type": "integer" },
+        "timeoutSeconds": { "type": "integer" },
+        "failureThreshold": { "type": "integer" }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Prometheus metrics configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable Prometheus metrics exporter"
+        },
+        "image": {
+          "type": "object",
+          "description": "Metrics exporter image settings",
+          "properties": {
+            "repository": { "type": "string" },
+            "tag": { "type": "string" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resource requests and limits for the metrics exporter"
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "description": "ServiceMonitor configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Create a ServiceMonitor resource"
+            },
+            "interval": {
+              "type": "string",
+              "description": "Scrape interval"
+            },
+            "labels": {
+              "type": "object",
+              "description": "Extra labels for the ServiceMonitor"
+            }
+          }
+        }
+      }
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod-level security context",
+      "properties": {
+        "fsGroup": { "type": "integer" }
+      }
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Container-level security context",
+      "properties": {
+        "runAsUser": { "type": "integer" },
+        "runAsGroup": { "type": "integer" },
+        "runAsNonRoot": { "type": "boolean" },
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "readOnlyRootFilesystem": { "type": "boolean" }
+      }
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Extra labels for pods"
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Extra annotations for pods"
+    },
+    "annotations": {
+      "type": "object",
+      "description": "Extra annotations for all resources"
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector for pod scheduling"
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations for pod scheduling",
+      "items": {
+        "type": "object"
+      }
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Affinity rules for pod scheduling"
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "description": "Topology spread constraints for pod scheduling",
+      "items": {
+        "type": "object"
+      }
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Priority class name for pods"
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Termination grace period in seconds"
+    },
+    "pdb": {
+      "type": "object",
+      "description": "PodDisruptionBudget configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable PodDisruptionBudget"
+        }
+      }
+    },
+    "extraEnv": {
+      "type": "array",
+      "description": "Extra environment variables",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraVolumes": {
+      "type": "array",
+      "description": "Extra volumes",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "description": "Extra volume mounts",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraManifests": {
+      "type": "array",
+      "description": "Extra manifests rendered with tpl",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

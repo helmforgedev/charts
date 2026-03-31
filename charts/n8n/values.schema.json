@@ -1,0 +1,602 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "n8n Helm Chart Values",
+  "description": "Configuration values for the n8n Helm chart. Deploys a workflow automation platform with SQLite, PostgreSQL, or MySQL support and optional Redis-backed queue mode.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name used in resource names"
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the full release name used in resource names"
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Labels added to every resource created by this chart"
+    },
+    "image": {
+      "type": "object",
+      "description": "n8n container image settings",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Container image repository"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Container image tag (defaults to appVersion)"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries",
+      "items": {
+        "type": "object"
+      }
+    },
+    "n8n": {
+      "type": "object",
+      "description": "n8n application configuration",
+      "properties": {
+        "encryptionKey": {
+          "type": "string",
+          "description": "Encryption key for credentials (auto-generated if empty)"
+        },
+        "webhookUrl": {
+          "type": "string",
+          "description": "Webhook URL for external access (auto-detected from ingress if empty)"
+        },
+        "editorBaseUrl": {
+          "type": "string",
+          "description": "Editor base URL (auto-detected from ingress if empty)"
+        },
+        "logLevel": {
+          "type": "string",
+          "description": "Log level: info, warn, error, debug",
+          "enum": ["info", "warn", "error", "debug"]
+        },
+        "logOutput": {
+          "type": "string",
+          "description": "Log output: console, file",
+          "enum": ["console", "file"]
+        },
+        "extraEnv": {
+          "type": "array",
+          "description": "Additional environment variables for the n8n container",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "queue": {
+      "type": "object",
+      "description": "Queue mode configuration (Redis-backed horizontal scaling)",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable queue mode (requires Redis)"
+        },
+        "workers": {
+          "type": "integer",
+          "description": "Number of worker replicas"
+        },
+        "concurrency": {
+          "type": "integer",
+          "description": "Worker concurrency (workflows per worker)"
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resources for worker pods"
+        },
+        "external": {
+          "type": "object",
+          "description": "External Redis configuration",
+          "properties": {
+            "host": {
+              "type": "string",
+              "description": "Use an external Redis instead of the subchart"
+            },
+            "port": {
+              "type": "integer",
+              "description": "External Redis port"
+            },
+            "password": {
+              "type": "string",
+              "description": "External Redis password"
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing secret for external Redis password"
+            },
+            "existingSecretPasswordKey": {
+              "type": "string",
+              "description": "Key in the existing secret for the Redis password"
+            }
+          }
+        }
+      }
+    },
+    "encryptionKey": {
+      "type": "object",
+      "description": "Encryption key secret configuration",
+      "properties": {
+        "existingSecret": {
+          "type": "string",
+          "description": "Use an existing secret for the encryption key"
+        },
+        "existingSecretKey": {
+          "type": "string",
+          "description": "Key in the existing secret"
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "description": "Database configuration",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "description": "Database mode: auto | sqlite | external | postgresql | mysql",
+          "enum": ["auto", "sqlite", "external", "postgresql", "mysql"]
+        },
+        "sqlite": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string",
+              "description": "SQLite database file path"
+            }
+          }
+        },
+        "external": {
+          "type": "object",
+          "description": "External database settings",
+          "properties": {
+            "vendor": {
+              "type": "string",
+              "description": "Database vendor: postgres | mysql",
+              "enum": ["postgres", "mysql"]
+            },
+            "host": {
+              "type": "string",
+              "description": "External database hostname"
+            },
+            "port": {
+              "type": ["string", "integer"],
+              "description": "External database port (auto-detected from vendor if empty)"
+            },
+            "name": {
+              "type": "string",
+              "description": "Database name"
+            },
+            "username": {
+              "type": "string",
+              "description": "Database username"
+            },
+            "password": {
+              "type": "string",
+              "description": "Database password (ignored when existingSecret is set)"
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing secret for the database password"
+            },
+            "existingSecretPasswordKey": {
+              "type": "string",
+              "description": "Key in the existing secret for the database password"
+            }
+          }
+        }
+      }
+    },
+    "postgresql": {
+      "type": "object",
+      "description": "PostgreSQL subchart configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Deploy PostgreSQL as a subchart"
+        },
+        "architecture": {
+          "type": "string",
+          "description": "PostgreSQL architecture (standalone or replication)"
+        },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "database": { "type": "string", "description": "Database name created on first run" },
+            "username": { "type": "string", "description": "Database username created on first run" },
+            "password": { "type": "string", "description": "Database password (auto-generated if empty)" },
+            "rootPassword": { "type": "string", "description": "Root password (auto-generated if empty)" }
+          }
+        },
+        "primary": {
+          "type": "object",
+          "properties": {
+            "persistence": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean", "description": "Enable persistence for PostgreSQL data" },
+                "size": { "type": "string", "description": "PVC size for PostgreSQL" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "mysql": {
+      "type": "object",
+      "description": "MySQL subchart configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Deploy MySQL as a subchart"
+        },
+        "architecture": {
+          "type": "string",
+          "description": "MySQL architecture (standalone or replication)"
+        },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "database": { "type": "string", "description": "Database name created on first run" },
+            "username": { "type": "string", "description": "Database username created on first run" },
+            "password": { "type": "string", "description": "Database password (auto-generated if empty)" },
+            "rootPassword": { "type": "string", "description": "Root password (auto-generated if empty)" }
+          }
+        },
+        "primary": {
+          "type": "object",
+          "properties": {
+            "persistence": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean", "description": "Enable persistence for MySQL data" },
+                "size": { "type": "string", "description": "PVC size for MySQL" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "redis": {
+      "type": "object",
+      "description": "Redis subchart configuration (for queue mode)",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Deploy Redis as a subchart (required for queue mode unless external Redis)"
+        },
+        "architecture": {
+          "type": "string",
+          "description": "Redis architecture"
+        },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "password": { "type": "string", "description": "Redis password (auto-generated if empty)" }
+          }
+        },
+        "primary": {
+          "type": "object",
+          "properties": {
+            "persistence": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean", "description": "Enable persistence for Redis data" },
+                "size": { "type": "string", "description": "PVC size for Redis" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "description": "Persistent storage for /home/node/.n8n",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable persistent storage for /home/node/.n8n"
+        },
+        "storageClass": {
+          "type": "string",
+          "description": "Storage class (leave empty for cluster default)"
+        },
+        "accessMode": {
+          "type": "string",
+          "description": "Access mode for the PVC",
+          "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany"]
+        },
+        "size": {
+          "type": "string",
+          "description": "Size of the persistent volume"
+        },
+        "existingClaim": {
+          "type": "string",
+          "description": "Use an existing PVC instead of creating one"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the PVC"
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "CPU and memory requests/limits for the n8n container"
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod-level security context"
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Container-level security context"
+    },
+    "startupProbe": {
+      "type": "object",
+      "description": "Startup probe configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable startup probe" },
+        "path": { "type": "string", "description": "Path for HTTP GET probe" },
+        "initialDelaySeconds": { "type": "integer" },
+        "periodSeconds": { "type": "integer" },
+        "timeoutSeconds": { "type": "integer" },
+        "failureThreshold": { "type": "integer" }
+      }
+    },
+    "livenessProbe": {
+      "type": "object",
+      "description": "Liveness probe configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable liveness probe" },
+        "path": { "type": "string", "description": "Path for HTTP GET probe" },
+        "initialDelaySeconds": { "type": "integer" },
+        "periodSeconds": { "type": "integer" },
+        "timeoutSeconds": { "type": "integer" },
+        "failureThreshold": { "type": "integer" }
+      }
+    },
+    "readinessProbe": {
+      "type": "object",
+      "description": "Readiness probe configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable readiness probe" },
+        "path": { "type": "string", "description": "Path for HTTP GET probe" },
+        "initialDelaySeconds": { "type": "integer" },
+        "periodSeconds": { "type": "integer" },
+        "timeoutSeconds": { "type": "integer" },
+        "failureThreshold": { "type": "integer" }
+      }
+    },
+    "service": {
+      "type": "object",
+      "description": "Kubernetes Service configuration",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Service type",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer"]
+        },
+        "port": {
+          "type": "integer",
+          "description": "HTTP port"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the service"
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "description": "Ingress configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable ingress for n8n"
+        },
+        "ingressClassName": {
+          "type": "string",
+          "description": "Ingress class name"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Ingress annotations"
+        },
+        "hosts": {
+          "type": "array",
+          "description": "Ingress hosts",
+          "items": {
+            "type": "object",
+            "properties": {
+              "host": { "type": "string" },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": { "type": "string" },
+                    "pathType": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tls": {
+          "type": "array",
+          "description": "Ingress TLS configuration",
+          "items": {
+            "type": "object",
+            "properties": {
+              "hosts": { "type": "array", "items": { "type": "string" } },
+              "secretName": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount configuration",
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a dedicated ServiceAccount"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name override (auto-generated if empty)"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the ServiceAccount"
+        }
+      }
+    },
+    "backup": {
+      "type": "object",
+      "description": "Scheduled backup to S3-compatible storage",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable scheduled backups to S3-compatible storage"
+        },
+        "schedule": {
+          "type": "string",
+          "description": "Cron schedule for backups (default: daily at 03:00 UTC)"
+        },
+        "suspend": {
+          "type": "boolean",
+          "description": "Suspend the CronJob without deleting it"
+        },
+        "concurrencyPolicy": {
+          "type": "string",
+          "description": "Concurrency policy: Forbid, Replace, Allow",
+          "enum": ["Forbid", "Replace", "Allow"]
+        },
+        "successfulJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Number of successful job records to keep"
+        },
+        "failedJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Number of failed job records to keep"
+        },
+        "backoffLimit": {
+          "type": "integer",
+          "description": "Maximum retries per backup job"
+        },
+        "archivePrefix": {
+          "type": "string",
+          "description": "Prefix for backup archive filenames"
+        },
+        "images": {
+          "type": "object",
+          "description": "Container images used by backup jobs",
+          "properties": {
+            "sqlite": { "type": "string", "description": "Image used for SQLite backup (must have tar)" },
+            "postgresql": { "type": "string", "description": "Image used for PostgreSQL backup (must have pg_dump)" },
+            "mysql": { "type": "string", "description": "Image used for MySQL backup (must have mysqldump)" },
+            "uploader": { "type": "string", "description": "Image used for S3 upload (MinIO client)" }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resources for backup containers"
+        },
+        "s3": {
+          "type": "object",
+          "description": "S3-compatible storage configuration",
+          "properties": {
+            "endpoint": { "type": "string", "description": "S3-compatible endpoint URL" },
+            "bucket": { "type": "string", "description": "Target bucket name" },
+            "prefix": { "type": "string", "description": "Key prefix within the bucket" },
+            "createBucketIfNotExists": { "type": "boolean", "description": "Auto-create the bucket if it does not exist" },
+            "existingSecret": { "type": "string", "description": "Use an existing secret for S3 credentials" },
+            "existingSecretAccessKeyKey": { "type": "string", "description": "Key in the existing secret for the access key" },
+            "existingSecretSecretKeyKey": { "type": "string", "description": "Key in the existing secret for the secret key" },
+            "accessKey": { "type": "string", "description": "Inline S3 access key (ignored when existingSecret is set)" },
+            "secretKey": { "type": "string", "description": "Inline S3 secret key (ignored when existingSecret is set)" }
+          }
+        },
+        "database": {
+          "type": "object",
+          "description": "Override database credentials for backup (uses app credentials if empty)",
+          "properties": {
+            "host": { "type": "string" },
+            "port": { "type": ["string", "integer"] },
+            "name": { "type": "string" },
+            "username": { "type": "string" },
+            "password": { "type": "string" },
+            "existingSecret": { "type": "string" },
+            "existingSecretPasswordKey": { "type": "string" },
+            "postgresDumpArgs": { "type": "string" },
+            "mysqlDumpArgs": { "type": "string" }
+          }
+        }
+      }
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector for pod scheduling"
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations for pod scheduling",
+      "items": { "type": "object" }
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Affinity rules for pod scheduling"
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "description": "Topology spread constraints",
+      "items": { "type": "object" }
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Priority class name"
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Grace period for shutdown (seconds)"
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Additional labels for the pod"
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Additional annotations for the pod"
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "description": "Additional volume mounts for the n8n container",
+      "items": { "type": "object" }
+    },
+    "extraVolumes": {
+      "type": "array",
+      "description": "Additional volumes for the pod",
+      "items": { "type": "object" }
+    },
+    "extraManifests": {
+      "type": "array",
+      "description": "Extra Kubernetes manifests to deploy alongside the chart",
+      "items": { "type": "object" }
+    }
+  }
+}

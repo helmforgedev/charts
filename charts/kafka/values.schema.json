@@ -1,0 +1,451 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Kafka Helm Chart Values",
+  "description": "Default values for the Kafka Helm chart. Supports single-broker and cluster architectures using Apache Kafka with KRaft.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "architecture": {
+      "type": "string",
+      "description": "Architecture: single-broker | cluster",
+      "enum": ["single-broker", "cluster"]
+    },
+    "nameOverride": {
+      "type": "string",
+      "description": "Override release name"
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override full release name"
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Labels added to all resources"
+    },
+    "clusterDomain": {
+      "type": "string",
+      "description": "Kubernetes cluster domain"
+    },
+    "image": {
+      "type": "object",
+      "description": "Kafka container image settings",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Kafka image repository"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Kafka image tag"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Kafka image pull policy",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries",
+      "items": {
+        "type": "object"
+      }
+    },
+    "kraft": {
+      "type": "object",
+      "description": "KRaft metadata configuration",
+      "properties": {
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing secret containing the KRaft cluster ID and controller directory IDs"
+        },
+        "existingSecretClusterIdKey": {
+          "type": "string",
+          "description": "Secret key for the cluster ID inside kraft.existingSecret"
+        },
+        "existingSecretControllerDirectoryIdPrefix": {
+          "type": "string",
+          "description": "Prefix for controller directory IDs inside kraft.existingSecret"
+        },
+        "clusterId": {
+          "type": "string",
+          "description": "Explicit cluster ID used when kraft.existingSecret is not set"
+        }
+      }
+    },
+    "listeners": {
+      "type": "object",
+      "description": "Kafka listener configuration",
+      "properties": {
+        "client": {
+          "type": "object",
+          "description": "Client listener settings",
+          "properties": {
+            "port": {
+              "type": "integer",
+              "description": "Client listener port"
+            }
+          }
+        },
+        "controller": {
+          "type": "object",
+          "description": "Controller listener settings",
+          "properties": {
+            "port": {
+              "type": "integer",
+              "description": "Controller listener port"
+            }
+          }
+        },
+        "interBroker": {
+          "type": "object",
+          "description": "Inter-broker listener settings",
+          "properties": {
+            "port": {
+              "type": "integer",
+              "description": "Inter-broker listener port (cluster mode only)"
+            }
+          }
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "description": "Service configuration",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Client bootstrap service type",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer"]
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations applied to the client service"
+        },
+        "labels": {
+          "type": "object",
+          "description": "Extra labels applied to the client service"
+        }
+      }
+    },
+    "config": {
+      "type": "object",
+      "description": "Kafka broker configuration",
+      "properties": {
+        "numPartitions": {
+          "type": "integer",
+          "description": "Number of partitions used as the broker default"
+        },
+        "autoCreateTopicsEnabled": {
+          "type": "boolean",
+          "description": "Enable automatic topic creation"
+        },
+        "deleteTopicEnabled": {
+          "type": "boolean",
+          "description": "Allow topic deletion"
+        },
+        "logRetentionHours": {
+          "type": "integer",
+          "description": "Default log retention in hours"
+        },
+        "logSegmentBytes": {
+          "type": "integer",
+          "description": "Default segment size in bytes"
+        },
+        "common": {
+          "type": "string",
+          "description": "Extra configuration appended to every generated server.properties"
+        },
+        "singleBroker": {
+          "type": "string",
+          "description": "Extra configuration appended only in single-broker mode"
+        },
+        "controller": {
+          "type": "string",
+          "description": "Extra configuration appended only on controllers in cluster mode"
+        },
+        "broker": {
+          "type": "string",
+          "description": "Extra configuration appended only on brokers in cluster mode"
+        }
+      }
+    },
+    "singleBroker": {
+      "type": "object",
+      "description": "Single-broker topology settings",
+      "properties": {
+        "persistence": {
+          "type": "object",
+          "description": "Persistence settings for single-broker mode",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable PVCs in single-broker mode"
+            },
+            "storageClass": {
+              "type": "string",
+              "description": "Storage class for single-broker mode"
+            },
+            "accessModes": {
+              "type": "array",
+              "description": "Access modes for single-broker mode",
+              "items": { "type": "string" }
+            },
+            "size": {
+              "type": "string",
+              "description": "PVC size for single-broker mode"
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resource requests and limits for the single broker"
+        }
+      }
+    },
+    "cluster": {
+      "type": "object",
+      "description": "Cluster topology settings",
+      "properties": {
+        "minInSyncReplicas": {
+          "type": "integer",
+          "description": "Minimum in-sync replicas for internal topics and recommended production default"
+        },
+        "controllers": {
+          "type": "object",
+          "description": "Dedicated controller settings",
+          "properties": {
+            "replicaCount": {
+              "type": "integer",
+              "description": "Number of dedicated controller replicas"
+            },
+            "persistence": {
+              "type": "object",
+              "description": "Controller persistence settings",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Enable controller PVCs"
+                },
+                "storageClass": {
+                  "type": "string",
+                  "description": "Storage class for controller PVCs"
+                },
+                "accessModes": {
+                  "type": "array",
+                  "description": "Access modes for controller PVCs",
+                  "items": { "type": "string" }
+                },
+                "size": {
+                  "type": "string",
+                  "description": "PVC size per controller"
+                }
+              }
+            },
+            "resources": {
+              "type": "object",
+              "description": "Resource requests and limits for controllers"
+            }
+          }
+        },
+        "brokers": {
+          "type": "object",
+          "description": "Dedicated broker settings",
+          "properties": {
+            "replicaCount": {
+              "type": "integer",
+              "description": "Number of dedicated broker replicas"
+            },
+            "persistence": {
+              "type": "object",
+              "description": "Broker persistence settings",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Enable broker PVCs"
+                },
+                "storageClass": {
+                  "type": "string",
+                  "description": "Storage class for broker PVCs"
+                },
+                "accessModes": {
+                  "type": "array",
+                  "description": "Access modes for broker PVCs",
+                  "items": { "type": "string" }
+                },
+                "size": {
+                  "type": "string",
+                  "description": "PVC size per broker"
+                }
+              }
+            },
+            "resources": {
+              "type": "object",
+              "description": "Resource requests and limits for brokers"
+            }
+          }
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount configuration",
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a ServiceAccount"
+        },
+        "name": {
+          "type": "string",
+          "description": "Existing ServiceAccount name"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations added to the ServiceAccount"
+        }
+      }
+    },
+    "pdb": {
+      "type": "object",
+      "description": "PodDisruptionBudget configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable PodDisruptionBudgets where replica count allows them"
+        },
+        "minAvailable": {
+          "type": "integer",
+          "description": "Minimum available brokers/controllers when the PDB is enabled"
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Prometheus metrics configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable Prometheus metrics through the JMX exporter javaagent"
+        },
+        "image": {
+          "type": "object",
+          "description": "JMX exporter image settings",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "description": "JMX exporter image repository"
+            },
+            "tag": {
+              "type": "string",
+              "description": "JMX exporter image tag"
+            },
+            "pullPolicy": {
+              "type": "string",
+              "description": "JMX exporter image pull policy",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            }
+          }
+        },
+        "port": {
+          "type": "integer",
+          "description": "Metrics port exposed by the javaagent"
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "description": "ServiceMonitor configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Create ServiceMonitor resources (requires Prometheus Operator)"
+            },
+            "interval": {
+              "type": "string",
+              "description": "ServiceMonitor interval"
+            },
+            "labels": {
+              "type": "object",
+              "description": "ServiceMonitor labels"
+            }
+          }
+        }
+      }
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod-level security context",
+      "properties": {
+        "fsGroup": { "type": "integer" }
+      }
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Container-level security context",
+      "properties": {
+        "runAsUser": { "type": "integer" },
+        "runAsGroup": { "type": "integer" },
+        "runAsNonRoot": { "type": "boolean" },
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "readOnlyRootFilesystem": { "type": "boolean" }
+      }
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Extra labels for pods"
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Extra annotations for pods"
+    },
+    "annotations": {
+      "type": "object",
+      "description": "Extra annotations for all resources"
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector for pod scheduling"
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations for pod scheduling",
+      "items": { "type": "object" }
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Affinity rules for pod scheduling"
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "description": "Topology spread constraints for pod scheduling",
+      "items": { "type": "object" }
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Priority class name for pods"
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Termination grace period in seconds"
+    },
+    "extraEnv": {
+      "type": "array",
+      "description": "Extra environment variables for Kafka containers",
+      "items": { "type": "object" }
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "description": "Extra volume mounts for Kafka containers",
+      "items": { "type": "object" }
+    },
+    "extraVolumes": {
+      "type": "array",
+      "description": "Extra volumes for Kafka pods",
+      "items": { "type": "object" }
+    },
+    "extraManifests": {
+      "type": "array",
+      "description": "Arbitrary extra manifests rendered with tpl",
+      "items": { "type": "object" }
+    }
+  }
+}

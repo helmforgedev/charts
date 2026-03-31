@@ -1,0 +1,483 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "RabbitMQ Helm Chart Values",
+  "description": "Default values for the RabbitMQ Helm chart. Supports single-node and cluster architectures.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "architecture": {
+      "type": "string",
+      "description": "Architecture: single-node | cluster",
+      "enum": ["single-node", "cluster"]
+    },
+    "nameOverride": {
+      "type": "string",
+      "description": "Override release name"
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override full release name"
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Labels added to all resources"
+    },
+    "clusterDomain": {
+      "type": "string",
+      "description": "Kubernetes cluster domain"
+    },
+    "image": {
+      "type": "object",
+      "description": "RabbitMQ container image settings",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "RabbitMQ image repository"
+        },
+        "tag": {
+          "type": "string",
+          "description": "RabbitMQ image tag"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries",
+      "items": { "type": "object" }
+    },
+    "auth": {
+      "type": "object",
+      "description": "RabbitMQ authentication settings",
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "RabbitMQ application username"
+        },
+        "password": {
+          "type": "string",
+          "description": "RabbitMQ application password. Auto-generated if empty."
+        },
+        "erlangCookie": {
+          "type": "string",
+          "description": "Erlang cookie used for node-to-node authentication. Auto-generated if empty."
+        },
+        "vhost": {
+          "type": "string",
+          "description": "Default vhost created by RabbitMQ"
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing secret for username, password, and Erlang cookie"
+        },
+        "existingSecretUsernameKey": {
+          "type": "string",
+          "description": "Secret key for username in existingSecret"
+        },
+        "existingSecretPasswordKey": {
+          "type": "string",
+          "description": "Secret key for password in existingSecret"
+        },
+        "existingSecretErlangCookieKey": {
+          "type": "string",
+          "description": "Secret key for Erlang cookie in existingSecret"
+        }
+      }
+    },
+    "queueDefaults": {
+      "type": "object",
+      "description": "Queue default settings",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Default queue type: quorum | classic",
+          "enum": ["quorum", "classic"]
+        }
+      }
+    },
+    "management": {
+      "type": "object",
+      "description": "Management UI configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the management plugin/UI"
+        },
+        "ingress": {
+          "type": "object",
+          "description": "Ingress configuration for the Management UI",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable ingress for the Management UI"
+            },
+            "className": {
+              "type": "string",
+              "description": "Ingress class name for the Management UI"
+            },
+            "annotations": {
+              "type": "object",
+              "description": "Annotations for the ingress"
+            },
+            "hosts": {
+              "type": "array",
+              "description": "Management UI ingress hosts",
+              "items": {
+                "type": "object"
+              }
+            },
+            "tls": {
+              "type": "array",
+              "description": "Management UI ingress TLS configuration",
+              "items": {
+                "type": "object"
+              }
+            },
+            "useTlsPort": {
+              "type": "boolean",
+              "description": "Route ingress to the TLS management port instead of the plain HTTP port"
+            }
+          }
+        }
+      }
+    },
+    "tls": {
+      "type": "object",
+      "description": "TLS listener configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable TLS listeners"
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing secret containing TLS material"
+        },
+        "caFilename": {
+          "type": "string",
+          "description": "CA certificate filename in the TLS secret"
+        },
+        "certFilename": {
+          "type": "string",
+          "description": "Certificate filename in the TLS secret"
+        },
+        "keyFilename": {
+          "type": "string",
+          "description": "Private key filename in the TLS secret"
+        },
+        "verify": {
+          "type": "string",
+          "description": "TLS verification mode",
+          "enum": ["verify_none", "verify_peer"]
+        },
+        "failIfNoPeerCert": {
+          "type": "boolean",
+          "description": "Require peer certificates"
+        },
+        "disableNonTLSListeners": {
+          "type": "boolean",
+          "description": "Disable non-TLS listeners when TLS is enabled"
+        }
+      }
+    },
+    "singleNode": {
+      "type": "object",
+      "description": "Single-node settings",
+      "properties": {
+        "persistence": {
+          "type": "object",
+          "description": "Persistence settings for single-node mode",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable PVC for single-node mode"
+            },
+            "storageClass": {
+              "type": "string",
+              "description": "Storage class for single-node PVC"
+            },
+            "accessMode": {
+              "type": "string",
+              "description": "Access mode for single-node PVC"
+            },
+            "size": {
+              "type": "string",
+              "description": "PVC size for single-node mode"
+            }
+          }
+        }
+      }
+    },
+    "cluster": {
+      "type": "object",
+      "description": "Cluster mode settings",
+      "properties": {
+        "replicaCount": {
+          "type": "integer",
+          "description": "Number of RabbitMQ nodes in cluster mode"
+        },
+        "podManagementPolicy": {
+          "type": "string",
+          "description": "Pod management policy for the StatefulSet",
+          "enum": ["OrderedReady", "Parallel"]
+        },
+        "partitionHandling": {
+          "type": "string",
+          "description": "Cluster partition handling strategy",
+          "enum": ["pause_minority", "autoheal", "ignore"]
+        },
+        "ordinalStart": {
+          "type": "integer",
+          "description": "Starting ordinal for peer discovery"
+        },
+        "seedNode": {
+          "type": "string",
+          "description": "Optional explicit seed node for cluster formation"
+        },
+        "gracefulShutdown": {
+          "type": "object",
+          "description": "Graceful shutdown settings",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable graceful shutdown commands before pod termination"
+            }
+          }
+        },
+        "persistence": {
+          "type": "object",
+          "description": "Persistence settings for cluster mode",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable PVCs for cluster mode"
+            },
+            "storageClass": {
+              "type": "string",
+              "description": "Storage class for cluster PVCs"
+            },
+            "accessMode": {
+              "type": "string",
+              "description": "Access mode for cluster PVCs"
+            },
+            "size": {
+              "type": "string",
+              "description": "PVC size per RabbitMQ node"
+            }
+          }
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "description": "Service configuration",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Service type",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer"]
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the client service"
+        },
+        "amqpPort": {
+          "type": "integer",
+          "description": "AMQP listener port"
+        },
+        "amqpsPort": {
+          "type": "integer",
+          "description": "AMQPS listener port"
+        },
+        "managementPort": {
+          "type": "integer",
+          "description": "Management UI HTTP port"
+        },
+        "managementTlsPort": {
+          "type": "integer",
+          "description": "Management UI HTTPS port"
+        },
+        "epmdPort": {
+          "type": "integer",
+          "description": "Erlang port mapper daemon port"
+        },
+        "distPort": {
+          "type": "integer",
+          "description": "Erlang distribution port"
+        },
+        "metricsPort": {
+          "type": "integer",
+          "description": "Prometheus metrics port"
+        },
+        "extraPorts": {
+          "type": "array",
+          "description": "Extra ports added to the client service",
+          "items": { "type": "object" }
+        }
+      }
+    },
+    "plugins": {
+      "type": "object",
+      "description": "RabbitMQ plugins configuration",
+      "properties": {
+        "extra": {
+          "type": "array",
+          "description": "Additional RabbitMQ plugins enabled in addition to the chart defaults",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "config": {
+      "type": "object",
+      "description": "RabbitMQ configuration",
+      "properties": {
+        "extra": {
+          "type": "string",
+          "description": "Extra rabbitmq.conf entries appended to the generated config"
+        },
+        "advancedConfig": {
+          "type": "string",
+          "description": "Raw advanced.config content"
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount configuration",
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a ServiceAccount"
+        },
+        "name": {
+          "type": "string",
+          "description": "Existing ServiceAccount name"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations added to the ServiceAccount"
+        }
+      }
+    },
+    "pdb": {
+      "type": "object",
+      "description": "PodDisruptionBudget configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable PodDisruptionBudget"
+        },
+        "minAvailable": {
+          "type": "integer",
+          "description": "Minimum available pods when PDB is enabled"
+        },
+        "maxUnavailable": {
+          "type": ["integer", "string"],
+          "description": "Maximum unavailable pods when PDB is enabled"
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Prometheus metrics configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the RabbitMQ Prometheus plugin"
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "description": "ServiceMonitor configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Create a ServiceMonitor (requires Prometheus Operator)"
+            },
+            "interval": {
+              "type": "string",
+              "description": "Scrape interval"
+            },
+            "labels": {
+              "type": "object",
+              "description": "Extra labels for the ServiceMonitor"
+            }
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "Resource requests and limits"
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod-level security context"
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Container-level security context"
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector for pod scheduling"
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations for pod scheduling",
+      "items": { "type": "object" }
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Affinity rules for pod scheduling"
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "description": "Topology spread constraints for pod scheduling",
+      "items": { "type": "object" }
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Priority class name for pods"
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Termination grace period in seconds"
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Extra labels for pods"
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Extra annotations for pods"
+    },
+    "annotations": {
+      "type": "object",
+      "description": "Extra annotations for all resources"
+    },
+    "extraEnv": {
+      "type": "array",
+      "description": "Extra environment variables",
+      "items": { "type": "object" }
+    },
+    "extraVolumes": {
+      "type": "array",
+      "description": "Extra volumes",
+      "items": { "type": "object" }
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "description": "Extra volume mounts",
+      "items": { "type": "object" }
+    },
+    "extraManifests": {
+      "type": "array",
+      "description": "Extra manifests rendered with tpl",
+      "items": { "type": "object" }
+    }
+  }
+}

@@ -1,0 +1,601 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Pi-hole DNS Sinkhole Helm Chart Values",
+  "description": "Values for the Pi-hole Helm chart — network-wide ad blocking via DNS filtering",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name used in resource names",
+      "default": ""
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the full release name used in resource names",
+      "default": ""
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Labels added to every resource created by this chart"
+    },
+    "image": {
+      "type": "object",
+      "description": "Container image configuration",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Container image repository",
+          "default": "pihole/pihole"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Container image tag (defaults to appVersion)",
+          "default": ""
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy",
+          "enum": ["Always", "IfNotPresent", "Never"],
+          "default": "IfNotPresent"
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries",
+      "items": {
+        "type": "object"
+      }
+    },
+    "pihole": {
+      "type": "object",
+      "description": "Pi-hole application configuration",
+      "additionalProperties": false,
+      "properties": {
+        "timezone": {
+          "type": "string",
+          "description": "Timezone for logs and scheduled tasks",
+          "default": "UTC"
+        },
+        "upstreamDns": {
+          "type": "string",
+          "description": "Upstream DNS servers (semicolon-delimited). When unbound sidecar is enabled, this is overridden to 127.0.0.1#5335.",
+          "default": "8.8.8.8;8.8.4.4"
+        },
+        "listeningMode": {
+          "type": "string",
+          "description": "DNS listening mode",
+          "enum": ["LOCAL", "ALL", "SINGLE", "BIND"],
+          "default": "ALL"
+        },
+        "dnssec": {
+          "type": "boolean",
+          "description": "Enable DNSSEC validation",
+          "default": false
+        },
+        "extraEnv": {
+          "type": "array",
+          "description": "Additional environment variables for the Pi-hole container",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "admin": {
+      "type": "object",
+      "description": "Web admin configuration",
+      "additionalProperties": false,
+      "properties": {
+        "password": {
+          "type": "string",
+          "description": "Web admin password (auto-generated if empty and no existingSecret)",
+          "default": ""
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Use an existing secret for the admin password",
+          "default": ""
+        },
+        "existingSecretKey": {
+          "type": "string",
+          "description": "Key in the existing secret that contains the admin password",
+          "default": "password"
+        }
+      }
+    },
+    "dns": {
+      "type": "object",
+      "description": "DNS records and blocklists configuration",
+      "additionalProperties": false,
+      "properties": {
+        "customRecords": {
+          "type": "array",
+          "description": "Custom local DNS A records (each entry: \"IP HOSTNAME\")",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cnameRecords": {
+          "type": "array",
+          "description": "Custom CNAME records (dnsmasq format)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "customDnsmasq": {
+          "type": "array",
+          "description": "Custom dnsmasq configuration lines",
+          "items": {
+            "type": "string"
+          }
+        },
+        "adlists": {
+          "type": "array",
+          "description": "Blocklist URLs for gravity database",
+          "items": {
+            "type": "string"
+          }
+        },
+        "whitelist": {
+          "type": "array",
+          "description": "Whitelisted domains",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blacklist": {
+          "type": "array",
+          "description": "Blacklisted domains",
+          "items": {
+            "type": "string"
+          }
+        },
+        "regex": {
+          "type": "array",
+          "description": "Regex filters for blocking",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "description": "Persistence configuration for /etc/pihole",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable persistent storage for /etc/pihole",
+          "default": true
+        },
+        "storageClass": {
+          "type": "string",
+          "description": "Storage class (leave empty for cluster default)",
+          "default": ""
+        },
+        "accessMode": {
+          "type": "string",
+          "description": "Access mode for the PVC",
+          "default": "ReadWriteOnce"
+        },
+        "size": {
+          "type": "string",
+          "description": "Size of the persistent volume",
+          "default": "1Gi"
+        },
+        "existingClaim": {
+          "type": "string",
+          "description": "Use an existing PVC instead of creating one",
+          "default": ""
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the PVC"
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "CPU and memory requests/limits for the Pi-hole container"
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod-level security context"
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Container-level security context"
+    },
+    "startupProbe": {
+      "type": "object",
+      "description": "Startup probe configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable startup probe",
+          "default": true
+        },
+        "initialDelaySeconds": {
+          "type": "integer"
+        },
+        "periodSeconds": {
+          "type": "integer"
+        },
+        "timeoutSeconds": {
+          "type": "integer"
+        },
+        "failureThreshold": {
+          "type": "integer"
+        }
+      }
+    },
+    "livenessProbe": {
+      "type": "object",
+      "description": "Liveness probe configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable liveness probe",
+          "default": true
+        },
+        "initialDelaySeconds": {
+          "type": "integer"
+        },
+        "periodSeconds": {
+          "type": "integer"
+        },
+        "timeoutSeconds": {
+          "type": "integer"
+        },
+        "failureThreshold": {
+          "type": "integer"
+        }
+      }
+    },
+    "readinessProbe": {
+      "type": "object",
+      "description": "Readiness probe configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable readiness probe",
+          "default": true
+        },
+        "initialDelaySeconds": {
+          "type": "integer"
+        },
+        "periodSeconds": {
+          "type": "integer"
+        },
+        "timeoutSeconds": {
+          "type": "integer"
+        },
+        "failureThreshold": {
+          "type": "integer"
+        }
+      }
+    },
+    "serviceDns": {
+      "type": "object",
+      "description": "DNS service configuration",
+      "additionalProperties": true,
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Service type for DNS",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer"],
+          "default": "LoadBalancer"
+        },
+        "port": {
+          "type": "integer",
+          "description": "DNS port",
+          "default": 53
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the DNS service"
+        },
+        "externalTrafficPolicy": {
+          "type": "string",
+          "description": "External traffic policy (set to Local for client IP preservation)"
+        },
+        "loadBalancerIP": {
+          "type": "string",
+          "description": "Load balancer IP (set a fixed IP for DNS stability)"
+        }
+      }
+    },
+    "serviceWeb": {
+      "type": "object",
+      "description": "Web admin service configuration",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Service type for web admin",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer"],
+          "default": "ClusterIP"
+        },
+        "port": {
+          "type": "integer",
+          "description": "Web admin HTTP port",
+          "default": 80
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the web service"
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "description": "Ingress configuration for the web admin interface",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable ingress for the web admin interface",
+          "default": false
+        },
+        "ingressClassName": {
+          "type": "string",
+          "description": "Ingress class name",
+          "default": ""
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Ingress annotations"
+        },
+        "hosts": {
+          "type": "array",
+          "description": "Ingress hosts",
+          "items": {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string"
+              },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "pathType": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tls": {
+          "type": "array",
+          "description": "Ingress TLS configuration",
+          "items": {
+            "type": "object",
+            "properties": {
+              "hosts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "secretName": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount configuration",
+      "additionalProperties": false,
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a dedicated ServiceAccount",
+          "default": false
+        },
+        "name": {
+          "type": "string",
+          "description": "Name override (auto-generated if empty)",
+          "default": ""
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the ServiceAccount"
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Prometheus metrics via pihole-exporter sidecar",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable Prometheus metrics via pihole-exporter sidecar",
+          "default": false
+        },
+        "image": {
+          "type": "object",
+          "description": "pihole-exporter image configuration",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "description": "pihole-exporter image repository",
+              "default": "ekofr/pihole-exporter"
+            },
+            "tag": {
+              "type": "string",
+              "description": "pihole-exporter image tag",
+              "default": "v0.4.0"
+            },
+            "pullPolicy": {
+              "type": "string",
+              "description": "pihole-exporter pull policy",
+              "enum": ["Always", "IfNotPresent", "Never"],
+              "default": "IfNotPresent"
+            }
+          }
+        },
+        "port": {
+          "type": "integer",
+          "description": "Port for the Prometheus metrics endpoint",
+          "default": 9617
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "description": "ServiceMonitor for Prometheus Operator",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Create a ServiceMonitor resource",
+              "default": false
+            },
+            "interval": {
+              "type": "string",
+              "description": "Scrape interval",
+              "default": "30s"
+            },
+            "labels": {
+              "type": "object",
+              "description": "Additional labels for the ServiceMonitor"
+            }
+          }
+        }
+      }
+    },
+    "unbound": {
+      "type": "object",
+      "description": "Unbound sidecar for recursive DNS resolution. When enabled, Pi-hole upstream DNS is automatically set to 127.0.0.1#5335.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable Unbound sidecar for recursive DNS resolution",
+          "default": false
+        },
+        "image": {
+          "type": "object",
+          "description": "Unbound image configuration",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "description": "Unbound image repository",
+              "default": "mvance/unbound"
+            },
+            "tag": {
+              "type": "string",
+              "description": "Unbound image tag",
+              "default": "1.22.0"
+            },
+            "pullPolicy": {
+              "type": "string",
+              "description": "Unbound pull policy",
+              "enum": ["Always", "IfNotPresent", "Never"],
+              "default": "IfNotPresent"
+            }
+          }
+        },
+        "port": {
+          "type": "integer",
+          "description": "Unbound listening port inside the pod",
+          "default": 5335
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resources for the Unbound sidecar"
+        }
+      }
+    },
+    "dhcp": {
+      "type": "object",
+      "description": "DHCP server configuration (requires hostNetwork or special network configuration)",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable DHCP server",
+          "default": false
+        },
+        "hostNetwork": {
+          "type": "boolean",
+          "description": "Use host network for DHCP broadcasts",
+          "default": false
+        }
+      }
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector for pod scheduling"
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations for pod scheduling",
+      "items": {
+        "type": "object"
+      }
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Affinity rules for pod scheduling"
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "description": "Topology spread constraints",
+      "items": {
+        "type": "object"
+      }
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Priority class name",
+      "default": ""
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Grace period for shutdown (seconds)",
+      "default": 30
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Additional labels for the pod"
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Additional annotations for the pod"
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "description": "Additional volume mounts for the Pi-hole container",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraVolumes": {
+      "type": "array",
+      "description": "Additional volumes for the pod",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraManifests": {
+      "type": "array",
+      "description": "Extra Kubernetes manifests to deploy alongside the chart",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

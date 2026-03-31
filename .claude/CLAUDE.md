@@ -109,6 +109,23 @@ Conflict prevention rule:
 - when changing public chart metadata or user-visible chart behavior, also update the `site/` repository if the website content should reflect that change, including maturity changes
 - before pushing on a branch with an existing PR, verify whether the PR is still open, merged, closed, or obsolete
 
+## Values Schema
+
+Every chart must include a `values.schema.json` (JSON Schema draft-07) that validates the chart's `values.yaml`. This is required for ArtifactHub values rendering and enables `helm install` validation.
+
+Rules:
+
+- use `"$schema": "https://json-schema.org/draft-07/schema#"`
+- include `title` and `description` at root
+- set `type: "object"` and `additionalProperties: true` at root
+- cover all top-level keys from `values.yaml`
+- use `description` from `# --` comments in `values.yaml`
+- use `enum` for fixed-set fields (e.g., `architecture`)
+- for open objects (`resources`, `nodeSelector`, `annotations`), use `"type": "object"` without inner properties
+- do not set `required` at root (all values have defaults)
+- update `values.schema.json` when adding or changing values in existing charts
+- create `values.schema.json` as part of new chart scaffolding
+
 ## ArtifactHub Annotations
 
 Every `Chart.yaml` must include ArtifactHub annotations for chart discovery. When creating a new chart, always add:

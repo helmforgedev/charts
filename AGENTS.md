@@ -12,8 +12,9 @@ This repository contains reusable Helm charts published as OCI artifacts to `ghc
 charts/<chart-name>/
   Chart.yaml
   values.yaml
+  values.schema.json  # JSON Schema for values validation
   templates/
-  tests/          # helm-unittest test suites
+  tests/              # helm-unittest test suites
   ci/
   examples/
   docs/
@@ -175,6 +176,24 @@ Every `Chart.yaml` includes `helmforge.dev/maturity` in the `annotations` block:
 
 When promoting, update `helmforge.dev/maturity` in Chart.yaml annotations and the README charts table in the same commit. Remove `artifacthub.io/prerelease` when promoting from alpha.
 
+## Values Schema
+
+Every chart must include a `values.schema.json` file (JSON Schema draft-07) that validates the chart's `values.yaml`. This enables ArtifactHub to render values with types and descriptions, and allows `helm install` to validate user-provided values before applying them.
+
+Rules:
+
+- use `"$schema": "https://json-schema.org/draft-07/schema#"` at the root
+- include `title` and `description` at the root level
+- set `type: "object"` and `additionalProperties: true` at the root
+- cover all top-level keys from `values.yaml`
+- use `description` fields derived from the `# --` inline comments in `values.yaml`
+- use proper JSON Schema types: `string`, `integer`, `number`, `boolean`, `object`, `array`
+- use `enum` for fields with a fixed set of valid values (e.g., `architecture: standalone | replication`)
+- for open objects like `resources: {}`, `nodeSelector: {}`, `annotations: {}`, use `"type": "object"` without inner properties
+- do not set `required` at the root level (all values have defaults)
+- when adding new values to an existing chart, update `values.schema.json` in the same commit
+- when creating a new chart, generate `values.schema.json` as part of the initial scaffolding
+
 ## Validation Commands
 
 ```bash
@@ -218,7 +237,7 @@ Critical rules:
 3. Only pin a version when the same release exists in both places; if GitHub and Docker Hub do not match, stop and document the mismatch before choosing a tag.
 4. Use an official runtime image when the upstream project provides one. If not, document that clearly and base examples or validation images on the official source or package instead of a third-party image.
 5. Define the product proposal, supported topologies, and non-goals.
-6. Create `Chart.yaml`, `values.yaml`, `templates/`, `tests/`, `ci/`, `examples/`, `docs/`, and `README.md`. The `Chart.yaml` must include ArtifactHub annotations (see below).
+6. Create `Chart.yaml`, `values.yaml`, `values.schema.json`, `templates/`, `tests/`, `ci/`, `examples/`, `docs/`, and `README.md`. The `Chart.yaml` must include ArtifactHub annotations (see below).
 7. Build templates that match the real product contract, not a generic abstraction.
 8. Add helm-unittest test suites for all key templates (workload, service, secret, optional resources).
 9. Add CI scenarios for each supported topology.
@@ -248,9 +267,10 @@ Safety rule for local validation:
 2. Ensure all `ci/*.yaml` files still render correctly.
 3. Run `helm lint --strict` and `helm unittest charts/<name>`.
 4. Update or add unit tests when template behavior changes.
-5. Update chart docs when behavior, defaults, or supported topologies changed.
-6. If the change affects public documentation, chart listing, maturity, or other user-visible site content, update the `site/` repository in the same workstream.
-7. Use a conventional commit with the correct scope.
+5. Update `values.schema.json` when adding, removing, or changing values.
+6. Update chart docs when behavior, defaults, or supported topologies changed.
+7. If the change affects public documentation, chart listing, maturity, or other user-visible site content, update the `site/` repository in the same workstream.
+8. Use a conventional commit with the correct scope.
 
 ## Documentation Rules
 

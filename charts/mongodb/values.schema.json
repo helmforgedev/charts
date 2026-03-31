@@ -1,0 +1,802 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "MongoDB Helm Chart Values",
+  "description": "Configuration values for the MongoDB Helm chart. Supports standalone, replicaset, and sharded architectures.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "architecture": {
+      "type": "string",
+      "description": "Architecture: standalone | replicaset | sharded",
+      "enum": ["standalone", "replicaset", "sharded"],
+      "default": "standalone"
+    },
+    "nameOverride": {
+      "type": "string",
+      "description": "Override release name",
+      "default": ""
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override full release name",
+      "default": ""
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Labels added to all resources",
+      "default": {}
+    },
+    "image": {
+      "type": "object",
+      "description": "MongoDB image configuration",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "MongoDB image repository",
+          "default": "mongo"
+        },
+        "tag": {
+          "type": "string",
+          "description": "MongoDB image tag",
+          "default": "8.2.6"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy",
+          "enum": ["Always", "IfNotPresent", "Never"],
+          "default": "IfNotPresent"
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets",
+      "items": {
+        "type": "object"
+      },
+      "default": []
+    },
+    "auth": {
+      "type": "object",
+      "description": "MongoDB authentication configuration",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable authentication (--auth flag)",
+          "default": true
+        },
+        "rootUser": {
+          "type": "string",
+          "description": "Root username (MONGO_INITDB_ROOT_USERNAME)",
+          "default": "root"
+        },
+        "rootPassword": {
+          "type": "string",
+          "description": "Root password (MONGO_INITDB_ROOT_PASSWORD). Auto-generated if empty.",
+          "default": ""
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Use an existing secret for root credentials. Keys: mongodb-root-username, mongodb-root-password",
+          "default": ""
+        },
+        "replicaSetKey": {
+          "type": "string",
+          "description": "Replica set keyFile for internal member authentication. Auto-generated if empty and architecture=replicaset|sharded.",
+          "default": ""
+        },
+        "existingKeySecret": {
+          "type": "string",
+          "description": "Existing secret containing the keyFile (key: mongodb-replica-set-key)",
+          "default": ""
+        },
+        "users": {
+          "type": "array",
+          "description": "Additional users to create on first startup. Each entry creates a user with readWrite access to its database.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "username": {
+                "type": "string"
+              },
+              "password": {
+                "type": "string"
+              },
+              "database": {
+                "type": "string"
+              },
+              "roles": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string"
+                    },
+                    "db": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": []
+        }
+      }
+    },
+    "replicaSet": {
+      "type": "object",
+      "description": "Replica set configuration",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Replica set name",
+          "default": "rs0"
+        },
+        "members": {
+          "type": "integer",
+          "description": "Number of data-bearing members (architecture=replicaset)",
+          "minimum": 1,
+          "default": 3
+        }
+      }
+    },
+    "sharded": {
+      "type": "object",
+      "description": "Sharded cluster configuration (architecture=sharded)",
+      "additionalProperties": false,
+      "properties": {
+        "mongos": {
+          "type": "object",
+          "description": "mongos router configuration",
+          "additionalProperties": false,
+          "properties": {
+            "replicaCount": {
+              "type": "integer",
+              "description": "Number of mongos routers",
+              "minimum": 1,
+              "default": 2
+            },
+            "resources": {
+              "type": "object",
+              "description": "Resources for mongos"
+            },
+            "port": {
+              "type": "integer",
+              "description": "Port for mongos",
+              "default": 27017
+            }
+          }
+        },
+        "configServer": {
+          "type": "object",
+          "description": "Config server configuration",
+          "additionalProperties": false,
+          "properties": {
+            "replicaCount": {
+              "type": "integer",
+              "description": "Number of config server members",
+              "minimum": 1,
+              "default": 3
+            },
+            "resources": {
+              "type": "object",
+              "description": "Resources for config servers"
+            },
+            "persistence": {
+              "type": "object",
+              "description": "Config server persistence",
+              "additionalProperties": false,
+              "properties": {
+                "size": {
+                  "type": "string",
+                  "description": "PVC size for config servers",
+                  "default": "8Gi"
+                },
+                "storageClass": {
+                  "type": "string",
+                  "description": "Storage class for config server PVCs",
+                  "default": ""
+                }
+              }
+            }
+          }
+        },
+        "shards": {
+          "type": "object",
+          "description": "Shard configuration",
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "type": "integer",
+              "description": "Number of shards",
+              "minimum": 1,
+              "default": 2
+            },
+            "membersPerShard": {
+              "type": "integer",
+              "description": "Members per shard replica set",
+              "minimum": 1,
+              "default": 3
+            },
+            "resources": {
+              "type": "object",
+              "description": "Resources for shard members"
+            },
+            "persistence": {
+              "type": "object",
+              "description": "Shard persistence",
+              "additionalProperties": false,
+              "properties": {
+                "size": {
+                  "type": "string",
+                  "description": "PVC size per shard member",
+                  "default": "16Gi"
+                },
+                "storageClass": {
+                  "type": "string",
+                  "description": "Storage class for shard PVCs",
+                  "default": ""
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "description": "Persistent storage configuration",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable persistent storage (StatefulSet volumeClaimTemplate)",
+          "default": true
+        },
+        "storageClass": {
+          "type": "string",
+          "description": "Storage class (empty = cluster default)",
+          "default": ""
+        },
+        "accessMode": {
+          "type": "string",
+          "description": "Access mode",
+          "default": "ReadWriteOnce"
+        },
+        "size": {
+          "type": "string",
+          "description": "Volume size",
+          "default": "8Gi"
+        },
+        "existingClaim": {
+          "type": "string",
+          "description": "Use an existing PVC (standalone only)",
+          "default": ""
+        }
+      }
+    },
+    "config": {
+      "type": "object",
+      "description": "Custom mongod.conf content (mounted as ConfigMap). If empty, a sensible default is generated based on architecture."
+    },
+    "port": {
+      "type": "integer",
+      "description": "Port mongod listens on",
+      "default": 27017
+    },
+    "initdbScripts": {
+      "type": "object",
+      "description": "Scripts executed on first startup via /docker-entrypoint-initdb.d/. Supports .sh and .js files.",
+      "default": {}
+    },
+    "initdbScriptsConfigMap": {
+      "type": "string",
+      "description": "Name of an existing ConfigMap with init scripts",
+      "default": ""
+    },
+    "initdbDatabase": {
+      "type": "string",
+      "description": "Database for init scripts (MONGO_INITDB_DATABASE)",
+      "default": ""
+    },
+    "resources": {
+      "type": "object",
+      "description": "Resource requests and limits for the mongod container"
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod-level security context"
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Container-level security context"
+    },
+    "service": {
+      "type": "object",
+      "description": "Service configuration",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Service type: ClusterIP, NodePort, LoadBalancer",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer"],
+          "default": "ClusterIP"
+        },
+        "port": {
+          "type": "integer",
+          "description": "Service port",
+          "default": 27017
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations on the client service",
+          "default": {}
+        },
+        "nodePort": {
+          "type": ["integer", "string"],
+          "description": "NodePort (only if type=NodePort)",
+          "default": ""
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount configuration",
+      "additionalProperties": false,
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a ServiceAccount",
+          "default": false
+        },
+        "name": {
+          "type": "string",
+          "description": "ServiceAccount name",
+          "default": ""
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations on the ServiceAccount",
+          "default": {}
+        }
+      }
+    },
+    "livenessProbe": {
+      "type": "object",
+      "description": "Liveness probe configuration",
+      "properties": {
+        "exec": {
+          "type": "object",
+          "description": "Exec probe command",
+          "properties": {
+            "command": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "initialDelaySeconds": {
+          "type": "integer",
+          "description": "Initial delay before the probe starts",
+          "default": 30
+        },
+        "periodSeconds": {
+          "type": "integer",
+          "description": "Period between probe attempts",
+          "default": 20
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "description": "Probe timeout",
+          "default": 10
+        },
+        "failureThreshold": {
+          "type": "integer",
+          "description": "Number of consecutive failures before marking unhealthy",
+          "default": 6
+        }
+      }
+    },
+    "readinessProbe": {
+      "type": "object",
+      "description": "Readiness probe configuration",
+      "properties": {
+        "exec": {
+          "type": "object",
+          "description": "Exec probe command",
+          "properties": {
+            "command": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "initialDelaySeconds": {
+          "type": "integer",
+          "description": "Initial delay before the probe starts",
+          "default": 10
+        },
+        "periodSeconds": {
+          "type": "integer",
+          "description": "Period between probe attempts",
+          "default": 10
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "description": "Probe timeout",
+          "default": 5
+        },
+        "failureThreshold": {
+          "type": "integer",
+          "description": "Number of consecutive failures before marking not ready",
+          "default": 3
+        }
+      }
+    },
+    "startupProbe": {
+      "type": "object",
+      "description": "Startup probe configuration",
+      "properties": {
+        "exec": {
+          "type": "object",
+          "description": "Exec probe command",
+          "properties": {
+            "command": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "initialDelaySeconds": {
+          "type": "integer",
+          "description": "Initial delay before the probe starts",
+          "default": 5
+        },
+        "periodSeconds": {
+          "type": "integer",
+          "description": "Period between probe attempts",
+          "default": 10
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "description": "Probe timeout",
+          "default": 5
+        },
+        "failureThreshold": {
+          "type": "integer",
+          "description": "Number of consecutive failures before marking failed startup",
+          "default": 30
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Prometheus metrics exporter configuration",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Deploy a mongodb-exporter sidecar",
+          "default": false
+        },
+        "image": {
+          "type": "object",
+          "description": "mongodb-exporter image configuration",
+          "additionalProperties": false,
+          "properties": {
+            "repository": {
+              "type": "string",
+              "description": "mongodb-exporter image repository",
+              "default": "percona/mongodb_exporter"
+            },
+            "tag": {
+              "type": "string",
+              "description": "mongodb-exporter image tag",
+              "default": "0.49.0"
+            },
+            "pullPolicy": {
+              "type": "string",
+              "description": "Image pull policy",
+              "enum": ["Always", "IfNotPresent", "Never"],
+              "default": "IfNotPresent"
+            }
+          }
+        },
+        "port": {
+          "type": "integer",
+          "description": "Metrics exporter port",
+          "default": 9216
+        },
+        "extraArgs": {
+          "type": "array",
+          "description": "Extra args for the exporter",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resources for mongodb-exporter"
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "description": "ServiceMonitor configuration",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Create a ServiceMonitor resource (requires Prometheus Operator)",
+              "default": false
+            },
+            "interval": {
+              "type": "string",
+              "description": "Scrape interval",
+              "default": "30s"
+            },
+            "labels": {
+              "type": "object",
+              "description": "Additional labels for the ServiceMonitor",
+              "default": {}
+            }
+          }
+        }
+      }
+    },
+    "backup": {
+      "type": "object",
+      "description": "Backup CronJob configuration",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable built-in backup CronJob support",
+          "default": false
+        },
+        "schedule": {
+          "type": "string",
+          "description": "Backup schedule in Cron format",
+          "default": "0 3 * * *"
+        },
+        "suspend": {
+          "type": "boolean",
+          "description": "Suspend backup execution",
+          "default": false
+        },
+        "concurrencyPolicy": {
+          "type": "string",
+          "description": "CronJob concurrency policy",
+          "enum": ["Allow", "Forbid", "Replace"],
+          "default": "Forbid"
+        },
+        "successfulJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Successful job history retained by the CronJob",
+          "default": 3
+        },
+        "failedJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Failed job history retained by the CronJob",
+          "default": 3
+        },
+        "backoffLimit": {
+          "type": "integer",
+          "description": "Job backoff limit",
+          "default": 1
+        },
+        "archivePrefix": {
+          "type": "string",
+          "description": "Prefix used in generated backup archive names",
+          "default": "mongodb"
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resources applied to the backup dump and upload containers"
+        },
+        "images": {
+          "type": "object",
+          "description": "Backup container images",
+          "additionalProperties": false,
+          "properties": {
+            "uploader": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "repository": {
+                  "type": "string",
+                  "default": "minio/mc"
+                },
+                "tag": {
+                  "type": "string",
+                  "default": "RELEASE.2025-08-13T08-35-41Z"
+                },
+                "pullPolicy": {
+                  "type": "string",
+                  "enum": ["Always", "IfNotPresent", "Never"],
+                  "default": "IfNotPresent"
+                }
+              }
+            },
+            "mongodb": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "repository": {
+                  "type": "string",
+                  "default": "mongo"
+                },
+                "tag": {
+                  "type": "string",
+                  "default": "8.2.6"
+                },
+                "pullPolicy": {
+                  "type": "string",
+                  "enum": ["Always", "IfNotPresent", "Never"],
+                  "default": "IfNotPresent"
+                }
+              }
+            }
+          }
+        },
+        "s3": {
+          "type": "object",
+          "description": "S3-compatible storage configuration for backups",
+          "additionalProperties": false,
+          "properties": {
+            "endpoint": {
+              "type": "string",
+              "description": "S3-compatible endpoint URL, for example: https://s3.amazonaws.com or https://minio.example.com",
+              "default": ""
+            },
+            "bucket": {
+              "type": "string",
+              "description": "Target bucket name",
+              "default": ""
+            },
+            "prefix": {
+              "type": "string",
+              "description": "Optional key prefix inside the bucket",
+              "default": "mongodb"
+            },
+            "createBucketIfNotExists": {
+              "type": "boolean",
+              "description": "Create the bucket automatically when it does not exist yet",
+              "default": true
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing secret containing access-key and secret-key",
+              "default": ""
+            },
+            "existingSecretAccessKeyKey": {
+              "type": "string",
+              "description": "Secret key name for the access key inside backup.s3.existingSecret",
+              "default": "access-key"
+            },
+            "existingSecretSecretKeyKey": {
+              "type": "string",
+              "description": "Secret key name for the secret key inside backup.s3.existingSecret",
+              "default": "secret-key"
+            },
+            "accessKey": {
+              "type": "string",
+              "description": "Inline access key used when backup.s3.existingSecret is not set",
+              "default": ""
+            },
+            "secretKey": {
+              "type": "string",
+              "description": "Inline secret key used when backup.s3.existingSecret is not set",
+              "default": ""
+            }
+          }
+        },
+        "database": {
+          "type": "object",
+          "description": "Database dump configuration",
+          "additionalProperties": false,
+          "properties": {
+            "mongoDumpArgs": {
+              "type": "string",
+              "description": "Extra arguments passed to mongodump",
+              "default": ""
+            }
+          }
+        }
+      }
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector for pod scheduling",
+      "default": {}
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations for pod scheduling",
+      "items": {
+        "type": "object"
+      },
+      "default": []
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Affinity rules for pod scheduling",
+      "default": {}
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "description": "Topology spread constraints for pod scheduling",
+      "items": {
+        "type": "object"
+      },
+      "default": []
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Priority class name for pods",
+      "default": ""
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Termination grace period in seconds",
+      "default": 60
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Additional labels for pods",
+      "default": {}
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Additional annotations for pods",
+      "default": {}
+    },
+    "annotations": {
+      "type": "object",
+      "description": "Additional annotations for resources",
+      "default": {}
+    },
+    "extraEnv": {
+      "type": "array",
+      "description": "Extra environment variables",
+      "items": {
+        "type": "object"
+      },
+      "default": []
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "description": "Extra volume mounts on the mongod container",
+      "items": {
+        "type": "object"
+      },
+      "default": []
+    },
+    "extraVolumes": {
+      "type": "array",
+      "description": "Extra volumes on the pod",
+      "items": {
+        "type": "object"
+      },
+      "default": []
+    },
+    "extraManifests": {
+      "type": "array",
+      "description": "Arbitrary extra manifests (supports tpl)",
+      "items": {
+        "type": "object"
+      },
+      "default": []
+    }
+  }
+}

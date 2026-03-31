@@ -1,0 +1,867 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Authelia Helm Chart",
+  "description": "Authentication and authorization server with SSO, MFA, OpenID Connect, and forward auth support.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name used in resource names."
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the full release name used in resource names."
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Labels added to every resource created by this chart."
+    },
+    "image": {
+      "type": "object",
+      "description": "Container image configuration.",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Authelia container image."
+        },
+        "tag": {
+          "type": "string",
+          "description": "Image tag (defaults to appVersion)."
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy.",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries.",
+      "items": {
+        "type": "object"
+      }
+    },
+    "config": {
+      "type": "object",
+      "description": "Authelia configuration rendered as configuration.yml and mounted into the container.",
+      "properties": {
+        "theme": {
+          "type": "string",
+          "description": "Theme: light, dark, grey, auto.",
+          "enum": ["light", "dark", "grey", "auto"]
+        },
+        "server": {
+          "type": "object",
+          "description": "Server configuration.",
+          "properties": {
+            "address": {
+              "type": "string"
+            },
+            "disable_healthcheck": {
+              "type": "boolean",
+              "description": "Disable healthcheck.sh env file (recommended for Kubernetes)."
+            },
+            "buffers": {
+              "type": "object",
+              "properties": {
+                "read": {
+                  "type": "integer"
+                },
+                "write": {
+                  "type": "integer"
+                }
+              }
+            },
+            "timeouts": {
+              "type": "object",
+              "properties": {
+                "read": {
+                  "type": "string"
+                },
+                "write": {
+                  "type": "string"
+                },
+                "idle": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "log": {
+          "type": "object",
+          "description": "Log configuration.",
+          "properties": {
+            "level": {
+              "type": "string",
+              "enum": ["info", "debug", "trace", "warn", "error"]
+            },
+            "format": {
+              "type": "string",
+              "enum": ["text", "json"]
+            }
+          }
+        },
+        "telemetry": {
+          "type": "object",
+          "description": "Telemetry / Prometheus metrics.",
+          "properties": {
+            "metrics": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "address": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "totp": {
+          "type": "object",
+          "description": "TOTP configuration.",
+          "properties": {
+            "disable": {
+              "type": "boolean"
+            },
+            "issuer": {
+              "type": "string"
+            },
+            "algorithm": {
+              "type": "string"
+            },
+            "digits": {
+              "type": "integer"
+            },
+            "period": {
+              "type": "integer"
+            },
+            "secret_size": {
+              "type": "integer"
+            }
+          }
+        },
+        "webauthn": {
+          "type": "object",
+          "description": "WebAuthn configuration.",
+          "properties": {
+            "disable": {
+              "type": "boolean"
+            },
+            "display_name": {
+              "type": "string"
+            },
+            "timeout": {
+              "type": "string"
+            }
+          }
+        },
+        "ntp": {
+          "type": "object",
+          "description": "NTP configuration.",
+          "properties": {
+            "address": {
+              "type": "string"
+            },
+            "version": {
+              "type": "integer"
+            },
+            "max_desync": {
+              "type": "string"
+            },
+            "disable_startup_check": {
+              "type": "boolean"
+            }
+          }
+        },
+        "authentication_backend": {
+          "type": "object",
+          "description": "Authentication backend (file or ldap — mutually exclusive)."
+        },
+        "password_policy": {
+          "type": "object",
+          "description": "Password policy.",
+          "properties": {
+            "standard": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "min_length": {
+                  "type": "integer"
+                },
+                "max_length": {
+                  "type": "integer"
+                },
+                "require_uppercase": {
+                  "type": "boolean"
+                },
+                "require_lowercase": {
+                  "type": "boolean"
+                },
+                "require_number": {
+                  "type": "boolean"
+                },
+                "require_special": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "zxcvbn": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "min_score": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "access_control": {
+          "type": "object",
+          "description": "Access control rules.",
+          "properties": {
+            "default_policy": {
+              "type": "string",
+              "enum": ["bypass", "one_factor", "two_factor", "deny"]
+            },
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "session": {
+          "type": "object",
+          "description": "Session configuration. session.secret is injected via AUTHELIA_SESSION_SECRET env var.",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "same_site": {
+              "type": "string"
+            },
+            "inactivity": {
+              "type": "string"
+            },
+            "expiration": {
+              "type": "string"
+            },
+            "remember_me": {
+              "type": "string"
+            },
+            "cookies": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "domain": {
+                    "type": "string"
+                  },
+                  "authelia_url": {
+                    "type": "string"
+                  },
+                  "default_redirection_url": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "regulation": {
+          "type": "object",
+          "description": "Regulation (brute force protection).",
+          "properties": {
+            "max_retries": {
+              "type": "integer"
+            },
+            "find_time": {
+              "type": "string"
+            },
+            "ban_time": {
+              "type": "string"
+            }
+          }
+        },
+        "storage": {
+          "type": "object",
+          "description": "Storage configuration. Overridden by the chart based on database.type."
+        },
+        "notifier": {
+          "type": "object",
+          "description": "Notifier configuration (filesystem or smtp — mutually exclusive)."
+        },
+        "identity_providers": {
+          "type": "object",
+          "description": "Identity providers (OpenID Connect)."
+        }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "description": "Sensitive values injected via AUTHELIA_* env vars from a Kubernetes Secret.",
+      "properties": {
+        "jwtSecret": {
+          "type": "string",
+          "description": "JWT secret for identity validation (required, 64+ chars recommended)."
+        },
+        "sessionSecret": {
+          "type": "string",
+          "description": "Session encryption secret (required, 64+ chars recommended)."
+        },
+        "storageEncryptionKey": {
+          "type": "string",
+          "description": "Storage encryption key (required, 20+ chars minimum)."
+        },
+        "oidcHmacSecret": {
+          "type": "string",
+          "description": "OIDC HMAC secret (required only when using OIDC)."
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing secret containing all credential keys."
+        },
+        "existingSecretJwtKey": {
+          "type": "string",
+          "description": "Key mappings for the existing secret (JWT)."
+        },
+        "existingSecretSessionKey": {
+          "type": "string",
+          "description": "Key mappings for the existing secret (session)."
+        },
+        "existingSecretStorageEncryptionKey": {
+          "type": "string",
+          "description": "Key mappings for the existing secret (storage encryption)."
+        },
+        "existingSecretOidcHmacKey": {
+          "type": "string",
+          "description": "Key mappings for the existing secret (OIDC HMAC)."
+        }
+      }
+    },
+    "usersDatabase": {
+      "type": "object",
+      "description": "Users Database (file-based authentication).",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable file-based user database mounted at /config/users_database.yml."
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing secret containing the users_database.yml file."
+        },
+        "existingSecretKey": {
+          "type": "string",
+          "description": "Key in the existing secret."
+        },
+        "users": {
+          "type": "object",
+          "description": "Inline user definitions (rendered as users_database.yml)."
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "description": "Database configuration.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Database type: sqlite, postgres, mysql.",
+          "enum": ["sqlite", "postgres", "mysql"]
+        },
+        "external": {
+          "type": "object",
+          "description": "External database configuration (used when subcharts are disabled).",
+          "properties": {
+            "host": {
+              "type": "string"
+            },
+            "port": {
+              "type": ["string", "integer"]
+            },
+            "name": {
+              "type": "string"
+            },
+            "username": {
+              "type": "string"
+            },
+            "password": {
+              "type": "string"
+            },
+            "schema": {
+              "type": "string",
+              "description": "Schema name (PostgreSQL only)."
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing secret containing the database password."
+            },
+            "existingSecretPasswordKey": {
+              "type": "string",
+              "description": "Key in the existing secret containing the password."
+            }
+          }
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "description": "Persistence configuration for /data (SQLite DB, notification files).",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable persistence for /data (SQLite DB, notification files)."
+        },
+        "size": {
+          "type": "string",
+          "description": "Storage size."
+        },
+        "storageClass": {
+          "type": "string",
+          "description": "Storage class."
+        },
+        "accessModes": {
+          "type": "array",
+          "description": "Access modes.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "existingClaim": {
+          "type": "string",
+          "description": "Use an existing PVC."
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount configuration.",
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a ServiceAccount."
+        },
+        "name": {
+          "type": "string",
+          "description": "ServiceAccount name."
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the ServiceAccount."
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "description": "Service configuration.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Service type.",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer"]
+        },
+        "port": {
+          "type": "integer",
+          "description": "HTTP service port."
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the Service."
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Metrics service configuration.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable a separate metrics service (requires config.telemetry.metrics.enabled)."
+        },
+        "service": {
+          "type": "object",
+          "properties": {
+            "port": {
+              "type": "integer",
+              "description": "Metrics service port."
+            },
+            "annotations": {
+              "type": "object",
+              "description": "Annotations for the metrics service."
+            }
+          }
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "description": "Prometheus ServiceMonitor configuration.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable Prometheus ServiceMonitor."
+            },
+            "interval": {
+              "type": "string"
+            },
+            "scrapeTimeout": {
+              "type": "string"
+            },
+            "labels": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "description": "Ingress configuration for Authelia.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable ingress for Authelia."
+        },
+        "ingressClassName": {
+          "type": "string",
+          "description": "Ingress class name (for example: traefik, nginx)."
+        },
+        "annotations": {
+          "type": "object"
+        },
+        "hosts": {
+          "type": "array",
+          "description": "Ingress hosts.",
+          "items": {
+            "type": "object"
+          }
+        },
+        "tls": {
+          "type": "array",
+          "description": "Ingress TLS configuration.",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "probes": {
+      "type": "object",
+      "description": "Health probe configuration.",
+      "properties": {
+        "startup": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string" },
+            "initialDelaySeconds": { "type": "integer" },
+            "periodSeconds": { "type": "integer" },
+            "timeoutSeconds": { "type": "integer" },
+            "failureThreshold": { "type": "integer" }
+          }
+        },
+        "liveness": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string" },
+            "initialDelaySeconds": { "type": "integer" },
+            "periodSeconds": { "type": "integer" },
+            "timeoutSeconds": { "type": "integer" },
+            "failureThreshold": { "type": "integer" }
+          }
+        },
+        "readiness": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string" },
+            "initialDelaySeconds": { "type": "integer" },
+            "periodSeconds": { "type": "integer" },
+            "timeoutSeconds": { "type": "integer" },
+            "failureThreshold": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "CPU and memory requests/limits."
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod-level security context."
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Container-level security context."
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector for pod scheduling."
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations for pod scheduling.",
+      "items": {
+        "type": "object"
+      }
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Affinity rules for pod scheduling."
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "description": "Topology spread constraints.",
+      "items": {
+        "type": "object"
+      }
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Priority class name."
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Grace period for shutdown (seconds)."
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Additional labels for the pod."
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Additional annotations for the pod."
+    },
+    "backup": {
+      "type": "object",
+      "description": "Built-in backup CronJob (SQLite tar or pg_dump/mysqldump + S3 upload).",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable built-in backup CronJob."
+        },
+        "schedule": {
+          "type": "string",
+          "description": "Backup schedule in Cron format."
+        },
+        "suspend": {
+          "type": "boolean",
+          "description": "Suspend backup execution."
+        },
+        "concurrencyPolicy": {
+          "type": "string",
+          "description": "CronJob concurrency policy.",
+          "enum": ["Forbid", "Replace", "Allow"]
+        },
+        "successfulJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Successful job history retained."
+        },
+        "failedJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Failed job history retained."
+        },
+        "backoffLimit": {
+          "type": "integer",
+          "description": "Job backoff limit."
+        },
+        "archivePrefix": {
+          "type": "string",
+          "description": "Prefix for backup archive names."
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resources for backup containers."
+        },
+        "images": {
+          "type": "object",
+          "description": "Container images used by backup jobs.",
+          "properties": {
+            "uploader": {
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
+            },
+            "sqlite": {
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
+            },
+            "postgresql": {
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
+            },
+            "mysql": {
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
+            }
+          }
+        },
+        "s3": {
+          "type": "object",
+          "description": "S3-compatible storage configuration for backups.",
+          "properties": {
+            "endpoint": {
+              "type": "string",
+              "description": "S3-compatible endpoint URL."
+            },
+            "bucket": {
+              "type": "string",
+              "description": "Target bucket name."
+            },
+            "prefix": {
+              "type": "string",
+              "description": "Optional prefix inside the bucket."
+            },
+            "createBucketIfNotExists": {
+              "type": "boolean",
+              "description": "Create bucket if not exists."
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing secret containing access-key and secret-key."
+            },
+            "existingSecretAccessKeyKey": {
+              "type": "string"
+            },
+            "existingSecretSecretKeyKey": {
+              "type": "string"
+            },
+            "accessKey": {
+              "type": "string",
+              "description": "Inline access key."
+            },
+            "secretKey": {
+              "type": "string",
+              "description": "Inline secret key."
+            }
+          }
+        }
+      }
+    },
+    "extraEnv": {
+      "type": "array",
+      "description": "Additional environment variables.",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraVolumes": {
+      "type": "array",
+      "description": "Additional volumes for the pod.",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "description": "Additional volume mounts for the container.",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraManifests": {
+      "type": "array",
+      "description": "Extra manifests to deploy alongside the chart.",
+      "items": {
+        "type": "object"
+      }
+    },
+    "postgresql": {
+      "type": "object",
+      "description": "PostgreSQL subchart configuration.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the local PostgreSQL chart."
+        },
+        "architecture": {
+          "type": "string"
+        },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "database": { "type": "string" },
+            "username": { "type": "string" },
+            "password": {
+              "type": "string",
+              "description": "Required when using the PostgreSQL subchart."
+            }
+          }
+        }
+      }
+    },
+    "mysql": {
+      "type": "object",
+      "description": "MySQL subchart configuration.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the local MySQL chart."
+        },
+        "architecture": {
+          "type": "string"
+        },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "database": { "type": "string" },
+            "username": { "type": "string" },
+            "password": {
+              "type": "string",
+              "description": "Required when using the MySQL subchart."
+            }
+          }
+        }
+      }
+    },
+    "redis": {
+      "type": "object",
+      "description": "Redis subchart configuration for session storage.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the local Redis chart for session storage."
+        },
+        "architecture": {
+          "type": "string"
+        },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "password": {
+              "type": "string",
+              "description": "Required when using the Redis subchart."
+            }
+          }
+        }
+      }
+    }
+  }
+}

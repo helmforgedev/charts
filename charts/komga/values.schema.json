@@ -1,0 +1,594 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Komga Helm Chart Values",
+  "description": "Configuration values for the Komga Helm chart — SQLite media server with persistent config/data, ingress, and backup support.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name used in resource names",
+      "default": ""
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the full release name used in resource names",
+      "default": ""
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Labels added to every resource created by this chart"
+    },
+    "image": {
+      "type": "object",
+      "description": "Container image configuration",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Komga image repository",
+          "default": "gotson/komga"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Komga image tag (defaults to appVersion)",
+          "default": ""
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy",
+          "enum": ["Always", "IfNotPresent", "Never"],
+          "default": "IfNotPresent"
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries",
+      "items": {
+        "type": "object"
+      }
+    },
+    "komga": {
+      "type": "object",
+      "description": "Komga application configuration",
+      "additionalProperties": false,
+      "properties": {
+        "port": {
+          "type": "integer",
+          "description": "Server port inside the container",
+          "default": 25600
+        },
+        "contextPath": {
+          "type": "string",
+          "description": "Base URL path for reverse proxy (e.g. \"/komga\")",
+          "default": "/"
+        },
+        "sessionTimeout": {
+          "type": "string",
+          "description": "Session timeout duration (e.g. \"30m\", \"7d\")",
+          "default": "30m"
+        },
+        "timezone": {
+          "type": "string",
+          "description": "Timezone (e.g. \"America/Sao_Paulo\", \"UTC\")",
+          "default": "UTC"
+        },
+        "javaMemory": {
+          "type": "string",
+          "description": "Java memory limit (e.g. \"-Xmx1g\", \"-Xmx2g\")",
+          "default": ""
+        },
+        "extraEnv": {
+          "type": "array",
+          "description": "Extra environment variables",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount configuration",
+      "additionalProperties": false,
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a ServiceAccount for Komga",
+          "default": false
+        },
+        "name": {
+          "type": "string",
+          "description": "ServiceAccount name (defaults to fullname)",
+          "default": ""
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations added to the ServiceAccount"
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "description": "Persistent storage configuration",
+      "additionalProperties": false,
+      "properties": {
+        "config": {
+          "type": "object",
+          "description": "Config volume persistence (/config — database and application config)",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Persist /config with a PVC (database and application config)",
+              "default": true
+            },
+            "existingClaim": {
+              "type": "string",
+              "description": "Existing PVC name for config",
+              "default": ""
+            },
+            "storageClass": {
+              "type": "string",
+              "description": "Storage class for the config PVC",
+              "default": ""
+            },
+            "accessMode": {
+              "type": "string",
+              "description": "Access mode for the config PVC",
+              "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany"],
+              "default": "ReadWriteOnce"
+            },
+            "size": {
+              "type": "string",
+              "description": "Size of the config PVC",
+              "default": "2Gi"
+            },
+            "annotations": {
+              "type": "object",
+              "description": "Annotations added to the config PVC"
+            }
+          }
+        },
+        "data": {
+          "type": "object",
+          "description": "Data volume persistence (/data — comics/manga libraries)",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Persist /data with a PVC (comics/manga libraries)",
+              "default": true
+            },
+            "existingClaim": {
+              "type": "string",
+              "description": "Existing PVC name for data",
+              "default": ""
+            },
+            "storageClass": {
+              "type": "string",
+              "description": "Storage class for the data PVC",
+              "default": ""
+            },
+            "accessMode": {
+              "type": "string",
+              "description": "Access mode for the data PVC",
+              "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany"],
+              "default": "ReadWriteOnce"
+            },
+            "size": {
+              "type": "string",
+              "description": "Size of the data PVC",
+              "default": "50Gi"
+            },
+            "annotations": {
+              "type": "object",
+              "description": "Annotations added to the data PVC"
+            }
+          }
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "description": "Kubernetes Service configuration",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Service type",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer"],
+          "default": "ClusterIP"
+        },
+        "port": {
+          "type": "integer",
+          "description": "HTTP service port",
+          "default": 80
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the Service"
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "description": "Ingress configuration",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable ingress for Komga",
+          "default": false
+        },
+        "ingressClassName": {
+          "type": "string",
+          "description": "Ingress class name (for example: traefik, nginx)",
+          "default": "traefik"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the Ingress resource"
+        },
+        "hosts": {
+          "type": "array",
+          "description": "Ingress hosts",
+          "items": {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string"
+              },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "pathType": {
+                      "type": "string",
+                      "enum": ["Prefix", "Exact", "ImplementationSpecific"]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tls": {
+          "type": "array",
+          "description": "Ingress TLS configuration",
+          "items": {
+            "type": "object",
+            "properties": {
+              "hosts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "secretName": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "probes": {
+      "type": "object",
+      "description": "Health probe configuration",
+      "additionalProperties": false,
+      "properties": {
+        "startup": {
+          "type": "object",
+          "description": "Startup probe settings",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "path": {
+              "type": "string",
+              "default": "/"
+            },
+            "initialDelaySeconds": {
+              "type": "integer",
+              "default": 15
+            },
+            "periodSeconds": {
+              "type": "integer",
+              "default": 5
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "default": 3
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "default": 30
+            }
+          }
+        },
+        "liveness": {
+          "type": "object",
+          "description": "Liveness probe settings",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "path": {
+              "type": "string",
+              "default": "/"
+            },
+            "initialDelaySeconds": {
+              "type": "integer",
+              "default": 0
+            },
+            "periodSeconds": {
+              "type": "integer",
+              "default": 15
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "default": 5
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "default": 3
+            }
+          }
+        },
+        "readiness": {
+          "type": "object",
+          "description": "Readiness probe settings",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "path": {
+              "type": "string",
+              "default": "/"
+            },
+            "initialDelaySeconds": {
+              "type": "integer",
+              "default": 0
+            },
+            "periodSeconds": {
+              "type": "integer",
+              "default": 10
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "default": 5
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "default": 3
+            }
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "CPU and memory requests/limits for the Komga container"
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod-level security context"
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Container-level security context"
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector for pod scheduling"
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations for pod scheduling",
+      "items": {
+        "type": "object"
+      }
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Affinity rules for pod scheduling"
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "description": "Topology spread constraints",
+      "items": {
+        "type": "object"
+      }
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Priority class name",
+      "default": ""
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Grace period for pod termination in seconds",
+      "default": 30
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Additional labels for the pod"
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Additional annotations for the pod"
+    },
+    "backup": {
+      "type": "object",
+      "description": "Backup CronJob configuration (SQLite database tar + S3 upload)",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable built-in backup CronJob support (SQLite database tar + S3 upload)",
+          "default": false
+        },
+        "schedule": {
+          "type": "string",
+          "description": "Backup schedule in Cron format",
+          "default": "0 2 * * *"
+        },
+        "suspend": {
+          "type": "boolean",
+          "description": "Suspend backup execution",
+          "default": false
+        },
+        "concurrencyPolicy": {
+          "type": "string",
+          "description": "CronJob concurrency policy",
+          "enum": ["Forbid", "Replace", "Allow"],
+          "default": "Forbid"
+        },
+        "successfulJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Successful job history retained",
+          "default": 3
+        },
+        "failedJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Failed job history retained",
+          "default": 3
+        },
+        "backoffLimit": {
+          "type": "integer",
+          "description": "Job backoff limit",
+          "default": 1
+        },
+        "archivePrefix": {
+          "type": "string",
+          "description": "Prefix used in generated backup archive names",
+          "default": "komga"
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resources for backup containers"
+        },
+        "images": {
+          "type": "object",
+          "description": "Container images used by the backup job",
+          "properties": {
+            "uploader": {
+              "type": "object",
+              "properties": {
+                "repository": {
+                  "type": "string",
+                  "default": "minio/mc"
+                },
+                "tag": {
+                  "type": "string"
+                },
+                "pullPolicy": {
+                  "type": "string",
+                  "enum": ["Always", "IfNotPresent", "Never"]
+                }
+              }
+            },
+            "sqlite": {
+              "type": "object",
+              "properties": {
+                "repository": {
+                  "type": "string",
+                  "default": "alpine"
+                },
+                "tag": {
+                  "type": "string"
+                },
+                "pullPolicy": {
+                  "type": "string",
+                  "enum": ["Always", "IfNotPresent", "Never"]
+                }
+              }
+            }
+          }
+        },
+        "s3": {
+          "type": "object",
+          "description": "S3-compatible storage configuration for backups",
+          "additionalProperties": false,
+          "properties": {
+            "endpoint": {
+              "type": "string",
+              "description": "S3-compatible endpoint URL",
+              "default": ""
+            },
+            "bucket": {
+              "type": "string",
+              "description": "Target bucket name",
+              "default": ""
+            },
+            "prefix": {
+              "type": "string",
+              "description": "Optional key prefix inside the bucket",
+              "default": "komga"
+            },
+            "createBucketIfNotExists": {
+              "type": "boolean",
+              "description": "Create the bucket automatically when it does not exist",
+              "default": true
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing secret containing access-key and secret-key",
+              "default": ""
+            },
+            "existingSecretAccessKeyKey": {
+              "type": "string",
+              "description": "Key in the existing secret for the access key",
+              "default": "access-key"
+            },
+            "existingSecretSecretKeyKey": {
+              "type": "string",
+              "description": "Key in the existing secret for the secret key",
+              "default": "secret-key"
+            },
+            "accessKey": {
+              "type": "string",
+              "description": "Inline access key",
+              "default": ""
+            },
+            "secretKey": {
+              "type": "string",
+              "description": "Inline secret key",
+              "default": ""
+            }
+          }
+        }
+      }
+    },
+    "extraVolumes": {
+      "type": "array",
+      "description": "Additional volumes for the pod",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "description": "Additional volume mounts for the container",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraManifests": {
+      "type": "array",
+      "description": "Extra manifests to deploy alongside the chart",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

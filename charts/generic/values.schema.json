@@ -1,0 +1,624 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Generic Helm Chart Values",
+  "description": "Configuration values for the Generic Helm chart. Supports Deployments, StatefulSets, DaemonSets, Jobs, and CronJobs with multi-container pods, envFrom, initContainers, extraManifests, and more.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "replicaCount": {
+      "type": "integer",
+      "description": "Number of pod replicas (ignored when HPA is enabled; not used by DaemonSet/Job/CronJob)",
+      "default": 1
+    },
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the release name",
+      "default": ""
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the fully qualified release name",
+      "default": ""
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Labels added to all resources"
+    },
+    "workload": {
+      "type": "object",
+      "description": "Workload type configuration (Deployment, StatefulSet, DaemonSet). Set enabled: false for Jobs/CronJobs-only releases.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the long-running workload (set false for Jobs/CronJobs-only releases)",
+          "default": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Workload type",
+          "enum": ["Deployment", "StatefulSet", "DaemonSet"],
+          "default": "Deployment"
+        },
+        "podManagementPolicy": {
+          "type": "string",
+          "description": "StatefulSet pod management policy",
+          "enum": ["OrderedReady", "Parallel"]
+        },
+        "volumeClaimTemplates": {
+          "type": "array",
+          "description": "StatefulSet volume claim templates",
+          "items": {
+            "type": "object"
+          }
+        },
+        "updateStrategy": {
+          "type": "object",
+          "description": "StatefulSet / DaemonSet update strategy"
+        }
+      }
+    },
+    "image": {
+      "type": "object",
+      "description": "Default container image configuration",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Container image repository",
+          "default": "container.registry.io/project/image"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Container image tag",
+          "default": "latest"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy",
+          "enum": ["Always", "IfNotPresent", "Never"],
+          "default": "Always"
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries",
+      "items": {
+        "type": "object"
+      }
+    },
+    "containers": {
+      "type": "array",
+      "description": "Container definitions. Each supports: image, command, args, env, envFrom, ports, probes, resources, securityContext, volumeMounts, lifecycle, workingDir.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "image": {
+            "type": "object"
+          },
+          "ports": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "env": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "envFrom": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "command": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "resources": {
+            "type": "object"
+          },
+          "securityContext": {
+            "type": "object"
+          },
+          "volumeMounts": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "livenessProbe": {
+            "type": "object"
+          },
+          "readinessProbe": {
+            "type": "object"
+          },
+          "startupProbe": {
+            "type": "object"
+          },
+          "lifecycle": {
+            "type": "object"
+          },
+          "workingDir": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "initContainers": {
+      "type": "array",
+      "description": "Init containers (same spec as containers)",
+      "items": {
+        "type": "object"
+      }
+    },
+    "env": {
+      "type": "array",
+      "description": "Global environment variables applied to ALL containers (deployment, job, cronjob)",
+      "items": {
+        "type": "object"
+      }
+    },
+    "envFrom": {
+      "type": "array",
+      "description": "envFrom applied to ALL containers",
+      "items": {
+        "type": "object"
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount configuration",
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a ServiceAccount",
+          "default": false
+        },
+        "name": {
+          "type": "string",
+          "description": "ServiceAccount name"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the ServiceAccount"
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "Default CPU and memory requests/limits for all containers that don't specify their own"
+    },
+    "livenessProbe": {
+      "type": "object",
+      "description": "Liveness probe (applied to first container only if not set per-container)"
+    },
+    "readinessProbe": {
+      "type": "object",
+      "description": "Readiness probe (applied to first container only if not set per-container)"
+    },
+    "startupProbe": {
+      "type": "object",
+      "description": "Startup probe (applied to first container only if not set per-container)"
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod-level security context"
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Container-level security context"
+    },
+    "service": {
+      "type": "object",
+      "description": "Kubernetes Service configuration",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Service type",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer"],
+          "default": "ClusterIP"
+        },
+        "port": {
+          "type": "integer",
+          "description": "Service port",
+          "default": 8080
+        },
+        "targetPort": {
+          "type": "integer",
+          "description": "Target port on the container",
+          "default": 8080
+        },
+        "clusterIP": {
+          "type": "string",
+          "description": "Cluster IP override"
+        },
+        "loadBalancerIP": {
+          "type": "string",
+          "description": "Load balancer IP"
+        },
+        "externalIPs": {
+          "type": "array",
+          "description": "External IPs",
+          "items": {
+            "type": "string"
+          }
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the Service"
+        },
+        "extraPorts": {
+          "type": "array",
+          "description": "Extra service ports",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "port": {
+                "type": "integer"
+              },
+              "targetPort": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "description": "Ingress configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable ingress",
+          "default": false
+        },
+        "ingressClassName": {
+          "type": "string",
+          "description": "Ingress class name (for example: traefik, nginx)",
+          "default": "traefik"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the Ingress resource"
+        },
+        "hosts": {
+          "type": "array",
+          "description": "Ingress hosts",
+          "items": {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string"
+              },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "pathType": {
+                      "type": "string",
+                      "enum": ["Prefix", "Exact", "ImplementationSpecific"]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tls": {
+          "type": "array",
+          "description": "Ingress TLS configuration",
+          "items": {
+            "type": "object",
+            "properties": {
+              "hosts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "secretName": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "updateStrategy": {
+      "type": "object",
+      "description": "Deployment update strategy configuration",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Update strategy type",
+          "enum": ["RollingUpdate", "Recreate"],
+          "default": "RollingUpdate"
+        },
+        "rollingUpdate": {
+          "type": "object",
+          "description": "Rolling update parameters",
+          "properties": {
+            "maxSurge": {
+              "type": ["string", "integer"],
+              "description": "Max number of pods created above the desired count (% or absolute)",
+              "default": "25%"
+            },
+            "maxUnavailable": {
+              "type": ["string", "integer"],
+              "description": "Max number of pods unavailable during the update (% or absolute)",
+              "default": "25%"
+            }
+          }
+        }
+      }
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector for pod scheduling"
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations for pod scheduling",
+      "items": {
+        "type": "object"
+      }
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Affinity rules for pod scheduling"
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "description": "Topology spread constraints",
+      "items": {
+        "type": "object"
+      }
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Priority class name",
+      "default": ""
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Grace period for pod termination in seconds",
+      "default": 30
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Extra labels on pods only"
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Extra annotations on pods only"
+    },
+    "annotations": {
+      "type": "object",
+      "description": "Annotations on the workload resource itself"
+    },
+    "hpa": {
+      "type": "object",
+      "description": "Horizontal Pod Autoscaler configuration (not available for DaemonSet)",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable HPA",
+          "default": false
+        },
+        "minReplicas": {
+          "type": "integer",
+          "description": "Minimum number of replicas"
+        },
+        "maxReplicas": {
+          "type": "integer",
+          "description": "Maximum number of replicas"
+        },
+        "metrics": {
+          "type": "array",
+          "description": "HPA metrics",
+          "items": {
+            "type": "object"
+          }
+        },
+        "behavior": {
+          "type": "object",
+          "description": "HPA scaling behavior"
+        }
+      }
+    },
+    "vpa": {
+      "type": "object",
+      "description": "Vertical Pod Autoscaler configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable VPA",
+          "default": false
+        },
+        "updateMode": {
+          "type": "string",
+          "description": "VPA update mode",
+          "enum": ["Off", "Initial", "Recreate", "Auto"]
+        },
+        "resourcePolicy": {
+          "type": "object",
+          "description": "VPA resource policy"
+        }
+      }
+    },
+    "pdb": {
+      "type": "object",
+      "description": "Pod Disruption Budget configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable PDB",
+          "default": false
+        },
+        "minAvailable": {
+          "type": ["integer", "string"],
+          "description": "Minimum number of available pods"
+        },
+        "maxUnavailable": {
+          "type": ["integer", "string"],
+          "description": "Maximum number of unavailable pods"
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "description": "Persistence configuration for volumes, mounts, and storage",
+      "properties": {
+        "volumes": {
+          "type": "array",
+          "description": "Additional volumes (emptyDir, configMap, etc.)",
+          "items": {
+            "type": "object"
+          }
+        },
+        "mounts": {
+          "type": "array",
+          "description": "Volume mounts for containers",
+          "items": {
+            "type": "object"
+          }
+        },
+        "storage": {
+          "type": "array",
+          "description": "PersistentVolume and PersistentVolumeClaim definitions",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "configMaps": {
+      "type": "array",
+      "description": "ConfigMap definitions to create",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "serviceMonitor": {
+      "type": "object",
+      "description": "ServiceMonitor configuration for Prometheus Operator",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable ServiceMonitor",
+          "default": false
+        },
+        "labels": {
+          "type": "object",
+          "description": "Labels for the ServiceMonitor"
+        },
+        "endpoints": {
+          "type": "array",
+          "description": "ServiceMonitor endpoints",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "jobs": {
+      "type": "array",
+      "description": "Kubernetes Job definitions",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "image": {
+            "type": "object"
+          },
+          "command": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "backoffLimit": {
+            "type": "integer"
+          },
+          "activeDeadlineSeconds": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "cronjobs": {
+      "type": "array",
+      "description": "Kubernetes CronJob definitions",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "schedule": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "image": {
+            "type": "object"
+          },
+          "command": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "concurrencyPolicy": {
+            "type": "string",
+            "enum": ["Forbid", "Replace", "Allow"]
+          },
+          "suspend": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "extraManifests": {
+      "type": "array",
+      "description": "Inject arbitrary Kubernetes manifests. Supports Helm templating via tpl.",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

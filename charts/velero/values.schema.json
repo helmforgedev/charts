@@ -1,0 +1,535 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Velero Helm Chart Values",
+  "description": "Default values for the Velero Helm chart. Kubernetes backup, restore, and migration using the official Velero image.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name used in resource names"
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the full release name used in resource names"
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Labels added to every resource created by this chart"
+    },
+    "image": {
+      "type": "object",
+      "description": "Velero server image settings",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Velero server image repository"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Velero server image tag (defaults to appVersion when empty)"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries",
+      "items": { "type": "object" }
+    },
+    "plugins": {
+      "type": "object",
+      "description": "Plugin init container configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the default AWS/S3-compatible plugin init container"
+        },
+        "aws": {
+          "type": "object",
+          "description": "AWS plugin settings",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Init container name for the AWS plugin"
+            },
+            "repository": {
+              "type": "string",
+              "description": "AWS plugin image repository"
+            },
+            "tag": {
+              "type": "string",
+              "description": "AWS plugin image tag"
+            },
+            "pullPolicy": {
+              "type": "string",
+              "description": "AWS plugin image pull policy",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            }
+          }
+        },
+        "extra": {
+          "type": "array",
+          "description": "Extra plugin init containers appended after the default AWS plugin",
+          "items": { "type": "object" }
+        }
+      }
+    },
+    "credentials": {
+      "type": "object",
+      "description": "Credentials configuration for Velero",
+      "properties": {
+        "useSecret": {
+          "type": "boolean",
+          "description": "Mount a credentials secret into the Velero pods"
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing secret containing the credentials file"
+        },
+        "name": {
+          "type": "string",
+          "description": "Secret name to create when existingSecret is empty"
+        },
+        "key": {
+          "type": "string",
+          "description": "Key used inside the credentials secret"
+        },
+        "secretContents": {
+          "type": "string",
+          "description": "Full credentials file content used when creating the secret inline"
+        },
+        "extraEnvVars": {
+          "type": "object",
+          "description": "Extra environment variables loaded from the credentials secret"
+        },
+        "extraSecretRef": {
+          "type": "string",
+          "description": "Existing secret reference loaded through envFrom"
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount configuration",
+      "properties": {
+        "server": {
+          "type": "object",
+          "description": "Velero server service account settings",
+          "properties": {
+            "create": {
+              "type": "boolean",
+              "description": "Create the Velero service account"
+            },
+            "name": {
+              "type": "string",
+              "description": "Existing service account name"
+            },
+            "annotations": {
+              "type": "object",
+              "description": "Annotations added to the service account"
+            },
+            "labels": {
+              "type": "object",
+              "description": "Labels added to the service account"
+            },
+            "automountServiceAccountToken": {
+              "type": "boolean",
+              "description": "Automount the API token into the pod"
+            }
+          }
+        }
+      }
+    },
+    "rbac": {
+      "type": "object",
+      "description": "RBAC configuration",
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a ClusterRoleBinding for the Velero service account"
+        },
+        "clusterAdministrator": {
+          "type": "boolean",
+          "description": "Bind the service account to cluster-admin"
+        },
+        "clusterAdministratorName": {
+          "type": "string",
+          "description": "ClusterRole name bound when clusterAdministrator is true"
+        }
+      }
+    },
+    "configuration": {
+      "type": "object",
+      "description": "Velero server configuration",
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "description": "Kubernetes namespace watched by the Velero server (defaults to release namespace)"
+        },
+        "uploaderType": {
+          "type": "string",
+          "description": "Uploader type used by Velero",
+          "enum": ["kopia", "restic"]
+        },
+        "defaultBackupTTL": {
+          "type": "string",
+          "description": "Default backup TTL applied by the server"
+        },
+        "defaultItemOperationTimeout": {
+          "type": "string",
+          "description": "Default item operation timeout"
+        },
+        "storeValidationFrequency": {
+          "type": "string",
+          "description": "Default storage validation frequency"
+        },
+        "metricsAddress": {
+          "type": "string",
+          "description": "Default address used for Velero metrics"
+        },
+        "logLevel": {
+          "type": "string",
+          "description": "Server log level",
+          "enum": ["trace", "debug", "info", "warning", "error", "fatal", "panic"]
+        },
+        "logFormat": {
+          "type": "string",
+          "description": "Server log format",
+          "enum": ["text", "json"]
+        },
+        "restoreOnlyMode": {
+          "type": "boolean",
+          "description": "Start the server in restore-only mode"
+        },
+        "defaultVolumesToFsBackup": {
+          "type": "boolean",
+          "description": "Enable filesystem backup by default for pod volumes"
+        },
+        "features": {
+          "type": "string",
+          "description": "Comma-separated Velero feature flags"
+        },
+        "extraArgs": {
+          "type": "array",
+          "description": "Additional server arguments",
+          "items": { "type": "string" }
+        },
+        "extraEnvVars": {
+          "type": "array",
+          "description": "Additional environment variables for the Velero server and node-agent",
+          "items": { "type": "object" }
+        },
+        "backupStorageLocations": {
+          "type": "array",
+          "description": "Backup storage location definitions",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "provider": { "type": "string" },
+              "bucket": { "type": "string" },
+              "prefix": { "type": "string" },
+              "default": { "type": "boolean" },
+              "accessMode": {
+                "type": "string",
+                "enum": ["ReadWrite", "ReadOnly"]
+              },
+              "validationFrequency": { "type": "string" },
+              "caCert": { "type": "string" },
+              "annotations": { "type": "object" },
+              "config": {
+                "type": "object",
+                "properties": {
+                  "region": { "type": "string" },
+                  "s3Url": { "type": "string" },
+                  "s3ForcePathStyle": { "type": "boolean" },
+                  "insecureSkipTLSVerify": { "type": "boolean" },
+                  "publicUrl": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "volumeSnapshotLocations": {
+          "type": "array",
+          "description": "Volume snapshot location definitions",
+          "items": { "type": "object" }
+        }
+      }
+    },
+    "schedules": {
+      "type": "array",
+      "description": "Velero backup schedule definitions",
+      "items": { "type": "object" }
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Extra annotations for pods"
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Extra labels for pods"
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod-level security context"
+    },
+    "containerSecurityContext": {
+      "type": "object",
+      "description": "Container-level security context for the Velero server",
+      "properties": {
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "drop": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "privileged": { "type": "boolean" },
+        "readOnlyRootFilesystem": { "type": "boolean" }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "Resource requests and limits for the Velero server"
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Priority class name for pods"
+    },
+    "runtimeClassName": {
+      "type": "string",
+      "description": "Runtime class name for pods"
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Termination grace period in seconds"
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector for pod scheduling"
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations for pod scheduling",
+      "items": { "type": "object" }
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Affinity rules for pod scheduling"
+    },
+    "dnsPolicy": {
+      "type": "string",
+      "description": "DNS policy for pods"
+    },
+    "dnsConfig": {
+      "type": "object",
+      "description": "DNS configuration for pods"
+    },
+    "hostAliases": {
+      "type": "array",
+      "description": "Host aliases for pods",
+      "items": { "type": "object" }
+    },
+    "extraVolumes": {
+      "type": "array",
+      "description": "Extra volumes for pods",
+      "items": { "type": "object" }
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "description": "Extra volume mounts for containers",
+      "items": { "type": "object" }
+    },
+    "nodeAgent": {
+      "type": "object",
+      "description": "Velero node-agent DaemonSet configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Deploy the Velero node-agent DaemonSet for filesystem backup"
+        },
+        "disableHostPath": {
+          "type": "boolean",
+          "description": "Disable hostPath mounts in the node-agent"
+        },
+        "podVolumePath": {
+          "type": "string",
+          "description": "Host path to pod volumes"
+        },
+        "pluginVolumePath": {
+          "type": "string",
+          "description": "Host path to kubelet plugins"
+        },
+        "useScratchEmptyDir": {
+          "type": "boolean",
+          "description": "Mount an emptyDir scratch volume into the node-agent"
+        },
+        "podSecurityContext": {
+          "type": "object",
+          "description": "Pod-level security context for node-agent"
+        },
+        "containerSecurityContext": {
+          "type": "object",
+          "description": "Container-level security context for node-agent",
+          "properties": {
+            "allowPrivilegeEscalation": { "type": "boolean" },
+            "privileged": { "type": "boolean" },
+            "readOnlyRootFilesystem": { "type": "boolean" },
+            "runAsUser": { "type": "integer" }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resource requests and limits for node-agent"
+        },
+        "updateStrategy": {
+          "type": "object",
+          "description": "DaemonSet update strategy"
+        },
+        "priorityClassName": {
+          "type": "string",
+          "description": "Priority class name for node-agent pods"
+        },
+        "runtimeClassName": {
+          "type": "string",
+          "description": "Runtime class name for node-agent pods"
+        },
+        "nodeSelector": {
+          "type": "object",
+          "description": "Node selector for node-agent pods"
+        },
+        "tolerations": {
+          "type": "array",
+          "description": "Tolerations for node-agent pods",
+          "items": { "type": "object" }
+        },
+        "affinity": {
+          "type": "object",
+          "description": "Affinity rules for node-agent pods"
+        },
+        "dnsPolicy": {
+          "type": "string",
+          "description": "DNS policy for node-agent pods"
+        },
+        "dnsConfig": {
+          "type": "object",
+          "description": "DNS configuration for node-agent pods"
+        },
+        "hostAliases": {
+          "type": "array",
+          "description": "Host aliases for node-agent pods",
+          "items": { "type": "object" }
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the node-agent DaemonSet"
+        },
+        "labels": {
+          "type": "object",
+          "description": "Labels for the node-agent DaemonSet"
+        },
+        "podLabels": {
+          "type": "object",
+          "description": "Extra labels for node-agent pods"
+        },
+        "extraArgs": {
+          "type": "array",
+          "description": "Extra arguments for node-agent",
+          "items": { "type": "string" }
+        },
+        "extraEnvVars": {
+          "type": "array",
+          "description": "Extra environment variables for node-agent",
+          "items": { "type": "object" }
+        },
+        "extraVolumes": {
+          "type": "array",
+          "description": "Extra volumes for node-agent pods",
+          "items": { "type": "object" }
+        },
+        "extraVolumeMounts": {
+          "type": "array",
+          "description": "Extra volume mounts for node-agent containers",
+          "items": { "type": "object" }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Velero metrics configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Expose Velero metrics on a Service"
+        },
+        "service": {
+          "type": "object",
+          "description": "Metrics service settings",
+          "properties": {
+            "annotations": {
+              "type": "object",
+              "description": "Service annotations for Velero metrics"
+            },
+            "labels": {
+              "type": "object",
+              "description": "Service labels for Velero metrics"
+            },
+            "type": {
+              "type": "string",
+              "description": "Service type",
+              "enum": ["ClusterIP", "NodePort", "LoadBalancer"]
+            },
+            "port": {
+              "type": "integer",
+              "description": "Metrics port"
+            }
+          }
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "description": "ServiceMonitor configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Create a ServiceMonitor for Prometheus Operator"
+            },
+            "annotations": {
+              "type": "object",
+              "description": "ServiceMonitor annotations"
+            },
+            "additionalLabels": {
+              "type": "object",
+              "description": "Additional ServiceMonitor labels"
+            },
+            "namespace": {
+              "type": "string",
+              "description": "ServiceMonitor namespace (defaults to release namespace)"
+            },
+            "interval": {
+              "type": "string",
+              "description": "Metrics scrape interval"
+            },
+            "scrapeTimeout": {
+              "type": "string",
+              "description": "Metrics scrape timeout"
+            }
+          }
+        }
+      }
+    },
+    "extraObjects": {
+      "type": "array",
+      "description": "Additional manifests rendered with tpl",
+      "items": { "type": "object" }
+    }
+  }
+}
