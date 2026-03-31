@@ -165,6 +165,16 @@ Valid categories: `database`, `streaming-messaging`, `security`, `networking`, `
 
 Choose the category that best matches the chart's primary purpose. When adding a new chart, always include these annotations in the initial `Chart.yaml`.
 
+## Chart Maturity
+
+Every `Chart.yaml` includes `helmforge.dev/maturity` in the `annotations` block: `stable`, `beta`, or `alpha`.
+
+- **stable**: 5+ releases, extensive CI, k3d validated, no recent breaking changes
+- **beta**: 2+ releases, tests and CI present
+- **alpha**: 1 release, early iteration — also marked with `artifacthub.io/prerelease: "true"`
+
+When promoting, update `helmforge.dev/maturity` in Chart.yaml annotations and the README charts table in the same commit. Remove `artifacthub.io/prerelease` when promoting from alpha.
+
 ## Validation Commands
 
 ```bash

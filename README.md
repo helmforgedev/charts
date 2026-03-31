@@ -15,31 +15,39 @@ Project links:
 
 ## Charts
 
-| Chart | Description |
-|-------|-------------|
-| [generic](charts/generic/) | General-purpose chart for any Kubernetes workload |
-| [mongodb](charts/mongodb/) | MongoDB — standalone, replica set, or sharded cluster |
-| [redis](charts/redis/) | Redis — standalone, replication, sentinel, or cluster |
-| [rabbitmq](charts/rabbitmq/) | RabbitMQ — single-node or cluster with management UI and optional TLS |
-| [postgresql](charts/postgresql/) | PostgreSQL — standalone or fixed-primary replication with optional metrics |
-| [mysql](charts/mysql/) | MySQL — standalone or fixed-source replication with optional metrics |
-| [keycloak](charts/keycloak/) | Keycloak — dev or production mode with external DB and separated management service |
-| [vaultwarden](charts/vaultwarden/) | Vaultwarden — single-instance with persistent SQLite, ingress, and optional SMTP |
-| [minecraft](charts/minecraft/) | Minecraft — Java Edition server with Vanilla, Paper, Forge, Fabric, GeyserMC cross-play, S3 backup, and monitoring |
-| [pihole](charts/pihole/) | Pi-hole — DNS sinkhole with custom records, Unbound recursive DNS, and Prometheus metrics |
-| [wordpress](charts/wordpress/) | WordPress — CMS with MySQL subchart or external database, S3 backup, and Prometheus metrics |
-| [strapi](charts/strapi/) | Strapi — headless CMS with SQLite, PostgreSQL, or MySQL, uploads persistence, and S3 backup |
-| [answer](charts/answer/) | Apache Answer — Q&A platform with SQLite, PostgreSQL, or MySQL, auto-install, and S3 backup |
-| [n8n](charts/n8n/) | n8n — workflow automation with SQLite, PostgreSQL, or MySQL, Redis queue mode, and S3 backup |
-| [komga](charts/komga/) | Komga — media server for comics and manga with OPDS, SQLite persistence, and S3 backup |
-| [guacamole](charts/guacamole/) | Apache Guacamole — remote desktop gateway with guacd, PostgreSQL or MySQL, OIDC/SAML SSO, and S3 backup |
-| [cloudflared](charts/cloudflared/) | Cloudflare Tunnel — secure outbound-only connections with HA, PDB, and Prometheus metrics |
-| [ddns-updater](charts/ddns-updater/) | DDNS Updater — dynamic DNS for 50+ providers with web UI and persistent history |
-| [uptime-kuma](charts/uptime-kuma/) | Uptime Kuma — self-hosted monitoring with SQLite or MariaDB, status pages, and S3 backup |
-| [authelia](charts/authelia/) | Authelia — SSO, MFA, and OpenID Connect authentication server with forward auth for reverse proxies |
-| [adguard-home](charts/adguard-home/) | AdGuard Home — network-wide DNS ad/tracker blocker with sync and S3 backup |
-| [velero](charts/velero/) | Velero — Kubernetes backup, restore, migration, schedules, and S3-compatible object storage |
-| [kafka](charts/kafka/) | Kafka — KRaft single-broker and production-oriented cluster modes with persistent storage and optional metrics |
+| Chart | Maturity | Description |
+|-------|----------|-------------|
+| [generic](charts/generic/) | stable | General-purpose chart for any Kubernetes workload |
+| [mongodb](charts/mongodb/) | stable | MongoDB — standalone, replica set, or sharded cluster |
+| [redis](charts/redis/) | beta | Redis — standalone, replication, sentinel, or cluster |
+| [rabbitmq](charts/rabbitmq/) | beta | RabbitMQ — single-node or cluster with management UI and optional TLS |
+| [postgresql](charts/postgresql/) | stable | PostgreSQL — standalone or fixed-primary replication with optional metrics |
+| [mysql](charts/mysql/) | stable | MySQL — standalone or fixed-source replication with optional metrics |
+| [keycloak](charts/keycloak/) | stable | Keycloak — dev or production mode with external DB and separated management service |
+| [vaultwarden](charts/vaultwarden/) | stable | Vaultwarden — single-instance with persistent SQLite, ingress, and optional SMTP |
+| [minecraft](charts/minecraft/) | beta | Minecraft — Java Edition server with Vanilla, Paper, Forge, Fabric, GeyserMC cross-play, S3 backup, and monitoring |
+| [pihole](charts/pihole/) | alpha | Pi-hole — DNS sinkhole with custom records, Unbound recursive DNS, and Prometheus metrics |
+| [wordpress](charts/wordpress/) | alpha | WordPress — CMS with MySQL subchart or external database, S3 backup, and Prometheus metrics |
+| [strapi](charts/strapi/) | beta | Strapi — headless CMS with SQLite, PostgreSQL, or MySQL, uploads persistence, and S3 backup |
+| [answer](charts/answer/) | beta | Apache Answer — Q&A platform with SQLite, PostgreSQL, or MySQL, auto-install, and S3 backup |
+| [n8n](charts/n8n/) | alpha | n8n — workflow automation with SQLite, PostgreSQL, or MySQL, Redis queue mode, and S3 backup |
+| [komga](charts/komga/) | beta | Komga — media server for comics and manga with OPDS, SQLite persistence, and S3 backup |
+| [guacamole](charts/guacamole/) | beta | Apache Guacamole — remote desktop gateway with guacd, PostgreSQL or MySQL, OIDC/SAML SSO, and S3 backup |
+| [cloudflared](charts/cloudflared/) | beta | Cloudflare Tunnel — secure outbound-only connections with HA, PDB, and Prometheus metrics |
+| [ddns-updater](charts/ddns-updater/) | beta | DDNS Updater — dynamic DNS for 50+ providers with web UI and persistent history |
+| [uptime-kuma](charts/uptime-kuma/) | alpha | Uptime Kuma — self-hosted monitoring with SQLite or MariaDB, status pages, and S3 backup |
+| [authelia](charts/authelia/) | beta | Authelia — SSO, MFA, and OpenID Connect authentication server with forward auth for reverse proxies |
+| [adguard-home](charts/adguard-home/) | beta | AdGuard Home — network-wide DNS ad/tracker blocker with sync and S3 backup |
+| [velero](charts/velero/) | alpha | Velero — Kubernetes backup, restore, migration, schedules, and S3-compatible object storage |
+| [kafka](charts/kafka/) | alpha | Kafka — KRaft single-broker and production-oriented cluster modes with persistent storage and optional metrics |
+
+### Maturity levels
+
+| Level | Meaning | Criteria |
+|-------|---------|----------|
+| **stable** | Production-ready, well-tested | 5+ releases, extensive CI scenarios, k3d validated, no recent breaking changes |
+| **beta** | Functional, iterating | 2+ releases, unit tests and CI present, may have minor gaps |
+| **alpha** | New, functional but early | 1 release, tests present, limited iteration |
 
 ## Quick Start
 

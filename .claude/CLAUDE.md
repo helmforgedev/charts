@@ -213,6 +213,24 @@ Key rules:
 - place the block at the very end of the file after all content
 - use relative paths from the repository root for `path` and `relations`
 
+## Chart Maturity
+
+Every `Chart.yaml` must include `helmforge.dev/maturity` inside the `annotations` block with one of: `stable`, `beta`, `alpha`.
+
+| Level | Criteria | ArtifactHub |
+|-------|----------|-------------|
+| **stable** | 5+ releases, extensive CI scenarios, k3d validated, no recent breaking changes | — |
+| **beta** | 2+ releases, unit tests and CI present, may have minor gaps | — |
+| **alpha** | 1 release, tests present, limited iteration | `artifacthub.io/prerelease: "true"` |
+
+Promotion rules:
+
+- alpha -> beta: at least 2 published releases with no critical bugs, CI and unit tests covering main scenarios
+- beta -> stable: at least 5 published releases, extensive CI coverage (5+ scenarios), k3d validated, no breaking changes in the last 3 releases
+- stable -> beta: only if a breaking regression is introduced and not quickly resolved
+- when promoting a chart, update `helmforge.dev/maturity` in Chart.yaml annotations and the maturity column in the root `README.md` charts table in the same commit
+- for alpha charts, add `artifacthub.io/prerelease: "true"` in the annotations block; remove it when promoting to beta or stable
+
 ## Release Notes and Versioning
 
 Releases are fully automated by the `publish.yml` workflow. Do not create releases, tags, or changelogs manually.
