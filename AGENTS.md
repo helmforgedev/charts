@@ -162,7 +162,7 @@ annotations:
       url: https://github.com/helmforgedev/charts/tree/main/charts/<chart-name>
 ```
 
-Valid categories: `database`, `streaming-messaging`, `security`, `networking`, `monitoring-logging`, `integration-delivery`, `storage`, `gaming`.
+Valid categories: `ai-machine-learning`, `database`, `integration-delivery`, `monitoring-logging`, `networking`, `security`, `storage`, `streaming-messaging`. Use `skip-prediction` when no category fits.
 
 Choose the category that best matches the chart's primary purpose. When adding a new chart, always include these annotations in the initial `Chart.yaml`.
 

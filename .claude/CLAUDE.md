@@ -141,7 +141,7 @@ annotations:
       url: https://github.com/helmforgedev/charts/tree/main/charts/<chart-name>
 ```
 
-Valid categories: `database`, `streaming-messaging`, `security`, `networking`, `monitoring-logging`, `integration-delivery`, `storage`, `gaming`. See `AGENTS.md` for details.
+Valid categories: `ai-machine-learning`, `database`, `integration-delivery`, `monitoring-logging`, `networking`, `security`, `storage`, `streaming-messaging`. Use `skip-prediction` when no category fits. See `AGENTS.md` for details.
 
 ## Validation
 
