@@ -1,0 +1,168 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "velero.fullname" . }}
+  labels:
+    {{- include "velero.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "velero.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "velero.selectorLabels" . | nindent 8 }}
+      {{- if or .Values.podAnnotations (and .Values.credentials.useSecret (not .Values.credentials.existingSecret) .Values.credentials.secretContents) }}
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if and .Values.credentials.useSecret (not .Values.credentials.existingSecret) .Values.credentials.secretContents }}
+        checksum/credentials: {{ printf "%s" .Values.credentials.secretContents | sha256sum }}
+        {{- end }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "velero.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.server.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.runtimeClassName }}
+      runtimeClassName: {{ . | quote }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        {{- if .Values.plugins.enabled }}
+        - name: {{ .Values.plugins.aws.name }}
+          image: "{{ .Values.plugins.aws.repository }}:{{ .Values.plugins.aws.tag }}"
+          imagePullPolicy: {{ .Values.plugins.aws.pullPolicy }}
+          volumeMounts:
+            - name: plugins
+              mountPath: /target
+        {{- end }}
+        {{- with .Values.plugins.extra }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      containers:
+        - name: velero
+          image: {{ include "velero.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /velero
+          args:
+            - server
+            - --uploader-type={{ .Values.configuration.uploaderType }}
+            - --default-backup-ttl={{ .Values.configuration.defaultBackupTTL }}
+            - --default-item-operation-timeout={{ .Values.configuration.defaultItemOperationTimeout }}
+            - --store-validation-frequency={{ .Values.configuration.storeValidationFrequency }}
+            - --metrics-address={{ .Values.configuration.metricsAddress }}
+            - --log-level={{ .Values.configuration.logLevel }}
+            - --log-format={{ .Values.configuration.logFormat }}
+            {{- if .Values.configuration.restoreOnlyMode }}
+            - --restore-only
+            {{- end }}
+            {{- if .Values.configuration.defaultVolumesToFsBackup }}
+            - --default-volumes-to-fs-backup
+            {{- end }}
+            {{- with .Values.configuration.features }}
+            - --features={{ . }}
+            {{- end }}
+            {{- with .Values.configuration.namespace }}
+            - --namespace={{ . }}
+            {{- end }}
+            {{- with .Values.configuration.extraArgs }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.metrics.enabled }}
+          ports:
+            - name: metrics
+              containerPort: 8085
+          {{- end }}
+          env:
+            - name: VELERO_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: VELERO_SCRATCH_DIR
+              value: /scratch
+            {{- if .Values.credentials.useSecret }}
+            - name: AWS_SHARED_CREDENTIALS_FILE
+              value: /credentials/{{ .Values.credentials.key }}
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /credentials/{{ .Values.credentials.key }}
+            - name: AZURE_CREDENTIALS_FILE
+              value: /credentials/{{ .Values.credentials.key }}
+            {{- end }}
+            {{- with .Values.configuration.extraEnvVars }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.credentials.extraSecretRef }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.credentials.extraSecretRef }}
+          {{- end }}
+          volumeMounts:
+            - name: plugins
+              mountPath: /plugins
+            - name: scratch
+              mountPath: /scratch
+            {{- if .Values.credentials.useSecret }}
+            - name: cloud-credentials
+              mountPath: /credentials
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: plugins
+          emptyDir: {}
+        - name: scratch
+          emptyDir: {}
+        {{- if .Values.credentials.useSecret }}
+        - name: cloud-credentials
+          secret:
+            secretName: {{ include "velero.secretName" . }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      dnsPolicy: {{ .Values.dnsPolicy }}
+      {{- with .Values.dnsConfig }}
+      dnsConfig:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

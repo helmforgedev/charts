@@ -1,0 +1,221 @@
+# =============================================================================
+# Velero Helm Chart
+# =============================================================================
+# Kubernetes backup, restore, and migration using the official Velero image.
+# This chart is intentionally centered on explicit object-storage configuration,
+# optional node-agent support, and clear BackupStorageLocation, VolumeSnapshotLocation,
+# and Schedule resources.
+# https://velero.io/
+# =============================================================================
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+
+# -- Override the full release name used in resource names
+fullnameOverride: ""
+
+# -- Labels added to every resource created by this chart
+commonLabels: {}
+
+image:
+  # -- Velero server image repository
+  repository: docker.io/velero/velero
+  # -- Velero server image tag (defaults to appVersion when empty)
+  tag: ""
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+plugins:
+  # -- Enable the default AWS/S3-compatible plugin init container
+  enabled: true
+
+  aws:
+    # -- Init container name for the AWS plugin
+    name: velero-plugin-for-aws
+    # -- AWS plugin image repository
+    repository: docker.io/velero/velero-plugin-for-aws
+    # -- AWS plugin image tag
+    tag: v1.14.0
+    # -- AWS plugin image pull policy
+    pullPolicy: IfNotPresent
+
+  # -- Extra plugin init containers appended after the default AWS plugin
+  extra: []
+
+credentials:
+  # -- Mount a credentials secret into the Velero pods
+  useSecret: true
+  # -- Existing secret containing the credentials file
+  existingSecret: ""
+  # -- Secret name to create when existingSecret is empty
+  name: ""
+  # -- Key used inside the credentials secret
+  key: cloud
+  # -- Full credentials file content used when creating the secret inline
+  secretContents: ""
+  # -- Extra environment variables loaded from the credentials secret
+  extraEnvVars: {}
+  # -- Existing secret reference loaded through envFrom
+  extraSecretRef: ""
+
+serviceAccount:
+  server:
+    # -- Create the Velero service account
+    create: true
+    # -- Existing service account name
+    name: ""
+    # -- Annotations added to the service account
+    annotations: {}
+    # -- Labels added to the service account
+    labels: {}
+    # -- Automount the API token into the pod
+    automountServiceAccountToken: true
+
+rbac:
+  # -- Create a ClusterRoleBinding for the Velero service account
+  create: true
+  # -- Bind the service account to cluster-admin
+  clusterAdministrator: true
+  # -- ClusterRole name bound when clusterAdministrator is true
+  clusterAdministratorName: cluster-admin
+
+configuration:
+  # -- Kubernetes namespace watched by the Velero server (defaults to release namespace)
+  namespace: ""
+  # -- Uploader type used by Velero
+  uploaderType: kopia
+  # -- Default backup TTL applied by the server
+  defaultBackupTTL: 168h
+  # -- Default item operation timeout
+  defaultItemOperationTimeout: 4h
+  # -- Default storage validation frequency
+  storeValidationFrequency: 1m
+  # -- Default address used for Velero metrics
+  metricsAddress: ":8085"
+  # -- Server log level
+  logLevel: info
+  # -- Server log format (`text` or `json`)
+  logFormat: text
+  # -- Start the server in restore-only mode
+  restoreOnlyMode: false
+  # -- Enable filesystem backup by default for pod volumes
+  defaultVolumesToFsBackup: false
+  # -- Comma-separated Velero feature flags
+  features: ""
+  # -- Additional server arguments
+  extraArgs: []
+  # -- Additional environment variables for the Velero server and node-agent
+  extraEnvVars: []
+
+  backupStorageLocations:
+    - name: default
+      provider: aws
+      bucket: ""
+      prefix: ""
+      default: true
+      accessMode: ReadWrite
+      validationFrequency: ""
+      caCert: ""
+      annotations: {}
+      config:
+        region: us-east-1
+        s3Url: ""
+        s3ForcePathStyle: true
+        insecureSkipTLSVerify: false
+        publicUrl: ""
+
+  volumeSnapshotLocations: []
+
+schedules: []
+
+podAnnotations: {}
+podLabels: {}
+podSecurityContext: {}
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  privileged: false
+  readOnlyRootFilesystem: false
+
+resources: {}
+priorityClassName: ""
+runtimeClassName: ""
+terminationGracePeriodSeconds: 3600
+nodeSelector: {}
+tolerations: []
+affinity: {}
+dnsPolicy: ClusterFirst
+dnsConfig: {}
+hostAliases: []
+extraVolumes: []
+extraVolumeMounts: []
+
+nodeAgent:
+  # -- Deploy the Velero node-agent DaemonSet for filesystem backup
+  enabled: false
+  # -- Disable hostPath mounts in the node-agent
+  disableHostPath: false
+  # -- Host path to pod volumes
+  podVolumePath: /var/lib/kubelet/pods
+  # -- Host path to kubelet plugins
+  pluginVolumePath: /var/lib/kubelet/plugins
+  # -- Mount an emptyDir scratch volume into the node-agent
+  useScratchEmptyDir: true
+  podSecurityContext: {}
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    privileged: false
+    readOnlyRootFilesystem: false
+    runAsUser: 0
+  resources: {}
+  updateStrategy: {}
+  priorityClassName: ""
+  runtimeClassName: ""
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  dnsPolicy: ClusterFirst
+  dnsConfig: {}
+  hostAliases: []
+  annotations: {}
+  labels: {}
+  podLabels: {}
+  extraArgs: []
+  extraEnvVars: []
+  extraVolumes: []
+  extraVolumeMounts: []
+
+metrics:
+  # -- Expose Velero metrics on a Service
+  enabled: true
+  service:
+    # -- Service annotations for Velero metrics
+    annotations: {}
+    # -- Service labels for Velero metrics
+    labels: {}
+    # -- Service type
+    type: ClusterIP
+    # -- Metrics port
+    port: 8085
+  serviceMonitor:
+    # -- Create a ServiceMonitor for Prometheus Operator
+    enabled: false
+    # -- ServiceMonitor annotations
+    annotations: {}
+    # -- Additional ServiceMonitor labels
+    additionalLabels: {}
+    # -- ServiceMonitor namespace (defaults to release namespace)
+    namespace: ""
+    # -- Metrics scrape interval
+    interval: 30s
+    # -- Metrics scrape timeout
+    scrapeTimeout: 10s
+
+# -- Additional manifests rendered with tpl
+extraObjects: []

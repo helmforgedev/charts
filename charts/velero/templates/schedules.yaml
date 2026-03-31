@@ -1,0 +1,55 @@
+{{- $first := true }}
+{{- range .Values.schedules }}
+{{- if not $first }}
+---
+{{- end }}
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: {{ .name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "velero.labels" $ | nindent 4 }}
+    {{- with .labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  schedule: {{ .schedule | quote }}
+  paused: {{ .disabled | default false }}
+  useOwnerReferencesInBackup: {{ .useOwnerReferencesInBackup | default false }}
+  template:
+    ttl: {{ .template.ttl | default $.Values.configuration.defaultBackupTTL | quote }}
+    snapshotVolumes: {{ .template.snapshotVolumes | default false }}
+    defaultVolumesToFsBackup: {{ .template.defaultVolumesToFsBackup | default false }}
+    {{- with .template.storageLocation }}
+    storageLocation: {{ . | quote }}
+    {{- end }}
+    {{- with .template.volumeSnapshotLocations }}
+    volumeSnapshotLocations:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .template.includedNamespaces }}
+    includedNamespaces:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .template.excludedNamespaces }}
+    excludedNamespaces:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .template.includedResources }}
+    includedResources:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .template.excludedResources }}
+    excludedResources:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- if hasKey .template "includeClusterResources" }}
+    includeClusterResources: {{ .template.includeClusterResources }}
+    {{- end }}
+{{- $first = false }}
+{{- end }}

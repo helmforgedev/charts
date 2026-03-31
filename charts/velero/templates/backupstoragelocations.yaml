@@ -1,0 +1,43 @@
+{{- $first := true }}
+{{- range .Values.configuration.backupStorageLocations }}
+{{- if not $first }}
+---
+{{- end }}
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: {{ .name | default "default" }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "velero.labels" $ | nindent 4 }}
+  {{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  provider: {{ .provider | quote }}
+  objectStorage:
+    bucket: {{ .bucket | quote }}
+    {{- with .prefix }}
+    prefix: {{ . | quote }}
+    {{- end }}
+  accessMode: {{ .accessMode | default "ReadWrite" }}
+  {{- if hasKey . "default" }}
+  default: {{ .default }}
+  {{- end }}
+  {{- with .validationFrequency }}
+  validationFrequency: {{ . | quote }}
+  {{- end }}
+  {{- with .caCert }}
+  caCert: {{ . | quote }}
+  {{- end }}
+  {{- with .config }}
+  config:
+    {{- range $key, $value := . }}
+    {{- if ne (printf "%v" $value) "" }}
+    {{ $key }}: {{ printf "%v" $value | quote }}
+    {{- end }}
+    {{- end }}
+  {{- end }}
+{{- $first = false }}
+{{- end }}

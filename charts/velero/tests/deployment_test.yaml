@@ -1,0 +1,28 @@
+suite: deployment
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+tests:
+  - it: renders the deployment with velero image defaults
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/velero/velero:v1.18.0
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --uploader-type=kopia
+  - it: renders credentials secret when secret content is provided
+    set:
+      credentials.secretContents: |
+        [default]
+        aws_access_key_id=test
+        aws_secret_access_key=test
+    template: templates/secret.yaml
+    asserts:
+      - equal:
+          path: stringData.cloud
+          value: |
+            [default]
+            aws_access_key_id=test
+            aws_secret_access_key=test

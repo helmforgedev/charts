@@ -1,0 +1,28 @@
+{{- $first := true }}
+{{- range .Values.configuration.volumeSnapshotLocations }}
+{{- if not $first }}
+---
+{{- end }}
+apiVersion: velero.io/v1
+kind: VolumeSnapshotLocation
+metadata:
+  name: {{ .name | default "default" }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "velero.labels" $ | nindent 4 }}
+  {{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  provider: {{ .provider | quote }}
+  {{- with .config }}
+  config:
+    {{- range $key, $value := . }}
+    {{- if ne (printf "%v" $value) "" }}
+    {{ $key }}: {{ printf "%v" $value | quote }}
+    {{- end }}
+    {{- end }}
+  {{- end }}
+{{- $first = false }}
+{{- end }}
