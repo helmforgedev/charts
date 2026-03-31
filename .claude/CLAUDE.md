@@ -105,6 +105,8 @@ Conflict prevention rule:
 - when a chart supports distinct architectures, document each one in `docs/`
 - if a solution exposes a UI or web entrypoint, include configurable ingress support with `ingressClassName`
 - for UI/web solutions, `ingressClassName` may default to `traefik`, and docs must mention that `nginx` or another supported ingress class can also be used
+- when adding a new chart, also update the `site/` repository with the chart page, sidebar registration, and landing-page card in the same workstream
+- when changing public chart metadata or user-visible chart behavior, also update the `site/` repository if the website content should reflect that change, including maturity changes
 - before pushing on a branch with an existing PR, verify whether the PR is still open, merged, closed, or obsolete
 
 ## ArtifactHub Annotations
@@ -295,5 +297,5 @@ relations:
   - docs/testing-strategy.md
 path: .claude/CLAUDE.md
 version: 1.0
-date: 2026-03-31
+date: 2026-04-01
 -->

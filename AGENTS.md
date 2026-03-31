@@ -224,11 +224,12 @@ Critical rules:
 9. Add CI scenarios for each supported topology.
 10. Add examples that reflect realistic usage.
 11. Update the root `README.md` charts table.
-12. Run validation locally before pushing.
-13. Push and open a PR, wait for CI to pass.
-14. Deploy and validate the chart on a local k3d cluster **before merging the PR**. Install the chart with default values and at least one non-default CI scenario, verify pods are running and the application is reachable. Fix any issues found before merging.
-15. Merge the PR only after k3d validation succeeds.
-16. If the chart creates or changes backup behavior, validate the backup flow end-to-end against a local MinIO deployment and confirm the expected artifact reaches object storage.
+12. Update the `site/` repository in the same workstream. New charts must add a chart page and landing-page entry, and public metadata changes such as maturity must also be reflected on the site.
+13. Run validation locally before pushing.
+14. Push and open a PR, wait for CI to pass.
+15. Deploy and validate the chart on a local k3d cluster **before merging the PR**. Install the chart with default values and at least one non-default CI scenario, verify pods are running and the application is reachable. Fix any issues found before merging.
+16. Merge the PR only after k3d validation succeeds.
+17. If the chart creates or changes backup behavior, validate the backup flow end-to-end against a local MinIO deployment and confirm the expected artifact reaches object storage.
 
 Safety rule for local validation:
 
@@ -248,7 +249,8 @@ Safety rule for local validation:
 3. Run `helm lint --strict` and `helm unittest charts/<name>`.
 4. Update or add unit tests when template behavior changes.
 5. Update chart docs when behavior, defaults, or supported topologies changed.
-6. Use a conventional commit with the correct scope.
+6. If the change affects public documentation, chart listing, maturity, or other user-visible site content, update the `site/` repository in the same workstream.
+7. Use a conventional commit with the correct scope.
 
 ## Documentation Rules
 
@@ -310,5 +312,5 @@ relations:
   - docs/testing-strategy.md
 path: AGENTS.md
 version: 1.0
-date: 2026-03-31
+date: 2026-04-01
 -->
