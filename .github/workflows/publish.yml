@@ -75,13 +75,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Helm
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | DESIRED_VERSION=${{ env.HELM_VERSION }} bash
-
-      - name: Setup Cosign
-        uses: sigstore/cosign-installer@v3
-
       - name: Calculate semantic version
         id: semver
         run: |
@@ -139,6 +132,15 @@ jobs:
           echo "bump=$BUMP_TYPE" >> "$GITHUB_OUTPUT"
           echo "tag=${CHART}-v${NEXT_VERSION}" >> "$GITHUB_OUTPUT"
           echo "Bump: $BUMP_TYPE -> $NEXT_VERSION"
+
+      - name: Setup Helm
+        if: steps.semver.outputs.skip != 'true'
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | DESIRED_VERSION=${{ env.HELM_VERSION }} bash
+
+      - name: Setup Cosign
+        if: steps.semver.outputs.skip != 'true'
+        uses: sigstore/cosign-installer@v3
 
       - name: Login to GHCR
         if: steps.semver.outputs.skip != 'true'
