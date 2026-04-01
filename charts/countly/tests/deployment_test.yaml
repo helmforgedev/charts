@@ -1,0 +1,117 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-countly
+
+  - it: should use RollingUpdate strategy
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+
+  - it: should set the correct image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "countly/countly-server:25.03.41"
+
+  - it: should expose both API and dashboard ports
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: api
+            containerPort: 3001
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: dashboard
+            containerPort: 6001
+            protocol: TCP
+
+  - it: should set MongoDB URI from subchart secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MONGODB_ROOT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-mongodb
+                key: mongodb-root-password
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: COUNTLY_CONFIG__MONGODB
+            value: "mongodb://root:$(MONGODB_ROOT_PASSWORD)@test-mongodb:27017/countly?authSource=admin"
+
+  - it: should use external MongoDB URI when configured
+    set:
+      mongodb.enabled: false
+      externalMongodb.enabled: true
+      externalMongodb.uri: "mongodb://exthost:27017/countly"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: COUNTLY_CONFIG__MONGODB
+            value: "mongodb://exthost:27017/countly"
+
+  - it: should use external MongoDB secret when configured
+    set:
+      mongodb.enabled: false
+      externalMongodb.enabled: true
+      externalMongodb.existingSecret: my-mongo-secret
+      externalMongodb.existingSecretUriKey: uri
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: COUNTLY_CONFIG__MONGODB
+            valueFrom:
+              secretKeyRef:
+                name: my-mongo-secret
+                key: uri
+
+  - it: should set API worker count
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: COUNTLY_CONFIG_API_API_WORKERS
+            value: "4"
+
+  - it: should have wait-for-mongodb init container
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-mongodb
+
+  - it: should not have init container when using external MongoDB
+    set:
+      mongodb.enabled: false
+      externalMongodb.enabled: true
+      externalMongodb.uri: "mongodb://exthost:27017/countly"
+    asserts:
+      - notExists:
+          path: spec.template.spec.initContainers
+
+  - it: should use TCP probes on dashboard port
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.tcpSocket.port
+          value: dashboard
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+          value: dashboard
