@@ -89,9 +89,20 @@ jobs:
           LATEST_TAG=$(git tag --sort=-v:refname | grep -E "^${CHART}-v[0-9]+\.[0-9]+\.[0-9]+$" | head -1)
 
           if [ -z "$LATEST_TAG" ]; then
-            echo "No previous tag found for $CHART, starting at 1.0.0"
-            NEXT_VERSION="1.0.0"
-            BUMP_TYPE="initial"
+            # No tag found — read current version from Chart.yaml as baseline
+            CHART_VERSION=$(grep '^version:' "charts/${CHART}/Chart.yaml" | awk '{print $2}')
+            if [ -n "$CHART_VERSION" ] && [ "$CHART_VERSION" != "0.1.0" ]; then
+              echo "No tag found for $CHART, using Chart.yaml version $CHART_VERSION as baseline"
+              MAJOR=$(echo "$CHART_VERSION" | cut -d. -f1)
+              MINOR=$(echo "$CHART_VERSION" | cut -d. -f2)
+              PATCH=$(echo "$CHART_VERSION" | cut -d. -f3)
+              NEXT_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+              BUMP_TYPE="patch"
+            else
+              echo "No previous tag found for $CHART, starting at 1.0.0"
+              NEXT_VERSION="1.0.0"
+              BUMP_TYPE="initial"
+            fi
             echo "previous_tag=" >> "$GITHUB_OUTPUT"
           else
             CURRENT_VERSION="${LATEST_TAG#${CHART}-v}"
