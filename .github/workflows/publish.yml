@@ -140,6 +140,12 @@ jobs:
           echo "tag=${CHART}-v${NEXT_VERSION}" >> "$GITHUB_OUTPUT"
           echo "Bump: $BUMP_TYPE -> $NEXT_VERSION"
 
+      - name: Login to GHCR
+        if: steps.semver.outputs.skip != 'true'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
       - name: Build Helm dependencies
         if: steps.semver.outputs.skip != 'true'
         run: helm dependency build charts/${{ matrix.chart }}
@@ -150,12 +156,6 @@ jobs:
           sed -i "s/^version:.*/version: ${{ steps.semver.outputs.version }}/" charts/${{ matrix.chart }}/Chart.yaml
           echo "Updated Chart.yaml:"
           grep -E '^(version|appVersion):' charts/${{ matrix.chart }}/Chart.yaml
-
-      - name: Login to GHCR
-        if: steps.semver.outputs.skip != 'true'
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Package and push to OCI
         if: steps.semver.outputs.skip != 'true'
