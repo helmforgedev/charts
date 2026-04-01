@@ -1,0 +1,69 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+tests:
+  - it: should render a single-replica Deployment by default
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 3000
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: STORAGE_DRIVER
+            value: local
+
+  - it: should mount local storage by default
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          value: /app/data/storage
+
+  - it: should configure S3 env vars when storage mode is s3
+    template: templates/deployment.yaml
+    set:
+      storage.mode: s3
+      storage.s3.bucket: docmost
+      storage.s3.accessKey: minio
+      storage.s3.secretKey: secret123
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: STORAGE_DRIVER
+            value: s3
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AWS_S3_BUCKET
+            value: docmost
+
+  - it: should use external postgresql and redis settings when configured
+    template: templates/deployment.yaml
+    set:
+      database.mode: external
+      database.external.host: pg.example.internal
+      database.external.password: dbpass
+      postgresql.enabled: false
+      redis.enabled: false
+      redis.external.host: redis.example.internal
+      redis.external.password: redispass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_URL
+            value: postgresql://docmost:$(DATABASE_PASSWORD)@pg.example.internal:5432/docmost
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_URL
+            value: redis://:$(REDIS_PASSWORD)@redis.example.internal:6379

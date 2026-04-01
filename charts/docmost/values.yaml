@@ -1,0 +1,251 @@
+# =============================================================================
+# Docmost Helm Chart
+# =============================================================================
+# Open-source collaborative wiki and documentation platform.
+# Requires PostgreSQL and Redis. This alpha chart currently targets a single
+# Docmost application replica for predictable shared-storage semantics.
+# =============================================================================
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+
+# -- Override the full release name used in resource names
+fullnameOverride: ""
+
+# -- Labels added to every resource created by this chart
+commonLabels: {}
+
+# -- Number of Docmost application replicas. This alpha chart currently supports only 1.
+replicaCount: 1
+
+image:
+  # -- Docmost container image repository
+  repository: docmost/docmost
+  # -- Docmost image tag. Defaults to appVersion validated on GitHub Releases and Docker Hub.
+  tag: ""
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+docmost:
+  # -- Full external URL for Docmost. Auto-detected from the first ingress host when empty.
+  appUrl: ""
+  # -- Secret key for application security. Auto-generated if empty.
+  appSecret: ""
+  # -- JWT expiration used by Docmost
+  jwtTokenExpiresIn: 30d
+  # -- Additional environment variables for the Docmost container
+  extraEnv: []
+
+database:
+  # -- Database mode: auto | external | postgresql
+  mode: auto
+  external:
+    # -- External PostgreSQL hostname
+    host: ""
+    # -- External PostgreSQL port
+    port: 5432
+    # -- External PostgreSQL database name
+    name: docmost
+    # -- External PostgreSQL username
+    username: docmost
+    # -- External PostgreSQL password. Ignored when existingSecret is set.
+    password: ""
+    # -- Existing secret containing the external PostgreSQL password
+    existingSecret: ""
+    # -- Secret key for the external PostgreSQL password
+    existingSecretPasswordKey: database-password
+
+# -- Deploy PostgreSQL as a subchart
+postgresql:
+  enabled: true
+  architecture: standalone
+  auth:
+    # -- PostgreSQL database name created on first run
+    database: docmost
+    # -- PostgreSQL username created on first run
+    username: docmost
+    # -- PostgreSQL application user password. Auto-generated if empty.
+    password: ""
+    # -- PostgreSQL superuser password. Auto-generated if empty.
+    postgresPassword: ""
+  initdb:
+    scripts:
+      # -- Bootstrap Docmost database privileges and extensions on first PostgreSQL initialization.
+      10-docmost-bootstrap.sql: |
+        GRANT CREATE ON DATABASE docmost TO docmost;
+        \connect docmost
+        CREATE EXTENSION IF NOT EXISTS unaccent;
+        CREATE EXTENSION IF NOT EXISTS pg_trgm;
+  standalone:
+    persistence:
+      # -- Enable persistence for PostgreSQL data
+      enabled: true
+      # -- PVC size for PostgreSQL
+      size: 8Gi
+
+# -- Deploy Redis as a subchart
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    # -- Enable Redis password authentication
+    enabled: true
+    # -- Redis password. Auto-generated if empty when auth.enabled=true.
+    password: ""
+  standalone:
+    persistence:
+      # -- Enable persistence for Redis data
+      enabled: true
+      # -- PVC size for Redis
+      size: 1Gi
+  external:
+    # -- External Redis hostname
+    host: ""
+    # -- External Redis port
+    port: 6379
+    # -- External Redis password. Ignored when existingSecret is set.
+    password: ""
+    # -- Existing secret containing the external Redis password
+    existingSecret: ""
+    # -- Secret key for the external Redis password
+    existingSecretPasswordKey: redis-password
+
+storage:
+  # -- Storage mode: local | s3
+  mode: local
+  local:
+    # -- Enable persistent local storage for uploaded files
+    enabled: true
+    # -- Storage class for the Docmost uploads PVC
+    storageClass: ""
+    # -- Access mode for the Docmost uploads PVC
+    accessMode: ReadWriteOnce
+    # -- Size of the Docmost uploads PVC
+    size: 10Gi
+    # -- Existing PVC claim for local uploads storage
+    existingClaim: ""
+    # -- Annotations for the Docmost uploads PVC
+    annotations: {}
+  s3:
+    # -- S3 region
+    region: us-east-1
+    # -- S3 bucket name
+    bucket: ""
+    # -- S3 endpoint URL
+    endpoint: ""
+    # -- Force path-style requests for S3-compatible providers
+    forcePathStyle: true
+    # -- S3 access key. Ignored when existingSecret is set.
+    accessKey: ""
+    # -- S3 secret key. Ignored when existingSecret is set.
+    secretKey: ""
+    # -- Existing secret containing S3 credentials
+    existingSecret: ""
+    # -- Secret key for the S3 access key in storage.s3.existingSecret
+    existingSecretAccessKeyKey: access-key
+    # -- Secret key for the S3 secret key in storage.s3.existingSecret
+    existingSecretSecretKeyKey: secret-key
+
+service:
+  # -- Service type for the Docmost HTTP service
+  type: ClusterIP
+  # -- Service port exposed by the Docmost service
+  port: 80
+  # -- Annotations for the Docmost service
+  annotations: {}
+
+ingress:
+  # -- Enable ingress for Docmost
+  enabled: false
+  # -- Ingress class name
+  ingressClassName: ""
+  # -- Ingress annotations
+  annotations: {}
+  # -- Ingress hosts
+  hosts: []
+    # - host: docmost.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+
+startupProbe:
+  # -- Enable startup probe
+  enabled: true
+  # -- HTTP path used by the startup probe
+  path: /api/health
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+
+livenessProbe:
+  # -- Enable liveness probe
+  enabled: true
+  # -- HTTP path used by the liveness probe
+  path: /api/health
+  initialDelaySeconds: 0
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  # -- Enable readiness probe
+  enabled: true
+  # -- HTTP path used by the readiness probe
+  path: /api/health
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# -- CPU and memory requests/limits for the Docmost container
+resources: {}
+
+# -- Pod-level security context
+podSecurityContext: {}
+
+# -- Container-level security context
+securityContext: {}
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount
+  create: false
+  # -- ServiceAccount name override
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# -- Node selector for pod scheduling
+nodeSelector: {}
+
+# -- Tolerations for pod scheduling
+tolerations: []
+
+# -- Affinity rules for pod scheduling
+affinity: {}
+
+# -- Priority class name
+priorityClassName: ""
+
+# -- Grace period for shutdown, in seconds
+terminationGracePeriodSeconds: 30
+
+# -- Additional labels for the Docmost pod
+podLabels: {}
+
+# -- Additional annotations for the Docmost pod
+podAnnotations: {}
+
+# -- Additional volume mounts for the Docmost container
+extraVolumeMounts: []
+
+# -- Additional volumes for the Docmost pod
+extraVolumes: []
+
+# -- Extra Kubernetes manifests to deploy alongside the chart
+extraManifests: []

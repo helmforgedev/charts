@@ -1,0 +1,202 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "docmost.fullname" . }}
+  labels:
+    {{- include "docmost.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "docmost.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "docmost.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "docmost.serviceAccountName" . }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        - name: wait-for-postgresql
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for {{ include "docmost.databaseHost" . }}:{{ include "docmost.databasePort" . }} ..."
+              until nc -z -w2 {{ include "docmost.databaseHost" . }} {{ include "docmost.databasePort" . }}; do
+                sleep 2
+              done
+              echo "PostgreSQL is reachable."
+        - name: wait-for-redis
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for {{ include "docmost.redisHost" . }}:{{ include "docmost.redisPort" . }} ..."
+              until nc -z -w2 {{ include "docmost.redisHost" . }} {{ include "docmost.redisPort" . }}; do
+                sleep 2
+              done
+              echo "Redis is reachable."
+      containers:
+        - name: docmost
+          image: {{ include "docmost.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "3000"
+            - name: APP_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "docmost.appSecretSecretName" . }}
+                  key: app-secret
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "docmost.databaseSecretName" . }}
+                  key: {{ include "docmost.databaseSecretKey" . }}
+            - name: DATABASE_URL
+              value: {{ printf "postgresql://%s:$(DATABASE_PASSWORD)@%s:%s/%s" (include "docmost.databaseUsername" .) (include "docmost.databaseHost" .) (include "docmost.databasePort" .) (include "docmost.databaseName" .) | quote }}
+            {{- if include "docmost.hasRedisPassword" . }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "docmost.redisSecretName" . }}
+                  key: {{ include "docmost.redisSecretKey" . }}
+            - name: REDIS_URL
+              value: {{ printf "redis://:$(REDIS_PASSWORD)@%s:%s" (include "docmost.redisHost" .) (include "docmost.redisPort" .) | quote }}
+            {{- else }}
+            - name: REDIS_URL
+              value: {{ printf "redis://%s:%s" (include "docmost.redisHost" .) (include "docmost.redisPort" .) | quote }}
+            {{- end }}
+            - name: JWT_TOKEN_EXPIRES_IN
+              value: {{ .Values.docmost.jwtTokenExpiresIn | quote }}
+            {{- if include "docmost.appUrl" . }}
+            - name: APP_URL
+              value: {{ include "docmost.appUrl" . | quote }}
+            {{- end }}
+            - name: STORAGE_DRIVER
+              value: {{ .Values.storage.mode | quote }}
+            {{- if eq .Values.storage.mode "s3" }}
+            - name: AWS_S3_REGION
+              value: {{ .Values.storage.s3.region | quote }}
+            - name: AWS_S3_BUCKET
+              value: {{ .Values.storage.s3.bucket | quote }}
+            {{- if .Values.storage.s3.endpoint }}
+            - name: AWS_S3_ENDPOINT
+              value: {{ .Values.storage.s3.endpoint | quote }}
+            {{- end }}
+            - name: AWS_S3_FORCE_PATH_STYLE
+              value: {{ .Values.storage.s3.forcePathStyle | quote }}
+            - name: AWS_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "docmost.storageSecretName" . }}
+                  key: {{ .Values.storage.s3.existingSecretAccessKeyKey }}
+            - name: AWS_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "docmost.storageSecretName" . }}
+                  key: {{ .Values.storage.s3.existingSecretSecretKeyKey }}
+            {{- end }}
+            {{- with .Values.docmost.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.startupProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- if eq .Values.storage.mode "local" }}
+            - name: storage
+              mountPath: /app/data/storage
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        {{- if eq .Values.storage.mode "local" }}
+        - name: storage
+          {{- if .Values.storage.local.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.storage.local.existingClaim }}
+          {{- else if .Values.storage.local.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "docmost.fullname" . }}-storage
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

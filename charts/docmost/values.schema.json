@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Docmost Helm Chart Values",
+  "description": "Configuration values for the Docmost Helm chart with PostgreSQL, Redis, local storage, and optional S3.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name used in resource names"
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the full release name used in resource names"
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Labels added to every resource created by this chart"
+    },
+    "replicaCount": {
+      "type": "integer",
+      "description": "Number of Docmost application replicas. This alpha chart currently supports only 1."
+    },
+    "image": {
+      "type": "object",
+      "description": "Docmost image settings",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Docmost container image repository"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Docmost image tag. Defaults to appVersion validated on GitHub Releases and Docker Hub."
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries",
+      "items": {
+        "type": "object"
+      }
+    },
+    "docmost": {
+      "type": "object",
+      "description": "Docmost application settings",
+      "properties": {
+        "appUrl": {
+          "type": "string",
+          "description": "Full external URL for Docmost. Auto-detected from the first ingress host when empty."
+        },
+        "appSecret": {
+          "type": "string",
+          "description": "Secret key for application security. Auto-generated if empty."
+        },
+        "jwtTokenExpiresIn": {
+          "type": "string",
+          "description": "JWT expiration used by Docmost"
+        },
+        "extraEnv": {
+          "type": "array",
+          "description": "Additional environment variables for the Docmost container",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "description": "Database selection and external PostgreSQL settings",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "description": "Database mode: auto | external | postgresql",
+          "enum": ["auto", "external", "postgresql"]
+        },
+        "external": {
+          "type": "object",
+          "description": "External PostgreSQL configuration",
+          "properties": {
+            "host": { "type": "string", "description": "External PostgreSQL hostname" },
+            "port": { "type": "integer", "description": "External PostgreSQL port" },
+            "name": { "type": "string", "description": "External PostgreSQL database name" },
+            "username": { "type": "string", "description": "External PostgreSQL username" },
+            "password": { "type": "string", "description": "External PostgreSQL password. Ignored when existingSecret is set." },
+            "existingSecret": { "type": "string", "description": "Existing secret containing the external PostgreSQL password" },
+            "existingSecretPasswordKey": { "type": "string", "description": "Secret key for the external PostgreSQL password" }
+          }
+        }
+      }
+    },
+    "postgresql": {
+      "type": "object",
+      "description": "PostgreSQL subchart configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Deploy PostgreSQL as a subchart" },
+        "architecture": { "type": "string", "description": "PostgreSQL architecture" },
+        "auth": { "type": "object", "description": "PostgreSQL authentication settings" },
+        "primary": { "type": "object", "description": "Primary PostgreSQL settings" }
+      }
+    },
+    "redis": {
+      "type": "object",
+      "description": "Redis subchart or external Redis configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Deploy Redis as a subchart" },
+        "architecture": { "type": "string", "description": "Redis architecture" },
+        "auth": { "type": "object", "description": "Redis authentication settings" },
+        "standalone": { "type": "object", "description": "Standalone Redis settings" },
+        "external": {
+          "type": "object",
+          "description": "External Redis configuration",
+          "properties": {
+            "host": { "type": "string", "description": "External Redis hostname" },
+            "port": { "type": "integer", "description": "External Redis port" },
+            "password": { "type": "string", "description": "External Redis password. Ignored when existingSecret is set." },
+            "existingSecret": { "type": "string", "description": "Existing secret containing the external Redis password" },
+            "existingSecretPasswordKey": { "type": "string", "description": "Secret key for the external Redis password" }
+          }
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "description": "Docmost file storage configuration",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "description": "Storage mode: local | s3",
+          "enum": ["local", "s3"]
+        },
+        "local": {
+          "type": "object",
+          "description": "Local uploads storage settings",
+          "properties": {
+            "enabled": { "type": "boolean", "description": "Enable persistent local storage for uploaded files" },
+            "storageClass": { "type": "string", "description": "Storage class for the Docmost uploads PVC" },
+            "accessMode": { "type": "string", "description": "Access mode for the Docmost uploads PVC" },
+            "size": { "type": "string", "description": "Size of the Docmost uploads PVC" },
+            "existingClaim": { "type": "string", "description": "Existing PVC claim for local uploads storage" },
+            "annotations": { "type": "object", "description": "Annotations for the Docmost uploads PVC" }
+          }
+        },
+        "s3": {
+          "type": "object",
+          "description": "S3-compatible storage settings",
+          "properties": {
+            "region": { "type": "string", "description": "S3 region" },
+            "bucket": { "type": "string", "description": "S3 bucket name" },
+            "endpoint": { "type": "string", "description": "S3 endpoint URL" },
+            "forcePathStyle": { "type": "boolean", "description": "Force path-style requests for S3-compatible providers" },
+            "accessKey": { "type": "string", "description": "S3 access key. Ignored when existingSecret is set." },
+            "secretKey": { "type": "string", "description": "S3 secret key. Ignored when existingSecret is set." },
+            "existingSecret": { "type": "string", "description": "Existing secret containing S3 credentials" },
+            "existingSecretAccessKeyKey": { "type": "string", "description": "Secret key for the S3 access key in storage.s3.existingSecret" },
+            "existingSecretSecretKeyKey": { "type": "string", "description": "Secret key for the S3 secret key in storage.s3.existingSecret" }
+          }
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "description": "Docmost service configuration",
+      "properties": {
+        "type": { "type": "string", "description": "Service type for the Docmost HTTP service", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+        "port": { "type": "integer", "description": "Service port exposed by the Docmost service" },
+        "annotations": { "type": "object", "description": "Annotations for the Docmost service" }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "description": "Ingress configuration for Docmost",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable ingress for Docmost" },
+        "ingressClassName": { "type": "string", "description": "Ingress class name" },
+        "annotations": { "type": "object", "description": "Ingress annotations" },
+        "hosts": { "type": "array", "description": "Ingress hosts", "items": { "type": "object" } },
+        "tls": { "type": "array", "description": "Ingress TLS configuration", "items": { "type": "object" } }
+      }
+    },
+    "startupProbe": { "type": "object", "description": "Startup probe configuration" },
+    "livenessProbe": { "type": "object", "description": "Liveness probe configuration" },
+    "readinessProbe": { "type": "object", "description": "Readiness probe configuration" },
+    "resources": { "type": "object", "description": "CPU and memory requests/limits for the Docmost container" },
+    "podSecurityContext": { "type": "object", "description": "Pod-level security context" },
+    "securityContext": { "type": "object", "description": "Container-level security context" },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount configuration",
+      "properties": {
+        "create": { "type": "boolean", "description": "Create a dedicated ServiceAccount" },
+        "name": { "type": "string", "description": "ServiceAccount name override" },
+        "annotations": { "type": "object", "description": "Annotations for the ServiceAccount" }
+      }
+    },
+    "nodeSelector": { "type": "object", "description": "Node selector for pod scheduling" },
+    "tolerations": { "type": "array", "description": "Tolerations for pod scheduling", "items": { "type": "object" } },
+    "affinity": { "type": "object", "description": "Affinity rules for pod scheduling" },
+    "priorityClassName": { "type": "string", "description": "Priority class name" },
+    "terminationGracePeriodSeconds": { "type": "integer", "description": "Grace period for shutdown, in seconds" },
+    "podLabels": { "type": "object", "description": "Additional labels for the Docmost pod" },
+    "podAnnotations": { "type": "object", "description": "Additional annotations for the Docmost pod" },
+    "extraVolumeMounts": { "type": "array", "description": "Additional volume mounts for the Docmost container", "items": { "type": "object" } },
+    "extraVolumes": { "type": "array", "description": "Additional volumes for the Docmost pod", "items": { "type": "object" } },
+    "extraManifests": { "type": "array", "description": "Extra Kubernetes manifests to deploy alongside the chart", "items": { "type": "object" } }
+  }
+}
