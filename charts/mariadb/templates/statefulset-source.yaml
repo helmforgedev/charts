@@ -1,0 +1,199 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "mariadb.sourceStatefulSetName" . }}
+  labels:
+    {{- include "mariadb.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "mariadb.sourceHeadlessServiceName" . }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "mariadb.componentLabels" (dict "root" . "role" (ternary "source" "standalone" (eq .Values.architecture "replication"))) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "mariadb.componentLabels" (dict "root" . "role" (ternary "source" "standalone" (eq .Values.architecture "replication"))) | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "mariadb.podSpecCommon" . | nindent 6 }}
+      containers:
+        - name: mariadb
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              cp /config/my.cnf /etc/mysql/conf.d/zz-chart.cnf
+              cat > /etc/mysql/conf.d/zz-role.cnf <<EOF
+              [mysqld]
+              server_id = {{ ternary .Values.replication.source.serverId .Values.standalone.serverId (eq .Values.architecture "replication") }}
+              read_only = OFF
+              {{- if eq .Values.architecture "replication" }}
+              log_bin = mariadb-bin
+              binlog_format = {{ .Values.replication.binlog.format }}
+              log_slave_updates = ON
+              sync_binlog = {{ .Values.replication.binlog.syncBinlog }}
+              expire_logs_days = {{ .Values.replication.binlog.retentionDays }}
+              {{- end }}
+              EOF
+              exec docker-entrypoint.sh mariadbd
+          ports:
+            - name: mariadb
+              containerPort: {{ .Values.service.port }}
+          env:
+            - name: MARIADB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mariadb.secretName" . }}
+                  key: {{ .Values.auth.existingSecretRootPasswordKey }}
+            - name: MARIADB_ROOT_HOST
+              value: "%"
+            - name: MARIADB_DATABASE
+              value: {{ .Values.auth.database | quote }}
+            - name: MARIADB_USER
+              value: {{ .Values.auth.username | quote }}
+            - name: MARIADB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mariadb.secretName" . }}
+                  key: {{ .Values.auth.existingSecretUserPasswordKey }}
+            - name: REPLICATION_USERNAME
+              value: {{ ternary .Values.auth.replicationUsername "" (eq .Values.architecture "replication") | quote }}
+            - name: REPLICATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mariadb.secretName" . }}
+                  key: {{ .Values.auth.existingSecretReplicationPasswordKey }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - {{ include "mariadb.probeCommandString" . | quote }}
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - {{ include "mariadb.sourceReadinessCommandString" . | quote }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - {{ include "mariadb.probeCommandString" . | quote }}
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- if eq .Values.architecture "replication" }}
+            {{- if .Values.replication.source.resources }}
+            {{- toYaml .Values.replication.source.resources | nindent 12 }}
+            {{- else }}
+            {{- include "mariadb.resourcesPreset" (dict "preset" .Values.replication.source.resourcesPreset) | nindent 12 }}
+            {{- end }}
+            {{- else }}
+            {{- if .Values.standalone.resources }}
+            {{- toYaml .Values.standalone.resources | nindent 12 }}
+            {{- else }}
+            {{- include "mariadb.resourcesPreset" (dict "preset" .Values.standalone.resourcesPreset) | nindent 12 }}
+            {{- end }}
+            {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+            - name: config
+              mountPath: /config
+            - name: mariadb-conf
+              mountPath: /etc/mysql/conf.d
+            - name: initdb
+              mountPath: /docker-entrypoint-initdb.d
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- if .Values.metrics.enabled }}
+        - name: mysqld-exporter
+          image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
+          imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
+          args:
+            - --web.listen-address=:{{ .Values.service.metricsPort }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.service.metricsPort }}
+          env:
+            {{- include "mariadb.metricsEnv" . | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- if .Values.metrics.resources }}
+            {{- toYaml .Values.metrics.resources | nindent 12 }}
+            {{- else }}
+            {{- include "mariadb.metricsResourcesPreset" . | nindent 12 }}
+            {{- end }}
+        {{- end }}
+      volumes:
+        - name: mariadb-conf
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: {{ include "mariadb.configMapName" . }}
+        - name: initdb
+          projected:
+            defaultMode: 0755
+            sources:
+              - configMap:
+                  name: {{ include "mariadb.initdbConfigMapName" . }}
+              {{- if .Values.initdb.existingConfigMap }}
+              - configMap:
+                  name: {{ .Values.initdb.existingConfigMap }}
+              {{- end }}
+        {{- if .Values.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ include "mariadb.tlsSecretName" . }}
+        {{- end }}
+        {{- if not (ternary .Values.replication.source.persistence.enabled .Values.standalone.persistence.enabled (eq .Values.architecture "replication")) }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+  {{- if ternary .Values.replication.source.persistence.enabled .Values.standalone.persistence.enabled (eq .Values.architecture "replication") }}
+  volumeClaimTemplates:
+    {{- include "mariadb.volumeClaimTemplate" (dict "root" . "persistence" (ternary .Values.replication.source.persistence .Values.standalone.persistence (eq .Values.architecture "replication"))) | nindent 4 }}
+  {{- end }}

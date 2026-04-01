@@ -1,0 +1,256 @@
+{{- if and (eq .Values.architecture "replication") (gt (int .Values.replication.readReplicas.replicaCount) 0) }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "mariadb.replicaStatefulSetName" . }}
+  labels:
+    {{- include "mariadb.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "mariadb.replicasHeadlessServiceName" . }}
+  replicas: {{ .Values.replication.readReplicas.replicaCount }}
+  podManagementPolicy: OrderedReady
+  selector:
+    matchLabels:
+      {{- include "mariadb.componentLabels" (dict "root" . "role" "replica") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "mariadb.componentLabels" (dict "root" . "role" "replica") | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "mariadb.podSpecCommon" . | nindent 6 }}
+      initContainers:
+        - name: clone-source
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              DATA_DIR="/var/lib/mysql"
+              if [ -d "${DATA_DIR}/mysql" ]; then
+                exit 0
+              fi
+
+              ordinal="${HOSTNAME##*-}"
+              server_id=$(( {{ .Values.replication.readReplicas.serverIdBase }} + ordinal + 1 ))
+
+              cat /config/my.cnf > /etc/mysql/conf.d/zz-chart.cnf
+              cat > /etc/mysql/conf.d/zz-role.cnf <<EOF
+              [mysqld]
+              server_id = ${server_id}
+              read_only = ON
+              relay_log = mariadb-relay-bin
+              log_slave_updates = ON
+              slave_parallel_workers = {{ .Values.replication.replicaTuning.parallelWorkers }}
+              EOF
+
+              until MYSQL_PWD="${MARIADB_ROOT_PASSWORD}" mariadb-admin ping -h {{ include "mariadb.sourceServiceName" . }} -P {{ .Values.service.port }} -uroot {{ include "mariadb.cliTlsArgs" . }} --silent; do
+                sleep 5
+              done
+
+              mariadb-install-db --user=mysql --datadir="${DATA_DIR}"
+              mariadbd --user=mysql --datadir="${DATA_DIR}" --socket=/tmp/mysql.sock --pid-file=/tmp/mariadb.pid --skip-networking &
+
+              until mariadb-admin --socket=/tmp/mysql.sock ping --silent; do
+                sleep 2
+              done
+
+              mariadb --socket=/tmp/mysql.sock -uroot <<EOSQL
+              ALTER USER 'root'@'localhost' IDENTIFIED BY '${MARIADB_ROOT_PASSWORD}';
+              FLUSH PRIVILEGES;
+              EOSQL
+
+              MYSQL_PWD="${MARIADB_ROOT_PASSWORD}" mariadb-dump \
+                -h {{ include "mariadb.sourceServiceName" . }} \
+                -P {{ .Values.service.port }} \
+                -uroot \
+                {{ include "mariadb.cliTlsArgs" . }} \
+                --single-transaction \
+                --gtid \
+                --all-databases \
+                --triggers \
+                --routines \
+                --events \
+                > /tmp/source.sql
+
+              MYSQL_PWD="${MARIADB_ROOT_PASSWORD}" mariadb --socket=/tmp/mysql.sock -uroot < /tmp/source.sql
+
+              MYSQL_PWD="${MARIADB_ROOT_PASSWORD}" mariadb --socket=/tmp/mysql.sock -uroot <<EOSQL
+              CHANGE MASTER TO
+                MASTER_HOST='{{ include "mariadb.sourceServiceName" . }}',
+                MASTER_PORT={{ .Values.service.port }},
+                MASTER_USER='{{ .Values.auth.replicationUsername }}',
+                MASTER_PASSWORD='${REPLICATION_PASSWORD}',
+                {{ include "mariadb.replicationTlsClause" . | nindent 16 }}
+                MASTER_USE_GTID=slave_pos;
+              START SLAVE;
+              EOSQL
+
+              mariadb-admin --socket=/tmp/mysql.sock -uroot -p"${MARIADB_ROOT_PASSWORD}" shutdown
+          env:
+            - name: MARIADB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mariadb.secretName" . }}
+                  key: {{ .Values.auth.existingSecretRootPasswordKey }}
+            - name: REPLICATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mariadb.secretName" . }}
+                  key: {{ .Values.auth.existingSecretReplicationPasswordKey }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+            - name: config
+              mountPath: /config
+            - name: mariadb-conf
+              mountPath: /etc/mysql/conf.d
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
+      containers:
+        - name: mariadb
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              ordinal="${HOSTNAME##*-}"
+              server_id=$(( {{ .Values.replication.readReplicas.serverIdBase }} + ordinal + 1 ))
+              cat /config/my.cnf > /etc/mysql/conf.d/zz-chart.cnf
+              cat > /etc/mysql/conf.d/zz-role.cnf <<EOF
+              [mysqld]
+              server_id = ${server_id}
+              read_only = ON
+              relay_log = mariadb-relay-bin
+              log_slave_updates = ON
+              slave_parallel_workers = {{ .Values.replication.replicaTuning.parallelWorkers }}
+              EOF
+              exec docker-entrypoint.sh mariadbd
+          ports:
+            - name: mariadb
+              containerPort: {{ .Values.service.port }}
+          env:
+            - name: MARIADB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mariadb.secretName" . }}
+                  key: {{ .Values.auth.existingSecretRootPasswordKey }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - {{ include "mariadb.probeCommandString" . | quote }}
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - {{ include "mariadb.replicaReadinessCommandString" . | quote }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - {{ include "mariadb.probeCommandString" . | quote }}
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- if .Values.replication.readReplicas.resources }}
+            {{- toYaml .Values.replication.readReplicas.resources | nindent 12 }}
+            {{- else }}
+            {{- include "mariadb.resourcesPreset" (dict "preset" .Values.replication.readReplicas.resourcesPreset) | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+            - name: config
+              mountPath: /config
+            - name: mariadb-conf
+              mountPath: /etc/mysql/conf.d
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- if .Values.metrics.enabled }}
+        - name: mysqld-exporter
+          image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
+          imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
+          args:
+            - --web.listen-address=:{{ .Values.service.metricsPort }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.service.metricsPort }}
+          env:
+            {{- include "mariadb.metricsEnv" . | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- if .Values.metrics.resources }}
+            {{- toYaml .Values.metrics.resources | nindent 12 }}
+            {{- else }}
+            {{- include "mariadb.metricsResourcesPreset" . | nindent 12 }}
+            {{- end }}
+        {{- end }}
+      volumes:
+        - name: mariadb-conf
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: {{ include "mariadb.configMapName" . }}
+        {{- if .Values.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ include "mariadb.tlsSecretName" . }}
+        {{- end }}
+        {{- if not .Values.replication.readReplicas.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+  {{- if .Values.replication.readReplicas.persistence.enabled }}
+  volumeClaimTemplates:
+    {{- include "mariadb.volumeClaimTemplate" (dict "root" . "persistence" .Values.replication.readReplicas.persistence) | nindent 4 }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,37 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "mariadb.fullname" . }}
+  labels:
+    {{- include "mariadb.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "mariadb.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- if .Values.networkPolicy.ingress.allowSameNamespace }}
+        - podSelector: {}
+        {{- end }}
+        {{- with .Values.networkPolicy.ingress.extraFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.port }}
+    {{- if and .Values.metrics.enabled .Values.networkPolicy.metrics.enabled }}
+    - from:
+        {{- if .Values.networkPolicy.metrics.allowSameNamespace }}
+        - podSelector: {}
+        {{- end }}
+        {{- with .Values.networkPolicy.metrics.extraFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.metricsPort }}
+    {{- end }}
+{{- end }}

@@ -47,6 +47,7 @@ Project links:
 | [heimdall](charts/heimdall/) | alpha | Heimdall — application dashboard with persistent config, S3 backup, and ingress support |
 | [gitea](charts/gitea/) | alpha | Gitea — self-hosted Git service with SQLite, PostgreSQL, or MySQL, rootless image, SSH, and S3 backup |
 | [homarr](charts/homarr/) | alpha | Homarr — modern application dashboard with SQLite, PostgreSQL, or MySQL, Kubernetes integration, and S3 backup |
+| [mariadb](charts/mariadb/) | alpha | MariaDB — standalone or GTID-based replication with TLS, metrics, configuration presets, and S3 backup |
 
 ### Maturity levels
 

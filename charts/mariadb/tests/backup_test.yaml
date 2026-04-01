@@ -1,0 +1,42 @@
+suite: backup
+templates:
+  - templates/backup-cronjob.yaml
+  - templates/backup-configmap.yaml
+  - templates/secret.yaml
+tests:
+  - it: should not render backup resources by default
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render CronJob when backup is enabled
+    template: templates/backup-cronjob.yaml
+    set:
+      backup:
+        enabled: true
+        s3:
+          endpoint: https://s3.example.com
+          bucket: test
+          accessKey: key
+          secretKey: secret
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.schedule
+          value: "0 3 * * *"
+
+  - it: should render backup ConfigMap when enabled
+    template: templates/backup-configmap.yaml
+    set:
+      backup:
+        enabled: true
+        s3:
+          endpoint: https://s3.example.com
+          bucket: test
+          accessKey: key
+          secretKey: secret
+    asserts:
+      - isKind:
+          of: ConfigMap

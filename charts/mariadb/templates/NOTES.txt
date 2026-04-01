@@ -1,0 +1,46 @@
+MariaDB has been installed.
+
+Useful Services:
+
+- Client Service: {{ include "mariadb.clientServiceName" . }}
+{{- if eq .Values.architecture "replication" }}
+- Source Service: {{ include "mariadb.sourceServiceName" . }}
+- Replicas Service: {{ include "mariadb.replicasServiceName" . }}
+{{- end }}
+
+Root password:
+
+  kubectl get secret {{ include "mariadb.secretName" . }} -n {{ .Release.Namespace }} -o jsonpath="{.data.{{ .Values.auth.existingSecretRootPasswordKey }}}" | base64 -d
+{{- if .Values.tls.enabled }}
+
+TLS secret:
+
+  {{ include "mariadb.tlsSecretName" . }}
+{{- end }}
+
+Connection examples:
+
+  mariadb -h {{ include "mariadb.clientServiceName" . }} -P {{ .Values.service.port }} -u {{ .Values.auth.username }} -p
+{{- if eq .Values.architecture "replication" }}
+
+Read-only workloads should use:
+
+  mariadb -h {{ include "mariadb.replicasServiceName" . }} -P {{ .Values.service.port }} -u {{ .Values.auth.username }} -p
+
+Writable workloads should use:
+
+  mariadb -h {{ include "mariadb.sourceServiceName" . }} -P {{ .Values.service.port }} -u {{ .Values.auth.username }} -p
+{{- end }}
+
+Initial troubleshooting:
+
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl logs -n {{ .Release.Namespace }} {{ include "mariadb.sourceStatefulSetName" . }}-0
+{{- if eq .Values.architecture "replication" }}
+  kubectl logs -n {{ .Release.Namespace }} {{ include "mariadb.replicaStatefulSetName" . }}-0
+{{- end }}
+
+Important:
+
+- replication mode provides one fixed source and asynchronous read replicas
+- the chart does not implement automatic source promotion or operator-style HA

@@ -1,0 +1,84 @@
+suite: statefulset-source
+templates:
+  - templates/statefulset-source.yaml
+  - templates/configmap.yaml
+tests:
+  - it: should render standalone StatefulSet by default
+    template: templates/statefulset-source.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-mariadb
+
+  - it: should render source StatefulSet in replication mode
+    template: templates/statefulset-source.yaml
+    set:
+      architecture: replication
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-mariadb-source
+
+  - it: should use mariadb image
+    template: templates/statefulset-source.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "mariadb:11.4"
+
+  - it: should always have 1 replica
+    template: templates/statefulset-source.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should expose mariadb port
+    template: templates/statefulset-source.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0]
+          value:
+            name: mariadb
+            containerPort: 3306
+
+  - it: should set security context
+    template: templates/statefulset-source.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 999
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+
+  - it: should have probes by default
+    template: templates/statefulset-source.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].livenessProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].readinessProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].startupProbe
+
+  - it: should have VolumeClaimTemplate with 8Gi default
+    template: templates/statefulset-source.yaml
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 8Gi
+
+  - it: should render metrics sidecar when enabled
+    template: templates/statefulset-source.yaml
+    set:
+      metrics:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: mysqld-exporter

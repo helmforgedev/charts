@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mariadb.configMapName" . }}
+  labels:
+    {{- include "mariadb.labels" . | nindent 4 }}
+data:
+  my.cnf: |
+    [mysqld]
+    port = {{ .Values.service.port }}
+    bind-address = 0.0.0.0
+    skip-name-resolve = ON
+    {{- if .Values.tls.enabled }}
+    ssl_ca = /tls/{{ .Values.tls.caFilename }}
+    ssl_cert = /tls/{{ .Values.tls.certFilename }}
+    ssl_key = /tls/{{ .Values.tls.keyFilename }}
+    {{- if .Values.tls.requireSecureTransport }}
+    require_secure_transport = ON
+    {{- end }}
+    {{- end }}
+    {{- if ne .Values.config.preset "none" }}
+    {{ include "mariadb.configPreset" . | nindent 4 }}
+    {{- end }}
+    {{- if .Values.config.myCnf }}
+    {{ .Values.config.myCnf | nindent 4 }}
+    {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mariadb.initdbConfigMapName" . }}
+  labels:
+    {{- include "mariadb.labels" . | nindent 4 }}
+data:
+  00-bootstrap-users.sh: |
+    #!/bin/sh
+    set -eu
+
+    mariadb --protocol=socket -uroot -p"${MARIADB_ROOT_PASSWORD}" <<EOSQL
+    CREATE DATABASE IF NOT EXISTS \`${MARIADB_DATABASE}\`;
+    CREATE USER IF NOT EXISTS '${MARIADB_USER}'@'%' IDENTIFIED BY '${MARIADB_PASSWORD}';
+    GRANT ALL PRIVILEGES ON \`${MARIADB_DATABASE}\`.* TO '${MARIADB_USER}'@'%';
+    {{- if eq .Values.architecture "replication" }}
+    CREATE USER IF NOT EXISTS '${REPLICATION_USERNAME}'@'%' IDENTIFIED BY '${REPLICATION_PASSWORD}';
+    GRANT REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO '${REPLICATION_USERNAME}'@'%';
+    {{- end }}
+    FLUSH PRIVILEGES;
+    EOSQL
+  {{- range $name, $content := .Values.initdb.scripts }}
+  {{ $name }}: |
+{{ $content | indent 4 }}
+  {{- end }}

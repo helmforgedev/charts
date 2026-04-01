@@ -1,0 +1,117 @@
+{{- if include "mariadb.backupEnabled" . }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "mariadb.fullname" . }}-backup
+  labels:
+    {{- include "mariadb.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  suspend: {{ .Values.backup.suspend }}
+  concurrencyPolicy: {{ .Values.backup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "mariadb.selectorLabels" . | nindent 12 }}
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "mariadb.serviceAccountName" . }}
+          terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          initContainers:
+            - name: mariadb-backup
+              image: "{{ .Values.backup.images.mariadb.repository }}:{{ .Values.backup.images.mariadb.tag }}"
+              imagePullPolicy: {{ .Values.backup.images.mariadb.pullPolicy }}
+              command: ["/bin/sh", "/scripts/mariadb-backup.sh"]
+              env:
+                - name: BACKUP_ARCHIVE_PREFIX
+                  value: {{ .Values.backup.archivePrefix | quote }}
+                - name: MARIADB_DUMP_EXTRA_ARGS
+                  value: {{ .Values.backup.database.mariadbdumpArgs | quote }}
+                - name: MARIADB_CLI_TLS_ARGS
+                  value: {{ include "mariadb.cliTlsArgs" . | quote }}
+                - name: DB_HOST
+                  value: {{ include "mariadb.backupHost" . | quote }}
+                - name: DB_PORT
+                  value: {{ .Values.service.port | toString | quote }}
+                - name: MARIADB_ROOT_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "mariadb.secretName" . }}
+                      key: {{ .Values.auth.existingSecretRootPasswordKey }}
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: backup-workdir
+                  mountPath: /backup/out
+                {{- if include "mariadb.backupTlsVolumeEnabled" . }}
+                - name: tls
+                  mountPath: /tls
+                  readOnly: true
+                {{- end }}
+          containers:
+            - name: upload
+              image: "{{ .Values.backup.images.uploader.repository }}:{{ .Values.backup.images.uploader.tag }}"
+              imagePullPolicy: {{ .Values.backup.images.uploader.pullPolicy }}
+              command: ["/bin/sh", "/scripts/upload-backup.sh"]
+              env:
+                - name: S3_ENDPOINT
+                  value: {{ .Values.backup.s3.endpoint | quote }}
+                - name: S3_BUCKET
+                  value: {{ .Values.backup.s3.bucket | quote }}
+                - name: S3_PREFIX
+                  value: {{ .Values.backup.s3.prefix | quote }}
+                - name: S3_CREATE_BUCKET_IF_NOT_EXISTS
+                  value: {{ ternary "true" "false" .Values.backup.s3.createBucketIfNotExists | quote }}
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "mariadb.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretAccessKeyKey }}
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "mariadb.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: backup-workdir
+                  mountPath: /backup/out
+          volumes:
+            - name: scripts
+              configMap:
+                name: {{ include "mariadb.fullname" . }}-backup-scripts
+                defaultMode: 0755
+            - name: backup-workdir
+              emptyDir: {}
+            {{- if include "mariadb.backupTlsVolumeEnabled" . }}
+            - name: tls
+              secret:
+                secretName: {{ include "mariadb.tlsSecretName" . }}
+            {{- end }}
+{{- end }}
