@@ -19,6 +19,28 @@
   <a href="https://helmforge.dev">Website</a> · <a href="https://helmforge.dev/doc">Documentation</a> · <a href="https://repo.helmforge.dev">Helm Repository</a> · <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
+## Quick Start
+
+### HTTPS repository
+
+```bash
+helm repo add helmforge https://repo.helmforge.dev
+helm repo update
+helm search repo helmforge/
+helm install <release-name> helmforge/<chart-name> --version <version> -f values.yaml
+```
+
+### OCI registry
+
+```bash
+helm install <release-name> oci://ghcr.io/helmforgedev/helm/<chart-name> --version <version> -f values.yaml
+
+# Show default values
+helm show values oci://ghcr.io/helmforgedev/helm/<chart-name> --version <version>
+```
+
+Check each chart's README and [git tags](../../tags) for available versions.
+
 ## Charts
 
 | Chart | Maturity | Description |
@@ -64,28 +86,6 @@
 | **stable** | Production-ready, well-tested | 1+ releases, CI scenarios, k3d validated, no recent breaking changes |
 | **beta** | Functional, iterating | 1+ releases, unit tests and CI present, may have minor gaps |
 | **alpha** | New, functional but early | No release yet, tests present, limited iteration |
-
-## Quick Start
-
-### HTTPS repository
-
-```bash
-helm repo add helmforge https://repo.helmforge.dev
-helm repo update
-helm search repo helmforge/
-helm install <release-name> helmforge/<chart-name> --version <version> -f values.yaml
-```
-
-### OCI registry
-
-```bash
-helm install <release-name> oci://ghcr.io/helmforgedev/helm/<chart-name> --version <version> -f values.yaml
-
-# Show default values
-helm show values oci://ghcr.io/helmforgedev/helm/<chart-name> --version <version>
-```
-
-Check each chart's README and [git tags](../../tags) for available versions.
 
 ## CI/CD
 
