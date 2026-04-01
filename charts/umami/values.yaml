@@ -1,0 +1,187 @@
+# =============================================================================
+# Umami Helm Chart — Default Values
+# =============================================================================
+# Focus: privacy-first web analytics with PostgreSQL backend
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Umami container image (PostgreSQL variant)
+  repository: ghcr.io/umami-software/umami
+  # -- Image tag (defaults to postgresql-v{appVersion})
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Umami Configuration
+# =============================================================================
+
+umami:
+  # -- Application port
+  port: 3000
+  # -- Secret used for hashing (auto-generated if empty)
+  appSecret: ""
+  # -- Existing secret containing the APP_SECRET key
+  existingSecret: ""
+  # -- Key in the existing secret
+  existingSecretKey: app-secret
+  # -- Disable telemetry
+  disableTelemetry: true
+  # -- Custom tracker script name (for ad-blocker bypass)
+  trackerScriptName: ""
+  # -- Extra environment variables for the container
+  # -- @default -- `[]`
+  extraEnv: []
+    # - name: ALLOWED_FRAME_URLS
+    #   value: "https://example.com"
+
+# =============================================================================
+# Database
+# =============================================================================
+
+database:
+  # -- External PostgreSQL configuration (used when postgresql subchart is disabled)
+  external:
+    host: ""
+    port: "5432"
+    name: umami
+    username: umami
+    password: ""
+    # -- Existing secret containing the database password
+    existingSecret: ""
+    # -- Key in the existing secret containing the password
+    existingSecretPasswordKey: password
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- HTTP service port
+  port: 80
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Umami
+  enabled: false
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts: []
+    # - host: analytics.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+    # - hosts:
+    #     - analytics.example.com
+    #   secretName: umami-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    path: /api/heartbeat
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    path: /api/heartbeat
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    path: /api/heartbeat
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []
+
+# =============================================================================
+# Subcharts
+# =============================================================================
+
+postgresql:
+  # -- Deploy PostgreSQL as a subchart
+  enabled: true
+  architecture: standalone
+  auth:
+    database: umami
+    username: umami
+    # -- PostgreSQL password (auto-generated if empty)
+    password: ""
+  initdb:
+    scripts:
+      02-extensions.sql: |
+        CREATE EXTENSION IF NOT EXISTS pgcrypto;

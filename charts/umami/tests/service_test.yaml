@@ -1,0 +1,47 @@
+suite: Service
+templates:
+  - templates/service.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Service
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: test-umami
+
+  - it: should use ClusterIP by default
+    asserts:
+      - equal:
+          path: spec.type
+          value: ClusterIP
+
+  - it: should use port 80
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: http
+            port: 80
+            targetPort: http
+            protocol: TCP
+
+  - it: should set custom service type
+    set:
+      service.type: NodePort
+    asserts:
+      - equal:
+          path: spec.type
+          value: NodePort
+
+  - it: should set service annotations
+    set:
+      service.annotations:
+        my-annotation: my-value
+    asserts:
+      - equal:
+          path: metadata.annotations.my-annotation
+          value: my-value

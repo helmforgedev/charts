@@ -1,0 +1,174 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-umami
+
+  - it: should use RollingUpdate strategy
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+
+  - it: should use 1 replica
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should set the correct image with postgresql variant tag
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/umami-software/umami:postgresql-v2.17.0"
+
+  - it: should set custom image tag
+    set:
+      image.tag: "postgresql-v2.16.0"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/umami-software/umami:postgresql-v2.16.0"
+
+  - it: should set default env vars
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PORT
+            value: "3000"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DISABLE_TELEMETRY
+            value: "1"
+
+  - it: should set DATABASE_URL with subchart host
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_URL
+            value: "postgresql://umami:$(DATABASE_PASSWORD)@test-postgresql:5432/umami"
+
+  - it: should reference postgresql subchart secret for DATABASE_PASSWORD
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-postgresql-auth
+                key: user-password
+
+  - it: should reference app secret for APP_SECRET
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: APP_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: test-umami-app
+                key: app-secret
+
+  - it: should have wait-for-db init container
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+
+  - it: should set external database host when subchart is disabled
+    set:
+      postgresql.enabled: false
+      database.external.host: db.example.com
+      database.external.port: "5433"
+      database.external.name: my_umami
+      database.external.username: umami_user
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_URL
+            value: "postgresql://umami_user:$(DATABASE_PASSWORD)@db.example.com:5433/my_umami"
+
+  - it: should use existing secret for external db password
+    set:
+      postgresql.enabled: false
+      database.external.host: db.example.com
+      database.external.existingSecret: my-db-secret
+      database.external.existingSecretPasswordKey: db-pass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: my-db-secret
+                key: db-pass
+
+  - it: should set probes on heartbeat path
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /api/heartbeat
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /api/heartbeat
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /api/heartbeat
+
+  - it: should set extra env vars
+    set:
+      umami.extraEnv:
+        - name: ALLOWED_FRAME_URLS
+          value: "https://example.com"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ALLOWED_FRAME_URLS
+            value: "https://example.com"
+
+  - it: should set tracker script name
+    set:
+      umami.trackerScriptName: "custom.js"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TRACKER_SCRIPT_NAME
+            value: "custom.js"
+
+  - it: should not set telemetry env when disabled
+    set:
+      umami.disableTelemetry: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DISABLE_TELEMETRY
+            value: "1"
+
+  - it: should set resources
+    set:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
