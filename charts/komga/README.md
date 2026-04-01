@@ -49,7 +49,7 @@ kubectl port-forward svc/<release>-komga 25600:80
 
 ```yaml
 komga:
-  timezone: "America/Sao_Paulo"
+  timezone: "UTC"
   javaToolOptions: "-Xmx2g -XX:+UseG1GC"
   sessionTimeout: "7d"
 
