@@ -1,0 +1,74 @@
+suite: deployment-api
+templates:
+  - templates/deployment-api.yaml
+  - templates/secret.yaml
+tests:
+  - it: should render API Deployment
+    template: templates/deployment-api.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-appwrite-api
+
+  - it: should use appwrite image with appVersion
+    template: templates/deployment-api.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "appwrite/appwrite:1.8.1"
+
+  - it: should run http.php entrypoint
+    template: templates/deployment-api.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "app/http.php"
+
+  - it: should expose port 80
+    template: templates/deployment-api.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0]
+          value:
+            name: http
+            containerPort: 80
+            protocol: TCP
+
+  - it: should have probes by default
+    template: templates/deployment-api.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].livenessProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].readinessProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].startupProbe
+
+  - it: should have component label
+    template: templates/deployment-api.yaml
+    asserts:
+      - isSubset:
+          path: metadata.labels
+          content:
+            app.kubernetes.io/component: api
+
+  - it: should mount shared volumes
+    template: templates/deployment-api.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: uploads
+            mountPath: /storage/uploads
+
+  - it: should set replica count
+    template: templates/deployment-api.yaml
+    set:
+      api:
+        replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3

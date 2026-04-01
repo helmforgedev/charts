@@ -1,0 +1,24 @@
+{{- if .Values.persistence.enabled }}
+{{- $fullname := include "appwrite.fullname" . -}}
+{{- $labels := include "appwrite.labels" . -}}
+{{- $sc := .Values.persistence.storageClass -}}
+{{- $am := .Values.persistence.accessModes -}}
+{{- range $name, $vol := dict "uploads" .Values.persistence.uploads "cache" .Values.persistence.cache "certificates" .Values.persistence.certificates "functions" .Values.persistence.functions "builds" .Values.persistence.builds "sites" .Values.persistence.sites }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $fullname }}-{{ $name }}
+  labels:
+    {{- $labels | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml $am | nindent 4 }}
+  {{- if $sc }}
+  storageClassName: {{ $sc | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $vol.size }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "appwrite.fullname" . }}-realtime
+  labels:
+    {{- include "appwrite.labels" . | nindent 4 }}
+    app.kubernetes.io/component: realtime
+spec:
+  replicas: {{ .Values.realtime.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "appwrite.componentLabels" (dict "root" . "component" "realtime") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "appwrite.componentLabels" (dict "root" . "component" "realtime") | nindent 8 }}
+      {{- with .Values.realtime.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "appwrite.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: realtime
+          image: {{ include "appwrite.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["php", "-e", "app/realtime.php", "-dopcache.preload=opcache.preload"]
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          env:
+            {{- include "appwrite.commonEnv" . | nindent 12 }}
+          volumeMounts:
+            {{- include "appwrite.sharedVolumeMounts" . | nindent 12 }}
+          {{- include "appwrite.httpLivenessProbe" . | nindent 10 }}
+          {{- include "appwrite.httpReadinessProbe" . | nindent 10 }}
+          {{- include "appwrite.httpStartupProbe" . | nindent 10 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- with .Values.realtime.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        {{- include "appwrite.sharedVolumes" . | nindent 8 }}
+      {{- with .Values.realtime.nodeSelector | default .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.realtime.tolerations | default .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.realtime.affinity | default .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}

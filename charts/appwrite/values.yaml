@@ -1,0 +1,421 @@
+# =============================================================================
+# Appwrite Helm Chart
+# =============================================================================
+# Self-hosted backend-as-a-service platform.
+# Requires MariaDB and Redis. This alpha chart deploys the Appwrite API,
+# console, realtime, workers, schedulers, and maintenance services.
+#
+# Note: openruntimes-executor, assistant, and browser services are not included
+# in this alpha release. Functions execution requires a separate executor setup.
+# =============================================================================
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+
+# -- Override the full release name used in resource names
+fullnameOverride: ""
+
+# -- Labels added to every resource created by this chart
+commonLabels: {}
+
+# =============================================================================
+# Images
+# =============================================================================
+
+image:
+  # -- Appwrite server image repository
+  repository: appwrite/appwrite
+  # -- Appwrite image tag. Defaults to appVersion.
+  tag: ""
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+console:
+  image:
+    # -- Appwrite console image repository
+    repository: appwrite/console
+    # -- Console image tag
+    tag: "7.5.7"
+    # -- Console image pull policy
+    pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# =============================================================================
+# Appwrite Configuration
+# =============================================================================
+
+appwrite:
+  # -- Appwrite project locale (ISO 639-1)
+  locale: en
+  # -- Domain used for API and console. Auto-detected from ingress when empty.
+  domain: ""
+  # -- Encryption key for Appwrite (64-char hex). Auto-generated if empty.
+  openSslKeyV1: ""
+  # -- Existing secret containing Appwrite secrets
+  existingSecret: ""
+  # -- Secret key for the OpenSSL encryption key in appwrite.existingSecret
+  existingSecretOpenSslKey: appwrite-openssl-key
+  # -- Secret key for the internal JWT secret in appwrite.existingSecret
+  existingSecretJwtKey: appwrite-jwt-secret
+  # -- Logging provider: default | sentry
+  logging:
+    provider: ""
+    # -- Sentry DSN for error tracking
+    sentryDsn: ""
+  # -- SMTP configuration for outgoing emails
+  smtp:
+    host: ""
+    port: ""
+    secure: ""
+    username: ""
+    password: ""
+    # -- Existing secret containing SMTP password
+    existingSecret: ""
+    # -- Secret key for SMTP password
+    existingSecretPasswordKey: smtp-password
+  # -- Usage statistics collection
+  usageStats: enabled
+  # -- GraphQL API
+  graphql: enabled
+  # -- Functions settings
+  functions:
+    # -- Max function timeout in seconds
+    timeout: 900
+    # -- Allowed runtimes (comma-separated list or empty for all)
+    runtimes: ""
+  # -- Storage settings
+  storage:
+    # -- Max file upload size in bytes (default 30MB)
+    limit: 30000000
+    # -- Antivirus scanning
+    antivirus: disabled
+  # -- Additional environment variables applied to all Appwrite pods
+  extraEnv: []
+
+# =============================================================================
+# Services
+# =============================================================================
+
+api:
+  # -- Number of API server replicas
+  replicaCount: 1
+  # -- Resources for API pods
+  resources: {}
+  # -- Node selector for API pods
+  nodeSelector: {}
+  # -- Tolerations for API pods
+  tolerations: []
+  # -- Affinity rules for API pods
+  affinity: {}
+  # -- Pod annotations for API pods
+  podAnnotations: {}
+
+realtime:
+  # -- Number of realtime server replicas
+  replicaCount: 1
+  # -- Resources for realtime pods
+  resources: {}
+  # -- Node selector for realtime pods
+  nodeSelector: {}
+  # -- Tolerations for realtime pods
+  tolerations: []
+  # -- Affinity rules for realtime pods
+  affinity: {}
+  # -- Pod annotations for realtime pods
+  podAnnotations: {}
+
+# =============================================================================
+# Workers
+# =============================================================================
+
+workers:
+  # -- Global resources for all worker pods (overridden per-worker if set)
+  resources: {}
+  # -- Individual worker toggles and overrides
+  audits:
+    enabled: true
+    replicaCount: 1
+    resources: {}
+  webhooks:
+    enabled: true
+    replicaCount: 1
+    resources: {}
+  deletes:
+    enabled: true
+    replicaCount: 1
+    resources: {}
+  databases:
+    enabled: true
+    replicaCount: 1
+    resources: {}
+  builds:
+    enabled: true
+    replicaCount: 1
+    resources: {}
+  certificates:
+    enabled: true
+    replicaCount: 1
+    resources: {}
+  functions:
+    enabled: true
+    replicaCount: 1
+    resources: {}
+  mails:
+    enabled: true
+    replicaCount: 1
+    resources: {}
+  messaging:
+    enabled: true
+    replicaCount: 1
+    resources: {}
+  migrations:
+    enabled: true
+    replicaCount: 1
+    resources: {}
+  statsResources:
+    enabled: true
+    replicaCount: 1
+    resources: {}
+  statsUsage:
+    enabled: true
+    replicaCount: 1
+    resources: {}
+
+# =============================================================================
+# Schedulers and Maintenance
+# =============================================================================
+
+schedulers:
+  functions:
+    enabled: true
+    resources: {}
+  messages:
+    enabled: true
+    resources: {}
+  executions:
+    enabled: false
+    resources: {}
+
+maintenance:
+  # -- Enable the maintenance task pod
+  enabled: true
+  resources: {}
+
+tasks:
+  statsResources:
+    enabled: true
+    resources: {}
+
+# =============================================================================
+# Database
+# =============================================================================
+
+database:
+  # -- Database mode: auto | external
+  mode: auto
+  external:
+    # -- External MariaDB hostname
+    host: ""
+    # -- External MariaDB port
+    port: 3306
+    # -- External MariaDB root user (needed by Appwrite for schema migrations)
+    rootUser: root
+    # -- External MariaDB root password. Ignored when existingSecret is set.
+    rootPassword: ""
+    # -- Database name
+    name: appwrite
+    # -- Existing secret with external database root password
+    existingSecret: ""
+    # -- Secret key for external database root password
+    existingSecretPasswordKey: mariadb-root-password
+
+# -- Deploy MariaDB as a subchart
+mariadb:
+  enabled: true
+  architecture: standalone
+  auth:
+    database: appwrite
+    username: appwrite
+    password: ""
+    rootPassword: ""
+  standalone:
+    persistence:
+      enabled: true
+      size: 8Gi
+  config:
+    myCnf: |
+      [mariadbd]
+      innodb_flush_method = fsync
+
+# =============================================================================
+# Cache (Redis)
+# =============================================================================
+
+cache:
+  # -- Cache mode: auto | external
+  mode: auto
+  external:
+    # -- External Redis hostname
+    host: ""
+    # -- External Redis port
+    port: 6379
+    # -- External Redis password. Ignored when existingSecret is set.
+    password: ""
+    # -- Existing secret with external Redis password
+    existingSecret: ""
+    # -- Secret key for external Redis password
+    existingSecretPasswordKey: redis-password
+
+# -- Deploy Redis as a subchart
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    password: ""
+  standalone:
+    persistence:
+      enabled: true
+      size: 2Gi
+    args:
+      - "--maxmemory 512mb"
+      - "--maxmemory-policy allkeys-lru"
+
+# =============================================================================
+# Persistence (Shared Volumes)
+# =============================================================================
+
+persistence:
+  # -- Enable shared PVCs for Appwrite data
+  enabled: true
+  # -- Storage class for shared PVCs. Must support ReadWriteMany when replicaCount > 1.
+  storageClass: ""
+  # -- Access modes for shared PVCs
+  accessModes:
+    - ReadWriteOnce
+  uploads:
+    # -- PVC size for file uploads
+    size: 10Gi
+  cache:
+    # -- PVC size for cache
+    size: 2Gi
+  certificates:
+    # -- PVC size for SSL certificates
+    size: 1Gi
+  functions:
+    # -- PVC size for function code
+    size: 5Gi
+  builds:
+    # -- PVC size for function builds
+    size: 5Gi
+  sites:
+    # -- PVC size for sites/hosting
+    size: 5Gi
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Appwrite
+  enabled: false
+  # -- Ingress class name (e.g., traefik, nginx)
+  ingressClassName: traefik
+  # -- Ingress annotations
+  # annotations:
+  #   cert-manager.io/cluster-issuer: letsencrypt-prod
+  annotations: {}
+  # -- Ingress hosts
+  hosts:
+    - host: appwrite.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+  #   - secretName: appwrite-tls
+  #     hosts:
+  #       - appwrite.example.com
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type for Appwrite API
+  type: ClusterIP
+  # -- Appwrite API port
+  port: 80
+  # -- Annotations for the API service
+  annotations: {}
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  name: ""
+  annotations: {}
+
+# =============================================================================
+# Security
+# =============================================================================
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 15
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+startupProbe:
+  enabled: true
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 60
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []

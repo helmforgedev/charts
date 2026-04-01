@@ -1,0 +1,194 @@
+{{- $root := . -}}
+{{- $fullname := include "appwrite.fullname" . -}}
+{{- $labels := include "appwrite.labels" . -}}
+{{- $image := include "appwrite.image" . -}}
+{{- $saName := include "appwrite.serviceAccountName" . -}}
+{{- $schedulers := dict
+  "functions"  (dict "entrypoint" "schedule-functions"  "values" .Values.schedulers.functions)
+  "messages"   (dict "entrypoint" "schedule-messages"   "values" .Values.schedulers.messages)
+  "executions" (dict "entrypoint" "schedule-executions" "values" .Values.schedulers.executions)
+-}}
+{{- range $name, $sched := $schedulers }}
+{{- if $sched.values.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-scheduler-{{ $name }}
+  labels:
+    {{- $labels | nindent 4 }}
+    app.kubernetes.io/component: scheduler-{{ $name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "appwrite.componentLabels" (dict "root" $root "component" (printf "scheduler-%s" $name)) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "appwrite.componentLabels" (dict "root" $root "component" (printf "scheduler-%s" $name)) | nindent 8 }}
+    spec:
+      {{- with $root.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ $saName }}
+      securityContext:
+        {{- toYaml $root.Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ $root.Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: scheduler
+          image: {{ $image }}
+          imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+          command: ["{{ $sched.entrypoint }}"]
+          env:
+            {{- include "appwrite.commonEnv" $root | nindent 12 }}
+          volumeMounts:
+            {{- include "appwrite.sharedVolumeMounts" $root | nindent 12 }}
+          securityContext:
+            {{- toYaml $root.Values.securityContext | nindent 12 }}
+          {{- with $sched.values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        {{- include "appwrite.sharedVolumes" $root | nindent 8 }}
+      {{- with $root.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+{{- end }}
+{{- end }}
+{{- /* Maintenance task */ -}}
+{{- if .Values.maintenance.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "appwrite.fullname" . }}-maintenance
+  labels:
+    {{- include "appwrite.labels" . | nindent 4 }}
+    app.kubernetes.io/component: maintenance
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "appwrite.componentLabels" (dict "root" . "component" "maintenance") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "appwrite.componentLabels" (dict "root" . "component" "maintenance") | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "appwrite.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: maintenance
+          image: {{ include "appwrite.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["maintenance"]
+          env:
+            {{- include "appwrite.commonEnv" . | nindent 12 }}
+          volumeMounts:
+            {{- include "appwrite.sharedVolumeMounts" . | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- with .Values.maintenance.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        {{- include "appwrite.sharedVolumes" . | nindent 8 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+{{- end }}
+{{- /* Stats resources task */ -}}
+{{- if .Values.tasks.statsResources.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "appwrite.fullname" . }}-task-stats-resources
+  labels:
+    {{- include "appwrite.labels" . | nindent 4 }}
+    app.kubernetes.io/component: task-stats-resources
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "appwrite.componentLabels" (dict "root" . "component" "task-stats-resources") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "appwrite.componentLabels" (dict "root" . "component" "task-stats-resources") | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "appwrite.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: task
+          image: {{ include "appwrite.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["stats-resources"]
+          env:
+            {{- include "appwrite.commonEnv" . | nindent 12 }}
+          volumeMounts:
+            {{- include "appwrite.sharedVolumeMounts" . | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- with .Values.tasks.statsResources.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        {{- include "appwrite.sharedVolumes" . | nindent 8 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+{{- end }}

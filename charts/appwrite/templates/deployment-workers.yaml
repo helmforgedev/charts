@@ -1,0 +1,85 @@
+{{- $root := . -}}
+{{- $fullname := include "appwrite.fullname" . -}}
+{{- $labels := include "appwrite.labels" . -}}
+{{- $image := include "appwrite.image" . -}}
+{{- $saName := include "appwrite.serviceAccountName" . -}}
+{{- /*
+  Worker definitions: key = suffix, entrypoint = Appwrite worker entrypoint name
+*/ -}}
+{{- $workers := dict
+  "audits"          (dict "key" "audits"          "entrypoint" "worker-audits"           "values" .Values.workers.audits)
+  "webhooks"        (dict "key" "webhooks"        "entrypoint" "worker-webhooks"         "values" .Values.workers.webhooks)
+  "deletes"         (dict "key" "deletes"         "entrypoint" "worker-deletes"          "values" .Values.workers.deletes)
+  "databases"       (dict "key" "databases"       "entrypoint" "worker-databases"        "values" .Values.workers.databases)
+  "builds"          (dict "key" "builds"          "entrypoint" "worker-builds"           "values" .Values.workers.builds)
+  "certificates"    (dict "key" "certificates"    "entrypoint" "worker-certificates"     "values" .Values.workers.certificates)
+  "functions"       (dict "key" "functions"       "entrypoint" "worker-functions"        "values" .Values.workers.functions)
+  "mails"           (dict "key" "mails"           "entrypoint" "worker-mails"            "values" .Values.workers.mails)
+  "messaging"       (dict "key" "messaging"       "entrypoint" "worker-messaging"        "values" .Values.workers.messaging)
+  "migrations"      (dict "key" "migrations"      "entrypoint" "worker-migrations"       "values" .Values.workers.migrations)
+  "stats-resources" (dict "key" "stats-resources" "entrypoint" "worker-stats-resources"  "values" .Values.workers.statsResources)
+  "stats-usage"     (dict "key" "stats-usage"     "entrypoint" "worker-stats-usage"      "values" .Values.workers.statsUsage)
+-}}
+{{- range $name, $worker := $workers }}
+{{- if $worker.values.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-worker-{{ $name }}
+  labels:
+    {{- $labels | nindent 4 }}
+    app.kubernetes.io/component: worker-{{ $name }}
+spec:
+  replicas: {{ $worker.values.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "appwrite.componentLabels" (dict "root" $root "component" (printf "worker-%s" $name)) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "appwrite.componentLabels" (dict "root" $root "component" (printf "worker-%s" $name)) | nindent 8 }}
+    spec:
+      {{- with $root.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ $saName }}
+      securityContext:
+        {{- toYaml $root.Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ $root.Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: worker
+          image: {{ $image }}
+          imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+          command: ["php", "-e", "app/worker.php", "-dopcache.preload=opcache.preload"]
+          args: ["{{ $worker.entrypoint }}"]
+          env:
+            {{- include "appwrite.commonEnv" $root | nindent 12 }}
+          volumeMounts:
+            {{- include "appwrite.sharedVolumeMounts" $root | nindent 12 }}
+          securityContext:
+            {{- toYaml $root.Values.securityContext | nindent 12 }}
+          {{- with ($worker.values.resources | default $root.Values.workers.resources) }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        {{- include "appwrite.sharedVolumes" $root | nindent 8 }}
+      {{- with $root.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+{{- end }}
+{{- end }}
