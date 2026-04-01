@@ -18,6 +18,7 @@ concurrency:
 permissions:
   contents: write
   packages: write
+  id-token: write
 
 env:
   HELM_VERSION: v3.18.4
@@ -77,6 +78,9 @@ jobs:
       - name: Setup Helm
         run: |
           curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | DESIRED_VERSION=${{ env.HELM_VERSION }} bash
+
+      - name: Setup Cosign
+        uses: sigstore/cosign-installer@v3
 
       - name: Calculate semantic version
         id: semver
@@ -138,16 +142,32 @@ jobs:
 
       - name: Login to GHCR
         if: steps.semver.outputs.skip != 'true'
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Package and push to OCI
         if: steps.semver.outputs.skip != 'true'
+        id: push
         run: |
           helm package charts/${{ matrix.chart }} --destination .dist
           for pkg in .dist/*.tgz; do
             echo "Publishing $pkg to OCI"
-            helm push "$pkg" "$OCI_REGISTRY"
+            PUSH_OUTPUT=$(helm push "$pkg" "$OCI_REGISTRY" 2>&1)
+            echo "$PUSH_OUTPUT"
+            DIGEST=$(echo "$PUSH_OUTPUT" | grep -oE 'sha256:[a-f0-9]{64}')
+            echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
           done
+
+      - name: Sign OCI artifact with Cosign
+        if: steps.semver.outputs.skip != 'true' && steps.push.outputs.digest != ''
+        env:
+          COSIGN_YES: "true"
+        run: |
+          CHART="${{ matrix.chart }}"
+          DIGEST="${{ steps.push.outputs.digest }}"
+          echo "Signing ghcr.io/${{ github.repository_owner }}/helm/${CHART}@${DIGEST}"
+          cosign sign "ghcr.io/${{ github.repository_owner }}/helm/${CHART}@${DIGEST}"
 
       - name: Commit version bump and tag
         if: steps.semver.outputs.skip != 'true'
