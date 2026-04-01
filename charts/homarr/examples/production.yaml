@@ -1,0 +1,55 @@
+# Production Homarr deployment with PostgreSQL, backup, and ingress
+homarr:
+  logLevel: info
+  authProviders: credentials,oidc
+  enableKubernetes: true
+
+encryption:
+  existingSecret: homarr-encryption-key
+
+postgresql:
+  enabled: true
+  auth:
+    database: homarr
+    username: homarr
+    password: "strong-db-password"
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+persistence:
+  enabled: true
+  size: 2Gi
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: dash.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: homarr-tls
+      hosts:
+        - dash.example.com
+
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: company-backups
+    prefix: homarr
+    existingSecret: homarr-s3-credentials
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

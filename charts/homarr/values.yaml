@@ -1,0 +1,408 @@
+# =============================================================================
+# Homarr Configuration
+# =============================================================================
+
+# -- Homarr image
+image:
+  repository: ghcr.io/homarr-labs/homarr
+  tag: ""  # defaults to "v" + appVersion
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets
+imagePullSecrets: []
+
+# -- Override the release name
+nameOverride: ""
+
+# -- Override the full release name
+fullnameOverride: ""
+
+# -- Number of replicas (Homarr only supports 1 with SQLite)
+replicaCount: 1
+
+homarr:
+  # -- Log level: trace, debug, info, warn, error, fatal
+  logLevel: info
+
+  # -- Authentication providers (comma-separated): credentials, ldap, oidc
+  authProviders: credentials
+
+  # -- Enable Kubernetes integration for workload discovery
+  enableKubernetes: false
+
+  # -- Extra environment variables
+  # Example:
+  #   - name: LOCAL_CERTIFICATE_PATH
+  #     value: /appdata/trusted-certificates
+  extraEnv: []
+
+# =============================================================================
+# Encryption
+# =============================================================================
+
+encryption:
+  # -- 32-byte hex key for encrypting integration secrets
+  # Auto-generated if empty. Generate with: openssl rand -hex 32
+  key: ""
+
+  # -- Existing secret with the encryption key
+  existingSecret: ""
+
+  # -- Key in the existing secret
+  existingSecretKey: secret-encryption-key
+
+# =============================================================================
+# Database
+# =============================================================================
+# Homarr supports SQLite3 (default), PostgreSQL, and MySQL.
+# Use `database.mode` to select explicitly, or leave as `auto` to auto-detect
+# based on which database section is configured.
+#
+# Auto-detection priority: external → postgresql → mysql → sqlite
+# =============================================================================
+
+database:
+  # -- Database mode: auto | sqlite | external | postgresql | mysql
+  mode: auto
+
+  sqlite:
+    # -- SQLite database file path inside the data volume
+    path: /appdata/db/db.sqlite
+
+  external:
+    # -- Database vendor: postgres | mysql
+    vendor: postgres
+    # -- External database hostname
+    host: ""
+    # -- External database port (auto-detected from vendor if empty)
+    port: ""
+    # -- Database name
+    name: homarr
+    # -- Database username
+    username: homarr
+    # -- Database password (ignored when existingSecret is set)
+    password: ""
+    # -- Existing secret for the database password
+    existingSecret: ""
+    # -- Key in the existing secret for the database password
+    existingSecretPasswordKey: database-password
+
+# -- Deploy PostgreSQL as a subchart
+postgresql:
+  enabled: false
+  # -- PostgreSQL architecture (standalone or replication)
+  architecture: standalone
+  auth:
+    # -- Database name created on first run
+    database: homarr
+    # -- Database username created on first run
+    username: homarr
+    # -- Database password (auto-generated if empty)
+    password: ""
+    # -- Root password (auto-generated if empty)
+    rootPassword: ""
+  primary:
+    persistence:
+      # -- Enable persistence for PostgreSQL data
+      enabled: true
+      # -- PVC size for PostgreSQL
+      size: 8Gi
+
+# -- Deploy MySQL as a subchart
+mysql:
+  enabled: false
+  # -- MySQL architecture (standalone or replication)
+  architecture: standalone
+  auth:
+    # -- Database name created on first run
+    database: homarr
+    # -- Database username created on first run
+    username: homarr
+    # -- Database password (auto-generated if empty)
+    password: ""
+    # -- Root password (auto-generated if empty)
+    rootPassword: ""
+  primary:
+    persistence:
+      # -- Enable persistence for MySQL data
+      enabled: true
+      # -- PVC size for MySQL
+      size: 8Gi
+
+# =============================================================================
+# Redis
+# =============================================================================
+# Homarr includes an embedded Redis by default. Only configure external Redis
+# if you need to share the cache across multiple instances.
+# =============================================================================
+
+redis:
+  # -- Use an external Redis instead of the embedded one
+  external: false
+
+  # -- External Redis host
+  host: ""
+
+  # -- External Redis port
+  port: 6379
+
+  # -- External Redis password (optional)
+  password: ""
+
+  # -- Existing secret for external Redis password
+  existingSecret: ""
+
+  # -- Key in the existing secret
+  existingSecretKey: redis-password
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistent storage for /appdata
+  enabled: true
+
+  # -- Storage class (leave empty for cluster default)
+  storageClass: ""
+
+  # -- Access mode for the PVC
+  accessMode: ReadWriteOnce
+
+  # -- Size of the persistent volume
+  size: 1Gi
+
+  # -- Use an existing PVC instead of creating one
+  existingClaim: ""
+
+  # -- Annotations for the PVC
+  annotations: {}
+
+# =============================================================================
+# Resources
+# =============================================================================
+
+# -- CPU and memory requests/limits for the Homarr container
+resources: {}
+  # requests:
+  #   cpu: 100m
+  #   memory: 256Mi
+  # limits:
+  #   cpu: 500m
+  #   memory: 512Mi
+
+# =============================================================================
+# Security Context
+# =============================================================================
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+startupProbe:
+  # -- Enable startup probe
+  enabled: true
+  # -- Path for HTTP GET probe
+  path: /
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 30
+
+livenessProbe:
+  # -- Enable liveness probe
+  enabled: true
+  # -- Path for HTTP GET probe
+  path: /
+  initialDelaySeconds: 0
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  # -- Enable readiness probe
+  enabled: true
+  # -- Path for HTTP GET probe
+  path: /
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+
+  # -- HTTP port
+  port: 7575
+
+  # -- Annotations for the service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Homarr
+  enabled: false
+
+  # -- Ingress class name
+  # ingressClassName: traefik
+  ingressClassName: ""
+
+  # -- Ingress annotations
+  # annotations:
+  #   cert-manager.io/cluster-issuer: letsencrypt-prod
+  annotations: {}
+
+  # -- Ingress hosts
+  # hosts:
+  #   - host: dash.example.com
+  #     paths:
+  #       - path: /
+  #         pathType: Prefix
+  hosts: []
+
+  # -- Ingress TLS configuration
+  # tls:
+  #   - secretName: homarr-tls
+  #     hosts:
+  #       - dash.example.com
+  tls: []
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount
+  create: false
+
+  # -- Name override (auto-generated if empty)
+  name: ""
+
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Backup (CronJob + S3)
+# =============================================================================
+# Database-aware backup: SQLite archives the full /appdata directory,
+# PostgreSQL uses pg_dump, MySQL uses mysqldump. All upload to S3.
+# =============================================================================
+
+backup:
+  # -- Enable scheduled backups to S3-compatible storage
+  enabled: false
+
+  # -- Cron schedule for backups (default: daily at 03:00 UTC)
+  schedule: "0 3 * * *"
+
+  # -- Suspend the CronJob without deleting it
+  suspend: false
+
+  # -- Concurrency policy: Forbid, Replace, Allow
+  concurrencyPolicy: Forbid
+
+  # -- Number of successful job records to keep
+  successfulJobsHistoryLimit: 3
+
+  # -- Number of failed job records to keep
+  failedJobsHistoryLimit: 3
+
+  # -- Maximum retries per backup job
+  backoffLimit: 1
+
+  # -- Prefix for backup archive filenames
+  archivePrefix: homarr
+
+  images:
+    # -- Image used for SQLite backup (must have tar)
+    sqlite: alpine:3.22
+    # -- Image used for PostgreSQL backup (must have pg_dump)
+    postgresql: postgres:18.3-alpine
+    # -- Image used for MySQL backup (must have mysqldump)
+    mysql: mysql:8.4
+    # -- Image used for S3 upload (MinIO client)
+    uploader: minio/mc:RELEASE.2025-04-08T15-18-23Z
+
+  # -- Resources for backup containers
+  resources: {}
+
+  s3:
+    # -- S3-compatible endpoint URL
+    endpoint: ""
+
+    # -- Target bucket name
+    bucket: ""
+
+    # -- Key prefix within the bucket
+    prefix: homarr
+
+    # -- Auto-create the bucket if it does not exist
+    createBucketIfNotExists: true
+
+    # -- Use an existing secret for S3 credentials
+    existingSecret: ""
+
+    # -- Key in the existing secret for the access key
+    existingSecretAccessKeyKey: access-key
+
+    # -- Key in the existing secret for the secret key
+    existingSecretSecretKeyKey: secret-key
+
+    # -- Inline S3 access key (ignored when existingSecret is set)
+    accessKey: ""
+
+    # -- Inline S3 secret key (ignored when existingSecret is set)
+    secretKey: ""
+
+  # -- Override database credentials for backup (uses app credentials if empty)
+  database:
+    # -- Override database host for backup
+    host: ""
+    # -- Override database port for backup
+    port: ""
+    # -- Override database name for backup
+    name: ""
+    # -- Override database username for backup
+    username: ""
+    # -- Override database password for backup
+    password: ""
+    # -- Existing secret for backup database credentials
+    existingSecret: ""
+    # -- Key in existing secret for the backup database password
+    existingSecretPasswordKey: database-password
+    # -- Extra arguments for pg_dump
+    postgresDumpArgs: ""
+    # -- Extra arguments for mysqldump
+    mysqlDumpArgs: "--single-transaction --quick --skip-lock-tables --no-tablespaces"
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+# -- Node selector for pod scheduling
+nodeSelector: {}
+
+# -- Tolerations for pod scheduling
+tolerations: []
+
+# -- Affinity rules for pod scheduling
+affinity: {}
+
+# =============================================================================
+# Extra Manifests
+# =============================================================================
+
+# -- List of extra Kubernetes manifests to deploy
+extraManifests: []

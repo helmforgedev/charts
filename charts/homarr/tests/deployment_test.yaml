@@ -1,0 +1,183 @@
+suite: deployment
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: should render a Deployment
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-homarr
+
+  - it: should use correct image tag
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/homarr-labs/homarr:v1.57.1"
+
+  - it: should use Recreate strategy for SQLite
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should not use Recreate for PostgreSQL
+    set:
+      postgresql:
+        enabled: true
+        auth:
+          database: homarr
+          username: homarr
+          password: test
+    asserts:
+      - isNull:
+          path: spec.strategy
+
+  - it: should not have initContainers for SQLite
+    asserts:
+      - isNull:
+          path: spec.template.spec.initContainers
+
+  - it: should have wait-for-db for PostgreSQL
+    set:
+      postgresql:
+        enabled: true
+        auth:
+          database: homarr
+          username: homarr
+          password: test
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+
+  - it: should set DB_DRIVER to better-sqlite3 by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_DRIVER
+            value: "better-sqlite3"
+
+  - it: should set DB_DRIVER to node-postgres for PostgreSQL
+    set:
+      postgresql:
+        enabled: true
+        auth:
+          database: homarr
+          username: homarr
+          password: test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_DRIVER
+            value: "node-postgres"
+
+  - it: should set DB_DRIVER to mysql2 for MySQL
+    set:
+      mysql:
+        enabled: true
+        auth:
+          database: homarr
+          username: homarr
+          password: test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_DRIVER
+            value: "mysql2"
+
+  - it: should set DB_URL for SQLite
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_URL
+            value: "/appdata/db/db.sqlite"
+
+  - it: should set DB_HOST for PostgreSQL
+    set:
+      postgresql:
+        enabled: true
+        auth:
+          database: homarr
+          username: homarr
+          password: test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_HOST
+            value: "RELEASE-NAME-postgresql"
+
+  - it: should set SECRET_ENCRYPTION_KEY from secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SECRET_ENCRYPTION_KEY
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-homarr-encryption
+                key: secret-encryption-key
+
+  - it: should set ENABLE_KUBERNETES when enabled
+    set:
+      homarr:
+        enableKubernetes: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ENABLE_KUBERNETES
+            value: "true"
+
+  - it: should not set ENABLE_KUBERNETES by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ENABLE_KUBERNETES
+            value: "true"
+
+  - it: should mount data volume
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /appdata
+
+  - it: should use database secret for PostgreSQL
+    set:
+      postgresql:
+        enabled: true
+        auth:
+          database: homarr
+          username: homarr
+          password: test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-homarr-database
+                key: database-password
+
+  - it: should set external Redis env vars
+    set:
+      redis:
+        external: true
+        host: redis.example.com
+        port: 6379
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_HOST
+            value: "redis.example.com"

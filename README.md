@@ -45,6 +45,7 @@ Project links:
 | [phpmyadmin](charts/phpmyadmin/) | alpha | phpMyAdmin — web-based MySQL/MariaDB administration with multi-server, auto-login, and custom config support |
 | [heimdall](charts/heimdall/) | alpha | Heimdall — application dashboard with persistent config, S3 backup, and ingress support |
 | [gitea](charts/gitea/) | alpha | Gitea — self-hosted Git service with SQLite, PostgreSQL, or MySQL, rootless image, SSH, and S3 backup |
+| [homarr](charts/homarr/) | alpha | Homarr — modern application dashboard with SQLite, PostgreSQL, or MySQL, Kubernetes integration, and S3 backup |
 
 ### Maturity levels
 

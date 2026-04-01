@@ -1,0 +1,172 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "homarr.fullname" . }}
+  labels:
+    {{- include "homarr.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  {{- if eq (include "homarr.databaseMode" .) "sqlite" }}
+  strategy:
+    type: Recreate
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "homarr.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "homarr.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "homarr.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if ne (include "homarr.databaseMode" .) "sqlite" }}
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for {{ include "homarr.databaseHost" . }}:{{ include "homarr.databasePort" . }} ..."
+              until nc -z -w2 {{ include "homarr.databaseHost" . }} {{ include "homarr.databasePort" . }}; do
+                sleep 2
+              done
+              echo "Database is reachable."
+      {{- end }}
+      containers:
+        - name: homarr
+          image: {{ include "homarr.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 7575
+              protocol: TCP
+          env:
+            - name: LOG_LEVEL
+              value: {{ .Values.homarr.logLevel | quote }}
+            - name: AUTH_PROVIDERS
+              value: {{ .Values.homarr.authProviders | quote }}
+            - name: SECRET_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "homarr.encryptionSecretName" . }}
+                  key: {{ include "homarr.encryptionSecretKey" . }}
+            - name: AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "homarr.encryptionSecretName" . }}
+                  key: auth-secret
+            - name: DB_DRIVER
+              value: {{ include "homarr.dbDriver" . | quote }}
+            {{- if eq (include "homarr.databaseMode" .) "sqlite" }}
+            - name: DB_URL
+              value: {{ .Values.database.sqlite.path | quote }}
+            {{- else }}
+            - name: DB_HOST
+              value: {{ include "homarr.databaseHost" . | quote }}
+            - name: DB_PORT
+              value: {{ include "homarr.databasePort" . | quote }}
+            - name: DB_NAME
+              value: {{ include "homarr.databaseName" . | quote }}
+            - name: DB_USER
+              value: {{ include "homarr.databaseUsername" . | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "homarr.databaseSecretName" . }}
+                  key: {{ include "homarr.databaseSecretKey" . }}
+            {{- end }}
+            {{- if .Values.homarr.enableKubernetes }}
+            - name: ENABLE_KUBERNETES
+              value: "true"
+            {{- end }}
+            {{- if .Values.redis.external }}
+            - name: REDIS_HOST
+              value: {{ .Values.redis.host | quote }}
+            - name: REDIS_PORT
+              value: {{ .Values.redis.port | quote }}
+            {{- if or .Values.redis.password .Values.redis.existingSecret }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.redis.existingSecret }}
+                  name: {{ .Values.redis.existingSecret }}
+                  key: {{ .Values.redis.existingSecretKey | default "redis-password" }}
+                  {{- else }}
+                  name: {{ include "homarr.fullname" . }}-redis
+                  key: redis-password
+                  {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.homarr.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.startupProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: /appdata
+          {{- end }}
+      {{- if .Values.persistence.enabled }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (printf "%s-data" (include "homarr.fullname" .)) }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
