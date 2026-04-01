@@ -1,0 +1,139 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-metabase
+
+  - it: should use RollingUpdate strategy
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+
+  - it: should set the correct image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "metabase/metabase:v0.54.5"
+
+  - it: should set custom image tag
+    set:
+      image.tag: "v0.53.0"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "metabase/metabase:v0.53.0"
+
+  - it: should set PostgreSQL env vars with subchart
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MB_DB_TYPE
+            value: postgres
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MB_DB_HOST
+            value: test-postgresql
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MB_DB_DBNAME
+            value: metabase
+
+  - it: should reference postgresql subchart secret for DB password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MB_DB_PASS
+            valueFrom:
+              secretKeyRef:
+                name: test-postgresql-auth
+                key: user-password
+
+  - it: should reference app secret for encryption key
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MB_ENCRYPTION_SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: test-metabase-app
+                key: encryption-secret-key
+
+  - it: should have wait-for-db init container
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+
+  - it: should set external database host when subchart is disabled
+    set:
+      postgresql.enabled: false
+      database.external.host: db.example.com
+      database.external.port: "5433"
+      database.external.name: my_metabase
+      database.external.username: mb_user
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MB_DB_HOST
+            value: db.example.com
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MB_DB_PORT
+            value: "5433"
+
+  - it: should set probes on health path
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /api/health
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /api/health
+
+  - it: should set JAVA_OPTS
+    set:
+      metabase.javaOpts: "-Xmx2g"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JAVA_OPTS
+            value: "-Xmx2g"
+
+  - it: should set site URL
+    set:
+      metabase.siteUrl: "https://metabase.example.com"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MB_SITE_URL
+            value: "https://metabase.example.com"
+
+  - it: should set resources
+    set:
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 500m
