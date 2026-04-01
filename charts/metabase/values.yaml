@@ -1,0 +1,189 @@
+# =============================================================================
+# Metabase Helm Chart — Default Values
+# =============================================================================
+# Focus: open-source BI platform with PostgreSQL metadata store
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Metabase container image
+  repository: metabase/metabase
+  # -- Image tag (defaults to v{appVersion})
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Metabase Configuration
+# =============================================================================
+
+metabase:
+  # -- Application port
+  port: 3000
+  # -- Encryption secret key for saved credentials (auto-generated if empty)
+  encryptionSecretKey: ""
+  # -- Existing secret containing the encryption key
+  existingSecret: ""
+  # -- Key in the existing secret
+  existingSecretKey: encryption-secret-key
+  # -- Public site URL
+  siteUrl: ""
+  # -- Java timezone
+  javaTimezone: UTC
+  # -- JVM options for memory tuning
+  javaOpts: ""
+  # -- Extra environment variables for the container
+  # -- @default -- `[]`
+  extraEnv: []
+    # - name: MB_SEND_NEW_USER_EMAILS
+    #   value: "false"
+
+# =============================================================================
+# Database
+# =============================================================================
+
+database:
+  # -- External PostgreSQL configuration (used when postgresql subchart is disabled)
+  external:
+    host: ""
+    port: "5432"
+    name: metabase
+    username: metabase
+    password: ""
+    # -- Existing secret containing the database password
+    existingSecret: ""
+    # -- Key in the existing secret containing the password
+    existingSecretPasswordKey: password
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- HTTP service port
+  port: 80
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Metabase
+  enabled: false
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts: []
+    # - host: metabase.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+    # - hosts:
+    #     - metabase.example.com
+    #   secretName: metabase-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    path: /api/health
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    path: /api/health
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    path: /api/health
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []
+
+# =============================================================================
+# Subcharts
+# =============================================================================
+
+postgresql:
+  # -- Deploy PostgreSQL as a subchart
+  enabled: true
+  architecture: standalone
+  auth:
+    database: metabase
+    username: metabase
+    # -- PostgreSQL password (auto-generated if empty)
+    password: ""
+  initdb:
+    scripts:
+      02-extensions.sql: |
+        CREATE EXTENSION IF NOT EXISTS citext;

@@ -92,6 +92,11 @@ HelmForge is built on a simple principle: **use what upstream ships, nothing mor
 | [gitea](charts/gitea/) | stable | Gitea — self-hosted Git service with SQLite, PostgreSQL, or MySQL, rootless image, SSH, and S3 backup |
 | [homarr](charts/homarr/) | stable | Homarr — modern application dashboard with SQLite, PostgreSQL, or MySQL, Kubernetes integration, and S3 backup |
 | [mariadb](charts/mariadb/) | stable | MariaDB — standalone or GTID-based replication with TLS, metrics, configuration presets, and S3 backup |
+| [umami](charts/umami/) | alpha | Umami — privacy-focused web analytics with PostgreSQL and auto-generated app secret |
+| [metabase](charts/metabase/) | alpha | Metabase — open-source business intelligence and analytics with PostgreSQL and JVM tuning |
+| [liwan](charts/liwan/) | alpha | Liwan — ultra-lightweight privacy-first web analytics with embedded DuckDB |
+| [wallabag](charts/wallabag/) | alpha | Wallabag — self-hosted read-it-later with PostgreSQL, optional Redis, and Symfony configuration |
+| [strava-statistics](charts/strava-statistics/) | alpha | Statistics for Strava — self-hosted fitness dashboard with SQLite and Strava OAuth |
 
 ### Maturity levels
 
