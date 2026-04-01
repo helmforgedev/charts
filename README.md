@@ -37,6 +37,7 @@ Project links:
 | [ddns-updater](charts/ddns-updater/) | beta | DDNS Updater — dynamic DNS for 50+ providers with web UI and persistent history |
 | [dolibarr](charts/dolibarr/) | alpha | Dolibarr — ERP/CRM with MySQL or MariaDB, unattended setup, and persistent business data |
 | [docmost](charts/docmost/) | alpha | Docmost — collaborative wiki and documentation software with PostgreSQL, Redis, local storage, and optional S3 |
+| [flowise](charts/flowise/) | alpha | Flowise — visual AI orchestration with standalone SQLite mode or scalable queue mode backed by Redis and PostgreSQL |
 | [mosquitto](charts/mosquitto/) | alpha | Eclipse Mosquitto — MQTT broker with standalone or federated topology, WebSocket support, and optional MQTTX Web companion UI |
 | [uptime-kuma](charts/uptime-kuma/) | alpha | Uptime Kuma — self-hosted monitoring with SQLite or MariaDB, status pages, and S3 backup |
 | [authelia](charts/authelia/) | beta | Authelia — SSO, MFA, and OpenID Connect authentication server with forward auth for reverse proxies |

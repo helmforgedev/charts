@@ -1,0 +1,327 @@
+# =============================================================================
+# Flowise Configuration
+# =============================================================================
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+
+# -- Override the full release name used in resource names
+fullnameOverride: ""
+
+# -- Labels added to every resource created by this chart
+commonLabels: {}
+
+image:
+  # -- Flowise container image repository
+  repository: flowiseai/flowise
+  # -- Flowise image tag. Defaults to appVersion validated on GitHub Releases and Docker Hub.
+  tag: ""
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+architecture:
+  # -- Flowise architecture mode: standalone | queue
+  mode: standalone
+
+flowise:
+  # -- Number of main Flowise server replicas
+  replicaCount: 1
+  # -- Public application URL. Auto-detected from the first ingress host when empty.
+  appUrl: ""
+  # -- Log level: error | warn | info | verbose | debug
+  logLevel: info
+  # -- Rate-limit proxy count when running behind ingress or load balancers
+  numberOfProxies: 1
+  # -- Allowed CORS origins
+  corsOrigins: "*"
+  # -- Allowed iframe origins
+  iframeOrigins: "*"
+  # -- Maximum upload size accepted by Flowise
+  fileSizeLimit: 50mb
+  # -- Show community nodes in the UI
+  showCommunityNodes: true
+  # -- Disable telemetry reporting
+  disableTelemetry: true
+  # -- Disable selected node names, comma-separated
+  disabledNodes: ""
+  # -- Extra environment variables for the main Flowise container
+  extraEnv: []
+
+auth:
+  # -- Existing secret with Flowise auth and encryption secrets
+  existingSecret: ""
+  # -- Secret key name for FLOWISE_SECRETKEY_OVERWRITE in auth.existingSecret
+  existingSecretEncryptionKeyKey: encryption-key
+  # -- Secret key name for JWT_AUTH_TOKEN_SECRET in auth.existingSecret
+  existingSecretJwtAuthTokenSecretKey: jwt-auth-token-secret
+  # -- Secret key name for JWT_REFRESH_TOKEN_SECRET in auth.existingSecret
+  existingSecretJwtRefreshTokenSecretKey: jwt-refresh-token-secret
+  # -- Secret key name for EXPRESS_SESSION_SECRET in auth.existingSecret
+  existingSecretExpressSessionSecretKey: express-session-secret
+  # -- Secret key name for TOKEN_HASH_SECRET in auth.existingSecret
+  existingSecretTokenHashSecretKey: token-hash-secret
+  # -- Overwrite encryption key. Auto-generated if empty.
+  encryptionKey: ""
+  # -- JWT auth token secret. Auto-generated if empty.
+  jwtAuthTokenSecret: ""
+  # -- JWT refresh token secret. Auto-generated if empty.
+  jwtRefreshTokenSecret: ""
+  # -- Express session secret. Auto-generated if empty.
+  expressSessionSecret: ""
+  # -- Token hash secret. Auto-generated if empty.
+  tokenHashSecret: ""
+  # -- Enable secure cookies when Flowise is served via HTTPS
+  secureCookies: false
+
+database:
+  # -- Database mode: auto | sqlite | external | postgresql
+  mode: auto
+  sqlite:
+    # -- SQLite database file path inside the Flowise data directory
+    path: /root/.flowise/database.sqlite
+  external:
+    # -- External database vendor: postgres | mysql
+    vendor: postgres
+    # -- External database hostname
+    host: ""
+    # -- External database port. Defaults according to vendor when empty.
+    port: ""
+    # -- External database name
+    name: flowise
+    # -- External database username
+    username: flowise
+    # -- External database password. Ignored when existingSecret is set.
+    password: ""
+    # -- Existing secret containing the external database password
+    existingSecret: ""
+    # -- Secret key for the external database password
+    existingSecretPasswordKey: database-password
+    # -- Enable SSL for external database connections
+    ssl: false
+    # -- Reject unauthorized certificates when database.ssl=true
+    rejectUnauthorized: true
+    # -- Base64-encoded client SSL key for self-signed database certificates
+    sslKeyBase64: ""
+
+# -- Deploy PostgreSQL as a subchart
+postgresql:
+  enabled: false
+  architecture: standalone
+  auth:
+    # -- PostgreSQL database name created on first run
+    database: flowise
+    # -- PostgreSQL username created on first run
+    username: flowise
+    # -- PostgreSQL application user password. Auto-generated if empty.
+    password: ""
+    # -- PostgreSQL superuser password. Auto-generated if empty.
+    postgresPassword: ""
+  standalone:
+    persistence:
+      # -- Enable persistence for PostgreSQL data
+      enabled: true
+      # -- PVC size for PostgreSQL
+      size: 8Gi
+  initdb:
+    scripts:
+      # -- Flowise 3.1.1 migrations require uuid_generate_v4() from uuid-ossp.
+      10-flowise-extensions.sql: |
+        CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+queue:
+  # -- Queue name used by Flowise main and workers
+  name: flowise-queue
+  worker:
+    # -- Number of Flowise worker replicas in queue mode
+    replicaCount: 1
+    # -- Worker concurrency for BullMQ jobs
+    concurrency: 100000
+    # -- Number of completed jobs kept by age
+    removeOnAge: 86400
+    # -- Number of completed jobs kept by count
+    removeOnCount: 10000
+    # -- Labels added to Flowise worker pods
+    podLabels: {}
+    # -- Annotations added to Flowise worker pods
+    podAnnotations: {}
+    # -- Additional environment variables for Flowise workers
+    extraEnv: []
+    # -- CPU and memory requests/limits for Flowise workers
+    resources: {}
+
+# -- Deploy Redis as a subchart
+redis:
+  enabled: false
+  architecture: standalone
+  auth:
+    # -- Enable Redis password authentication
+    enabled: true
+    # -- Redis password. Auto-generated if empty when auth.enabled=true.
+    password: ""
+  standalone:
+    persistence:
+      # -- Enable persistence for Redis data
+      enabled: true
+      # -- PVC size for Redis
+      size: 1Gi
+  external:
+    # -- External Redis hostname
+    host: ""
+    # -- External Redis port
+    port: 6379
+    # -- External Redis username
+    username: ""
+    # -- External Redis password. Ignored when existingSecret is set.
+    password: ""
+    # -- Existing secret containing the external Redis password
+    existingSecret: ""
+    # -- Secret key for the external Redis password
+    existingSecretPasswordKey: redis-password
+
+storage:
+  # -- Storage type: local | s3
+  type: local
+  local:
+    # -- Local blob storage path inside the data volume
+    path: /root/.flowise/storage
+  s3:
+    # -- S3 bucket name
+    bucketName: ""
+    # -- S3 access key. Ignored when existingSecret is set.
+    accessKeyId: ""
+    # -- S3 secret key. Ignored when existingSecret is set.
+    secretAccessKey: ""
+    # -- S3 region
+    region: us-east-1
+    # -- Custom S3 endpoint URL
+    endpointUrl: ""
+    # -- Force path-style requests for S3-compatible providers
+    forcePathStyle: false
+    # -- Existing secret containing S3 credentials
+    existingSecret: ""
+    # -- Secret key for the S3 access key in storage.s3.existingSecret
+    existingSecretAccessKeyKey: access-key
+    # -- Secret key for the S3 secret key in storage.s3.existingSecret
+    existingSecretSecretKeyKey: secret-key
+
+persistence:
+  # -- Enable persistent storage for Flowise local data
+  enabled: true
+  # -- Storage class for the Flowise data PVC
+  storageClass: ""
+  # -- Access mode for the Flowise data PVC
+  accessMode: ReadWriteOnce
+  # -- Size of the Flowise data PVC
+  size: 10Gi
+  # -- Existing PVC claim for Flowise local data
+  existingClaim: ""
+  # -- Annotations for the Flowise data PVC
+  annotations: {}
+
+service:
+  # -- Service type for the Flowise web application
+  type: ClusterIP
+  # -- Service port exposed by Kubernetes
+  port: 3000
+  # -- Annotations for the Flowise service
+  annotations: {}
+
+ingress:
+  # -- Enable ingress for Flowise
+  enabled: false
+  # -- Ingress class name
+  ingressClassName: ""
+  # -- Ingress annotations
+  # annotations:
+  #   cert-manager.io/cluster-issuer: letsencrypt-prod
+  annotations: {}
+  # -- Ingress hosts
+  # hosts:
+  #   - host: flowise.example.com
+  #     paths:
+  #       - path: /
+  #         pathType: Prefix
+  hosts: []
+  # -- Ingress TLS configuration
+  # tls:
+  #   - secretName: flowise-tls
+  #     hosts:
+  #       - flowise.example.com
+  tls: []
+
+startupProbe:
+  # -- Enable startup probe for the main Flowise server
+  enabled: true
+  # -- HTTP path used by the startup probe
+  path: /api/v1/ping
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+
+livenessProbe:
+  # -- Enable liveness probe for the main Flowise server
+  enabled: true
+  # -- HTTP path used by the liveness probe
+  path: /api/v1/ping
+  initialDelaySeconds: 0
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  # -- Enable readiness probe for the main Flowise server
+  enabled: true
+  # -- HTTP path used by the readiness probe
+  path: /api/v1/ping
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# -- CPU and memory requests/limits for the main Flowise container
+resources: {}
+
+# -- Pod-level security context
+podSecurityContext: {}
+
+# -- Container-level security context
+securityContext: {}
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount
+  create: false
+  # -- ServiceAccount name override
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# -- Priority class name
+priorityClassName: ""
+
+# -- Labels added to the main Flowise pod
+podLabels: {}
+
+# -- Annotations added to the main Flowise pod
+podAnnotations: {}
+
+# -- Node selector for pod scheduling
+nodeSelector: {}
+
+# -- Tolerations for pod scheduling
+tolerations: []
+
+# -- Affinity rules for pod scheduling
+affinity: {}
+
+# -- Additional volume mounts for the main Flowise container
+extraVolumeMounts: []
+
+# -- Additional volumes for the Flowise pods
+extraVolumes: []
+
+# -- Extra Kubernetes manifests to deploy alongside the chart
+extraManifests: []

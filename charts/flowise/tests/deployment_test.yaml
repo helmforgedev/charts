@@ -1,0 +1,60 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+  - templates/_helpers.tpl
+tests:
+  - it: renders standalone deployment with sqlite and local storage by default
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: flowiseai/flowise:3.1.1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_TYPE
+            value: sqlite
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: STORAGE_TYPE
+            value: local
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: sleep 3; flowise start
+
+  - it: renders queue mode with redis and postgresql settings on the main deployment
+    template: templates/deployment.yaml
+    set:
+      architecture.mode: queue
+      flowise.replicaCount: 2
+      persistence.enabled: false
+      storage.type: s3
+      storage.s3.bucketName: flowise
+      storage.s3.accessKeyId: minio
+      storage.s3.secretAccessKey: secret123
+      postgresql.enabled: true
+      redis.enabled: true
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MODE
+            value: queue
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_TYPE
+            value: postgres
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_HOST
+            value: RELEASE-NAME-redis-client

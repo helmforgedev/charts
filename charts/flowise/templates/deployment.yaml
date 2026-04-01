@@ -1,0 +1,292 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "flowise.fullname" . }}
+  labels:
+    {{- include "flowise.labels" . | nindent 4 }}
+    app.kubernetes.io/component: main
+spec:
+  replicas: {{ .Values.flowise.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "flowise.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: main
+  template:
+    metadata:
+      labels:
+        {{- include "flowise.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: main
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "flowise.serviceAccountName" . }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if or (ne (include "flowise.databaseMode" .) "sqlite") (eq (include "flowise.architectureMode" .) "queue") }}
+      initContainers:
+        {{- if ne (include "flowise.databaseMode" .) "sqlite" }}
+        - name: wait-for-database
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for {{ include "flowise.databaseHost" . }}:{{ include "flowise.databasePort" . }} ..."
+              until nc -z -w2 {{ include "flowise.databaseHost" . }} {{ include "flowise.databasePort" . }}; do
+                sleep 2
+              done
+              echo "Database is reachable."
+        {{- end }}
+        {{- if eq (include "flowise.architectureMode" .) "queue" }}
+        - name: wait-for-redis
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for {{ include "flowise.redisHost" . }}:{{ include "flowise.redisPort" . }} ..."
+              until nc -z -w2 {{ include "flowise.redisHost" . }} {{ include "flowise.redisPort" . }}; do
+                sleep 2
+              done
+              echo "Redis is reachable."
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: flowise
+          image: {{ include "flowise.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - {{ include "flowise.mainCommand" . | quote }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "3000"
+            - name: LOG_LEVEL
+              value: {{ .Values.flowise.logLevel | quote }}
+            - name: NUMBER_OF_PROXIES
+              value: {{ .Values.flowise.numberOfProxies | quote }}
+            - name: CORS_ORIGINS
+              value: {{ .Values.flowise.corsOrigins | quote }}
+            - name: IFRAME_ORIGINS
+              value: {{ .Values.flowise.iframeOrigins | quote }}
+            - name: FLOWISE_FILE_SIZE_LIMIT
+              value: {{ .Values.flowise.fileSizeLimit | quote }}
+            - name: SHOW_COMMUNITY_NODES
+              value: {{ .Values.flowise.showCommunityNodes | quote }}
+            - name: DISABLE_FLOWISE_TELEMETRY
+              value: {{ .Values.flowise.disableTelemetry | quote }}
+            - name: DISABLED_NODES
+              value: {{ .Values.flowise.disabledNodes | quote }}
+            - name: FLOWISE_SECRETKEY_OVERWRITE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flowise.authSecretName" . }}
+                  key: {{ .Values.auth.existingSecretEncryptionKeyKey }}
+            - name: JWT_AUTH_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flowise.authSecretName" . }}
+                  key: {{ .Values.auth.existingSecretJwtAuthTokenSecretKey }}
+            - name: JWT_REFRESH_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flowise.authSecretName" . }}
+                  key: {{ .Values.auth.existingSecretJwtRefreshTokenSecretKey }}
+            - name: EXPRESS_SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flowise.authSecretName" . }}
+                  key: {{ .Values.auth.existingSecretExpressSessionSecretKey }}
+            - name: TOKEN_HASH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flowise.authSecretName" . }}
+                  key: {{ .Values.auth.existingSecretTokenHashSecretKey }}
+            - name: JWT_ISSUER
+              value: Flowise
+            - name: JWT_AUDIENCE
+              value: Flowise
+            - name: SECURE_COOKIES
+              value: {{ .Values.auth.secureCookies | quote }}
+            {{- if include "flowise.appUrl" . }}
+            - name: APP_URL
+              value: {{ include "flowise.appUrl" . | quote }}
+            {{- end }}
+            - name: STORAGE_TYPE
+              value: {{ .Values.storage.type | quote }}
+            {{- if eq .Values.storage.type "local" }}
+            - name: BLOB_STORAGE_PATH
+              value: {{ .Values.storage.local.path | quote }}
+            {{- else }}
+            - name: S3_STORAGE_BUCKET_NAME
+              value: {{ .Values.storage.s3.bucketName | quote }}
+            - name: S3_STORAGE_REGION
+              value: {{ .Values.storage.s3.region | quote }}
+            - name: S3_FORCE_PATH_STYLE
+              value: {{ .Values.storage.s3.forcePathStyle | quote }}
+            {{- if .Values.storage.s3.endpointUrl }}
+            - name: S3_ENDPOINT_URL
+              value: {{ .Values.storage.s3.endpointUrl | quote }}
+            {{- end }}
+            - name: S3_STORAGE_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flowise.storageSecretName" . }}
+                  key: {{ .Values.storage.s3.existingSecretAccessKeyKey }}
+            - name: S3_STORAGE_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flowise.storageSecretName" . }}
+                  key: {{ .Values.storage.s3.existingSecretSecretKeyKey }}
+            {{- end }}
+            - name: DATABASE_TYPE
+              value: {{ include "flowise.databaseType" . | quote }}
+            {{- if eq (include "flowise.databaseMode" .) "sqlite" }}
+            - name: DATABASE_PATH
+              value: {{ .Values.database.sqlite.path | quote }}
+            {{- else }}
+            - name: DATABASE_HOST
+              value: {{ include "flowise.databaseHost" . | quote }}
+            - name: DATABASE_PORT
+              value: {{ include "flowise.databasePort" . | quote }}
+            - name: DATABASE_NAME
+              value: {{ include "flowise.databaseName" . | quote }}
+            - name: DATABASE_USER
+              value: {{ include "flowise.databaseUsername" . | quote }}
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flowise.databaseSecretName" . }}
+                  key: {{ include "flowise.databaseSecretKey" . }}
+            {{- if eq (include "flowise.databaseMode" .) "external" }}
+            - name: DATABASE_SSL
+              value: {{ .Values.database.external.ssl | quote }}
+            - name: DATABASE_REJECT_UNAUTHORIZED
+              value: {{ .Values.database.external.rejectUnauthorized | quote }}
+            {{- if .Values.database.external.sslKeyBase64 }}
+            - name: DATABASE_SSL_KEY_BASE64
+              value: {{ .Values.database.external.sslKeyBase64 | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if eq (include "flowise.architectureMode" .) "queue" }}
+            - name: MODE
+              value: queue
+            - name: QUEUE_NAME
+              value: {{ .Values.queue.name | quote }}
+            - name: REDIS_HOST
+              value: {{ include "flowise.redisHost" . | quote }}
+            - name: REDIS_PORT
+              value: {{ include "flowise.redisPort" . | quote }}
+            {{- if include "flowise.redisUsername" . }}
+            - name: REDIS_USERNAME
+              value: {{ include "flowise.redisUsername" . | quote }}
+            {{- end }}
+            {{- if include "flowise.hasRedisPassword" . }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flowise.redisSecretName" . }}
+                  key: {{ include "flowise.redisSecretKey" . }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.flowise.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.startupProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if or (include "flowise.dataVolumeEnabled" .) .Values.extraVolumeMounts }}
+          volumeMounts:
+            {{- if include "flowise.dataVolumeEnabled" . }}
+            - name: data
+              mountPath: /root/.flowise
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+      {{- if or (include "flowise.dataVolumeEnabled" .) .Values.extraVolumes }}
+      volumes:
+        {{- if include "flowise.dataVolumeEnabled" . }}
+        - name: data
+          {{- if .Values.persistence.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim }}
+          {{- else }}
+          persistentVolumeClaim:
+            claimName: {{ include "flowise.fullname" . }}-data
+          {{- end }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

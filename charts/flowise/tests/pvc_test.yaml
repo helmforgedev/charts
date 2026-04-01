@@ -1,0 +1,25 @@
+suite: PVC
+templates:
+  - templates/pvc.yaml
+  - templates/_helpers.tpl
+tests:
+  - it: renders a pvc by default for local standalone mode
+    template: templates/pvc.yaml
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+
+  - it: does not render a pvc in queue mode with persistence disabled
+    template: templates/pvc.yaml
+    set:
+      architecture.mode: queue
+      persistence.enabled: false
+      storage.type: s3
+      storage.s3.bucketName: flowise
+      storage.s3.accessKeyId: minio
+      storage.s3.secretAccessKey: secret123
+      postgresql.enabled: true
+      redis.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0

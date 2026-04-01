@@ -1,0 +1,26 @@
+{{- $arch := include "flowise.architectureMode" . -}}
+{{- $dbMode := include "flowise.databaseMode" . -}}
+{{- if and (eq $arch "queue") (eq $dbMode "sqlite") -}}
+{{- fail "architecture.mode=queue requires database.mode to resolve to external or postgresql, not sqlite" -}}
+{{- end -}}
+{{- if and (eq $arch "queue") (eq (include "flowise.redisMode" .) "none") -}}
+{{- fail "architecture.mode=queue requires Redis: enable redis.enabled or configure redis.external.host" -}}
+{{- end -}}
+{{- if and (eq $arch "queue") (ne .Values.storage.type "s3") -}}
+{{- fail "architecture.mode=queue requires storage.type=s3 for shared blob storage across main and worker pods" -}}
+{{- end -}}
+{{- if and (eq $arch "queue") .Values.persistence.enabled -}}
+{{- fail "architecture.mode=queue requires persistence.enabled=false because shared local volumes are not a valid scalable topology for Flowise" -}}
+{{- end -}}
+{{- if and (eq $dbMode "sqlite") (gt (int .Values.flowise.replicaCount) 1) -}}
+{{- fail "SQLite mode only supports flowise.replicaCount=1" -}}
+{{- end -}}
+{{- if and (eq .Values.storage.type "local") (gt (int .Values.flowise.replicaCount) 1) -}}
+{{- fail "local storage only supports flowise.replicaCount=1; use storage.type=s3 for multiple replicas" -}}
+{{- end -}}
+{{- if and (eq .Values.storage.type "s3") (eq (.Values.storage.s3.bucketName | default "") "") -}}
+{{- fail "storage.type=s3 requires storage.s3.bucketName" -}}
+{{- end -}}
+{{- if and (eq .Values.storage.type "s3") (not (or .Values.storage.s3.existingSecret (and .Values.storage.s3.accessKeyId .Values.storage.s3.secretAccessKey))) -}}
+{{- fail "storage.type=s3 requires storage.s3.existingSecret or inline storage.s3.accessKeyId and storage.s3.secretAccessKey" -}}
+{{- end -}}

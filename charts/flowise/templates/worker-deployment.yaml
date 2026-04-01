@@ -1,0 +1,173 @@
+{{- if eq (include "flowise.architectureMode" .) "queue" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "flowise.fullname" . }}-worker
+  labels:
+    {{- include "flowise.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  replicas: {{ .Values.queue.worker.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "flowise.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        {{- include "flowise.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: worker
+        {{- with .Values.queue.worker.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.queue.worker.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "flowise.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: wait-for-database
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for {{ include "flowise.databaseHost" . }}:{{ include "flowise.databasePort" . }} ..."
+              until nc -z -w2 {{ include "flowise.databaseHost" . }} {{ include "flowise.databasePort" . }}; do
+                sleep 2
+              done
+              echo "Database is reachable."
+        - name: wait-for-redis
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for {{ include "flowise.redisHost" . }}:{{ include "flowise.redisPort" . }} ..."
+              until nc -z -w2 {{ include "flowise.redisHost" . }} {{ include "flowise.redisPort" . }}; do
+                sleep 2
+              done
+              echo "Redis is reachable."
+      containers:
+        - name: flowise-worker
+          image: {{ include "flowise.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - {{ include "flowise.workerCommand" . | quote }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: LOG_LEVEL
+              value: {{ .Values.flowise.logLevel | quote }}
+            - name: FLOWISE_SECRETKEY_OVERWRITE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flowise.authSecretName" . }}
+                  key: {{ .Values.auth.existingSecretEncryptionKeyKey }}
+            - name: STORAGE_TYPE
+              value: s3
+            - name: S3_STORAGE_BUCKET_NAME
+              value: {{ .Values.storage.s3.bucketName | quote }}
+            - name: S3_STORAGE_REGION
+              value: {{ .Values.storage.s3.region | quote }}
+            - name: S3_FORCE_PATH_STYLE
+              value: {{ .Values.storage.s3.forcePathStyle | quote }}
+            {{- if .Values.storage.s3.endpointUrl }}
+            - name: S3_ENDPOINT_URL
+              value: {{ .Values.storage.s3.endpointUrl | quote }}
+            {{- end }}
+            - name: S3_STORAGE_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flowise.storageSecretName" . }}
+                  key: {{ .Values.storage.s3.existingSecretAccessKeyKey }}
+            - name: S3_STORAGE_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flowise.storageSecretName" . }}
+                  key: {{ .Values.storage.s3.existingSecretSecretKeyKey }}
+            - name: DATABASE_TYPE
+              value: {{ include "flowise.databaseType" . | quote }}
+            - name: DATABASE_HOST
+              value: {{ include "flowise.databaseHost" . | quote }}
+            - name: DATABASE_PORT
+              value: {{ include "flowise.databasePort" . | quote }}
+            - name: DATABASE_NAME
+              value: {{ include "flowise.databaseName" . | quote }}
+            - name: DATABASE_USER
+              value: {{ include "flowise.databaseUsername" . | quote }}
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flowise.databaseSecretName" . }}
+                  key: {{ include "flowise.databaseSecretKey" . }}
+            {{- if eq (include "flowise.databaseMode" .) "external" }}
+            - name: DATABASE_SSL
+              value: {{ .Values.database.external.ssl | quote }}
+            - name: DATABASE_REJECT_UNAUTHORIZED
+              value: {{ .Values.database.external.rejectUnauthorized | quote }}
+            {{- if .Values.database.external.sslKeyBase64 }}
+            - name: DATABASE_SSL_KEY_BASE64
+              value: {{ .Values.database.external.sslKeyBase64 | quote }}
+            {{- end }}
+            {{- end }}
+            - name: MODE
+              value: queue
+            - name: QUEUE_NAME
+              value: {{ .Values.queue.name | quote }}
+            - name: WORKER_CONCURRENCY
+              value: {{ .Values.queue.worker.concurrency | quote }}
+            - name: REMOVE_ON_AGE
+              value: {{ .Values.queue.worker.removeOnAge | quote }}
+            - name: REMOVE_ON_COUNT
+              value: {{ .Values.queue.worker.removeOnCount | quote }}
+            - name: REDIS_HOST
+              value: {{ include "flowise.redisHost" . | quote }}
+            - name: REDIS_PORT
+              value: {{ include "flowise.redisPort" . | quote }}
+            {{- if include "flowise.redisUsername" . }}
+            - name: REDIS_USERNAME
+              value: {{ include "flowise.redisUsername" . | quote }}
+            {{- end }}
+            {{- if include "flowise.hasRedisPassword" . }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flowise.redisSecretName" . }}
+                  key: {{ include "flowise.redisSecretKey" . }}
+            {{- end }}
+            {{- with .Values.queue.worker.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.queue.worker.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
