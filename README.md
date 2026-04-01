@@ -1,5 +1,9 @@
 # Helm Charts
 
+<p align="center">
+  <img src="docs/images/helmforge_logo_horizontal.png" alt="HelmForge" width="720" />
+</p>
+
 [![CI](https://github.com/helmforgedev/charts/actions/workflows/ci.yml/badge.svg)](https://github.com/helmforgedev/charts/actions/workflows/ci.yml)
 [![Publish](https://github.com/helmforgedev/charts/actions/workflows/publish.yml/badge.svg)](https://github.com/helmforgedev/charts/actions/workflows/publish.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
