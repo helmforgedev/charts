@@ -1,0 +1,608 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Mosquitto Helm Chart Values",
+  "description": "Configuration values for the Eclipse Mosquitto Helm chart with WebSocket support and optional MQTTX Web.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name used in resource names"
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the full release name used in resource names"
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Labels added to every resource created by this chart"
+    },
+    "architecture": {
+      "type": "object",
+      "description": "Deployment architecture for Mosquitto brokers",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "description": "Deployment architecture for Mosquitto brokers: standalone for a single broker, federated for bridged brokers.",
+          "enum": ["standalone", "federated"]
+        }
+      }
+    },
+    "clusterDomain": {
+      "type": "string",
+      "description": "Kubernetes cluster domain"
+    },
+    "image": {
+      "type": "object",
+      "description": "Mosquitto container image configuration",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Mosquitto container image repository"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Mosquitto image tag validated on Docker Hub for the default non-Alpine release"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries",
+      "items": {
+        "type": "object"
+      }
+    },
+    "broker": {
+      "type": "object",
+      "description": "Mosquitto broker configuration",
+      "properties": {
+        "replicaCount": {
+          "type": "integer",
+          "description": "Number of Mosquitto broker replicas"
+        },
+        "multiReplicaDefaults": {
+          "type": "object",
+          "description": "Opinionated scheduling defaults for multi-replica broker deployments",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Apply opinionated scheduling defaults when replicaCount > 1 and no custom affinity/topologySpreadConstraints are set"
+            },
+            "podAntiAffinity": {
+              "type": "string",
+              "description": "Pod anti-affinity mode automatically applied for multi-replica broker pods: preferred | required | none",
+              "enum": ["preferred", "required", "none"]
+            },
+            "topologySpread": {
+              "type": "object",
+              "description": "Default topology spread settings for multi-replica broker pods",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Apply a topology spread constraint automatically for multi-replica broker pods"
+                },
+                "topologyKey": {
+                  "type": "string",
+                  "description": "Topology key used by the generated spread constraint"
+                },
+                "whenUnsatisfiable": {
+                  "type": "string",
+                  "description": "whenUnsatisfiable policy used by the generated spread constraint",
+                  "enum": ["DoNotSchedule", "ScheduleAnyway"]
+                }
+              }
+            }
+          }
+        },
+        "extraConfig": {
+          "type": "string",
+          "description": "Append raw Mosquitto configuration lines to the generated mosquitto.conf"
+        },
+        "listeners": {
+          "type": "object",
+          "description": "Broker listener ports",
+          "properties": {
+            "mqtt": {
+              "type": "integer",
+              "description": "MQTT TCP listener port"
+            },
+            "websocket": {
+              "type": "integer",
+              "description": "MQTT over WebSocket listener port"
+            }
+          }
+        },
+        "federation": {
+          "type": "object",
+          "description": "Bridge configuration used when architecture.mode=federated",
+          "properties": {
+            "topicPattern": {
+              "type": "string",
+              "description": "Topics exported and imported through Mosquitto bridge connections when architecture.mode=federated"
+            },
+            "topicDirection": {
+              "type": "string",
+              "description": "Direction used by bridge topic rules between broker peers",
+              "enum": ["in", "out", "both"]
+            },
+            "topicQos": {
+              "type": "integer",
+              "description": "QoS used by bridge topic rules between broker peers"
+            },
+            "tryPrivate": {
+              "type": "boolean",
+              "description": "Whether brokers should advertise bridge semantics to remote peers for loop handling and retained propagation"
+            },
+            "restartTimeoutBase": {
+              "type": "integer",
+              "description": "Restart timeout base value, in seconds, for bridge reconnection backoff"
+            },
+            "restartTimeoutCap": {
+              "type": "integer",
+              "description": "Restart timeout cap value, in seconds, for bridge reconnection backoff"
+            }
+          }
+        },
+        "persistence": {
+          "type": "object",
+          "description": "Persistence for broker data",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable persistence for Mosquitto data"
+            },
+            "storageClass": {
+              "type": "string",
+              "description": "Storage class for broker PVCs"
+            },
+            "accessMode": {
+              "type": "string",
+              "description": "Access mode for broker PVCs"
+            },
+            "size": {
+              "type": "string",
+              "description": "Size of each broker PVC"
+            }
+          }
+        }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "description": "Username and password authentication configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable username/password authentication"
+        },
+        "username": {
+          "type": "string",
+          "description": "Username stored in the generated password file"
+        },
+        "password": {
+          "type": "string",
+          "description": "Password stored in the generated password file. Auto-generated if empty."
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing secret containing username and password"
+        },
+        "existingSecretUsernameKey": {
+          "type": "string",
+          "description": "Secret key for the username in auth.existingSecret"
+        },
+        "existingSecretPasswordKey": {
+          "type": "string",
+          "description": "Secret key for the password in auth.existingSecret"
+        }
+      }
+    },
+    "acl": {
+      "type": "object",
+      "description": "ACL file configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable ACL file generation and enforcement"
+        },
+        "rules": {
+          "type": "string",
+          "description": "Raw ACL rules written to the generated aclfile"
+        },
+        "existingConfigMap": {
+          "type": "string",
+          "description": "Existing ConfigMap with a custom aclfile key"
+        },
+        "existingConfigMapKey": {
+          "type": "string",
+          "description": "ConfigMap key name used when acl.existingConfigMap is set"
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "description": "Broker Service configuration",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Service type for broker clients",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer"]
+        },
+        "sessionAffinity": {
+          "type": "string",
+          "description": "Session affinity for MQTT client traffic. Use ClientIP only when sticky routing is explicitly desired.",
+          "enum": ["None", "ClientIP"]
+        },
+        "externalTrafficPolicy": {
+          "type": "string",
+          "description": "External traffic policy when using NodePort or LoadBalancer",
+          "enum": ["Cluster", "Local"]
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the broker Service"
+        },
+        "mqttPort": {
+          "type": "integer",
+          "description": "Override MQTT service port"
+        },
+        "websocketPort": {
+          "type": "integer",
+          "description": "Override WebSocket service port"
+        }
+      }
+    },
+    "headlessService": {
+      "type": "object",
+      "description": "Headless broker Service configuration",
+      "properties": {
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the headless broker Service"
+        }
+      }
+    },
+    "websocketIngress": {
+      "type": "object",
+      "description": "Ingress configuration for the broker WebSocket listener",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable ingress for the broker WebSocket listener"
+        },
+        "ingressClassName": {
+          "type": "string",
+          "description": "Ingress class name for the WebSocket route"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the WebSocket ingress"
+        },
+        "hosts": {
+          "type": "array",
+          "description": "WebSocket ingress hosts",
+          "items": {
+            "type": "object"
+          }
+        },
+        "tls": {
+          "type": "array",
+          "description": "TLS configuration for the WebSocket ingress",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "mqttxWeb": {
+      "type": "object",
+      "description": "Optional MQTTX Web companion UI",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable MQTTX Web companion UI"
+        },
+        "image": {
+          "type": "object",
+          "description": "MQTTX Web image configuration",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "description": "MQTTX Web image repository"
+            },
+            "tag": {
+              "type": "string",
+              "description": "MQTTX Web image tag. Keep empty to use the image's default tag while upstream release/tag mismatch is under review."
+            },
+            "pullPolicy": {
+              "type": "string",
+              "description": "Image pull policy",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            }
+          }
+        },
+        "replicaCount": {
+          "type": "integer",
+          "description": "Number of MQTTX Web replicas"
+        },
+        "service": {
+          "type": "object",
+          "description": "Service configuration for MQTTX Web",
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "Service type for MQTTX Web",
+              "enum": ["ClusterIP", "NodePort", "LoadBalancer"]
+            },
+            "port": {
+              "type": "integer",
+              "description": "HTTP service port for MQTTX Web"
+            },
+            "annotations": {
+              "type": "object",
+              "description": "Annotations for the MQTTX Web service"
+            }
+          }
+        },
+        "ingress": {
+          "type": "object",
+          "description": "Ingress configuration for MQTTX Web",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable ingress for MQTTX Web"
+            },
+            "ingressClassName": {
+              "type": "string",
+              "description": "Ingress class name"
+            },
+            "annotations": {
+              "type": "object",
+              "description": "Ingress annotations"
+            },
+            "hosts": {
+              "type": "array",
+              "description": "MQTTX Web ingress hosts",
+              "items": {
+                "type": "object"
+              }
+            },
+            "tls": {
+              "type": "array",
+              "description": "MQTTX Web ingress TLS configuration",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "broker": {
+          "type": "object",
+          "description": "Default broker connection metadata exposed to the companion UI wrapper",
+          "properties": {
+            "scheme": {
+              "type": "string",
+              "description": "Browser-visible scheme used by MQTTX Web when building the default broker URL",
+              "enum": ["ws", "wss"]
+            },
+            "host": {
+              "type": "string",
+              "description": "Browser-visible host override. Defaults to the first websocketIngress host when available."
+            },
+            "port": {
+              "type": "integer",
+              "description": "Browser-visible port override. Defaults to websocket ingress standard port or the broker WebSocket service port."
+            },
+            "path": {
+              "type": "string",
+              "description": "WebSocket path used by browsers"
+            },
+            "connectionName": {
+              "type": "string",
+              "description": "Default connection name documented for users of the companion UI"
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "description": "CPU and memory requests/limits for the MQTTX Web container"
+        },
+        "podLabels": {
+          "type": "object",
+          "description": "Additional labels for the MQTTX Web pod"
+        },
+        "podAnnotations": {
+          "type": "object",
+          "description": "Additional annotations for the MQTTX Web pod"
+        }
+      }
+    },
+    "pdb": {
+      "type": "object",
+      "description": "PodDisruptionBudget for broker pods",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Create a PodDisruptionBudget for broker pods"
+        },
+        "minAvailable": {
+          "type": "integer",
+          "description": "Minimum available broker pods during voluntary disruptions"
+        }
+      }
+    },
+    "startupProbe": {
+      "type": "object",
+      "description": "Startup probe configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable startup probe"
+        },
+        "initialDelaySeconds": {
+          "type": "integer",
+          "description": "Initial delay before probe starts"
+        },
+        "periodSeconds": {
+          "type": "integer",
+          "description": "Probe check interval"
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "description": "Probe timeout"
+        },
+        "failureThreshold": {
+          "type": "integer",
+          "description": "Failures before marking unhealthy"
+        }
+      }
+    },
+    "livenessProbe": {
+      "type": "object",
+      "description": "Liveness probe configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable liveness probe"
+        },
+        "initialDelaySeconds": {
+          "type": "integer",
+          "description": "Initial delay before probe starts"
+        },
+        "periodSeconds": {
+          "type": "integer",
+          "description": "Probe check interval"
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "description": "Probe timeout"
+        },
+        "failureThreshold": {
+          "type": "integer",
+          "description": "Failures before marking unhealthy"
+        }
+      }
+    },
+    "readinessProbe": {
+      "type": "object",
+      "description": "Readiness probe configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable readiness probe"
+        },
+        "initialDelaySeconds": {
+          "type": "integer",
+          "description": "Initial delay before probe starts"
+        },
+        "periodSeconds": {
+          "type": "integer",
+          "description": "Probe check interval"
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "description": "Probe timeout"
+        },
+        "failureThreshold": {
+          "type": "integer",
+          "description": "Failures before marking unhealthy"
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "CPU and memory requests/limits for the Mosquitto container"
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod-level security context"
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Container-level security context"
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "Service account configuration",
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a dedicated ServiceAccount"
+        },
+        "name": {
+          "type": "string",
+          "description": "ServiceAccount name override"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the ServiceAccount"
+        }
+      }
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector for pod scheduling"
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations for pod scheduling",
+      "items": {
+        "type": "object"
+      }
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Affinity rules for pod scheduling"
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "description": "Topology spread constraints",
+      "items": {
+        "type": "object"
+      }
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Priority class name"
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Grace period for shutdown in seconds"
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Additional labels for the broker pod"
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Additional annotations for the broker pod"
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "description": "Additional volume mounts for the broker container",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraVolumes": {
+      "type": "array",
+      "description": "Additional volumes for the broker pod",
+      "items": {
+        "type": "object"
+      }
+    },
+    "extraManifests": {
+      "type": "array",
+      "description": "Extra Kubernetes manifests to deploy alongside the chart",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

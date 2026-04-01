@@ -1,0 +1,112 @@
+suite: StatefulSet
+templates:
+  - templates/statefulset.yaml
+  - templates/configmap.yaml
+  - templates/secret.yaml
+  - templates/acl-configmap.yaml
+tests:
+  - it: should render a StatefulSet by default
+    template: templates/statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].command[0]
+          value: mosquitto
+      - exists:
+          path: spec.template.metadata.annotations["checksum/config"]
+
+  - it: should enable persistence by default
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: data
+
+  - it: should enable default placement rules for federated multi-replica brokers
+    template: templates/statefulset.yaml
+    set:
+      architecture.mode: federated
+      broker.replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].weight
+          value: 100
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].topologyKey
+          value: kubernetes.io/hostname
+
+  - it: should disable default pod anti-affinity when requested
+    template: templates/statefulset.yaml
+    set:
+      architecture.mode: federated
+      broker.replicaCount: 3
+      broker.multiReplicaDefaults.podAntiAffinity: none
+    asserts:
+      - notExists:
+          path: spec.template.spec.affinity
+
+  - it: should prefer user-provided affinity over generated defaults
+    template: templates/statefulset.yaml
+    set:
+      architecture.mode: federated
+      broker.replicaCount: 3
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+    asserts:
+      - equal:
+          path: spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key
+          value: kubernetes.io/os
+
+  - it: should support emptyDir when persistence is disabled
+    template: templates/statefulset.yaml
+    set:
+      broker.persistence.enabled: false
+    asserts:
+      - notExists:
+          path: spec.volumeClaimTemplates
+      - equal:
+          path: spec.template.spec.volumes[2].name
+          value: data
+
+  - it: should enable auth secret refs when authentication is enabled
+    template: templates/statefulset.yaml
+    set:
+      auth.enabled: true
+      auth.password: secretpass
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].env[0].name
+          value: AUTH_USERNAME
+      - equal:
+          path: spec.template.spec.initContainers[0].env[1].name
+          value: AUTH_PASSWORD
+      - equal:
+          path: spec.template.spec.initContainers[0].env[2].name
+          value: BROKER_REPLICA_COUNT
+
+  - it: should generate bridge bootstrap env and config mount in federated mode
+    template: templates/statefulset.yaml
+    set:
+      architecture.mode: federated
+      broker.replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].env[0].name
+          value: BROKER_REPLICA_COUNT
+      - equal:
+          path: spec.template.spec.initContainers[0].volumeMounts[0].name
+          value: config-template
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "printf '\\\\nconnection %s"

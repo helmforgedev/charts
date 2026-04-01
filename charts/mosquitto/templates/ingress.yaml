@@ -1,0 +1,71 @@
+{{- if .Values.websocketIngress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "mosquitto.fullname" . }}-websocket
+  labels:
+    {{- include "mosquitto.labels" . | nindent 4 }}
+  {{- with .Values.websocketIngress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.websocketIngress.ingressClassName }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  rules:
+    {{- range .Values.websocketIngress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "mosquitto.fullname" $ }}
+                port:
+                  name: websocket
+          {{- end }}
+    {{- end }}
+  {{- with .Values.websocketIngress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- if .Values.mqttxWeb.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "mosquitto.fullname" . }}-mqttx
+  labels:
+    {{- include "mosquitto.labels" . | nindent 4 }}
+  {{- with .Values.mqttxWeb.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.mqttxWeb.ingress.ingressClassName }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  rules:
+    {{- range .Values.mqttxWeb.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "mosquitto.fullname" $ }}-mqttx
+                port:
+                  name: http
+          {{- end }}
+    {{- end }}
+  {{- with .Values.mqttxWeb.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

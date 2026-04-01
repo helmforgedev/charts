@@ -1,0 +1,73 @@
+{{- if .Values.mqttxWeb.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mosquitto.fullname" . }}-mqttx
+  labels:
+    {{- include "mosquitto.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mqttx-web
+spec:
+  replicas: {{ .Values.mqttxWeb.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "mosquitto.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: mqttx-web
+  template:
+    metadata:
+      labels:
+        {{- include "mosquitto.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: mqttx-web
+        {{- with .Values.mqttxWeb.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.mqttxWeb.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: mqttx-web
+          image: {{ include "mosquitto.mqttxImage" . | quote }}
+          imagePullPolicy: {{ .Values.mqttxWeb.image.pullPolicy }}
+          env:
+            - name: HELMFORGE_DEFAULT_CONNECTION_NAME
+              value: {{ .Values.mqttxWeb.broker.connectionName | quote }}
+            - name: HELMFORGE_DEFAULT_BROKER_URL
+              value: {{ include "mosquitto.websocketUrl" . | quote }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          {{- with .Values.mqttxWeb.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}
+{{- if .Values.mqttxWeb.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mosquitto.fullname" . }}-mqttx
+  labels:
+    {{- include "mosquitto.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mqttx-web
+  {{- with .Values.mqttxWeb.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.mqttxWeb.service.type }}
+  selector:
+    {{- include "mosquitto.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: mqttx-web
+  ports:
+    - name: http
+      port: {{ .Values.mqttxWeb.service.port }}
+      targetPort: http
+      protocol: TCP
+{{- end }}

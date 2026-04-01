@@ -1,0 +1,252 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "mosquitto.statefulsetName" . }}
+  labels:
+    {{- include "mosquitto.labels" . | nindent 4 }}
+    app.kubernetes.io/component: broker
+spec:
+  serviceName: {{ include "mosquitto.headlessServiceName" . }}
+  replicas: {{ .Values.broker.replicaCount }}
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      {{- include "mosquitto.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: broker
+  template:
+    metadata:
+      labels:
+        {{- include "mosquitto.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: broker
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/acl: {{ include (print $.Template.BasePath "/acl-configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "mosquitto.serviceAccountName" . }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        - name: generate-runtime-files
+          image: {{ include "mosquitto.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              mkdir -p /work
+              cp /config-template/mosquitto.conf.tmpl /work/mosquitto.conf
+              {{- if .Values.auth.enabled }}
+              mosquitto_passwd -b -c /work/passwordfile "$AUTH_USERNAME" "$AUTH_PASSWORD"
+              {{- end }}
+              {{- if .Values.acl.enabled }}
+              cp /acl-source/{{ .Values.acl.existingConfigMapKey }} /work/aclfile
+              {{- end }}
+              {{- if eq .Values.architecture.mode "federated" }}
+              ordinal="${HOSTNAME##*-}"
+              i=0
+              while [ "$i" -lt "$BROKER_REPLICA_COUNT" ]; do
+                if [ "$i" -ne "$ordinal" ]; then
+                  peer_name="bridge-to-$i"
+                  peer_host="{{ include "mosquitto.statefulsetName" . }}-$i.{{ include "mosquitto.headlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}"
+                  peer_address="${peer_host}:{{ .Values.broker.listeners.mqtt }}"
+                  remote_clientid="bridge-${HOSTNAME}-to-$i"
+                  local_clientid="bridge-local-${HOSTNAME}-to-$i"
+                  printf '\nconnection %s\naddress %s\nremote_clientid %s\nlocal_clientid %s\ntry_private {{ ternary "true" "false" .Values.broker.federation.tryPrivate }}\nstart_type automatic\nrestart_timeout {{ .Values.broker.federation.restartTimeoutBase }} {{ .Values.broker.federation.restartTimeoutCap }}\ntopic {{ .Values.broker.federation.topicPattern }} {{ .Values.broker.federation.topicDirection }} {{ .Values.broker.federation.topicQos }}\n' \
+                    "$peer_name" \
+                    "$peer_address" \
+                    "$remote_clientid" \
+                    "$local_clientid" >> /work/mosquitto.conf
+                  {{- if .Values.auth.enabled }}
+                  printf 'remote_username %s\nremote_password %s\n' "$AUTH_USERNAME" "$AUTH_PASSWORD" >> /work/mosquitto.conf
+                  {{- end }}
+                fi
+                i=$((i+1))
+              done
+              {{- end }}
+          {{- if .Values.auth.enabled }}
+          env:
+            - name: AUTH_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mosquitto.authSecretName" . }}
+                  key: {{ .Values.auth.existingSecretUsernameKey }}
+            - name: AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mosquitto.authSecretName" . }}
+                  key: {{ .Values.auth.existingSecretPasswordKey }}
+            - name: BROKER_REPLICA_COUNT
+              value: {{ .Values.broker.replicaCount | quote }}
+          {{- else }}
+          env:
+            - name: BROKER_REPLICA_COUNT
+              value: {{ .Values.broker.replicaCount | quote }}
+          {{- end }}
+          volumeMounts:
+            - name: config-template
+              mountPath: /config-template
+            - name: generated
+              mountPath: /work
+            {{- if .Values.acl.enabled }}
+            - name: acl-source
+              mountPath: /acl-source
+            {{- end }}
+      containers:
+        - name: mosquitto
+          image: {{ include "mosquitto.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - mosquitto
+          args:
+            - -c
+            - /mosquitto/config/mosquitto.conf
+          ports:
+            - name: mqtt
+              containerPort: {{ .Values.broker.listeners.mqtt }}
+              protocol: TCP
+            - name: websocket
+              containerPort: {{ .Values.broker.listeners.websocket }}
+              protocol: TCP
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            tcpSocket:
+              port: mqtt
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            tcpSocket:
+              port: mqtt
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            tcpSocket:
+              port: mqtt
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: generated
+              mountPath: /mosquitto/config/mosquitto.conf
+              subPath: mosquitto.conf
+            - name: generated
+              mountPath: /mosquitto/config/generated
+            - name: data
+              mountPath: /mosquitto/data
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: config-template
+          configMap:
+            name: {{ include "mosquitto.fullname" . }}-config
+        - name: generated
+          emptyDir: {}
+        {{- if not .Values.broker.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+        {{- if .Values.acl.enabled }}
+        - name: acl-source
+          configMap:
+            name: {{ include "mosquitto.aclConfigMapName" . }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.affinity }}
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
+      {{- else if include "mosquitto.defaultAffinityEnabled" . }}
+      affinity:
+        podAntiAffinity:
+          {{- if eq .Values.broker.multiReplicaDefaults.podAntiAffinity "required" }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  {{- include "mosquitto.selectorLabels" . | nindent 18 }}
+                  app.kubernetes.io/component: broker
+              topologyKey: kubernetes.io/hostname
+          {{- else }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    {{- include "mosquitto.selectorLabels" . | nindent 20 }}
+                    app.kubernetes.io/component: broker
+                topologyKey: kubernetes.io/hostname
+          {{- end }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml .Values.topologySpreadConstraints | nindent 8 }}
+      {{- else if include "mosquitto.defaultTopologySpreadEnabled" . }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: {{ .Values.broker.multiReplicaDefaults.topologySpread.topologyKey }}
+          whenUnsatisfiable: {{ .Values.broker.multiReplicaDefaults.topologySpread.whenUnsatisfiable }}
+          labelSelector:
+            matchLabels:
+              {{- include "mosquitto.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: broker
+      {{- end }}
+  {{- if .Values.broker.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "mosquitto.selectorLabels" . | nindent 10 }}
+          app.kubernetes.io/component: broker
+      spec:
+        accessModes:
+          - {{ .Values.broker.persistence.accessMode }}
+        {{- if .Values.broker.persistence.storageClass }}
+        storageClassName: {{ .Values.broker.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.broker.persistence.size }}
+  {{- end }}

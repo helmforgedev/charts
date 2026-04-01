@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mosquitto.fullname" . }}
+  labels:
+    {{- include "mosquitto.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  sessionAffinity: {{ .Values.service.sessionAffinity }}
+  {{- if or (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer") }}
+  externalTrafficPolicy: {{ .Values.service.externalTrafficPolicy }}
+  {{- end }}
+  selector:
+    {{- include "mosquitto.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: broker
+  ports:
+    - name: mqtt
+      port: {{ .Values.service.mqttPort }}
+      targetPort: mqtt
+      protocol: TCP
+    - name: websocket
+      port: {{ .Values.service.websocketPort }}
+      targetPort: websocket
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mosquitto.headlessServiceName" . }}
+  labels:
+    {{- include "mosquitto.labels" . | nindent 4 }}
+  {{- with .Values.headlessService.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "mosquitto.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: broker
+  ports:
+    - name: mqtt
+      port: {{ .Values.service.mqttPort }}
+      targetPort: mqtt
+      protocol: TCP
+    - name: websocket
+      port: {{ .Values.service.websocketPort }}
+      targetPort: websocket
+      protocol: TCP

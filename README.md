@@ -36,6 +36,7 @@ Project links:
 | [cloudflared](charts/cloudflared/) | beta | Cloudflare Tunnel — secure outbound-only connections with HA, PDB, and Prometheus metrics |
 | [ddns-updater](charts/ddns-updater/) | beta | DDNS Updater — dynamic DNS for 50+ providers with web UI and persistent history |
 | [dolibarr](charts/dolibarr/) | alpha | Dolibarr — ERP/CRM with MySQL or MariaDB, unattended setup, and persistent business data |
+| [mosquitto](charts/mosquitto/) | alpha | Eclipse Mosquitto — MQTT broker with standalone or federated topology, WebSocket support, and optional MQTTX Web companion UI |
 | [uptime-kuma](charts/uptime-kuma/) | alpha | Uptime Kuma — self-hosted monitoring with SQLite or MariaDB, status pages, and S3 backup |
 | [authelia](charts/authelia/) | beta | Authelia — SSO, MFA, and OpenID Connect authentication server with forward auth for reverse proxies |
 | [adguard-home](charts/adguard-home/) | beta | AdGuard Home — network-wide DNS ad/tracker blocker with sync and S3 backup |

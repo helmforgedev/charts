@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mosquitto.fullname" . }}-config
+  labels:
+    {{- include "mosquitto.labels" . | nindent 4 }}
+data:
+  mosquitto.conf.tmpl: |
+    persistence {{ ternary "true" "false" .Values.broker.persistence.enabled }}
+    persistence_location /mosquitto/data/
+    log_dest stdout
+    allow_anonymous {{ ternary "false" "true" .Values.auth.enabled }}
+    per_listener_settings false
+
+    listener {{ .Values.broker.listeners.mqtt }} 0.0.0.0
+    protocol mqtt
+
+    listener {{ .Values.broker.listeners.websocket }} 0.0.0.0
+    protocol websockets
+
+    {{- if .Values.auth.enabled }}
+    password_file /mosquitto/config/generated/passwordfile
+    {{- end }}
+    {{- if .Values.acl.enabled }}
+    acl_file /mosquitto/config/generated/aclfile
+    {{- end }}
+
+    {{- with .Values.broker.extraConfig }}
+    {{ . | nindent 4 }}
+    {{- end }}

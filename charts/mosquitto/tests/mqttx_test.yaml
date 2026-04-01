@@ -1,0 +1,34 @@
+suite: MQTTX
+templates:
+  - templates/mqttx.yaml
+  - templates/ingress.yaml
+tests:
+  - it: should not render MQTTX resources by default
+    template: templates/mqttx.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render MQTTX deployment and service when enabled
+    set:
+      mqttxWeb.enabled: true
+    template: templates/mqttx.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: should render MQTTX ingress when enabled
+    set:
+      mqttxWeb.enabled: true
+      mqttxWeb.ingress.enabled: true
+      mqttxWeb.ingress.ingressClassName: traefik
+      mqttxWeb.ingress.hosts[0].host: mqttx.example.com
+      mqttxWeb.ingress.hosts[0].paths[0].path: /
+      mqttxWeb.ingress.hosts[0].paths[0].pathType: Prefix
+    template: templates/ingress.yaml
+    documentSelector:
+      path: metadata.name
+      value: RELEASE-NAME-mosquitto-mqttx
+    asserts:
+      - isKind:
+          of: Ingress

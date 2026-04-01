@@ -1,0 +1,255 @@
+# =============================================================================
+# Mosquitto Helm Chart
+# =============================================================================
+# Uses the official eclipse-mosquitto image.
+# Supports multi-replica operational HA with stable pod identity and WebSocket.
+# Includes an optional MQTTX Web companion UI for browser-based testing.
+# =============================================================================
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# -- Deployment architecture for Mosquitto brokers: standalone for a single broker, federated for bridged brokers.
+architecture:
+  mode: standalone
+
+# -- Kubernetes cluster domain
+clusterDomain: cluster.local
+
+image:
+  # -- Mosquitto container image repository
+  repository: eclipse-mosquitto
+  # -- Mosquitto image tag validated on Docker Hub for the default non-Alpine release
+  tag: "2.0.22"
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+broker:
+  # -- Number of Mosquitto broker replicas
+  replicaCount: 1
+
+  multiReplicaDefaults:
+    # -- Apply opinionated scheduling defaults when replicaCount > 1 and no custom affinity/topologySpreadConstraints are set
+    enabled: true
+    # -- Pod anti-affinity mode automatically applied for multi-replica broker pods: preferred | required | none
+    podAntiAffinity: preferred
+    topologySpread:
+      # -- Apply a topology spread constraint automatically for multi-replica broker pods
+      enabled: true
+      # -- Topology key used by the generated spread constraint
+      topologyKey: kubernetes.io/hostname
+      # -- whenUnsatisfiable policy used by the generated spread constraint
+      whenUnsatisfiable: ScheduleAnyway
+
+  # -- Append raw Mosquitto configuration lines to the generated mosquitto.conf
+  extraConfig: ""
+
+  listeners:
+    # -- MQTT TCP listener port
+    mqtt: 1883
+    # -- MQTT over WebSocket listener port
+    websocket: 9001
+
+  federation:
+    # -- Topics exported and imported through Mosquitto bridge connections when architecture.mode=federated
+    topicPattern: "#"
+    # -- Direction used by bridge topic rules between broker peers
+    topicDirection: both
+    # -- QoS used by bridge topic rules between broker peers
+    topicQos: 1
+    # -- Whether brokers should advertise bridge semantics to remote peers for loop handling and retained propagation
+    tryPrivate: true
+    # -- Restart timeout base value, in seconds, for bridge reconnection backoff
+    restartTimeoutBase: 5
+    # -- Restart timeout cap value, in seconds, for bridge reconnection backoff
+    restartTimeoutCap: 30
+
+  persistence:
+    # -- Enable persistence for Mosquitto data
+    enabled: true
+    # -- Storage class for broker PVCs
+    storageClass: ""
+    # -- Access mode for broker PVCs
+    accessMode: ReadWriteOnce
+    # -- Size of each broker PVC
+    size: 8Gi
+
+auth:
+  # -- Enable username/password authentication
+  enabled: false
+  # -- Username stored in the generated password file
+  username: mqtt
+  # -- Password stored in the generated password file. Auto-generated if empty.
+  password: ""
+  # -- Existing secret containing username and password
+  existingSecret: ""
+  # -- Secret key for the username in auth.existingSecret
+  existingSecretUsernameKey: username
+  # -- Secret key for the password in auth.existingSecret
+  existingSecretPasswordKey: password
+
+acl:
+  # -- Enable ACL file generation and enforcement
+  enabled: false
+  # -- Raw ACL rules written to the generated aclfile
+  rules: ""
+  # -- Existing ConfigMap with a custom aclfile key
+  existingConfigMap: ""
+  # -- ConfigMap key name used when acl.existingConfigMap is set
+  existingConfigMapKey: aclfile
+
+service:
+  # -- Service type for broker clients
+  type: ClusterIP
+  # -- Session affinity for MQTT client traffic. Use ClientIP only when sticky routing is explicitly desired.
+  sessionAffinity: None
+  # -- External traffic policy when using NodePort or LoadBalancer
+  externalTrafficPolicy: Cluster
+  # -- Annotations for the broker Service
+  annotations: {}
+  # -- Override MQTT service port
+  mqttPort: 1883
+  # -- Override WebSocket service port
+  websocketPort: 9001
+
+headlessService:
+  # -- Annotations for the headless broker Service
+  annotations: {}
+
+websocketIngress:
+  # -- Enable ingress for the broker WebSocket listener
+  enabled: false
+  # -- Ingress class name for the WebSocket route
+  ingressClassName: ""
+  # -- Annotations for the WebSocket ingress
+  annotations: {}
+  # -- WebSocket ingress hosts
+  hosts: []
+    # - host: mqtt.example.com
+    #   paths:
+    #     - path: /mqtt
+    #       pathType: Prefix
+  # -- TLS configuration for the WebSocket ingress
+  tls: []
+
+mqttxWeb:
+  # -- Enable MQTTX Web companion UI
+  enabled: false
+  image:
+    # -- MQTTX Web image repository
+    repository: emqx/mqttx-web
+    # -- MQTTX Web image tag. Keep empty to use the image's default tag while upstream release/tag mismatch is under review.
+    tag: ""
+    # -- Image pull policy
+    pullPolicy: IfNotPresent
+  # -- Number of MQTTX Web replicas
+  replicaCount: 1
+  service:
+    # -- Service type for MQTTX Web
+    type: ClusterIP
+    # -- HTTP service port for MQTTX Web
+    port: 80
+    # -- Annotations for the MQTTX Web service
+    annotations: {}
+  ingress:
+    # -- Enable ingress for MQTTX Web
+    enabled: false
+    # -- Ingress class name
+    ingressClassName: ""
+    # -- Ingress annotations
+    annotations: {}
+    # -- MQTTX Web ingress hosts
+    hosts: []
+      # - host: mqttx.example.com
+      #   paths:
+      #     - path: /
+      #       pathType: Prefix
+    # -- MQTTX Web ingress TLS configuration
+    tls: []
+  broker:
+    # -- Browser-visible scheme used by MQTTX Web when building the default broker URL
+    scheme: ws
+    # -- Browser-visible host override. Defaults to the first websocketIngress host when available.
+    host: ""
+    # -- Browser-visible port override. Defaults to websocket ingress standard port or the broker WebSocket service port.
+    port: 0
+    # -- WebSocket path used by browsers
+    path: /mqtt
+    # -- Default connection name documented for users of the companion UI
+    connectionName: Mosquitto
+  resources: {}
+  podLabels: {}
+  podAnnotations: {}
+
+pdb:
+  # -- Create a PodDisruptionBudget for broker pods
+  enabled: true
+  # -- Minimum available broker pods during voluntary disruptions
+  minAvailable: 1
+
+startupProbe:
+  # -- Enable startup probe
+  enabled: true
+  # -- Initial delay before probe starts
+  initialDelaySeconds: 5
+  # -- Probe check interval
+  periodSeconds: 10
+  # -- Probe timeout
+  timeoutSeconds: 5
+  # -- Failures before marking unhealthy
+  failureThreshold: 30
+
+livenessProbe:
+  # -- Enable liveness probe
+  enabled: true
+  # -- Initial delay before probe starts
+  initialDelaySeconds: 0
+  # -- Probe check interval
+  periodSeconds: 20
+  # -- Probe timeout
+  timeoutSeconds: 5
+  # -- Failures before marking unhealthy
+  failureThreshold: 3
+
+readinessProbe:
+  # -- Enable readiness probe
+  enabled: true
+  # -- Initial delay before probe starts
+  initialDelaySeconds: 0
+  # -- Probe check interval
+  periodSeconds: 10
+  # -- Probe timeout
+  timeoutSeconds: 5
+  # -- Failures before marking unhealthy
+  failureThreshold: 3
+
+resources: {}
+podSecurityContext: {}
+securityContext: {}
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount
+  create: false
+  # -- ServiceAccount name override
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+extraVolumeMounts: []
+extraVolumes: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []
