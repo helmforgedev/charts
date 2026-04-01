@@ -162,7 +162,7 @@ The chart creates two separate PVCs:
 ## Documentation
 
 - [Backup Guide](docs/backup.md)
-- [Komga Official Docs](https://komga.org/docs)
+- [Komga Official Docs](https://komga.org/docs/introduction)
 
 <!-- @AI-METADATA
 type: chart-readme
