@@ -59,7 +59,7 @@ When adding a new chart:
    - `examples/`
    - `docs/`
    - `README.md`
-5. update the root [README.md](../README.md) charts table
+5. update the root [README.md](README.md) charts table
 6. update the `site/` repository in the same workstream
 7. validate locally on `k3d` before pushing the PR
 
@@ -134,9 +134,8 @@ Conventional Commits drive semantic versioning and release notes.
 
 ## Related Docs
 
-- [README.md](../README.md)
-- [../.claude/AGENTS.md](../.claude/AGENTS.md)
-- [../SECURITY.md](../SECURITY.md)
+- [README.md](README.md)
+- [SECURITY.md](SECURITY.md)
 
 <!-- @AI-METADATA
 type: guide
@@ -152,7 +151,7 @@ relations:
   - README.md
   - .claude/AGENTS.md
   - SECURITY.md
-path: docs/contributing.md
-version: 1.0
+path: CONTRIBUTING.md
+version: 1.1
 date: 2026-04-01
 -->

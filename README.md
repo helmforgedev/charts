@@ -1,22 +1,23 @@
-# Helm Charts
-
 <p align="center">
   <img src="docs/images/helmforge_logo_horizontal.png" alt="HelmForge" width="720" />
 </p>
 
-[![CI](https://github.com/helmforgedev/charts/actions/workflows/ci.yml/badge.svg)](https://github.com/helmforgedev/charts/actions/workflows/ci.yml)
-[![Publish](https://github.com/helmforgedev/charts/actions/workflows/publish.yml/badge.svg)](https://github.com/helmforgedev/charts/actions/workflows/publish.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/helmforge)](https://artifacthub.io/packages/search?repo=helmforge)
+<h1 align="center">HelmForge Charts</h1>
 
-Reusable open source Helm charts for Kubernetes workloads. Published to a traditional Helm repository at `https://repo.helmforge.dev` and as OCI artifacts on GitHub Container Registry.
+<p align="center">
+  Production-ready Helm charts for modern Kubernetes workloads.
+</p>
 
-Project links:
+<p align="center">
+  <a href="https://github.com/helmforgedev/charts/actions/workflows/ci.yml"><img src="https://github.com/helmforgedev/charts/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/helmforgedev/charts/actions/workflows/publish.yml"><img src="https://github.com/helmforgedev/charts/actions/workflows/publish.yml/badge.svg" alt="Publish" /></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" /></a>
+  <a href="https://artifacthub.io/packages/search?repo=helmforge"><img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/helmforge" alt="Artifact Hub" /></a>
+</p>
 
-- Website: `https://helmforge.dev`
-- Documentation: `https://helmforge.dev/doc`
-- Helm repository: `https://repo.helmforge.dev`
-- Contribution guide: [docs/contributing.md](docs/contributing.md)
+<p align="center">
+  <a href="https://helmforge.dev">Website</a> · <a href="https://helmforge.dev/doc">Documentation</a> · <a href="https://repo.helmforge.dev">Helm Repository</a> · <a href="CONTRIBUTING.md">Contributing</a>
+</p>
 
 ## Charts
 
@@ -147,53 +148,7 @@ Charts use standard stable APIs (`apps/v1`, `batch/v1`, `networking.k8s.io/v1`) 
 
 ## Contributing
 
-### Adding a new chart
-
-1. Research official docs, official releases, and mature public charts first.
-2. Confirm the latest stable application version from the official project repository before choosing `appVersion`, defaults, or examples.
-3. Prefer official container images when they exist. If the product does not publish a maintained official runtime image, document that clearly and build examples around an image created from the official source or package.
-4. Define the chart proposal, supported architectures, and explicit non-goals.
-5. Create `charts/<chart-name>/` with `Chart.yaml`, `values.yaml`, and `templates/`.
-6. Add test values in `charts/<chart-name>/ci/*.yaml` for the real scenarios supported by that product.
-7. Add usage examples in `charts/<chart-name>/examples/`.
-8. Create a `README.md` inside the chart directory.
-9. Add architecture-specific docs in `charts/<chart-name>/docs/` when the chart supports materially different topologies.
-10. Add the chart to the `## Charts` table in this file.
-11. Validate locally, including a real install on a local cluster when the chart is new or materially changed.
-12. Open a PR. Lint, template rendering, and schema validation run automatically.
-
-Local validation safety:
-
-- always check `kubectl config current-context` before any install or uninstall used for local chart validation
-- only run validation installs when the active context is the intended local `k3d` cluster
-- treat that context check as a mandatory gate before every validation install, upgrade, or uninstall
-- never assume a fresh local cluster became the active context automatically
-- never continue if the active context is wrong or unclear, because that can affect shared or production-like clusters
-
-### Commit and PR conventions
-
-Use [Conventional Commits](https://www.conventionalcommits.org/) for commit messages and PR titles.
-
-Repository standard:
-
-- always use lowercase `type(scope): description`
-- always scope chart changes to the chart directory name
-- use `ci` for workflow-only changes
-- use `repo` for repository-wide docs and instruction changes
-- keep each commit and each PR focused on one logical change
-- always open PRs from a branch to `main`
-- never open branch-to-branch PRs
-- always follow this sequence: create branch, commit, push, open PR to `main`
-
-Examples:
-
-```text
-feat(redis): add dedicated redis chart
-docs(redis): expand architecture usage guides
-fix(mongodb): correct service selectors
-ci: harden publish workflow retry logic
-docs(repo): refine commit and agent standards
-```
+Contributions are welcome. Please read the [contributing guide](CONTRIBUTING.md) for branch flow, validation requirements, commit conventions, and chart standards.
 
 ## License
 
@@ -214,5 +169,5 @@ relations:
   - docs/testing-strategy.md
 path: README.md
 version: 1.0
-date: 2026-03-31
+date: 2026-04-01
 -->
