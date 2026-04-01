@@ -160,11 +160,15 @@ annotations:
       url: https://helmforge.dev/docs/charts/<chart-name>
     - name: Source
       url: https://github.com/helmforgedev/charts/tree/main/charts/<chart-name>
+  helmforge.dev/maturity: <alpha|beta|stable>
+  helmforge.dev/signed: cosign
 ```
 
 Valid categories: `ai-machine-learning`, `database`, `integration-delivery`, `monitoring-logging`, `networking`, `security`, `storage`, `streaming-messaging`. Use `skip-prediction` when no category fits.
 
 Choose the category that best matches the chart's primary purpose. When adding a new chart, always include these annotations in the initial `Chart.yaml`.
+
+The `helmforge.dev/signed: cosign` annotation is required on every chart. The publish workflow signs all OCI artifacts with Sigstore Cosign keyless signing via GitHub Actions OIDC.
 
 ## Chart Maturity
 
