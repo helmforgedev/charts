@@ -170,9 +170,9 @@ Choose the category that best matches the chart's primary purpose. When adding a
 
 Every `Chart.yaml` includes `helmforge.dev/maturity` in the `annotations` block: `stable`, `beta`, or `alpha`.
 
-- **stable**: 5+ releases, extensive CI, k3d validated, no recent breaking changes
-- **beta**: 2+ releases, tests and CI present
-- **alpha**: 1 release, early iteration — also marked with `artifacthub.io/prerelease: "true"`
+- **stable**: 1+ releases, CI scenarios, k3d validated, no recent breaking changes
+- **beta**: 1+ releases, tests and CI present
+- **alpha**: no release yet, early iteration — also marked with `artifacthub.io/prerelease: "true"`
 
 When promoting, update `helmforge.dev/maturity` in Chart.yaml annotations and the README charts table in the same commit. Remove `artifacthub.io/prerelease` when promoting from alpha.
 

@@ -242,14 +242,14 @@ Every `Chart.yaml` must include `helmforge.dev/maturity` inside the `annotations
 
 | Level | Criteria | ArtifactHub |
 |-------|----------|-------------|
-| **stable** | 5+ releases, extensive CI scenarios, k3d validated, no recent breaking changes | — |
-| **beta** | 2+ releases, unit tests and CI present, may have minor gaps | — |
-| **alpha** | 1 release, tests present, limited iteration | `artifacthub.io/prerelease: "true"` |
+| **stable** | 1+ releases, CI scenarios, k3d validated, no recent breaking changes | — |
+| **beta** | 1+ releases, unit tests and CI present, may have minor gaps | — |
+| **alpha** | No release yet, tests present, limited iteration | `artifacthub.io/prerelease: "true"` |
 
 Promotion rules:
 
-- alpha -> beta: at least 2 published releases with no critical bugs, CI and unit tests covering main scenarios
-- beta -> stable: at least 5 published releases, extensive CI coverage (5+ scenarios), k3d validated, no breaking changes in the last 3 releases
+- alpha -> beta: at least 1 published release, CI and unit tests covering main scenarios
+- beta -> stable: at least 1 published release, CI coverage, k3d validated, no known breaking changes
 - stable -> beta: only if a breaking regression is introduced and not quickly resolved
 - when promoting a chart, update `helmforge.dev/maturity` in Chart.yaml annotations and the maturity column in the root `README.md` charts table in the same commit
 - for alpha charts, add `artifacthub.io/prerelease: "true"` in the annotations block; remove it when promoting to beta or stable
