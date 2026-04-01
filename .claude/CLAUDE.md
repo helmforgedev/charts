@@ -141,7 +141,7 @@ annotations:
       url: https://github.com/helmforgedev/charts/tree/main/charts/<chart-name>
 ```
 
-Valid categories: `ai-machine-learning`, `database`, `integration-delivery`, `monitoring-logging`, `networking`, `security`, `storage`, `streaming-messaging`. Use `skip-prediction` when no category fits. See `AGENTS.md` for details.
+Valid categories: `ai-machine-learning`, `database`, `integration-delivery`, `monitoring-logging`, `networking`, `security`, `storage`, `streaming-messaging`. Use `skip-prediction` when no category fits. See `.claude/AGENTS.md` for details.
 
 ## Validation
 
@@ -294,7 +294,7 @@ When real work reveals a stable reusable improvement:
 Preferred targets:
 
 - `README.md`
-- `AGENTS.md`
+- `.claude/AGENTS.md`
 - `.claude/CLAUDE.md`
 - `charts/<name>/README.md`
 - `charts/<name>/docs/*.md`
@@ -310,7 +310,7 @@ purpose: Configure Claude Code behavior for this Helm chart repository
 scope: Agent Configuration
 
 relations:
-  - AGENTS.md
+  - .claude/AGENTS.md
   - docs/testing-strategy.md
 path: .claude/CLAUDE.md
 version: 1.0

@@ -12,6 +12,7 @@ Project links:
 - Website: `https://helmforge.dev`
 - Documentation: `https://helmforge.dev/doc`
 - Helm repository: `https://repo.helmforge.dev`
+- Contribution guide: [docs/contributing.md](docs/contributing.md)
 
 ## Charts
 
@@ -204,7 +205,7 @@ purpose: Repository overview with charts list, installation, CI/CD, and contribu
 scope: Repository
 
 relations:
-  - AGENTS.md
+  - .claude/AGENTS.md
   - docs/testing-strategy.md
 path: README.md
 version: 1.0

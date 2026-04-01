@@ -275,7 +275,7 @@ scope: Testing
 relations:
   - docs/testing-strategy.md
   - .claude/CLAUDE.md
-  - AGENTS.md
+  - .claude/AGENTS.md
 path: docs/local-testing-k3d.md
 version: 1.0
 date: 2026-03-20

@@ -211,7 +211,7 @@ purpose: Testing strategy documentation covering helm-unittest, helm lint, kubec
 scope: Testing
 
 relations:
-  - AGENTS.md
+  - .claude/AGENTS.md
   - .claude/CLAUDE.md
 path: docs/testing-strategy.md
 version: 1.0

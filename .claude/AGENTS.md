@@ -35,7 +35,7 @@ docs/
 
 Changes to `charts/**/templates/`, `charts/**/values.yaml`, `charts/**/Chart.yaml`, and `charts/**/ci/` trigger CI and publish logic.
 
-Changes to `README.md`, `examples/`, `docs/`, `AGENTS.md`, `.claude/CLAUDE.md`, and `.gitignore` do not trigger publish.
+Changes to `README.md`, `examples/`, `docs/`, `.claude/AGENTS.md`, `.claude/CLAUDE.md`, and `.gitignore` do not trigger publish.
 
 `Chart.yaml` version is managed by CI. Never edit chart version manually.
 
@@ -314,7 +314,7 @@ Update standards when all of these are true:
 Preferred targets:
 
 - `README.md` for contributor-visible repository rules
-- `AGENTS.md` for repository-wide agent rules
+- `.claude/AGENTS.md` for repository-wide agent rules
 - `.claude/CLAUDE.md` for tool-specific agent guidance
 - chart docs for product-specific operational guidance
 
@@ -331,7 +331,7 @@ scope: Repository
 relations:
   - .claude/CLAUDE.md
   - docs/testing-strategy.md
-path: AGENTS.md
+path: .claude/AGENTS.md
 version: 1.0
 date: 2026-04-01
 -->

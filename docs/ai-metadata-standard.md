@@ -55,7 +55,7 @@ date: <YYYY-MM-DD>
 | `chart-docs` | Chart architecture and operational guides (`charts/<name>/docs/*.md`) |
 | `design` | Chart design documents (`charts/<name>/DESIGN.md`) |
 | `guide` | How-to guides and strategy documents (`docs/*.md`) |
-| `agent-instructions` | AI agent configuration files (AGENTS.md, .claude/CLAUDE.md) |
+| `agent-instructions` | AI agent configuration files (.claude/AGENTS.md, .claude/CLAUDE.md) |
 | `skill-definition` | Claude Code skill definitions (.claude/skills/*/SKILL.md) |
 | `issue-template` | GitHub issue templates (.github/ISSUE_TEMPLATE/*.md) |
 
@@ -118,7 +118,7 @@ purpose: Define the @AI-METADATA block standard for all repository documentation
 scope: Repository
 
 relations:
-  - AGENTS.md
+  - .claude/AGENTS.md
   - .claude/CLAUDE.md
   - docs/testing-strategy.md
 path: docs/ai-metadata-standard.md
