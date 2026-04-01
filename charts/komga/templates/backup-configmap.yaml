@@ -9,10 +9,34 @@ data:
   sqlite-backup.sh: |
     #!/bin/sh
     set -e
+    if ! command -v sqlite3 >/dev/null 2>&1; then
+      echo "Installing sqlite3..."
+      apk add --no-cache sqlite
+    fi
     TIMESTAMP=$(date +%Y%m%d-%H%M%S)
     ARCHIVE="/backup/{{ .Values.backup.archivePrefix }}-${TIMESTAMP}.tar.gz"
-    echo "Creating SQLite backup archive..."
-    tar -czf "${ARCHIVE}" -C /config .
+    WORKDIR="/tmp/komga-backup-${TIMESTAMP}"
+    EXPORT_DIR="${WORKDIR}/database"
+    CONFIG_DIR="${WORKDIR}/config"
+    mkdir -p "${EXPORT_DIR}" "${CONFIG_DIR}"
+
+    echo "Exporting SQLite databases with VACUUM INTO..."
+    find /config -maxdepth 1 -type f \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' \) | while IFS= read -r db; do
+      db_name=$(basename "${db}")
+      sqlite3 "${db}" "VACUUM INTO '${EXPORT_DIR}/${db_name}'"
+    done
+
+    echo "Copying application configuration..."
+    find /config -maxdepth 1 -type f ! \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' \) -exec cp -p {} "${CONFIG_DIR}/" \;
+    {{- if .Values.backup.includeLogs }}
+    if [ -d /config/logs ]; then
+      cp -a /config/logs "${WORKDIR}/logs"
+    fi
+    {{- end }}
+
+    echo "Creating backup archive..."
+    tar -czf "${ARCHIVE}" -C "${WORKDIR}" .
+    rm -rf "${WORKDIR}"
     echo "Archive created: ${ARCHIVE}"
   upload-backup.sh: |
     #!/bin/sh

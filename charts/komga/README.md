@@ -6,10 +6,10 @@ Deploy [Komga](https://komga.org) on Kubernetes — a media server for comics, m
 
 - **SQLite Database** — zero database configuration, persistent via PVC
 - **Dual Persistent Volumes** — separate PVCs for config (`/config`) and library data (`/data`)
-- **Java Memory Tuning** — configurable JVM heap via `JAVA_TOOL_OPTIONS`
+- **Java Tool Options** — configurable JVM tuning via `JAVA_TOOL_OPTIONS`
 - **Timezone Support** — configurable via `TZ` environment variable
 - **Ingress** — optional with TLS and cert-manager support
-- **S3 Backup** — scheduled CronJob to archive config/database to S3
+- **S3 Backup** — scheduled CronJob with consistent SQLite exports and config archive upload
 
 ## Installation
 
@@ -50,7 +50,7 @@ kubectl port-forward svc/<release>-komga 25600:80
 ```yaml
 komga:
   timezone: "America/Sao_Paulo"
-  javaMemory: "-Xmx2g"
+  javaToolOptions: "-Xmx2g -XX:+UseG1GC"
   sessionTimeout: "7d"
 
 persistence:
@@ -102,7 +102,8 @@ backup:
 | `komga.contextPath` | `/` | Base URL path for reverse proxy |
 | `komga.sessionTimeout` | `30m` | Session timeout |
 | `komga.timezone` | `UTC` | Timezone |
-| `komga.javaMemory` | `""` | JVM options (e.g. `-Xmx2g`) |
+| `komga.javaToolOptions` | `""` | Value passed to `JAVA_TOOL_OPTIONS` |
+| `komga.javaMemory` | `""` | Deprecated alias for `komga.javaToolOptions` |
 | `komga.extraEnv` | `[]` | Extra environment variables |
 
 ### Persistence
@@ -138,11 +139,16 @@ backup:
 |-----|---------|-------------|
 | `backup.enabled` | `false` | Enable S3 backup CronJob |
 | `backup.schedule` | `0 2 * * *` | Cron schedule |
+| `backup.includeLogs` | `true` | Include `/config/logs` when present |
 | `backup.s3.endpoint` | `""` | S3 endpoint URL |
 | `backup.s3.bucket` | `""` | S3 bucket |
 | `backup.s3.accessKey` | `""` | S3 access key |
 | `backup.s3.secretKey` | `""` | S3 secret key |
 | `backup.s3.existingSecret` | `""` | Existing S3 credentials secret |
+
+## Backup Behavior
+
+The backup CronJob exports each SQLite database found in `/config` using `sqlite3 VACUUM INTO`, then packages those exported databases together with top-level application config files and optional logs before uploading the archive to S3. Search indexes are intentionally excluded because Komga can rebuild them.
 
 ## Architecture
 

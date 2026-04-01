@@ -58,7 +58,17 @@ tests:
             value: ""
           any: true
 
-  - it: should set JAVA_TOOL_OPTIONS when javaMemory is set
+  - it: should set JAVA_TOOL_OPTIONS when javaToolOptions is set
+    set:
+      komga.javaToolOptions: "-Xmx2g -XX:+UseG1GC"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JAVA_TOOL_OPTIONS
+            value: "-Xmx2g -XX:+UseG1GC"
+
+  - it: should set JAVA_TOOL_OPTIONS when deprecated javaMemory is set
     set:
       komga.javaMemory: "-Xmx2g"
     asserts:
@@ -67,6 +77,17 @@ tests:
           content:
             name: JAVA_TOOL_OPTIONS
             value: "-Xmx2g"
+
+  - it: should prefer javaToolOptions over deprecated javaMemory
+    set:
+      komga.javaToolOptions: "-Xmx2g -XX:+UseG1GC"
+      komga.javaMemory: "-Xmx1g"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JAVA_TOOL_OPTIONS
+            value: "-Xmx2g -XX:+UseG1GC"
 
   - it: should mount config and data volumes
     asserts:
