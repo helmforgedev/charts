@@ -1,0 +1,99 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-wallabag
+
+  - it: should use Recreate strategy
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should set the correct image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "wallabag/wallabag:2.6.14"
+
+  - it: should set PostgreSQL env vars with subchart
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SYMFONY__ENV__DATABASE_DRIVER
+            value: pdo_pgsql
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SYMFONY__ENV__DATABASE_HOST
+            value: test-postgresql
+
+  - it: should reference postgresql subchart secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SYMFONY__ENV__DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-postgresql-auth
+                key: user-password
+
+  - it: should have wait-for-db init container
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+
+  - it: should not set Redis env when disabled
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SYMFONY__ENV__REDIS_HOST
+          any: true
+
+  - it: should set Redis env when subchart enabled
+    set:
+      redis.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SYMFONY__ENV__REDIS_HOST
+            value: "redis://test-redis:6379"
+
+  - it: should mount data volume
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /var/www/wallabag/data
+
+  - it: should use TCP probes
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.tcpSocket.port
+          value: http
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+          value: http
+
+  - it: should set registration to false by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SYMFONY__ENV__FOSUSER_REGISTRATION
+            value: "false"
