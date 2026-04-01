@@ -1,0 +1,72 @@
+# Production Gitea deployment with PostgreSQL, admin user, backup, and ingress
+gitea:
+  appName: "Company Git"
+  runMode: prod
+  rootUrl: https://git.example.com/
+  sshDomain: git.example.com
+  sshPort: 2222
+  lfsEnabled: true
+  disableRegistration: true
+  requireSignIn: true
+
+admin:
+  username: gitea_admin
+  password: "change-me-securely"
+  email: admin@example.com
+
+postgresql:
+  enabled: true
+  auth:
+    database: gitea
+    username: gitea
+    password: "strong-db-password"
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+
+persistence:
+  enabled: true
+  size: 50Gi
+
+service:
+  http:
+    type: ClusterIP
+    port: 3000
+  ssh:
+    enabled: true
+    type: NodePort
+    nodePort: 30022
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: git.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: gitea-tls
+      hosts:
+        - git.example.com
+
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  archivePrefix: gitea-prod
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: company-backups
+    prefix: gitea
+    existingSecret: gitea-s3-credentials
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: "2"
+    memory: 2Gi

@@ -1,0 +1,236 @@
+suite: deployment
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: should render a Deployment
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-gitea
+
+  - it: should use rootless image tag by default
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "gitea/gitea:.*-rootless"
+
+  - it: should use Recreate strategy for SQLite
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should not use Recreate strategy for PostgreSQL
+    set:
+      postgresql:
+        enabled: true
+        auth:
+          database: gitea
+          username: gitea
+          password: test
+    asserts:
+      - isNull:
+          path: spec.strategy
+
+  - it: should not have initContainers for SQLite
+    asserts:
+      - isNull:
+          path: spec.template.spec.initContainers
+
+  - it: should have wait-for-db initContainer for PostgreSQL
+    set:
+      postgresql:
+        enabled: true
+        auth:
+          database: gitea
+          username: gitea
+          password: test
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+
+  - it: should set DB_TYPE to sqlite3 by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA__database__DB_TYPE
+            value: "sqlite3"
+
+  - it: should set DB_TYPE to postgres when postgresql is enabled
+    set:
+      postgresql:
+        enabled: true
+        auth:
+          database: gitea
+          username: gitea
+          password: test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA__database__DB_TYPE
+            value: "postgres"
+
+  - it: should set database HOST for PostgreSQL subchart
+    set:
+      postgresql:
+        enabled: true
+        auth:
+          database: gitea
+          username: gitea
+          password: test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA__database__HOST
+            value: "RELEASE-NAME-postgresql:5432"
+
+  - it: should use app database secret for PostgreSQL subchart
+    set:
+      postgresql:
+        enabled: true
+        auth:
+          database: gitea
+          username: gitea
+          password: test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA__database__PASSWD
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-gitea-database
+                key: database-password
+
+  - it: should set DB_TYPE to mysql when mysql is enabled
+    set:
+      mysql:
+        enabled: true
+        auth:
+          database: gitea
+          username: gitea
+          password: test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA__database__DB_TYPE
+            value: "mysql"
+
+  - it: should set database HOST for external database
+    set:
+      database:
+        external:
+          vendor: postgres
+          host: pg.example.com
+          port: 5432
+          name: gitea
+          username: gitea
+          password: test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA__database__HOST
+            value: "pg.example.com:5432"
+
+  - it: should expose SSH port when enabled
+    set:
+      service:
+        ssh:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: ssh
+            containerPort: 2222
+            protocol: TCP
+
+  - it: should not expose SSH port when disabled
+    set:
+      service:
+        ssh:
+          enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: ssh
+            containerPort: 2222
+            protocol: TCP
+
+  - it: should set ROOT_URL when configured
+    set:
+      gitea:
+        rootUrl: https://git.example.com/
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA__server__ROOT_URL
+            value: "https://git.example.com/"
+
+  - it: should set DISABLE_REGISTRATION when enabled
+    set:
+      gitea:
+        disableRegistration: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA__service__DISABLE_REGISTRATION
+            value: "true"
+
+  - it: should mount data volume when persistence is enabled
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /var/lib/gitea
+            subPath: data
+
+  - it: should not mount volumes when persistence is disabled
+    set:
+      persistence:
+        enabled: false
+    asserts:
+      - isNull:
+          path: spec.template.spec.containers[0].volumeMounts
+
+  - it: should include extra env vars
+    set:
+      gitea:
+        extraEnv:
+          - name: GITEA__mailer__ENABLED
+            value: "true"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA__mailer__ENABLED
+            value: "true"
+
+  - it: should set startup probe
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /api/healthz
+
+  - it: should set resources when specified
+    set:
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 250m

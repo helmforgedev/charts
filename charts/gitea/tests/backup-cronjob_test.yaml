@@ -1,0 +1,119 @@
+suite: backup-cronjob
+templates:
+  - templates/backup-cronjob.yaml
+  - templates/backup-configmap.yaml
+tests:
+  - it: should not render when backup is disabled
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render CronJob when backup is enabled
+    template: templates/backup-cronjob.yaml
+    set:
+      backup:
+        enabled: true
+        s3:
+          endpoint: https://s3.example.com
+          bucket: test
+          accessKey: key
+          secretKey: secret
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.schedule
+          value: "0 3 * * *"
+
+  - it: should use sqlite backup for default database
+    template: templates/backup-cronjob.yaml
+    set:
+      backup:
+        enabled: true
+        s3:
+          endpoint: https://s3.example.com
+          bucket: test
+          accessKey: key
+          secretKey: secret
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].name
+          value: sqlite-backup
+
+  - it: should use postgres backup for PostgreSQL subchart
+    template: templates/backup-cronjob.yaml
+    set:
+      postgresql:
+        enabled: true
+        auth:
+          database: gitea
+          username: gitea
+          password: test
+      backup:
+        enabled: true
+        s3:
+          endpoint: https://s3.example.com
+          bucket: test
+          accessKey: key
+          secretKey: secret
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].name
+          value: postgres-backup
+
+  - it: should use mysql backup for MySQL subchart
+    template: templates/backup-cronjob.yaml
+    set:
+      mysql:
+        enabled: true
+        auth:
+          database: gitea
+          username: gitea
+          password: test
+      backup:
+        enabled: true
+        s3:
+          endpoint: https://s3.example.com
+          bucket: test
+          accessKey: key
+          secretKey: secret
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].name
+          value: mysql-backup
+
+  - it: should render backup-configmap when enabled
+    template: templates/backup-configmap.yaml
+    set:
+      backup:
+        enabled: true
+        s3:
+          endpoint: https://s3.example.com
+          bucket: test
+          accessKey: key
+          secretKey: secret
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-gitea-backup-scripts
+
+  - it: should mount data PVC for sqlite backup
+    template: templates/backup-cronjob.yaml
+    set:
+      backup:
+        enabled: true
+        s3:
+          endpoint: https://s3.example.com
+          bucket: test
+          accessKey: key
+          secretKey: secret
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME-gitea-data

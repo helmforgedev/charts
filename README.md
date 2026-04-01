@@ -43,6 +43,7 @@ Project links:
 | [kafka](charts/kafka/) | alpha | Kafka — KRaft single-broker and production-oriented cluster modes with persistent storage and optional metrics |
 | [phpmyadmin](charts/phpmyadmin/) | alpha | phpMyAdmin — web-based MySQL/MariaDB administration with multi-server, auto-login, and custom config support |
 | [heimdall](charts/heimdall/) | alpha | Heimdall — application dashboard with persistent config, S3 backup, and ingress support |
+| [gitea](charts/gitea/) | alpha | Gitea — self-hosted Git service with SQLite, PostgreSQL, or MySQL, rootless image, SSH, and S3 backup |
 
 ### Maturity levels
 

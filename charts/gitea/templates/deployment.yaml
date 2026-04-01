@@ -1,0 +1,172 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gitea.fullname" . }}
+  labels:
+    {{- include "gitea.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  {{- if eq (include "gitea.databaseMode" .) "sqlite" }}
+  strategy:
+    type: Recreate
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "gitea.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gitea.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "gitea.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if ne (include "gitea.databaseMode" .) "sqlite" }}
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for {{ include "gitea.databaseHost" . }}:{{ include "gitea.databasePort" . }} ..."
+              until nc -z -w2 {{ include "gitea.databaseHost" . }} {{ include "gitea.databasePort" . }}; do
+                sleep 2
+              done
+              echo "Database is reachable."
+      {{- end }}
+      containers:
+        - name: gitea
+          image: {{ include "gitea.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+            {{- if .Values.service.ssh.enabled }}
+            - name: ssh
+              containerPort: {{ .Values.gitea.sshPort | int }}
+              protocol: TCP
+            {{- end }}
+          env:
+            # -- Core Gitea settings
+            - name: GITEA__server__APP_DATA_PATH
+              value: /var/lib/gitea/data
+            - name: GITEA__server__DOMAIN
+              value: {{ .Values.gitea.sshDomain | default "localhost" | quote }}
+            {{- if .Values.gitea.rootUrl }}
+            - name: GITEA__server__ROOT_URL
+              value: {{ .Values.gitea.rootUrl | quote }}
+            {{- end }}
+            - name: GITEA__server__SSH_DOMAIN
+              value: {{ .Values.gitea.sshDomain | default "localhost" | quote }}
+            - name: GITEA__server__SSH_PORT
+              value: {{ .Values.gitea.sshPort | quote }}
+            - name: GITEA__server__SSH_LISTEN_PORT
+              value: {{ .Values.gitea.sshPort | quote }}
+            - name: GITEA__server__START_SSH_SERVER
+              value: "true"
+            - name: GITEA__server__LFS_START_SERVER
+              value: {{ .Values.gitea.lfsEnabled | quote }}
+            - name: GITEA__server__RUN_MODE
+              value: {{ .Values.gitea.runMode | quote }}
+            - name: GITEA__APP_NAME
+              value: {{ .Values.gitea.appName | quote }}
+            {{- if .Values.gitea.disableRegistration }}
+            - name: GITEA__service__DISABLE_REGISTRATION
+              value: "true"
+            {{- end }}
+            {{- if .Values.gitea.requireSignIn }}
+            - name: GITEA__service__REQUIRE_SIGNIN_VIEW
+              value: "true"
+            {{- end }}
+            # -- Database configuration
+            - name: GITEA__database__DB_TYPE
+              value: {{ include "gitea.dbType" . | quote }}
+            {{- if ne (include "gitea.databaseMode" .) "sqlite" }}
+            - name: GITEA__database__HOST
+              value: {{ include "gitea.dbHostPort" . | quote }}
+            - name: GITEA__database__NAME
+              value: {{ include "gitea.databaseName" . | quote }}
+            - name: GITEA__database__USER
+              value: {{ include "gitea.databaseUsername" . | quote }}
+            - name: GITEA__database__PASSWD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gitea.databaseSecretName" . }}
+                  key: {{ include "gitea.databaseSecretKey" . }}
+            {{- end }}
+            {{- with .Values.gitea.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.startupProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/gitea
+              subPath: data
+            - name: data
+              mountPath: /etc/gitea
+              subPath: config
+          {{- end }}
+      {{- if .Values.persistence.enabled }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (printf "%s-data" (include "gitea.fullname" .)) }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

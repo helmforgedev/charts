@@ -1,0 +1,83 @@
+{{- if .Values.admin.username }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "gitea.fullname" . }}-admin-create
+  labels:
+    {{- include "gitea.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "gitea.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: admin-create
+    spec:
+      restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: wait-for-gitea
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for Gitea to be ready..."
+              until wget -q -O /dev/null http://{{ include "gitea.fullname" . }}-http:{{ .Values.service.http.port }}/api/healthz; do
+                sleep 3
+              done
+              echo "Gitea is ready."
+      containers:
+        - name: admin-create
+          image: {{ include "gitea.image" . }}
+          command:
+            - sh
+            - -c
+            - |
+              gitea admin user create \
+                --username "${ADMIN_USERNAME}" \
+                --password "${ADMIN_PASSWORD}" \
+                --email "${ADMIN_EMAIL}" \
+                --admin \
+                --must-change-password=false || true
+          env:
+            - name: ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gitea.adminSecretName" . }}
+                  key: admin-username
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gitea.adminSecretName" . }}
+                  key: admin-password
+            - name: ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gitea.adminSecretName" . }}
+                  key: admin-email
+            - name: GITEA_WORK_DIR
+              value: /var/lib/gitea
+          {{- if .Values.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/gitea
+              subPath: data
+            - name: data
+              mountPath: /etc/gitea
+              subPath: config
+          {{- end }}
+      {{- if .Values.persistence.enabled }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (printf "%s-data" (include "gitea.fullname" .)) }}
+      {{- end }}
+{{- end }}

@@ -1,0 +1,36 @@
+suite: admin-job
+templates:
+  - templates/admin-job.yaml
+tests:
+  - it: should not render when admin is not configured
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render when admin username is set
+    set:
+      admin:
+        username: gitea_admin
+        password: test123
+        email: admin@test.com
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: post-install
+
+  - it: should use existing secret when configured
+    set:
+      admin:
+        username: gitea_admin
+        existingSecret: my-admin-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ADMIN_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: my-admin-secret
+                key: admin-username

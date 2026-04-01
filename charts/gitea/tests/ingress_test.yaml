@@ -1,0 +1,57 @@
+suite: ingress
+templates:
+  - templates/ingress.yaml
+tests:
+  - it: should not render when disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render when enabled
+    set:
+      ingress:
+        enabled: true
+        ingressClassName: traefik
+        hosts:
+          - host: git.example.com
+            paths:
+              - path: /
+                pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: traefik
+
+  - it: should set TLS configuration
+    set:
+      ingress:
+        enabled: true
+        hosts:
+          - host: git.example.com
+            paths:
+              - path: /
+                pathType: Prefix
+        tls:
+          - secretName: gitea-tls
+            hosts:
+              - git.example.com
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: gitea-tls
+
+  - it: should route to HTTP service
+    set:
+      ingress:
+        enabled: true
+        hosts:
+          - host: git.example.com
+            paths:
+              - path: /
+                pathType: Prefix
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.name
+          value: RELEASE-NAME-gitea-http
