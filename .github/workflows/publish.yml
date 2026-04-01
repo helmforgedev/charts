@@ -148,6 +148,12 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
+      - name: Setup GPG keyring
+        if: steps.semver.outputs.skip != 'true'
+        run: |
+          echo "${{ secrets.GPG_KEYRING }}" | base64 -d > /tmp/secring.gpg
+          echo "GPG keyring imported"
+
       - name: Build Helm dependencies
         if: steps.semver.outputs.skip != 'true'
         run: helm dependency build charts/${{ matrix.chart }}
@@ -163,7 +169,8 @@ jobs:
         if: steps.semver.outputs.skip != 'true'
         id: push
         run: |
-          helm package charts/${{ matrix.chart }} --destination .dist
+          helm package charts/${{ matrix.chart }} --destination .dist \
+            --sign --key "${{ secrets.GPG_KEY_NAME }}" --keyring /tmp/secring.gpg
           for pkg in .dist/*.tgz; do
             echo "Publishing $pkg to OCI"
             PUSH_OUTPUT=$(helm push "$pkg" "$OCI_REGISTRY" 2>&1)
@@ -171,6 +178,14 @@ jobs:
             DIGEST=$(echo "$PUSH_OUTPUT" | grep -oE 'sha256:[a-f0-9]{64}')
             echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
           done
+
+      - name: Upload provenance file
+        if: steps.semver.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: provenance-${{ matrix.chart }}
+          path: .dist/*.prov
+          retention-days: 1
 
       - name: Sign OCI artifact with Cosign
         if: steps.semver.outputs.skip != 'true' && steps.push.outputs.digest != ''
@@ -311,6 +326,13 @@ jobs:
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
 
+      - name: Download provenance files
+        uses: actions/download-artifact@v4
+        with:
+          pattern: provenance-*
+          path: provenance
+          merge-multiple: true
+
       - name: Sync chart packages from OCI
         run: |
           cd gh-pages
@@ -333,6 +355,16 @@ jobs:
 
           echo "Chart packages:"
           ls -1 *.tgz 2>/dev/null || echo "none"
+
+      - name: Copy provenance files
+        run: |
+          if ls provenance/*.prov 1>/dev/null 2>&1; then
+            cp provenance/*.prov gh-pages/
+            echo "Copied provenance files:"
+            ls -1 gh-pages/*.prov 2>/dev/null | wc -l
+          else
+            echo "No provenance files to copy"
+          fi
 
       - name: Sync artifacthub-repo.yml
         run: |
@@ -361,6 +393,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add index.yaml 2>/dev/null || true
           git add *.tgz 2>/dev/null || true
+          git add *.prov 2>/dev/null || true
           git add artifacthub-repo.yml 2>/dev/null || true
           git diff --cached --quiet && echo "No changes to index, skip" || {
             git commit -m "ci: update helm repo index [skip ci]"
