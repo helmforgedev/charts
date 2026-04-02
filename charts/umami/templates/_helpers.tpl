@@ -123,3 +123,82 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- "app-secret" -}}
 {{- end -}}
 {{- end -}}
+
+{{/* Backup — S3 secret name */}}
+{{- define "umami.backupSecretName" -}}
+{{- if .Values.backup.s3.existingSecret -}}
+{{- .Values.backup.s3.existingSecret -}}
+{{- else -}}
+{{- printf "%s-backup" (include "umami.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — validate required fields */}}
+{{- define "umami.backupEnabled" -}}
+{{- if .Values.backup.enabled -}}
+  {{- if not .Values.backup.s3.endpoint -}}
+    {{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if not .Values.backup.s3.bucket -}}
+    {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}
+    {{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
+  {{- end -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — database host */}}
+{{- define "umami.backupDbHost" -}}
+{{- if .Values.backup.database.host -}}
+{{- .Values.backup.database.host -}}
+{{- else -}}
+{{- include "umami.dbHost" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — database port */}}
+{{- define "umami.backupDbPort" -}}
+{{- if .Values.backup.database.port -}}
+{{- .Values.backup.database.port | toString -}}
+{{- else -}}
+{{- include "umami.dbPort" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — database name */}}
+{{- define "umami.backupDbName" -}}
+{{- if .Values.backup.database.name -}}
+{{- .Values.backup.database.name -}}
+{{- else -}}
+{{- include "umami.dbName" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — database username */}}
+{{- define "umami.backupDbUsername" -}}
+{{- if .Values.backup.database.username -}}
+{{- .Values.backup.database.username -}}
+{{- else -}}
+{{- include "umami.dbUsername" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — database password secret name */}}
+{{- define "umami.backupDbPasswordSecretName" -}}
+{{- if .Values.backup.database.existingSecret -}}
+{{- .Values.backup.database.existingSecret -}}
+{{- else -}}
+{{- include "umami.dbSecretName" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — database password secret key */}}
+{{- define "umami.backupDbPasswordSecretKey" -}}
+{{- if .Values.backup.database.existingSecret -}}
+{{- .Values.backup.database.existingSecretPasswordKey -}}
+{{- else -}}
+{{- include "umami.dbSecretPasswordKey" . -}}
+{{- end -}}
+{{- end -}}
