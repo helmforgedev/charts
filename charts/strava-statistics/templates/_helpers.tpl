@@ -85,3 +85,28 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s-data" (include "strava-statistics.fullname" .) -}}
 {{- end -}}
 {{- end -}}
+
+{{/* Backup S3 secret name */}}
+{{- define "strava-statistics.backupSecretName" -}}
+{{- if .Values.backup.s3.existingSecret -}}
+{{- .Values.backup.s3.existingSecret -}}
+{{- else -}}
+{{- printf "%s-backup" (include "strava-statistics.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Validate backup configuration */}}
+{{- define "strava-statistics.backupEnabled" -}}
+{{- if .Values.backup.enabled -}}
+  {{- if not .Values.backup.s3.endpoint -}}
+    {{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if not .Values.backup.s3.bucket -}}
+    {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}
+    {{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
+  {{- end -}}
+true
+{{- end -}}
+{{- end -}}
