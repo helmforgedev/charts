@@ -209,3 +209,82 @@ jdbc:postgresql://{{ include "druid.metadataHost" . }}:{{ include "druid.metadat
       echo "ZooKeeper is reachable."
 {{- end }}
 {{- end -}}
+
+{{/* Backup — S3 secret name */}}
+{{- define "druid.backupSecretName" -}}
+{{- if .Values.backup.s3.existingSecret -}}
+{{- .Values.backup.s3.existingSecret -}}
+{{- else -}}
+{{- printf "%s-backup" (include "druid.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — validate required fields */}}
+{{- define "druid.backupEnabled" -}}
+{{- if .Values.backup.enabled -}}
+  {{- if not .Values.backup.s3.endpoint -}}
+    {{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if not .Values.backup.s3.bucket -}}
+    {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}
+    {{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
+  {{- end -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — database host */}}
+{{- define "druid.backupDbHost" -}}
+{{- if .Values.backup.database.host -}}
+{{- .Values.backup.database.host -}}
+{{- else -}}
+{{- include "druid.metadataHost" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — database port */}}
+{{- define "druid.backupDbPort" -}}
+{{- if .Values.backup.database.port -}}
+{{- .Values.backup.database.port | toString -}}
+{{- else -}}
+{{- include "druid.metadataPort" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — database name */}}
+{{- define "druid.backupDbName" -}}
+{{- if .Values.backup.database.name -}}
+{{- .Values.backup.database.name -}}
+{{- else -}}
+{{- include "druid.metadataName" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — database username */}}
+{{- define "druid.backupDbUsername" -}}
+{{- if .Values.backup.database.username -}}
+{{- .Values.backup.database.username -}}
+{{- else -}}
+{{- include "druid.metadataUsername" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — database password secret name */}}
+{{- define "druid.backupDbPasswordSecretName" -}}
+{{- if .Values.backup.database.existingSecret -}}
+{{- .Values.backup.database.existingSecret -}}
+{{- else -}}
+{{- include "druid.metadataSecretName" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — database password secret key */}}
+{{- define "druid.backupDbPasswordSecretKey" -}}
+{{- if .Values.backup.database.existingSecret -}}
+{{- .Values.backup.database.existingSecretPasswordKey -}}
+{{- else -}}
+{{- include "druid.metadataSecretKey" . -}}
+{{- end -}}
+{{- end -}}
