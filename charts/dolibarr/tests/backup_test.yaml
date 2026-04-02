@@ -1,0 +1,344 @@
+suite: backup cronjob
+templates:
+  - templates/backup-cronjob.yaml
+  - templates/backup-configmap.yaml
+tests:
+  - it: should not render when backup is disabled
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render cronjob when backup is enabled
+    template: templates/backup-cronjob.yaml
+    set:
+      mysql:
+        enabled: true
+        auth:
+          database: dolibarr
+          username: dolibarr
+          password: secret
+      backup:
+        enabled: true
+        schedule: "0 3 * * *"
+        suspend: false
+        concurrencyPolicy: Forbid
+        successfulJobsHistoryLimit: 3
+        failedJobsHistoryLimit: 3
+        backoffLimit: 1
+        archivePrefix: dolibarr
+        images:
+          mysql: mysql:8.4
+          uploader: "minio/mc:RELEASE.2025-08-13T08-35-41Z"
+        resources: {}
+        database:
+          mysqldumpArgs: "--single-transaction --routines --triggers"
+        s3:
+          endpoint: http://minio:9000
+          bucket: dolibarr-backups
+          prefix: dolibarr
+          createBucketIfNotExists: true
+          existingSecret: ""
+          accessKey: minioadmin
+          secretKey: minioadmin
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.schedule
+          value: "0 3 * * *"
+      - equal:
+          path: spec.suspend
+          value: false
+      - equal:
+          path: spec.concurrencyPolicy
+          value: Forbid
+      - equal:
+          path: spec.successfulJobsHistoryLimit
+          value: 3
+      - equal:
+          path: spec.failedJobsHistoryLimit
+          value: 3
+      - equal:
+          path: spec.jobTemplate.spec.backoffLimit
+          value: 1
+
+  - it: should use mysql subchart database host
+    template: templates/backup-cronjob.yaml
+    set:
+      mysql:
+        enabled: true
+        auth:
+          database: dolibarr
+          username: dolibarr
+          password: secret
+      backup:
+        enabled: true
+        schedule: "0 3 * * *"
+        archivePrefix: dolibarr
+        images:
+          mysql: mysql:8.4
+          uploader: "minio/mc:RELEASE.2025-08-13T08-35-41Z"
+        resources: {}
+        database:
+          mysqldumpArgs: "--single-transaction --routines --triggers"
+        s3:
+          endpoint: http://minio:9000
+          bucket: dolibarr-backups
+          prefix: dolibarr
+          createBucketIfNotExists: true
+          accessKey: minioadmin
+          secretKey: minioadmin
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env[0]
+          value:
+            name: MYSQL_HOST
+            value: RELEASE-NAME-mysql
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env[1]
+          value:
+            name: MYSQL_PORT
+            value: "3306"
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env[2]
+          value:
+            name: MYSQL_DATABASE
+            value: dolibarr
+
+  - it: should use external database host when configured
+    template: templates/backup-cronjob.yaml
+    set:
+      mysql:
+        enabled: false
+      database:
+        mode: external
+        external:
+          host: db.example.com
+          port: 3307
+          name: mydb
+          username: myuser
+          password: mypass
+      backup:
+        enabled: true
+        schedule: "0 3 * * *"
+        archivePrefix: dolibarr
+        images:
+          mysql: mysql:8.4
+          uploader: "minio/mc:RELEASE.2025-08-13T08-35-41Z"
+        resources: {}
+        database:
+          mysqldumpArgs: "--single-transaction --routines --triggers"
+        s3:
+          endpoint: http://minio:9000
+          bucket: dolibarr-backups
+          prefix: dolibarr
+          createBucketIfNotExists: true
+          accessKey: minioadmin
+          secretKey: minioadmin
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env[0]
+          value:
+            name: MYSQL_HOST
+            value: db.example.com
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env[1]
+          value:
+            name: MYSQL_PORT
+            value: "3307"
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env[2]
+          value:
+            name: MYSQL_DATABASE
+            value: mydb
+
+  - it: should use correct images
+    template: templates/backup-cronjob.yaml
+    set:
+      mysql:
+        enabled: true
+        auth:
+          database: dolibarr
+          username: dolibarr
+          password: secret
+      backup:
+        enabled: true
+        schedule: "0 3 * * *"
+        archivePrefix: dolibarr
+        images:
+          mysql: mysql:8.4
+          uploader: "minio/mc:RELEASE.2025-08-13T08-35-41Z"
+        resources: {}
+        database:
+          mysqldumpArgs: "--single-transaction --routines --triggers"
+        s3:
+          endpoint: http://minio:9000
+          bucket: dolibarr-backups
+          prefix: dolibarr
+          createBucketIfNotExists: true
+          accessKey: minioadmin
+          secretKey: minioadmin
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].image
+          value: mysql:8.4
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].image
+          value: "minio/mc:RELEASE.2025-08-13T08-35-41Z"
+
+  - it: should use existingSecret for S3 credentials
+    template: templates/backup-cronjob.yaml
+    set:
+      mysql:
+        enabled: true
+        auth:
+          database: dolibarr
+          username: dolibarr
+          password: secret
+      backup:
+        enabled: true
+        schedule: "0 3 * * *"
+        archivePrefix: dolibarr
+        images:
+          mysql: mysql:8.4
+          uploader: "minio/mc:RELEASE.2025-08-13T08-35-41Z"
+        resources: {}
+        database:
+          mysqldumpArgs: "--single-transaction --routines --triggers"
+        s3:
+          endpoint: http://minio:9000
+          bucket: dolibarr-backups
+          prefix: dolibarr
+          createBucketIfNotExists: true
+          existingSecret: my-s3-secret
+          existingSecretAccessKeyKey: my-access-key
+          existingSecretSecretKeyKey: my-secret-key
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[1].valueFrom.secretKeyRef.name
+          value: my-s3-secret
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[1].valueFrom.secretKeyRef.key
+          value: my-access-key
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[2].valueFrom.secretKeyRef.key
+          value: my-secret-key
+
+  - it: should render configmap with backup scripts
+    template: templates/backup-configmap.yaml
+    set:
+      mysql:
+        enabled: true
+        auth:
+          database: dolibarr
+          username: dolibarr
+          password: secret
+      backup:
+        enabled: true
+        schedule: "0 3 * * *"
+        archivePrefix: dolibarr
+        images:
+          mysql: mysql:8.4
+          uploader: "minio/mc:RELEASE.2025-08-13T08-35-41Z"
+        resources: {}
+        database:
+          mysqldumpArgs: "--single-transaction --routines --triggers"
+        s3:
+          endpoint: http://minio:9000
+          bucket: dolibarr-backups
+          prefix: dolibarr
+          createBucketIfNotExists: true
+          accessKey: minioadmin
+          secretKey: minioadmin
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - isNotNull:
+          path: data["mysql-backup.sh"]
+      - isNotNull:
+          path: data["upload-backup.sh"]
+
+  - it: should not render configmap when backup is disabled
+    template: templates/backup-configmap.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should set suspend to true
+    template: templates/backup-cronjob.yaml
+    set:
+      mysql:
+        enabled: true
+        auth:
+          database: dolibarr
+          username: dolibarr
+          password: secret
+      backup:
+        enabled: true
+        suspend: true
+        schedule: "0 3 * * *"
+        archivePrefix: dolibarr
+        images:
+          mysql: mysql:8.4
+          uploader: "minio/mc:RELEASE.2025-08-13T08-35-41Z"
+        resources: {}
+        database:
+          mysqldumpArgs: "--single-transaction --routines --triggers"
+        s3:
+          endpoint: http://minio:9000
+          bucket: dolibarr-backups
+          prefix: dolibarr
+          createBucketIfNotExists: true
+          accessKey: minioadmin
+          secretKey: minioadmin
+    asserts:
+      - equal:
+          path: spec.suspend
+          value: true
+
+  - it: should apply resources when set
+    template: templates/backup-cronjob.yaml
+    set:
+      mysql:
+        enabled: true
+        auth:
+          database: dolibarr
+          username: dolibarr
+          password: secret
+      backup:
+        enabled: true
+        schedule: "0 3 * * *"
+        archivePrefix: dolibarr
+        images:
+          mysql: mysql:8.4
+          uploader: "minio/mc:RELEASE.2025-08-13T08-35-41Z"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            memory: 256Mi
+        database:
+          mysqldumpArgs: "--single-transaction --routines --triggers"
+        s3:
+          endpoint: http://minio:9000
+          bucket: dolibarr-backups
+          prefix: dolibarr
+          createBucketIfNotExists: true
+          accessKey: minioadmin
+          secretKey: minioadmin
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].resources.limits.memory
+          value: 256Mi
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m

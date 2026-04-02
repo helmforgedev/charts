@@ -149,6 +149,53 @@ storage:
     # -- Secret key for the S3 secret key in storage.s3.existingSecret
     existingSecretSecretKeyKey: secret-key
 
+backup:
+  # -- Enable built-in backup CronJob for PostgreSQL (pg_dump to S3)
+  enabled: false
+  # -- Backup schedule in Cron format
+  schedule: "0 3 * * *"
+  # -- Suspend backup execution
+  suspend: false
+  # -- CronJob concurrency policy
+  concurrencyPolicy: Forbid
+  # -- Successful job history retained by the CronJob
+  successfulJobsHistoryLimit: 3
+  # -- Failed job history retained by the CronJob
+  failedJobsHistoryLimit: 3
+  # -- Job backoff limit
+  backoffLimit: 1
+  # -- Prefix used in generated backup archive names
+  archivePrefix: docmost
+  images:
+    # -- PostgreSQL client image used for pg_dump
+    postgresql: postgres:18-alpine
+    # -- MinIO client image used for S3 upload
+    uploader: minio/mc:RELEASE.2025-08-13T08-35-41Z
+  # -- Resources applied to the backup dump and upload containers
+  resources: {}
+  database:
+    # -- Extra arguments passed to pg_dump
+    pgDumpArgs: ""
+  s3:
+    # -- S3-compatible endpoint URL, for example: https://s3.amazonaws.com or https://minio.example.com
+    endpoint: ""
+    # -- Target bucket name
+    bucket: ""
+    # -- Optional key prefix inside the bucket
+    prefix: docmost
+    # -- Create the bucket automatically when it does not exist yet
+    createBucketIfNotExists: true
+    # -- Existing secret containing access-key and secret-key
+    existingSecret: ""
+    # -- Secret key name for the access key inside backup.s3.existingSecret
+    existingSecretAccessKeyKey: access-key
+    # -- Secret key name for the secret key inside backup.s3.existingSecret
+    existingSecretSecretKeyKey: secret-key
+    # -- Inline access key used when backup.s3.existingSecret is not set
+    accessKey: ""
+    # -- Inline secret key used when backup.s3.existingSecret is not set
+    secretKey: ""
+
 service:
   # -- Service type for the Docmost HTTP service
   type: ClusterIP

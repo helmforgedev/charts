@@ -206,3 +206,50 @@ redis-password
 {{- printf "%s-storage" (include "docmost.fullname" .) -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "docmost.backupSecretName" -}}
+{{- if .Values.backup.s3.existingSecret -}}
+{{- .Values.backup.s3.existingSecret -}}
+{{- else -}}
+{{- printf "%s-backup" (include "docmost.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "docmost.backupEnabled" -}}
+{{- if .Values.backup.enabled -}}
+  {{- if not .Values.backup.s3.endpoint -}}
+    {{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if not .Values.backup.s3.bucket -}}
+    {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- end -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{- define "docmost.backupDbHost" -}}
+{{- include "docmost.databaseHost" . -}}
+{{- end -}}
+
+{{- define "docmost.backupDbPort" -}}
+{{- include "docmost.databasePort" . -}}
+{{- end -}}
+
+{{- define "docmost.backupDbName" -}}
+{{- include "docmost.databaseName" . -}}
+{{- end -}}
+
+{{- define "docmost.backupDbUsername" -}}
+{{- include "docmost.databaseUsername" . -}}
+{{- end -}}
+
+{{- define "docmost.backupDbPasswordSecretName" -}}
+{{- include "docmost.databaseSecretName" . -}}
+{{- end -}}
+
+{{- define "docmost.backupDbPasswordSecretKey" -}}
+{{- include "docmost.databaseSecretKey" . -}}
+{{- end -}}

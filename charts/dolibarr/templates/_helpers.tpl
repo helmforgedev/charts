@@ -222,3 +222,32 @@ instance-unique-id
 {{- define "dolibarr.customPvcName" -}}
 {{- default (printf "%s-custom" (include "dolibarr.fullname" .)) .Values.persistence.custom.existingClaim -}}
 {{- end -}}
+
+{{/*
+Backup S3 secret name.
+Uses backup.s3.existingSecret when set, otherwise <fullname>-backup.
+*/}}
+{{- define "dolibarr.backupSecretName" -}}
+{{- if .Values.backup.s3.existingSecret -}}
+{{- .Values.backup.s3.existingSecret -}}
+{{- else -}}
+{{- printf "%s-backup" (include "dolibarr.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Backup enabled validation.
+Returns "true" only when backup is enabled and required S3 fields are set.
+*/}}
+{{- define "dolibarr.backupEnabled" -}}
+{{- if .Values.backup.enabled -}}
+  {{- $hasEndpoint := ne (.Values.backup.s3.endpoint | default "") "" -}}
+  {{- $hasBucket := ne (.Values.backup.s3.bucket | default "") "" -}}
+  {{- $hasCredentials := or (ne (.Values.backup.s3.existingSecret | default "") "") (and (ne (.Values.backup.s3.accessKey | default "") "") (ne (.Values.backup.s3.secretKey | default "") "")) -}}
+  {{- if and $hasEndpoint $hasBucket $hasCredentials -}}
+true
+  {{- else -}}
+    {{- fail "backup.enabled requires backup.s3.endpoint, backup.s3.bucket, and either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}

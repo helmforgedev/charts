@@ -402,6 +402,57 @@ startupProbe:
   failureThreshold: 30
 
 # =============================================================================
+# Backup (MariaDB via mysqldump to S3)
+# =============================================================================
+
+backup:
+  # -- Enable scheduled MariaDB backup to S3-compatible storage
+  enabled: false
+  # -- Cron schedule for the backup job
+  schedule: "0 3 * * *"
+  # -- Suspend the CronJob (useful for CI or temporary disable)
+  suspend: false
+  # -- CronJob concurrency policy
+  concurrencyPolicy: Forbid
+  # -- Number of successful job runs to keep
+  successfulJobsHistoryLimit: 3
+  # -- Number of failed job runs to keep
+  failedJobsHistoryLimit: 3
+  # -- Number of retries before marking the job as failed
+  backoffLimit: 1
+  # -- Prefix for the backup archive filename
+  archivePrefix: appwrite
+  images:
+    # -- MariaDB client image for mysqldump
+    mariadb: mariadb:11.7-noble
+    # -- MinIO client image for S3 upload
+    uploader: minio/mc:RELEASE.2025-08-13T08-35-41Z
+  # -- Resources for backup containers
+  resources: {}
+  database:
+    # -- Extra arguments passed to mysqldump
+    mysqldumpArgs: "--single-transaction --routines --triggers"
+  s3:
+    # -- S3-compatible endpoint URL (required when backup.enabled is true)
+    endpoint: ""
+    # -- S3 bucket name (required when backup.enabled is true)
+    bucket: ""
+    # -- S3 key prefix inside the bucket
+    prefix: appwrite
+    # -- Create the bucket if it does not exist
+    createBucketIfNotExists: true
+    # -- Existing secret with S3 credentials (overrides accessKey/secretKey)
+    existingSecret: ""
+    # -- Key in existing secret for access key
+    existingSecretAccessKeyKey: access-key
+    # -- Key in existing secret for secret key
+    existingSecretSecretKeyKey: secret-key
+    # -- S3 access key (ignored when existingSecret is set)
+    accessKey: ""
+    # -- S3 secret key (ignored when existingSecret is set)
+    secretKey: ""
+
+# =============================================================================
 # Scheduling
 # =============================================================================
 

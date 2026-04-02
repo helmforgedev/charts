@@ -1,0 +1,215 @@
+suite: Backup
+templates:
+  - templates/backup-configmap.yaml
+  - templates/backup-cronjob.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render backup configmap by default
+    template: templates/backup-configmap.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render backup cronjob by default
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render backup configmap when enabled
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: templates/backup-configmap.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: test-appwrite-backup-scripts
+
+  - it: should render backup cronjob when enabled
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: metadata.name
+          value: test-appwrite-backup
+
+  - it: should use default schedule
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - equal:
+          path: spec.schedule
+          value: "0 3 * * *"
+
+  - it: should use custom schedule
+    set:
+      backup.enabled: true
+      backup.schedule: "0 1 * * *"
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - equal:
+          path: spec.schedule
+          value: "0 1 * * *"
+
+  - it: should use subchart database host by default
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: DB_HOST
+            value: test-mariadb
+
+  - it: should use subchart database port by default
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: DB_PORT
+            value: "3306"
+
+  - it: should use subchart database name by default
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: DB_NAME
+            value: appwrite
+
+  - it: should use root user for backup
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: DB_USERNAME
+            value: root
+
+  - it: should use external database host when configured
+    set:
+      mariadb.enabled: false
+      database.external.host: ext-db.example.com
+      database.external.rootPassword: pass
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: DB_HOST
+            value: ext-db.example.com
+
+  - it: should fail when backup.s3.endpoint is missing
+    set:
+      backup.enabled: true
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.endpoint is required when backup.enabled is true"
+
+  - it: should fail when backup.s3.bucket is missing
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.bucket is required when backup.enabled is true"
+
+  - it: should fail when s3 credentials are missing
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey"
+
+  - it: should set suspend when configured
+    set:
+      backup.enabled: true
+      backup.suspend: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - equal:
+          path: spec.suspend
+          value: true
+
+  - it: should set mysqldump args
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: MYSQLDUMP_EXTRA_ARGS
+            value: "--single-transaction --routines --triggers"

@@ -1,0 +1,87 @@
+{{- if eq (include "dolibarr.backupEnabled" .) "true" }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "dolibarr.fullname" . }}-backup
+  labels:
+    {{- include "dolibarr.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  suspend: {{ .Values.backup.suspend }}
+  concurrencyPolicy: {{ .Values.backup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "dolibarr.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: Never
+          initContainers:
+            - name: mysql-backup
+              image: {{ .Values.backup.images.mysql }}
+              command: ["bash", "/scripts/mysql-backup.sh"]
+              env:
+                - name: MYSQL_HOST
+                  value: {{ include "dolibarr.databaseHost" . | quote }}
+                - name: MYSQL_PORT
+                  value: {{ include "dolibarr.databasePort" . | quote }}
+                - name: MYSQL_DATABASE
+                  value: {{ include "dolibarr.databaseName" . | quote }}
+                - name: MYSQL_USER
+                  value: {{ include "dolibarr.databaseUsername" . | quote }}
+                - name: MYSQL_PWD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "dolibarr.databaseSecretName" . }}
+                      key: {{ include "dolibarr.databaseSecretKey" . }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: backup-data
+                  mountPath: /backup
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+          containers:
+            - name: upload
+              image: {{ .Values.backup.images.uploader }}
+              command: ["bash", "/scripts/upload-backup.sh"]
+              env:
+                - name: S3_ENDPOINT
+                  value: {{ .Values.backup.s3.endpoint | quote }}
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "dolibarr.backupSecretName" . }}
+                      key: {{ if .Values.backup.s3.existingSecret }}{{ .Values.backup.s3.existingSecretAccessKeyKey }}{{ else }}access-key{{ end }}
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "dolibarr.backupSecretName" . }}
+                      key: {{ if .Values.backup.s3.existingSecret }}{{ .Values.backup.s3.existingSecretSecretKeyKey }}{{ else }}secret-key{{ end }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: backup-data
+                  mountPath: /backup
+                  readOnly: true
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+          volumes:
+            - name: scripts
+              configMap:
+                name: {{ include "dolibarr.fullname" . }}-backup
+                defaultMode: 0755
+            - name: backup-data
+              emptyDir: {}
+{{- end }}

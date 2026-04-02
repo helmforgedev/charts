@@ -82,6 +82,79 @@
     "affinity": { "type": "object", "description": "Affinity rules for pod scheduling" },
     "extraVolumeMounts": { "type": "array", "description": "Additional volume mounts for the main Flowise container", "items": { "type": "object" } },
     "extraVolumes": { "type": "array", "description": "Additional volumes for the Flowise pods", "items": { "type": "object" } },
-    "extraManifests": { "type": "array", "description": "Extra Kubernetes manifests to deploy alongside the chart", "items": { "type": "object" } }
+    "extraManifests": { "type": "array", "description": "Extra Kubernetes manifests to deploy alongside the chart", "items": { "type": "object" } },
+    "backup": {
+      "type": "object",
+      "description": "Scheduled PostgreSQL backup to S3-compatible storage",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable scheduled PostgreSQL backups to S3-compatible storage"
+        },
+        "schedule": {
+          "type": "string",
+          "description": "Cron schedule for backups (default: daily at 03:00 UTC)"
+        },
+        "suspend": {
+          "type": "boolean",
+          "description": "Suspend the CronJob without deleting it"
+        },
+        "concurrencyPolicy": {
+          "type": "string",
+          "description": "Concurrency policy: Forbid, Replace, Allow",
+          "enum": ["Forbid", "Replace", "Allow"]
+        },
+        "successfulJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Number of successful job records to keep"
+        },
+        "failedJobsHistoryLimit": {
+          "type": "integer",
+          "description": "Number of failed job records to keep"
+        },
+        "backoffLimit": {
+          "type": "integer",
+          "description": "Maximum retries per backup job"
+        },
+        "archivePrefix": {
+          "type": "string",
+          "description": "Prefix for backup archive filenames"
+        },
+        "images": {
+          "type": "object",
+          "description": "Container images used by backup jobs",
+          "properties": {
+            "postgresql": { "type": "string", "description": "Image used for PostgreSQL backup (must have pg_dump)" },
+            "uploader": { "type": "string", "description": "Image used for S3 upload (MinIO client)" }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resources for backup containers"
+        },
+        "database": {
+          "type": "object",
+          "description": "Override pg_dump arguments for backup",
+          "properties": {
+            "pgDumpArgs": { "type": "string", "description": "Extra arguments passed to pg_dump" }
+          }
+        },
+        "s3": {
+          "type": "object",
+          "description": "S3-compatible storage configuration",
+          "properties": {
+            "endpoint": { "type": "string", "description": "S3-compatible endpoint URL" },
+            "bucket": { "type": "string", "description": "Target bucket name" },
+            "prefix": { "type": "string", "description": "Key prefix within the bucket" },
+            "createBucketIfNotExists": { "type": "boolean", "description": "Auto-create the bucket if it does not exist" },
+            "existingSecret": { "type": "string", "description": "Use an existing secret for S3 credentials" },
+            "existingSecretAccessKeyKey": { "type": "string", "description": "Key in the existing secret for the access key" },
+            "existingSecretSecretKeyKey": { "type": "string", "description": "Key in the existing secret for the secret key" },
+            "accessKey": { "type": "string", "description": "Inline S3 access key (ignored when existingSecret is set)" },
+            "secretKey": { "type": "string", "description": "Inline S3 secret key (ignored when existingSecret is set)" }
+          }
+        }
+      }
+    }
   }
 }

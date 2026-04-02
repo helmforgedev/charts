@@ -1,0 +1,185 @@
+suite: Backup
+templates:
+  - templates/backup-cronjob.yaml
+  - templates/backup-configmap.yaml
+  - templates/_helpers.tpl
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render CronJob by default
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render ConfigMap by default
+    template: templates/backup-configmap.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render CronJob when backup enabled with postgresql subchart
+    template: templates/backup-cronjob.yaml
+    set:
+      postgresql.enabled: true
+      postgresql.auth.database: flowise
+      postgresql.auth.username: flowise
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: AKIA123
+      backup.s3.secretKey: secret123
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.schedule
+          value: "0 3 * * *"
+      - equal:
+          path: spec.concurrencyPolicy
+          value: Forbid
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].name
+          value: postgres-backup
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].image
+          value: "postgres:18-alpine"
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].name
+          value: upload
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].image
+          value: "minio/mc:RELEASE.2025-08-13T08-35-41Z"
+
+  - it: should render CronJob when backup enabled with external postgres
+    template: templates/backup-cronjob.yaml
+    set:
+      database.external.host: pg.example.com
+      database.external.name: flowise
+      database.external.username: flowise
+      database.external.password: secret
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: AKIA123
+      backup.s3.secretKey: secret123
+    asserts:
+      - isKind:
+          of: CronJob
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: DB_HOST
+            value: pg.example.com
+
+  - it: should use correct database secret for postgresql subchart
+    template: templates/backup-cronjob.yaml
+    set:
+      postgresql.enabled: true
+      postgresql.auth.database: flowise
+      postgresql.auth.username: flowise
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: AKIA123
+      backup.s3.secretKey: secret123
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-postgresql-auth
+                key: user-password
+
+  - it: should use backup secret for S3 credentials
+    template: templates/backup-cronjob.yaml
+    set:
+      postgresql.enabled: true
+      postgresql.auth.database: flowise
+      postgresql.auth.username: flowise
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: AKIA123
+      backup.s3.secretKey: secret123
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: S3_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: test-flowise-backup
+                key: access-key
+
+  - it: should use existing secret for S3 credentials
+    template: templates/backup-cronjob.yaml
+    set:
+      postgresql.enabled: true
+      postgresql.auth.database: flowise
+      postgresql.auth.username: flowise
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.existingSecret: my-s3-secret
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: S3_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: my-s3-secret
+                key: access-key
+
+  - it: should render backup scripts configmap
+    template: templates/backup-configmap.yaml
+    set:
+      postgresql.enabled: true
+      postgresql.auth.database: flowise
+      postgresql.auth.username: flowise
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: AKIA123
+      backup.s3.secretKey: secret123
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - exists:
+          path: data["postgres-backup.sh"]
+      - exists:
+          path: data["upload-backup.sh"]
+
+  - it: should set custom schedule
+    template: templates/backup-cronjob.yaml
+    set:
+      postgresql.enabled: true
+      postgresql.auth.database: flowise
+      postgresql.auth.username: flowise
+      backup.enabled: true
+      backup.schedule: "0 6 * * 0"
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: AKIA123
+      backup.s3.secretKey: secret123
+    asserts:
+      - equal:
+          path: spec.schedule
+          value: "0 6 * * 0"
+
+  - it: should fail when backup enabled with sqlite mode
+    template: templates/backup-cronjob.yaml
+    set:
+      database.mode: sqlite
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.amazonaws.com
+      backup.s3.bucket: test-bucket
+      backup.s3.accessKey: AKIA123
+      backup.s3.secretKey: secret123
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.enabled requires PostgreSQL — backup is not supported when database mode is sqlite"
