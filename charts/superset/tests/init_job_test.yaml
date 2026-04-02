@@ -1,0 +1,48 @@
+suite: Init Job
+templates:
+  - templates/init-job.yaml
+  - templates/secret.yaml
+  - templates/configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Job
+    template: templates/init-job.yaml
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: test-superset-init
+
+  - it: should have helm hook annotations
+    template: templates/init-job.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: post-install,post-upgrade
+
+  - it: should not render when disabled
+    template: templates/init-job.yaml
+    set:
+      init.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should use correct admin username
+    template: templates/init-job.yaml
+    set:
+      superset.adminUsername: myadmin
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "--username \"myadmin\""
+
+  - it: should have init containers for dependencies
+    template: templates/init-job.yaml
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.initContainers
+          count: 2

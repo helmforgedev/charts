@@ -1,0 +1,318 @@
+# =============================================================================
+# CKAN Configuration
+# =============================================================================
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+
+# -- Override the full release name used in resource names
+fullnameOverride: ""
+
+# -- Labels added to every resource created by this chart
+commonLabels: {}
+
+image:
+  # -- CKAN container image repository
+  repository: ckan/ckan-base
+  # -- CKAN image tag. Defaults to appVersion.
+  tag: ""
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# =============================================================================
+# CKAN Application
+# =============================================================================
+
+ckan:
+  # -- CKAN site URL (required for proper link generation)
+  siteUrl: "http://localhost:5000"
+  # -- CKAN site title
+  siteTitle: "CKAN"
+  # -- Sysadmin username
+  sysadminName: admin
+  # -- Sysadmin email
+  sysadminEmail: admin@ckan.local
+  # -- Sysadmin password. Auto-generated if empty.
+  sysadminPassword: ""
+  # -- Existing secret with CKAN credentials
+  existingSecret: ""
+  # -- Key in existingSecret for sysadmin password
+  existingSecretPasswordKey: sysadmin-password
+  # -- Key in existingSecret for session secret
+  existingSecretSessionKey: session-secret
+  # -- Key in existingSecret for JWT secret
+  existingSecretJwtKey: jwt-secret
+  # -- Session secret (Beaker). Auto-generated if empty.
+  sessionSecret: ""
+  # -- JWT encode/decode secret. Auto-generated if empty.
+  jwtSecret: ""
+  # -- CKAN plugins to enable
+  plugins: "envvars image_view text_view datatables_view"
+  # -- Number of CKAN replicas
+  replicaCount: 1
+  # -- Extra environment variables
+  extraEnv: []
+
+# =============================================================================
+# DataPusher
+# =============================================================================
+
+datapusher:
+  # -- Enable DataPusher
+  enabled: true
+  # -- DataPusher image repository
+  image:
+    repository: ckan/ckan-base-datapusher
+    tag: "0.0.21"
+    pullPolicy: IfNotPresent
+  # -- Number of DataPusher replicas
+  replicaCount: 1
+  # -- DataPusher port
+  port: 8800
+  # -- Resource requests and limits
+  resources: {}
+  # -- Pod labels
+  podLabels: {}
+  # -- Pod annotations
+  podAnnotations: {}
+
+# =============================================================================
+# Solr
+# =============================================================================
+
+solr:
+  # -- Enable built-in Solr StatefulSet
+  enabled: true
+  # -- Solr image repository
+  image:
+    repository: ckan/ckan-solr
+    tag: "2.11-solr9"
+    pullPolicy: IfNotPresent
+  # -- Solr port
+  port: 8983
+  # -- Solr persistence
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+  # -- Resource requests and limits
+  resources: {}
+  # -- External Solr URL (used when solr.enabled=false)
+  externalUrl: ""
+
+# =============================================================================
+# Database
+# =============================================================================
+
+database:
+  # -- Database mode: subchart | external
+  mode: subchart
+  external:
+    # -- External database host
+    host: ""
+    # -- External database port
+    port: 5432
+    # -- External CKAN database name
+    ckanDatabase: ckan
+    # -- External DataStore database name
+    datastoreDatabase: datastore
+    # -- External database username
+    username: ckan
+    # -- External database password
+    password: ""
+    # -- DataStore read-only username
+    datastoreReadUsername: datastore_ro
+    # -- DataStore read-only password
+    datastoreReadPassword: ""
+    # -- Existing secret with external database passwords
+    existingSecret: ""
+    # -- Key in existingSecret for password
+    existingSecretPasswordKey: password
+
+# =============================================================================
+# Redis
+# =============================================================================
+
+redisConfig:
+  # -- Redis mode: subchart | external
+  mode: subchart
+  external:
+    # -- External Redis URL (e.g., redis://:password@host:6379/0)
+    url: ""
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistence for CKAN storage
+  enabled: true
+  # -- Storage size
+  size: 10Gi
+  # -- Storage class
+  storageClass: ""
+  # -- Access modes
+  accessModes:
+    - ReadWriteOnce
+  # -- Use an existing PVC
+  existingClaim: ""
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- Service port
+  port: 80
+  # -- Service annotations
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress
+  enabled: false
+  # -- Ingress class name (traefik, nginx, etc.)
+  ingressClassName: traefik
+  # -- Ingress annotations
+  # @default -- `{}`
+  # Example:
+  #   cert-manager.io/cluster-issuer: letsencrypt-prod
+  annotations: {}
+  # -- Ingress hosts
+  # @default -- `[]`
+  # Example:
+  #   - host: ckan.example.com
+  #     paths:
+  #       - path: /
+  #         pathType: Prefix
+  hosts: []
+  # -- Ingress TLS
+  # @default -- `[]`
+  # Example:
+  #   - secretName: ckan-tls
+  #     hosts:
+  #       - ckan.example.com
+  tls: []
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  liveness:
+    httpGet:
+      path: /api/action/status_show
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    httpGet:
+      path: /api/action/status_show
+      port: http
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  startup:
+    tcpSocket:
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 5
+    timeoutSeconds: 5
+    failureThreshold: 60
+
+# =============================================================================
+# ServiceAccount
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- ServiceAccount annotations
+  annotations: {}
+
+# =============================================================================
+# Security & Scheduling
+# =============================================================================
+
+# -- Pod-level security context
+podSecurityContext: {}
+
+# -- Container-level security context
+securityContext: {}
+
+# -- Resource requests and limits
+resources: {}
+
+# -- Node selector
+nodeSelector: {}
+
+# -- Tolerations
+tolerations: []
+
+# -- Affinity rules
+affinity: {}
+
+# -- Topology spread constraints
+topologySpreadConstraints: []
+
+# -- Priority class name
+priorityClassName: ""
+
+# -- Termination grace period in seconds
+terminationGracePeriodSeconds: 30
+
+# -- Pod labels
+podLabels: {}
+
+# -- Pod annotations
+podAnnotations: {}
+
+# -- Extra volumes
+extraVolumes: []
+
+# -- Extra volume mounts
+extraVolumeMounts: []
+
+# -- Extra Kubernetes manifests to deploy
+extraManifests: []
+
+# =============================================================================
+# PostgreSQL Subchart
+# =============================================================================
+
+postgresql:
+  # -- Enable PostgreSQL subchart
+  enabled: true
+  auth:
+    # -- PostgreSQL database name
+    database: ckan
+    # -- PostgreSQL username
+    username: ckan
+    # -- PostgreSQL password. Auto-generated if empty.
+    password: ""
+
+# =============================================================================
+# Redis Subchart
+# =============================================================================
+
+redis:
+  # -- Enable Redis subchart
+  enabled: true
+  auth:
+    # -- Redis password. Auto-generated if empty.
+    password: ""

@@ -1,0 +1,42 @@
+suite: DataPusher Deployment
+templates:
+  - templates/datapusher-deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment when enabled
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-ckan-datapusher
+
+  - it: should have datapusher component label
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: datapusher
+
+  - it: should use correct image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ckan/ckan-base-datapusher:0.0.21"
+
+  - it: should not render when disabled
+    set:
+      datapusher.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should expose port 8800
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 8800
+            protocol: TCP

@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ckan.fullname" . }}
+  labels:
+    {{- include "ckan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ckan
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "ckan.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: ckan
+---
+{{- if .Values.datapusher.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ckan.fullname" . }}-datapusher
+  labels:
+    {{- include "ckan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: datapusher
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.datapusher.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "ckan.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: datapusher
+{{- end }}
+---
+{{- if .Values.solr.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ckan.fullname" . }}-solr
+  labels:
+    {{- include "ckan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: solr
+spec:
+  type: ClusterIP
+  ports:
+    - name: solr
+      port: {{ .Values.solr.port }}
+      targetPort: solr
+      protocol: TCP
+  selector:
+    {{- include "ckan.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: solr
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ckan.fullname" . }}-solr-headless
+  labels:
+    {{- include "ckan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: solr
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: solr
+      port: {{ .Values.solr.port }}
+      targetPort: solr
+      protocol: TCP
+  selector:
+    {{- include "ckan.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: solr
+{{- end }}

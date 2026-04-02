@@ -1,0 +1,64 @@
+suite: coordinator statefulset
+templates:
+  - templates/coordinator-statefulset.yaml
+  - templates/configmap.yaml
+tests:
+  - it: should render coordinator statefulset by default
+    template: templates/coordinator-statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-druid-coordinator
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: coordinator
+
+  - it: should use correct port
+    template: templates/coordinator-statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8081
+
+  - it: should set java opts
+    template: templates/coordinator-statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JAVA_OPTS
+            value: "-Xms256m -Xmx512m"
+
+  - it: should include init containers
+    template: templates/coordinator-statefulset.yaml
+    asserts:
+      - isNotEmpty:
+          path: spec.template.spec.initContainers
+
+  - it: should not render when disabled
+    template: templates/coordinator-statefulset.yaml
+    set:
+      coordinator.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should have configmap checksum annotation
+    template: templates/coordinator-statefulset.yaml
+    asserts:
+      - isNotEmpty:
+          path: spec.template.metadata.annotations["checksum/config"]
+
+  - it: should support custom replicas
+    template: templates/coordinator-statefulset.yaml
+    set:
+      coordinator.replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3

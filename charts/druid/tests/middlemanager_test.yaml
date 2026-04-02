@@ -1,0 +1,38 @@
+suite: middlemanager statefulset
+templates:
+  - templates/middlemanager-statefulset.yaml
+  - templates/configmap.yaml
+tests:
+  - it: should render middlemanager statefulset by default
+    template: templates/middlemanager-statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-druid-middlemanager
+
+  - it: should use correct port
+    template: templates/middlemanager-statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8091
+
+  - it: should have volume claim template with persistence enabled
+    template: templates/middlemanager-statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: task-storage
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 10Gi
+
+  - it: should not render when disabled
+    template: templates/middlemanager-statefulset.yaml
+    set:
+      middleManager.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

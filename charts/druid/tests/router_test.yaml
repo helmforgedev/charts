@@ -1,0 +1,31 @@
+suite: router deployment
+templates:
+  - templates/router-deployment.yaml
+  - templates/configmap.yaml
+tests:
+  - it: should render router deployment by default
+    template: templates/router-deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-druid-router
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should use correct port
+    template: templates/router-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8888
+
+  - it: should not render when disabled
+    template: templates/router-deployment.yaml
+    set:
+      router.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

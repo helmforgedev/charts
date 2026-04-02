@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "superset.fullname" . }}-config
+  labels:
+    {{- include "superset.labels" . | nindent 4 }}
+data:
+  superset_config.py: |
+    import os
+
+    # Flask secret key — injected via SUPERSET_SECRET_KEY env var
+    SECRET_KEY = os.environ.get("SUPERSET_SECRET_KEY", "change-me")
+
+    # Database connection
+    SQLALCHEMY_DATABASE_URI = os.environ.get("SQLALCHEMY_DATABASE_URI")
+
+    # Redis / Celery
+    REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+
+    class CeleryConfig:
+        broker_url = REDIS_URL
+        result_backend = REDIS_URL
+        task_annotations = {
+            "sql_lab.get_sql_results": {
+                "rate_limit": "100/s",
+            },
+        }
+
+    CELERY_CONFIG = CeleryConfig
+
+    # Feature flags
+    FEATURE_FLAGS = {
+        "ALERT_REPORTS": True,
+    }
+
+    ENABLE_PROXY_FIX = True
+    {{- if .Values.superset.extraConfig }}
+
+    # User-defined extra configuration
+    {{ .Values.superset.extraConfig | nindent 4 }}
+    {{- end }}

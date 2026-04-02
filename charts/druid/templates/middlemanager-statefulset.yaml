@@ -1,0 +1,146 @@
+{{- if .Values.middleManager.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "druid.fullname" . }}-middlemanager
+  labels:
+    {{- include "druid.labels" . | nindent 4 }}
+    app.kubernetes.io/component: middlemanager
+spec:
+  serviceName: {{ include "druid.fullname" . }}-middlemanager-headless
+  replicas: {{ .Values.middleManager.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "druid.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: middlemanager
+  template:
+    metadata:
+      labels:
+        {{- include "druid.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: middlemanager
+        {{- with .Values.middleManager.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.middleManager.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "druid.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        {{- include "druid.initContainers" . | nindent 8 }}
+      containers:
+        - name: middlemanager
+          image: {{ include "druid.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              cp /opt/druid/conf/druid/cluster/_common/common.runtime.properties.base /opt/druid/conf/druid/cluster/_common/common.runtime.properties
+              cat >> /opt/druid/conf/druid/cluster/data/middleManager/runtime.properties <<'EXTRA'
+              druid.worker.capacity={{ .Values.middleManager.workerCapacity }}
+              druid.indexer.task.baseDir=/data/task
+              {{- if .Values.middleManager.extraProperties }}
+              {{ .Values.middleManager.extraProperties | nindent 14 }}
+              {{- end }}
+              EXTRA
+              exec /druid.sh middleManager
+          env:
+            - name: JAVA_OPTS
+              value: {{ .Values.middleManager.javaOpts | quote }}
+            - name: druid_port
+              value: {{ .Values.middleManager.port | quote }}
+            {{- include "druid.commonEnv" . | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.middleManager.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /status/health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /status/selfDiscovered
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.middleManager.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: common-config
+              mountPath: /opt/druid/conf/druid/cluster/_common/common.runtime.properties.base
+              subPath: common.runtime.properties
+            - name: druid-var
+              mountPath: /opt/druid/var
+            - name: task-storage
+              mountPath: /data/task
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: common-config
+          configMap:
+            name: {{ include "druid.fullname" . }}-common
+        - name: druid-var
+          emptyDir: {}
+        {{- if not .Values.middleManager.persistence.enabled }}
+        - name: task-storage
+          emptyDir: {}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+  {{- if .Values.middleManager.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: task-storage
+      spec:
+        accessModes:
+          {{- toYaml .Values.middleManager.persistence.accessModes | nindent 10 }}
+        {{- with .Values.middleManager.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.middleManager.persistence.size }}
+  {{- end }}
+{{- end }}

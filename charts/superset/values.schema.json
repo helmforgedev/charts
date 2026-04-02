@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Apache Superset Helm Chart Values",
+  "description": "Values for the Apache Superset Helm chart — BI platform with web, worker, and beat deployments backed by PostgreSQL and Redis",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "nameOverride": { "type": "string", "default": "" },
+    "fullnameOverride": { "type": "string", "default": "" },
+    "commonLabels": { "type": "object" },
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": { "type": "string", "default": "apache/superset" },
+        "tag": { "type": "string", "default": "" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "default": "IfNotPresent" }
+      }
+    },
+    "imagePullSecrets": { "type": "array", "items": { "type": "object" } },
+    "superset": {
+      "type": "object",
+      "description": "Superset application configuration",
+      "properties": {
+        "adminUsername": { "type": "string", "default": "admin" },
+        "adminFirstName": { "type": "string", "default": "Admin" },
+        "adminLastName": { "type": "string", "default": "User" },
+        "adminEmail": { "type": "string", "default": "admin@superset.local" },
+        "adminPassword": { "type": "string", "default": "" },
+        "existingSecret": { "type": "string", "default": "" },
+        "existingSecretPasswordKey": { "type": "string", "default": "admin-password" },
+        "secretKey": { "type": "string", "default": "" },
+        "existingSecretSecretKeyKey": { "type": "string", "default": "secret-key" },
+        "loadExamples": { "type": "boolean", "default": false },
+        "extraEnv": { "type": "array", "items": { "type": "object" } },
+        "extraConfig": { "type": "string", "default": "" }
+      }
+    },
+    "web": {
+      "type": "object",
+      "description": "Web server configuration",
+      "properties": {
+        "replicaCount": { "type": "integer", "default": 1 },
+        "workers": { "type": "integer", "default": 2 },
+        "timeout": { "type": "integer", "default": 120 },
+        "extraEnv": { "type": "array", "items": { "type": "object" } },
+        "resources": { "type": "object" },
+        "podLabels": { "type": "object" },
+        "podAnnotations": { "type": "object" }
+      }
+    },
+    "worker": {
+      "type": "object",
+      "description": "Celery worker configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "replicaCount": { "type": "integer", "default": 1 },
+        "concurrency": { "type": "integer", "default": 2 },
+        "extraEnv": { "type": "array", "items": { "type": "object" } },
+        "resources": { "type": "object" },
+        "podLabels": { "type": "object" },
+        "podAnnotations": { "type": "object" }
+      }
+    },
+    "beat": {
+      "type": "object",
+      "description": "Celery beat scheduler configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "extraEnv": { "type": "array", "items": { "type": "object" } },
+        "resources": { "type": "object" },
+        "podLabels": { "type": "object" },
+        "podAnnotations": { "type": "object" }
+      }
+    },
+    "init": {
+      "type": "object",
+      "description": "Init job configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "extraEnv": { "type": "array", "items": { "type": "object" } },
+        "resources": { "type": "object" }
+      }
+    },
+    "database": {
+      "type": "object",
+      "description": "Database configuration",
+      "properties": {
+        "mode": { "type": "string", "enum": ["subchart", "external"], "default": "subchart" },
+        "external": {
+          "type": "object",
+          "properties": {
+            "host": { "type": "string", "default": "" },
+            "port": { "type": "integer", "default": 5432 },
+            "name": { "type": "string", "default": "superset" },
+            "username": { "type": "string", "default": "superset" },
+            "password": { "type": "string", "default": "" },
+            "existingSecret": { "type": "string", "default": "" },
+            "existingSecretPasswordKey": { "type": "string", "default": "password" }
+          }
+        }
+      }
+    },
+    "redisConfig": {
+      "type": "object",
+      "description": "Redis configuration",
+      "properties": {
+        "mode": { "type": "string", "enum": ["subchart", "external"], "default": "subchart" },
+        "external": {
+          "type": "object",
+          "properties": {
+            "host": { "type": "string", "default": "" },
+            "port": { "type": "integer", "default": 6379 },
+            "password": { "type": "string", "default": "" },
+            "db": { "type": "integer", "default": 0 },
+            "existingSecret": { "type": "string", "default": "" },
+            "existingSecretPasswordKey": { "type": "string", "default": "password" }
+          }
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"], "default": "ClusterIP" },
+        "port": { "type": "integer", "default": 80 },
+        "annotations": { "type": "object" }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "ingressClassName": { "type": "string", "default": "traefik" },
+        "annotations": { "type": "object" },
+        "hosts": { "type": "array", "items": { "type": "object" } },
+        "tls": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "probes": { "type": "object" },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "create": { "type": "boolean", "default": false },
+        "name": { "type": "string", "default": "" },
+        "annotations": { "type": "object" }
+      }
+    },
+    "podSecurityContext": { "type": "object" },
+    "securityContext": { "type": "object" },
+    "resources": { "type": "object" },
+    "nodeSelector": { "type": "object" },
+    "tolerations": { "type": "array", "items": { "type": "object" } },
+    "affinity": { "type": "object" },
+    "topologySpreadConstraints": { "type": "array", "items": { "type": "object" } },
+    "priorityClassName": { "type": "string", "default": "" },
+    "terminationGracePeriodSeconds": { "type": "integer", "default": 30 },
+    "podLabels": { "type": "object" },
+    "podAnnotations": { "type": "object" },
+    "extraVolumes": { "type": "array", "items": { "type": "object" } },
+    "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
+    "extraManifests": { "type": "array", "items": { "type": "object" } },
+    "postgresql": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true }
+      }
+    },
+    "redis": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true }
+      }
+    }
+  }
+}

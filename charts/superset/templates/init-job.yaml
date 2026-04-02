@@ -1,0 +1,81 @@
+{{- if .Values.init.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "superset.fullname" . }}-init
+  labels:
+    {{- include "superset.labels" . | nindent 4 }}
+    app.kubernetes.io/component: init
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "superset.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: init
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "superset.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      restartPolicy: OnFailure
+      initContainers:
+        {{- include "superset.initContainers" . | nindent 8 }}
+      containers:
+        - name: superset-init
+          image: {{ include "superset.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              pip install psycopg2-binary redis --quiet --disable-pip-version-check
+              echo "Running database migrations..."
+              superset db upgrade
+              echo "Initializing Superset..."
+              superset init
+              echo "Creating admin user..."
+              superset fab create-admin \
+                --username {{ .Values.superset.adminUsername | quote }} \
+                --firstname {{ .Values.superset.adminFirstName | quote }} \
+                --lastname {{ .Values.superset.adminLastName | quote }} \
+                --email {{ .Values.superset.adminEmail | quote }} \
+                --password "$ADMIN_PASSWORD" || true
+              {{- if .Values.superset.loadExamples }}
+              echo "Loading examples..."
+              superset load_examples
+              {{- end }}
+              echo "Init complete."
+          env:
+            {{- include "superset.commonEnv" . | nindent 12 }}
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "superset.secretName" . }}
+                  key: {{ .Values.superset.existingSecretPasswordKey | default "admin-password" }}
+            {{- with .Values.init.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: superset-config
+              mountPath: /app/pythonpath/superset_config.py
+              subPath: superset_config.py
+          {{- with .Values.init.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: superset-config
+          configMap:
+            name: {{ include "superset.fullname" . }}-config
+{{- end }}

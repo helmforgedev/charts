@@ -1,0 +1,41 @@
+suite: Ingress
+templates:
+  - templates/ingress.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render when enabled
+    set:
+      ingress:
+        enabled: true
+        hosts:
+          - host: superset.example.com
+            paths:
+              - path: /
+                pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.rules[0].host
+          value: superset.example.com
+
+  - it: should set ingressClassName
+    set:
+      ingress:
+        enabled: true
+        ingressClassName: nginx
+        hosts:
+          - host: superset.example.com
+            paths:
+              - path: /
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx

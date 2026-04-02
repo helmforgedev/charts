@@ -1,0 +1,57 @@
+suite: Worker Deployment
+templates:
+  - templates/worker-deployment.yaml
+  - templates/secret.yaml
+  - templates/configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment for worker
+    template: templates/worker-deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-superset-worker
+
+  - it: should have worker component label
+    template: templates/worker-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: worker
+
+  - it: should run celery worker command
+    template: templates/worker-deployment.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "celery.*worker"
+
+  - it: should not render when disabled
+    template: templates/worker-deployment.yaml
+    set:
+      worker.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should set custom concurrency
+    template: templates/worker-deployment.yaml
+    set:
+      worker.concurrency: 4
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "--concurrency=4"
+
+  - it: should set custom replica count
+    template: templates/worker-deployment.yaml
+    set:
+      worker.replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3

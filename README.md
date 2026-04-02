@@ -100,6 +100,9 @@ HelmForge is built on a simple principle: **use what upstream ships, nothing mor
 | [archivebox](charts/archivebox/) | alpha | ArchiveBox — self-hosted web archiving with Chromium headless, multi-format capture, and persistent storage |
 | [countly](charts/countly/) | alpha | Countly — product analytics platform with MongoDB, event tracking, crash reporting, and plugin system |
 | [middleware](charts/middleware/) | alpha | Middleware — open-source DORA metrics platform with PostgreSQL, Redis, and engineering performance tracking |
+| [superset](charts/superset/) | alpha | Apache Superset — data exploration and visualization with Celery workers, PostgreSQL, and Redis |
+| [ckan](charts/ckan/) | alpha | CKAN — open data portal with DataPusher, Solr, PostgreSQL, and Redis |
+| [druid](charts/druid/) | alpha | Apache Druid — distributed analytics database with coordinator, broker, historical, and router |
 
 ### Maturity levels
 
