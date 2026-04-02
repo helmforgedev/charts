@@ -1,0 +1,51 @@
+{{- if eq (include "dolibarr.backupEnabled" .) "true" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dolibarr.fullname" . }}-backup
+  labels:
+    {{- include "dolibarr.labels" . | nindent 4 }}
+data:
+  mysql-backup.sh: |
+    #!/bin/bash
+    set -euo pipefail
+
+    TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
+    DUMP_FILE="/backup/{{ .Values.backup.archivePrefix }}-${TIMESTAMP}.sql.gz"
+
+    echo "[backup] starting mysqldump of database '${MYSQL_DATABASE}' at ${TIMESTAMP}"
+
+    mysqldump -h "${MYSQL_HOST}" -P "${MYSQL_PORT}" -u "${MYSQL_USER}" \
+      {{ .Values.backup.database.mysqldumpArgs }} \
+      "${MYSQL_DATABASE}" | gzip > "${DUMP_FILE}"
+
+    DUMP_SIZE=$(stat -c%s "${DUMP_FILE}" 2>/dev/null || stat -f%z "${DUMP_FILE}")
+    echo "[backup] dump completed: ${DUMP_FILE} (${DUMP_SIZE} bytes)"
+
+  upload-backup.sh: |
+    #!/bin/bash
+    set -euo pipefail
+
+    DUMP_FILE=$(ls -t /backup/*.sql.gz | head -1)
+    if [ -z "${DUMP_FILE}" ]; then
+      echo "[upload] ERROR: no dump file found in /backup"
+      exit 1
+    fi
+
+    echo "[upload] configuring mc alias 's3'"
+    mc alias set s3 "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}"
+
+    {{- if .Values.backup.s3.createBucketIfNotExists }}
+    if ! mc ls "s3/{{ .Values.backup.s3.bucket }}" >/dev/null 2>&1; then
+      echo "[upload] creating bucket '{{ .Values.backup.s3.bucket }}'"
+      mc mb "s3/{{ .Values.backup.s3.bucket }}"
+    fi
+    {{- end }}
+
+    BASENAME=$(basename "${DUMP_FILE}")
+    DEST="s3/{{ .Values.backup.s3.bucket }}/{{ .Values.backup.s3.prefix }}/${BASENAME}"
+
+    echo "[upload] uploading ${DUMP_FILE} -> ${DEST}"
+    mc cp "${DUMP_FILE}" "${DEST}"
+    echo "[upload] upload completed successfully"
+{{- end }}

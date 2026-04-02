@@ -253,3 +253,30 @@ sleep 3; flowise start
 {{- define "flowise.workerCommand" -}}
 sleep 3; flowise worker
 {{- end -}}
+
+{{- define "flowise.backupSecretName" -}}
+{{- if .Values.backup.s3.existingSecret -}}
+{{- .Values.backup.s3.existingSecret -}}
+{{- else -}}
+{{- printf "%s-backup" (include "flowise.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "flowise.backupEnabled" -}}
+{{- if .Values.backup.enabled -}}
+  {{- $dbMode := include "flowise.databaseMode" . -}}
+  {{- if eq $dbMode "sqlite" -}}
+    {{- fail "backup.enabled requires PostgreSQL — backup is not supported when database mode is sqlite" -}}
+  {{- end -}}
+  {{- if not .Values.backup.s3.endpoint -}}
+    {{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if not .Values.backup.s3.bucket -}}
+    {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- end -}}
+true
+{{- end -}}
+{{- end -}}

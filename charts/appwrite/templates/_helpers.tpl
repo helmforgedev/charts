@@ -405,3 +405,52 @@ startupProbe:
   failureThreshold: {{ .Values.startupProbe.failureThreshold }}
 {{- end }}
 {{- end -}}
+
+{{/* ---- Backup helpers ---- */}}
+
+{{- define "appwrite.backupSecretName" -}}
+{{- if .Values.backup.s3.existingSecret -}}
+{{- .Values.backup.s3.existingSecret -}}
+{{- else -}}
+{{- printf "%s-backup" (include "appwrite.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "appwrite.backupEnabled" -}}
+{{- if .Values.backup.enabled -}}
+  {{- if not .Values.backup.s3.endpoint -}}
+    {{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if not .Values.backup.s3.bucket -}}
+    {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- end -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{- define "appwrite.backupDbHost" -}}
+{{- include "appwrite.databaseHost" . -}}
+{{- end -}}
+
+{{- define "appwrite.backupDbPort" -}}
+{{- include "appwrite.databasePort" . -}}
+{{- end -}}
+
+{{- define "appwrite.backupDbName" -}}
+{{- include "appwrite.databaseName" . -}}
+{{- end -}}
+
+{{- define "appwrite.backupDbUsername" -}}
+{{- include "appwrite.databaseRootUser" . -}}
+{{- end -}}
+
+{{- define "appwrite.backupDbPasswordSecretName" -}}
+{{- include "appwrite.databaseSecretName" . -}}
+{{- end -}}
+
+{{- define "appwrite.backupDbPasswordSecretKey" -}}
+{{- include "appwrite.databaseSecretKey" . -}}
+{{- end -}}
