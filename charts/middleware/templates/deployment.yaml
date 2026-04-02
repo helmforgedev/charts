@@ -1,0 +1,168 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "middleware.fullname" . }}
+  labels:
+    {{- include "middleware.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "middleware.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "middleware.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "middleware.serviceAccountName" . }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if and .Values.postgresql.enabled (not .Values.externalDatabase.enabled) }}
+      initContainers:
+        - name: wait-for-postgresql
+          image: busybox:1.37
+          command: ["sh", "-c", "until nc -z {{ include "middleware.dbHost" . }} 5432; do echo waiting for postgresql; sleep 2; done"]
+      {{- end }}
+      containers:
+        - name: middleware
+          image: {{ include "middleware.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.middleware.frontendPort }}
+              protocol: TCP
+            - name: analytics
+              containerPort: {{ .Values.middleware.analyticsPort }}
+              protocol: TCP
+            - name: sync
+              containerPort: {{ .Values.middleware.syncPort }}
+              protocol: TCP
+          env:
+            - name: ENVIRONMENT
+              value: {{ .Values.middleware.environment | quote }}
+            - name: POSTGRES_DB_ENABLED
+              value: {{ .Values.middleware.internalDbEnabled | quote }}
+            - name: REDIS_ENABLED
+              value: {{ .Values.middleware.internalRedisEnabled | quote }}
+            {{- if not .Values.externalDatabase.enabled }}
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "middleware.dbSecretName" . }}
+                  key: {{ include "middleware.dbSecretPasswordKey" . }}
+            {{- else if .Values.externalDatabase.existingSecret }}
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalDatabase.existingSecret }}
+                  key: {{ .Values.externalDatabase.existingSecretPasswordKey | default "user-password" }}
+            {{- else }}
+            - name: DB_PASS
+              value: {{ .Values.externalDatabase.password | quote }}
+            {{- end }}
+            - name: DB_HOST
+              value: {{ include "middleware.dbHost" . | quote }}
+            - name: DB_PORT
+              value: {{ include "middleware.dbPort" . | quote }}
+            - name: DB_NAME
+              value: {{ include "middleware.dbName" . | quote }}
+            - name: DB_USER
+              value: {{ include "middleware.dbUser" . | quote }}
+            - name: REDIS_HOST
+              value: {{ include "middleware.redisHost" . | quote }}
+            - name: REDIS_PORT
+              value: {{ include "middleware.redisPort" . | quote }}
+            - name: TZ
+              value: {{ .Values.middleware.timezone | quote }}
+            {{- with .Values.middleware.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /app/keys
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "middleware.dataClaimName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

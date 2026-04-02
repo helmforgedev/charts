@@ -1,0 +1,141 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-middleware
+
+  - it: should use Recreate strategy
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should set the correct image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "middlewareeng/middleware:0.3.1"
+
+  - it: should expose three ports
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 3333
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: analytics
+            containerPort: 9696
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: sync
+            containerPort: 9697
+            protocol: TCP
+
+  - it: should disable internal DB and Redis
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_DB_ENABLED
+            value: "false"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_ENABLED
+            value: "false"
+
+  - it: should set PostgreSQL connection from subchart
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_HOST
+            value: "test-postgresql"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_PASS
+            valueFrom:
+              secretKeyRef:
+                name: test-postgresql-auth
+                key: user-password
+
+  - it: should set Redis connection from subchart
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_HOST
+            value: "test-redis"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PORT
+            value: "6379"
+
+  - it: should use external database when configured
+    set:
+      postgresql.enabled: false
+      externalDatabase.enabled: true
+      externalDatabase.host: ext-db.example.com
+      externalDatabase.name: mydb
+      externalDatabase.user: myuser
+      externalDatabase.password: mypass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_HOST
+            value: "ext-db.example.com"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_PASS
+            value: "mypass"
+
+  - it: should have wait-for-postgresql init container
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-postgresql
+
+  - it: should not have init container with external DB
+    set:
+      postgresql.enabled: false
+      externalDatabase.enabled: true
+      externalDatabase.host: ext-db
+    asserts:
+      - notExists:
+          path: spec.template.spec.initContainers
+
+  - it: should mount data volume at /app/keys
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /app/keys
+
+  - it: should use TCP probes
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.tcpSocket.port
+          value: http
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+          value: http

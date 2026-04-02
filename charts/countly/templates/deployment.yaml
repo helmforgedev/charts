@@ -1,0 +1,154 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "countly.fullname" . }}
+  labels:
+    {{- include "countly.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "countly.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "countly.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "countly.serviceAccountName" . }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if and .Values.mongodb.enabled (not .Values.externalMongodb.enabled) }}
+      initContainers:
+        - name: wait-for-mongodb
+          image: busybox:1.37
+          command: ["sh", "-c", "until nc -z {{ include "countly.mongodbHost" . }} 27017; do echo waiting for mongodb; sleep 2; done"]
+      {{- end }}
+      containers:
+        - name: countly
+          image: {{ include "countly.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: api
+              containerPort: {{ .Values.countly.apiPort }}
+              protocol: TCP
+            - name: dashboard
+              containerPort: {{ .Values.countly.dashboardPort }}
+              protocol: TCP
+          env:
+            {{- if not .Values.externalMongodb.enabled }}
+            - name: MONGODB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "countly.mongodbSecretName" . }}
+                  key: mongodb-root-password
+            - name: COUNTLY_CONFIG__MONGODB
+              value: {{ include "countly.mongodbUri" . | quote }}
+            {{- else if .Values.externalMongodb.existingSecret }}
+            - name: COUNTLY_CONFIG__MONGODB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalMongodb.existingSecret }}
+                  key: {{ .Values.externalMongodb.existingSecretUriKey }}
+            {{- else }}
+            - name: COUNTLY_CONFIG__MONGODB
+              value: {{ .Values.externalMongodb.uri | quote }}
+            {{- end }}
+            - name: COUNTLY_CONFIG_API_API_HOST
+              value: "0.0.0.0"
+            - name: COUNTLY_CONFIG_API_API_PORT
+              value: {{ .Values.countly.apiPort | quote }}
+            - name: COUNTLY_CONFIG_FRONTEND_WEB_HOST
+              value: "0.0.0.0"
+            - name: COUNTLY_CONFIG_FRONTEND_WEB_PORT
+              value: {{ .Values.countly.dashboardPort | quote }}
+            - name: COUNTLY_CONFIG_API_API_WORKERS
+              value: {{ .Values.countly.apiWorkers | quote }}
+            - name: TZ
+              value: {{ .Values.countly.timezone | quote }}
+            {{- with .Values.countly.plugins }}
+            - name: COUNTLY_PLUGINS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.countly.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            tcpSocket:
+              port: dashboard
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            tcpSocket:
+              port: dashboard
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            tcpSocket:
+              port: dashboard
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.extraVolumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.extraVolumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

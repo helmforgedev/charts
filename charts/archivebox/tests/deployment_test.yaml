@@ -1,0 +1,159 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-archivebox
+
+  - it: should use Recreate strategy
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should set the correct image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "archivebox/archivebox:0.7.3"
+
+  - it: should set server command
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value: ["archivebox"]
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value: ["server", "--quick-init", "0.0.0.0:8000"]
+
+  - it: should set admin credentials from secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ADMIN_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: test-archivebox-admin
+                key: admin-username
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-archivebox-admin
+                key: admin-password
+
+  - it: should use existing secret when configured
+    set:
+      archivebox.existingSecret: my-secret
+      archivebox.existingSecretUsernameKey: user
+      archivebox.existingSecretPasswordKey: pass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ADMIN_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: my-secret
+                key: user
+
+  - it: should set archivebox config env vars
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ALLOWED_HOSTS
+            value: "*"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PUBLIC_INDEX
+            value: "True"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SEARCH_BACKEND_ENGINE
+            value: "ripgrep"
+
+  - it: should mount data volume
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /data
+
+  - it: should mount /dev/shm for Chromium
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dshm
+            mountPath: /dev/shm
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: dshm
+            emptyDir:
+              medium: Memory
+              sizeLimit: 1Gi
+
+  - it: should use PVC for data when persistence enabled
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          value: test-archivebox-data
+
+  - it: should use emptyDir when persistence disabled
+    set:
+      persistence.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].emptyDir
+          value: {}
+
+  - it: should use HTTP probes with /health/ path
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /health/
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /health/
+
+  - it: should set container port
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 8000
+            protocol: TCP
+
+  - it: should run as non-root UID 911
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 911
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 911
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+
+  - it: should not have init containers
+    asserts:
+      - notExists:
+          path: spec.template.spec.initContainers

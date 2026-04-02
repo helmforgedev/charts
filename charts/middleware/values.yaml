@@ -1,0 +1,225 @@
+# =============================================================================
+# Middleware Helm Chart — Default Values
+# =============================================================================
+# Focus: open-source DORA metrics platform for engineering team performance
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Middleware container image
+  repository: middlewareeng/middleware
+  # -- Image tag (defaults to appVersion)
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Middleware Configuration
+# =============================================================================
+
+middleware:
+  # -- Frontend port (Next.js)
+  frontendPort: 3333
+  # -- Analytics API port
+  analyticsPort: 9696
+  # -- Sync server port
+  syncPort: 9697
+  # -- Environment
+  environment: prod
+  # -- Disable internal PostgreSQL (use subchart instead)
+  internalDbEnabled: "false"
+  # -- Disable internal Redis (use subchart instead)
+  internalRedisEnabled: "false"
+  # -- Timezone
+  timezone: UTC
+  # -- Extra environment variables for the container
+  # -- @default -- `[]`
+  extraEnv: []
+
+# =============================================================================
+# External Database (when not using subchart)
+# =============================================================================
+
+externalDatabase:
+  # -- Use external database instead of subchart
+  enabled: false
+  # -- Database host
+  host: ""
+  # -- Database port
+  port: 5432
+  # -- Database name
+  name: "mhq-oss"
+  # -- Database user
+  user: "middleware"
+  # -- Database password
+  password: ""
+  # -- Existing secret with database credentials
+  existingSecret: ""
+  # -- Key in existing secret for password
+  existingSecretPasswordKey: user-password
+
+# =============================================================================
+# External Redis (when not using subchart)
+# =============================================================================
+
+externalRedis:
+  # -- Use external Redis instead of subchart
+  enabled: false
+  # -- Redis host
+  host: ""
+  # -- Redis port
+  port: 6379
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistence for /app/keys
+  enabled: true
+  # -- Storage size
+  size: 1Gi
+  # -- Storage class
+  storageClass: ""
+  # -- Access modes
+  accessModes:
+    - ReadWriteOnce
+  # -- Use an existing PVC
+  existingClaim: ""
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- Frontend service port
+  port: 80
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Middleware
+  enabled: false
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts: []
+    # - host: middleware.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+    # - hosts:
+    #     - middleware.example.com
+    #   secretName: middleware-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []
+
+# =============================================================================
+# PostgreSQL Subchart
+# =============================================================================
+
+postgresql:
+  # -- Enable bundled PostgreSQL subchart
+  enabled: true
+  auth:
+    # -- PostgreSQL database name
+    database: mhq-oss
+    # -- PostgreSQL username
+    username: middleware
+    # -- PostgreSQL password (auto-generated if empty)
+    password: ""
+
+# =============================================================================
+# Redis Subchart
+# =============================================================================
+
+redis:
+  # -- Enable bundled Redis subchart
+  enabled: true
+  # -- Redis architecture
+  architecture: standalone

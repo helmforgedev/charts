@@ -1,0 +1,178 @@
+# =============================================================================
+# Countly Helm Chart — Default Values
+# =============================================================================
+# Focus: product analytics with MongoDB, event tracking, and plugin system
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Countly container image
+  repository: countly/countly-server
+  # -- Image tag (defaults to appVersion)
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Countly Configuration
+# =============================================================================
+
+countly:
+  # -- API port (internal)
+  apiPort: 3001
+  # -- Dashboard/frontend port (internal)
+  dashboardPort: 6001
+  # -- Number of API worker processes
+  apiWorkers: 4
+  # -- Timezone
+  timezone: UTC
+  # -- Plugins to enable (comma-separated list or leave empty for defaults)
+  plugins: ""
+  # -- Extra environment variables for the container
+  # -- @default -- `[]`
+  extraEnv: []
+
+# =============================================================================
+# MongoDB Connection
+# =============================================================================
+
+externalMongodb:
+  # -- Use external MongoDB instead of subchart
+  enabled: false
+  # -- MongoDB connection URI (when using external MongoDB)
+  uri: ""
+  # -- Existing secret with MongoDB URI
+  existingSecret: ""
+  # -- Key in existing secret for MongoDB URI
+  existingSecretUriKey: mongodb-uri
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- Dashboard service port
+  port: 80
+  # -- API service port
+  apiPort: 3001
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Countly
+  enabled: false
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts: []
+    # - host: countly.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+    # - hosts:
+    #     - countly.example.com
+    #   secretName: countly-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    initialDelaySeconds: 20
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []
+
+# =============================================================================
+# MongoDB Subchart
+# =============================================================================
+
+mongodb:
+  # -- Enable bundled MongoDB subchart
+  enabled: true
+  # -- MongoDB architecture
+  architecture: standalone
+  auth:
+    # -- Enable MongoDB authentication
+    enabled: true
+    # -- MongoDB root username
+    rootUser: root
+    # -- MongoDB root password (auto-generated if empty)
+    rootPassword: ""

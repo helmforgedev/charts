@@ -97,6 +97,9 @@ HelmForge is built on a simple principle: **use what upstream ships, nothing mor
 | [liwan](charts/liwan/) | alpha | Liwan — ultra-lightweight privacy-first web analytics with embedded DuckDB |
 | [wallabag](charts/wallabag/) | alpha | Wallabag — self-hosted read-it-later with PostgreSQL, optional Redis, and Symfony configuration |
 | [strava-statistics](charts/strava-statistics/) | alpha | Statistics for Strava — self-hosted fitness dashboard with SQLite and Strava OAuth |
+| [archivebox](charts/archivebox/) | alpha | ArchiveBox — self-hosted web archiving with Chromium headless, multi-format capture, and persistent storage |
+| [countly](charts/countly/) | alpha | Countly — product analytics platform with MongoDB, event tracking, crash reporting, and plugin system |
+| [middleware](charts/middleware/) | alpha | Middleware — open-source DORA metrics platform with PostgreSQL, Redis, and engineering performance tracking |
 
 ### Maturity levels
 

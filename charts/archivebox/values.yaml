@@ -1,0 +1,194 @@
+# =============================================================================
+# ArchiveBox Helm Chart — Default Values
+# =============================================================================
+# Focus: self-hosted web archiving with Chromium headless and multi-format capture
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- ArchiveBox container image
+  repository: archivebox/archivebox
+  # -- Image tag (defaults to appVersion)
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# ArchiveBox Configuration
+# =============================================================================
+
+archivebox:
+  # -- Application port
+  port: 8000
+  # -- Admin username (created on first run)
+  adminUsername: admin
+  # -- Admin password (required for initial setup)
+  adminPassword: ""
+  # -- Existing secret containing admin credentials
+  existingSecret: ""
+  # -- Key in existing secret for admin username
+  existingSecretUsernameKey: admin-username
+  # -- Key in existing secret for admin password
+  existingSecretPasswordKey: admin-password
+  # -- Allowed hostnames (comma-separated or *)
+  allowedHosts: "*"
+  # -- Allow public access to the index page
+  publicIndex: "True"
+  # -- Allow public access to archived snapshots
+  publicSnapshots: "True"
+  # -- Allow public access to add URLs
+  publicAddLinks: "False"
+  # -- Search backend engine (ripgrep, sqlite, sonic)
+  searchBackendEngine: ripgrep
+  # -- Maximum media file size to download (bytes notation)
+  mediaMaxSize: "750m"
+  # -- Timeout for archiving a single URL (seconds)
+  timeout: "60"
+  # -- Timezone
+  timezone: UTC
+  # -- Extra environment variables for the container
+  # -- @default -- `[]`
+  extraEnv: []
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistence for /data (SQLite DB + archived content)
+  enabled: true
+  # -- Storage size (plan for large archives, 50-100GB+)
+  size: 50Gi
+  # -- Storage class
+  storageClass: ""
+  # -- Access modes
+  accessModes:
+    - ReadWriteOnce
+  # -- Use an existing PVC
+  existingClaim: ""
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- HTTP service port
+  port: 80
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for ArchiveBox
+  enabled: false
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts: []
+    # - host: archive.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+    # - hosts:
+    #     - archive.example.com
+    #   secretName: archivebox-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    path: /health/
+    initialDelaySeconds: 15
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    path: /health/
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    path: /health/
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+# -- Container resource requests/limits (Chromium requires ~2Gi RAM minimum)
+resources: {}
+  # requests:
+  #   cpu: 500m
+  #   memory: 2Gi
+  # limits:
+  #   cpu: 2000m
+  #   memory: 4Gi
+
+podSecurityContext:
+  fsGroup: 911
+
+securityContext:
+  runAsUser: 911
+  runAsGroup: 911
+  runAsNonRoot: true
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []
