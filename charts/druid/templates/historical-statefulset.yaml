@@ -1,0 +1,145 @@
+{{- if .Values.historical.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "druid.fullname" . }}-historical
+  labels:
+    {{- include "druid.labels" . | nindent 4 }}
+    app.kubernetes.io/component: historical
+spec:
+  serviceName: {{ include "druid.fullname" . }}-historical-headless
+  replicas: {{ .Values.historical.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "druid.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: historical
+  template:
+    metadata:
+      labels:
+        {{- include "druid.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: historical
+        {{- with .Values.historical.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.historical.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "druid.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        {{- include "druid.initContainers" . | nindent 8 }}
+      containers:
+        - name: historical
+          image: {{ include "druid.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              cp /opt/druid/conf/druid/cluster/_common/common.runtime.properties.base /opt/druid/conf/druid/cluster/_common/common.runtime.properties
+              cat >> /opt/druid/conf/druid/cluster/data/historical/runtime.properties <<'PROPS'
+              druid.segmentCache.locations=[{"path":"/data/segment-cache","maxSize":10737418240}]
+              {{- if .Values.historical.extraProperties }}
+              {{ .Values.historical.extraProperties | nindent 14 }}
+              {{- end }}
+              PROPS
+              exec /druid.sh historical
+          env:
+            - name: JAVA_OPTS
+              value: {{ .Values.historical.javaOpts | quote }}
+            - name: druid_port
+              value: {{ .Values.historical.port | quote }}
+            {{- include "druid.commonEnv" . | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.historical.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /status/health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /status/selfDiscovered
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.historical.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: common-config
+              mountPath: /opt/druid/conf/druid/cluster/_common/common.runtime.properties.base
+              subPath: common.runtime.properties
+            - name: druid-var
+              mountPath: /opt/druid/var
+            - name: segment-cache
+              mountPath: /data/segment-cache
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: common-config
+          configMap:
+            name: {{ include "druid.fullname" . }}-common
+        - name: druid-var
+          emptyDir: {}
+        {{- if not .Values.historical.persistence.enabled }}
+        - name: segment-cache
+          emptyDir: {}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+  {{- if .Values.historical.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: segment-cache
+      spec:
+        accessModes:
+          {{- toYaml .Values.historical.persistence.accessModes | nindent 10 }}
+        {{- with .Values.historical.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.historical.persistence.size }}
+  {{- end }}
+{{- end }}

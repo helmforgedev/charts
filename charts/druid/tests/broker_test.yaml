@@ -1,0 +1,50 @@
+suite: broker deployment
+templates:
+  - templates/broker-deployment.yaml
+  - templates/configmap.yaml
+tests:
+  - it: should render broker deployment by default
+    template: templates/broker-deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-druid-broker
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should use correct port
+    template: templates/broker-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8082
+
+  - it: should set java opts
+    template: templates/broker-deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JAVA_OPTS
+            value: "-Xms512m -Xmx1g"
+
+  - it: should not render when disabled
+    template: templates/broker-deployment.yaml
+    set:
+      broker.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should include health probes
+    template: templates/broker-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /status/health
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /status/selfDiscovered

@@ -1,0 +1,31 @@
+suite: overlord statefulset
+templates:
+  - templates/overlord-statefulset.yaml
+  - templates/configmap.yaml
+tests:
+  - it: should render overlord statefulset by default
+    template: templates/overlord-statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-druid-overlord
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should use correct port
+    template: templates/overlord-statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8090
+
+  - it: should not render when disabled
+    template: templates/overlord-statefulset.yaml
+    set:
+      overlord.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

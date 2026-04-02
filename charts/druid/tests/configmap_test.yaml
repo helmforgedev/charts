@@ -1,0 +1,56 @@
+suite: configmap
+templates:
+  - templates/configmap.yaml
+tests:
+  - it: should render common runtime properties configmap
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-druid-common
+
+  - it: should include postgresql metadata config by default
+    asserts:
+      - matchRegex:
+          path: data["common.runtime.properties"]
+          pattern: "druid.metadata.storage.type=postgresql"
+
+  - it: should include zookeeper config
+    asserts:
+      - matchRegex:
+          path: data["common.runtime.properties"]
+          pattern: "druid.zk.service.host=RELEASE-NAME-zookeeper:2181"
+
+  - it: should use local deep storage by default
+    asserts:
+      - matchRegex:
+          path: data["common.runtime.properties"]
+          pattern: "druid.storage.type=local"
+
+  - it: should use s3 deep storage when configured
+    set:
+      deepStorage:
+        type: s3
+        s3:
+          bucket: my-bucket
+          baseKey: druid/segments
+          region: us-east-1
+    asserts:
+      - matchRegex:
+          path: data["common.runtime.properties"]
+          pattern: "druid.storage.type=s3"
+      - matchRegex:
+          path: data["common.runtime.properties"]
+          pattern: "druid.storage.bucket=my-bucket"
+
+  - it: should include external zookeeper hosts
+    set:
+      zookeeperConfig:
+        mode: external
+        external:
+          hosts: "zk1:2181,zk2:2181"
+    asserts:
+      - matchRegex:
+          path: data["common.runtime.properties"]
+          pattern: "druid.zk.service.host=zk1:2181,zk2:2181"

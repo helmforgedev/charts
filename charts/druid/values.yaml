@@ -1,0 +1,352 @@
+# =============================================================================
+# Apache Druid Configuration
+# =============================================================================
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+
+# -- Override the full release name used in resource names
+fullnameOverride: ""
+
+# -- Labels added to every resource created by this chart
+commonLabels: {}
+
+image:
+  # -- Druid container image repository
+  repository: apache/druid
+  # -- Druid image tag. Defaults to appVersion.
+  tag: ""
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# =============================================================================
+# Common Druid Configuration
+# =============================================================================
+
+druid:
+  # -- Extra common runtime properties applied to all components
+  extraCommonProperties: ""
+  # -- Extra environment variables for all components
+  extraEnv: []
+
+# =============================================================================
+# Metadata Storage (PostgreSQL)
+# =============================================================================
+
+metadata:
+  # -- Metadata storage mode: subchart | external
+  mode: subchart
+  external:
+    # -- External metadata storage type (postgresql or mysql)
+    type: postgresql
+    # -- External database host
+    host: ""
+    # -- External database port
+    port: 5432
+    # -- External database name
+    name: druid
+    # -- External database username
+    username: druid
+    # -- External database password
+    password: ""
+    # -- Existing secret with external database password
+    existingSecret: ""
+    # -- Key in existingSecret for password
+    existingSecretPasswordKey: password
+
+# =============================================================================
+# ZooKeeper
+# =============================================================================
+
+zookeeperConfig:
+  # -- ZooKeeper mode: subchart | external
+  mode: subchart
+  external:
+    # -- External ZooKeeper connection string (host1:port1,host2:port2)
+    hosts: ""
+
+# =============================================================================
+# Deep Storage
+# =============================================================================
+
+deepStorage:
+  # -- Deep storage type: local | s3
+  type: local
+  s3:
+    # -- S3 bucket name
+    bucket: ""
+    # -- S3 base key (prefix)
+    baseKey: druid/segments
+    # -- S3 region
+    region: us-east-1
+    # -- S3 endpoint URL (for MinIO or compatible)
+    endpointUrl: ""
+    # -- S3 access key
+    accessKey: ""
+    # -- S3 secret key
+    secretKey: ""
+    # -- Existing secret with S3 credentials
+    existingSecret: ""
+    # -- Key in existingSecret for access key
+    existingSecretAccessKeyKey: access-key
+    # -- Key in existingSecret for secret key
+    existingSecretSecretKeyKey: secret-key
+
+# =============================================================================
+# Coordinator
+# =============================================================================
+
+coordinator:
+  # -- Enable coordinator
+  enabled: true
+  # -- Number of coordinator replicas
+  replicaCount: 1
+  # -- Coordinator port
+  port: 8081
+  # -- JVM options
+  javaOpts: "-Xms256m -Xmx512m"
+  # -- Extra runtime properties
+  extraProperties: ""
+  # -- Resource requests and limits
+  resources: {}
+  # -- Pod labels
+  podLabels: {}
+  # -- Pod annotations
+  podAnnotations: {}
+
+# =============================================================================
+# Overlord
+# =============================================================================
+
+overlord:
+  # -- Enable overlord (can be combined with coordinator)
+  enabled: true
+  # -- Number of overlord replicas
+  replicaCount: 1
+  # -- Overlord port
+  port: 8090
+  # -- JVM options
+  javaOpts: "-Xms256m -Xmx512m"
+  # -- Extra runtime properties
+  extraProperties: ""
+  # -- Resource requests and limits
+  resources: {}
+  # -- Pod labels
+  podLabels: {}
+  # -- Pod annotations
+  podAnnotations: {}
+
+# =============================================================================
+# Broker
+# =============================================================================
+
+broker:
+  # -- Enable broker
+  enabled: true
+  # -- Number of broker replicas
+  replicaCount: 1
+  # -- Broker port
+  port: 8082
+  # -- JVM options
+  javaOpts: "-Xms512m -Xmx1g"
+  # -- Extra runtime properties
+  extraProperties: ""
+  # -- Resource requests and limits
+  resources: {}
+  # -- Pod labels
+  podLabels: {}
+  # -- Pod annotations
+  podAnnotations: {}
+
+# =============================================================================
+# Router (Web Console)
+# =============================================================================
+
+router:
+  # -- Enable router (web console)
+  enabled: true
+  # -- Number of router replicas
+  replicaCount: 1
+  # -- Router port
+  port: 8888
+  # -- JVM options
+  javaOpts: "-Xms128m -Xmx256m"
+  # -- Extra runtime properties
+  extraProperties: ""
+  # -- Resource requests and limits
+  resources: {}
+  # -- Pod labels
+  podLabels: {}
+  # -- Pod annotations
+  podAnnotations: {}
+
+# =============================================================================
+# Historical
+# =============================================================================
+
+historical:
+  # -- Enable historical
+  enabled: true
+  # -- Number of historical replicas
+  replicaCount: 1
+  # -- Historical port
+  port: 8083
+  # -- JVM options
+  javaOpts: "-Xms512m -Xmx1g"
+  # -- Extra runtime properties
+  extraProperties: ""
+  # -- Segment cache persistence
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+  # -- Resource requests and limits
+  resources: {}
+  # -- Pod labels
+  podLabels: {}
+  # -- Pod annotations
+  podAnnotations: {}
+
+# =============================================================================
+# MiddleManager
+# =============================================================================
+
+middleManager:
+  # -- Enable middle manager
+  enabled: true
+  # -- Number of middle manager replicas
+  replicaCount: 1
+  # -- MiddleManager port
+  port: 8091
+  # -- JVM options
+  javaOpts: "-Xms128m -Xmx256m"
+  # -- Number of task workers per middle manager
+  workerCapacity: 2
+  # -- Extra runtime properties
+  extraProperties: ""
+  # -- Task storage persistence
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+  # -- Resource requests and limits
+  resources: {}
+  # -- Pod labels
+  podLabels: {}
+  # -- Pod annotations
+  podAnnotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type for the router (web console)
+  type: ClusterIP
+  # -- Service port
+  port: 80
+  # -- Service annotations
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress (routes to the router/web console)
+  enabled: false
+  # -- Ingress class name (traefik, nginx, etc.)
+  ingressClassName: traefik
+  # -- Ingress annotations
+  # @default -- `{}`
+  # Example:
+  #   cert-manager.io/cluster-issuer: letsencrypt-prod
+  annotations: {}
+  # -- Ingress hosts
+  hosts: []
+  # -- Ingress TLS
+  tls: []
+
+# =============================================================================
+# ServiceAccount
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- ServiceAccount annotations
+  annotations: {}
+
+# =============================================================================
+# Security & Scheduling
+# =============================================================================
+
+# -- Pod-level security context (fsGroup matches the druid image UID)
+podSecurityContext:
+  fsGroup: 1000
+
+# -- Container-level security context
+securityContext: {}
+
+# -- Node selector
+nodeSelector: {}
+
+# -- Tolerations
+tolerations: []
+
+# -- Affinity rules
+affinity: {}
+
+# -- Priority class name
+priorityClassName: ""
+
+# -- Termination grace period in seconds
+terminationGracePeriodSeconds: 30
+
+# -- Extra volumes
+extraVolumes: []
+
+# -- Extra volume mounts
+extraVolumeMounts: []
+
+# -- Extra Kubernetes manifests to deploy
+extraManifests: []
+
+# =============================================================================
+# PostgreSQL Subchart
+# =============================================================================
+
+postgresql:
+  # -- Enable PostgreSQL subchart for metadata storage
+  enabled: true
+  auth:
+    # -- PostgreSQL database name
+    database: druid
+    # -- PostgreSQL username
+    username: druid
+    # -- PostgreSQL password. Auto-generated if empty.
+    password: ""
+
+# =============================================================================
+# ZooKeeper Subchart (Bitnami)
+# =============================================================================
+
+zookeeper:
+  # -- Enable ZooKeeper subchart
+  enabled: true
+  # -- Number of ZooKeeper replicas
+  replicaCount: 1
+  persistence:
+    # -- Enable ZooKeeper persistence
+    enabled: true
+    # -- ZooKeeper data volume size
+    size: 2Gi

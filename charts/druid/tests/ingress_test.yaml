@@ -1,0 +1,45 @@
+suite: ingress
+templates:
+  - templates/ingress.yaml
+tests:
+  - it: should not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render when enabled
+    set:
+      ingress:
+        enabled: true
+        ingressClassName: traefik
+        hosts:
+          - host: druid.example.com
+            paths:
+              - path: /
+                pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: "traefik"
+      - equal:
+          path: spec.rules[0].host
+          value: druid.example.com
+
+  - it: should support TLS
+    set:
+      ingress:
+        enabled: true
+        hosts:
+          - host: druid.example.com
+            paths:
+              - path: /
+        tls:
+          - secretName: druid-tls
+            hosts:
+              - druid.example.com
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: druid-tls
