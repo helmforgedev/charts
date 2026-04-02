@@ -225,7 +225,7 @@ redis-password
 
 {{- define "superset.initContainers" -}}
 - name: wait-for-postgresql
-  image: busybox:1.37
+  image: docker.io/library/busybox:1.37
   command:
     - sh
     - -c
@@ -236,7 +236,7 @@ redis-password
       done
       echo "PostgreSQL is reachable."
 - name: wait-for-redis
-  image: busybox:1.37
+  image: docker.io/library/busybox:1.37
   command:
     - sh
     - -c

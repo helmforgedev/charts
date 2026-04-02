@@ -238,7 +238,7 @@ exec /srv/app/start_ckan.sh
 
 {{- define "ckan.initContainers" -}}
 - name: wait-for-postgresql
-  image: busybox:1.37
+  image: docker.io/library/busybox:1.37
   command:
     - sh
     - -c
@@ -250,7 +250,7 @@ exec /srv/app/start_ckan.sh
       echo "PostgreSQL is reachable."
 {{- if .Values.solr.enabled }}
 - name: wait-for-solr
-  image: busybox:1.37
+  image: docker.io/library/busybox:1.37
   command:
     - sh
     - -c
@@ -263,7 +263,7 @@ exec /srv/app/start_ckan.sh
 {{- end }}
 {{- if and (ne .Values.redisConfig.mode "external") .Values.redis.enabled }}
 - name: wait-for-redis
-  image: busybox:1.37
+  image: docker.io/library/busybox:1.37
   command:
     - sh
     - -c
