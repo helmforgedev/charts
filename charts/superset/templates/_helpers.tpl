@@ -247,3 +247,82 @@ redis-password
       done
       echo "Redis is reachable."
 {{- end -}}
+
+{{/* Backup — S3 secret name */}}
+{{- define "superset.backupSecretName" -}}
+{{- if .Values.backup.s3.existingSecret -}}
+{{- .Values.backup.s3.existingSecret -}}
+{{- else -}}
+{{- printf "%s-backup" (include "superset.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — validate required fields */}}
+{{- define "superset.backupEnabled" -}}
+{{- if .Values.backup.enabled -}}
+  {{- if not .Values.backup.s3.endpoint -}}
+    {{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if not .Values.backup.s3.bucket -}}
+    {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}
+    {{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
+  {{- end -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — database host */}}
+{{- define "superset.backupDbHost" -}}
+{{- if .Values.backup.database.host -}}
+{{- .Values.backup.database.host -}}
+{{- else -}}
+{{- include "superset.databaseHost" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — database port */}}
+{{- define "superset.backupDbPort" -}}
+{{- if .Values.backup.database.port -}}
+{{- .Values.backup.database.port | toString -}}
+{{- else -}}
+{{- include "superset.databasePort" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — database name */}}
+{{- define "superset.backupDbName" -}}
+{{- if .Values.backup.database.name -}}
+{{- .Values.backup.database.name -}}
+{{- else -}}
+{{- include "superset.databaseName" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — database username */}}
+{{- define "superset.backupDbUsername" -}}
+{{- if .Values.backup.database.username -}}
+{{- .Values.backup.database.username -}}
+{{- else -}}
+{{- include "superset.databaseUsername" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — database password secret name */}}
+{{- define "superset.backupDbPasswordSecretName" -}}
+{{- if .Values.backup.database.existingSecret -}}
+{{- .Values.backup.database.existingSecret -}}
+{{- else -}}
+{{- include "superset.databaseSecretName" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Backup — database password secret key */}}
+{{- define "superset.backupDbPasswordSecretKey" -}}
+{{- if .Values.backup.database.existingSecret -}}
+{{- .Values.backup.database.existingSecretPasswordKey -}}
+{{- else -}}
+{{- include "superset.databaseSecretKey" . -}}
+{{- end -}}
+{{- end -}}
