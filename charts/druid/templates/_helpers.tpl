@@ -172,7 +172,7 @@ jdbc:postgresql://{{ include "druid.metadataHost" . }}:{{ include "druid.metadat
 
 {{- define "druid.initContainers" -}}
 - name: prepare-dirs
-  image: busybox:1.37
+  image: docker.io/library/busybox:1.37
   securityContext:
     runAsUser: 0
   command:
@@ -185,7 +185,7 @@ jdbc:postgresql://{{ include "druid.metadataHost" . }}:{{ include "druid.metadat
     - name: druid-var
       mountPath: /opt/druid/var
 - name: wait-for-postgresql
-  image: busybox:1.37
+  image: docker.io/library/busybox:1.37
   command:
     - sh
     - -c
@@ -197,7 +197,7 @@ jdbc:postgresql://{{ include "druid.metadataHost" . }}:{{ include "druid.metadat
       echo "PostgreSQL is reachable."
 {{- if eq .Values.zookeeperConfig.mode "subchart" }}
 - name: wait-for-zookeeper
-  image: busybox:1.37
+  image: docker.io/library/busybox:1.37
   command:
     - sh
     - -c
