@@ -1,0 +1,321 @@
+# =============================================================================
+# Apache Superset Configuration
+# =============================================================================
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+
+# -- Override the full release name used in resource names
+fullnameOverride: ""
+
+# -- Labels added to every resource created by this chart
+commonLabels: {}
+
+image:
+  # -- Superset container image repository
+  repository: apache/superset
+  # -- Superset image tag. Defaults to appVersion.
+  tag: ""
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# =============================================================================
+# Superset Application
+# =============================================================================
+
+superset:
+  # -- Admin username created by the init job
+  adminUsername: admin
+  # -- Admin first name
+  adminFirstName: Admin
+  # -- Admin last name
+  adminLastName: User
+  # -- Admin email
+  adminEmail: admin@superset.local
+  # -- Admin password. Auto-generated if empty.
+  adminPassword: ""
+  # -- Existing secret with admin credentials
+  existingSecret: ""
+  # -- Key in existingSecret for admin password
+  existingSecretPasswordKey: admin-password
+  # -- Flask SECRET_KEY for session signing. Auto-generated if empty.
+  secretKey: ""
+  # -- Key in existingSecret for SECRET_KEY
+  existingSecretSecretKeyKey: secret-key
+  # -- Load example dashboards and data during init
+  loadExamples: false
+  # -- Extra environment variables for all Superset containers
+  extraEnv: []
+  # -- Extra superset_config.py content merged into the ConfigMap
+  extraConfig: ""
+
+# =============================================================================
+# Web Server
+# =============================================================================
+
+web:
+  # -- Number of web server replicas
+  replicaCount: 1
+  # -- Gunicorn workers
+  workers: 2
+  # -- Gunicorn timeout in seconds
+  timeout: 120
+  # -- Extra environment variables for the web container
+  extraEnv: []
+  # -- Resource requests and limits for the web container
+  resources: {}
+  # -- Pod labels for web pods
+  podLabels: {}
+  # -- Pod annotations for web pods
+  podAnnotations: {}
+
+# =============================================================================
+# Celery Worker
+# =============================================================================
+
+worker:
+  # -- Enable Celery workers
+  enabled: true
+  # -- Number of worker replicas
+  replicaCount: 1
+  # -- Celery worker concurrency
+  concurrency: 2
+  # -- Extra environment variables for the worker container
+  extraEnv: []
+  # -- Resource requests and limits for the worker container
+  resources: {}
+  # -- Pod labels for worker pods
+  podLabels: {}
+  # -- Pod annotations for worker pods
+  podAnnotations: {}
+
+# =============================================================================
+# Celery Beat Scheduler
+# =============================================================================
+
+beat:
+  # -- Enable Celery beat scheduler
+  enabled: true
+  # -- Extra environment variables for the beat container
+  extraEnv: []
+  # -- Resource requests and limits for the beat container
+  resources: {}
+  # -- Pod labels for beat pods
+  podLabels: {}
+  # -- Pod annotations for beat pods
+  podAnnotations: {}
+
+# =============================================================================
+# Init Job
+# =============================================================================
+
+init:
+  # -- Enable the init job that creates the admin user and upgrades the database
+  enabled: true
+  # -- Extra environment variables for the init container
+  extraEnv: []
+  # -- Resource requests and limits for the init container
+  resources: {}
+
+# =============================================================================
+# Database
+# =============================================================================
+
+database:
+  # -- Database mode: subchart | external
+  mode: subchart
+  external:
+    # -- External database host
+    host: ""
+    # -- External database port
+    port: 5432
+    # -- External database name
+    name: superset
+    # -- External database username
+    username: superset
+    # -- External database password
+    password: ""
+    # -- Existing secret with external database password
+    existingSecret: ""
+    # -- Key in existingSecret for password
+    existingSecretPasswordKey: password
+
+# =============================================================================
+# Redis
+# =============================================================================
+
+redisConfig:
+  # -- Redis mode: subchart | external
+  mode: subchart
+  external:
+    # -- External Redis host
+    host: ""
+    # -- External Redis port
+    port: 6379
+    # -- External Redis password
+    password: ""
+    # -- External Redis database number
+    db: 0
+    # -- Existing secret with external Redis password
+    existingSecret: ""
+    # -- Key in existingSecret for password
+    existingSecretPasswordKey: password
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- Service port
+  port: 80
+  # -- Service annotations
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress
+  enabled: false
+  # -- Ingress class name (traefik, nginx, etc.)
+  ingressClassName: traefik
+  # -- Ingress annotations
+  # @default -- `{}`
+  # Example:
+  #   cert-manager.io/cluster-issuer: letsencrypt-prod
+  annotations: {}
+  # -- Ingress hosts
+  # @default -- `[]`
+  # Example:
+  #   - host: superset.example.com
+  #     paths:
+  #       - path: /
+  #         pathType: Prefix
+  hosts: []
+  # -- Ingress TLS
+  # @default -- `[]`
+  # Example:
+  #   - secretName: superset-tls
+  #     hosts:
+  #       - superset.example.com
+  tls: []
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  liveness:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  startup:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 15
+    periodSeconds: 5
+    timeoutSeconds: 5
+    failureThreshold: 30
+
+# =============================================================================
+# ServiceAccount
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name. Uses fullname if empty.
+  name: ""
+  # -- ServiceAccount annotations
+  annotations: {}
+
+# =============================================================================
+# Security & Scheduling
+# =============================================================================
+
+# -- Pod-level security context
+podSecurityContext: {}
+
+# -- Container-level security context
+securityContext: {}
+
+# -- Resource requests and limits (global default, overridden per component)
+resources: {}
+
+# -- Node selector
+nodeSelector: {}
+
+# -- Tolerations
+tolerations: []
+
+# -- Affinity rules
+affinity: {}
+
+# -- Topology spread constraints
+topologySpreadConstraints: []
+
+# -- Priority class name
+priorityClassName: ""
+
+# -- Termination grace period in seconds
+terminationGracePeriodSeconds: 30
+
+# -- Pod labels applied to all pods
+podLabels: {}
+
+# -- Pod annotations applied to all pods
+podAnnotations: {}
+
+# -- Extra volumes
+extraVolumes: []
+
+# -- Extra volume mounts
+extraVolumeMounts: []
+
+# -- Extra Kubernetes manifests to deploy
+extraManifests: []
+
+# =============================================================================
+# PostgreSQL Subchart
+# =============================================================================
+
+postgresql:
+  # -- Enable PostgreSQL subchart
+  enabled: true
+  auth:
+    # -- PostgreSQL database name
+    database: superset
+    # -- PostgreSQL username
+    username: superset
+    # -- PostgreSQL password. Auto-generated if empty.
+    password: ""
+
+# =============================================================================
+# Redis Subchart
+# =============================================================================
+
+redis:
+  # -- Enable Redis subchart
+  enabled: true
+  auth:
+    # -- Redis password. Auto-generated if empty.
+    password: ""

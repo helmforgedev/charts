@@ -1,0 +1,85 @@
+suite: Web Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+  - templates/configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment for web
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-superset-web
+
+  - it: should have web component label
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: web
+
+  - it: should use the correct image
+    template: templates/deployment.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "apache/superset:4\\.1\\.4"
+
+  - it: should expose port 8088
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 8088
+            protocol: TCP
+
+  - it: should mount superset config
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: superset-config
+            mountPath: /app/pythonpath/superset_config.py
+            subPath: superset_config.py
+
+  - it: should have init containers
+    template: templates/deployment.yaml
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.initContainers
+          count: 2
+
+  - it: should have health probes
+    template: templates/deployment.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].livenessProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].readinessProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].startupProbe
+
+  - it: should set custom replica count
+    template: templates/deployment.yaml
+    set:
+      web.replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: should have checksum annotations
+    template: templates/deployment.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.metadata.annotations["checksum/secret"]
+      - isNotNull:
+          path: spec.template.metadata.annotations["checksum/config"]

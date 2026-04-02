@@ -1,0 +1,46 @@
+suite: Beat Deployment
+templates:
+  - templates/beat-deployment.yaml
+  - templates/secret.yaml
+  - templates/configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment for beat
+    template: templates/beat-deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-superset-beat
+
+  - it: should have beat component label
+    template: templates/beat-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: beat
+
+  - it: should run celery beat command
+    template: templates/beat-deployment.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "celery.*beat"
+
+  - it: should always have replicas 1
+    template: templates/beat-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should not render when disabled
+    template: templates/beat-deployment.yaml
+    set:
+      beat.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
