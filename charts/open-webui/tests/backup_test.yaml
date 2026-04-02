@@ -1,0 +1,90 @@
+suite: Backup
+templates:
+  - backup-cronjob.yaml
+  - backup-configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not create backup configmap when disabled
+    template: backup-configmap.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not create backup cronjob when disabled
+    template: backup-cronjob.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create backup CronJob when enabled with postgresql
+    set:
+      postgresql.enabled: true
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.bucket: backups
+      backup.s3.accessKey: admin
+      backup.s3.secretKey: admin123
+    template: backup-cronjob.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.schedule
+          value: "0 3 * * *"
+
+  - it: should create backup ConfigMap with postgres-backup script
+    set:
+      postgresql.enabled: true
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.bucket: backups
+      backup.s3.accessKey: admin
+      backup.s3.secretKey: admin123
+    template: backup-configmap.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - isNotEmpty:
+          path: data["postgres-backup.sh"]
+
+  - it: should fail when backup enabled with sqlite
+    template: backup-cronjob.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.bucket: backups
+      backup.s3.accessKey: admin
+      backup.s3.secretKey: admin123
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup requires PostgreSQL — set postgresql.enabled=true or database.mode=external"
+
+  - it: should fail without s3 endpoint
+    template: backup-cronjob.yaml
+    set:
+      postgresql.enabled: true
+      backup.enabled: true
+      backup.s3.bucket: backups
+      backup.s3.accessKey: admin
+      backup.s3.secretKey: admin123
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.endpoint is required when backup.enabled is true"
+
+  - it: should fail without s3 bucket
+    template: backup-cronjob.yaml
+    set:
+      postgresql.enabled: true
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.accessKey: admin
+      backup.s3.secretKey: admin123
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.bucket is required when backup.enabled is true"

@@ -1,0 +1,93 @@
+suite: Deployment
+templates:
+  - deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should create a deployment with defaults
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-open-webui
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+
+  - it: should set health probe paths
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /health
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /health
+
+  - it: should mount data volume when persistence enabled
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /app/backend/data
+
+  - it: should set WEBUI_SECRET_KEY from secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WEBUI_SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: test-open-webui-app
+                key: secret-key
+
+  - it: should disable telemetry by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DO_NOT_TRACK
+            value: "true"
+
+  - it: should set DB_HOST when postgresql enabled
+    set:
+      postgresql.enabled: true
+      postgresql.auth.username: openwebui
+      postgresql.auth.database: openwebui
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_HOST
+            value: test-postgresql
+
+  - it: should set REDIS_URL when redis enabled
+    set:
+      redis.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WEBSOCKET_MANAGER
+            value: redis
+
+  - it: should set OLLAMA_BASE_URL when configured
+    set:
+      openWebui.ollamaBaseUrl: http://ollama:11434
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OLLAMA_BASE_URL
+            value: http://ollama:11434
+
+  - it: should use custom image tag
+    set:
+      image.tag: v0.7.0
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/open-webui/open-webui:v0.7.0"

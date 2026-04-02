@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Open WebUI Helm Chart Values",
+  "description": "Values for the Open WebUI Helm chart — self-hosted AI chat platform with Ollama and OpenAI support",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "nameOverride": { "type": "string", "default": "" },
+    "fullnameOverride": { "type": "string", "default": "" },
+    "commonLabels": { "type": "object" },
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": { "type": "string", "default": "ghcr.io/open-webui/open-webui" },
+        "tag": { "type": "string", "default": "" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "default": "IfNotPresent" }
+      }
+    },
+    "imagePullSecrets": { "type": "array", "items": { "type": "object" } },
+    "openWebui": {
+      "type": "object",
+      "description": "Open WebUI application configuration",
+      "properties": {
+        "port": { "type": "integer", "description": "Application port", "default": 8080 },
+        "secretKey": { "type": "string", "description": "Secret key for signing sessions", "default": "" },
+        "existingSecret": { "type": "string", "description": "Existing secret containing the secret key", "default": "" },
+        "ollamaBaseUrl": { "type": "string", "description": "Ollama backend URL", "default": "" },
+        "openaiBaseUrl": { "type": "string", "description": "OpenAI-compatible API base URL", "default": "" },
+        "openaiApiKey": { "type": "string", "description": "OpenAI API key", "default": "" },
+        "doNotTrack": { "type": "boolean", "description": "Disable telemetry", "default": true },
+        "extraEnv": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "database": {
+      "type": "object",
+      "description": "Database configuration",
+      "properties": {
+        "mode": { "type": "string", "enum": ["auto", "sqlite", "external"], "default": "auto" },
+        "url": { "type": "string", "description": "External PostgreSQL connection URL", "default": "" },
+        "existingSecret": { "type": "string", "default": "" },
+        "existingSecretKey": { "type": "string", "default": "database-url" }
+      }
+    },
+    "redisConfig": {
+      "type": "object",
+      "description": "Redis configuration for multi-instance WebSocket coordination",
+      "properties": {
+        "mode": { "type": "string", "enum": ["auto", "external", "disabled"], "default": "auto" },
+        "url": { "type": "string", "default": "" },
+        "existingSecret": { "type": "string", "default": "" },
+        "existingSecretKey": { "type": "string", "default": "redis-url" }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "description": "Persistence for /app/backend/data",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "size": { "type": "string", "default": "10Gi" },
+        "storageClass": { "type": "string", "default": "" },
+        "accessModes": { "type": "array", "items": { "type": "string" } },
+        "existingClaim": { "type": "string", "default": "" }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "create": { "type": "boolean", "default": false },
+        "name": { "type": "string", "default": "" },
+        "annotations": { "type": "object" }
+      }
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"], "default": "ClusterIP" },
+        "port": { "type": "integer", "default": 80 },
+        "annotations": { "type": "object" }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "ingressClassName": { "type": "string", "default": "traefik" },
+        "annotations": { "type": "object" },
+        "hosts": { "type": "array", "items": { "type": "object" } },
+        "tls": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "probes": { "type": "object" },
+    "resources": { "type": "object" },
+    "podSecurityContext": { "type": "object" },
+    "securityContext": { "type": "object" },
+    "backup": {
+      "type": "object",
+      "description": "Scheduled PostgreSQL backups to S3-compatible storage",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable scheduled backups", "default": false },
+        "schedule": { "type": "string", "description": "Cron schedule for backups", "default": "0 3 * * *" },
+        "suspend": { "type": "boolean", "description": "Suspend the CronJob", "default": false },
+        "archivePrefix": { "type": "string", "description": "Prefix for backup archive filenames", "default": "open-webui" },
+        "images": { "type": "object", "description": "Container images used for backup jobs" },
+        "resources": { "type": "object", "description": "CPU and memory for backup containers" },
+        "s3": { "type": "object", "description": "S3-compatible storage configuration" }
+      }
+    },
+    "nodeSelector": { "type": "object" },
+    "tolerations": { "type": "array", "items": { "type": "object" } },
+    "affinity": { "type": "object" },
+    "topologySpreadConstraints": { "type": "array", "items": { "type": "object" } },
+    "priorityClassName": { "type": "string", "default": "" },
+    "terminationGracePeriodSeconds": { "type": "integer", "default": 30 },
+    "podLabels": { "type": "object" },
+    "podAnnotations": { "type": "object" },
+    "extraVolumes": { "type": "array", "items": { "type": "object" } },
+    "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
+    "extraManifests": { "type": "array", "items": { "type": "object" } },
+    "postgresql": { "type": "object", "description": "PostgreSQL subchart configuration" },
+    "redis": { "type": "object", "description": "Redis subchart configuration" }
+  }
+}
