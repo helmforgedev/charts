@@ -1,0 +1,300 @@
+# =============================================================================
+# Open WebUI Helm Chart — Default Values
+# =============================================================================
+# Focus: self-hosted AI chat platform with Ollama/OpenAI, RAG, and multi-model
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Open WebUI container image
+  repository: ghcr.io/open-webui/open-webui
+  # -- Image tag (defaults to appVersion with v prefix)
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Open WebUI Configuration
+# =============================================================================
+
+openWebui:
+  # -- Application port
+  port: 8080
+  # -- Secret key for signing sessions (auto-generated if empty)
+  secretKey: ""
+  # -- Existing secret containing the secret key
+  existingSecret: ""
+  # -- Key in existing secret for the secret key
+  existingSecretKey: secret-key
+  # -- Ollama backend URL
+  ollamaBaseUrl: ""
+  # -- OpenAI-compatible API base URL
+  openaiBaseUrl: ""
+  # -- OpenAI API key
+  openaiApiKey: ""
+  # -- Existing secret for OpenAI API key
+  openaiExistingSecret: ""
+  # -- Key in existing secret for OpenAI API key
+  openaiExistingSecretKey: openai-api-key
+  # -- Disable telemetry
+  doNotTrack: true
+  # -- Extra environment variables for the container
+  # -- @default -- `[]`
+  extraEnv: []
+
+# =============================================================================
+# Database
+# =============================================================================
+# Open WebUI uses SQLite by default. For multi-instance or production setups,
+# use PostgreSQL by enabling the subchart or providing an external database URL.
+
+database:
+  # -- Database mode: auto, sqlite, external
+  # -- auto: uses PostgreSQL subchart if enabled, otherwise SQLite
+  # -- sqlite: always uses embedded SQLite (single instance only)
+  # -- external: uses database.url for an external PostgreSQL
+  mode: auto
+  # -- External PostgreSQL connection URL
+  # -- Example: postgresql://user:password@host:5432/openwebui
+  url: ""
+  # -- Existing secret containing the database URL
+  existingSecret: ""
+  # -- Key in existing secret for the database URL
+  existingSecretKey: database-url
+
+# =============================================================================
+# Redis (for multi-instance WebSocket coordination)
+# =============================================================================
+# Redis is required for multi-instance deployments to coordinate WebSocket
+# sessions and real-time features.
+
+redisConfig:
+  # -- Redis mode: auto, external, disabled
+  # -- auto: uses Redis subchart if enabled
+  # -- external: uses redisConfig.url
+  # -- disabled: no Redis (single instance only)
+  mode: auto
+  # -- External Redis URL
+  url: ""
+  # -- Existing secret containing the Redis URL
+  existingSecret: ""
+  # -- Key in existing secret for the Redis URL
+  existingSecretKey: redis-url
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistence for /app/backend/data
+  enabled: true
+  # -- Storage size
+  size: 10Gi
+  # -- Storage class
+  storageClass: ""
+  # -- Access modes
+  accessModes:
+    - ReadWriteOnce
+  # -- Use an existing PVC
+  existingClaim: ""
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- HTTP service port
+  port: 80
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Open WebUI
+  enabled: false
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts: []
+    # - host: chat.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+    # - hosts:
+    #     - chat.example.com
+    #   secretName: open-webui-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# S3 Backup
+# =============================================================================
+
+backup:
+  # -- Enable scheduled data backups to S3-compatible storage
+  enabled: false
+  # -- Cron schedule for backups (default: daily at 03:00 UTC)
+  schedule: "0 3 * * *"
+  # -- Suspend the CronJob without deleting it
+  suspend: false
+  # -- Concurrency policy: Forbid, Replace, Allow
+  concurrencyPolicy: Forbid
+  # -- Number of successful job records to keep
+  successfulJobsHistoryLimit: 3
+  # -- Number of failed job records to keep
+  failedJobsHistoryLimit: 3
+  # -- Maximum retries per backup job
+  backoffLimit: 1
+  # -- Prefix for backup archive filenames
+  archivePrefix: open-webui
+  images:
+    # -- Image used for PostgreSQL dump
+    postgresql: postgres:18-alpine
+    # -- Image used for S3 upload (MinIO client)
+    uploader: minio/mc:RELEASE.2025-08-13T08-35-41Z
+  # -- Resources for backup containers
+  resources: {}
+  database:
+    # -- Extra pg_dump arguments
+    pgDumpArgs: ""
+  s3:
+    # -- S3-compatible endpoint URL
+    endpoint: ""
+    # -- Target bucket name
+    bucket: ""
+    # -- Key prefix within the bucket
+    prefix: open-webui
+    # -- Auto-create the bucket if it does not exist
+    createBucketIfNotExists: true
+    # -- Use an existing secret for S3 credentials
+    existingSecret: ""
+    # -- Key in the existing secret for the access key
+    existingSecretAccessKeyKey: access-key
+    # -- Key in the existing secret for the secret key
+    existingSecretSecretKeyKey: secret-key
+    # -- Inline S3 access key (ignored when existingSecret is set)
+    accessKey: ""
+    # -- Inline S3 secret key (ignored when existingSecret is set)
+    secretKey: ""
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []
+
+# =============================================================================
+# PostgreSQL Subchart
+# =============================================================================
+
+postgresql:
+  # -- Enable PostgreSQL subchart (recommended for production)
+  enabled: false
+  architecture: standalone
+  auth:
+    # -- Database name
+    database: openwebui
+    # -- Database username
+    username: openwebui
+    # -- Database password (auto-generated if empty)
+    password: ""
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+# =============================================================================
+# Redis Subchart
+# =============================================================================
+
+redis:
+  # -- Enable Redis subchart (required for multi-instance)
+  enabled: false
+  architecture: standalone
+  auth:
+    enabled: true
+    password: ""
+  master:
+    persistence:
+      enabled: false

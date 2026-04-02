@@ -103,6 +103,7 @@ HelmForge is built on a simple principle: **use what upstream ships, nothing mor
 | [superset](charts/superset/) | stable | Apache Superset — data exploration and visualization with Celery workers, PostgreSQL, and Redis |
 | [ckan](charts/ckan/) | stable | CKAN — open data portal with DataPusher, Solr, PostgreSQL, and Redis |
 | [druid](charts/druid/) | stable | Apache Druid — distributed analytics database with coordinator, broker, historical, and router |
+| [open-webui](charts/open-webui/) | alpha | Open WebUI — self-hosted AI chat platform with Ollama/OpenAI, RAG, PostgreSQL, Redis, and S3 backup |
 
 ### Maturity levels
 

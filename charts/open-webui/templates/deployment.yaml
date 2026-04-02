@@ -1,0 +1,216 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "open-webui.fullname" . }}
+  labels:
+    {{- include "open-webui.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "open-webui.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "open-webui.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "open-webui.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: open-webui
+          image: {{ include "open-webui.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- $dbMode := include "open-webui.databaseMode" . }}
+          {{- if eq $dbMode "auto" }}
+          command: ["bash", "-c"]
+          args:
+            - |
+              export DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+              exec bash start.sh
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.openWebui.port }}
+              protocol: TCP
+          env:
+            - name: PORT
+              value: {{ .Values.openWebui.port | quote }}
+            - name: SCARF_NO_ANALYTICS
+              value: "true"
+            - name: DO_NOT_TRACK
+              value: {{ ternary "true" "false" .Values.openWebui.doNotTrack | quote }}
+            - name: ANONYMIZED_TELEMETRY
+              value: "false"
+            {{- /* Database configuration */}}
+            {{- $dbType := include "open-webui.databaseType" . }}
+            {{- $dbMode := include "open-webui.databaseMode" . }}
+            {{- if eq $dbType "postgres" }}
+            {{- if eq $dbMode "auto" }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "open-webui.databaseSecretName" . }}
+                  key: {{ include "open-webui.databaseSecretKey" . }}
+            - name: DB_HOST
+              value: {{ include "open-webui.databaseHost" . | quote }}
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_USER
+              value: {{ .Values.postgresql.auth.username | quote }}
+            - name: DB_NAME
+              value: {{ .Values.postgresql.auth.database | quote }}
+            {{- else if eq $dbMode "external" }}
+            - name: DATABASE_URL
+              {{- if .Values.database.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.existingSecretKey }}
+              {{- else }}
+              value: {{ .Values.database.url | quote }}
+              {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- /* Redis configuration */}}
+            {{- $redisMode := include "open-webui.redisMode" . }}
+            {{- if ne $redisMode "disabled" }}
+            {{- if eq $redisMode "auto" }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "open-webui.redisSecretName" . }}
+                  key: password
+            {{- end }}
+            - name: REDIS_URL
+              {{- if eq $redisMode "external" }}
+              {{- if .Values.redisConfig.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redisConfig.existingSecret }}
+                  key: {{ .Values.redisConfig.existingSecretKey }}
+              {{- else }}
+              value: {{ .Values.redisConfig.url | quote }}
+              {{- end }}
+              {{- else }}
+              value: {{ include "open-webui.redisUrl" . | quote }}
+              {{- end }}
+            - name: WEBSOCKET_MANAGER
+              value: redis
+            - name: ENABLE_WEBSOCKET_SUPPORT
+              value: "true"
+            {{- end }}
+            {{- /* Secret key */}}
+            - name: WEBUI_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "open-webui.secretName" . }}
+                  key: {{ .Values.openWebui.existingSecretKey | default "secret-key" }}
+            {{- /* Ollama */}}
+            {{- if .Values.openWebui.ollamaBaseUrl }}
+            - name: OLLAMA_BASE_URL
+              value: {{ .Values.openWebui.ollamaBaseUrl | quote }}
+            {{- end }}
+            {{- /* OpenAI */}}
+            {{- if or .Values.openWebui.openaiBaseUrl .Values.openWebui.openaiApiKey .Values.openWebui.openaiExistingSecret }}
+            {{- if .Values.openWebui.openaiBaseUrl }}
+            - name: OPENAI_API_BASE_URL
+              value: {{ .Values.openWebui.openaiBaseUrl | quote }}
+            {{- end }}
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "open-webui.openaiSecretName" . }}
+                  key: {{ .Values.openWebui.openaiExistingSecretKey | default "openai-api-key" }}
+            {{- end }}
+            {{- with .Values.openWebui.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.probes.startup.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- if .Values.persistence.enabled }}
+            - name: data
+              mountPath: /app/backend/data
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName | quote }}
+      {{- end }}
+      volumes:
+        {{- if .Values.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "open-webui.dataClaimName" . }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
