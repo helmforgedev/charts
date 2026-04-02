@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ckan.fullname" . }}
+  labels:
+    {{- include "ckan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ckan
+spec:
+  replicas: {{ .Values.ckan.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ckan.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: ckan
+  template:
+    metadata:
+      labels:
+        {{- include "ckan.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: ckan
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "ckan.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        {{- include "ckan.initContainers" . | nindent 8 }}
+      containers:
+        - name: ckan
+          image: {{ include "ckan.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              {{ include "ckan.startupCommand" . | nindent 14 }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            {{- include "ckan.commonEnv" . | nindent 12 }}
+            - name: CKAN_SYSADMIN_NAME
+              value: {{ .Values.ckan.sysadminName | quote }}
+            - name: CKAN_SYSADMIN_EMAIL
+              value: {{ .Values.ckan.sysadminEmail | quote }}
+            - name: CKAN_SYSADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ckan.secretName" . }}
+                  key: {{ .Values.ckan.existingSecretPasswordKey | default "sysadmin-password" }}
+          ports:
+            - name: http
+              containerPort: 5000
+              protocol: TCP
+          {{- with .Values.probes.startup }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.probes.liveness }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.probes.readiness }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: ckan-storage
+              mountPath: /var/lib/ckan
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: ckan-storage
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (printf "%s-storage" (include "ckan.fullname" .)) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
