@@ -137,6 +137,59 @@ podSecurityContext: {}
 securityContext: {}
 
 # =============================================================================
+# S3 Backup
+# =============================================================================
+
+backup:
+  # -- Enable scheduled MongoDB backups to S3-compatible storage
+  enabled: false
+  # -- Cron schedule for backups (default: daily at 03:00 UTC)
+  schedule: "0 3 * * *"
+  # -- Suspend the CronJob without deleting it
+  suspend: false
+  # -- Concurrency policy: Forbid, Replace, Allow
+  concurrencyPolicy: Forbid
+  # -- Number of successful job records to keep
+  successfulJobsHistoryLimit: 3
+  # -- Number of failed job records to keep
+  failedJobsHistoryLimit: 3
+  # -- Maximum retries per backup job
+  backoffLimit: 1
+  # -- Prefix for backup archive filenames
+  archivePrefix: countly
+  images:
+    # -- Image used for MongoDB backup (must have mongodump)
+    mongodb: mongo:8.0
+    # -- Image used for S3 upload (MinIO client)
+    uploader: minio/mc:RELEASE.2025-04-08T15-18-23Z
+  # -- Resources for backup containers
+  resources: {}
+  s3:
+    # -- S3-compatible endpoint URL
+    endpoint: ""
+    # -- Target bucket name
+    bucket: ""
+    # -- Key prefix within the bucket
+    prefix: countly
+    # -- Auto-create the bucket if it does not exist
+    createBucketIfNotExists: true
+    # -- Use an existing secret for S3 credentials
+    existingSecret: ""
+    # -- Key in the existing secret for the access key
+    existingSecretAccessKeyKey: access-key
+    # -- Key in the existing secret for the secret key
+    existingSecretSecretKeyKey: secret-key
+    # -- Inline S3 access key (ignored when existingSecret is set)
+    accessKey: ""
+    # -- Inline S3 secret key (ignored when existingSecret is set)
+    secretKey: ""
+  # -- Override MongoDB credentials for backup (uses app credentials if empty)
+  database:
+    # -- Override MongoDB URI for backup (uses app URI if empty)
+    uri: ""
+    mongodumpArgs: ""
+
+# =============================================================================
 # Scheduling
 # =============================================================================
 
