@@ -1,0 +1,367 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "ChiefOnboarding Helm Chart Values",
+  "description": "Values for the ChiefOnboarding Helm chart — employee onboarding automation platform with PostgreSQL backend",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name used in resource names",
+      "default": ""
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the full release name used in resource names",
+      "default": ""
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Labels added to every resource created by this chart"
+    },
+    "image": {
+      "type": "object",
+      "description": "Container image configuration",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "ChiefOnboarding container image",
+          "default": "chiefonboarding/chiefonboarding"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Image tag (defaults to v{appVersion})",
+          "default": ""
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy",
+          "enum": ["Always", "IfNotPresent", "Never"],
+          "default": "IfNotPresent"
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries",
+      "items": {
+        "type": "object"
+      }
+    },
+    "chiefonboarding": {
+      "type": "object",
+      "description": "ChiefOnboarding application configuration",
+      "additionalProperties": false,
+      "properties": {
+        "port": {
+          "type": "integer",
+          "description": "Application port (Django)",
+          "default": 8000
+        },
+        "baseUrl": {
+          "type": "string",
+          "description": "Public base URL of the instance",
+          "default": ""
+        },
+        "secretKey": {
+          "type": "string",
+          "description": "Django secret key (auto-generated 50-char alphanumeric if empty)",
+          "default": ""
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing secret containing the SECRET_KEY key",
+          "default": ""
+        },
+        "existingSecretKey": {
+          "type": "string",
+          "description": "Key in the existing secret",
+          "default": "secret-key"
+        },
+        "extraEnv": {
+          "type": "array",
+          "description": "Extra environment variables for the container",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "description": "External database configuration",
+      "additionalProperties": false,
+      "properties": {
+        "external": {
+          "type": "object",
+          "description": "External PostgreSQL configuration (used when postgresql subchart is disabled)",
+          "properties": {
+            "host": {
+              "type": "string",
+              "description": "Database host",
+              "default": ""
+            },
+            "port": {
+              "type": ["string", "integer"],
+              "description": "Database port",
+              "default": "5432"
+            },
+            "name": {
+              "type": "string",
+              "description": "Database name",
+              "default": "chiefonboarding"
+            },
+            "username": {
+              "type": "string",
+              "description": "Database username",
+              "default": "chiefonboarding"
+            },
+            "password": {
+              "type": "string",
+              "description": "Database password",
+              "default": ""
+            },
+            "existingSecret": {
+              "type": "string",
+              "description": "Existing secret containing the database password",
+              "default": ""
+            },
+            "existingSecretPasswordKey": {
+              "type": "string",
+              "description": "Key in the existing secret containing the password",
+              "default": "password"
+            }
+          }
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount configuration",
+      "additionalProperties": false,
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a ServiceAccount",
+          "default": false
+        },
+        "name": {
+          "type": "string",
+          "description": "ServiceAccount name",
+          "default": ""
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the ServiceAccount"
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "description": "Service configuration",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Service type",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer"],
+          "default": "ClusterIP"
+        },
+        "port": {
+          "type": "integer",
+          "description": "HTTP service port",
+          "default": 80
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the Service"
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "description": "Ingress configuration for ChiefOnboarding",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable ingress for ChiefOnboarding",
+          "default": false
+        },
+        "ingressClassName": {
+          "type": "string",
+          "description": "Ingress class name (for example: traefik, nginx)",
+          "default": "traefik"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for the ingress"
+        },
+        "hosts": {
+          "type": "array",
+          "description": "Ingress hosts",
+          "items": {
+            "type": "object",
+            "properties": {
+              "host": { "type": "string" },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": { "type": "string" },
+                    "pathType": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tls": {
+          "type": "array",
+          "description": "Ingress TLS configuration",
+          "items": {
+            "type": "object",
+            "properties": {
+              "hosts": { "type": "array", "items": { "type": "string" } },
+              "secretName": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "probes": {
+      "type": "object",
+      "description": "Health probe configuration (TCP socket on application port)",
+      "additionalProperties": false,
+      "properties": {
+        "startup": {
+          "type": "object",
+          "description": "Startup probe configuration",
+          "properties": {
+            "enabled": { "type": "boolean", "default": true },
+            "initialDelaySeconds": { "type": "integer" },
+            "periodSeconds": { "type": "integer" },
+            "timeoutSeconds": { "type": "integer" },
+            "failureThreshold": { "type": "integer" }
+          }
+        },
+        "liveness": {
+          "type": "object",
+          "description": "Liveness probe configuration",
+          "properties": {
+            "enabled": { "type": "boolean", "default": true },
+            "initialDelaySeconds": { "type": "integer" },
+            "periodSeconds": { "type": "integer" },
+            "timeoutSeconds": { "type": "integer" },
+            "failureThreshold": { "type": "integer" }
+          }
+        },
+        "readiness": {
+          "type": "object",
+          "description": "Readiness probe configuration",
+          "properties": {
+            "enabled": { "type": "boolean", "default": true },
+            "initialDelaySeconds": { "type": "integer" },
+            "periodSeconds": { "type": "integer" },
+            "timeoutSeconds": { "type": "integer" },
+            "failureThreshold": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "CPU and memory requests/limits for the main container"
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod-level security context"
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Container-level security context"
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector for pod scheduling"
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations for pod scheduling",
+      "items": { "type": "object" }
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Affinity rules for pod scheduling"
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "description": "Topology spread constraints",
+      "items": { "type": "object" }
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Priority class name",
+      "default": ""
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Grace period for shutdown (seconds)",
+      "default": 30
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Additional labels for the pod"
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Additional annotations for the pod"
+    },
+    "extraVolumes": {
+      "type": "array",
+      "description": "Additional volumes for the pod",
+      "items": { "type": "object" }
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "description": "Additional volume mounts for the container",
+      "items": { "type": "object" }
+    },
+    "extraManifests": {
+      "type": "array",
+      "description": "Extra Kubernetes manifests to deploy alongside the chart",
+      "items": { "type": "object" }
+    },
+    "postgresql": {
+      "type": "object",
+      "description": "PostgreSQL subchart configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Deploy PostgreSQL as a subchart",
+          "default": true
+        },
+        "architecture": {
+          "type": "string",
+          "description": "PostgreSQL architecture",
+          "default": "standalone"
+        },
+        "auth": {
+          "type": "object",
+          "description": "PostgreSQL authentication configuration",
+          "properties": {
+            "database": { "type": "string", "default": "chiefonboarding" },
+            "username": { "type": "string", "default": "chiefonboarding" },
+            "password": {
+              "type": "string",
+              "description": "PostgreSQL password (auto-generated if empty)",
+              "default": ""
+            }
+          }
+        }
+      }
+    }
+  }
+}

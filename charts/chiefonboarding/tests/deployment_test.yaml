@@ -1,0 +1,156 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-chiefonboarding
+
+  - it: should use RollingUpdate strategy
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+
+  - it: should use 1 replica
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should set the correct image with default tag
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "chiefonboarding/chiefonboarding:v2.4.1"
+
+  - it: should set custom image tag
+    set:
+      image.tag: "v2.3.0"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "chiefonboarding/chiefonboarding:v2.3.0"
+
+  - it: should set DATABASE_URL with subchart host
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_URL
+            value: "postgres://chiefonboarding:$(DATABASE_PASSWORD)@test-postgresql:5432/chiefonboarding"
+
+  - it: should reference postgresql subchart secret for DATABASE_PASSWORD
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-postgresql-auth
+                key: user-password
+
+  - it: should reference app secret for SECRET_KEY
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: test-chiefonboarding-app
+                key: secret-key
+
+  - it: should have wait-for-db init container
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+
+  - it: should set external database host when subchart is disabled
+    set:
+      postgresql.enabled: false
+      database.external.host: db.example.com
+      database.external.port: "5433"
+      database.external.name: my_onboarding
+      database.external.username: onboard_user
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_URL
+            value: "postgres://onboard_user:$(DATABASE_PASSWORD)@db.example.com:5433/my_onboarding"
+
+  - it: should use existing secret for external db password
+    set:
+      postgresql.enabled: false
+      database.external.host: db.example.com
+      database.external.existingSecret: my-db-secret
+      database.external.existingSecretPasswordKey: db-pass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: my-db-secret
+                key: db-pass
+
+  - it: should set BASE_URL when provided
+    set:
+      chiefonboarding.baseUrl: "https://onboarding.example.com"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BASE_URL
+            value: "https://onboarding.example.com"
+
+  - it: should not set BASE_URL when empty
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BASE_URL
+          any: true
+
+  - it: should use TCP probes
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].startupProbe.tcpSocket.port
+      - isNotNull:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+      - isNotNull:
+          path: spec.template.spec.containers[0].readinessProbe.tcpSocket.port
+
+  - it: should set extra env vars
+    set:
+      chiefonboarding.extraEnv:
+        - name: ALLOWED_HOSTS
+          value: "*"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ALLOWED_HOSTS
+            value: "*"
+
+  - it: should set resources
+    set:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
