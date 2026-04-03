@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cronicle.fullname" . }}
+  labels:
+    {{- include "cronicle.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+    {{- if .Values.cronicle.discoveryEnabled }}
+    - name: discovery
+      port: {{ .Values.cronicle.discoveryPort }}
+      targetPort: discovery
+      protocol: UDP
+    {{- end }}
+  selector:
+    {{- include "cronicle.selectorLabels" . | nindent 4 }}

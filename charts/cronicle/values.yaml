@@ -1,0 +1,178 @@
+# =============================================================================
+# Cronicle Helm Chart — Default Values
+# =============================================================================
+# Focus: multi-server task scheduler and runner with web UI
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Cronicle container image
+  repository: soulteary/cronicle
+  # -- Image tag (defaults to appVersion)
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Cronicle Configuration
+# =============================================================================
+
+cronicle:
+  # -- HTTP web UI port
+  port: 3012
+  # -- UDP auto-discovery port (optional, for multi-server setups)
+  discoveryPort: 3014
+  # -- Enable UDP auto-discovery service port
+  discoveryEnabled: false
+  # -- Public base URL of the instance (e.g., https://cronicle.example.com)
+  baseUrl: "http://localhost:3012"
+  # -- Email sender address for notifications
+  emailFrom: "cronicle@localhost"
+  # -- SMTP server hostname for notifications
+  smtpHostname: "localhost"
+  # -- Maximum memory per job in bytes (default 1 GB)
+  jobMemoryMax: 1073741824
+  # -- Maximum concurrent jobs (0 = unlimited)
+  maxJobs: 0
+  # -- Extra environment variables for the container
+  # -- @default -- `[]`
+  extraEnv: []
+
+# =============================================================================
+# Secret
+# =============================================================================
+
+secret:
+  # -- Auto-generate a secret_key for Cronicle session encryption
+  create: true
+  # -- Use an existing secret (must contain key `secret_key`)
+  existingSecret: ""
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistence for /opt/cronicle/data (job data, history, state)
+  enabled: true
+  # -- Storage size
+  size: 5Gi
+  # -- Storage class
+  storageClass: ""
+  # -- Access modes
+  accessModes:
+    - ReadWriteOnce
+  # -- Use an existing PVC
+  existingClaim: ""
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- HTTP service port
+  port: 80
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Cronicle
+  enabled: false
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts: []
+    # - host: cronicle.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+    # - hosts:
+    #     - cronicle.example.com
+    #   secretName: cronicle-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []
