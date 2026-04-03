@@ -1,0 +1,186 @@
+# =============================================================================
+# Karakeep Helm Chart — Default Values
+# =============================================================================
+# Focus: AI-powered bookmark manager with optional Meilisearch and Chromium sidecars
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Karakeep container image
+  repository: ghcr.io/karakeep-app/karakeep
+  # -- Image tag (defaults to appVersion)
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Karakeep Configuration
+# =============================================================================
+
+karakeep:
+  # -- Public URL of the Karakeep instance (e.g. https://karakeep.example.com)
+  nextAuthUrl: ""
+  # -- Extra environment variables for the main container
+  # -- @default -- `[]`
+  extraEnv: []
+
+# =============================================================================
+# Meilisearch Sidecar (optional full-text search)
+# =============================================================================
+
+meilisearch:
+  # -- Enable Meilisearch sidecar for full-text search
+  enabled: true
+  image:
+    # -- Meilisearch container image
+    repository: docker.io/getmeili/meilisearch
+    # -- Meilisearch image tag
+    tag: "v1.13.3"
+    pullPolicy: IfNotPresent
+  # -- Resources for the Meilisearch container
+  resources: {}
+
+# =============================================================================
+# Chromium Sidecar (optional web page screenshots)
+# =============================================================================
+
+chromium:
+  # -- Enable Chromium sidecar for web page screenshots
+  enabled: true
+  image:
+    # -- Chromium container image
+    repository: ghcr.io/browserless/chromium
+    # -- Chromium image tag
+    tag: "v2.18.0"
+    pullPolicy: IfNotPresent
+  # -- Resources for the Chromium container
+  resources: {}
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistence for application data (SQLite + uploads)
+  enabled: true
+  # -- Storage size
+  size: 10Gi
+  # -- Storage class
+  storageClass: ""
+  # -- Access modes
+  accessModes:
+    - ReadWriteOnce
+  # -- Use an existing PVC
+  existingClaim: ""
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- HTTP service port
+  port: 80
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Karakeep
+  enabled: false
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts: []
+    # - host: karakeep.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+    # - hosts:
+    #     - karakeep.example.com
+    #   secretName: karakeep-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []

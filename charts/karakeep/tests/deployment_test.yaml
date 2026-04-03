@@ -1,0 +1,156 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment with defaults
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-karakeep
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should use correct image
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/karakeep-app/karakeep:0.24.1"
+
+  - it: should set DATA_DIR env
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATA_DIR
+            value: "/data"
+
+  - it: should have 3 containers when both sidecars enabled
+    template: templates/deployment.yaml
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 3
+
+  - it: should have only main container when sidecars disabled
+    template: templates/deployment.yaml
+    set:
+      meilisearch.enabled: false
+      chromium.enabled: false
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 1
+
+  - it: should set MEILI_ADDR when meilisearch enabled
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MEILI_ADDR
+            value: "http://localhost:7700"
+
+  - it: should not set MEILI_ADDR when meilisearch disabled
+    template: templates/deployment.yaml
+    set:
+      meilisearch.enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MEILI_ADDR
+            value: "http://localhost:7700"
+
+  - it: should set BROWSER_WEB_URL when chromium enabled
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BROWSER_WEB_URL
+            value: "http://localhost:9222"
+
+  - it: should not set BROWSER_WEB_URL when chromium disabled
+    template: templates/deployment.yaml
+    set:
+      chromium.enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BROWSER_WEB_URL
+            value: "http://localhost:9222"
+
+  - it: should mount data volume
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /data
+
+  - it: should have meilisearch sidecar mount with subPath
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[1].volumeMounts
+          content:
+            name: data
+            mountPath: /meili_data
+            subPath: meilisearch
+
+  - it: should use PVC for data by default
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: test-karakeep-data
+
+  - it: should use emptyDir when persistence disabled
+    template: templates/deployment.yaml
+    set:
+      persistence.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+
+  - it: should have startup, liveness, and readiness probes
+    template: templates/deployment.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].startupProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].livenessProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].readinessProbe
+
+  - it: should set NEXTAUTH_URL when configured
+    template: templates/deployment.yaml
+    set:
+      karakeep.nextAuthUrl: "https://karakeep.example.com"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NEXTAUTH_URL
+            value: "https://karakeep.example.com"
