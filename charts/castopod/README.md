@@ -114,7 +114,7 @@ backup:
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `image.repository` | `castopod/castopod` | Container image |
+| `image.repository` | `docker.io/castopod/castopod` | Container image |
 | `image.tag` | `""` (appVersion) | Image tag |
 | `castopod.baseURL` | `""` | Application base URL |
 | `castopod.port` | `80` | FrankenPHP port |
