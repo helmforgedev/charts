@@ -248,17 +248,21 @@ jobs:
 
       - name: Upload provenance file
         if: steps.semver.outputs.skip != 'true'
+        id: prov
         run: |
-          mkdir -p .prov
-          cp .dist/*.prov .prov/ 2>/dev/null || echo "No .prov files to copy"
-          ls -la .prov/ 2>/dev/null
+          PROV_DIR="${GITHUB_WORKSPACE}/provenance-upload"
+          mkdir -p "$PROV_DIR"
+          cp .dist/*.prov "$PROV_DIR/" 2>/dev/null || echo "No .prov files to copy"
+          echo "Provenance upload directory:"
+          ls -la "$PROV_DIR/"
+          echo "prov_dir=$PROV_DIR" >> "$GITHUB_OUTPUT"
 
       - name: Upload provenance artifact
         if: steps.semver.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: provenance-${{ matrix.chart }}
-          path: .prov/
+          path: ${{ steps.prov.outputs.prov_dir }}
           retention-days: 1
           if-no-files-found: warn
 
