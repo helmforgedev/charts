@@ -209,8 +209,14 @@ jobs:
           if [ -n "$CHANGES" ]; then
             # Remove any existing changes annotation
             sed -i '/artifacthub\.io\/changes:/,/^  [^ ]/{ /^  [^ ]/!d; /artifacthub\.io\/changes:/d }' "$CHART_YAML"
-            # Append changes annotation before end of file
-            printf '  artifacthub.io/changes: |\n%b' "$CHANGES" >> "$CHART_YAML"
+            # Insert changes annotation inside the annotations block (after "annotations:" line)
+            ANNOTATIONS_LINE=$(grep -n "^annotations:" "$CHART_YAML" | cut -d: -f1)
+            if [ -n "$ANNOTATIONS_LINE" ]; then
+              head -n "$ANNOTATIONS_LINE" "$CHART_YAML" > /tmp/chart_tmp.yaml
+              printf '  artifacthub.io/changes: |\n%b' "$CHANGES" >> /tmp/chart_tmp.yaml
+              tail -n "+$((ANNOTATIONS_LINE + 1))" "$CHART_YAML" >> /tmp/chart_tmp.yaml
+              mv /tmp/chart_tmp.yaml "$CHART_YAML"
+            fi
             echo "Added changes annotation with $(echo -e "$CHANGES" | grep -c 'kind:') entries"
           fi
 
