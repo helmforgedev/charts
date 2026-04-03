@@ -152,13 +152,7 @@ jobs:
         if: steps.semver.outputs.skip != 'true'
         run: |
           echo "${{ secrets.GPG_KEYRING }}" | base64 -d > /tmp/secring.gpg
-          echo "GPG keyring size: $(wc -c < /tmp/secring.gpg) bytes"
-          echo "GPG keyring file type: $(file /tmp/secring.gpg)"
-          # List keys in the keyring to verify key name matches
-          gpg --no-default-keyring --keyring /tmp/secring.gpg --list-secret-keys 2>/dev/null || \
-            gpg --no-default-keyring --secret-keyring /tmp/secring.gpg --list-secret-keys 2>/dev/null || \
-            echo "WARNING: Could not list keys from keyring (may be legacy format)"
-          echo "GPG keyring imported"
+          echo "GPG keyring imported ($(wc -c < /tmp/secring.gpg) bytes)"
 
       - name: Build Helm dependencies
         if: steps.semver.outputs.skip != 'true'
@@ -230,14 +224,8 @@ jobs:
         if: steps.semver.outputs.skip != 'true'
         id: push
         run: |
-          echo "Signing with key: '${{ secrets.GPG_KEY_NAME }}'"
-          echo "Keyring exists: $(test -f /tmp/secring.gpg && echo yes || echo no)"
           helm package charts/${{ matrix.chart }} --destination .dist \
-            --sign --key "${{ secrets.GPG_KEY_NAME }}" --keyring /tmp/secring.gpg 2>&1 || true
-          echo "Files in .dist/:"
-          ls -la .dist/ 2>/dev/null || echo "  (empty)"
-          echo "Provenance files:"
-          ls -la .dist/*.prov 2>/dev/null || echo "  WARNING: No .prov files generated!"
+            --sign --key "${{ secrets.GPG_KEY_NAME }}" --keyring /tmp/secring.gpg
           for pkg in .dist/*.tgz; do
             echo "Publishing $pkg to OCI"
             PUSH_OUTPUT=$(helm push "$pkg" "$OCI_REGISTRY" 2>&1)
