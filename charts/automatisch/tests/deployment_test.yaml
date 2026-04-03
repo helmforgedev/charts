@@ -1,0 +1,222 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-automatisch
+
+  - it: should use Recreate strategy
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should use 1 replica
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should set the correct image with appVersion tag
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "automatischio/automatisch:0.15.0"
+
+  - it: should set custom image tag
+    set:
+      image.tag: "0.15.0"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "automatischio/automatisch:0.15.0"
+
+  - it: should set default env vars
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: APP_ENV
+            value: "production"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WEB_APP_URL
+            value: "http://localhost:3000"
+
+  - it: should set PostgreSQL env vars with subchart host
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_HOST
+            value: "test-postgresql"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_PORT
+            value: "5432"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_DATABASE
+            value: "automatisch"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_USERNAME
+            value: "automatisch"
+
+  - it: should reference postgresql subchart secret for POSTGRES_PASSWORD
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-postgresql-auth
+                key: user-password
+
+  - it: should set Redis env vars with subchart host
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_HOST
+            value: "test-redis-master"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PORT
+            value: "6379"
+
+  - it: should reference app secret for ENCRYPTION_KEY and APP_SECRET_KEY
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ENCRYPTION_KEY
+            valueFrom:
+              secretKeyRef:
+                name: test-automatisch-app
+                key: encryption-key
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: APP_SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: test-automatisch-app
+                key: app-secret-key
+
+  - it: should have wait-for-db init container
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+
+  - it: should set external database host when subchart is disabled
+    set:
+      postgresql.enabled: false
+      database.external.host: db.example.com
+      database.external.port: "5433"
+      database.external.name: my_automatisch
+      database.external.username: auto_user
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_HOST
+            value: "db.example.com"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_PORT
+            value: "5433"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_DATABASE
+            value: "my_automatisch"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_USERNAME
+            value: "auto_user"
+
+  - it: should use existing secret for external db password
+    set:
+      postgresql.enabled: false
+      database.external.host: db.example.com
+      database.external.existingSecret: my-db-secret
+      database.external.existingSecretPasswordKey: db-pass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: my-db-secret
+                key: db-pass
+
+  - it: should set external redis host when subchart is disabled
+    set:
+      redis.enabled: false
+      redis_config.external.host: redis.example.com
+      redis_config.external.port: "6380"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_HOST
+            value: "redis.example.com"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PORT
+            value: "6380"
+
+  - it: should set TCP probes
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.tcpSocket.port
+          value: http
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+          value: http
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.tcpSocket.port
+          value: http
+
+  - it: should set extra env vars
+    set:
+      automatisch.extraEnv:
+        - name: LOG_LEVEL
+          value: "debug"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LOG_LEVEL
+            value: "debug"
+
+  - it: should set resources
+    set:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
