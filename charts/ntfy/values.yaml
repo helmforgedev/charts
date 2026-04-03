@@ -1,0 +1,187 @@
+# =============================================================================
+# ntfy Helm Chart — Default Values
+# =============================================================================
+# Focus: self-hosted push notification service with HTTP-based pub-sub
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- ntfy container image
+  repository: docker.io/binwiederhier/ntfy
+  # -- Image tag (defaults to appVersion)
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# ntfy Configuration
+# =============================================================================
+
+ntfy:
+  # -- Public base URL of the instance (e.g. https://ntfy.example.com)
+  baseUrl: ""
+  # -- Default access for unauthenticated users (read-write, read-only, write-only, deny-all)
+  authDefaultAccess: "read-write"
+  # -- Enable behind-proxy mode (trust X-Forwarded-For headers)
+  behindProxy: true
+  # -- Enable Prometheus metrics endpoint at /metrics
+  enableMetrics: false
+  # -- Separate metrics listen address (e.g. :9090). Empty uses main port.
+  metricsListenHttp: ""
+  # -- Attachment total size limit per visitor (e.g. 100M)
+  attachmentTotalSizeLimit: ""
+  # -- Attachment file size limit (e.g. 15M)
+  attachmentFileSizeLimit: ""
+  # -- Attachment expiry duration (e.g. 3h)
+  attachmentExpiryDuration: ""
+  # -- Extra server.yml configuration lines (appended to ConfigMap)
+  # -- @default -- `""`
+  extraConfig: ""
+  # -- Extra environment variables for the container
+  # -- @default -- `[]`
+  extraEnv: []
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistence for cache and auth databases
+  enabled: true
+  # -- Storage size
+  size: 2Gi
+  # -- Storage class
+  storageClass: ""
+  # -- Access modes
+  accessModes:
+    - ReadWriteOnce
+  # -- Use an existing PVC
+  existingClaim: ""
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- HTTP service port
+  port: 80
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for ntfy
+  enabled: false
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts: []
+    # - host: ntfy.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+    # - hosts:
+    #     - ntfy.example.com
+    #   secretName: ntfy-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    path: /v1/health
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    path: /v1/health
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    path: /v1/health
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Metrics (Prometheus)
+# =============================================================================
+
+metrics:
+  # -- Create a ServiceMonitor for Prometheus Operator
+  serviceMonitor:
+    enabled: false
+    # -- Interval for Prometheus scraping
+    interval: 30s
+    # -- Additional labels for the ServiceMonitor
+    labels: {}
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []

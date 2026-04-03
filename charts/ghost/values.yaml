@@ -1,0 +1,240 @@
+# =============================================================================
+# Ghost Helm Chart — Default Values
+# =============================================================================
+# Focus: modern publishing platform and headless CMS with MySQL backend
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Ghost container image
+  repository: docker.io/library/ghost
+  # -- Image tag (defaults to appVersion)
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Ghost Configuration
+# =============================================================================
+
+ghost:
+  # -- Public URL of the Ghost instance (e.g. https://blog.example.com)
+  url: ""
+  # -- Extra environment variables for the container
+  # -- @default -- `[]`
+  extraEnv: []
+    # - name: mail__transport
+    #   value: SMTP
+    # - name: mail__options__host
+    #   value: smtp.example.com
+
+# =============================================================================
+# Database
+# =============================================================================
+
+database:
+  # -- External MySQL configuration (used when mysql subchart is disabled)
+  external:
+    host: ""
+    port: "3306"
+    name: ghost
+    username: ghost
+    password: ""
+    # -- Existing secret containing the database password
+    existingSecret: ""
+    # -- Key in the existing secret containing the password
+    existingSecretPasswordKey: password
+
+# =============================================================================
+# Content Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistence for /var/lib/ghost/content (images, media, files)
+  enabled: true
+  # -- Storage size
+  size: 10Gi
+  # -- Storage class
+  storageClass: ""
+  # -- Access modes
+  accessModes:
+    - ReadWriteOnce
+  # -- Use an existing PVC
+  existingClaim: ""
+
+# =============================================================================
+# S3 Backup
+# =============================================================================
+
+backup:
+  # -- Enable scheduled content backups to S3-compatible storage
+  enabled: false
+  # -- Cron schedule for backups (default: daily at 03:00 UTC)
+  schedule: "0 3 * * *"
+  # -- Suspend the CronJob without deleting it
+  suspend: false
+  # -- Concurrency policy: Forbid, Replace, Allow
+  concurrencyPolicy: Forbid
+  # -- Number of successful job records to keep
+  successfulJobsHistoryLimit: 3
+  # -- Number of failed job records to keep
+  failedJobsHistoryLimit: 3
+  # -- Maximum retries per backup job
+  backoffLimit: 1
+  # -- Prefix for backup archive filenames
+  archivePrefix: ghost
+  images:
+    # -- Image used for content backup (must have tar)
+    backup: docker.io/library/busybox:1.37
+    # -- Image used for S3 upload (MinIO client)
+    uploader: docker.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+  # -- Resources for backup containers
+  resources: {}
+  s3:
+    # -- S3-compatible endpoint URL
+    endpoint: ""
+    # -- Target bucket name
+    bucket: ""
+    # -- Key prefix within the bucket
+    prefix: ghost
+    # -- Auto-create the bucket if it does not exist
+    createBucketIfNotExists: true
+    # -- Use an existing secret for S3 credentials
+    existingSecret: ""
+    # -- Key in the existing secret for the access key
+    existingSecretAccessKeyKey: access-key
+    # -- Key in the existing secret for the secret key
+    existingSecretSecretKeyKey: secret-key
+    # -- Inline S3 access key (ignored when existingSecret is set)
+    accessKey: ""
+    # -- Inline S3 secret key (ignored when existingSecret is set)
+    secretKey: ""
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- HTTP service port
+  port: 80
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Ghost
+  enabled: false
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts: []
+    # - host: blog.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+    # - hosts:
+    #     - blog.example.com
+    #   secretName: ghost-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    path: /ghost/api/admin/site/
+    initialDelaySeconds: 15
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    path: /ghost/api/admin/site/
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    path: /ghost/api/admin/site/
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []
+
+# =============================================================================
+# Subcharts
+# =============================================================================
+
+mysql:
+  # -- Deploy MySQL as a subchart
+  enabled: true
+  architecture: standalone
+  auth:
+    database: ghost
+    username: ghost
+    # -- MySQL password (auto-generated if empty)
+    password: ""

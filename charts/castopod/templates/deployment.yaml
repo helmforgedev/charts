@@ -1,0 +1,161 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "castopod.fullname" . }}
+  labels:
+    {{- include "castopod.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "castopod.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "castopod.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "castopod.serviceAccountName" . }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        - name: wait-for-db
+          image: docker.io/library/busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for database at {{ include "castopod.dbHost" . }}:{{ include "castopod.dbPort" . }}..."
+              until nc -z -w2 {{ include "castopod.dbHost" . }} {{ include "castopod.dbPort" . }}; do
+                echo "Database not ready, retrying in 2s..."
+                sleep 2
+              done
+              echo "Database is ready."
+      containers:
+        - name: castopod
+          image: {{ include "castopod.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.castopod.port }}
+              protocol: TCP
+          env:
+            - name: CP_BASEURL
+              value: {{ .Values.castopod.baseURL | quote }}
+            - name: CP_DATABASE_HOSTNAME
+              value: {{ include "castopod.dbHost" . | quote }}
+            - name: CP_DATABASE_PORT
+              value: {{ include "castopod.dbPort" . | quote }}
+            - name: CP_DATABASE_NAME
+              value: {{ include "castopod.dbName" . | quote }}
+            - name: CP_DATABASE_USERNAME
+              value: {{ include "castopod.dbUsername" . | quote }}
+            - name: CP_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "castopod.dbSecretName" . }}
+                  key: {{ include "castopod.dbSecretPasswordKey" . }}
+            - name: CP_ANALYTICS_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "castopod.analyticsSecretName" . }}
+                  key: {{ include "castopod.analyticsSecretKey" . }}
+            {{- if .Values.redis.enabled }}
+            - name: CP_CACHE_HANDLER
+              value: redis
+            - name: CP_REDIS_HOST
+              value: {{ include "castopod.redisHost" . | quote }}
+            - name: CP_REDIS_PORT
+              value: "6379"
+            {{- end }}
+            {{- with .Values.castopod.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- if .Values.persistence.enabled }}
+            - name: data
+              mountPath: /var/www/html/writable
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        {{- if .Values.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "castopod.pvcName" . }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

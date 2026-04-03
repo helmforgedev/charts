@@ -1,0 +1,189 @@
+# =============================================================================
+# Automatisch Helm Chart — Default Values
+# =============================================================================
+# Focus: open-source business automation (self-hosted Zapier alternative)
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Automatisch container image
+  repository: docker.io/automatischio/automatisch
+  # -- Image tag (defaults to appVersion)
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Automatisch Configuration
+# =============================================================================
+
+automatisch:
+  # -- Public URL of the Automatisch web application
+  webAppUrl: "http://localhost:3000"
+  # -- Application environment
+  appEnv: production
+  # -- Extra environment variables for the container
+  # -- @default -- `[]`
+  extraEnv: []
+    # - name: LOG_LEVEL
+    #   value: "info"
+
+# =============================================================================
+# Database
+# =============================================================================
+
+database:
+  # -- External PostgreSQL configuration (used when postgresql subchart is disabled)
+  external:
+    host: ""
+    port: "5432"
+    name: automatisch
+    username: automatisch
+    password: ""
+    # -- Existing secret containing the database password
+    existingSecret: ""
+    # -- Key in the existing secret containing the password
+    existingSecretPasswordKey: password
+
+# =============================================================================
+# Redis
+# =============================================================================
+
+redis_config:
+  # -- External Redis configuration (used when redis subchart is disabled)
+  external:
+    host: ""
+    port: "6379"
+    # -- Existing secret containing the Redis password (not used by default)
+    existingSecret: ""
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- HTTP service port
+  port: 80
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Automatisch
+  enabled: false
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts: []
+    # - host: automatisch.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+    # - hosts:
+    #     - automatisch.example.com
+    #   secretName: automatisch-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []
+
+# =============================================================================
+# Subcharts
+# =============================================================================
+
+postgresql:
+  # -- Deploy PostgreSQL as a subchart
+  enabled: true
+  architecture: standalone
+  auth:
+    database: automatisch
+    username: automatisch
+    # -- PostgreSQL password (auto-generated if empty)
+    password: ""
+
+redis:
+  # -- Deploy Redis as a subchart
+  enabled: true
+  architecture: standalone

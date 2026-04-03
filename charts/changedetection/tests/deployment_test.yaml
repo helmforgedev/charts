@@ -1,0 +1,89 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-changedetection
+
+  - it: should use Recreate strategy
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should set the correct image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/dgtlmoon/changedetection.io:0.54.7"
+
+  - it: should expose port 5000
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 5000
+            protocol: TCP
+
+  - it: should mount data volume
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /datastore
+
+  - it: should use PVC for data when persistence enabled
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: test-changedetection-data
+
+  - it: should use emptyDir when persistence disabled
+    set:
+      persistence.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+
+  - it: should not have browser sidecar by default
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 1
+
+  - it: should add browser sidecar when enabled
+    set:
+      browser.enabled: true
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 2
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: browser
+
+  - it: should set PLAYWRIGHT_DRIVER_URL when browser enabled
+    set:
+      browser.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PLAYWRIGHT_DRIVER_URL
+            value: "ws://localhost:3000/?stealth=1&--disable-web-security=true"

@@ -1,0 +1,81 @@
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "ghost.fullname" . }}-backup
+  labels:
+    {{- include "ghost.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  suspend: {{ .Values.backup.suspend }}
+  concurrencyPolicy: {{ .Values.backup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "ghost.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          initContainers:
+            - name: content-backup
+              image: {{ .Values.backup.images.backup }}
+              command: ["/bin/sh", "/scripts/content-backup.sh"]
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: content
+                  mountPath: /var/lib/ghost/content
+                  readOnly: true
+                - name: backup-scratch
+                  mountPath: /backup
+                - name: scripts
+                  mountPath: /scripts
+          containers:
+            - name: upload
+              image: {{ .Values.backup.images.uploader }}
+              command: ["/bin/sh", "/scripts/upload-backup.sh"]
+              env:
+                - name: S3_ENDPOINT
+                  value: {{ .Values.backup.s3.endpoint | quote }}
+                - name: S3_BUCKET
+                  value: {{ .Values.backup.s3.bucket | quote }}
+                - name: S3_PREFIX
+                  value: {{ .Values.backup.s3.prefix | quote }}
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "ghost.backupSecretName" . }}
+                      key: access-key
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "ghost.backupSecretName" . }}
+                      key: secret-key
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: backup-scratch
+                  mountPath: /backup
+                  readOnly: true
+                - name: scripts
+                  mountPath: /scripts
+          volumes:
+            - name: content
+              persistentVolumeClaim:
+                claimName: {{ include "ghost.contentClaimName" . }}
+            - name: backup-scratch
+              emptyDir: {}
+            - name: scripts
+              configMap:
+                name: {{ include "ghost.fullname" . }}-backup-scripts
+                defaultMode: 0755
+{{- end }}

@@ -1,0 +1,178 @@
+# =============================================================================
+# ChiefOnboarding Helm Chart — Default Values
+# =============================================================================
+# Focus: employee onboarding automation platform with PostgreSQL backend
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- ChiefOnboarding container image
+  repository: docker.io/chiefonboarding/chiefonboarding
+  # -- Image tag (defaults to v{appVersion})
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# ChiefOnboarding Configuration
+# =============================================================================
+
+chiefonboarding:
+  # -- Application port (Django)
+  port: 8000
+  # -- Public base URL of the instance (e.g. https://onboarding.example.com)
+  baseUrl: ""
+  # -- Django secret key (auto-generated 50-char alphanumeric if empty)
+  secretKey: ""
+  # -- Existing secret containing the SECRET_KEY key
+  existingSecret: ""
+  # -- Key in the existing secret
+  existingSecretKey: secret-key
+  # -- Extra environment variables for the container
+  # -- @default -- `[]`
+  extraEnv: []
+    # - name: ALLOWED_HOSTS
+    #   value: "*"
+
+# =============================================================================
+# Database
+# =============================================================================
+
+database:
+  # -- External PostgreSQL configuration (used when postgresql subchart is disabled)
+  external:
+    host: ""
+    port: "5432"
+    name: chiefonboarding
+    username: chiefonboarding
+    password: ""
+    # -- Existing secret containing the database password
+    existingSecret: ""
+    # -- Key in the existing secret containing the password
+    existingSecretPasswordKey: password
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- HTTP service port
+  port: 80
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for ChiefOnboarding
+  enabled: false
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts: []
+    # - host: onboarding.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+    # - hosts:
+    #     - onboarding.example.com
+    #   secretName: chiefonboarding-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []
+
+# =============================================================================
+# Subcharts
+# =============================================================================
+
+postgresql:
+  # -- Deploy PostgreSQL as a subchart
+  enabled: true
+  architecture: standalone
+  auth:
+    database: chiefonboarding
+    username: chiefonboarding
+    # -- PostgreSQL password (auto-generated if empty)
+    password: ""

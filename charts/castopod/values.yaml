@@ -1,0 +1,275 @@
+# =============================================================================
+# Castopod Helm Chart — Default Values
+# =============================================================================
+# Focus: open-source podcast hosting platform with MariaDB and optional Redis
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Castopod container image
+  repository: docker.io/castopod/castopod
+  # -- Image tag (defaults to appVersion)
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Castopod Configuration
+# =============================================================================
+
+castopod:
+  # -- Application base URL (required, e.g. https://podcast.example.com)
+  baseURL: ""
+  # -- Application port (FrankenPHP)
+  port: 8080
+  # -- Extra environment variables for the container
+  # -- @default -- `[]`
+  extraEnv: []
+    # - name: CP_MEDIA_BASE_URL
+    #   value: "https://cdn.example.com"
+
+# =============================================================================
+# Analytics
+# =============================================================================
+
+analytics:
+  # -- Analytics salt for hashing (auto-generated 64 chars if empty)
+  salt: ""
+  # -- Existing secret containing the analytics salt
+  existingSecret: ""
+  # -- Key in the existing secret
+  existingSecretKey: analytics-salt
+
+# =============================================================================
+# Database
+# =============================================================================
+
+database:
+  # -- External MariaDB configuration (used when mariadb subchart is disabled)
+  external:
+    host: ""
+    port: "3306"
+    name: castopod
+    username: castopod
+    password: ""
+    # -- Existing secret containing the database password
+    existingSecret: ""
+    # -- Key in the existing secret containing the password
+    existingSecretPasswordKey: password
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable persistent storage for /var/www/html/writable (uploads, cache, logs, sessions)
+  enabled: true
+  # -- Use an existing PVC instead of creating one
+  existingClaim: ""
+  # -- Storage class for the PVC
+  storageClass: ""
+  # -- Access mode for the PVC
+  accessMode: ReadWriteOnce
+  # -- Size of the persistent volume
+  size: 10Gi
+  # -- Annotations for the PVC
+  annotations: {}
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- ServiceAccount name
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- HTTP service port
+  port: 80
+  # -- Annotations for the Service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Castopod
+  enabled: false
+  # -- Ingress class name (for example: traefik, nginx)
+  ingressClassName: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt
+  # -- Ingress hosts
+  hosts: []
+    # - host: podcast.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+    # - hosts:
+    #     - podcast.example.com
+    #   secretName: castopod-tls
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  liveness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+resources: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+# =============================================================================
+# S3 Backup
+# =============================================================================
+
+backup:
+  # -- Enable scheduled writable directory backups to S3-compatible storage
+  enabled: false
+
+  # -- Cron schedule for backups (default: daily at 03:00 UTC)
+  schedule: "0 3 * * *"
+
+  # -- Suspend the CronJob without deleting it
+  suspend: false
+
+  # -- Concurrency policy: Forbid, Replace, Allow
+  concurrencyPolicy: Forbid
+
+  # -- Number of successful job records to keep
+  successfulJobsHistoryLimit: 3
+
+  # -- Number of failed job records to keep
+  failedJobsHistoryLimit: 3
+
+  # -- Maximum retries per backup job
+  backoffLimit: 1
+
+  # -- Prefix for backup archive filenames
+  archivePrefix: castopod
+
+  images:
+    # -- Image used for tar/gzip backup
+    archiver: docker.io/library/busybox:1.37
+    # -- Image used for S3 upload (MinIO client)
+    uploader: docker.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+
+  # -- Resources for backup containers
+  resources: {}
+
+  s3:
+    # -- S3-compatible endpoint URL
+    endpoint: ""
+
+    # -- Target bucket name
+    bucket: ""
+
+    # -- Key prefix within the bucket
+    prefix: castopod
+
+    # -- Auto-create the bucket if it does not exist
+    createBucketIfNotExists: true
+
+    # -- Use an existing secret for S3 credentials
+    existingSecret: ""
+
+    # -- Key in the existing secret for the access key
+    existingSecretAccessKeyKey: access-key
+
+    # -- Key in the existing secret for the secret key
+    existingSecretSecretKeyKey: secret-key
+
+    # -- Inline S3 access key (ignored when existingSecret is set)
+    accessKey: ""
+
+    # -- Inline S3 secret key (ignored when existingSecret is set)
+    secretKey: ""
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []
+
+# =============================================================================
+# Subcharts
+# =============================================================================
+
+mariadb:
+  # -- Deploy MariaDB as a subchart
+  enabled: true
+  architecture: standalone
+  auth:
+    database: castopod
+    username: castopod
+    # -- MariaDB password (auto-generated if empty)
+    password: ""
+
+redis:
+  # -- Deploy Redis as a subchart (optional cache)
+  enabled: false
+  architecture: standalone
+  auth:
+    enabled: false

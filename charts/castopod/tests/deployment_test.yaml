@@ -1,0 +1,223 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-castopod
+
+  - it: should use RollingUpdate strategy
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+
+  - it: should use 1 replica
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should set the correct image with appVersion tag
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "docker.io/castopod/castopod:1.15.5"
+
+  - it: should set custom image tag
+    set:
+      image.tag: "1.14.0"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "docker.io/castopod/castopod:1.14.0"
+
+  - it: should set default env vars with subchart database
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CP_DATABASE_HOSTNAME
+            value: "test-mariadb"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CP_DATABASE_PORT
+            value: "3306"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CP_DATABASE_NAME
+            value: "castopod"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CP_DATABASE_USERNAME
+            value: "castopod"
+
+  - it: should reference mariadb subchart secret for database password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CP_DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-mariadb-auth
+                key: mariadb-user-password
+
+  - it: should reference analytics secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CP_ANALYTICS_SALT
+            valueFrom:
+              secretKeyRef:
+                name: test-castopod-analytics
+                key: analytics-salt
+
+  - it: should have wait-for-db init container
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+
+  - it: should set external database host when subchart is disabled
+    set:
+      mariadb.enabled: false
+      database.external.host: db.example.com
+      database.external.port: "3307"
+      database.external.name: my_castopod
+      database.external.username: castopod_user
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CP_DATABASE_HOSTNAME
+            value: "db.example.com"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CP_DATABASE_PORT
+            value: "3307"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CP_DATABASE_NAME
+            value: "my_castopod"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CP_DATABASE_USERNAME
+            value: "castopod_user"
+
+  - it: should use existing secret for external db password
+    set:
+      mariadb.enabled: false
+      database.external.host: db.example.com
+      database.external.existingSecret: my-db-secret
+      database.external.existingSecretPasswordKey: db-pass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CP_DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: my-db-secret
+                key: db-pass
+
+  - it: should not set redis env when redis is disabled
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CP_CACHE_HANDLER
+            value: redis
+
+  - it: should set redis env when redis is enabled
+    set:
+      redis.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CP_CACHE_HANDLER
+            value: redis
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CP_REDIS_HOST
+            value: "test-redis"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CP_REDIS_PORT
+            value: "6379"
+
+  - it: should set TCP probes
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.tcpSocket.port
+          value: http
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+          value: http
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.tcpSocket.port
+          value: http
+
+  - it: should mount data volume when persistence is enabled
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /var/www/html/writable
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: test-castopod-data
+
+  - it: should set extra env vars
+    set:
+      castopod.extraEnv:
+        - name: CP_MEDIA_BASE_URL
+          value: "https://cdn.example.com"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CP_MEDIA_BASE_URL
+            value: "https://cdn.example.com"
+
+  - it: should set resources
+    set:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+
+  - it: should set base URL
+    set:
+      castopod.baseURL: "https://podcast.example.com"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CP_BASEURL
+            value: "https://podcast.example.com"

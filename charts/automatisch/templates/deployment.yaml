@@ -1,0 +1,160 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "automatisch.fullname" . }}
+  labels:
+    {{- include "automatisch.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "automatisch.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "automatisch.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "automatisch.serviceAccountName" . }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        - name: wait-for-db
+          image: docker.io/library/busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for database at {{ include "automatisch.dbHost" . }}:{{ include "automatisch.dbPort" . }}..."
+              until nc -z -w2 {{ include "automatisch.dbHost" . }} {{ include "automatisch.dbPort" . }}; do
+                echo "Database not ready, retrying in 2s..."
+                sleep 2
+              done
+              echo "Database is ready."
+      containers:
+        - name: automatisch
+          image: {{ include "automatisch.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: APP_ENV
+              value: {{ .Values.automatisch.appEnv | quote }}
+            - name: WEB_APP_URL
+              value: {{ .Values.automatisch.webAppUrl | quote }}
+            - name: POSTGRES_HOST
+              value: {{ include "automatisch.dbHost" . | quote }}
+            - name: POSTGRES_PORT
+              value: {{ include "automatisch.dbPort" . | quote }}
+            - name: POSTGRES_DATABASE
+              value: {{ include "automatisch.dbName" . | quote }}
+            - name: POSTGRES_USERNAME
+              value: {{ include "automatisch.dbUsername" . | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "automatisch.dbSecretName" . }}
+                  key: {{ include "automatisch.dbSecretPasswordKey" . }}
+            - name: REDIS_HOST
+              value: {{ include "automatisch.redisHost" . | quote }}
+            - name: REDIS_PORT
+              value: {{ include "automatisch.redisPort" . | quote }}
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "automatisch.appSecretName" . }}
+                  key: encryption-key
+            - name: APP_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "automatisch.appSecretName" . }}
+                  key: app-secret-key
+            - name: WEBHOOK_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "automatisch.appSecretName" . }}
+                  key: webhook-secret-key
+            {{- with .Values.automatisch.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.extraVolumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.extraVolumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

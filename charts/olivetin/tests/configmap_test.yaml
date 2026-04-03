@@ -1,0 +1,36 @@
+suite: ConfigMap
+templates:
+  - templates/configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a ConfigMap
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: test-olivetin-config
+
+  - it: should contain config.yaml key
+    asserts:
+      - exists:
+          path: data["config.yaml"]
+
+  - it: should include default action in config
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "Ping Google"
+
+  - it: should use custom config
+    set:
+      config: |
+        actions:
+          - title: "Hello World"
+            shell: "echo hello"
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "Hello World"
