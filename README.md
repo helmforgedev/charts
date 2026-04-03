@@ -57,36 +57,9 @@ HelmForge is built on a simple principle: **use what upstream ships, nothing mor
 
 ## Charts
 
-| Chart | Maturity | Description |
-|-------|----------|-------------|
-| [adguard-home](charts/adguard-home/) | stable | AdGuard Home — network-wide DNS ad/tracker blocker with sync and S3 backup |
-| [alfio](charts/alfio/) | stable | Alf.io — open-source event ticketing with PostgreSQL, auto-generated admin credentials, and configurable datasource |
-| [answer](charts/answer/) | stable | Apache Answer — Q&A platform with SQLite, PostgreSQL, or MySQL, auto-install, and S3 backup |
-| [appwrite](charts/appwrite/) | stable | Appwrite — self-hosted BaaS with API, console, realtime, workers, MariaDB, and Redis |
-| [archivebox](charts/archivebox/) | stable | ArchiveBox — self-hosted web archiving with Chromium headless, multi-format capture, and persistent storage |
-| [authelia](charts/authelia/) | stable | Authelia — SSO, MFA, and OpenID Connect authentication server with forward auth for reverse proxies |
-| [automatisch](charts/automatisch/) | stable | Automatisch — open-source business automation with PostgreSQL, Redis, auto-generated secrets, and external database support |
-| [castopod](charts/castopod/) | stable | Castopod — open-source podcast hosting with MariaDB, optional Redis caching, FrankenPHP, and S3 backup |
-| [changedetection](charts/changedetection/) | stable | changedetection.io — web page change monitoring with Playwright browser support and persistent datastore |
-| [chiefonboarding](charts/chiefonboarding/) | stable | ChiefOnboarding — employee onboarding platform with PostgreSQL, auto-generated secret key, and S3 backup |
-| [ckan](charts/ckan/) | stable | CKAN — open data portal with DataPusher, Solr, PostgreSQL, and Redis |
-| [cloudflared](charts/cloudflared/) | stable | Cloudflare Tunnel — secure outbound-only connections with HA, PDB, and Prometheus metrics |
-| [countly](charts/countly/) | stable | Countly — product analytics platform with MongoDB, event tracking, crash reporting, and plugin system |
-| [cronicle](charts/cronicle/) | stable | Cronicle — multi-server task scheduler with web UI, persistent data, and configurable base URL |
-| [ddns-updater](charts/ddns-updater/) | stable | DDNS Updater — dynamic DNS for 50+ providers with web UI and persistent history |
-| [discount-bandit](charts/discount-bandit/) | stable | Discount Bandit — price tracking dashboard with SQLite, auto-generated Laravel APP_KEY, and persistent storage |
-| [docmost](charts/docmost/) | stable | Docmost — collaborative wiki and documentation software with PostgreSQL, Redis, local storage, and optional S3 |
-| [dolibarr](charts/dolibarr/) | stable | Dolibarr — ERP/CRM with MySQL or MariaDB, unattended setup, and persistent business data |
-| [druid](charts/druid/) | stable | Apache Druid — distributed analytics database with coordinator, broker, historical, and router |
-| [open-webui](charts/open-webui/) | stable | Open WebUI — self-hosted AI chat platform with Ollama/OpenAI, RAG, PostgreSQL, Redis, and S3 backup |
+50+ production-ready charts covering databases, authentication, CMS, analytics, automation, and more.
 
-### Maturity levels
-
-| Level | Meaning | Criteria |
-|-------|---------|----------|
-| **stable** | Production-ready, well-tested | 1+ releases, CI scenarios, k3d validated, no recent breaking changes |
-| **beta** | Functional, iterating | 1+ releases, unit tests and CI present, may have minor gaps |
-| **alpha** | New, functional but early | No release yet, tests present, limited iteration |
+Browse the full catalog with descriptions, install commands, and playground configs at **[helmforge.dev/docs/charts](https://helmforge.dev/docs/charts)**.
 
 ## CI/CD
 
