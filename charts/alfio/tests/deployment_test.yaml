@@ -1,0 +1,194 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-alfio
+
+  - it: should use Recreate strategy
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should use 1 replica
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should set the correct image with default tag
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "alfio/alf.io:2.0-M5-2509-1"
+
+  - it: should set custom image tag
+    set:
+      image.tag: "2.0-M5-2410-1"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "alfio/alf.io:2.0-M5-2410-1"
+
+  - it: should set Spring profiles env var
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPRING_PROFILES_ACTIVE
+            value: "dev"
+
+  - it: should set DATASOURCE_URL with subchart host
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATASOURCE_URL
+            value: "jdbc:postgresql://test-postgresql:5432/alfio"
+
+  - it: should set DATASOURCE_USERNAME
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATASOURCE_USERNAME
+            value: "alfio"
+
+  - it: should reference postgresql subchart secret for DATASOURCE_PASSWORD
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATASOURCE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-postgresql-auth
+                key: user-password
+
+  - it: should set DATASOURCE_DRIVER
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATASOURCE_DRIVER
+            value: "org.postgresql.Driver"
+
+  - it: should set DATASOURCE_PLATFORM
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATASOURCE_PLATFORM
+            value: "postgresql"
+
+  - it: should not set BASE_URL when empty
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BASE_URL
+          any: true
+
+  - it: should set BASE_URL when configured
+    set:
+      alfio.baseUrl: "https://tickets.example.com"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BASE_URL
+            value: "https://tickets.example.com"
+
+  - it: should have wait-for-db init container
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+
+  - it: should set external database host when subchart is disabled
+    set:
+      postgresql.enabled: false
+      database.external.host: db.example.com
+      database.external.port: "5433"
+      database.external.name: my_alfio
+      database.external.username: alfio_user
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATASOURCE_URL
+            value: "jdbc:postgresql://db.example.com:5433/my_alfio"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATASOURCE_USERNAME
+            value: "alfio_user"
+
+  - it: should use existing secret for external db password
+    set:
+      postgresql.enabled: false
+      database.external.host: db.example.com
+      database.external.existingSecret: my-db-secret
+      database.external.existingSecretPasswordKey: db-pass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATASOURCE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: my-db-secret
+                key: db-pass
+
+  - it: should use HTTP probes on /healthz
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /healthz
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.port
+          value: http
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /healthz
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: http
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /healthz
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: http
+
+  - it: should set extra env vars
+    set:
+      alfio.extraEnv:
+        - name: ALFIO_LOG_LEVEL
+          value: "DEBUG"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ALFIO_LOG_LEVEL
+            value: "DEBUG"
+
+  - it: should set resources
+    set:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
