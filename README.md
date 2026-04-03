@@ -66,7 +66,7 @@ Browse the full catalog with descriptions, install commands, and playground conf
 Charts are automatically tested and published via two GitHub Actions workflows.
 
 ```text
-PR        --> ci.yml      --> [Lint] [Template] [Kubeconform]
+PR        --> ci.yml      --> [Lint] [Template] [Unit Test] [Kubeconform] [ArtifactHub Lint]
 Push main --> publish.yml --> Detect --> Semver --> Package --> Publish to GHCR + Pages --> Git tag
 ```
 
