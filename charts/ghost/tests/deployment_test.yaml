@@ -1,0 +1,89 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-ghost
+
+  - it: should use Recreate strategy
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should set the correct image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "docker.io/library/ghost:6.25.1"
+
+  - it: should expose port 2368
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 2368
+            protocol: TCP
+
+  - it: should have wait-for-db init container
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+
+  - it: should set database env vars for MySQL subchart
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: database__client
+            value: mysql
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: database__connection__host
+            value: "test-mysql"
+
+  - it: should mount content volume
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: content
+            mountPath: /var/lib/ghost/content
+
+  - it: should use PVC for content when persistence enabled
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: content
+            persistentVolumeClaim:
+              claimName: test-ghost-content
+
+  - it: should use external DB host when subchart disabled
+    set:
+      mysql.enabled: false
+      database.external.host: "external-mysql.example.com"
+      database.external.password: "test"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: database__connection__host
+            value: "external-mysql.example.com"
+
+  - it: should use HTTP health probes
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /ghost/api/admin/site/
