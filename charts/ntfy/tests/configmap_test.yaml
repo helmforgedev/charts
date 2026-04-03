@@ -1,0 +1,45 @@
+suite: ConfigMap
+templates:
+  - templates/configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a ConfigMap
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: test-ntfy
+
+  - it: should contain server.yml with defaults
+    asserts:
+      - matchRegex:
+          path: data["server.yml"]
+          pattern: "listen-http.*:80"
+      - matchRegex:
+          path: data["server.yml"]
+          pattern: "cache-file.*cache.db"
+      - matchRegex:
+          path: data["server.yml"]
+          pattern: "auth-default-access.*read-write"
+      - matchRegex:
+          path: data["server.yml"]
+          pattern: "behind-proxy.*true"
+
+  - it: should set base-url when configured
+    set:
+      ntfy.baseUrl: "https://ntfy.example.com"
+    asserts:
+      - matchRegex:
+          path: data["server.yml"]
+          pattern: "base-url.*ntfy.example.com"
+
+  - it: should enable metrics when configured
+    set:
+      ntfy.enableMetrics: true
+    asserts:
+      - matchRegex:
+          path: data["server.yml"]
+          pattern: "enable-metrics.*true"
