@@ -150,6 +150,25 @@ jobs:
             echo "No tests directory found, skipping"
           fi
 
+  artifacthub-lint:
+    name: ArtifactHub Lint - ${{ matrix.chart }}
+    needs: detect
+    if: needs.detect.outputs.charts != '[]' && needs.detect.outputs.charts != ''
+    runs-on: ubuntu-latest
+    container:
+      image: artifacthub/ah:v1.19.0
+      options: --user root
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJson(needs.detect.outputs.charts) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run ArtifactHub lint
+        run: ah lint -p charts/${{ matrix.chart }}
+
   kubeconform:
     name: Validate - ${{ matrix.chart }}
     needs: [detect, template]
@@ -202,14 +221,15 @@ jobs:
     name: CI
     runs-on: ubuntu-latest
     if: always()
-    needs: [detect, lint, template, unittest, kubeconform]
+    needs: [detect, lint, template, unittest, kubeconform, artifacthub-lint]
     steps:
       - name: Check results
         run: |
           if [ "${{ needs.lint.result }}" = "failure" ] || \
              [ "${{ needs.template.result }}" = "failure" ] || \
              [ "${{ needs.unittest.result }}" = "failure" ] || \
-             [ "${{ needs.kubeconform.result }}" = "failure" ]; then
+             [ "${{ needs.kubeconform.result }}" = "failure" ] || \
+             [ "${{ needs.artifacthub-lint.result }}" = "failure" ]; then
             echo "CI failed"
             exit 1
           fi
