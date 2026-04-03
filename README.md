@@ -51,7 +51,7 @@ HelmForge is built on a simple principle: **use what upstream ships, nothing mor
 - **Official upstream images** — every chart uses the image published by the application maintainers. No custom rebuilds, no proprietary layers, no vendor-specific modifications.
 - **Pinned version tags** — charts reference explicit, immutable image tags. No `:latest`, no floating tags, no surprises after a pull.
 - **MIT licensed** — the charts, the CI, the docs — everything is MIT. No open-core, no paid tiers, no license changes down the road.
-- **Cosign signed** — every OCI artifact is signed with [Sigstore Cosign](https://www.sigstore.dev/) keyless signing via GitHub Actions OIDC. Verify before you deploy.
+- **Signed artifacts** — every release includes GPG provenance files for Helm verification and [Sigstore Cosign](https://www.sigstore.dev/) keyless signatures on OCI artifacts via GitHub Actions OIDC. Verify before you deploy.
 - **No vendor lock-in** — standard Helm, standard Kubernetes APIs, standard images. If you stop using HelmForge tomorrow, nothing breaks.
 - **Simple, explicit values** — product-oriented `values.yaml` files that map directly to the application's configuration. What you see is what you get.
 
