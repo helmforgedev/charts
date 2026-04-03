@@ -165,6 +165,55 @@ jobs:
           echo "Updated Chart.yaml:"
           grep -E '^(version|appVersion):' charts/${{ matrix.chart }}/Chart.yaml
 
+      - name: Generate ArtifactHub changes annotation
+        if: steps.semver.outputs.skip != 'true'
+        run: |
+          CHART="${{ matrix.chart }}"
+          PREV_TAG="${{ steps.semver.outputs.previous_tag }}"
+          CHART_YAML="charts/${CHART}/Chart.yaml"
+
+          if [ -z "$PREV_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"%s" -- "charts/${CHART}/" | head -50)
+          else
+            COMMITS=$(git log "${PREV_TAG}..HEAD" --pretty=format:"%s" -- "charts/${CHART}/")
+          fi
+
+          if [ -z "$COMMITS" ]; then
+            echo "No commits found, skipping changes annotation"
+            exit 0
+          fi
+
+          CHANGES=""
+          while IFS= read -r msg; do
+            [ -z "$msg" ] && continue
+            # Strip scope: "feat(chart): desc" -> "desc"
+            desc=$(echo "$msg" | sed -E 's/^[a-z]+(\([^)]*\))?!?:\s*//')
+            # Determine kind from conventional commit type
+            if echo "$msg" | grep -qE '^[a-z]+(\([^)]*\))?!:'; then
+              kind="changed"
+              desc="BREAKING: $desc"
+            elif echo "$msg" | grep -qE '^feat(\([^)]*\))?:'; then
+              kind="added"
+            elif echo "$msg" | grep -qE '^fix(\([^)]*\))?:'; then
+              kind="fixed"
+            elif echo "$msg" | grep -qE '^(refactor|perf)(\([^)]*\))?:'; then
+              kind="changed"
+            elif echo "$msg" | grep -qE '^docs(\([^)]*\))?:'; then
+              kind="changed"
+            else
+              kind="changed"
+            fi
+            CHANGES="${CHANGES}    - kind: ${kind}\n      description: ${desc}\n"
+          done <<< "$COMMITS"
+
+          if [ -n "$CHANGES" ]; then
+            # Remove any existing changes annotation
+            sed -i '/artifacthub\.io\/changes:/,/^  [^ ]/{ /^  [^ ]/!d; /artifacthub\.io\/changes:/d }' "$CHART_YAML"
+            # Append changes annotation before end of file
+            printf '  artifacthub.io/changes: |\n%b' "$CHANGES" >> "$CHART_YAML"
+            echo "Added changes annotation with $(echo -e "$CHANGES" | grep -c 'kind:') entries"
+          fi
+
       - name: Package and push to OCI
         if: steps.semver.outputs.skip != 'true'
         id: push
@@ -186,6 +235,7 @@ jobs:
           name: provenance-${{ matrix.chart }}
           path: .dist/*.prov
           retention-days: 1
+          if-no-files-found: warn
 
       - name: Sign OCI artifact with Cosign
         if: steps.semver.outputs.skip != 'true' && steps.push.outputs.digest != ''
@@ -359,12 +409,16 @@ jobs:
 
       - name: Copy provenance files
         run: |
-          if ls provenance/*.prov 1>/dev/null 2>&1; then
-            cp provenance/*.prov gh-pages/
-            echo "Copied provenance files:"
-            ls -1 gh-pages/*.prov 2>/dev/null | wc -l
+          echo "Provenance directory contents:"
+          find provenance/ -type f -name '*.prov' 2>/dev/null || echo "  (no .prov files found)"
+
+          if find provenance/ -type f -name '*.prov' 2>/dev/null | grep -q .; then
+            find provenance/ -type f -name '*.prov' -exec cp {} gh-pages/ \;
+            echo "Copied provenance files to gh-pages:"
+            ls -1 gh-pages/*.prov 2>/dev/null
           else
-            echo "No provenance files to copy"
+            echo "WARNING: No provenance files found in provenance/ directory"
+            echo "This means chart signatures will not be verifiable via the HTTP repository"
           fi
 
       - name: Sync artifacthub-repo.yml
