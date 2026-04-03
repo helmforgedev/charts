@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="docs/images/helmforge_logo_horizontal.png" alt="HelmForge" width="720" />
+  <img src="docs/images/helmforge_banner.svg" alt="HelmForge" width="960" />
 </p>
 
 <h1 align="center">HelmForge Charts</h1>
 
 <p align="center">
-  Production-ready Helm charts for modern Kubernetes workloads.
+  Open-source Helm charts, forged to last.
 </p>
 
 <p align="center">
@@ -59,49 +59,24 @@ HelmForge is built on a simple principle: **use what upstream ships, nothing mor
 
 | Chart | Maturity | Description |
 |-------|----------|-------------|
-| [generic](charts/generic/) | stable | General-purpose chart for any Kubernetes workload |
-| [mongodb](charts/mongodb/) | stable | MongoDB — standalone, replica set, or sharded cluster |
-| [redis](charts/redis/) | stable | Redis — standalone, replication, sentinel, or cluster |
-| [rabbitmq](charts/rabbitmq/) | stable | RabbitMQ — single-node or cluster with management UI and optional TLS |
-| [postgresql](charts/postgresql/) | stable | PostgreSQL — standalone or fixed-primary replication with optional metrics |
-| [mysql](charts/mysql/) | stable | MySQL — standalone or fixed-source replication with optional metrics |
-| [keycloak](charts/keycloak/) | stable | Keycloak — dev or production mode with external DB and separated management service |
-| [vaultwarden](charts/vaultwarden/) | stable | Vaultwarden — single-instance with persistent SQLite, ingress, and optional SMTP |
-| [minecraft](charts/minecraft/) | stable | Minecraft — Java Edition server with Vanilla, Paper, Forge, Fabric, GeyserMC cross-play, S3 backup, and monitoring |
-| [pihole](charts/pihole/) | stable | Pi-hole — DNS sinkhole with custom records, Unbound recursive DNS, and Prometheus metrics |
-| [wordpress](charts/wordpress/) | stable | WordPress — CMS with MySQL subchart or external database, S3 backup, and Prometheus metrics |
-| [strapi](charts/strapi/) | stable | Strapi — headless CMS with SQLite, PostgreSQL, or MySQL, uploads persistence, and S3 backup |
-| [answer](charts/answer/) | stable | Apache Answer — Q&A platform with SQLite, PostgreSQL, or MySQL, auto-install, and S3 backup |
-| [n8n](charts/n8n/) | stable | n8n — workflow automation with SQLite, PostgreSQL, or MySQL, Redis queue mode, and S3 backup |
-| [komga](charts/komga/) | stable | Komga — media server for comics and manga with OPDS, SQLite persistence, and S3 backup |
-| [guacamole](charts/guacamole/) | stable | Apache Guacamole — remote desktop gateway with guacd, PostgreSQL or MySQL, OIDC/SAML SSO, and S3 backup |
-| [cloudflared](charts/cloudflared/) | stable | Cloudflare Tunnel — secure outbound-only connections with HA, PDB, and Prometheus metrics |
-| [ddns-updater](charts/ddns-updater/) | stable | DDNS Updater — dynamic DNS for 50+ providers with web UI and persistent history |
-| [dolibarr](charts/dolibarr/) | stable | Dolibarr — ERP/CRM with MySQL or MariaDB, unattended setup, and persistent business data |
-| [docmost](charts/docmost/) | stable | Docmost — collaborative wiki and documentation software with PostgreSQL, Redis, local storage, and optional S3 |
-| [flowise](charts/flowise/) | stable | Flowise — visual AI orchestration with standalone SQLite mode or scalable queue mode backed by Redis and PostgreSQL |
-| [mosquitto](charts/mosquitto/) | stable | Eclipse Mosquitto — MQTT broker with standalone or federated topology, WebSocket support, and optional MQTTX Web companion UI |
-| [uptime-kuma](charts/uptime-kuma/) | stable | Uptime Kuma — self-hosted monitoring with SQLite or MariaDB, status pages, and S3 backup |
-| [authelia](charts/authelia/) | stable | Authelia — SSO, MFA, and OpenID Connect authentication server with forward auth for reverse proxies |
 | [adguard-home](charts/adguard-home/) | stable | AdGuard Home — network-wide DNS ad/tracker blocker with sync and S3 backup |
+| [alfio](charts/alfio/) | stable | Alf.io — open-source event ticketing with PostgreSQL, auto-generated admin credentials, and configurable datasource |
+| [answer](charts/answer/) | stable | Apache Answer — Q&A platform with SQLite, PostgreSQL, or MySQL, auto-install, and S3 backup |
 | [appwrite](charts/appwrite/) | stable | Appwrite — self-hosted BaaS with API, console, realtime, workers, MariaDB, and Redis |
-| [velero](charts/velero/) | stable | Velero — Kubernetes backup, restore, migration, schedules, and S3-compatible object storage |
-| [kafka](charts/kafka/) | stable | Kafka — KRaft single-broker and production-oriented cluster modes with persistent storage and optional metrics |
-| [phpmyadmin](charts/phpmyadmin/) | stable | phpMyAdmin — web-based MySQL/MariaDB administration with multi-server, auto-login, and custom config support |
-| [heimdall](charts/heimdall/) | stable | Heimdall — application dashboard with persistent config, S3 backup, and ingress support |
-| [gitea](charts/gitea/) | stable | Gitea — self-hosted Git service with SQLite, PostgreSQL, or MySQL, rootless image, SSH, and S3 backup |
-| [homarr](charts/homarr/) | stable | Homarr — modern application dashboard with SQLite, PostgreSQL, or MySQL, Kubernetes integration, and S3 backup |
-| [mariadb](charts/mariadb/) | stable | MariaDB — standalone or GTID-based replication with TLS, metrics, configuration presets, and S3 backup |
-| [umami](charts/umami/) | stable | Umami — privacy-focused web analytics with PostgreSQL and auto-generated app secret |
-| [metabase](charts/metabase/) | stable | Metabase — open-source business intelligence and analytics with PostgreSQL and JVM tuning |
-| [liwan](charts/liwan/) | stable | Liwan — ultra-lightweight privacy-first web analytics with embedded DuckDB |
-| [wallabag](charts/wallabag/) | stable | Wallabag — self-hosted read-it-later with PostgreSQL, optional Redis, and Symfony configuration |
-| [strava-statistics](charts/strava-statistics/) | stable | Statistics for Strava — self-hosted fitness dashboard with SQLite and Strava OAuth |
 | [archivebox](charts/archivebox/) | stable | ArchiveBox — self-hosted web archiving with Chromium headless, multi-format capture, and persistent storage |
-| [countly](charts/countly/) | stable | Countly — product analytics platform with MongoDB, event tracking, crash reporting, and plugin system |
-| [middleware](charts/middleware/) | stable | Middleware — open-source DORA metrics platform with PostgreSQL, Redis, and engineering performance tracking |
-| [superset](charts/superset/) | stable | Apache Superset — data exploration and visualization with Celery workers, PostgreSQL, and Redis |
+| [authelia](charts/authelia/) | stable | Authelia — SSO, MFA, and OpenID Connect authentication server with forward auth for reverse proxies |
+| [automatisch](charts/automatisch/) | stable | Automatisch — open-source business automation with PostgreSQL, Redis, auto-generated secrets, and external database support |
+| [castopod](charts/castopod/) | stable | Castopod — open-source podcast hosting with MariaDB, optional Redis caching, FrankenPHP, and S3 backup |
+| [changedetection](charts/changedetection/) | stable | changedetection.io — web page change monitoring with Playwright browser support and persistent datastore |
+| [chiefonboarding](charts/chiefonboarding/) | stable | ChiefOnboarding — employee onboarding platform with PostgreSQL, auto-generated secret key, and S3 backup |
 | [ckan](charts/ckan/) | stable | CKAN — open data portal with DataPusher, Solr, PostgreSQL, and Redis |
+| [cloudflared](charts/cloudflared/) | stable | Cloudflare Tunnel — secure outbound-only connections with HA, PDB, and Prometheus metrics |
+| [countly](charts/countly/) | stable | Countly — product analytics platform with MongoDB, event tracking, crash reporting, and plugin system |
+| [cronicle](charts/cronicle/) | stable | Cronicle — multi-server task scheduler with web UI, persistent data, and configurable base URL |
+| [ddns-updater](charts/ddns-updater/) | stable | DDNS Updater — dynamic DNS for 50+ providers with web UI and persistent history |
+| [discount-bandit](charts/discount-bandit/) | stable | Discount Bandit — price tracking dashboard with SQLite, auto-generated Laravel APP_KEY, and persistent storage |
+| [docmost](charts/docmost/) | stable | Docmost — collaborative wiki and documentation software with PostgreSQL, Redis, local storage, and optional S3 |
+| [dolibarr](charts/dolibarr/) | stable | Dolibarr — ERP/CRM with MySQL or MariaDB, unattended setup, and persistent business data |
 | [druid](charts/druid/) | stable | Apache Druid — distributed analytics database with coordinator, broker, historical, and router |
 | [open-webui](charts/open-webui/) | stable | Open WebUI — self-hosted AI chat platform with Ollama/OpenAI, RAG, PostgreSQL, Redis, and S3 backup |
 
