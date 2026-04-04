@@ -63,8 +63,7 @@ ServiceAccount name
 Image reference with tag defaulting to appVersion-rootless
 */}}
 {{- define "gitea.image" -}}
-{{- $tag := .Values.image.tag | default (printf "%s-rootless" .Chart.AppVersion) -}}
-{{- printf "%s:%s" .Values.image.repository $tag -}}
+{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end }}
 
 {{/* ======================================================================== */}}

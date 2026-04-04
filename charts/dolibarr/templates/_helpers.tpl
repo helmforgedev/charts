@@ -67,8 +67,7 @@ ServiceAccount name.
 Image string with tag fallback to appVersion.
 */}}
 {{- define "dolibarr.image" -}}
-{{- $tag := default .Chart.AppVersion .Values.image.tag }}
-{{- printf "%s:%s" .Values.image.repository $tag }}
+{{- printf "%s:%s" .Values.image.repository .Values.image.tag }}
 {{- end }}
 
 {{/*

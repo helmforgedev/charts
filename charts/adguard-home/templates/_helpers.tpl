@@ -32,8 +32,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/* Image helper — tag prefixed with "v" */}}
 {{- define "adguard-home.image" -}}
-{{- $tag := .Values.image.tag | default (printf "v%s" .Chart.AppVersion) -}}
-{{- printf "%s:%s" .Values.image.repository $tag -}}
+{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
 {{/* Returns true when a pre-seed config is provided */}}

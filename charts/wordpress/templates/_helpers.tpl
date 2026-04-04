@@ -67,8 +67,7 @@ ServiceAccount name.
 Image string with tag fallback to appVersion.
 */}}
 {{- define "wordpress.image" -}}
-{{- $tag := default (printf "%s-apache" .Chart.AppVersion) .Values.image.tag }}
-{{- printf "%s:%s" .Values.image.repository $tag }}
+{{- printf "%s:%s" .Values.image.repository .Values.image.tag }}
 {{- end }}
 
 {{/*
