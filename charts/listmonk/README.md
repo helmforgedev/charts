@@ -11,7 +11,7 @@ Self-hosted newsletter and mailing list manager for Kubernetes.
 - Persistent storage for media uploads
 - Configurable ingress with TLS support
 - Built-in PostgreSQL backup CronJob with S3 upload
-- Admin credentials managed via Kubernetes Secrets
+- First-access setup wizard for Super Admin account creation
 - SMTP configuration through the admin UI after installation
 
 ## Install
@@ -55,24 +55,9 @@ helm install listmonk helmforge/listmonk \
 
 SMTP and most application settings are configured through the Listmonk admin UI after installation at **Settings > SMTP**. The Helm chart handles infrastructure-level configuration (database, storage, ingress, probes).
 
-### Admin Credentials
+### Admin Setup
 
-By default, the chart creates an admin user with username `admin` and an auto-generated password stored in a Kubernetes Secret. To set custom credentials:
-
-```yaml
-listmonk:
-  adminUser: myadmin
-  adminPassword: mysecurepassword
-```
-
-Or use an existing secret:
-
-```yaml
-listmonk:
-  existingSecret: my-listmonk-secret
-  existingSecretUserKey: admin-user
-  existingSecretPasswordKey: admin-password
-```
+On first access, Listmonk displays a setup wizard where you create a Super Admin account. This is handled entirely through the web UI — the chart does not manage admin credentials.
 
 ### Database Initialization
 
@@ -86,9 +71,6 @@ The chart automatically runs `--install --idempotent --yes` and `--upgrade --yes
 | `image.repository` | string | `docker.io/listmonk/listmonk` | Image repository |
 | `image.tag` | string | `""` | Image tag (defaults to appVersion) |
 | `image.pullPolicy` | string | `IfNotPresent` | Pull policy |
-| `listmonk.adminUser` | string | `""` | Admin username (defaults to `admin`) |
-| `listmonk.adminPassword` | string | `""` | Admin password (auto-generated if empty) |
-| `listmonk.existingSecret` | string | `""` | Existing secret for admin credentials |
 | `listmonk.extraEnv` | list | `[]` | Additional environment variables |
 | `database.mode` | string | `auto` | Database mode: `auto`, `external`, `postgresql` |
 | `database.external.host` | string | `""` | External PostgreSQL hostname |

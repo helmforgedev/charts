@@ -142,14 +142,6 @@ user-password
 {{- end -}}
 {{- end -}}
 
-{{- define "listmonk.adminSecretName" -}}
-{{- if .Values.listmonk.existingSecret -}}
-{{- .Values.listmonk.existingSecret -}}
-{{- else -}}
-{{- printf "%s-admin" (include "listmonk.fullname" .) -}}
-{{- end -}}
-{{- end -}}
-
 {{/* ======== Backup helpers ======== */}}
 
 {{- define "listmonk.backupEnabled" -}}
