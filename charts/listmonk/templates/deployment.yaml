@@ -1,0 +1,188 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "listmonk.fullname" . }}
+  labels:
+    {{- include "listmonk.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "listmonk.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "listmonk.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "listmonk.serviceAccountName" . }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        - name: wait-for-postgresql
+          image: docker.io/library/busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for {{ include "listmonk.databaseHost" . }}:{{ include "listmonk.databasePort" . }} ..."
+              until nc -z -w2 {{ include "listmonk.databaseHost" . }} {{ include "listmonk.databasePort" . }}; do
+                sleep 2
+              done
+              echo "PostgreSQL is reachable."
+        - name: db-init
+          image: {{ include "listmonk.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              ./listmonk --install --idempotent --yes --config="" && \
+              ./listmonk --upgrade --yes --config=""
+          env:
+            - name: LISTMONK_db__host
+              value: {{ include "listmonk.databaseHost" . | quote }}
+            - name: LISTMONK_db__port
+              value: {{ include "listmonk.databasePort" . | quote }}
+            - name: LISTMONK_db__user
+              value: {{ include "listmonk.databaseUsername" . | quote }}
+            - name: LISTMONK_db__password
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "listmonk.databaseSecretName" . }}
+                  key: {{ include "listmonk.databaseSecretKey" . }}
+            - name: LISTMONK_db__database
+              value: {{ include "listmonk.databaseName" . | quote }}
+            - name: LISTMONK_db__ssl_mode
+              value: {{ include "listmonk.databaseSslMode" . | quote }}
+      containers:
+        - name: listmonk
+          image: {{ include "listmonk.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - ./listmonk
+            - --config=""
+          ports:
+            - name: http
+              containerPort: 9000
+              protocol: TCP
+          env:
+            - name: LISTMONK_app__address
+              value: "0.0.0.0:9000"
+            - name: LISTMONK_db__host
+              value: {{ include "listmonk.databaseHost" . | quote }}
+            - name: LISTMONK_db__port
+              value: {{ include "listmonk.databasePort" . | quote }}
+            - name: LISTMONK_db__user
+              value: {{ include "listmonk.databaseUsername" . | quote }}
+            - name: LISTMONK_db__password
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "listmonk.databaseSecretName" . }}
+                  key: {{ include "listmonk.databaseSecretKey" . }}
+            - name: LISTMONK_db__database
+              value: {{ include "listmonk.databaseName" . | quote }}
+            - name: LISTMONK_db__ssl_mode
+              value: {{ include "listmonk.databaseSslMode" . | quote }}
+            {{- if or .Values.listmonk.adminUser (not .Values.listmonk.existingSecret) }}
+            - name: LISTMONK_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "listmonk.adminSecretName" . }}
+                  key: {{ .Values.listmonk.existingSecretUserKey | default "admin-user" }}
+            - name: LISTMONK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "listmonk.adminSecretName" . }}
+                  key: {{ .Values.listmonk.existingSecretPasswordKey | default "admin-password" }}
+            {{- end }}
+            {{- with .Values.listmonk.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.startupProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: uploads
+              mountPath: /listmonk/uploads
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: uploads
+          {{- if .Values.storage.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.storage.existingClaim }}
+          {{- else if .Values.storage.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "listmonk.fullname" . }}-uploads
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

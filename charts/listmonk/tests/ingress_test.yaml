@@ -1,0 +1,44 @@
+suite: ingress
+templates:
+  - templates/ingress.yaml
+tests:
+  - it: does not render ingress by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders ingress when enabled
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: traefik
+      ingress.hosts:
+        - host: listmonk.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: traefik
+      - equal:
+          path: spec.rules[0].host
+          value: listmonk.example.com
+
+  - it: renders TLS configuration
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: listmonk.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+      ingress.tls:
+        - secretName: listmonk-tls
+          hosts:
+            - listmonk.example.com
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: listmonk-tls
