@@ -1,0 +1,117 @@
+suite: deployment
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+tests:
+  - it: renders deployment with default values
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: uses correct image
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "docker.io/listmonk/listmonk:v6.1.0"
+
+  - it: exposes port 9000
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 9000
+            protocol: TCP
+
+  - it: includes wait-for-postgresql init container
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-postgresql
+
+  - it: includes db-init init container
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: db-init
+
+  - it: sets database env vars
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LISTMONK_app__address
+            value: "0.0.0.0:9000"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LISTMONK_db__database
+            value: "listmonk"
+
+  - it: mounts uploads volume
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: uploads
+            mountPath: /listmonk/uploads
+
+  - it: uses custom image tag
+    template: templates/deployment.yaml
+    set:
+      image.tag: "v5.0.0"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "docker.io/listmonk/listmonk:v5.0.0"
+
+  - it: adds extra env vars
+    template: templates/deployment.yaml
+    set:
+      listmonk.extraEnv:
+        - name: TZ
+          value: America/Sao_Paulo
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TZ
+            value: America/Sao_Paulo
+
+  - it: renders startup probe by default
+    template: templates/deployment.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].startupProbe
+
+  - it: disables startup probe when configured
+    template: templates/deployment.yaml
+    set:
+      startupProbe.enabled: false
+    asserts:
+      - isNull:
+          path: spec.template.spec.containers[0].startupProbe
+
+  - it: renders with external database
+    template: templates/deployment.yaml
+    set:
+      postgresql.enabled: false
+      database.mode: external
+      database.external.host: pg.example.com
+      database.external.password: secret123
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LISTMONK_db__host
+            value: "pg.example.com"

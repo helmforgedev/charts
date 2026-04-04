@@ -1,0 +1,258 @@
+# =============================================================================
+# Listmonk Helm Chart
+# =============================================================================
+# Self-hosted newsletter and mailing list manager.
+# Requires PostgreSQL. SMTP is configured through the admin UI after install.
+# =============================================================================
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+
+# -- Override the full release name used in resource names
+fullnameOverride: ""
+
+# -- Labels added to every resource created by this chart
+commonLabels: {}
+
+# -- Number of Listmonk application replicas
+replicaCount: 1
+
+image:
+  # -- Listmonk container image repository
+  repository: docker.io/listmonk/listmonk
+  # -- Listmonk image tag. Defaults to appVersion when empty.
+  tag: ""
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+listmonk:
+  # -- Admin username created on first install
+  adminUser: ""
+  # -- Admin password created on first install. Auto-generated if empty.
+  adminPassword: ""
+  # -- Existing secret containing admin credentials
+  existingSecret: ""
+  # -- Secret key for admin username in existingSecret
+  existingSecretUserKey: admin-user
+  # -- Secret key for admin password in existingSecret
+  existingSecretPasswordKey: admin-password
+  # -- Additional environment variables for the Listmonk container
+  extraEnv: []
+
+database:
+  # -- Database mode: auto | external | postgresql
+  mode: auto
+  external:
+    # -- External PostgreSQL hostname
+    host: ""
+    # -- External PostgreSQL port
+    port: 5432
+    # -- External PostgreSQL database name
+    name: listmonk
+    # -- External PostgreSQL username
+    username: listmonk
+    # -- External PostgreSQL password. Ignored when existingSecret is set.
+    password: ""
+    # -- PostgreSQL SSL mode
+    sslMode: disable
+    # -- Existing secret containing the external PostgreSQL password
+    existingSecret: ""
+    # -- Secret key for the external PostgreSQL password
+    existingSecretPasswordKey: database-password
+
+# -- Deploy PostgreSQL as a subchart
+postgresql:
+  enabled: true
+  architecture: standalone
+  auth:
+    # -- PostgreSQL database name created on first run
+    database: listmonk
+    # -- PostgreSQL username created on first run
+    username: listmonk
+    # -- PostgreSQL application user password. Auto-generated if empty.
+    password: ""
+    # -- PostgreSQL superuser password. Auto-generated if empty.
+    postgresPassword: ""
+  initdb:
+    scripts:
+      # -- Bootstrap Listmonk database privileges and extensions on first PostgreSQL initialization.
+      10-listmonk-bootstrap.sql: |
+        GRANT CREATE ON DATABASE listmonk TO listmonk;
+        \connect listmonk
+        CREATE EXTENSION IF NOT EXISTS pgcrypto;
+  standalone:
+    persistence:
+      # -- Enable persistence for PostgreSQL data
+      enabled: true
+      # -- PVC size for PostgreSQL
+      size: 8Gi
+
+storage:
+  # -- Enable persistent local storage for uploaded media
+  enabled: true
+  # -- Storage class for the uploads PVC
+  storageClass: ""
+  # -- Access mode for the uploads PVC
+  accessMode: ReadWriteOnce
+  # -- Size of the uploads PVC
+  size: 5Gi
+  # -- Existing PVC claim for uploads storage
+  existingClaim: ""
+  # -- Annotations for the uploads PVC
+  annotations: {}
+
+backup:
+  # -- Enable built-in backup CronJob for PostgreSQL (pg_dump to S3)
+  enabled: false
+  # -- Backup schedule in Cron format
+  schedule: "0 3 * * *"
+  # -- Suspend backup execution
+  suspend: false
+  # -- CronJob concurrency policy
+  concurrencyPolicy: Forbid
+  # -- Successful job history retained by the CronJob
+  successfulJobsHistoryLimit: 3
+  # -- Failed job history retained by the CronJob
+  failedJobsHistoryLimit: 3
+  # -- Job backoff limit
+  backoffLimit: 1
+  # -- Prefix used in generated backup archive names
+  archivePrefix: listmonk
+  images:
+    # -- PostgreSQL client image used for pg_dump
+    postgresql: docker.io/library/postgres:17-alpine
+    # -- MinIO client image used for S3 upload
+    uploader: docker.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+  # -- Resources applied to the backup dump and upload containers
+  resources: {}
+  database:
+    # -- Extra arguments passed to pg_dump
+    pgDumpArgs: ""
+  s3:
+    # -- S3-compatible endpoint URL
+    endpoint: ""
+    # -- Target bucket name
+    bucket: ""
+    # -- Optional key prefix inside the bucket
+    prefix: listmonk
+    # -- Create the bucket automatically when it does not exist yet
+    createBucketIfNotExists: true
+    # -- Existing secret containing access-key and secret-key
+    existingSecret: ""
+    # -- Secret key name for the access key inside backup.s3.existingSecret
+    existingSecretAccessKeyKey: access-key
+    # -- Secret key name for the secret key inside backup.s3.existingSecret
+    existingSecretSecretKeyKey: secret-key
+    # -- Inline access key used when backup.s3.existingSecret is not set
+    accessKey: ""
+    # -- Inline secret key used when backup.s3.existingSecret is not set
+    secretKey: ""
+
+service:
+  # -- Service type for the Listmonk HTTP service
+  type: ClusterIP
+  # -- Service port exposed by the Listmonk service
+  port: 80
+  # -- Annotations for the Listmonk service
+  annotations: {}
+
+ingress:
+  # -- Enable ingress for Listmonk
+  enabled: false
+  # -- Ingress class name
+  ingressClassName: ""
+  # -- Ingress annotations
+  # annotations:
+  #   cert-manager.io/cluster-issuer: letsencrypt-prod
+  annotations: {}
+  # -- Ingress hosts
+  hosts: []
+    # - host: listmonk.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+    # - secretName: listmonk-tls
+    #   hosts:
+    #     - listmonk.example.com
+
+startupProbe:
+  # -- Enable startup probe
+  enabled: true
+  # -- HTTP path used by the startup probe
+  path: /
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 30
+
+livenessProbe:
+  # -- Enable liveness probe
+  enabled: true
+  # -- HTTP path used by the liveness probe
+  path: /
+  initialDelaySeconds: 0
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  # -- Enable readiness probe
+  enabled: true
+  # -- HTTP path used by the readiness probe
+  path: /
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# -- CPU and memory requests/limits for the Listmonk container
+resources: {}
+
+# -- Pod-level security context
+podSecurityContext: {}
+
+# -- Container-level security context
+securityContext: {}
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount
+  create: false
+  # -- ServiceAccount name override
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# -- Node selector for pod scheduling
+nodeSelector: {}
+
+# -- Tolerations for pod scheduling
+tolerations: []
+
+# -- Affinity rules for pod scheduling
+affinity: {}
+
+# -- Priority class name
+priorityClassName: ""
+
+# -- Grace period for shutdown, in seconds
+terminationGracePeriodSeconds: 30
+
+# -- Additional labels for the Listmonk pod
+podLabels: {}
+
+# -- Additional annotations for the Listmonk pod
+podAnnotations: {}
+
+# -- Additional volume mounts for the Listmonk container
+extraVolumeMounts: []
+
+# -- Additional volumes for the Listmonk pod
+extraVolumes: []
+
+# -- Extra Kubernetes manifests to deploy alongside the chart
+extraManifests: []
