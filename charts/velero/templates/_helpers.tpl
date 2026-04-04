@@ -37,8 +37,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "velero.image" -}}
-{{- $tag := .Values.image.tag | default .Chart.AppVersion -}}
-{{- printf "%s:%s" .Values.image.repository $tag -}}
+{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
 {{- define "velero.serviceAccountName" -}}

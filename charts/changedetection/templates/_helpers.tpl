@@ -39,8 +39,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "changedetection.image" -}}
-{{- $tag := .Values.image.tag | default .Chart.AppVersion -}}
-{{- printf "%s:%s" .Values.image.repository $tag -}}
+{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
 {{/* Data PVC claim name */}}

@@ -39,13 +39,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "guacamole.image" -}}
-{{- $tag := .Values.image.tag | default .Chart.AppVersion -}}
-{{- printf "%s:%s" .Values.image.repository $tag -}}
+{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
 {{- define "guacamole.guacdImage" -}}
-{{- $tag := .Values.guacd.image.tag | default .Chart.AppVersion -}}
-{{- printf "%s:%s" .Values.guacd.image.repository $tag -}}
+{{- printf "%s:%s" .Values.guacd.image.repository .Values.guacd.image.tag -}}
 {{- end -}}
 
 {{/* ========== Database helpers ========== */}}

@@ -53,7 +53,7 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 
 {{- define "appwrite.image" -}}
-{{- printf "%s:%s" .Values.image.repository (default .Chart.AppVersion .Values.image.tag) -}}
+{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
 {{- define "appwrite.consoleImage" -}}

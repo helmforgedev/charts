@@ -44,7 +44,7 @@ app.kubernetes.io/component: worker
 {{- end -}}
 
 {{- define "n8n.image" -}}
-{{- printf "%s:%s" .Values.image.repository (default .Chart.AppVersion .Values.image.tag) -}}
+{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
 # =============================================================================

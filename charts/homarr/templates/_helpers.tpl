@@ -42,8 +42,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{- define "homarr.image" -}}
-{{- $tag := .Values.image.tag | default (printf "v%s" .Chart.AppVersion) -}}
-{{- printf "%s:%s" .Values.image.repository $tag -}}
+{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end }}
 
 {{/* ======================================================================== */}}

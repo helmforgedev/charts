@@ -134,6 +134,5 @@ true
 Image string with tag fallback to appVersion.
 */}}
 {{- define "minecraft.image" -}}
-{{- $tag := default .Chart.AppVersion .Values.image.tag }}
-{{- printf "%s:%s" .Values.image.repository $tag }}
+{{- printf "%s:%s" .Values.image.repository .Values.image.tag }}
 {{- end }}
