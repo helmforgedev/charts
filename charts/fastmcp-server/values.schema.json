@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
-  "title": "MCP Server Helm Chart Values",
+  "title": "FastMCP Server Helm Chart Values",
   "description": "Configuration for FastMCP server with multi-source tool, resource, prompt, and knowledge loading",
   "type": "object",
   "additionalProperties": true,
@@ -24,7 +24,8 @@
         "repository": { "type": "string" },
         "tag": { "type": "string" },
         "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
-      }
+      },
+      "required": ["repository", "tag"]
     },
     "imagePullSecrets": {
       "type": "array",
@@ -37,7 +38,56 @@
         "name": { "type": "string", "description": "Server name announced in MCP responses" },
         "port": { "type": "integer", "minimum": 1, "maximum": 65535, "description": "HTTP port" },
         "path": { "type": "string", "pattern": "^/", "description": "MCP endpoint URL path" },
-        "logLevel": { "type": "string", "enum": ["DEBUG", "INFO", "WARNING", "ERROR"], "description": "Log level" }
+        "logLevel": { "type": "string", "enum": ["DEBUG", "INFO", "WARNING", "ERROR"], "description": "Log level" },
+        "logFormat": { "type": "string", "enum": ["text", "json"], "description": "Log output format" },
+        "strictLoading": { "type": "boolean", "description": "Fail on boot if any tool/resource has errors" }
+      },
+      "required": ["name", "port", "path"]
+    },
+    "ui": {
+      "type": "object",
+      "description": "Web UI configuration",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Prometheus metrics configuration",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "serviceMonitor": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "interval": { "type": "string" },
+            "labels": { "type": "object" }
+          }
+        }
+      }
+    },
+    "rateLimiting": {
+      "type": "object",
+      "description": "Rate limiting for tool calls",
+      "properties": {
+        "default": { "type": "string", "description": "Default rate limit for all tools (e.g., 100/min)" },
+        "perTool": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Per-tool rate limits (key = TOOL_NAME_UPPER)" }
+      }
+    },
+    "caching": {
+      "type": "object",
+      "description": "Result caching for idempotent tools",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "maxSize": { "type": "integer", "minimum": 1, "description": "Max cache entries per tool" }
+      }
+    },
+    "sandboxing": {
+      "type": "object",
+      "description": "Tool execution resource limits",
+      "properties": {
+        "maxMemoryMb": { "type": "integer", "minimum": 0, "description": "Default max memory per tool call (MB)" },
+        "maxOutputSizeKb": { "type": "integer", "minimum": 0, "description": "Default max output size per tool call (KB)" }
       }
     },
     "auth": {
@@ -65,7 +115,8 @@
             "jwksUri": { "type": "string" }
           }
         }
-      }
+      },
+      "required": ["type"]
     },
     "sources": {
       "type": "object",
@@ -150,6 +201,12 @@
         "existingClaim": { "type": "string" }
       }
     },
+    "initSync": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
     "serviceAccount": {
       "type": "object",
       "properties": {
@@ -164,6 +221,26 @@
         "enabled": { "type": "boolean" }
       }
     },
+    "pdb": {
+      "type": "object",
+      "description": "Pod Disruption Budget",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minAvailable": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "autoscaling": {
+      "type": "object",
+      "description": "Horizontal Pod Autoscaler",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minReplicas": { "type": "integer", "minimum": 1 },
+        "maxReplicas": { "type": "integer", "minimum": 1 },
+        "targetCPUUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "targetMemoryUtilizationPercentage": { "type": ["integer", "string"] }
+      }
+    },
+    "replicaCount": { "type": "integer", "minimum": 1, "description": "Number of replicas (ignored when autoscaling is enabled)" },
     "resources": { "type": "object" },
     "podSecurityContext": { "type": "object" },
     "securityContext": { "type": "object" },

@@ -15,7 +15,7 @@ image:
   # -- FastMCP server container image
   repository: docker.io/helmforge/fastmcp-server
   # -- Image tag (pinned to appVersion)
-  tag: "0.3.0"
+  tag: "1.0.0"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -33,6 +33,63 @@ server:
   path: /mcp
   # -- Log level (DEBUG, INFO, WARNING, ERROR)
   logLevel: INFO
+  # -- Log format: text or json (structured logging)
+  logFormat: text
+  # -- Strict loading: fail on boot if any tool/resource has errors
+  strictLoading: false
+
+# =============================================================================
+# Web UI
+# =============================================================================
+
+ui:
+  # -- Enable built-in Web UI at /ui
+  enabled: true
+
+# =============================================================================
+# Metrics
+# =============================================================================
+
+metrics:
+  # -- Enable Prometheus metrics at /metrics
+  enabled: false
+  # -- Create ServiceMonitor for Prometheus Operator
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    labels: {}
+
+# =============================================================================
+# Rate Limiting
+# =============================================================================
+
+rateLimiting:
+  # -- Default rate limit for all tools (e.g., "100/min")
+  default: ""
+  # -- Per-tool rate limits (key = TOOL_NAME_UPPER, value = rate string)
+  perTool: {}
+    # DEPLOY: "5/min"
+    # DELETE_DATA: "2/min"
+
+# =============================================================================
+# Caching
+# =============================================================================
+
+caching:
+  # -- Enable result caching for tools with __cache_ttl__
+  enabled: true
+  # -- Maximum cache entries per tool
+  maxSize: 1000
+
+# =============================================================================
+# Sandboxing
+# =============================================================================
+
+sandboxing:
+  # -- Default max memory per tool call (MB, 0 = unlimited)
+  maxMemoryMb: 0
+  # -- Default max output size per tool call (KB, 0 = unlimited)
+  maxOutputSizeKb: 0
 
 # =============================================================================
 # Authentication
@@ -190,7 +247,7 @@ probes:
   startup:
     enabled: true
     httpGet:
-      path: /mcp
+      path: /startupz
       port: http
     initialDelaySeconds: 5
     periodSeconds: 5
@@ -199,7 +256,7 @@ probes:
   liveness:
     enabled: true
     httpGet:
-      path: /mcp
+      path: /healthz
       port: http
     initialDelaySeconds: 0
     periodSeconds: 15
@@ -208,7 +265,7 @@ probes:
   readiness:
     enabled: true
     httpGet:
-      path: /mcp
+      path: /readyz
       port: http
     initialDelaySeconds: 0
     periodSeconds: 10
@@ -231,6 +288,14 @@ persistence:
   existingClaim: ""
 
 # =============================================================================
+# Init Sync
+# =============================================================================
+
+initSync:
+  # -- Run source sync as an init container before the server starts
+  enabled: false
+
+# =============================================================================
 # Service Account
 # =============================================================================
 
@@ -249,6 +314,42 @@ serviceAccount:
 networkPolicy:
   # -- Enable NetworkPolicy
   enabled: false
+
+# =============================================================================
+# Resources and Security
+# =============================================================================
+
+# =============================================================================
+# Pod Disruption Budget
+# =============================================================================
+
+pdb:
+  # -- Enable PodDisruptionBudget (requires replicas > 1)
+  enabled: false
+  # -- Minimum available pods during disruption
+  minAvailable: 1
+
+# =============================================================================
+# Horizontal Pod Autoscaler
+# =============================================================================
+
+autoscaling:
+  # -- Enable HPA
+  enabled: false
+  # -- Minimum number of replicas
+  minReplicas: 1
+  # -- Maximum number of replicas
+  maxReplicas: 5
+  # -- Target CPU utilization percentage
+  targetCPUUtilizationPercentage: 80
+  # -- Target memory utilization percentage (optional)
+  targetMemoryUtilizationPercentage: ""
+
+# =============================================================================
+# Replicas (when autoscaling is disabled)
+# =============================================================================
+
+replicaCount: 1
 
 # =============================================================================
 # Resources and Security
