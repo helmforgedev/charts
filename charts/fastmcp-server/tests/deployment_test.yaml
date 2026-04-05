@@ -14,7 +14,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/helmforge/fastmcp-server:0.4.0"
+          value: "docker.io/helmforge/fastmcp-server:1.0.0"
 
   - it: should set MCP_SERVER_NAME env
     asserts:
@@ -343,3 +343,88 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[0].command
           value: ["python", "/app/sync_only.py"]
+
+  # --- v1.0.0: Production features ---
+
+  - it: should set rate limit default env
+    set:
+      rateLimiting:
+        default: "100/min"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_RATE_LIMIT_DEFAULT
+            value: "100/min"
+
+  - it: should set per-tool rate limit env
+    set:
+      rateLimiting:
+        perTool:
+          DEPLOY: "5/min"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_RATE_LIMIT_DEPLOY
+            value: "5/min"
+
+  - it: should disable caching via env
+    set:
+      caching:
+        enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_CACHE_ENABLED
+            value: "false"
+
+  - it: should set cache max size env
+    set:
+      caching:
+        maxSize: 500
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_CACHE_MAX_SIZE
+            value: "500"
+
+  - it: should set sandboxing memory limit env
+    set:
+      sandboxing:
+        maxMemoryMb: 256
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_MAX_MEMORY_MB
+            value: "256"
+
+  - it: should set sandboxing output limit env
+    set:
+      sandboxing:
+        maxOutputSizeKb: 100
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_MAX_OUTPUT_SIZE_KB
+            value: "100"
+
+  - it: should use replicaCount when autoscaling disabled
+    set:
+      replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: should not set replicas when autoscaling enabled
+    set:
+      autoscaling:
+        enabled: true
+    asserts:
+      - isNull:
+          path: spec.replicas

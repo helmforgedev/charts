@@ -5,7 +5,9 @@ metadata:
   labels:
     {{- include "fastmcp-server.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
   strategy:
     type: Recreate
   selector:
@@ -233,6 +235,30 @@ spec:
                   name: {{ include "fastmcp-server.gitSecretName" . }}
                   key: {{ .Values.sources.git.existingSecretTokenKey | default "token" }}
             {{- end }}
+            {{- end }}
+            {{- with .Values.rateLimiting.default }}
+            - name: MCP_RATE_LIMIT_DEFAULT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- range $tool, $rate := .Values.rateLimiting.perTool }}
+            - name: MCP_RATE_LIMIT_{{ $tool }}
+              value: {{ $rate | quote }}
+            {{- end }}
+            {{- if not .Values.caching.enabled }}
+            - name: MCP_CACHE_ENABLED
+              value: "false"
+            {{- end }}
+            {{- if .Values.caching.maxSize }}
+            - name: MCP_CACHE_MAX_SIZE
+              value: {{ .Values.caching.maxSize | quote }}
+            {{- end }}
+            {{- if .Values.sandboxing.maxMemoryMb }}
+            - name: MCP_MAX_MEMORY_MB
+              value: {{ .Values.sandboxing.maxMemoryMb | quote }}
+            {{- end }}
+            {{- if .Values.sandboxing.maxOutputSizeKb }}
+            - name: MCP_MAX_OUTPUT_SIZE_KB
+              value: {{ .Values.sandboxing.maxOutputSizeKb | quote }}
             {{- end }}
             {{- if .Values.extraPipPackages }}
             - name: EXTRA_PIP_PACKAGES

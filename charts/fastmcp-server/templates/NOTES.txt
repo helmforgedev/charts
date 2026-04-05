@@ -1,32 +1,35 @@
-🚀 MCP Server has been deployed!
+FastMCP Server deployed!
 
-Server name: {{ .Values.server.name }}
-MCP endpoint: {{ .Values.server.path }}
+  Server:   {{ .Values.server.name }}
+  Endpoint: http://{{ include "fastmcp-server.fullname" . }}:{{ .Values.service.port }}{{ .Values.server.path }}
+  Auth:     {{ .Values.auth.type }}
 
-{{- if .Values.ingress.enabled }}
-
-Ingress is enabled. Access the MCP endpoint at:
-{{- range .Values.ingress.hosts }}
-  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}{{ $.Values.server.path }}
+{{- if .Values.ui.enabled }}
+  Web UI:   http://{{ include "fastmcp-server.fullname" . }}:{{ .Values.service.port }}/ui
 {{- end }}
-{{- else }}
 
-To access the MCP endpoint, run:
+{{- if .Values.metrics.enabled }}
+  Metrics:  http://{{ include "fastmcp-server.fullname" . }}:{{ .Values.service.port }}/metrics
+{{- end }}
+
+To access the MCP endpoint:
 
   kubectl port-forward svc/{{ include "fastmcp-server.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+  curl http://localhost:{{ .Values.service.port }}{{ .Values.server.path }}
 
-Then connect to: http://localhost:{{ .Values.service.port }}{{ .Values.server.path }}
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+
+  Ingress: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}{{ (first .paths).path }}
+{{- end }}
 {{- end }}
 
 {{- if ne .Values.auth.type "none" }}
 
 Authentication: {{ .Values.auth.type }}
 {{- if eq .Values.auth.type "bearer" }}
-Requests must include: Authorization: Bearer <token>
+  Requests must include: Authorization: Bearer <token>
 {{- end }}
-{{- else }}
-
-Authentication: disabled (no auth required)
 {{- end }}
 
 Sources:
@@ -39,8 +42,5 @@ Sources:
 {{- if .Values.sources.git.enabled }}
   - Git: {{ .Values.sources.git.repository }} ({{ .Values.sources.git.branch }})
 {{- end }}
-{{- if not (or (include "fastmcp-server.hasAnyInline" .) .Values.sources.s3.enabled .Values.sources.git.enabled) }}
-  - None configured (server will start with no tools/resources)
-{{- end }}
 
-Documentation: https://helmforge.dev/docs/charts/mcp-server
+Documentation: https://helmforge.dev/docs/charts/fastmcp-server
