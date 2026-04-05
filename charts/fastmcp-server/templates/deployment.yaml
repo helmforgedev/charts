@@ -41,6 +41,92 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if .Values.initSync.enabled }}
+      initContainers:
+        - name: source-sync
+          image: {{ include "fastmcp-server.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "/app/sync_only.py"]
+          env:
+            - name: MCP_WORKSPACE
+              value: /app/workspace
+            {{- if .Values.sources.s3.enabled }}
+            - name: SOURCE_S3_ENABLED
+              value: "true"
+            {{- with .Values.sources.s3.endpoint }}
+            - name: SOURCE_S3_ENDPOINT
+              value: {{ . | quote }}
+            {{- end }}
+            - name: SOURCE_S3_BUCKET
+              value: {{ .Values.sources.s3.bucket | quote }}
+            - name: SOURCE_S3_REGION
+              value: {{ .Values.sources.s3.region | quote }}
+            {{- with .Values.sources.s3.prefix }}
+            - name: SOURCE_S3_PREFIX
+              value: {{ . | quote }}
+            {{- end }}
+            - name: SOURCE_S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fastmcp-server.s3SecretName" . }}
+                  key: {{ .Values.sources.s3.existingSecretAccessKeyKey | default "access-key" }}
+            - name: SOURCE_S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fastmcp-server.s3SecretName" . }}
+                  key: {{ .Values.sources.s3.existingSecretSecretKeyKey | default "secret-key" }}
+            {{- end }}
+            {{- if .Values.sources.git.enabled }}
+            - name: SOURCE_GIT_ENABLED
+              value: "true"
+            - name: SOURCE_GIT_REPOSITORY
+              value: {{ .Values.sources.git.repository | quote }}
+            - name: SOURCE_GIT_BRANCH
+              value: {{ .Values.sources.git.branch | quote }}
+            {{- with .Values.sources.git.path }}
+            - name: SOURCE_GIT_PATH
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if or .Values.sources.git.token .Values.sources.git.existingSecret }}
+            - name: SOURCE_GIT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fastmcp-server.gitSecretName" . }}
+                  key: {{ .Values.sources.git.existingSecretTokenKey | default "token" }}
+            {{- end }}
+            {{- end }}
+            {{- if (include "fastmcp-server.hasAnyInline" .) }}
+            - name: SOURCE_INLINE_DIR
+              value: /app/inline
+            {{- end }}
+          volumeMounts:
+            - name: workspace
+              mountPath: /app/workspace
+            {{- if (include "fastmcp-server.hasInlineTools" .) }}
+            - name: inline-tools
+              mountPath: /app/inline/tools
+              readOnly: true
+            {{- end }}
+            {{- if (include "fastmcp-server.hasInlineResources" .) }}
+            - name: inline-resources
+              mountPath: /app/inline/resources
+              readOnly: true
+            {{- end }}
+            {{- if (include "fastmcp-server.hasInlinePrompts" .) }}
+            - name: inline-prompts
+              mountPath: /app/inline/prompts
+              readOnly: true
+            {{- end }}
+            {{- if (include "fastmcp-server.hasInlineKnowledge" .) }}
+            - name: inline-knowledge
+              mountPath: /app/inline/knowledge
+              readOnly: true
+            {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- end }}
       containers:
         - name: mcp-server
           image: {{ include "fastmcp-server.image" . }}
@@ -60,6 +146,24 @@ spec:
               value: "0.0.0.0"
             - name: LOG_LEVEL
               value: {{ .Values.server.logLevel | quote }}
+            {{- if .Values.server.logFormat }}
+            - name: LOG_FORMAT
+              value: {{ .Values.server.logFormat | quote }}
+            {{- end }}
+            {{- if .Values.server.strictLoading }}
+            - name: MCP_STRICT_LOADING
+              value: "true"
+            {{- end }}
+            {{- if .Values.ui }}
+            - name: MCP_UI_ENABLED
+              value: {{ .Values.ui.enabled | quote }}
+            {{- end }}
+            {{- if .Values.metrics }}
+            {{- if .Values.metrics.enabled }}
+            - name: MCP_METRICS_ENABLED
+              value: "true"
+            {{- end }}
+            {{- end }}
             {{- if ne .Values.auth.type "none" }}
             - name: MCP_AUTH_TYPE
               value: {{ .Values.auth.type | quote }}

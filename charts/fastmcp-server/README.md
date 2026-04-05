@@ -8,6 +8,13 @@ A Helm chart for deploying [FastMCP Server](https://github.com/helmforgedev/fast
 - Bearer token and JWT authentication via FastMCP
 - Knowledge base files served as MCP resources
 - Extra pip packages installed at startup
+- Built-in Web UI dashboard at `/ui`
+- Prometheus metrics with ServiceMonitor support
+- Structured JSON logging for log aggregation
+- Dedicated health endpoints (`/healthz`, `/readyz`, `/startupz`)
+- Diagnostic endpoint at `/debug/info`
+- Init container pattern for source pre-sync
+- Strict loading mode for fail-fast on errors
 
 ## Quick Start
 
@@ -129,12 +136,42 @@ auth:
     jwksUri: "https://auth.example.com/.well-known/jwks.json"
 ```
 
+### Observability
+
+Enable Prometheus metrics and ServiceMonitor:
+
+```yaml
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+```
+
+Structured JSON logging:
+
+```yaml
+server:
+  logFormat: json
+```
+
+### Init Container Pattern
+
+Pre-sync sources before the server starts:
+
+```yaml
+initSync:
+  enabled: true
+```
+
 ### Production Example
 
 ```yaml
 server:
   name: production-mcp
   logLevel: WARNING
+  logFormat: json
+  strictLoading: true
 
 auth:
   type: bearer
@@ -155,6 +192,14 @@ sources:
 extraPipPackages:
   - requests
   - pandas
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+
+initSync:
+  enabled: true
 
 ingress:
   enabled: true
@@ -196,11 +241,16 @@ securityContext:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/helmforge/fastmcp-server` | Container image |
-| `image.tag` | `0.3.0` | Image tag |
+| `image.tag` | `0.4.0` | Image tag |
 | `server.name` | `fastmcp-server` | Server name in MCP responses |
 | `server.port` | `8000` | HTTP port |
 | `server.path` | `/mcp` | MCP endpoint path |
 | `server.logLevel` | `INFO` | Log level |
+| `server.logFormat` | `text` | Log format: `text` or `json` |
+| `server.strictLoading` | `false` | Fail on boot if any component has errors |
+| `ui.enabled` | `true` | Enable Web UI at `/ui` |
+| `metrics.enabled` | `false` | Enable Prometheus metrics at `/metrics` |
+| `metrics.serviceMonitor.enabled` | `false` | Create ServiceMonitor CRD |
 | `auth.type` | `none` | Authentication: `none`, `bearer`, `jwt` |
 | `sources.inline.tools` | `{}` | Inline Python tool files |
 | `sources.inline.resources` | `{}` | Inline Python resource files |
@@ -211,6 +261,7 @@ securityContext:
 | `sources.git.enabled` | `false` | Enable Git source |
 | `sources.git.repository` | `""` | Git repository HTTPS URL |
 | `extraPipPackages` | `[]` | Extra pip packages at startup |
+| `initSync.enabled` | `false` | Run source sync as init container |
 | `persistence.enabled` | `false` | Enable persistent workspace |
 | `ingress.enabled` | `false` | Enable ingress |
 | `networkPolicy.enabled` | `false` | Enable NetworkPolicy |
@@ -234,6 +285,6 @@ relations:
   - charts/fastmcp-server/values.yaml
   - charts/fastmcp-server/Chart.yaml
 path: charts/fastmcp-server/README.md
-version: 1.0
+version: 1.2
 date: 2026-04-05
 -->
