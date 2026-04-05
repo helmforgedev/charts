@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "MCP Server Helm Chart Values",
+  "description": "Configuration for FastMCP server with multi-source tool, resource, prompt, and knowledge loading",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name used in resource names"
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the full release name used in resource names"
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Labels added to every resource created by this chart"
+    },
+    "image": {
+      "type": "object",
+      "description": "FastMCP server container image",
+      "properties": {
+        "repository": { "type": "string" },
+        "tag": { "type": "string" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets for private registries"
+    },
+    "server": {
+      "type": "object",
+      "description": "MCP server configuration",
+      "properties": {
+        "name": { "type": "string", "description": "Server name announced in MCP responses" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535, "description": "HTTP port" },
+        "path": { "type": "string", "pattern": "^/", "description": "MCP endpoint URL path" },
+        "logLevel": { "type": "string", "enum": ["DEBUG", "INFO", "WARNING", "ERROR"], "description": "Log level" }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "description": "Authentication configuration",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["none", "bearer", "jwt"],
+          "description": "Authentication type"
+        },
+        "bearer": {
+          "type": "object",
+          "properties": {
+            "token": { "type": "string" },
+            "existingSecret": { "type": "string" },
+            "existingSecretKey": { "type": "string" }
+          }
+        },
+        "jwt": {
+          "type": "object",
+          "properties": {
+            "issuer": { "type": "string" },
+            "audience": { "type": "string" },
+            "jwksUri": { "type": "string" }
+          }
+        }
+      }
+    },
+    "sources": {
+      "type": "object",
+      "description": "Content sources (merge precedence: inline > S3 > Git)",
+      "properties": {
+        "inline": {
+          "type": "object",
+          "properties": {
+            "tools": { "type": "object", "description": "Python tool files (key=filename, value=content)" },
+            "resources": { "type": "object", "description": "Python resource files" },
+            "prompts": { "type": "object", "description": "Python prompt files" },
+            "knowledge": { "type": "object", "description": "Knowledge base files" }
+          }
+        },
+        "s3": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "endpoint": { "type": "string" },
+            "bucket": { "type": "string" },
+            "region": { "type": "string" },
+            "prefix": { "type": "string" },
+            "accessKey": { "type": "string" },
+            "secretKey": { "type": "string" },
+            "existingSecret": { "type": "string" },
+            "existingSecretAccessKeyKey": { "type": "string" },
+            "existingSecretSecretKeyKey": { "type": "string" }
+          }
+        },
+        "git": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "repository": { "type": "string" },
+            "branch": { "type": "string" },
+            "path": { "type": "string" },
+            "token": { "type": "string" },
+            "existingSecret": { "type": "string" },
+            "existingSecretTokenKey": { "type": "string" }
+          }
+        }
+      }
+    },
+    "extraPipPackages": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Extra pip packages to install at startup"
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "annotations": { "type": "object" }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "ingressClassName": { "type": "string" },
+        "annotations": { "type": "object" },
+        "hosts": { "type": "array" },
+        "tls": { "type": "array" }
+      }
+    },
+    "probes": {
+      "type": "object",
+      "properties": {
+        "startup": { "type": "object" },
+        "liveness": { "type": "object" },
+        "readiness": { "type": "object" }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "size": { "type": "string" },
+        "storageClass": { "type": "string" },
+        "accessModes": { "type": "array", "items": { "type": "string" } },
+        "existingClaim": { "type": "string" }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "create": { "type": "boolean" },
+        "name": { "type": "string" },
+        "annotations": { "type": "object" }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "resources": { "type": "object" },
+    "podSecurityContext": { "type": "object" },
+    "securityContext": { "type": "object" },
+    "nodeSelector": { "type": "object" },
+    "tolerations": { "type": "array" },
+    "affinity": { "type": "object" },
+    "topologySpreadConstraints": { "type": "array" },
+    "priorityClassName": { "type": "string" },
+    "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 },
+    "podLabels": { "type": "object" },
+    "podAnnotations": { "type": "object" },
+    "extraEnv": { "type": "array" },
+    "extraVolumes": { "type": "array" },
+    "extraVolumeMounts": { "type": "array" },
+    "extraManifests": { "type": "array" }
+  }
+}

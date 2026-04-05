@@ -1,0 +1,80 @@
+# CI: all features enabled
+server:
+  name: full-test-server
+  logLevel: DEBUG
+
+auth:
+  type: bearer
+  bearer:
+    token: ci-test-token-full
+
+sources:
+  inline:
+    tools:
+      greet.py: |
+        def greet(name: str) -> str:
+            """Greet someone."""
+            return f"Hello, {name}!"
+    knowledge:
+      docs.md: |
+        # Documentation
+        Full test documentation.
+  s3:
+    enabled: true
+    endpoint: "https://minio.example.com"
+    bucket: mcp-assets
+    region: us-east-1
+    accessKey: minioadmin
+    secretKey: minioadmin
+  git:
+    enabled: true
+    repository: "https://github.com/example/tools.git"
+    branch: main
+    token: ghp_example
+
+extraPipPackages:
+  - requests
+  - pandas
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: mcp.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - mcp.example.com
+      secretName: mcp-tls
+
+persistence:
+  enabled: true
+  size: 5Gi
+
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::role/mcp-server
+
+networkPolicy:
+  enabled: true
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
