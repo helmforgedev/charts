@@ -1,0 +1,46 @@
+🚀 MCP Server has been deployed!
+
+Server name: {{ .Values.server.name }}
+MCP endpoint: {{ .Values.server.path }}
+
+{{- if .Values.ingress.enabled }}
+
+Ingress is enabled. Access the MCP endpoint at:
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}{{ $.Values.server.path }}
+{{- end }}
+{{- else }}
+
+To access the MCP endpoint, run:
+
+  kubectl port-forward svc/{{ include "mcp-server.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+
+Then connect to: http://localhost:{{ .Values.service.port }}{{ .Values.server.path }}
+{{- end }}
+
+{{- if ne .Values.auth.type "none" }}
+
+Authentication: {{ .Values.auth.type }}
+{{- if eq .Values.auth.type "bearer" }}
+Requests must include: Authorization: Bearer <token>
+{{- end }}
+{{- else }}
+
+Authentication: disabled (no auth required)
+{{- end }}
+
+Sources:
+{{- if (include "mcp-server.hasAnyInline" .) }}
+  - Inline (ConfigMap): enabled
+{{- end }}
+{{- if .Values.sources.s3.enabled }}
+  - S3: s3://{{ .Values.sources.s3.bucket }}/{{ .Values.sources.s3.prefix }}
+{{- end }}
+{{- if .Values.sources.git.enabled }}
+  - Git: {{ .Values.sources.git.repository }} ({{ .Values.sources.git.branch }})
+{{- end }}
+{{- if not (or (include "mcp-server.hasAnyInline" .) .Values.sources.s3.enabled .Values.sources.git.enabled) }}
+  - None configured (server will start with no tools/resources)
+{{- end }}
+
+Documentation: https://helmforge.dev/docs/charts/mcp-server

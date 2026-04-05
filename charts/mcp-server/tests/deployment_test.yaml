@@ -1,0 +1,252 @@
+suite: deployment
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: should render a Deployment
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-mcp-server
+
+  - it: should use correct image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "docker.io/helmforge/fastmcp-server:0.2.0"
+
+  - it: should set MCP_SERVER_NAME env
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_SERVER_NAME
+            value: "fastmcp-server"
+
+  - it: should set MCP_PORT env
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_PORT
+            value: "8000"
+
+  - it: should set MCP_PATH env
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_PATH
+            value: "/mcp"
+
+  - it: should expose http port 8000
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0]
+          value:
+            name: http
+            containerPort: 8000
+            protocol: TCP
+
+  - it: should have probes by default
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].startupProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].livenessProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].readinessProbe
+
+  - it: should have helmforge labels
+    asserts:
+      - isSubset:
+          path: metadata.labels
+          content:
+            app.kubernetes.io/part-of: helmforge
+            app.kubernetes.io/name: mcp-server
+            app.kubernetes.io/instance: RELEASE-NAME
+
+  - it: should use workspace emptyDir by default
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: workspace
+            emptyDir: {}
+
+  - it: should use PVC when persistence enabled
+    set:
+      persistence:
+        enabled: true
+        size: 2Gi
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: workspace
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME-mcp-server-workspace
+
+  - it: should not set auth env when auth is none
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_AUTH_TYPE
+          any: true
+
+  - it: should set bearer auth env
+    set:
+      auth:
+        type: bearer
+        bearer:
+          token: test-token
+    templates:
+      - templates/deployment.yaml
+      - templates/secret.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_AUTH_TYPE
+            value: "bearer"
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_AUTH_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-mcp-server-auth
+                key: token
+        template: templates/deployment.yaml
+
+  - it: should set S3 env vars when enabled
+    set:
+      sources:
+        s3:
+          enabled: true
+          endpoint: "https://minio.local"
+          bucket: tools
+          region: us-east-1
+          accessKey: admin
+          secretKey: secret
+    templates:
+      - templates/deployment.yaml
+      - templates/secret.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SOURCE_S3_ENABLED
+            value: "true"
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SOURCE_S3_BUCKET
+            value: "tools"
+        template: templates/deployment.yaml
+
+  - it: should set Git env vars when enabled
+    set:
+      sources:
+        git:
+          enabled: true
+          repository: "https://github.com/example/tools.git"
+          branch: main
+          token: ghp_test
+    templates:
+      - templates/deployment.yaml
+      - templates/secret.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SOURCE_GIT_ENABLED
+            value: "true"
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SOURCE_GIT_REPOSITORY
+            value: "https://github.com/example/tools.git"
+        template: templates/deployment.yaml
+
+  - it: should mount inline tools when configured
+    set:
+      sources:
+        inline:
+          tools:
+            greet.py: |
+              def greet(): return "hi"
+    templates:
+      - templates/deployment.yaml
+      - templates/configmap-tools.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: inline-tools
+            mountPath: /app/inline/tools
+            readOnly: true
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: inline-tools
+            configMap:
+              name: RELEASE-NAME-mcp-server-tools
+        template: templates/deployment.yaml
+
+  - it: should not mount inline volumes when empty
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: inline-tools
+          any: true
+
+  - it: should set EXTRA_PIP_PACKAGES when configured
+    set:
+      extraPipPackages:
+        - requests
+        - pandas
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: EXTRA_PIP_PACKAGES
+            value: "requests,pandas"
+
+  - it: should set custom server name
+    set:
+      server:
+        name: my-mcp
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_SERVER_NAME
+            value: "my-mcp"
+
+  - it: should set resources when configured
+    set:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+
+  - it: should set serviceAccountName when SA is created
+    set:
+      serviceAccount:
+        create: true
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: RELEASE-NAME-mcp-server

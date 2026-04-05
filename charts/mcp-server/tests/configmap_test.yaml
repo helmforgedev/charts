@@ -1,0 +1,111 @@
+suite: configmaps
+tests:
+  - it: should not render tools configmap when empty
+    templates:
+      - templates/configmap-tools.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render tools configmap with inline tools
+    templates:
+      - templates/configmap-tools.yaml
+    set:
+      sources:
+        inline:
+          tools:
+            greet.py: |
+              def greet(name: str) -> str:
+                  return f"Hello, {name}!"
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-mcp-server-tools
+
+  - it: should not render resources configmap when empty
+    templates:
+      - templates/configmap-resources.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render resources configmap with inline resources
+    templates:
+      - templates/configmap-resources.yaml
+    set:
+      sources:
+        inline:
+          resources:
+            status.py: |
+              RESOURCE_URI = "status://server"
+              def get_status(): return {"status": "ok"}
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-mcp-server-resources
+
+  - it: should not render prompts configmap when empty
+    templates:
+      - templates/configmap-prompts.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render prompts configmap with inline prompts
+    templates:
+      - templates/configmap-prompts.yaml
+    set:
+      sources:
+        inline:
+          prompts:
+            summarize.py: |
+              def summarize(text: str) -> str:
+                  return f"Summarize: {text}"
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-mcp-server-prompts
+
+  - it: should not render knowledge configmap when empty
+    templates:
+      - templates/configmap-knowledge.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render knowledge configmap with inline knowledge
+    templates:
+      - templates/configmap-knowledge.yaml
+    set:
+      sources:
+        inline:
+          knowledge:
+            docs.md: |
+              # Documentation
+              Content here.
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-mcp-server-knowledge
+
+  - it: should have helmforge labels on all configmaps
+    templates:
+      - templates/configmap-tools.yaml
+    set:
+      sources:
+        inline:
+          tools:
+            test.py: "def test(): pass"
+    asserts:
+      - isSubset:
+          path: metadata.labels
+          content:
+            app.kubernetes.io/part-of: helmforge

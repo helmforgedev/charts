@@ -1,0 +1,60 @@
+suite: ingress
+templates:
+  - templates/ingress.yaml
+tests:
+  - it: should not render when disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render when enabled
+    set:
+      ingress:
+        enabled: true
+        hosts:
+          - host: mcp.example.com
+            paths:
+              - path: /
+                pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+
+  - it: should set ingressClassName
+    set:
+      ingress:
+        enabled: true
+        ingressClassName: nginx
+        hosts:
+          - host: mcp.example.com
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+
+  - it: should set TLS configuration
+    set:
+      ingress:
+        enabled: true
+        hosts:
+          - host: mcp.example.com
+        tls:
+          - hosts:
+              - mcp.example.com
+            secretName: mcp-tls
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: mcp-tls
+
+  - it: should have helmforge labels
+    set:
+      ingress:
+        enabled: true
+        hosts:
+          - host: mcp.example.com
+    asserts:
+      - isSubset:
+          path: metadata.labels
+          content:
+            app.kubernetes.io/part-of: helmforge

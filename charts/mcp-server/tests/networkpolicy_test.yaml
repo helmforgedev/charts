@@ -1,0 +1,41 @@
+suite: networkpolicy
+templates:
+  - templates/networkpolicy.yaml
+tests:
+  - it: should not render when disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render when enabled
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-mcp-server
+
+  - it: should allow ingress on server port
+    set:
+      networkPolicy:
+        enabled: true
+      server:
+        port: 8000
+    asserts:
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 8000
+
+  - it: should have correct pod selector
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - isSubset:
+          path: spec.podSelector.matchLabels
+          content:
+            app.kubernetes.io/name: mcp-server
+            app.kubernetes.io/instance: RELEASE-NAME
