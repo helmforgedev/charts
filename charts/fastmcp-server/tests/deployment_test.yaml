@@ -14,7 +14,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/helmforge/fastmcp-server:0.3.0"
+          value: "docker.io/helmforge/fastmcp-server:0.4.0"
 
   - it: should set MCP_SERVER_NAME env
     asserts:
@@ -57,6 +57,18 @@ tests:
           path: spec.template.spec.containers[0].livenessProbe
       - isNotNull:
           path: spec.template.spec.containers[0].readinessProbe
+
+  - it: should use new health endpoints for probes
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /startupz
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /healthz
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /readyz
 
   - it: should have helmforge labels
     asserts:
@@ -250,3 +262,84 @@ tests:
       - equal:
           path: spec.template.spec.serviceAccountName
           value: RELEASE-NAME-fastmcp-server
+
+  # --- v0.4.0: New features ---
+
+  - it: should enable UI by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_UI_ENABLED
+            value: "true"
+
+  - it: should disable UI when configured
+    set:
+      ui:
+        enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_UI_ENABLED
+            value: "false"
+
+  - it: should set metrics env when enabled
+    set:
+      metrics:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_METRICS_ENABLED
+            value: "true"
+
+  - it: should not set metrics env by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_METRICS_ENABLED
+          any: true
+
+  - it: should set LOG_FORMAT env
+    set:
+      server:
+        logFormat: json
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LOG_FORMAT
+            value: "json"
+
+  - it: should set strict loading env when enabled
+    set:
+      server:
+        strictLoading: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_STRICT_LOADING
+            value: "true"
+
+  - it: should not have init container by default
+    asserts:
+      - isNull:
+          path: spec.template.spec.initContainers
+
+  - it: should add init container when initSync enabled
+    set:
+      initSync:
+        enabled: true
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.initContainers
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: source-sync
+      - equal:
+          path: spec.template.spec.initContainers[0].command
+          value: ["python", "/app/sync_only.py"]
