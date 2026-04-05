@@ -8,8 +8,6 @@ A Helm chart for deploying [FastMCP Server](https://github.com/helmforgedev/fast
 - Bearer token and JWT authentication via FastMCP
 - Knowledge base files served as MCP resources
 - Extra pip packages installed at startup
-- Standalone Docker image — works with Docker, Compose, Swarm, ECS, and Kubernetes
-- Multi-arch: amd64 and arm64
 
 ## Quick Start
 
@@ -224,27 +222,6 @@ See [`values.yaml`](values.yaml) for the full configuration reference.
 - [Basic inline tools](examples/basic/)
 - [S3 source with MinIO](examples/s3-minio/)
 - [Production setup](examples/production/)
-
-## Docker Standalone Usage
-
-The image is not tied to Kubernetes. Use it anywhere:
-
-```bash
-# Inline tools via volume mount
-docker run -d -p 8000:8000 \
-  -v ./tools:/app/inline/tools \
-  docker.io/helmforge/fastmcp-server:0.2.0
-
-# With S3 source
-docker run -d -p 8000:8000 \
-  -e SOURCE_S3_ENABLED=true \
-  -e SOURCE_S3_BUCKET=mcp-tools \
-  -e SOURCE_S3_ACCESS_KEY=admin \
-  -e SOURCE_S3_SECRET_KEY=secret \
-  docker.io/helmforge/fastmcp-server:0.2.0
-```
-
-See the [Docker image repository](https://github.com/helmforgedev/fastmcp-server) for more examples.
 
 <!-- @AI-METADATA
 type: chart-readme
