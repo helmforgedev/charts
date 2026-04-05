@@ -1,0 +1,67 @@
+# Production deployment with S3, auth, ingress, and persistence
+
+server:
+  name: production-mcp
+  logLevel: WARNING
+
+auth:
+  type: bearer
+  bearer:
+    existingSecret: mcp-auth-token
+
+sources:
+  s3:
+    enabled: true
+    bucket: mcp-production-tools
+    region: us-east-1
+    existingSecret: mcp-s3-credentials
+  inline:
+    knowledge:
+      runbook.md: |
+        # Operations Runbook
+        Emergency procedures for the production environment.
+
+extraPipPackages:
+  - requests
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+  hosts:
+    - host: mcp.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - mcp.example.com
+      secretName: mcp-tls
+
+persistence:
+  enabled: true
+  size: 5Gi
+
+serviceAccount:
+  create: true
+
+networkPolicy:
+  enabled: true
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true

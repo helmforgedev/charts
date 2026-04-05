@@ -1,20 +1,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "mcp-server.fullname" . }}
+  name: {{ include "fastmcp-server.fullname" . }}
   labels:
-    {{- include "mcp-server.labels" . | nindent 4 }}
+    {{- include "fastmcp-server.labels" . | nindent 4 }}
 spec:
   replicas: 1
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      {{- include "mcp-server.selectorLabels" . | nindent 6 }}
+      {{- include "fastmcp-server.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
-        {{- if (include "mcp-server.hasAnyInline" .) }}
+        {{- if (include "fastmcp-server.hasAnyInline" .) }}
         checksum/tools: {{ .Values.sources.inline.tools | toJson | sha256sum }}
         checksum/resources: {{ .Values.sources.inline.resources | toJson | sha256sum }}
         checksum/prompts: {{ .Values.sources.inline.prompts | toJson | sha256sum }}
@@ -24,7 +24,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "mcp-server.selectorLabels" . | nindent 8 }}
+        {{- include "fastmcp-server.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -34,7 +34,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- if .Values.serviceAccount.create }}
-      serviceAccountName: {{ .Values.serviceAccount.name | default (include "mcp-server.fullname" .) }}
+      serviceAccountName: {{ .Values.serviceAccount.name | default (include "fastmcp-server.fullname" .) }}
       {{- end }}
       {{- with .Values.podSecurityContext }}
       securityContext:
@@ -43,7 +43,7 @@ spec:
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       containers:
         - name: mcp-server
-          image: {{ include "mcp-server.image" . }}
+          image: {{ include "fastmcp-server.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           {{- with .Values.securityContext }}
           securityContext:
@@ -68,7 +68,7 @@ spec:
             - name: MCP_AUTH_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "mcp-server.authSecretName" . }}
+                  name: {{ include "fastmcp-server.authSecretName" . }}
                   key: {{ .Values.auth.bearer.existingSecretKey | default "token" }}
             {{- end }}
             {{- if eq .Values.auth.type "jwt" }}
@@ -103,12 +103,12 @@ spec:
             - name: SOURCE_S3_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "mcp-server.s3SecretName" . }}
+                  name: {{ include "fastmcp-server.s3SecretName" . }}
                   key: {{ .Values.sources.s3.existingSecretAccessKeyKey | default "access-key" }}
             - name: SOURCE_S3_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "mcp-server.s3SecretName" . }}
+                  name: {{ include "fastmcp-server.s3SecretName" . }}
                   key: {{ .Values.sources.s3.existingSecretSecretKeyKey | default "secret-key" }}
             {{- end }}
             {{- if .Values.sources.git.enabled }}
@@ -126,7 +126,7 @@ spec:
             - name: SOURCE_GIT_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "mcp-server.gitSecretName" . }}
+                  name: {{ include "fastmcp-server.gitSecretName" . }}
                   key: {{ .Values.sources.git.existingSecretTokenKey | default "token" }}
             {{- end }}
             {{- end }}
@@ -134,7 +134,7 @@ spec:
             - name: EXTRA_PIP_PACKAGES
               value: {{ join "," .Values.extraPipPackages | quote }}
             {{- end }}
-            {{- if (include "mcp-server.hasAnyInline" .) }}
+            {{- if (include "fastmcp-server.hasAnyInline" .) }}
             - name: SOURCE_INLINE_DIR
               value: /app/inline
             {{- end }}
@@ -182,22 +182,22 @@ spec:
           volumeMounts:
             - name: workspace
               mountPath: /app/workspace
-            {{- if (include "mcp-server.hasInlineTools" .) }}
+            {{- if (include "fastmcp-server.hasInlineTools" .) }}
             - name: inline-tools
               mountPath: /app/inline/tools
               readOnly: true
             {{- end }}
-            {{- if (include "mcp-server.hasInlineResources" .) }}
+            {{- if (include "fastmcp-server.hasInlineResources" .) }}
             - name: inline-resources
               mountPath: /app/inline/resources
               readOnly: true
             {{- end }}
-            {{- if (include "mcp-server.hasInlinePrompts" .) }}
+            {{- if (include "fastmcp-server.hasInlinePrompts" .) }}
             - name: inline-prompts
               mountPath: /app/inline/prompts
               readOnly: true
             {{- end }}
-            {{- if (include "mcp-server.hasInlineKnowledge" .) }}
+            {{- if (include "fastmcp-server.hasInlineKnowledge" .) }}
             - name: inline-knowledge
               mountPath: /app/inline/knowledge
               readOnly: true
@@ -209,29 +209,29 @@ spec:
         - name: workspace
           {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:
-            claimName: {{ include "mcp-server.claimName" . }}
+            claimName: {{ include "fastmcp-server.claimName" . }}
           {{- else }}
           emptyDir: {}
           {{- end }}
-        {{- if (include "mcp-server.hasInlineTools" .) }}
+        {{- if (include "fastmcp-server.hasInlineTools" .) }}
         - name: inline-tools
           configMap:
-            name: {{ include "mcp-server.fullname" . }}-tools
+            name: {{ include "fastmcp-server.fullname" . }}-tools
         {{- end }}
-        {{- if (include "mcp-server.hasInlineResources" .) }}
+        {{- if (include "fastmcp-server.hasInlineResources" .) }}
         - name: inline-resources
           configMap:
-            name: {{ include "mcp-server.fullname" . }}-resources
+            name: {{ include "fastmcp-server.fullname" . }}-resources
         {{- end }}
-        {{- if (include "mcp-server.hasInlinePrompts" .) }}
+        {{- if (include "fastmcp-server.hasInlinePrompts" .) }}
         - name: inline-prompts
           configMap:
-            name: {{ include "mcp-server.fullname" . }}-prompts
+            name: {{ include "fastmcp-server.fullname" . }}-prompts
         {{- end }}
-        {{- if (include "mcp-server.hasInlineKnowledge" .) }}
+        {{- if (include "fastmcp-server.hasInlineKnowledge" .) }}
         - name: inline-knowledge
           configMap:
-            name: {{ include "mcp-server.fullname" . }}-knowledge
+            name: {{ include "fastmcp-server.fullname" . }}-knowledge
         {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
