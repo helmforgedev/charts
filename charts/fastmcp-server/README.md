@@ -57,10 +57,11 @@ sources:
             return a + b
     resources:
       status.py: |
+        import json
         RESOURCE_URI = "status://server"
-        def get_status() -> dict:
+        def get_status() -> str:
             """Server status."""
-            return {"status": "healthy"}
+            return json.dumps({"status": "healthy"}, indent=2)
     prompts:
       summarize.py: |
         def summarize(text: str) -> str:
@@ -241,7 +242,7 @@ securityContext:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/helmforge/fastmcp-server` | Container image |
-| `image.tag` | `0.4.0` | Image tag |
+| `image.tag` | `0.10.9` | Image tag |
 | `server.name` | `fastmcp-server` | Server name in MCP responses |
 | `server.port` | `8000` | HTTP port |
 | `server.path` | `/mcp` | MCP endpoint path |
@@ -267,6 +268,53 @@ securityContext:
 | `networkPolicy.enabled` | `false` | Enable NetworkPolicy |
 
 See [`values.yaml`](values.yaml) for the full configuration reference.
+
+## Connecting MCP Clients
+
+After deploying the chart, connect AI assistants to the MCP endpoint.
+
+### Claude Code
+
+Add to your Claude Code settings (`~/.claude/settings.json` or project `.claude/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "my-mcp-server": {
+      "type": "streamable-http",
+      "url": "https://mcp.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer <your-token>"
+      }
+    }
+  }
+}
+```
+
+The URL is your ingress host + the `server.path` value (default `/mcp`).
+
+### Codex (VS Code Extension)
+
+Add to your Codex configuration (`~/.codex/config.toml`):
+
+```toml
+[mcp_servers.my-mcp-server]
+enabled = true
+url = "https://mcp.example.com/mcp"
+
+[mcp_servers.my-mcp-server.http_headers]
+Authorization = "Bearer <your-token>"
+```
+
+### Port-Forward (Development)
+
+For local testing without ingress:
+
+```bash
+kubectl port-forward svc/fastmcp-server 8000:8000
+```
+
+Then use `http://localhost:8000/mcp` as the URL (no auth if `auth.type=none`).
 
 ## Examples
 
