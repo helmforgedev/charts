@@ -6,6 +6,7 @@ metadata:
     {{- include "mosquitto.labels" . | nindent 4 }}
     app.kubernetes.io/component: broker
 spec:
+  {{- $probePort := ternary "mqtts" "mqtt" .Values.broker.tls.enabled }}
   serviceName: {{ include "mosquitto.headlessServiceName" . }}
   replicas: {{ .Values.broker.replicaCount }}
   podManagementPolicy: Parallel
@@ -120,9 +121,11 @@ spec:
             - -c
             - /mosquitto/config/mosquitto.conf
           ports:
+            {{- if not .Values.broker.tls.enabled }}
             - name: mqtt
               containerPort: {{ .Values.broker.listeners.mqtt }}
               protocol: TCP
+            {{- end }}
             - name: websocket
               containerPort: {{ .Values.broker.listeners.websocket }}
               protocol: TCP
@@ -134,7 +137,7 @@ spec:
           {{- if .Values.startupProbe.enabled }}
           startupProbe:
             tcpSocket:
-              port: mqtt
+              port: {{ $probePort }}
             initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.startupProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
@@ -143,7 +146,7 @@ spec:
           {{- if .Values.livenessProbe.enabled }}
           livenessProbe:
             tcpSocket:
-              port: mqtt
+              port: {{ $probePort }}
             initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
@@ -152,7 +155,7 @@ spec:
           {{- if .Values.readinessProbe.enabled }}
           readinessProbe:
             tcpSocket:
-              port: mqtt
+              port: {{ $probePort }}
             initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
