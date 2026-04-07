@@ -40,6 +40,7 @@ helm install mosquitto oci://ghcr.io/helmforgedev/helm/mosquitto
 - the default Service routing uses `sessionAffinity=None` for broader compatibility; enable `ClientIP` only when sticky routing is explicitly needed
 - federated multi-replica installs automatically prefer spreading broker pods across nodes unless you provide custom `affinity` or `topologySpreadConstraints`
 - when `broker.tls.enabled=true`, set `broker.tls.certSecretName` to an existing Secret containing `tls.crt` and `tls.key` (and optionally `ca.crt` for mTLS)
+- when `broker.tls.enabled=true`, the chart disables the plain MQTT `1883` listener and Service port, serving MQTT only on `broker.tls.port` (default `8883`)
 - MQTTX Web upstream versioning currently requires verification against both Docker Hub and GitHub releases before pinning a strict default tag
 - the official Mosquitto image tag validated for this chart is `eclipse-mosquitto:2.0.22`
 
@@ -137,7 +138,7 @@ broker:
 | `broker.replicaCount` | `1` | Number of broker replicas |
 | `broker.listeners.mqtt` | `1883` | MQTT TCP listener port |
 | `broker.listeners.websocket` | `9001` | MQTT over WebSocket listener port |
-| `broker.tls.enabled` | `false` | Enable broker MQTT TLS listener |
+| `broker.tls.enabled` | `false` | Enable broker MQTT TLS listener and disable plain MQTT `1883` |
 | `broker.tls.certSecretName` | `""` | Secret containing `tls.crt` and `tls.key` |
 | `broker.limits.maxConnections` | `0` | Maximum simultaneously connected clients (`0` keeps broker default) |
 | `broker.federation.topicPattern` | `#` | Topic pattern bridged between federated brokers |
