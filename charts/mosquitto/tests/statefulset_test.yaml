@@ -110,3 +110,29 @@ tests:
       - matchRegex:
           path: spec.template.spec.initContainers[0].command[2]
           pattern: "printf '\\\\nconnection %s"
+
+  - it: should mount TLS secret and expose mqtts container port when enabled
+    template: templates/statefulset.yaml
+    set:
+      broker.tls.enabled: true
+      broker.tls.certSecretName: mosquitto-tls
+      broker.tls.port: 8883
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: mqtts
+            containerPort: 8883
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tls
+            mountPath: /mosquitto/config/tls
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls
+            secret:
+              secretName: mosquitto-tls

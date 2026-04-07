@@ -26,6 +26,8 @@ helm install mosquitto oci://ghcr.io/helmforgedev/helm/mosquitto
 - **Kubernetes Placement Defaults** — optional anti-affinity and topology spread defaults for multi-replica broker pods
 - **WebSocket Listener** — browser-ready MQTT access through a dedicated listener
 - **Authentication and ACL** — optional password file and ACL file generation
+- **Native MQTT TLS Listener** — optional TLS/mTLS listener using an existing Kubernetes Secret
+- **Broker Pressure Limits** — optional connection and queue/message size limits to reduce abuse impact
 - **MQTTX Web Companion** — optional browser client deployment for quick testing
 - **Values Schema** — `values.schema.json` validates user-supplied values and improves ArtifactHub rendering
 
@@ -37,6 +39,7 @@ helm install mosquitto oci://ghcr.io/helmforgedev/helm/mosquitto
 - federated brokers still do **not** share sessions or retained state like a true clustered MQTT platform
 - the default Service routing uses `sessionAffinity=None` for broader compatibility; enable `ClientIP` only when sticky routing is explicitly needed
 - federated multi-replica installs automatically prefer spreading broker pods across nodes unless you provide custom `affinity` or `topologySpreadConstraints`
+- when `broker.tls.enabled=true`, set `broker.tls.certSecretName` to an existing Secret containing `tls.crt` and `tls.key` (and optionally `ca.crt` for mTLS)
 - MQTTX Web upstream versioning currently requires verification against both Docker Hub and GitHub releases before pinning a strict default tag
 - the official Mosquitto image tag validated for this chart is `eclipse-mosquitto:2.0.22`
 
@@ -101,6 +104,31 @@ mqttxWeb:
             pathType: Prefix
 ```
 
+### Public Broker with MQTT TLS
+
+```yaml
+service:
+  type: LoadBalancer
+
+auth:
+  enabled: true
+
+acl:
+  enabled: true
+
+broker:
+  tls:
+    enabled: true
+    certSecretName: mosquitto-tls
+    port: 8883
+  limits:
+    maxConnections: 10000
+    maxInflightMessages: 100
+    maxQueuedMessages: 1000
+    maxQueuedBytes: 1048576
+    messageSizeLimit: 262144
+```
+
 ## Key Values
 
 | Key | Default | Description |
@@ -109,6 +137,9 @@ mqttxWeb:
 | `broker.replicaCount` | `1` | Number of broker replicas |
 | `broker.listeners.mqtt` | `1883` | MQTT TCP listener port |
 | `broker.listeners.websocket` | `9001` | MQTT over WebSocket listener port |
+| `broker.tls.enabled` | `false` | Enable broker MQTT TLS listener |
+| `broker.tls.certSecretName` | `""` | Secret containing `tls.crt` and `tls.key` |
+| `broker.limits.maxConnections` | `0` | Maximum simultaneously connected clients (`0` keeps broker default) |
 | `broker.federation.topicPattern` | `#` | Topic pattern bridged between federated brokers |
 | `auth.enabled` | `false` | Enable username/password authentication |
 | `acl.enabled` | `false` | Enable ACL file generation |

@@ -1,0 +1,56 @@
+suite: ConfigMap
+templates:
+  - templates/configmap.yaml
+tests:
+  - it: should include TLS listener directives when TLS is enabled
+    set:
+      broker.tls.enabled: true
+      broker.tls.port: 8883
+      broker.tls.certFile: tls.crt
+      broker.tls.keyFile: tls.key
+      broker.tls.caFile: ca.crt
+      broker.tls.requireCertificate: true
+      broker.tls.useIdentityAsUsername: true
+    asserts:
+      - matchRegex:
+          path: data["mosquitto.conf.tmpl"]
+          pattern: "listener 8883 0.0.0.0"
+      - matchRegex:
+          path: data["mosquitto.conf.tmpl"]
+          pattern: "certfile /mosquitto/config/tls/tls.crt"
+      - matchRegex:
+          path: data["mosquitto.conf.tmpl"]
+          pattern: "keyfile /mosquitto/config/tls/tls.key"
+      - matchRegex:
+          path: data["mosquitto.conf.tmpl"]
+          pattern: "cafile /mosquitto/config/tls/ca.crt"
+      - matchRegex:
+          path: data["mosquitto.conf.tmpl"]
+          pattern: "require_certificate true"
+      - matchRegex:
+          path: data["mosquitto.conf.tmpl"]
+          pattern: "use_identity_as_username true"
+
+  - it: should include broker limit directives when configured
+    set:
+      broker.limits.maxConnections: 10000
+      broker.limits.maxInflightMessages: 100
+      broker.limits.maxQueuedMessages: 1000
+      broker.limits.maxQueuedBytes: 104857
+      broker.limits.messageSizeLimit: 262144
+    asserts:
+      - matchRegex:
+          path: data["mosquitto.conf.tmpl"]
+          pattern: "max_connections 10000"
+      - matchRegex:
+          path: data["mosquitto.conf.tmpl"]
+          pattern: "max_inflight_messages 100"
+      - matchRegex:
+          path: data["mosquitto.conf.tmpl"]
+          pattern: "max_queued_messages 1000"
+      - matchRegex:
+          path: data["mosquitto.conf.tmpl"]
+          pattern: "max_queued_bytes 104857"
+      - matchRegex:
+          path: data["mosquitto.conf.tmpl"]
+          pattern: "message_size_limit 262144"
