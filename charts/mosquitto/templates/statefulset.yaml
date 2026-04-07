@@ -126,6 +126,11 @@ spec:
             - name: websocket
               containerPort: {{ .Values.broker.listeners.websocket }}
               protocol: TCP
+            {{- if .Values.broker.tls.enabled }}
+            - name: mqtts
+              containerPort: {{ .Values.broker.tls.port }}
+              protocol: TCP
+            {{- end }}
           {{- if .Values.startupProbe.enabled }}
           startupProbe:
             tcpSocket:
@@ -169,6 +174,11 @@ spec:
               mountPath: /mosquitto/config/generated
             - name: data
               mountPath: /mosquitto/data
+            {{- if .Values.broker.tls.enabled }}
+            - name: tls
+              mountPath: /mosquitto/config/tls
+              readOnly: true
+            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -186,6 +196,11 @@ spec:
         - name: acl-source
           configMap:
             name: {{ include "mosquitto.aclConfigMapName" . }}
+        {{- end }}
+        {{- if .Values.broker.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ .Values.broker.tls.certSecretName | quote }}
         {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
