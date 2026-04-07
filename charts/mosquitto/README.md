@@ -141,6 +141,7 @@ broker:
 | `broker.tls.enabled` | `false` | Enable broker MQTT TLS listener and disable plain MQTT `1883` |
 | `broker.tls.certSecretName` | `""` | Secret containing `tls.crt` and `tls.key` |
 | `broker.limits.maxConnections` | `0` | Maximum simultaneously connected clients (`0` keeps broker default) |
+| `broker.limits.maxPacketSize` | `0` | Maximum accepted MQTT packet size in bytes (`0` keeps broker default) |
 | `broker.federation.topicPattern` | `#` | Topic pattern bridged between federated brokers |
 | `auth.enabled` | `false` | Enable username/password authentication |
 | `acl.enabled` | `false` | Enable ACL file generation |
