@@ -242,7 +242,7 @@ securityContext:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/helmforge/fastmcp-server` | Container image |
-| `image.tag` | `0.10.9` | Image tag |
+| `image.tag` | `0.10.10` | Image tag |
 | `server.name` | `fastmcp-server` | Server name in MCP responses |
 | `server.port` | `8000` | HTTP port |
 | `server.path` | `/mcp` | MCP endpoint path |
