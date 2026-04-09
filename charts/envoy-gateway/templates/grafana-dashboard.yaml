@@ -1,0 +1,123 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.grafana.dashboards }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "envoy-gateway.fullname" . }}-grafana-dashboard
+  labels:
+    {{- include "envoy-gateway.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+  envoy-gateway-overview.json: |
+    {
+      "dashboard": {
+        "title": "Envoy Gateway Overview",
+        "tags": ["envoy", "gateway"],
+        "timezone": "browser",
+        "schemaVersion": 16,
+        "version": 1,
+        "refresh": "30s",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Request Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(envoy_cluster_upstream_rq[5m])) by (envoy_cluster_name)",
+                "legendFormat": "{{ "{{" }} envoy_cluster_name {{ "}}" }}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+          },
+          {
+            "id": 2,
+            "title": "Error Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(envoy_cluster_upstream_rq{envoy_response_code_class=\"5\"}[5m])) by (envoy_cluster_name)",
+                "legendFormat": "5xx - {{ "{{" }} envoy_cluster_name {{ "}}" }}"
+              },
+              {
+                "expr": "sum(rate(envoy_cluster_upstream_rq{envoy_response_code_class=\"4\"}[5m])) by (envoy_cluster_name)",
+                "legendFormat": "4xx - {{ "{{" }} envoy_cluster_name {{ "}}" }}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+          },
+          {
+            "id": 3,
+            "title": "P50 Latency",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.50, sum(rate(envoy_cluster_upstream_rq_time_bucket[5m])) by (le, envoy_cluster_name))",
+                "legendFormat": "p50 - {{ "{{" }} envoy_cluster_name {{ "}}" }}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8}
+          },
+          {
+            "id": 4,
+            "title": "P95 Latency",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, sum(rate(envoy_cluster_upstream_rq_time_bucket[5m])) by (le, envoy_cluster_name))",
+                "legendFormat": "p95 - {{ "{{" }} envoy_cluster_name {{ "}}" }}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8}
+          },
+          {
+            "id": 5,
+            "title": "P99 Latency",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.99, sum(rate(envoy_cluster_upstream_rq_time_bucket[5m])) by (le, envoy_cluster_name))",
+                "legendFormat": "p99 - {{ "{{" }} envoy_cluster_name {{ "}}" }}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8}
+          },
+          {
+            "id": 6,
+            "title": "Active Connections",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(envoy_http_downstream_cx_active) by (pod)",
+                "legendFormat": "{{ "{{" }} pod {{ "}}" }}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+          },
+          {
+            "id": 7,
+            "title": "Circuit Breaker Status",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(envoy_cluster_circuit_breakers_default_cx_open) by (envoy_cluster_name)",
+                "legendFormat": "{{ "{{" }} envoy_cluster_name {{ "}}" }}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+          },
+          {
+            "id": 8,
+            "title": "Rate Limit Rejections",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(envoy_cluster_ratelimit_over_limit[5m])) by (envoy_cluster_name)",
+                "legendFormat": "{{ "{{" }} envoy_cluster_name {{ "}}" }}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24}
+          }
+        ]
+      }
+    }
+{{- end }}
