@@ -1,0 +1,143 @@
+suite: Services and HPA
+templates:
+  - service-controller.yaml
+  - service-proxy.yaml
+  - hpa-proxy.yaml
+tests:
+  - it: should create controller service
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: service-controller.yaml
+      - equal:
+          path: kind
+          value: Service
+        template: service-controller.yaml
+      - equal:
+          path: spec.type
+          value: ClusterIP
+        template: service-controller.yaml
+      - contains:
+          path: spec.ports
+          content:
+            name: http
+            port: 8080
+            targetPort: http
+            protocol: TCP
+        template: service-controller.yaml
+      - contains:
+          path: spec.ports
+          content:
+            name: metrics
+            port: 8081
+            targetPort: metrics
+            protocol: TCP
+        template: service-controller.yaml
+
+  - it: should create proxy service with LoadBalancer by default
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: service-proxy.yaml
+      - equal:
+          path: kind
+          value: Service
+        template: service-proxy.yaml
+      - equal:
+          path: spec.type
+          value: LoadBalancer
+        template: service-proxy.yaml
+      - equal:
+          path: spec.ports[0].port
+          value: 80
+        template: service-proxy.yaml
+      - equal:
+          path: spec.ports[1].port
+          value: 443
+        template: service-proxy.yaml
+
+  - it: should allow custom proxy service type
+    set:
+      proxy:
+        service:
+          type: NodePort
+    asserts:
+      - equal:
+          path: spec.type
+          value: NodePort
+        template: service-proxy.yaml
+
+  - it: should allow custom proxy service ports
+    set:
+      proxy:
+        service:
+          httpPort: 8080
+          httpsPort: 8443
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 8080
+        template: service-proxy.yaml
+      - equal:
+          path: spec.ports[1].port
+          value: 8443
+        template: service-proxy.yaml
+
+  - it: should apply proxy service annotations
+    set:
+      proxy:
+        service:
+          annotations:
+            service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    asserts:
+      - equal:
+          path: metadata.annotations["service.beta.kubernetes.io/aws-load-balancer-type"]
+          value: nlb
+        template: service-proxy.yaml
+
+  - it: should create HPA when autoscaling enabled
+    set:
+      proxy:
+        mode: Deployment
+        autoscaling:
+          enabled: true
+          minReplicas: 2
+          maxReplicas: 10
+          targetCPUUtilizationPercentage: 80
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: hpa-proxy.yaml
+      - equal:
+          path: kind
+          value: HorizontalPodAutoscaler
+        template: hpa-proxy.yaml
+      - equal:
+          path: spec.minReplicas
+          value: 2
+        template: hpa-proxy.yaml
+      - equal:
+          path: spec.maxReplicas
+          value: 10
+        template: hpa-proxy.yaml
+
+  - it: should not create HPA when autoscaling disabled
+    set:
+      proxy:
+        autoscaling:
+          enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: hpa-proxy.yaml
+
+  - it: should not create HPA for DaemonSet mode
+    set:
+      proxy:
+        mode: DaemonSet
+        autoscaling:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: hpa-proxy.yaml

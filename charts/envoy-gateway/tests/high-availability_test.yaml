@@ -1,0 +1,95 @@
+suite: High Availability Features
+templates:
+  - deployment-controller.yaml
+  - deployment-proxy.yaml
+  - pdb-controller.yaml
+  - configmap.yaml
+tests:
+  - it: should apply anti-affinity in production-ha profile for controller
+    set:
+      profile: production-ha
+    asserts:
+      - isNotEmpty:
+          path: spec.template.spec.affinity
+        template: deployment-controller.yaml
+      - equal:
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].weight
+          value: 100
+        template: deployment-controller.yaml
+      - equal:
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey
+          value: kubernetes.io/hostname
+        template: deployment-controller.yaml
+
+  - it: should apply anti-affinity in production-ha profile for proxy Deployment
+    set:
+      profile: custom
+      proxy:
+        mode: Deployment
+      highAvailability:
+        enabled: true
+    asserts:
+      - isNotEmpty:
+          path: spec.template.spec.affinity
+        template: deployment-proxy.yaml
+      - equal:
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].weight
+          value: 100
+        template: deployment-proxy.yaml
+
+  - it: should not apply anti-affinity by default
+    set:
+      profile: dev
+    asserts:
+      - isNull:
+          path: spec.template.spec.affinity
+        template: deployment-controller.yaml
+      - isNull:
+          path: spec.template.spec.affinity
+        template: deployment-proxy.yaml
+
+  - it: should create PodDisruptionBudget in HA mode
+    set:
+      highAvailability:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: pdb-controller.yaml
+      - equal:
+          path: kind
+          value: PodDisruptionBudget
+        template: pdb-controller.yaml
+      - equal:
+          path: spec.minAvailable
+          value: 1
+        template: pdb-controller.yaml
+
+  - it: should not create PodDisruptionBudget when HA disabled
+    set:
+      highAvailability:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: pdb-controller.yaml
+
+  - it: should create PodDisruptionBudget in production-ha profile
+    set:
+      profile: production-ha
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: pdb-controller.yaml
+
+  - it: should allow custom PDB minAvailable
+    set:
+      highAvailability:
+        enabled: true
+        podDisruptionBudget:
+          minAvailable: 2
+    asserts:
+      - equal:
+          path: spec.minAvailable
+          value: 2
+        template: pdb-controller.yaml

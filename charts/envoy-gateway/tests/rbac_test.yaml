@@ -1,0 +1,153 @@
+suite: RBAC and ServiceAccount
+templates:
+  - serviceaccount.yaml
+  - rbac.yaml
+  - gatewayclass.yaml
+tests:
+  - it: should create ServiceAccount by default
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: serviceaccount.yaml
+      - equal:
+          path: kind
+          value: ServiceAccount
+        template: serviceaccount.yaml
+
+  - it: should not create ServiceAccount when disabled
+    set:
+      serviceAccount:
+        create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: serviceaccount.yaml
+
+  - it: should use custom ServiceAccount name
+    set:
+      serviceAccount:
+        name: custom-sa
+    asserts:
+      - equal:
+          path: metadata.name
+          value: custom-sa
+        template: serviceaccount.yaml
+
+  - it: should create RBAC resources by default
+    asserts:
+      - hasDocuments:
+          count: 4
+        template: rbac.yaml
+      - equal:
+          path: kind
+          value: ClusterRole
+        template: rbac.yaml
+        documentIndex: 0
+      - equal:
+          path: kind
+          value: ClusterRoleBinding
+        template: rbac.yaml
+        documentIndex: 1
+      - equal:
+          path: kind
+          value: Role
+        template: rbac.yaml
+        documentIndex: 2
+      - equal:
+          path: kind
+          value: RoleBinding
+        template: rbac.yaml
+        documentIndex: 3
+
+  - it: should not create RBAC when disabled
+    set:
+      rbac:
+        create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: rbac.yaml
+
+  - it: should grant Gateway API permissions
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - gateway.networking.k8s.io
+            resources:
+              - gatewayclasses
+              - gateways
+              - httproutes
+              - referencegrants
+              - tlsroutes
+              - tcproutes
+              - udproutes
+              - grpcroutes
+            verbs:
+              - get
+              - list
+              - watch
+              - create
+              - update
+              - patch
+              - delete
+        template: rbac.yaml
+        documentIndex: 0
+
+  - it: should grant Envoy Gateway CRD permissions
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - gateway.envoyproxy.io
+            resources:
+              - envoyproxies
+              - envoypatchpolicies
+              - clienttrafficpolicies
+              - backendtrafficpolicies
+              - securitypolicies
+            verbs:
+              - get
+              - list
+              - watch
+              - create
+              - update
+              - patch
+              - delete
+        template: rbac.yaml
+        documentIndex: 0
+
+  - it: should create GatewayClass by default
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: gatewayclass.yaml
+      - equal:
+          path: kind
+          value: GatewayClass
+        template: gatewayclass.yaml
+      - equal:
+          path: spec.controllerName
+          value: gateway.envoyproxy.io/gatewayclass-controller
+        template: gatewayclass.yaml
+
+  - it: should not create GatewayClass when disabled
+    set:
+      gatewayClass:
+        create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: gatewayclass.yaml
+
+  - it: should use custom GatewayClass name
+    set:
+      gatewayClass:
+        name: custom-gateway-class
+    asserts:
+      - equal:
+          path: metadata.name
+          value: custom-gateway-class
+        template: gatewayclass.yaml

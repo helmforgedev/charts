@@ -1,0 +1,95 @@
+suite: Profile Presets
+templates:
+  - deployment-controller.yaml
+  - deployment-proxy.yaml
+  - daemonset-proxy.yaml
+  - configmap.yaml
+tests:
+  - it: should apply dev profile correctly
+    set:
+      profile: dev
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+        template: deployment-controller.yaml
+      - equal:
+          path: spec.replicas
+          value: 1
+        template: deployment-proxy.yaml
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: "100m"
+        template: deployment-controller.yaml
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: "128Mi"
+        template: deployment-controller.yaml
+
+  - it: should apply staging profile correctly
+    set:
+      profile: staging
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+        template: deployment-controller.yaml
+      - equal:
+          path: spec.replicas
+          value: 2
+        template: deployment-proxy.yaml
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: "500m"
+        template: deployment-controller.yaml
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: "512Mi"
+        template: deployment-controller.yaml
+
+  - it: should apply production-ha profile with DaemonSet
+    set:
+      profile: production-ha
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+        template: deployment-controller.yaml
+      - hasDocuments:
+          count: 1
+        template: daemonset-proxy.yaml
+      - hasDocuments:
+          count: 0
+        template: deployment-proxy.yaml
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: "1000m"
+        template: deployment-controller.yaml
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: "1Gi"
+        template: deployment-controller.yaml
+
+  - it: should use Deployment mode for custom profile by default
+    set:
+      profile: custom
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: deployment-proxy.yaml
+      - hasDocuments:
+          count: 0
+        template: daemonset-proxy.yaml
+
+  - it: should allow DaemonSet override in custom profile
+    set:
+      profile: custom
+      proxy:
+        mode: DaemonSet
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: deployment-proxy.yaml
+      - hasDocuments:
+          count: 1
+        template: daemonset-proxy.yaml
