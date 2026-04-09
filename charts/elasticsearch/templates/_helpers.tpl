@@ -1,4 +1,4 @@
-{{/*
+﻿{{/*
 =============================================================================
 Standard naming helpers
 =============================================================================
@@ -572,4 +572,46 @@ Monitoring exporter image
 */}}
 {{- define "elasticsearch.exporter.image" -}}
 {{- printf "%s:%s" .Values.monitoring.image.repository .Values.monitoring.image.tag -}}
+{{- end -}}
+
+{{/*
+Tier heap size helper
+Usage: {{ include "elasticsearch.tierHeapSize" (dict "root" . "tier" "hot") }}
+*/}}
+{{- define "elasticsearch.tierHeapSize" -}}
+{{- $tier := .tier -}}
+{{- $resources := index .root.Values.dataTiers $tier "resources" -}}
+{{- if $resources }}
+  {{- $memLimit := index $resources "limits" "memory" -}}
+  {{- if $memLimit }}
+    {{- include "elasticsearch.computeHeap" $memLimit -}}
+  {{- else -}}
+4g
+  {{- end -}}
+{{- else if eq $tier "hot" -}}
+4g
+{{- else -}}
+2g
+{{- end -}}
+{{- end -}}
+
+{{/*
+Compute heap from memory string (50% rule, max 31g)
+Usage: {{ include "elasticsearch.computeHeap" "8Gi" }}
+*/}}
+{{- define "elasticsearch.computeHeap" -}}
+{{- $mem := . | lower -}}
+{{- $gi := 0 -}}
+{{- if hasSuffix "gi" $mem -}}
+  {{- $gi = $mem | trimSuffix "gi" | atoi -}}
+{{- else if hasSuffix "g" $mem -}}
+  {{- $gi = $mem | trimSuffix "g" | atoi -}}
+{{- else if hasSuffix "mi" $mem -}}
+  {{- $mi := $mem | trimSuffix "mi" | atoi -}}
+  {{- $gi = div $mi 1024 -}}
+{{- end -}}
+{{- $heap := div $gi 2 -}}
+{{- if gt $heap 31 -}}{{- $heap = 31 -}}{{- end -}}
+{{- if lt $heap 1 -}}{{- $heap = 1 -}}{{- end -}}
+{{- printf "%dg" $heap -}}
 {{- end -}}

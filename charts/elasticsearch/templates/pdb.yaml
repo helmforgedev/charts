@@ -1,0 +1,93 @@
+{{/* PodDisruptionBudgets for master, data, and coordinating nodes */}}
+{{- $profile := include "elasticsearch.profile" . -}}
+
+{{/* Master PDB — always created when 2+ masters */}}
+{{- $masterReplicas := int (include "elasticsearch.master.replicaCount" .) -}}
+{{- if gt $masterReplicas 1 }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-master
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.componentLabels" (dict "root" . "component" "master") | nindent 4 }}
+spec:
+  {{- if eq $profile "production-ha" }}
+  maxUnavailable: 1
+  {{- else }}
+  minAvailable: 1
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "elasticsearch.componentSelectorLabels" (dict "root" . "component" "master") | nindent 6 }}
+{{- end }}
+
+{{/* Data PDB */}}
+{{- $dataReplicas := int (include "elasticsearch.data.replicaCount" .) -}}
+{{- if gt $dataReplicas 1 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.componentLabels" (dict "root" . "component" "data") | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "elasticsearch.componentSelectorLabels" (dict "root" . "component" "data") | nindent 6 }}
+{{- end }}
+
+{{/* Coordinating PDB */}}
+{{- $coordReplicas := int (include "elasticsearch.coordinating.replicaCount" .) -}}
+{{- if gt $coordReplicas 1 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-coordinating
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.componentLabels" (dict "root" . "component" "coordinating") | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "elasticsearch.componentSelectorLabels" (dict "root" . "component" "coordinating") | nindent 6 }}
+{{- end }}
+
+{{/* Hot tier PDB */}}
+{{- if and .Values.dataTiers.hot.enabled (gt (int .Values.dataTiers.hot.replicas) 1) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-hot
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.componentLabels" (dict "root" . "component" "hot") | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "elasticsearch.componentSelectorLabels" (dict "root" . "component" "hot") | nindent 6 }}
+{{- end }}
+
+{{/* Warm tier PDB */}}
+{{- if and .Values.dataTiers.warm.enabled (gt (int .Values.dataTiers.warm.replicas) 1) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-warm
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.componentLabels" (dict "root" . "component" "warm") | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "elasticsearch.componentSelectorLabels" (dict "root" . "component" "warm") | nindent 6 }}
+{{- end }}

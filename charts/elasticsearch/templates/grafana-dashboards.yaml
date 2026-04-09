@@ -1,0 +1,291 @@
+﻿{{- if .Values.monitoring.enabled -}}
+{{- if .Values.monitoring.grafana.dashboards -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-grafana-dashboards
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+  elasticsearch-cluster-health.json: |
+    {
+      "__inputs": [],
+      "__requires": [],
+      "annotations": { "list": [] },
+      "description": "Elasticsearch Cluster Health - HelmForge",
+      "editable": true,
+      "gnetId": null,
+      "graphTooltip": 0,
+      "id": null,
+      "title": "Elasticsearch / Cluster Health",
+      "tags": ["elasticsearch", "helmforge"],
+      "timezone": "browser",
+      "schemaVersion": 30,
+      "version": 1,
+      "panels": [
+        {
+          "id": 1, "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+          "title": "Cluster Status",
+          "type": "stat",
+          "datasource": "Prometheus",
+          "targets": [{
+            "expr": "elasticsearch_cluster_health_status{color='green',cluster=~'$cluster'} * 0 + 1 or elasticsearch_cluster_health_status{color='yellow',cluster=~'$cluster'} * 0 + 2 or elasticsearch_cluster_health_status{color='red',cluster=~'$cluster'} * 0 + 3",
+            "legendFormat": "Status"
+          }],
+          "options": {
+            "colorMode": "background",
+            "thresholds": { "mode": "absolute", "steps": [
+              {"color": "green", "value": 1},
+              {"color": "yellow", "value": 2},
+              {"color": "red", "value": 3}
+            ]}
+          }
+        },
+        {
+          "id": 2, "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+          "title": "Active Nodes",
+          "type": "stat",
+          "datasource": "Prometheus",
+          "targets": [{"expr": "elasticsearch_cluster_health_number_of_nodes{cluster=~'$cluster'}", "legendFormat": "Nodes"}]
+        },
+        {
+          "id": 3, "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+          "title": "Active Shards",
+          "type": "stat",
+          "datasource": "Prometheus",
+          "targets": [{"expr": "elasticsearch_cluster_health_active_shards{cluster=~'$cluster'}", "legendFormat": "Shards"}]
+        },
+        {
+          "id": 4, "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
+          "title": "Unassigned Shards",
+          "type": "stat",
+          "datasource": "Prometheus",
+          "targets": [{"expr": "elasticsearch_cluster_health_unassigned_shards{cluster=~'$cluster'}", "legendFormat": "Unassigned"}],
+          "options": {"thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": 0}, {"color": "red", "value": 1}]}}
+        },
+        {
+          "id": 5, "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
+          "title": "Pending Tasks",
+          "type": "stat",
+          "datasource": "Prometheus",
+          "targets": [{"expr": "elasticsearch_cluster_health_number_of_pending_tasks{cluster=~'$cluster'}", "legendFormat": "Tasks"}]
+        },
+        {
+          "id": 6, "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
+          "title": "Total Indices",
+          "type": "stat",
+          "datasource": "Prometheus",
+          "targets": [{"expr": "elasticsearch_cluster_health_number_of_data_nodes{cluster=~'$cluster'}", "legendFormat": "Data Nodes"}]
+        },
+        {
+          "id": 10, "gridPos": {"h": 8, "w": 24, "x": 0, "y": 4},
+          "title": "Cluster Health Over Time",
+          "type": "timeseries",
+          "datasource": "Prometheus",
+          "targets": [
+            {"expr": "elasticsearch_cluster_health_active_shards{cluster=~'$cluster'}", "legendFormat": "Active Shards"},
+            {"expr": "elasticsearch_cluster_health_unassigned_shards{cluster=~'$cluster'}", "legendFormat": "Unassigned Shards"},
+            {"expr": "elasticsearch_cluster_health_initializing_shards{cluster=~'$cluster'}", "legendFormat": "Initializing Shards"}
+          ]
+        },
+        {
+          "id": 20, "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+          "title": "Disk Usage per Node",
+          "type": "timeseries",
+          "datasource": "Prometheus",
+          "targets": [{
+            "expr": "(1 - (elasticsearch_filesystem_data_available_bytes{cluster=~'$cluster'} / elasticsearch_filesystem_data_size_bytes{cluster=~'$cluster'})) * 100",
+            "legendFormat": "{{`{{host}}`}}"
+          }]
+        },
+        {
+          "id": 21, "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+          "title": "Documents per Index",
+          "type": "timeseries",
+          "datasource": "Prometheus",
+          "targets": [{
+            "expr": "elasticsearch_indices_docs{cluster=~'$cluster'}",
+            "legendFormat": "{{`{{index}}`}}"
+          }]
+        }
+      ],
+      "templating": {
+        "list": [{
+          "name": "cluster",
+          "type": "query",
+          "datasource": "Prometheus",
+          "query": "label_values(elasticsearch_cluster_health_status, cluster)",
+          "refresh": 2
+        }]
+      }
+    }
+
+  elasticsearch-jvm-metrics.json: |
+    {
+      "__inputs": [],
+      "__requires": [],
+      "title": "Elasticsearch / JVM Metrics",
+      "description": "JVM heap, GC and memory metrics for Elasticsearch nodes",
+      "tags": ["elasticsearch", "jvm", "helmforge"],
+      "timezone": "browser",
+      "schemaVersion": 30,
+      "version": 1,
+      "panels": [
+        {
+          "id": 1, "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "title": "JVM Heap Usage %",
+          "type": "timeseries",
+          "datasource": "Prometheus",
+          "targets": [{
+            "expr": "100 * (elasticsearch_jvm_memory_used_bytes{area='heap',cluster=~'$cluster'} / elasticsearch_jvm_memory_max_bytes{area='heap',cluster=~'$cluster'})",
+            "legendFormat": "{{`{{name}}`}}"
+          }],
+          "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": 0},
+            {"color": "yellow", "value": 75},
+            {"color": "red", "value": 90}
+          ]}}}
+        },
+        {
+          "id": 2, "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "title": "JVM Heap Used (bytes)",
+          "type": "timeseries",
+          "datasource": "Prometheus",
+          "targets": [
+            {"expr": "elasticsearch_jvm_memory_used_bytes{area='heap',cluster=~'$cluster'}", "legendFormat": "Used - {{`{{name}}`}}"},
+            {"expr": "elasticsearch_jvm_memory_max_bytes{area='heap',cluster=~'$cluster'}", "legendFormat": "Max - {{`{{name}}`}}"}
+          ],
+          "fieldConfig": {"defaults": {"unit": "bytes"}}
+        },
+        {
+          "id": 3, "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "title": "GC Collection Duration (ms)",
+          "type": "timeseries",
+          "datasource": "Prometheus",
+          "targets": [{
+            "expr": "rate(elasticsearch_jvm_gc_collection_seconds_sum{cluster=~'$cluster'}[5m]) * 1000",
+            "legendFormat": "{{`{{gc}}`}} - {{`{{name}}`}}"
+          }],
+          "fieldConfig": {"defaults": {"unit": "ms"}}
+        },
+        {
+          "id": 4, "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "title": "GC Collection Count / sec",
+          "type": "timeseries",
+          "datasource": "Prometheus",
+          "targets": [{
+            "expr": "rate(elasticsearch_jvm_gc_collection_seconds_count{cluster=~'$cluster'}[5m])",
+            "legendFormat": "{{`{{gc}}`}} - {{`{{name}}`}}"
+          }]
+        },
+        {
+          "id": 5, "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
+          "title": "Thread Pool Queue Size",
+          "type": "timeseries",
+          "datasource": "Prometheus",
+          "targets": [{
+            "expr": "elasticsearch_thread_pool_queue_count{cluster=~'$cluster'}",
+            "legendFormat": "{{`{{type}}`}} - {{`{{name}}`}}"
+          }]
+        }
+      ],
+      "templating": {
+        "list": [{
+          "name": "cluster",
+          "type": "query",
+          "datasource": "Prometheus",
+          "query": "label_values(elasticsearch_jvm_memory_used_bytes, cluster)",
+          "refresh": 2
+        }]
+      }
+    }
+
+  elasticsearch-query-performance.json: |
+    {
+      "__inputs": [],
+      "__requires": [],
+      "title": "Elasticsearch / Query Performance",
+      "description": "Search and indexing performance metrics",
+      "tags": ["elasticsearch", "performance", "helmforge"],
+      "timezone": "browser",
+      "schemaVersion": 30,
+      "version": 1,
+      "panels": [
+        {
+          "id": 1, "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "title": "Search Rate (queries/sec)",
+          "type": "timeseries",
+          "datasource": "Prometheus",
+          "targets": [{
+            "expr": "rate(elasticsearch_indices_search_query_total{cluster=~'$cluster'}[5m])",
+            "legendFormat": "{{`{{name}}`}}"
+          }]
+        },
+        {
+          "id": 2, "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "title": "Search Latency (ms)",
+          "type": "timeseries",
+          "datasource": "Prometheus",
+          "targets": [{
+            "expr": "rate(elasticsearch_indices_search_query_time_seconds{cluster=~'$cluster'}[5m]) / rate(elasticsearch_indices_search_query_total{cluster=~'$cluster'}[5m]) * 1000",
+            "legendFormat": "p50 - {{`{{name}}`}}"
+          }],
+          "fieldConfig": {"defaults": {"unit": "ms"}}
+        },
+        {
+          "id": 3, "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "title": "Indexing Rate (docs/sec)",
+          "type": "timeseries",
+          "datasource": "Prometheus",
+          "targets": [{
+            "expr": "rate(elasticsearch_indices_indexing_index_total{cluster=~'$cluster'}[5m])",
+            "legendFormat": "{{`{{name}}`}}"
+          }]
+        },
+        {
+          "id": 4, "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "title": "Indexing Latency (ms)",
+          "type": "timeseries",
+          "datasource": "Prometheus",
+          "targets": [{
+            "expr": "rate(elasticsearch_indices_indexing_index_time_seconds_total{cluster=~'$cluster'}[5m]) / rate(elasticsearch_indices_indexing_index_total{cluster=~'$cluster'}[5m]) * 1000",
+            "legendFormat": "{{`{{name}}`}}"
+          }],
+          "fieldConfig": {"defaults": {"unit": "ms"}}
+        },
+        {
+          "id": 5, "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+          "title": "Search Fetch Rate",
+          "type": "timeseries",
+          "datasource": "Prometheus",
+          "targets": [{
+            "expr": "rate(elasticsearch_indices_search_fetch_total{cluster=~'$cluster'}[5m])",
+            "legendFormat": "{{`{{name}}`}}"
+          }]
+        },
+        {
+          "id": 6, "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "title": "Circuit Breaker Trips",
+          "type": "timeseries",
+          "datasource": "Prometheus",
+          "targets": [{
+            "expr": "rate(elasticsearch_breakers_tripped{cluster=~'$cluster'}[5m])",
+            "legendFormat": "{{`{{breaker}}`}} - {{`{{name}}`}}"
+          }]
+        }
+      ],
+      "templating": {
+        "list": [{
+          "name": "cluster",
+          "type": "query",
+          "datasource": "Prometheus",
+          "query": "label_values(elasticsearch_indices_search_query_total, cluster)",
+          "refresh": 2
+        }]
+      }
+    }
+{{- end }}
+{{- end }}
+
