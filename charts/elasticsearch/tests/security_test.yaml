@@ -1,0 +1,97 @@
+suite: elasticsearch - security and TLS
+templates:
+  - templates/secret-credentials.yaml
+  - templates/statefulset-master.yaml
+
+tests:
+  - it: security disabled should not create credentials secret
+    set:
+      clusterProfile: dev
+      security:
+        enabled: false
+        generatePasswords: false
+    template: templates/secret-credentials.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: security enabled should create credentials secret
+    set:
+      security:
+        enabled: true
+        generatePasswords: true
+    template: templates/secret-credentials.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Secret
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-elasticsearch-credentials
+
+  - it: existingCredentialsSecret is used when set
+    set:
+      security:
+        enabled: true
+        generatePasswords: false
+        existingCredentialsSecret: my-existing-secret
+    template: templates/secret-credentials.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: security enabled sets xpack.security.enabled=true in env
+    set:
+      security:
+        enabled: true
+    template: templates/statefulset-master.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: xpack.security.enabled
+            value: "true"
+
+  - it: security disabled sets xpack.security.enabled=false in env
+    set:
+      clusterProfile: dev
+      security:
+        enabled: false
+    template: templates/statefulset-master.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: xpack.security.enabled
+            value: "false"
+
+  - it: production-ha profile auto-enables security
+    set:
+      clusterProfile: production-ha
+    template: templates/statefulset-master.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: xpack.security.enabled
+            value: "true"
+
+  - it: security enabled mounts TLS certificate volume
+    set:
+      security:
+        enabled: true
+    template: templates/statefulset-master.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tls-certs
+            mountPath: /usr/share/elasticsearch/config/certs
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls-certs
+            secret:
+              secretName: RELEASE-NAME-elasticsearch-tls

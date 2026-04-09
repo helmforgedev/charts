@@ -1,0 +1,81 @@
+# Production HA — full-featured cluster with TLS, backups, ILM, monitoring, Kibana
+clusterProfile: production-ha
+
+clusterName: production-search
+
+master:
+  replicaCount: 3
+  persistence:
+    size: 20Gi
+    storageClass: gp3
+
+data:
+  replicaCount: 3
+  persistence:
+    size: 500Gi
+    storageClass: gp3
+
+coordinating:
+  replicaCount: 2
+
+security:
+  enabled: true
+  tls:
+    certManager:
+      enabled: true
+      clusterIssuer: true
+      issuerName: letsencrypt-prod
+  existingCredentialsSecret: ""   # set to use pre-generated passwords
+
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  retention:
+    days: 30
+  s3:
+    bucket: my-es-backups
+    region: us-east-1
+    existingSecret: es-s3-credentials   # keys: access-key, secret-key
+
+ilm:
+  logs:
+    enabled: true
+    hotDays: 7
+    warmDays: 30
+    coldDays: 90
+    deleteDays: 180
+  metrics:
+    enabled: true
+    hotDays: 3
+    warmDays: 14
+    deleteDays: 30
+  traces:
+    enabled: true
+    hotDays: 1
+    warmDays: 7
+    deleteDays: 30
+
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+  prometheusRule:
+    enabled: true
+  grafana:
+    dashboards: true
+
+kibana:
+  enabled: true
+  replicaCount: 2
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hosts:
+      - host: kibana.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - hosts:
+          - kibana.example.com
+        secretName: kibana-tls

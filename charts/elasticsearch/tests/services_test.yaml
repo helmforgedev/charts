@@ -1,0 +1,66 @@
+suite: elasticsearch - services
+templates:
+  - templates/service.yaml
+  - templates/service-headless.yaml
+
+tests:
+  - it: client service should be ClusterIP by default
+    template: templates/service.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - contains:
+          path: spec.ports
+          content:
+            name: http
+            port: 9200
+            targetPort: http
+            protocol: TCP
+
+  - it: headless master service should always be rendered
+    template: templates/service-headless.yaml
+    asserts:
+      - isKind:
+          of: Service
+        documentIndex: 0
+      - equal:
+          path: spec.clusterIP
+          value: None
+        documentIndex: 0
+
+  - it: headless data service rendered when data.replicaCount > 0
+    set:
+      clusterProfile: staging
+    template: templates/service-headless.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: headless coordinating service rendered only in production-ha
+    set:
+      clusterProfile: production-ha
+    template: templates/service-headless.yaml
+    asserts:
+      - hasDocuments:
+          count: 3
+
+  - it: service can be set to LoadBalancer
+    set:
+      service:
+        type: LoadBalancer
+    template: templates/service.yaml
+    asserts:
+      - equal:
+          path: spec.type
+          value: LoadBalancer
+
+  - it: dev profile only renders master headless service
+    set:
+      clusterProfile: dev
+    template: templates/service-headless.yaml
+    asserts:
+      - hasDocuments:
+          count: 1

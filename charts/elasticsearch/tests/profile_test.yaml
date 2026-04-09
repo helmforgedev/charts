@@ -1,0 +1,218 @@
+suite: elasticsearch - profile presets
+templates:
+  - templates/statefulset-master.yaml
+  - templates/statefulset-data.yaml
+  - templates/statefulset-coordinating.yaml
+
+tests:
+  # ───────────────────────────────────────────────────────────────────────────
+  # dev profile
+  # ───────────────────────────────────────────────────────────────────────────
+  - it: dev profile should deploy 1 master replica
+    set:
+      clusterProfile: dev
+    template: templates/statefulset-master.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: dev profile should not deploy data StatefulSet (replicaCount 0 skips template)
+    set:
+      clusterProfile: dev
+    template: templates/statefulset-data.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: dev profile should not deploy coordinating StatefulSet
+    set:
+      clusterProfile: dev
+    template: templates/statefulset-coordinating.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: dev profile master should have node.roles=master,data,ingest (single-node all-in-one)
+    set:
+      clusterProfile: dev
+    template: templates/statefulset-master.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: node.roles
+            value: "master,data,ingest"
+
+  - it: production-ha master should have node.roles=master (dedicated master)
+    set:
+      clusterProfile: production-ha
+    template: templates/statefulset-master.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: node.roles
+            value: "master"
+
+  - it: dev profile master should use 1g heap (50% of 2Gi limit)
+    set:
+      clusterProfile: dev
+    template: templates/statefulset-master.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ES_JAVA_OPTS
+            value: "-Xms1g -Xmx1g"
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # staging profile
+  # ───────────────────────────────────────────────────────────────────────────
+  - it: staging profile should deploy 1 master replica
+    set:
+      clusterProfile: staging
+    template: templates/statefulset-master.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: staging profile should deploy 2 data replicas
+    set:
+      clusterProfile: staging
+    template: templates/statefulset-data.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+
+  - it: staging profile should not deploy coordinating nodes
+    set:
+      clusterProfile: staging
+    template: templates/statefulset-coordinating.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: staging data nodes should use hot+warm roles
+    set:
+      clusterProfile: staging
+    template: templates/statefulset-data.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: node.roles
+            value: "data,data_content,data_hot,data_warm"
+
+  - it: staging data nodes should use 4g heap (50% of 8Gi)
+    set:
+      clusterProfile: staging
+    template: templates/statefulset-data.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ES_JAVA_OPTS
+            value: "-Xms4g -Xmx4g"
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # production-ha profile
+  # ───────────────────────────────────────────────────────────────────────────
+  - it: production-ha should deploy 3 master replicas
+    set:
+      clusterProfile: production-ha
+    template: templates/statefulset-master.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: production-ha should deploy 3 data replicas
+    set:
+      clusterProfile: production-ha
+    template: templates/statefulset-data.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: production-ha should deploy 2 coordinating replicas
+    set:
+      clusterProfile: production-ha
+    template: templates/statefulset-coordinating.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+
+  - it: production-ha coordinating nodes should have empty roles (pure coordinating)
+    set:
+      clusterProfile: production-ha
+    template: templates/statefulset-coordinating.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: node.roles
+            value: ""
+
+  - it: production-ha data uses 8g heap (50% of 16Gi)
+    set:
+      clusterProfile: production-ha
+    template: templates/statefulset-data.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ES_JAVA_OPTS
+            value: "-Xms8g -Xmx8g"
+
+  - it: production-ha master should have podAntiAffinity set
+    set:
+      clusterProfile: production-ha
+    template: templates/statefulset-master.yaml
+    asserts:
+      - isNotNullOrEmpty:
+          path: spec.template.spec.affinity
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # user overrides beat profile defaults
+  # ───────────────────────────────────────────────────────────────────────────
+  - it: user can override master.replicaCount
+    set:
+      clusterProfile: staging
+      master:
+        replicaCount: 3
+    template: templates/statefulset-master.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: user can override data.replicaCount
+    set:
+      clusterProfile: dev
+      data:
+        replicaCount: 2
+    template: templates/statefulset-data.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+
+  - it: user can override heapSize explicitly
+    set:
+      clusterProfile: dev
+      master:
+        heapSize: "512m"
+    template: templates/statefulset-master.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ES_JAVA_OPTS
+            value: "-Xms512m -Xmx512m"

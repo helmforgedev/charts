@@ -1,0 +1,74 @@
+suite: elasticsearch - PodDisruptionBudgets
+templates:
+  - templates/pdb.yaml
+
+tests:
+  - it: dev profile should not create any PDB (only 1 master, 0 data)
+    set:
+      clusterProfile: dev
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: staging profile should create 1 PDB for data nodes (2 replicas)
+    set:
+      clusterProfile: staging
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PodDisruptionBudget
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-elasticsearch-data
+        documentIndex: 0
+
+  - it: production-ha should create 3 PDBs (master + data + coordinating)
+    set:
+      clusterProfile: production-ha
+    asserts:
+      - hasDocuments:
+          count: 3
+      - isKind:
+          of: PodDisruptionBudget
+        documentIndex: 0
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+        documentIndex: 0
+
+  - it: hot tier PDB created when enabled  increases document count
+    set:
+      clusterProfile: staging
+      dataTiers.hot.enabled: true
+      dataTiers.hot.replicas: 2
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-elasticsearch-hot
+        documentIndex: 1
+
+  - it: warm tier PDB created when enabled increases document count
+    set:
+      clusterProfile: staging
+      dataTiers.warm.enabled: true
+      dataTiers.warm.replicas: 2
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-elasticsearch-warm
+        documentIndex: 1
+
+  - it: hot tier PDB not created when only 1 replica
+    set:
+      clusterProfile: staging
+      dataTiers.hot.enabled: true
+      dataTiers.hot.replicas: 1
+    asserts:
+      - hasDocuments:
+          count: 1

@@ -1,0 +1,69 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.prometheusRule.enabled -}}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}
+  namespace: {{ .Values.monitoring.prometheusRule.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+    {{- with .Values.monitoring.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: elasticsearch.rules
+      rules:
+        - alert: ElasticsearchClusterRed
+          expr: elasticsearch_cluster_health_status{color="red"} == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Elasticsearch cluster {{ "{{" }} $labels.cluster {{ "}}" }} is RED"
+            description: "Cluster status is RED for more than 5 minutes. Unassigned shards or unavailable nodes."
+
+        - alert: ElasticsearchClusterYellow
+          expr: elasticsearch_cluster_health_status{color="yellow"} == 1
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Elasticsearch cluster {{ "{{" }} $labels.cluster {{ "}}" }} is YELLOW"
+            description: "Cluster status has been YELLOW for more than 30 minutes. Replica shards unassigned."
+
+        - alert: ElasticsearchDiskSpaceHigh
+          expr: (1 - (elasticsearch_filesystem_data_available_bytes / elasticsearch_filesystem_data_size_bytes)) * 100 > 85
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Elasticsearch disk usage > 85% on {{ "{{" }} $labels.host {{ "}}" }}"
+            description: "Disk usage is {{ "{{" }} $value | humanize {{ "}}" }}% — approaching the watermark threshold."
+
+        - alert: ElasticsearchDiskSpaceCritical
+          expr: (1 - (elasticsearch_filesystem_data_available_bytes / elasticsearch_filesystem_data_size_bytes)) * 100 > 95
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Elasticsearch disk usage CRITICAL (>95%) on {{ "{{" }} $labels.host {{ "}}" }}"
+            description: "Disk usage is {{ "{{" }} $value | humanize {{ "}}" }}%. Cluster may become read-only."
+
+        - alert: ElasticsearchHeapHigh
+          expr: (elasticsearch_jvm_memory_used_bytes{area="heap"} / elasticsearch_jvm_memory_max_bytes{area="heap"}) * 100 > 90
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Elasticsearch JVM heap > 90% on {{ "{{" }} $labels.name {{ "}}" }}"
+            description: "Heap usage is {{ "{{" }} $value | humanize {{ "}}" }}%. GC pressure may impact performance."
+
+        - alert: ElasticsearchNodeDown
+          expr: elasticsearch_cluster_health_number_of_nodes < {{ int (include "elasticsearch.master.replicaCount" .) }}
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Elasticsearch node(s) down in cluster {{ "{{" }} $labels.cluster {{ "}}" }}"
+            description: "Expected {{ include "elasticsearch.master.replicaCount" . }} master nodes, found {{ "{{" }} $value {{ "}}" }}"
+{{- end }}

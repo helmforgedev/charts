@@ -1,0 +1,63 @@
+suite: elasticsearch - ILM policies
+templates:
+  - templates/configmap-ilm.yaml
+
+tests:
+  - it: no ILM policies by default renders no ConfigMap
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: logs ILM enabled renders ConfigMap
+    set:
+      ilm:
+        logs:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - isNotNullOrEmpty:
+          path: data["helmforge-logs-policy.json"]
+
+  - it: metrics ILM enabled renders metrics policy
+    set:
+      ilm:
+        metrics:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isNotNullOrEmpty:
+          path: data["helmforge-metrics-policy.json"]
+
+  - it: traces ILM enabled renders traces policy
+    set:
+      ilm:
+        traces:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isNotNullOrEmpty:
+          path: data["helmforge-traces-policy.json"]
+
+  - it: all ILM policies enabled renders all three in one ConfigMap
+    set:
+      ilm:
+        logs:
+          enabled: true
+        metrics:
+          enabled: true
+        traces:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isNotNullOrEmpty:
+          path: data["helmforge-logs-policy.json"]
+      - isNotNullOrEmpty:
+          path: data["helmforge-metrics-policy.json"]
+      - isNotNullOrEmpty:
+          path: data["helmforge-traces-policy.json"]

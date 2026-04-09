@@ -1,0 +1,95 @@
+suite: elasticsearch - backup
+templates:
+  - templates/cronjob-backup.yaml
+  - templates/secret-s3.yaml
+
+tests:
+  - it: backup disabled should have no CronJob
+    set:
+      backup:
+        enabled: false
+    template: templates/cronjob-backup.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: backup enabled renders CronJob and ConfigMap
+    set:
+      backup:
+        enabled: true
+        s3:
+          bucket: my-backup-bucket
+          accessKey: AKIATEST
+          secretKey: supersecret
+    template: templates/cronjob-backup.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: ConfigMap
+        documentIndex: 0
+      - isKind:
+          of: CronJob
+        documentIndex: 1
+
+  - it: backup CronJob uses configured schedule
+    set:
+      backup:
+        enabled: true
+        schedule: "0 3 * * 0"
+        s3:
+          bucket: test-bucket
+          accessKey: key
+          secretKey: secret
+    template: templates/cronjob-backup.yaml
+    asserts:
+      - equal:
+          path: spec.schedule
+          value: "0 3 * * 0"
+        documentIndex: 1
+
+  - it: backup enabled creates S3 secret when no existingSecret
+    set:
+      backup:
+        enabled: true
+        s3:
+          bucket: test-bucket
+          accessKey: MYTESTKEY
+          secretKey: MYSECRETKEY
+    template: templates/secret-s3.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Secret
+      - equal:
+          path: stringData.access-key
+          value: MYTESTKEY
+
+  - it: backup with existingSecret skips Secret creation
+    set:
+      backup:
+        enabled: true
+        s3:
+          bucket: test-bucket
+          existingSecret: my-s3-secret
+    template: templates/secret-s3.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: backup CronJob can be suspended
+    set:
+      backup:
+        enabled: true
+        suspend: true
+        s3:
+          bucket: test-bucket
+          accessKey: key
+          secretKey: secret
+    template: templates/cronjob-backup.yaml
+    asserts:
+      - equal:
+          path: spec.suspend
+          value: true
+        documentIndex: 1

@@ -1,0 +1,108 @@
+suite: elasticsearch - data tiers (hot/warm)
+
+tests:
+  - it: hot tier StatefulSet not rendered when disabled
+    template: templates/statefulset-data-hot.yaml
+    set:
+      clusterProfile: staging
+      dataTiers.hot.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: warm tier StatefulSet not rendered when disabled
+    template: templates/statefulset-data-warm.yaml
+    set:
+      clusterProfile: staging
+      dataTiers.warm.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: hot tier StatefulSet not rendered in dev profile even if enabled
+    template: templates/statefulset-data-hot.yaml
+    set:
+      clusterProfile: dev
+      dataTiers.hot.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: hot tier StatefulSet is rendered in staging when enabled
+    template: templates/statefulset-data-hot.yaml
+    set:
+      clusterProfile: staging
+      dataTiers.hot.enabled: true
+      dataTiers.hot.replicas: 3
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.replicas
+          value: 3
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-elasticsearch-hot
+
+  - it: hot tier node has data_hot role
+    template: templates/statefulset-data-hot.yaml
+    set:
+      clusterProfile: staging
+      dataTiers.hot.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: node.roles
+            value: "data_hot,data_content"
+
+  - it: hot tier has node.attr.data=hot for ILM routing
+    template: templates/statefulset-data-hot.yaml
+    set:
+      clusterProfile: staging
+      dataTiers.hot.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: node.attr.data
+            value: "hot"
+
+  - it: warm tier node has data_warm role
+    template: templates/statefulset-data-warm.yaml
+    set:
+      clusterProfile: staging
+      dataTiers.warm.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: node.roles
+            value: "data_warm"
+
+  - it: warm tier has node.attr.data=warm for ILM routing
+    template: templates/statefulset-data-warm.yaml
+    set:
+      clusterProfile: staging
+      dataTiers.warm.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: node.attr.data
+            value: "warm"
+
+  - it: hot tier volumeClaimTemplate uses custom storageClass when specified
+    template: templates/statefulset-data-hot.yaml
+    set:
+      clusterProfile: staging
+      dataTiers.hot.enabled: true
+      dataTiers.hot.storageClass: fast-ssd
+      dataTiers.hot.storage: 500Gi
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          value: fast-ssd
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 500Gi

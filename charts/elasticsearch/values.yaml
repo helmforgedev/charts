@@ -1,0 +1,492 @@
+﻿# =============================================================================
+# Elasticsearch Helm Chart
+# =============================================================================
+# Production-ready Elasticsearch cluster with intelligent presets.
+#
+# Quick start (dev):
+#   helm install es helmforge/elasticsearch
+#
+# Quick start (production):
+#   helm install es helmforge/elasticsearch \
+#     --set clusterProfile=production-ha \
+#     --set master.persistence.size=20Gi \
+#     --set data.persistence.size=200Gi
+# =============================================================================
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+
+# -- Override the full release name used in resource names
+fullnameOverride: ""
+
+# -- Labels added to every resource created by this chart
+commonLabels: {}
+
+# =============================================================================
+# Cluster Profile
+# =============================================================================
+# clusterProfile drives sensible defaults for the number of nodes, resources,
+# heap size, and anti-affinity rules. Values: dev | staging | production-ha
+#
+# dev          - Single node, ephemeral storage, no TLS (ideal for local dev)
+# staging      - 1 master + 2 data nodes, small PVCs, self-signed TLS
+# production-ha - 3 master + 3 data + 2 coordinating, large PVCs, cert-manager TLS
+#
+# All profile defaults can be overridden per-node-role below.
+clusterProfile: dev
+
+# =============================================================================
+# Cluster Name
+# =============================================================================
+clusterName: "helmforge-cluster"
+
+# =============================================================================
+# Image
+# =============================================================================
+image:
+  # -- Elasticsearch image repository (fully qualified, official)
+  repository: docker.io/library/elasticsearch
+  # -- Elasticsearch image tag. Defaults to appVersion.
+  tag: "8.17.4"
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# =============================================================================
+# Master Nodes
+# =============================================================================
+# Master nodes manage cluster state, shard allocation, and node membership.
+# Production REQUIRES an odd number (3, 5, 7) to prevent split-brain.
+master:
+  # -- Number of master-eligible nodes. Profile default: dev=1, staging=1, production-ha=3
+  replicaCount: null
+  # -- Override JVM heap size (e.g. "2g"). Auto-calculated as 50% of memory limit when null.
+  heapSize: null
+  # -- Resource requests/limits for master pods.
+  resources: {}
+  #   requests:
+  #     cpu: 500m
+  #     memory: 2Gi
+  #   limits:
+  #     cpu: 2
+  #     memory: 4Gi
+
+  # -- Node selector for master pods
+  nodeSelector: {}
+  # -- Tolerations for master pods
+  tolerations: []
+  # -- Affinity rules for master pods (auto-set to podAntiAffinity in production-ha)
+  affinity: {}
+  # -- Pod annotations for master pods
+  podAnnotations: {}
+
+  persistence:
+    # -- Enable PVC for master node data directory
+    enabled: true
+    # -- Storage class for master PVCs
+    storageClass: ""
+    # -- Size of master PVCs. Profile default: dev disabled, staging=10Gi, production-ha=20Gi
+    size: null
+
+# =============================================================================
+# Data Nodes
+# =============================================================================
+# Data nodes store indices and handle search/index operations.
+data:
+  # -- Number of data nodes. Profile default: dev=0 (master does all), staging=2, production-ha=3
+  replicaCount: null
+  # -- Override JVM heap size. Auto-calculated as 50% of memory limit when null.
+  heapSize: null
+  # -- Resource requests/limits for data pods.
+  resources: {}
+  #   requests:
+  #     cpu: 1
+  #     memory: 8Gi
+  #   limits:
+  #     cpu: 4
+  #     memory: 16Gi
+
+  # -- Node selector for data pods
+  nodeSelector: {}
+  # -- Tolerations for data pods
+  tolerations: []
+  # -- Affinity rules for data pods
+  affinity: {}
+  # -- Pod annotations for data pods
+  podAnnotations: {}
+
+  persistence:
+    # -- Enable PVC for data nodes
+    enabled: true
+    # -- Storage class for data PVCs
+    storageClass: ""
+    # -- Size of data PVCs. Profile default: dev=10Gi, staging=50Gi, production-ha=200Gi
+    size: null
+
+# =============================================================================
+# Coordinating Nodes
+# =============================================================================
+# Coordinating nodes route requests and aggregate results across data nodes.
+# Only deployed in production-ha profile by default.
+coordinating:
+  # -- Number of coordinating nodes. Profile default: dev=0, staging=0, production-ha=2
+  replicaCount: null
+  # -- Override JVM heap size. Auto-calculated as 50% of memory limit when null.
+  heapSize: null
+  # -- Resource requests/limits for coordinating pods.
+  resources: {}
+  #   requests:
+  #     cpu: 500m
+  #     memory: 4Gi
+  #   limits:
+  #     cpu: 2
+  #     memory: 8Gi
+
+  # -- Node selector for coordinating pods
+  nodeSelector: {}
+  # -- Tolerations for coordinating pods
+  tolerations: []
+  # -- Affinity rules for coordinating pods
+  affinity: {}
+  # -- Pod annotations for coordinating pods
+  podAnnotations: {}
+
+# =============================================================================
+# Security
+# =============================================================================
+security:
+  # -- Enable X-Pack security (TLS + authentication). Disabled in dev profile.
+  enabled: false
+  # -- TLS configuration
+  tls:
+    # -- Use cert-manager to issue certificates
+    certManager:
+      enabled: false
+      # -- Cert-manager Issuer or ClusterIssuer name
+      issuerName: selfsigned-issuer
+      # -- Use ClusterIssuer instead of Issuer
+      clusterIssuer: false
+      # -- Skip CRD presence check (use in offline/unit test environments or
+      # -- when cert-manager is managed externally and lookup is unreliable)
+      skipCRDCheck: false
+    # -- Generate a self-signed certificate via pre-install Job (no cert-manager needed).
+    # -- Use when: air-gapped clusters, bare-metal without cert-manager
+    selfSignedInit:
+      enabled: false
+      image:
+        repository: docker.io/alpine/openssl
+        tag: "3.3.2"
+        pullPolicy: IfNotPresent
+      # -- Certificate validity in days
+      durationDays: 365
+      # -- Renew if expiring within this many days (used by renewal CronJob)
+      renewBeforeDays: 30
+  # -- Existing secret containing pre-generated TLS certificates.
+  # Keys: ca.crt, tls.crt, tls.key
+  existingTlsSecret: ""
+  # -- Existing secret containing built-in user passwords.
+  # Keys: elastic-password, kibana-system-password
+  existingCredentialsSecret: ""
+  # -- Auto-generate random passwords for built-in users when no existingCredentialsSecret is set.
+  generatePasswords: true
+
+# =============================================================================
+# Backup (Elasticsearch Snapshots to S3)
+# =============================================================================
+backup:
+  # -- Enable scheduled snapshot backups
+  enabled: false
+  # -- Cron schedule for snapshot CronJob
+  schedule: "0 2 * * *"
+  # -- Suspend the CronJob (useful for temporary disable)
+  suspend: false
+  # -- Number of failed jobs to keep
+  failedJobsHistoryLimit: 3
+  # -- Number of successful jobs to keep
+  successfulJobsHistoryLimit: 3
+
+  s3:
+    # -- S3 endpoint URL (e.g. https://s3.amazonaws.com or MinIO URL)
+    endpoint: ""
+    # -- AWS region
+    region: "us-east-1"
+    # -- S3 bucket name (required when backup.enabled)
+    bucket: ""
+    # -- Key prefix inside the bucket
+    prefix: "elasticsearch"
+    # -- Existing secret with S3 credentials
+    existingSecret: ""
+    # -- Key for access key in existing secret
+    existingSecretAccessKeyKey: access-key
+    # -- Key for secret key in existing secret
+    existingSecretSecretKeyKey: secret-key
+    # -- S3 access key (ignored when existingSecret set)
+    accessKey: ""
+    # -- S3 secret key (ignored when existingSecret set)
+    secretKey: ""
+
+  retention:
+    # -- Keep snapshots for this many days (0 = keep all)
+    days: 30
+
+  # -- Resource requests/limits for backup job pods
+  resources: {}
+
+  image:
+    # -- MinIO client image (initContainer ensures S3 bucket exists)
+    repository: docker.io/helmforge/mc
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+  curlImage:
+    # -- curl image (main container calls ES Snapshot API)
+    repository: docker.io/curlimages/curl
+    tag: "8.11.1"
+    pullPolicy: IfNotPresent
+
+# =============================================================================
+# ILM Policies (Index Lifecycle Management)
+# =============================================================================
+ilm:
+  # -- Pre-configure ILM policy for log indices (logs-*)
+  logs:
+    enabled: false
+    # -- Days to keep in hot phase (recent, fast storage)
+    hotDays: 7
+    # -- Days to keep in warm phase (less frequent access)
+    warmDays: 30
+    # -- Days to keep in cold phase (rarely accessed)
+    coldDays: 90
+    # -- Total days after which the index is deleted
+    deleteDays: 180
+    # -- Rollover when index exceeds this size (e.g. "50gb")
+    rolloverSize: "50gb"
+    # -- Rollover when index exceeds this number of docs
+    rolloverDocs: 100000000
+
+  # -- Pre-configure ILM policy for metric indices (metrics-*)
+  metrics:
+    enabled: false
+    hotDays: 3
+    warmDays: 14
+    deleteDays: 30
+    rolloverSize: "20gb"
+    rolloverDocs: 50000000
+
+  # -- Pre-configure ILM policy for trace indices (traces-*)
+  traces:
+    enabled: false
+    hotDays: 1
+    warmDays: 7
+    deleteDays: 30
+    rolloverSize: "10gb"
+    rolloverDocs: 20000000
+
+# =============================================================================
+# Monitoring
+# =============================================================================
+monitoring:
+  # -- Enable Prometheus exporter sidecar
+  enabled: false
+  image:
+    repository: docker.io/prometheuscommunity/elasticsearch-exporter
+    tag: "v1.8.0"
+    pullPolicy: IfNotPresent
+  resources: {}
+  # -- Create a Prometheus ServiceMonitor
+  serviceMonitor:
+    enabled: false
+    namespace: ""
+    interval: "30s"
+    scrapeTimeout: "10s"
+    labels: {}
+  # -- Create Prometheus alerting rules
+  prometheusRule:
+    enabled: false
+    namespace: ""
+    labels: {}
+  # -- Grafana dashboard ConfigMap
+  grafana:
+    # -- Create a Grafana dashboard ConfigMap for the Elasticsearch exporter
+    dashboards: false
+
+# =============================================================================
+# Kibana (Optional)
+# =============================================================================
+kibana:
+  # -- Deploy Kibana alongside Elasticsearch
+  enabled: false
+  image:
+    repository: docker.io/library/kibana
+    tag: "8.17.4"
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  resources: {}
+  service:
+    type: ClusterIP
+    port: 5601
+  ingress:
+    enabled: false
+    ingressClassName: traefik
+    annotations: {}
+    hosts:
+      - host: kibana.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+  podAnnotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+service:
+  # -- Service type for HTTP access
+  type: ClusterIP
+  # -- HTTP port (REST API)
+  httpPort: 9200
+  # -- Transport port (inter-node communication)
+  transportPort: 9300
+  # -- Annotations for the service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+ingress:
+  # -- Expose Elasticsearch HTTP via Ingress
+  enabled: false
+  ingressClassName: traefik
+  annotations: {}
+  hosts:
+    - host: elasticsearch.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# =============================================================================
+# Service Account
+# =============================================================================
+serviceAccount:
+  create: false
+  name: ""
+  annotations: {}
+
+# =============================================================================
+# Pod Security Context
+# =============================================================================
+podSecurityContext:
+  fsGroup: 1000
+  runAsUser: 1000
+  runAsNonRoot: true
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+# =============================================================================
+# System Settings (init container)
+# =============================================================================
+sysctlInit:
+  # -- Run init container to set vm.max_map_count=262144 (required by ES)
+  enabled: true
+  image:
+    repository: docker.io/library/busybox
+    tag: "1.37.0"
+    pullPolicy: IfNotPresent
+
+# =============================================================================
+# Probes
+# =============================================================================
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 90
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 5
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 60
+  periodSeconds: 15
+  timeoutSeconds: 10
+  failureThreshold: 5
+
+startupProbe:
+  enabled: true
+  initialDelaySeconds: 20
+  periodSeconds: 15
+  timeoutSeconds: 10
+  failureThreshold: 40
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 120
+
+# =============================================================================
+# Extra
+# =============================================================================
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Additional Elasticsearch configuration appended to elasticsearch.yml
+extraConfig: {}
+#  xpack.license.self_generated.type: basic
+#  cluster.routing.allocation.disk.watermark.low: "85%"
+
+
+# =============================================================================
+# Data Tiers (Optional - Hot/Warm dedicated nodes)
+# =============================================================================
+dataTiers:
+  hot:
+    # -- Enable dedicated hot tier nodes (fast storage, recent data)
+    enabled: false
+    replicas: 2
+    storage: 200Gi
+    storageClass: ""
+    resources: {}
+    nodeSelector: {}
+    tolerations: []
+    podAnnotations: {}
+  warm:
+    # -- Enable dedicated warm tier nodes (cheaper storage, older data)
+    enabled: false
+    replicas: 2
+    storage: 1Ti
+    storageClass: ""
+    resources: {}
+    nodeSelector: {}
+    tolerations: []
+    podAnnotations: {}
+
+
+# =============================================================================
+# cert-manager Subchart (optional infrastructure dependency)
+# =============================================================================
+certManager:
+  # -- Install cert-manager as a subchart. Set true ONLY if cert-manager is
+  # -- NOT already installed in your cluster. If you already have cert-manager,
+  # -- leave this false and enable security.tls.certManager.enabled instead.
+  # --
+  # -- WARNING: If you later set install=false and run helm uninstall,
+  # -- cert-manager CRDs may be removed, breaking ALL Certificate/Issuer
+  # -- resources in your cluster. The official chart uses
+  # -- helm.sh/resource-policy: keep on CRDs to mitigate this.
+  install: false
+  # -- Install cert-manager CRDs (required for Certificate/Issuer resources)
+  installCRDs: true
+
+

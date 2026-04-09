@@ -1,0 +1,66 @@
+{{/*
+=============================================================================
+cert-manager Certificate and ClusterIssuer resources
+=============================================================================
+Only rendered when:
+  security.enabled: true
+  security.tls.certManager.enabled: true
+  security.existingTlsSecret: ""  (no pre-existing TLS)
+=============================================================================
+*/}}
+{{- /* Camada 1: validate configuration before rendering anything */ -}}
+{{- include "elasticsearch.validateTls" . -}}
+{{- /* Camada 2: assert cert-manager CRDs exist in the cluster */ -}}
+{{- include "elasticsearch.assertCertManagerCRDs" . -}}
+{{- $secEnabled := include "elasticsearch.security.enabled" . -}}
+{{- $certManagerEnabled := and (eq $secEnabled "true") (and .Values.security .Values.security.tls .Values.security.tls.certManager (index .Values.security.tls.certManager "enabled")) (not .Values.security.existingTlsSecret) -}}
+{{- if $certManagerEnabled -}}
+{{- if not .Values.security.tls.certManager.clusterIssuer -}}
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-issuer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+{{- end }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-tls
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "elasticsearch.tlsSecretName" . }}
+  duration: 8760h   # 1 year
+  renewBefore: 720h # 30 days
+  isCA: false
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  usages:
+    - server auth
+    - client auth
+  dnsNames:
+    - {{ include "elasticsearch.fullname" . }}
+    - {{ include "elasticsearch.fullname" . }}.{{ .Release.Namespace }}
+    - {{ include "elasticsearch.fullname" . }}.{{ .Release.Namespace }}.svc
+    - {{ include "elasticsearch.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+    - "*.{{ include "elasticsearch.fullname" . }}-master-headless.{{ .Release.Namespace }}.svc.cluster.local"
+    - "*.{{ include "elasticsearch.fullname" . }}-data-headless.{{ .Release.Namespace }}.svc.cluster.local"
+    - "*.{{ include "elasticsearch.fullname" . }}-coordinating-headless.{{ .Release.Namespace }}.svc.cluster.local"
+    - localhost
+  issuerRef:
+    {{- if .Values.security.tls.certManager.clusterIssuer }}
+    kind: ClusterIssuer
+    name: {{ .Values.security.tls.certManager.issuerName }}
+    {{- else }}
+    kind: Issuer
+    name: {{ include "elasticsearch.fullname" . }}-issuer
+    {{- end }}
+{{- end }}

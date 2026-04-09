@@ -1,0 +1,101 @@
+{{- if gt (int (include "elasticsearch.coordinating.replicaCount" .)) 0 -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-coordinating
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.componentLabels" (dict "root" . "component" "coordinating") | nindent 4 }}
+spec:
+  serviceName: {{ include "elasticsearch.fullname" . }}-coordinating-headless
+  replicas: {{ include "elasticsearch.coordinating.replicaCount" . }}
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "elasticsearch.componentSelectorLabels" (dict "root" . "component" "coordinating") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "elasticsearch.componentLabels" (dict "root" . "component" "coordinating") | nindent 8 }}
+      annotations:
+        checksum/config: {{ toYaml .Values | sha256sum }}
+        {{- with .Values.coordinating.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "elasticsearch.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if .Values.sysctlInit.enabled }}
+      initContainers:
+        - name: sysctl
+          image: {{ printf "%s:%s" .Values.sysctlInit.image.repository .Values.sysctlInit.image.tag }}
+          imagePullPolicy: {{ .Values.sysctlInit.image.pullPolicy }}
+          command: ["sysctl", "-w", "vm.max_map_count=262144"]
+          securityContext:
+            privileged: true
+            runAsUser: 0
+      {{- end }}
+      containers:
+        - name: elasticsearch
+          image: {{ include "elasticsearch.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 9200
+              protocol: TCP
+            - name: transport
+              containerPort: 9300
+              protocol: TCP
+          env:
+            - name: node.name
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: node.roles
+              value: ""
+            - name: ES_JAVA_OPTS
+              value: {{ printf "-Xms%s -Xmx%s" (include "elasticsearch.coordinating.heapSize" .) (include "elasticsearch.coordinating.heapSize" .) | quote }}
+            {{- include "elasticsearch.commonEnv" . | nindent 12 }}
+          {{- include "elasticsearch.livenessProbe" . | nindent 10 }}
+          {{- include "elasticsearch.readinessProbe" . | nindent 10 }}
+          {{- include "elasticsearch.startupProbe" . | nindent 10 }}
+          resources:
+            {{- include "elasticsearch.coordinating.resources" . | nindent 12 }}
+          volumeMounts:
+            {{- include "elasticsearch.tlsVolumeMounts" . | nindent 12 }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        {{- include "elasticsearch.tlsVolumes" . | nindent 8 }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.coordinating.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.coordinating.affinity }}
+      affinity:
+        {{- toYaml .Values.coordinating.affinity | nindent 8 }}
+      {{- else }}
+      {{- include "elasticsearch.antiAffinity" (dict "root" . "component" "coordinating") | nindent 6 }}
+      {{- end }}
+      {{- with .Values.coordinating.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+{{- end }}

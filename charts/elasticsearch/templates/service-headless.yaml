@@ -1,0 +1,63 @@
+{{/* Master headless service for discovery */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-master-headless
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.componentLabels" (dict "root" . "component" "master") | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: transport
+      port: {{ .Values.service.transportPort }}
+      targetPort: transport
+    - name: http
+      port: {{ .Values.service.httpPort }}
+      targetPort: http
+  selector:
+    {{- include "elasticsearch.componentSelectorLabels" (dict "root" . "component" "master") | nindent 4 }}
+---
+{{/* Data headless service */}}
+{{- if gt (int (include "elasticsearch.data.replicaCount" .)) 0 }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-data-headless
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.componentLabels" (dict "root" . "component" "data") | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: transport
+      port: {{ .Values.service.transportPort }}
+      targetPort: transport
+  selector:
+    {{- include "elasticsearch.componentSelectorLabels" (dict "root" . "component" "data") | nindent 4 }}
+{{- end }}
+---
+{{/* Coordinating headless service */}}
+{{- if gt (int (include "elasticsearch.coordinating.replicaCount" .)) 0 }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-coordinating-headless
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.componentLabels" (dict "root" . "component" "coordinating") | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: transport
+      port: {{ .Values.service.transportPort }}
+      targetPort: transport
+  selector:
+    {{- include "elasticsearch.componentSelectorLabels" (dict "root" . "component" "coordinating") | nindent 4 }}
+{{- end }}

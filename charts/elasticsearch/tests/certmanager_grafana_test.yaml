@@ -1,0 +1,74 @@
+suite: elasticsearch - cert-manager certificates
+templates:
+  - templates/certificate.yaml
+
+tests:
+  - it: Certificate not created when security disabled
+    set:
+      security.enabled: false
+      security.tls.certManager.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: Certificate not created when certManager disabled even if security enabled
+    set:
+      security.enabled: true
+      security.tls.certManager.enabled: false
+      security.existingTlsSecret: my-tls-secret   # satisfies Camada 1 validator
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: Certificate not created when existingTlsSecret is set
+    set:
+      security.enabled: true
+      security.tls.certManager.enabled: true
+      security.existingTlsSecret: my-existing-tls
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: self-signed Issuer and Certificate created when certManager enabled
+    set:
+      security.enabled: true
+      security.tls.certManager.enabled: true
+      security.tls.certManager.clusterIssuer: false
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: Issuer
+        documentIndex: 0
+      - isKind:
+          of: Certificate
+        documentIndex: 1
+
+  - it: Certificate uses ClusterIssuer when clusterIssuer=true (no Issuer created)
+    set:
+      security.enabled: true
+      security.tls.certManager.enabled: true
+      security.tls.certManager.clusterIssuer: true
+      security.tls.certManager.issuerName: letsencrypt-prod
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Certificate
+      - equal:
+          path: spec.issuerRef.kind
+          value: ClusterIssuer
+      - equal:
+          path: spec.issuerRef.name
+          value: letsencrypt-prod
+
+  - it: Certificate secretName matches pattern
+    set:
+      security.enabled: true
+      security.tls.certManager.enabled: true
+      security.tls.certManager.clusterIssuer: false
+    asserts:
+      - matchRegex:
+          path: spec.secretName
+          pattern: ".*-elasticsearch-tls"
+        documentIndex: 1

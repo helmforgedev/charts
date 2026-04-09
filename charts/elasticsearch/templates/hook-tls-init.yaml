@@ -1,0 +1,194 @@
+{{/*
+=============================================================================
+Self-Signed TLS Init Job (Camada 3)
+=============================================================================
+Activated when: security.enabled=true AND security.tls.selfSignedInit.enabled=true
+
+Creates:
+  - ServiceAccount (for Secret creation)
+  - Role + RoleBinding (create/get secrets in namespace)
+  - Job (pre-install,pre-upgrade): alpine/openssl container that installs
+    kubectl via apk, generates RSA key + self-signed cert, and creates
+    the K8s Secret. Idempotent: skips if Secret already exists.
+=============================================================================
+*/}}
+{{- if and (eq (include "elasticsearch.security.enabled" .) "true") .Values.security.tls.selfSignedInit.enabled }}
+{{- include "elasticsearch.validateTls" . -}}
+{{- $fullname := include "elasticsearch.fullname" . }}
+{{- $secretName := include "elasticsearch.selfSignedSecretName" . }}
+{{- $namespace := .Release.Namespace }}
+{{- $days := .Values.security.tls.selfSignedInit.durationDays | default 365 }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $fullname }}-tls-init
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $fullname }}-tls-init
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $fullname }}-tls-init
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $fullname }}-tls-init
+subjects:
+  - kind: ServiceAccount
+    name: {{ $fullname }}-tls-init
+    namespace: {{ $namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $fullname }}-tls-init
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels:
+        {{- include "elasticsearch.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: tls-init
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ $fullname }}-tls-init
+      securityContext:
+        runAsNonRoot: false
+      containers:
+        - name: tls-init
+          image: {{ .Values.security.tls.selfSignedInit.image.repository }}:{{ .Values.security.tls.selfSignedInit.image.tag }}
+          imagePullPolicy: {{ .Values.security.tls.selfSignedInit.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: SECRET_NAME
+              value: {{ $secretName | quote }}
+            - name: NAMESPACE
+              value: {{ $namespace | quote }}
+            - name: DAYS
+              value: {{ $days | quote }}
+            - name: FULLNAME
+              value: {{ $fullname | quote }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              # Install kubectl via apk (alpine/openssl already has apk)
+              echo "Installing kubectl..."
+              apk add --no-cache kubectl >/dev/null 2>&1
+
+              # Idempotency: skip if Secret already exists
+              if kubectl get secret "${SECRET_NAME}" -n "${NAMESPACE}" >/dev/null 2>&1; then
+                echo "TLS Secret '${SECRET_NAME}' already exists - skipping generation."
+                exit 0
+              fi
+
+              echo "Generating self-signed TLS certificate for ${FULLNAME}..."
+
+              TMPDIR=$(mktemp -d)
+              trap "rm -rf $TMPDIR" EXIT
+
+              # Subject Alternative Names for all Elasticsearch DNS entries
+              cat > "${TMPDIR}/san.cnf" << EOF
+              [req]
+              distinguished_name = req_distinguished_name
+              x509_extensions = v3_req
+              prompt = no
+              [req_distinguished_name]
+              CN = ${FULLNAME}
+              O = HelmForge Elasticsearch
+              [v3_req]
+              subjectAltName = @alt_names
+              keyUsage = critical, digitalSignature, keyEncipherment
+              extendedKeyUsage = serverAuth, clientAuth
+              [alt_names]
+              DNS.1 = ${FULLNAME}
+              DNS.2 = ${FULLNAME}.${NAMESPACE}
+              DNS.3 = ${FULLNAME}.${NAMESPACE}.svc
+              DNS.4 = ${FULLNAME}.${NAMESPACE}.svc.cluster.local
+              DNS.5 = *.${FULLNAME}-master-headless.${NAMESPACE}.svc.cluster.local
+              DNS.6 = *.${FULLNAME}-data-headless.${NAMESPACE}.svc.cluster.local
+              DNS.7 = *.${FULLNAME}-coordinating-headless.${NAMESPACE}.svc.cluster.local
+              DNS.8 = localhost
+              IP.1 = 127.0.0.1
+              EOF
+
+              # Generate CA key + self-signed CA cert
+              openssl genrsa -out "${TMPDIR}/ca.key" 4096 2>/dev/null
+              openssl req -new -x509 -days "${DAYS}" \
+                -key "${TMPDIR}/ca.key" \
+                -out "${TMPDIR}/ca.crt" \
+                -subj "/CN=HelmForge-ES-CA/O=HelmForge" 2>/dev/null
+
+              # Generate node key + CSR
+              openssl genrsa -out "${TMPDIR}/tls.key" 2048 2>/dev/null
+              openssl req -new \
+                -key "${TMPDIR}/tls.key" \
+                -out "${TMPDIR}/tls.csr" \
+                -config "${TMPDIR}/san.cnf" 2>/dev/null
+
+              # Sign the CSR with the CA
+              openssl x509 -req -days "${DAYS}" \
+                -in "${TMPDIR}/tls.csr" \
+                -CA "${TMPDIR}/ca.crt" \
+                -CAkey "${TMPDIR}/ca.key" \
+                -CAcreateserial \
+                -out "${TMPDIR}/tls.crt" \
+                -extensions v3_req \
+                -extfile "${TMPDIR}/san.cnf" 2>/dev/null
+
+              echo "Certificate generated:"
+              openssl x509 -noout -subject -enddate -in "${TMPDIR}/tls.crt"
+
+              # Create TLS Secret in Kubernetes
+              echo "Creating TLS Secret '${SECRET_NAME}'..."
+              kubectl create secret generic "${SECRET_NAME}" \
+                -n "${NAMESPACE}" \
+                --from-file=ca.crt="${TMPDIR}/ca.crt" \
+                --from-file=tls.crt="${TMPDIR}/tls.crt" \
+                --from-file=tls.key="${TMPDIR}/tls.key"
+
+              echo "TLS Secret '${SECRET_NAME}' created successfully in namespace ${NAMESPACE}."
+{{- end }}

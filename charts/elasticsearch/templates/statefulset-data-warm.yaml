@@ -1,0 +1,123 @@
+{{- if and .Values.dataTiers.warm.enabled (not (eq (include "elasticsearch.profile" .) "dev")) -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-warm
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.componentLabels" (dict "root" . "component" "warm") | nindent 4 }}
+spec:
+  serviceName: {{ include "elasticsearch.fullname" . }}-data-headless
+  replicas: {{ .Values.dataTiers.warm.replicas }}
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "elasticsearch.componentSelectorLabels" (dict "root" . "component" "warm") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "elasticsearch.componentLabels" (dict "root" . "component" "warm") | nindent 8 }}
+      annotations:
+        checksum/config: {{ toYaml .Values | sha256sum }}
+        {{- with .Values.dataTiers.warm.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "elasticsearch.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if .Values.sysctlInit.enabled }}
+      initContainers:
+        - name: sysctl
+          image: {{ printf "%s:%s" .Values.sysctlInit.image.repository .Values.sysctlInit.image.tag }}
+          imagePullPolicy: {{ .Values.sysctlInit.image.pullPolicy }}
+          command: ["sysctl", "-w", "vm.max_map_count=262144"]
+          securityContext:
+            privileged: true
+            runAsUser: 0
+      {{- end }}
+      containers:
+        - name: elasticsearch
+          image: {{ include "elasticsearch.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 9200
+              protocol: TCP
+            - name: transport
+              containerPort: 9300
+              protocol: TCP
+          env:
+            - name: node.name
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: node.roles
+              value: "data_warm"
+            - name: node.attr.data
+              value: "warm"
+            - name: ES_JAVA_OPTS
+              value: {{ printf "-Xms%s -Xmx%s" (include "elasticsearch.tierHeapSize" (dict "root" . "tier" "warm")) (include "elasticsearch.tierHeapSize" (dict "root" . "tier" "warm")) | quote }}
+            {{- include "elasticsearch.commonEnv" . | nindent 12 }}
+          {{- include "elasticsearch.livenessProbe" . | nindent 10 }}
+          {{- include "elasticsearch.readinessProbe" . | nindent 10 }}
+          {{- include "elasticsearch.startupProbe" . | nindent 10 }}
+          resources:
+            {{- if .Values.dataTiers.warm.resources }}
+            {{- toYaml .Values.dataTiers.warm.resources | nindent 12 }}
+            {{- else }}
+            requests:
+              cpu: 1
+              memory: 4Gi
+            limits:
+              cpu: 4
+              memory: 8Gi
+            {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/elasticsearch/data
+            {{- if eq (include "elasticsearch.security.enabled" .) "true" }}
+            - name: tls-certs
+              mountPath: /usr/share/elasticsearch/config/certs
+              readOnly: true
+            {{- end }}
+      volumes:
+        {{- if eq (include "elasticsearch.security.enabled" .) "true" }}
+        - name: tls-certs
+          secret:
+            secretName: {{ include "elasticsearch.tlsSecretName" . }}
+        {{- end }}
+      {{- with .Values.dataTiers.warm.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.dataTiers.warm.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "elasticsearch.componentSelectorLabels" (dict "root" . "component" "warm") | nindent 10 }}
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.dataTiers.warm.storageClass }}
+        storageClassName: {{ .Values.dataTiers.warm.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.dataTiers.warm.storage }}
+{{- end }}
