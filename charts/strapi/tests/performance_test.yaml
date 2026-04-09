@@ -1,0 +1,55 @@
+suite: Performance Tuning
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should configure Node.js options
+    template: templates/deployment.yaml
+    set:
+      strapi:
+        performance:
+          nodeOptions: "--max-old-space-size=2048"
+          logLevel: warn
+          forceJsonLogs: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NODE_OPTIONS
+            value: "--max-old-space-size=2048"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: STRAPI_LOG_LEVEL
+            value: warn
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: STRAPI_LOG_FORCE_JSON
+            value: "true"
+
+  - it: should configure database connection pooling
+    template: templates/deployment.yaml
+    set:
+      postgresql:
+        enabled: true
+        auth:
+          password: test
+      database:
+        pool:
+          min: 2
+          max: 8
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_POOL_MIN
+            value: "2"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_POOL_MAX
+            value: "8"

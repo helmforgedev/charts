@@ -1,20 +1,189 @@
-Strapi has been deployed!
+Strapi has been deployed successfully!
 
+=============================================================================
+ADMIN PANEL
+=============================================================================
 {{- if .Values.ingress.enabled }}
 {{- range .Values.ingress.hosts }}
-
-  Access Strapi at: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+  Admin URL: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}{{ $.Values.strapi.admin.path | default "/admin" }}
 {{- end }}
 {{- else }}
-
-  Access Strapi via port-forward:
-
+  Port-forward to access admin:
     kubectl port-forward svc/{{ include "strapi.fullname" . }} 1337:{{ .Values.service.port }} -n {{ .Release.Namespace }}
 
-  Then open: http://localhost:1337
+  Then open: http://localhost:1337{{ .Values.strapi.admin.path | default "/admin" }}
 {{- end }}
 
-Database mode: {{ include "strapi.databaseMode" . }}
+=============================================================================
+API ENDPOINTS
+=============================================================================
+{{- $baseUrl := .Values.strapi.url }}
+{{- if and (not $baseUrl) .Values.ingress.enabled .Values.ingress.hosts }}
+{{- $baseUrl = printf "https://%s" (index .Values.ingress.hosts 0).host }}
+{{- else if not $baseUrl }}
+{{- $baseUrl = "http://localhost:1337" }}
+{{- end }}
+  REST API: {{ $baseUrl }}/api
+{{- if .Values.strapi.graphql.playgroundEnabled }}
+  GraphQL Playground: {{ $baseUrl }}{{ .Values.strapi.graphql.endpoint | default "/graphql" }}
+{{- end }}
+
+=============================================================================
+DATABASE
+=============================================================================
+  Mode: {{ include "strapi.databaseMode" . }}
 {{- if eq (include "strapi.databaseMode" .) "sqlite" }}
   SQLite file: {{ include "strapi.sqlitePath" . }}
+  Storage: PVC ({{ .Values.persistence.size }})
+{{- else }}
+  Host: {{ include "strapi.databaseHost" . }}:{{ include "strapi.databasePort" . }}
+  Database: {{ include "strapi.databaseName" . }}
+  Username: {{ include "strapi.databaseUsername" . }}
+{{- if .Values.database.pool }}
+  Connection Pool: {{ .Values.database.pool.min }}-{{ .Values.database.pool.max }} connections/replica
+{{- end }}
+{{- end }}
+
+=============================================================================
+STORAGE & UPLOADS
+=============================================================================
+{{- if eq .Values.strapi.upload.provider "aws-s3" }}
+{{- if .Values.strapi.upload.s3.enabled }}
+  Provider: S3-compatible object storage
+  Bucket: {{ .Values.strapi.upload.s3.bucket }}
+{{- if .Values.strapi.upload.s3.prefix }}
+  Prefix: {{ .Values.strapi.upload.s3.prefix }}
+{{- end }}
+{{- if .Values.strapi.upload.s3.endpoint }}
+  Endpoint: {{ .Values.strapi.upload.s3.endpoint }}
+{{- else }}
+  Region: {{ .Values.strapi.upload.s3.region }}
+{{- end }}
+  Status: Multi-replica ready
+{{- end }}
+{{- else if eq .Values.strapi.upload.provider "cloudinary" }}
+{{- if .Values.strapi.upload.cloudinary.enabled }}
+  Provider: Cloudinary
+  Cloud: {{ .Values.strapi.upload.cloudinary.cloudName }}
+  Status: Multi-replica ready
+{{- end }}
+{{- else }}
+  Provider: Local filesystem (PVC)
+  Path: {{ .Values.persistence.uploads.mountPath }}
+  Size: {{ .Values.persistence.size }}
+  WARNING: Local uploads require replicaCount: 1
+{{- end }}
+
+{{- if ne .Values.strapi.email.provider "none" }}
+=============================================================================
+EMAIL CONFIGURATION
+=============================================================================
+  Provider: {{ .Values.strapi.email.provider }}
+  From: {{ .Values.strapi.email.defaultFrom }}
+{{- if eq .Values.strapi.email.provider "smtp" }}
+  SMTP Host: {{ .Values.strapi.email.smtp.host }}:{{ .Values.strapi.email.smtp.port }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.backup.enabled }}
+=============================================================================
+BACKUPS
+=============================================================================
+  Schedule: {{ .Values.backup.schedule }}
+  Target: {{ .Values.backup.s3.bucket }}{{ if .Values.backup.s3.prefix }}/{{ .Values.backup.s3.prefix }}{{ end }}
+  Endpoint: {{ .Values.backup.s3.endpoint }}
+  Next backup: Check with 'kubectl get cronjob {{ include "strapi.fullname" . }}-backup -n {{ .Release.Namespace }}'
+{{- end }}
+
+=============================================================================
+DEPLOYMENT INFO
+=============================================================================
+  Replicas: {{ include "strapi.replicaCount" . }}
+  Environment: {{ .Values.strapi.nodeEnv }}
+{{- if .Values.strapi.performance.nodeOptions }}
+  Node Options: {{ .Values.strapi.performance.nodeOptions }}
+{{- end }}
+  Log Level: {{ .Values.strapi.performance.logLevel | default "info" }}
+  Telemetry: {{ if .Values.strapi.telemetryDisabled }}Disabled{{ else }}Enabled{{ end }}
+
+=============================================================================
+SECURITY
+=============================================================================
+  Admin JWT Expiration: {{ .Values.strapi.admin.jwtExpiration | default "7d" }}
+  Admin Rate Limiting: {{ if .Values.strapi.admin.rateLimit.enabled }}Enabled ({{ .Values.strapi.admin.rateLimit.max }} attempts/{{ div .Values.strapi.admin.rateLimit.timeWindow 60000 }}min){{ else }}Disabled{{ end }}
+{{- if .Values.podSecurityContext }}
+  Pod Security: fsGroup={{ .Values.podSecurityContext.fsGroup }}
+{{- end }}
+{{- if .Values.securityContext.runAsUser }}
+  Container Security: runAsUser={{ .Values.securityContext.runAsUser }}, runAsNonRoot={{ .Values.securityContext.runAsNonRoot }}
+{{- end }}
+
+=============================================================================
+GETTING STARTED
+=============================================================================
+  1. Access the admin panel using the URL above
+  2. Create your first administrator user
+  3. Start building your content types
+  4. Configure API permissions in Settings > Users & Permissions
+  5. Test your API endpoints
+
+=============================================================================
+TROUBLESHOOTING
+=============================================================================
+  View logs:
+    kubectl logs -f deployment/{{ include "strapi.fullname" . }} -n {{ .Release.Namespace }}
+
+  Check pods:
+    kubectl get pods -l app.kubernetes.io/name=strapi -n {{ .Release.Namespace }}
+
+  Describe deployment:
+    kubectl describe deployment {{ include "strapi.fullname" . }} -n {{ .Release.Namespace }}
+
+{{- if ne (include "strapi.databaseMode" .) "sqlite" }}
+  Test database connectivity:
+    kubectl exec deploy/{{ include "strapi.fullname" . }} -n {{ .Release.Namespace }} -- \
+      sh -c "nc -zv {{ include "strapi.databaseHost" . }} {{ include "strapi.databasePort" . }}"
+{{- end }}
+
+{{- if .Values.backup.enabled }}
+  Trigger backup manually:
+    kubectl create job --from=cronjob/{{ include "strapi.fullname" . }}-backup manual-backup-$(date +%s) -n {{ .Release.Namespace }}
+{{- end }}
+
+  Check events:
+    kubectl get events -n {{ .Release.Namespace }} --sort-by='.lastTimestamp'
+
+=============================================================================
+DOCUMENTATION
+=============================================================================
+  Strapi Documentation: https://docs.strapi.io
+  Chart Documentation: https://helmforge.dev/docs/charts/strapi
+  Chart Repository: https://github.com/helmforgedev/charts
+  Report Issues: https://github.com/helmforgedev/charts/issues
+
+{{- if and (gt (include "strapi.replicaCount" . | int) 1) (eq .Values.strapi.upload.provider "local") }}
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+WARNING: Multi-replica with local uploads detected!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+Your deployment has multiple replicas but uses local filesystem for uploads.
+This configuration will NOT work correctly as uploads are stored on individual
+pod PVCs and are not shared between replicas.
+
+TO FIX: Configure S3 or Cloudinary upload provider:
+
+  strapi:
+    upload:
+      provider: aws-s3
+      s3:
+        enabled: true
+        bucket: your-bucket
+        region: us-east-1
+        accessKey: your-key
+        secretKey: your-secret
+
+Or set replicaCount: 1 for development/testing.
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 {{- end }}

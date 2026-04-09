@@ -307,3 +307,52 @@ true
 database-password
 {{- end -}}
 {{- end -}}
+
+{{- define "strapi.emailSecretName" -}}
+{{- if eq .Values.strapi.email.provider "smtp" -}}
+{{- if .Values.strapi.email.smtp.existingSecret -}}
+{{- .Values.strapi.email.smtp.existingSecret -}}
+{{- else -}}
+{{- printf "%s-email" (include "strapi.fullname" .) -}}
+{{- end -}}
+{{- else if eq .Values.strapi.email.provider "sendgrid" -}}
+{{- if .Values.strapi.email.sendgrid.existingSecret -}}
+{{- .Values.strapi.email.sendgrid.existingSecret -}}
+{{- else -}}
+{{- printf "%s-email" (include "strapi.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "strapi.uploadS3SecretName" -}}
+{{- if .Values.strapi.upload.s3.existingSecret -}}
+{{- .Values.strapi.upload.s3.existingSecret -}}
+{{- else -}}
+{{- printf "%s-upload-s3" (include "strapi.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "strapi.uploadCloudinarySecretName" -}}
+{{- if .Values.strapi.upload.cloudinary.existingSecret -}}
+{{- .Values.strapi.upload.cloudinary.existingSecret -}}
+{{- else -}}
+{{- printf "%s-upload-cloudinary" (include "strapi.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "strapi.replicaCount" -}}
+{{- $count := .Values.replicaCount | default 1 -}}
+{{- $uploadProvider := .Values.strapi.upload.provider | default "local" -}}
+{{- $s3Enabled := .Values.strapi.upload.s3.enabled | default false -}}
+{{- $cloudinaryEnabled := .Values.strapi.upload.cloudinary.enabled | default false -}}
+{{- if and (gt ($count | int) 1) (eq $uploadProvider "local") -}}
+{{- fail "Multi-replica deployment requires S3 or Cloudinary upload provider. Set strapi.upload.provider to 'aws-s3' or 'cloudinary' and configure credentials, or set replicaCount to 1." -}}
+{{- end -}}
+{{- if and (gt ($count | int) 1) (eq $uploadProvider "aws-s3") (not $s3Enabled) -}}
+{{- fail "Multi-replica with S3 upload provider requires strapi.upload.s3.enabled=true" -}}
+{{- end -}}
+{{- if and (gt ($count | int) 1) (eq $uploadProvider "cloudinary") (not $cloudinaryEnabled) -}}
+{{- fail "Multi-replica with Cloudinary upload provider requires strapi.upload.cloudinary.enabled=true" -}}
+{{- end -}}
+{{- $count -}}
+{{- end -}}
