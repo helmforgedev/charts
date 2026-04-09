@@ -1,0 +1,103 @@
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "pihole.fullname" . }}-backup
+  labels:
+    {{- include "pihole.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  concurrencyPolicy: {{ .Values.backup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "pihole.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: backup
+    spec:
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "pihole.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          initContainers:
+            - name: backup
+              image: "{{ .Values.backup.images.utility.repository }}:{{ .Values.backup.images.utility.tag }}"
+              imagePullPolicy: {{ .Values.backup.images.utility.pullPolicy }}
+              command: ["/bin/sh", "/scripts/backup.sh"]
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: pihole-data
+                  mountPath: /etc/pihole
+                  readOnly: true
+                - name: dnsmasq-config
+                  mountPath: /etc/dnsmasq.d
+                  readOnly: true
+                - name: backup-scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: backup-temp
+                  mountPath: /tmp
+          containers:
+            - name: upload
+              image: "{{ .Values.backup.images.uploader.repository }}:{{ .Values.backup.images.uploader.tag }}"
+              imagePullPolicy: {{ .Values.backup.images.uploader.pullPolicy }}
+              command: ["/bin/sh", "/scripts/upload.sh"]
+              env:
+                - name: S3_ENDPOINT
+                  value: {{ .Values.backup.s3.endpoint | quote }}
+                - name: S3_BUCKET
+                  value: {{ .Values.backup.s3.bucket | quote }}
+                - name: S3_PREFIX
+                  value: {{ .Values.backup.s3.prefix | quote }}
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      {{- if .Values.backup.s3.existingSecret }}
+                      name: {{ .Values.backup.s3.existingSecret }}
+                      key: access-key
+                      {{- else }}
+                      name: {{ include "pihole.fullname" . }}-backup
+                      key: access-key
+                      {{- end }}
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      {{- if .Values.backup.s3.existingSecret }}
+                      name: {{ .Values.backup.s3.existingSecret }}
+                      key: secret-key
+                      {{- else }}
+                      name: {{ include "pihole.fullname" . }}-backup
+                      key: secret-key
+                      {{- end }}
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: backup-scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: backup-temp
+                  mountPath: /tmp
+          volumes:
+            - name: pihole-data
+              persistentVolumeClaim:
+                claimName: {{ default (include "pihole.fullname" .) .Values.persistence.existingClaim }}
+            - name: dnsmasq-config
+              emptyDir: {}
+            - name: backup-scripts
+              configMap:
+                name: {{ include "pihole.fullname" . }}-backup-scripts
+                defaultMode: 0755
+            - name: backup-temp
+              emptyDir: {}
+{{- end }}

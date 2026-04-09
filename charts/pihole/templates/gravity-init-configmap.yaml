@@ -1,0 +1,67 @@
+{{- if .Values.gravity.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pihole.fullname" . }}-gravity-init
+  labels:
+    {{- include "pihole.labels" . | nindent 4 }}
+data:
+  init-gravity.sh: |
+    #!/bin/sh
+    set -e
+
+    echo "=== Pi-hole Gravity Init ==="
+    echo "Waiting for /etc/pihole to be writable..."
+
+    until [ -w /etc/pihole ]; do
+      echo "Waiting for volume mount..."
+      sleep 2
+    done
+
+    echo "Volume mounted. Installing sqlite3..."
+    apk add --no-cache sqlite
+
+    DB="/etc/pihole/gravity.db"
+
+    if [ ! -f "$DB" ]; then
+      echo "Gravity database not found. Creating initial schema..."
+      sqlite3 "$DB" "PRAGMA foreign_keys=ON;"
+      sqlite3 "$DB" "CREATE TABLE IF NOT EXISTS adlist (id INTEGER PRIMARY KEY AUTOINCREMENT, address TEXT NOT NULL UNIQUE, enabled BOOLEAN NOT NULL DEFAULT 1, date_added INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), date_modified INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), comment TEXT, date_updated INTEGER, number INTEGER NOT NULL DEFAULT 0, invalid_domains INTEGER NOT NULL DEFAULT 0, status INTEGER NOT NULL DEFAULT 0, abp_entries INTEGER NOT NULL DEFAULT 0);"
+      sqlite3 "$DB" "CREATE TABLE IF NOT EXISTS domainlist (id INTEGER PRIMARY KEY AUTOINCREMENT, type INTEGER NOT NULL DEFAULT 0, domain TEXT NOT NULL, enabled BOOLEAN NOT NULL DEFAULT 1, date_added INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), date_modified INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), comment TEXT, UNIQUE(domain, type));"
+      sqlite3 "$DB" "CREATE TABLE IF NOT EXISTS \"group\" (id INTEGER PRIMARY KEY AUTOINCREMENT, enabled BOOLEAN NOT NULL DEFAULT 1, name TEXT NOT NULL UNIQUE, date_added INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), date_modified INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), description TEXT);"
+      sqlite3 "$DB" "INSERT OR IGNORE INTO \"group\" (id, name, description) VALUES (0, 'Default', 'The default group');"
+    fi
+
+    echo "Populating gravity database..."
+
+    # Add adlists
+    {{- range (include "pihole.adlists" . | mustFromJson) }}
+    sqlite3 "$DB" "INSERT OR IGNORE INTO adlist (address, enabled, comment) VALUES ('{{ . }}', 1, 'Added by Helm chart');"
+    {{- end }}
+
+    # Add whitelist domains (type=0)
+    {{- range (include "pihole.whitelist" . | mustFromJson) }}
+    sqlite3 "$DB" "INSERT OR IGNORE INTO domainlist (type, domain, enabled, comment) VALUES (0, '{{ . }}', 1, 'Added by Helm chart');"
+    {{- end }}
+
+    # Add blacklist domains (type=1)
+    {{- range .Values.dns.blacklist }}
+    sqlite3 "$DB" "INSERT OR IGNORE INTO domainlist (type, domain, enabled, comment) VALUES (1, '{{ . }}', 1, 'Added by Helm chart');"
+    {{- end }}
+
+    # Add regex blacklist (type=3)
+    {{- range .Values.dns.regex }}
+    sqlite3 "$DB" "INSERT OR IGNORE INTO domainlist (type, domain, enabled, comment) VALUES (3, '{{ . }}', 1, 'Added by Helm chart');"
+    {{- end }}
+
+    echo "Gravity database populated successfully."
+
+    {{- if .Values.gravity.updateOnInit }}
+    echo "Gravity init complete. Pi-hole will run gravity update on startup."
+    {{- else }}
+    echo "Skipping gravity update (gravity.updateOnInit=false)."
+    echo "Run 'pihole -g' manually inside the container to update gravity."
+    {{- end }}
+
+    echo "=== Gravity Init Complete ==="
+{{- end }}
