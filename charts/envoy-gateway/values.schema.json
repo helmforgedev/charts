@@ -1,0 +1,635 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Envoy Gateway Helm Chart Values",
+  "description": "Values for the Envoy Gateway Helm chart — modern Gateway API implementation with rate limiting and observability",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "profile": {
+      "type": "string",
+      "description": "Profile preset for quick deployment configuration",
+      "enum": ["dev", "staging", "production-ha", "custom"],
+      "default": "custom"
+    },
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name",
+      "default": ""
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the full name",
+      "default": ""
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Annotations to add to all pods"
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Labels to add to all pods"
+    },
+    "controller": {
+      "type": "object",
+      "description": "Controller configuration",
+      "properties": {
+        "replicaCount": {
+          "type": "integer",
+          "description": "Number of controller replicas (overridden by profile)",
+          "minimum": 1,
+          "default": 1
+        },
+        "image": {
+          "type": "object",
+          "description": "Controller image configuration",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "description": "Controller image repository",
+              "default": "docker.io/envoyproxy/gateway"
+            },
+            "tag": {
+              "type": "string",
+              "description": "Controller image tag",
+              "default": "v1.0.0"
+            },
+            "pullPolicy": {
+              "type": "string",
+              "description": "Controller image pull policy",
+              "enum": ["Always", "IfNotPresent", "Never"],
+              "default": "IfNotPresent"
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resource requests and limits for controller",
+          "properties": {
+            "requests": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(m|[0-9]+)?$",
+                  "description": "CPU request"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Mi|Gi|M|G)?$",
+                  "description": "Memory request"
+                }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(m|[0-9]+)?$",
+                  "description": "CPU limit"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Mi|Gi|M|G)?$",
+                  "description": "Memory limit"
+                }
+              }
+            }
+          }
+        },
+        "nodeSelector": {
+          "type": "object",
+          "description": "Node selector for controller pods"
+        },
+        "tolerations": {
+          "type": "array",
+          "description": "Tolerations for controller pods",
+          "items": {
+            "type": "object"
+          }
+        },
+        "affinity": {
+          "type": "object",
+          "description": "Affinity rules for controller pods"
+        },
+        "podSecurityContext": {
+          "type": "object",
+          "description": "Pod security context for controller"
+        },
+        "securityContext": {
+          "type": "object",
+          "description": "Container security context for controller"
+        }
+      }
+    },
+    "proxy": {
+      "type": "object",
+      "description": "Proxy configuration",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "description": "Deployment mode: Deployment or DaemonSet",
+          "enum": ["Deployment", "DaemonSet"],
+          "default": "Deployment"
+        },
+        "replicaCount": {
+          "type": "integer",
+          "description": "Number of replicas (Deployment mode only)",
+          "minimum": 1,
+          "default": 1
+        },
+        "image": {
+          "type": "object",
+          "description": "Proxy image configuration",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "description": "Proxy image repository",
+              "default": "docker.io/envoyproxy/envoy"
+            },
+            "tag": {
+              "type": "string",
+              "description": "Proxy image tag",
+              "default": "v1.29.0"
+            },
+            "pullPolicy": {
+              "type": "string",
+              "description": "Proxy image pull policy",
+              "enum": ["Always", "IfNotPresent", "Never"],
+              "default": "IfNotPresent"
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resource requests and limits for proxy",
+          "properties": {
+            "requests": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(m|[0-9]+)?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Mi|Gi|M|G)?$"
+                }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(m|[0-9]+)?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Mi|Gi|M|G)?$"
+                }
+              }
+            }
+          }
+        },
+        "autoscaling": {
+          "type": "object",
+          "description": "Horizontal Pod Autoscaler (Deployment mode only)",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable HPA",
+              "default": false
+            },
+            "minReplicas": {
+              "type": "integer",
+              "description": "Minimum number of replicas",
+              "minimum": 1,
+              "default": 2
+            },
+            "maxReplicas": {
+              "type": "integer",
+              "description": "Maximum number of replicas",
+              "minimum": 1,
+              "default": 10
+            },
+            "targetCPUUtilizationPercentage": {
+              "type": "integer",
+              "description": "Target CPU utilization percentage",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 80
+            }
+          }
+        },
+        "nodeSelector": {
+          "type": "object",
+          "description": "Node selector for proxy pods"
+        },
+        "tolerations": {
+          "type": "array",
+          "description": "Tolerations for proxy pods",
+          "items": {
+            "type": "object"
+          }
+        },
+        "affinity": {
+          "type": "object",
+          "description": "Affinity rules for proxy pods"
+        },
+        "podSecurityContext": {
+          "type": "object",
+          "description": "Pod security context for proxy"
+        },
+        "securityContext": {
+          "type": "object",
+          "description": "Container security context for proxy"
+        },
+        "service": {
+          "type": "object",
+          "description": "Service configuration for proxy",
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "Service type",
+              "enum": ["ClusterIP", "NodePort", "LoadBalancer"],
+              "default": "LoadBalancer"
+            },
+            "httpPort": {
+              "type": "integer",
+              "description": "HTTP port",
+              "minimum": 1,
+              "maximum": 65535,
+              "default": 80
+            },
+            "httpsPort": {
+              "type": "integer",
+              "description": "HTTPS port",
+              "minimum": 1,
+              "maximum": 65535,
+              "default": 443
+            },
+            "annotations": {
+              "type": "object",
+              "description": "Annotations for proxy service"
+            }
+          }
+        }
+      }
+    },
+    "gatewayAPI": {
+      "type": "object",
+      "description": "Gateway API example resources configuration",
+      "properties": {
+        "examples": {
+          "type": "object",
+          "description": "Example Gateway and HTTPRoute resources",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Create example resources",
+              "default": true
+            },
+            "namespace": {
+              "type": "string",
+              "description": "Namespace for example resources (defaults to Release.Namespace)",
+              "default": ""
+            }
+          }
+        }
+      }
+    },
+    "certificates": {
+      "type": "object",
+      "description": "Certificate management configuration",
+      "properties": {
+        "certManager": {
+          "type": "object",
+          "description": "cert-manager integration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable cert-manager integration",
+              "default": false
+            },
+            "issuer": {
+              "type": "string",
+              "description": "Issuer name (ClusterIssuer or Issuer)",
+              "default": "selfsigned"
+            },
+            "issuerKind": {
+              "type": "string",
+              "description": "Issuer kind",
+              "enum": ["ClusterIssuer", "Issuer"],
+              "default": "ClusterIssuer"
+            }
+          }
+        },
+        "autoProvision": {
+          "type": "boolean",
+          "description": "Auto-provision certificates for Gateway listeners",
+          "default": false
+        }
+      }
+    },
+    "monitoring": {
+      "type": "object",
+      "description": "Monitoring and observability configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable monitoring (Prometheus)",
+          "default": false
+        },
+        "prometheus": {
+          "type": "object",
+          "description": "Prometheus configuration",
+          "properties": {
+            "serviceMonitor": {
+              "type": "boolean",
+              "description": "Create ServiceMonitor for Prometheus Operator",
+              "default": true
+            },
+            "prometheusRule": {
+              "type": "boolean",
+              "description": "Create PrometheusRule with alerts",
+              "default": false
+            },
+            "namespace": {
+              "type": "string",
+              "description": "Namespace for ServiceMonitor and PrometheusRule (defaults to Release.Namespace)",
+              "default": ""
+            }
+          }
+        },
+        "grafana": {
+          "type": "object",
+          "description": "Grafana dashboard configuration",
+          "properties": {
+            "dashboards": {
+              "type": "boolean",
+              "description": "Create Grafana dashboards as ConfigMaps",
+              "default": false
+            },
+            "namespace": {
+              "type": "string",
+              "description": "Namespace for dashboard ConfigMaps",
+              "default": ""
+            }
+          }
+        },
+        "accessLogs": {
+          "type": "object",
+          "description": "Access logs configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable access logs",
+              "default": true
+            },
+            "format": {
+              "type": "string",
+              "description": "Access log format",
+              "enum": ["json", "text"],
+              "default": "json"
+            }
+          }
+        }
+      }
+    },
+    "rateLimiting": {
+      "type": "object",
+      "description": "Rate limiting configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable rate limiting",
+          "default": false
+        },
+        "redis": {
+          "type": "object",
+          "description": "Redis configuration for rate limiting backend",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Deploy Redis StatefulSet",
+              "default": false
+            },
+            "resources": {
+              "type": "object",
+              "description": "Resource requests and limits for Redis",
+              "properties": {
+                "requests": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": {
+                      "type": "string",
+                      "pattern": "^[0-9]+(m|[0-9]+)?$"
+                    },
+                    "memory": {
+                      "type": "string",
+                      "pattern": "^[0-9]+(Mi|Gi|M|G)?$"
+                    }
+                  }
+                },
+                "limits": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": {
+                      "type": "string",
+                      "pattern": "^[0-9]+(m|[0-9]+)?$"
+                    },
+                    "memory": {
+                      "type": "string",
+                      "pattern": "^[0-9]+(Mi|Gi|M|G)?$"
+                    }
+                  }
+                }
+              }
+            },
+            "persistence": {
+              "type": "object",
+              "description": "Redis persistence configuration",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Enable persistent storage",
+                  "default": false
+                },
+                "size": {
+                  "type": "string",
+                  "description": "PVC size",
+                  "pattern": "^[0-9]+(Mi|Gi|M|G|Ti|T)?$",
+                  "default": "2Gi"
+                },
+                "storageClass": {
+                  "type": "string",
+                  "description": "Storage class name",
+                  "default": ""
+                }
+              }
+            },
+            "extraArgs": {
+              "type": "array",
+              "description": "Additional Redis command-line arguments",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "externalRedis": {
+          "type": "object",
+          "description": "External Redis configuration (when redis.enabled is false)",
+          "properties": {
+            "host": {
+              "type": "string",
+              "description": "Redis host"
+            },
+            "port": {
+              "type": "integer",
+              "description": "Redis port",
+              "minimum": 1,
+              "maximum": 65535,
+              "default": 6379
+            },
+            "auth": {
+              "type": "object",
+              "description": "Redis authentication",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Enable authentication",
+                  "default": false
+                },
+                "secretName": {
+                  "type": "string",
+                  "description": "Secret containing Redis password"
+                },
+                "secretKey": {
+                  "type": "string",
+                  "description": "Key in secret containing password",
+                  "default": "password"
+                }
+              }
+            }
+          }
+        },
+        "presets": {
+          "type": "object",
+          "description": "Rate limit presets",
+          "properties": {
+            "api": {
+              "type": "boolean",
+              "description": "API preset: 100 requests/minute per IP",
+              "default": false
+            },
+            "strict": {
+              "type": "boolean",
+              "description": "Strict preset: 10 requests/minute per IP",
+              "default": false
+            }
+          }
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "description": "Security and hardening configuration",
+      "properties": {
+        "networkPolicies": {
+          "type": "boolean",
+          "description": "Enable NetworkPolicies for zero-trust networking",
+          "default": false
+        },
+        "podSecurityStandards": {
+          "type": "boolean",
+          "description": "Enable PodSecurityStandard restricted mode",
+          "default": true
+        }
+      }
+    },
+    "highAvailability": {
+      "type": "object",
+      "description": "High availability configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable HA mode (controller replicas, proxy DaemonSet, anti-affinity, PDB)",
+          "default": false
+        },
+        "podDisruptionBudget": {
+          "type": "object",
+          "description": "PodDisruptionBudget configuration",
+          "properties": {
+            "minAvailable": {
+              "type": "integer",
+              "description": "Minimum available pods during disruption",
+              "minimum": 0,
+              "default": 1
+            }
+          }
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount configuration",
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create service account",
+          "default": true
+        },
+        "name": {
+          "type": "string",
+          "description": "Service account name (generated if not set)",
+          "default": ""
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for service account"
+        }
+      }
+    },
+    "rbac": {
+      "type": "object",
+      "description": "RBAC configuration",
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create RBAC resources",
+          "default": true
+        }
+      }
+    },
+    "gatewayClass": {
+      "type": "object",
+      "description": "GatewayClass configuration",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "GatewayClass name",
+          "default": "envoy-gateway"
+        },
+        "create": {
+          "type": "boolean",
+          "description": "Create GatewayClass resource",
+          "default": true
+        }
+      }
+    }
+  }
+}

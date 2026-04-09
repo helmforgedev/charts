@@ -1,0 +1,64 @@
+# API Gateway with rate limiting and external Redis
+# Use case: API protection with distributed rate limiting
+
+profile: custom
+
+gatewayClass:
+  name: api-gateway
+
+controller:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+proxy:
+  mode: Deployment
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+
+rateLimiting:
+  enabled: true
+  redis:
+    enabled: false  # Using external Redis
+  externalRedis:
+    host: redis.example.com
+    port: 6379
+    auth:
+      enabled: true
+      secretName: redis-credentials
+      secretKey: password
+  presets:
+    api: true
+    strict: false
+
+monitoring:
+  enabled: true
+  prometheus:
+    serviceMonitor: true
+    prometheusRule: true
+  accessLogs:
+    enabled: true
+    format: json
+
+security:
+  networkPolicies: true
+
+gatewayAPI:
+  examples:
+    enabled: false
