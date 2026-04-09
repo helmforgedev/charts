@@ -1,0 +1,92 @@
+# CI: production-ha profile with security, backup, ILM, monitoring, Kibana
+clusterProfile: production-ha
+
+clusterName: ci-test-cluster
+
+master:
+  persistence:
+    size: 1Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 2Gi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+
+data:
+  persistence:
+    size: 1Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 4Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+
+coordinating:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 2Gi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+
+security:
+  enabled: true
+  # No certManager in CI — use auto-generated self-signed
+  existingTlsSecret: ""
+  generatePasswords: true
+
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  s3:
+    bucket: ci-test-bucket
+    region: us-east-1
+    existingSecret: ""
+  retention:
+    days: 7
+
+ilm:
+  logs:
+    enabled: true
+    hotDays: 1
+    warmDays: 2
+    coldDays: 3
+    deleteDays: 7
+  metrics:
+    enabled: true
+  traces:
+    enabled: true
+
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+  prometheusRule:
+    enabled: true
+  grafana:
+    dashboards: true
+
+kibana:
+  enabled: true
+  ingress:
+    enabled: true
+    hosts:
+      - host: kibana.ci.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+
+sysctlInit:
+  enabled: false
+
+# Explicit image config to prevent nil pointer during template in CI
+monitoring:
+  image:
+    repository: docker.io/prometheuscommunity/elasticsearch-exporter
+    tag: "v1.8.0"
+    pullPolicy: IfNotPresent

@@ -1,0 +1,51 @@
+# Data Tiers — hot/warm dedicated nodes with ILM routing (production-ha base)
+clusterProfile: production-ha
+
+clusterName: tiered-cluster
+
+master:
+  persistence:
+    size: 20Gi
+    storageClass: gp3
+
+# Standard data nodes handle data_content role (mixed, non-tiered data)
+data:
+  replicaCount: 1   # minimal — hot/warm tiers handle most data
+  persistence:
+    size: 100Gi
+    storageClass: gp3
+
+dataTiers:
+  hot:
+    enabled: true
+    replicas: 3
+    storage: 200Gi
+    storageClass: fast-ssd   # NVMe / premium SSD
+    resources:
+      requests:
+        cpu: "2"
+        memory: 16Gi
+      limits:
+        cpu: "8"
+        memory: 16Gi
+
+  warm:
+    enabled: true
+    replicas: 2
+    storage: 1Ti
+    storageClass: standard   # HDD / cheaper storage
+    resources:
+      requests:
+        cpu: "1"
+        memory: 8Gi
+      limits:
+        cpu: "4"
+        memory: 8Gi
+
+ilm:
+  logs:
+    enabled: true
+    hotDays: 7        # stay on hot (SSD) for 7 days
+    warmDays: 30      # migrate to warm (HDD) for 30 days
+    coldDays: 90      # cold phase (optional S3 searchable snapshots)
+    deleteDays: 180   # purge at 180 days
