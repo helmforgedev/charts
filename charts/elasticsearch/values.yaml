@@ -1,4 +1,4 @@
-﻿# =============================================================================
+# =============================================================================
 # Elasticsearch Helm Chart
 # =============================================================================
 # Production-ready Elasticsearch cluster with intelligent presets.
@@ -168,6 +168,21 @@ security:
       issuerName: selfsigned-issuer
       # -- Use ClusterIssuer instead of Issuer
       clusterIssuer: false
+      # -- Skip CRD presence check (use in offline/unit test environments or
+      # -- when cert-manager is managed externally and lookup is unreliable)
+      skipCRDCheck: false
+    # -- Generate a self-signed certificate via pre-install Job (no cert-manager needed).
+    # -- Use when: air-gapped clusters, bare-metal without cert-manager
+    selfSignedInit:
+      enabled: false
+      image:
+        repository: docker.io/alpine/openssl
+        tag: "3.3.2"
+        pullPolicy: IfNotPresent
+      # -- Certificate validity in days
+      durationDays: 365
+      # -- Renew if expiring within this many days (used by renewal CronJob)
+      renewBeforeDays: 30
   # -- Existing secret containing pre-generated TLS certificates.
   # Keys: ca.crt, tls.crt, tls.key
   existingTlsSecret: ""
@@ -286,6 +301,10 @@ monitoring:
     enabled: false
     namespace: ""
     labels: {}
+  # -- Grafana dashboard ConfigMap
+  grafana:
+    # -- Create a Grafana dashboard ConfigMap for the Elasticsearch exporter
+    dashboards: false
 
 # =============================================================================
 # Kibana (Optional)
@@ -448,11 +467,6 @@ dataTiers:
     podAnnotations: {}
 
 
-# Grafana dashboard toggle (merges into monitoring section)
-monitoring:
-  grafana:
-    dashboards: false
-
 # =============================================================================
 # cert-manager Subchart (optional infrastructure dependency)
 # =============================================================================
@@ -468,22 +482,5 @@ certManager:
   install: false
   # -- Install cert-manager CRDs (required for Certificate/Issuer resources)
   installCRDs: true
-
-# Self-signed TLS init job values (merged into security.tls section)
-# This is appended here due to YAML merge — Helm deep-merges with values.yaml main security block
-security:
-  tls:
-    selfSignedInit:
-      # -- Generate a self-signed certificate via pre-install Job (no cert-manager needed)
-      # -- Use when: air-gapped clusters, bare-metal without cert-manager
-      enabled: false
-      image:
-        repository: docker.io/alpine/openssl
-        tag: "3.3.2"
-        pullPolicy: IfNotPresent
-      # -- Certificate validity in days
-      durationDays: 365
-      # -- Renew if expiring within this many days (used by renewal CronJob)
-      renewBeforeDays: 30
 
 

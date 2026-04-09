@@ -513,12 +513,20 @@ Readiness probe
 {{- define "elasticsearch.readinessProbe" -}}
 {{- if .Values.readinessProbe.enabled -}}
 readinessProbe:
+  {{- if eq (include "elasticsearch.security.enabled" .) "true" }}
+  exec:
+    command:
+      - /bin/sh
+      - -c
+      - |
+        curl -sk -u elastic:${ELASTIC_PASSWORD} \
+          https://localhost:9200/_cluster/health?local=true \
+          --fail || exit 1
+  {{- else }}
   httpGet:
     path: /_cluster/health?local=true
     port: http
-    {{- if eq (include "elasticsearch.security.enabled" .) "true" }}
-    scheme: HTTPS
-    {{- end }}
+  {{- end }}
   initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
   periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
   timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
