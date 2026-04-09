@@ -433,10 +433,17 @@ Common Elasticsearch environment variables
   value: {{ .Values.clusterName | quote }}
 - name: network.host
   value: "0.0.0.0"
+{{- $masterReplicas := int (include "elasticsearch.master.replicaCount" .) -}}
+{{- $dataReplicas := int (include "elasticsearch.data.replicaCount" .) -}}
+{{- if and (eq $masterReplicas 1) (eq $dataReplicas 0) }}
+- name: discovery.type
+  value: single-node
+{{- else }}
 - name: discovery.seed_hosts
   value: {{ printf "%s-master-headless" (include "elasticsearch.fullname" .) | quote }}
 - name: cluster.initial_master_nodes
   value: {{ include "elasticsearch.initialMasterNodes" . | quote }}
+{{- end }}
 - name: ELASTIC_PASSWORD
   valueFrom:
     secretKeyRef:

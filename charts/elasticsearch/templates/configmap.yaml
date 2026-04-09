@@ -11,13 +11,18 @@ data:
     network.host: "0.0.0.0"
 
     # Discovery
+    {{- $masterReplicas := int (include "elasticsearch.master.replicaCount" .) }}
+    {{- $dataReplicas := int (include "elasticsearch.data.replicaCount" .) }}
+    {{- if and (eq $masterReplicas 1) (eq $dataReplicas 0) }}
+    discovery.type: single-node
+    {{- else }}
     discovery.seed_hosts: {{ printf "%s-master-headless" (include "elasticsearch.fullname" .) | quote }}
     cluster.initial_master_nodes:
       {{- $fullname := include "elasticsearch.fullname" . -}}
-      {{- $replicas := int (include "elasticsearch.master.replicaCount" .) -}}
-      {{- range until $replicas }}
+      {{- range until $masterReplicas }}
       - {{ printf "%s-master-%d" $fullname . | quote }}
       {{- end }}
+    {{- end }}
 
     # Memory
     bootstrap.memory_lock: false
