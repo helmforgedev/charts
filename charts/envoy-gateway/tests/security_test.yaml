@@ -1,0 +1,118 @@
+suite: Security and Hardening
+templates:
+  - networkpolicy.yaml
+  - prometheusrule.yaml
+  - grafana-dashboard.yaml
+tests:
+  - it: should create NetworkPolicies when enabled
+    set:
+      security:
+        networkPolicies: true
+    asserts:
+      - hasDocuments:
+          count: 2
+        template: networkpolicy.yaml
+      - equal:
+          path: kind
+          value: NetworkPolicy
+        template: networkpolicy.yaml
+        documentIndex: 0
+      - equal:
+          path: kind
+          value: NetworkPolicy
+        template: networkpolicy.yaml
+        documentIndex: 1
+
+  - it: should not create NetworkPolicies when disabled
+    set:
+      security:
+        networkPolicies: false
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: networkpolicy.yaml
+
+  - it: should create NetworkPolicy for Redis when enabled
+    set:
+      security:
+        networkPolicies: true
+      rateLimiting:
+        enabled: true
+        redis:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 3
+        template: networkpolicy.yaml
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-envoy-gateway-redis
+        template: networkpolicy.yaml
+        documentIndex: 2
+
+  - it: should create PrometheusRule when enabled
+    set:
+      monitoring:
+        enabled: true
+        prometheus:
+          prometheusRule: true
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: prometheusrule.yaml
+      - equal:
+          path: kind
+          value: PrometheusRule
+        template: prometheusrule.yaml
+      - isNotEmpty:
+          path: spec.groups[0].rules
+        template: prometheusrule.yaml
+
+  - it: should not create PrometheusRule when disabled
+    set:
+      monitoring:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: prometheusrule.yaml
+
+  - it: should have 7 alert rules
+    set:
+      monitoring:
+        enabled: true
+        prometheus:
+          prometheusRule: true
+    asserts:
+      - lengthEqual:
+          path: spec.groups[0].rules
+          count: 7
+        template: prometheusrule.yaml
+
+  - it: should create Grafana dashboard ConfigMap when enabled
+    set:
+      monitoring:
+        enabled: true
+        grafana:
+          dashboards: true
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: grafana-dashboard.yaml
+      - equal:
+          path: kind
+          value: ConfigMap
+        template: grafana-dashboard.yaml
+      - equal:
+          path: metadata.labels["grafana_dashboard"]
+          value: "1"
+        template: grafana-dashboard.yaml
+
+  - it: should not create Grafana dashboard when disabled
+    set:
+      monitoring:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: grafana-dashboard.yaml

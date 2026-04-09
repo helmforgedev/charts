@@ -1,0 +1,87 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.prometheus.prometheusRule }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "envoy-gateway.fullname" . }}
+  labels:
+    {{- include "envoy-gateway.labels" . | nindent 4 }}
+spec:
+  groups:
+  - name: envoy-gateway.rules
+    interval: 30s
+    rules:
+    - alert: EnvoyGatewayHighErrorRate
+      expr: |
+        sum(rate(envoy_cluster_upstream_rq{envoy_response_code_class="5"}[5m])) by (envoy_cluster_name)
+        /
+        sum(rate(envoy_cluster_upstream_rq[5m])) by (envoy_cluster_name)
+        > 0.05
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High error rate on {{ "{{" }} $labels.envoy_cluster_name {{ "}}" }}"
+        description: "Envoy cluster {{ "{{" }} $labels.envoy_cluster_name {{ "}}" }} has error rate above 5% (current: {{ "{{" }} $value | humanizePercentage {{ "}}" }})"
+
+    - alert: EnvoyGatewayHighLatency
+      expr: |
+        histogram_quantile(0.99,
+          sum(rate(envoy_cluster_upstream_rq_time_bucket[5m])) by (le, envoy_cluster_name)
+        ) > 1000
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High latency on {{ "{{" }} $labels.envoy_cluster_name {{ "}}" }}"
+        description: "Envoy cluster {{ "{{" }} $labels.envoy_cluster_name {{ "}}" }} has p99 latency above 1s (current: {{ "{{" }} $value | humanizeDuration {{ "}}" }})"
+
+    - alert: EnvoyGatewayCircuitBreakerOpen
+      expr: |
+        sum(envoy_cluster_circuit_breakers_default_cx_open) by (envoy_cluster_name) > 0
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Circuit breaker open on {{ "{{" }} $labels.envoy_cluster_name {{ "}}" }}"
+        description: "Envoy cluster {{ "{{" }} $labels.envoy_cluster_name {{ "}}" }} has circuit breaker open"
+
+    - alert: EnvoyGatewayControllerDown
+      expr: |
+        up{job="{{ include "envoy-gateway.fullname" . }}-controller"} == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Envoy Gateway controller is down"
+        description: "Envoy Gateway controller has been down for more than 5 minutes"
+
+    - alert: EnvoyGatewayProxyDown
+      expr: |
+        up{job="{{ include "envoy-gateway.fullname" . }}-proxy"} == 0
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Envoy Gateway proxy is down"
+        description: "Envoy Gateway proxy has been down for more than 2 minutes"
+
+    - alert: EnvoyGatewayHighConnectionCount
+      expr: |
+        sum(envoy_http_downstream_cx_active) by (pod) > 1000
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High connection count on {{ "{{" }} $labels.pod {{ "}}" }}"
+        description: "Envoy proxy {{ "{{" }} $labels.pod {{ "}}" }} has more than 1000 active connections (current: {{ "{{" }} $value {{ "}}" }})"
+
+    - alert: EnvoyGatewayRateLimitExceeded
+      expr: |
+        sum(rate(envoy_cluster_ratelimit_over_limit[5m])) by (envoy_cluster_name) > 10
+      for: 5m
+      labels:
+        severity: info
+      annotations:
+        summary: "Rate limit exceeded on {{ "{{" }} $labels.envoy_cluster_name {{ "}}" }}"
+        description: "Envoy cluster {{ "{{" }} $labels.envoy_cluster_name {{ "}}" }} is experiencing rate limit rejections (rate: {{ "{{" }} $value {{ "}}" }} req/s)"
+{{- end }}

@@ -1,0 +1,73 @@
+{{- if .Values.rateLimiting.enabled }}
+{{- $redisUrl := "" }}
+{{- if .Values.rateLimiting.redis.enabled }}
+{{- $redisUrl = printf "%s-redis.%s.svc.cluster.local:6379" (include "envoy-gateway.fullname" .) .Release.Namespace }}
+{{- else if .Values.rateLimiting.externalRedis.host }}
+{{- $redisUrl = printf "%s:%d" .Values.rateLimiting.externalRedis.host (.Values.rateLimiting.externalRedis.port | int) }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "envoy-gateway.fullname" . }}-ratelimit-config
+  labels:
+    {{- include "envoy-gateway.labels" . | nindent 4 }}
+data:
+  ratelimit-config.yaml: |
+    domain: envoy-gateway
+    descriptors:
+    {{- if .Values.rateLimiting.presets.api }}
+    - key: remote_address
+      rate_limit:
+        unit: minute
+        requests_per_unit: 100
+    {{- end }}
+    {{- if .Values.rateLimiting.presets.strict }}
+    - key: remote_address
+      rate_limit:
+        unit: minute
+        requests_per_unit: 10
+    {{- end }}
+{{- if .Values.rateLimiting.presets.api }}
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: {{ include "envoy-gateway.fullname" . }}-ratelimit-api
+  labels:
+    {{- include "envoy-gateway.labels" . | nindent 4 }}
+spec:
+  rateLimit:
+    type: Global
+    global:
+      rules:
+      - clientSelectors:
+        - headers:
+          - name: x-real-ip
+            type: Distinct
+        limit:
+          requests: 100
+          unit: Minute
+{{- end }}
+{{- if .Values.rateLimiting.presets.strict }}
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: {{ include "envoy-gateway.fullname" . }}-ratelimit-strict
+  labels:
+    {{- include "envoy-gateway.labels" . | nindent 4 }}
+spec:
+  rateLimit:
+    type: Global
+    global:
+      rules:
+      - clientSelectors:
+        - headers:
+          - name: x-real-ip
+            type: Distinct
+        limit:
+          requests: 10
+          unit: Minute
+{{- end }}
+{{- end }}

@@ -150,6 +150,36 @@ View proxy access logs:
   kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=proxy -f
 {{- end }}
 
+{{- if .Values.monitoring.prometheus.prometheusRule }}
+Alert Rules: Enabled
+
+PrometheusRule created with 7 alerts:
+  - High error rate (>5% 5xx responses)
+  - High latency (p99 >1s)
+  - Circuit breaker open
+  - Controller down
+  - Proxy down
+  - High connection count (>1000)
+  - Rate limit exceeded
+
+View alerts:
+  kubectl get prometheusrule {{ include "envoy-gateway.fullname" . }} -n {{ .Release.Namespace }}
+{{- end }}
+
+{{- if .Values.monitoring.grafana.dashboards }}
+Grafana Dashboards: Enabled
+
+Dashboard ConfigMap created: {{ include "envoy-gateway.fullname" . }}-grafana-dashboard
+
+Dashboard includes:
+  - Request rate per route
+  - Error rate (4xx, 5xx)
+  - Latency percentiles (p50, p95, p99)
+  - Active connections
+  - Circuit breaker status
+  - Rate limit rejections
+{{- end }}
+
 {{- else }}
 
 Monitoring: Disabled
@@ -158,6 +188,8 @@ To enable monitoring:
   helm upgrade {{ .Release.Name }} envoy-gateway \
     --set monitoring.enabled=true \
     --set monitoring.prometheus.serviceMonitor=true \
+    --set monitoring.prometheus.prometheusRule=true \
+    --set monitoring.grafana.dashboards=true \
     --reuse-values
 
 {{- end }}
@@ -171,13 +203,42 @@ To enable monitoring:
 Rate Limiting: Enabled
 
 {{- if .Values.rateLimiting.redis.enabled }}
-Redis Backend: Enabled (distributed rate limiting)
+Redis Backend: Deployed (distributed rate limiting)
 
-To configure rate limiting on HTTPRoute:
-  1. Create RateLimitPolicy
-  2. Attach to HTTPRoute via extensionRef
-
+Check Redis status:
+  kubectl get statefulset {{ include "envoy-gateway.fullname" . }}-redis -n {{ .Release.Namespace }}
+  kubectl logs -n {{ .Release.Namespace }} {{ include "envoy-gateway.fullname" . }}-redis-0
+{{- else if .Values.rateLimiting.externalRedis.host }}
+External Redis: {{ .Values.rateLimiting.externalRedis.host }}:{{ .Values.rateLimiting.externalRedis.port }}
 {{- end }}
+
+{{- if .Values.rateLimiting.presets.api }}
+API Preset: Enabled (100 requests/minute per IP)
+  BackendTrafficPolicy: {{ include "envoy-gateway.fullname" . }}-ratelimit-api
+{{- end }}
+
+{{- if .Values.rateLimiting.presets.strict }}
+Strict Preset: Enabled (10 requests/minute per IP)
+  BackendTrafficPolicy: {{ include "envoy-gateway.fullname" . }}-ratelimit-strict
+{{- end }}
+
+To attach rate limiting to HTTPRoute:
+  kubectl patch httproute <route-name> -n <namespace> --type=merge -p '
+    spec:
+      parentRefs:
+      - name: <gateway-name>
+        namespace: {{ .Release.Namespace }}
+    rules:
+    - backendRefs:
+      - name: <backend-service>
+        port: 80
+      filters:
+      - type: ExtensionRef
+        extensionRef:
+          group: gateway.envoyproxy.io
+          kind: BackendTrafficPolicy
+          name: {{ include "envoy-gateway.fullname" . }}-ratelimit-api
+  '
 
 {{- else }}
 
@@ -187,12 +248,53 @@ To enable rate limiting with Redis:
   helm upgrade {{ .Release.Name }} envoy-gateway \
     --set rateLimiting.enabled=true \
     --set rateLimiting.redis.enabled=true \
+    --set rateLimiting.presets.api=true \
     --reuse-values
 
 {{- end }}
 
 --------------------------------------------------------------------------------
-6. PROFILE PRESETS
+6. SECURITY AND HARDENING
+--------------------------------------------------------------------------------
+
+{{- if .Values.security.networkPolicies }}
+
+NetworkPolicies: Enabled
+
+NetworkPolicies created for:
+  - Controller (ingress from proxy, egress to K8s API)
+  - Proxy (ingress from all namespaces, egress to backends)
+{{- if and .Values.rateLimiting.enabled .Values.rateLimiting.redis.enabled }}
+  - Redis (ingress from controller and proxy only)
+{{- end }}
+
+View NetworkPolicies:
+  kubectl get networkpolicy -n {{ .Release.Namespace }}
+
+Test connectivity:
+  kubectl run -it --rm debug --image=curlimages/curl --restart=Never -- sh
+
+{{- else }}
+
+NetworkPolicies: Disabled
+
+To enable NetworkPolicies:
+  helm upgrade {{ .Release.Name }} envoy-gateway \
+    --set security.networkPolicies=true \
+    --reuse-values
+
+{{- end }}
+
+Pod Security Standards: {{ .Values.security.podSecurityStandards | ternary "Enabled (restricted)" "Disabled" }}
+
+Security Context:
+  - runAsNonRoot: true
+  - allowPrivilegeEscalation: false
+  - capabilities: drop ALL
+  - readOnlyRootFilesystem: true
+
+--------------------------------------------------------------------------------
+7. PROFILE PRESETS
 --------------------------------------------------------------------------------
 
 Current profile: {{ .Values.profile | default "custom" }}
@@ -228,7 +330,7 @@ To switch profile:
   helm upgrade {{ .Release.Name }} envoy-gateway --set profile=production-ha --reuse-values
 
 --------------------------------------------------------------------------------
-7. QUICK TROUBLESHOOTING
+8. QUICK TROUBLESHOOTING
 --------------------------------------------------------------------------------
 
 Check controller logs:
@@ -259,7 +361,7 @@ View Envoy admin interface:
   # Access http://localhost:19000/
 
 --------------------------------------------------------------------------------
-8. NEXT STEPS
+9. NEXT STEPS
 --------------------------------------------------------------------------------
 
 1. Verify Gateway is ready:

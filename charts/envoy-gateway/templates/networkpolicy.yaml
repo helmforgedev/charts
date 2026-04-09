@@ -1,0 +1,121 @@
+{{- if .Values.security.networkPolicies }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "envoy-gateway.fullname" . }}-controller
+  labels:
+    {{- include "envoy-gateway.controller.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "envoy-gateway.controller.selectorLabels" . | nindent 6 }}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "envoy-gateway.proxy.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: 8080
+  - from:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 8081
+  egress:
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 6443
+  - to:
+    - namespaceSelector: {}
+      podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "envoy-gateway.fullname" . }}-proxy
+  labels:
+    {{- include "envoy-gateway.proxy.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "envoy-gateway.proxy.selectorLabels" . | nindent 6 }}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 8443
+  - from:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 19000
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          {{- include "envoy-gateway.controller.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: 8080
+  - to:
+    - namespaceSelector: {}
+      podSelector: {}
+  {{- if and .Values.rateLimiting.enabled .Values.rateLimiting.redis.enabled }}
+  - to:
+    - podSelector:
+        matchLabels:
+          {{- include "envoy-gateway.selectorLabels" . | nindent 10 }}
+          app.kubernetes.io/component: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  {{- end }}
+{{- if and .Values.rateLimiting.enabled .Values.rateLimiting.redis.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "envoy-gateway.fullname" . }}-redis
+  labels:
+    {{- include "envoy-gateway.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "envoy-gateway.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "envoy-gateway.proxy.selectorLabels" . | nindent 10 }}
+    - podSelector:
+        matchLabels:
+          {{- include "envoy-gateway.controller.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: 6379
+{{- end }}
+{{- end }}
