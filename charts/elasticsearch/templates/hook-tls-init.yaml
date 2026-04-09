@@ -7,12 +7,9 @@ Activated when: security.enabled=true AND security.tls.selfSignedInit.enabled=tr
 Creates:
   - ServiceAccount (for Secret creation)
   - Role + RoleBinding (create/get secrets in namespace)
-  - Job (pre-install,pre-upgrade):
-      initContainer: openssl (generates RSA key + self-signed cert)
-      container:     bitnami/kubectl (creates the K8s Secret)
-      shared volume: emptyDir (/certs)
-
-Idempotent: checks if Secret already exists before generating.
+  - Job (pre-install,pre-upgrade): alpine/openssl container that installs
+    kubectl via apk, generates RSA key + self-signed cert, and creates
+    the K8s Secret. Idempotent: skips if Secret already exists.
 =============================================================================
 */}}
 {{- if and (eq (include "elasticsearch.security.enabled" .) "true") .Values.security.tls.selfSignedInit.enabled }}
@@ -48,7 +45,7 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get", "create", "apply", "patch", "update"]
+    verbs: ["get", "create", "patch", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -83,7 +80,7 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   backoffLimit: 1
-  activeDeadlineSeconds: 180
+  activeDeadlineSeconds: 300
   template:
     metadata:
       labels:
@@ -94,11 +91,8 @@ spec:
       serviceAccountName: {{ $fullname }}-tls-init
       securityContext:
         runAsNonRoot: false
-      volumes:
-        - name: certs
-          emptyDir: {}
-      initContainers:
-        - name: generate-certs
+      containers:
+        - name: tls-init
           image: {{ .Values.security.tls.selfSignedInit.image.repository }}:{{ .Values.security.tls.selfSignedInit.image.tag }}
           imagePullPolicy: {{ .Values.security.tls.selfSignedInit.image.pullPolicy }}
           securityContext:
@@ -107,24 +101,37 @@ spec:
             capabilities:
               drop: ["ALL"]
           env:
+            - name: SECRET_NAME
+              value: {{ $secretName | quote }}
+            - name: NAMESPACE
+              value: {{ $namespace | quote }}
             - name: DAYS
               value: {{ $days | quote }}
             - name: FULLNAME
               value: {{ $fullname | quote }}
-            - name: NAMESPACE
-              value: {{ $namespace | quote }}
-          volumeMounts:
-            - name: certs
-              mountPath: /certs
           command:
             - /bin/sh
             - -c
             - |
               set -e
+
+              # Install kubectl via apk (alpine/openssl already has apk)
+              echo "Installing kubectl..."
+              apk add --no-cache kubectl >/dev/null 2>&1
+
+              # Idempotency: skip if Secret already exists
+              if kubectl get secret "${SECRET_NAME}" -n "${NAMESPACE}" >/dev/null 2>&1; then
+                echo "TLS Secret '${SECRET_NAME}' already exists - skipping generation."
+                exit 0
+              fi
+
               echo "Generating self-signed TLS certificate for ${FULLNAME}..."
 
-              # Subject Alternative Names covering all Elasticsearch DNS entries
-              cat > /certs/san.cnf << EOF
+              TMPDIR=$(mktemp -d)
+              trap "rm -rf $TMPDIR" EXIT
+
+              # Subject Alternative Names for all Elasticsearch DNS entries
+              cat > "${TMPDIR}/san.cnf" << EOF
               [req]
               distinguished_name = req_distinguished_name
               x509_extensions = v3_req
@@ -148,64 +155,40 @@ spec:
               IP.1 = 127.0.0.1
               EOF
 
-              openssl genrsa -out /certs/ca.key 4096 2>/dev/null
+              # Generate CA key + self-signed CA cert
+              openssl genrsa -out "${TMPDIR}/ca.key" 4096 2>/dev/null
               openssl req -new -x509 -days "${DAYS}" \
-                -key /certs/ca.key \
-                -out /certs/ca.crt \
+                -key "${TMPDIR}/ca.key" \
+                -out "${TMPDIR}/ca.crt" \
                 -subj "/CN=HelmForge-ES-CA/O=HelmForge" 2>/dev/null
 
-              openssl genrsa -out /certs/tls.key 2048 2>/dev/null
+              # Generate node key + CSR
+              openssl genrsa -out "${TMPDIR}/tls.key" 2048 2>/dev/null
               openssl req -new \
-                -key /certs/tls.key \
-                -out /certs/tls.csr \
-                -config /certs/san.cnf 2>/dev/null
+                -key "${TMPDIR}/tls.key" \
+                -out "${TMPDIR}/tls.csr" \
+                -config "${TMPDIR}/san.cnf" 2>/dev/null
 
+              # Sign the CSR with the CA
               openssl x509 -req -days "${DAYS}" \
-                -in /certs/tls.csr \
-                -CA /certs/ca.crt \
-                -CAkey /certs/ca.key \
+                -in "${TMPDIR}/tls.csr" \
+                -CA "${TMPDIR}/ca.crt" \
+                -CAkey "${TMPDIR}/ca.key" \
                 -CAcreateserial \
-                -out /certs/tls.crt \
+                -out "${TMPDIR}/tls.crt" \
                 -extensions v3_req \
-                -extfile /certs/san.cnf 2>/dev/null
+                -extfile "${TMPDIR}/san.cnf" 2>/dev/null
 
               echo "Certificate generated:"
-              openssl x509 -noout -subject -enddate -in /certs/tls.crt
-      containers:
-        - name: create-secret
-          image: docker.io/bitnami/kubectl:1.31.5
-          imagePullPolicy: IfNotPresent
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
-            capabilities:
-              drop: ["ALL"]
-          env:
-            - name: SECRET_NAME
-              value: {{ $secretName | quote }}
-            - name: NAMESPACE
-              value: {{ $namespace | quote }}
-          volumeMounts:
-            - name: certs
-              mountPath: /certs
-          command:
-            - /bin/sh
-            - -c
-            - |
-              set -e
+              openssl x509 -noout -subject -enddate -in "${TMPDIR}/tls.crt"
 
-              # Idempotency: skip if Secret already exists and has valid data
-              if kubectl get secret "${SECRET_NAME}" -n "${NAMESPACE}" >/dev/null 2>&1; then
-                echo "TLS Secret '${SECRET_NAME}' already exists - skipping creation."
-                exit 0
-              fi
-
+              # Create TLS Secret in Kubernetes
               echo "Creating TLS Secret '${SECRET_NAME}'..."
               kubectl create secret generic "${SECRET_NAME}" \
                 -n "${NAMESPACE}" \
-                --from-file=ca.crt=/certs/ca.crt \
-                --from-file=tls.crt=/certs/tls.crt \
-                --from-file=tls.key=/certs/tls.key
+                --from-file=ca.crt="${TMPDIR}/ca.crt" \
+                --from-file=tls.crt="${TMPDIR}/tls.crt" \
+                --from-file=tls.key="${TMPDIR}/tls.key"
 
-              echo "TLS Secret created successfully."
+              echo "TLS Secret '${SECRET_NAME}' created successfully in namespace ${NAMESPACE}."
 {{- end }}
