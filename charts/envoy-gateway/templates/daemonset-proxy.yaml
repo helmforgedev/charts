@@ -1,0 +1,72 @@
+{{- $mode := include "envoy-gateway.proxy.mode" . }}
+{{- if eq $mode "DaemonSet" }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "envoy-gateway.fullname" . }}-proxy
+  labels:
+    {{- include "envoy-gateway.proxy.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "envoy-gateway.proxy.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "envoy-gateway.proxy.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "envoy-gateway.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.proxy.podSecurityContext | nindent 8 }}
+      containers:
+      - name: envoy
+        securityContext:
+          {{- toYaml .Values.proxy.securityContext | nindent 10 }}
+        image: {{ include "envoy-gateway.proxy.image" . }}
+        imagePullPolicy: {{ .Values.proxy.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+          hostPort: 80
+        - name: https
+          containerPort: 8443
+          protocol: TCP
+          hostPort: 443
+        - name: admin
+          containerPort: 19000
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /ready
+            port: admin
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: admin
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          {{- include "envoy-gateway.proxy.resources" . | nindent 10 }}
+      {{- with .Values.proxy.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.proxy.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

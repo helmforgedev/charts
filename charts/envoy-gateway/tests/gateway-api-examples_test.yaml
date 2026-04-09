@@ -1,0 +1,133 @@
+suite: Gateway API Examples
+templates:
+  - examples/gateway.yaml
+  - examples/httproute.yaml
+  - examples/certificate.yaml
+tests:
+  - it: should create example Gateway when enabled
+    set:
+      gatewayAPI:
+        examples:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: examples/gateway.yaml
+      - equal:
+          path: kind
+          value: Gateway
+        template: examples/gateway.yaml
+      - equal:
+          path: spec.gatewayClassName
+          value: envoy-gateway
+        template: examples/gateway.yaml
+      - equal:
+          path: spec.listeners[0].protocol
+          value: HTTP
+        template: examples/gateway.yaml
+
+  - it: should not create example Gateway when disabled
+    set:
+      gatewayAPI:
+        examples:
+          enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: examples/gateway.yaml
+      - hasDocuments:
+          count: 0
+        template: examples/httproute.yaml
+
+  - it: should create HTTPRoute with example backend
+    set:
+      gatewayAPI:
+        examples:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 3
+        template: examples/httproute.yaml
+      - equal:
+          path: kind
+          value: HTTPRoute
+        template: examples/httproute.yaml
+        documentIndex: 0
+      - equal:
+          path: spec.hostnames[0]
+          value: "example.local"
+        template: examples/httproute.yaml
+        documentIndex: 0
+      - equal:
+          path: kind
+          value: Service
+        template: examples/httproute.yaml
+        documentIndex: 1
+      - equal:
+          path: kind
+          value: Deployment
+        template: examples/httproute.yaml
+        documentIndex: 2
+
+  - it: should add HTTPS listener with cert-manager in production-ha
+    set:
+      profile: production-ha
+      gatewayAPI:
+        examples:
+          enabled: true
+    asserts:
+      - equal:
+          path: spec.listeners[1].protocol
+          value: HTTPS
+        template: examples/gateway.yaml
+      - equal:
+          path: spec.listeners[1].tls.mode
+          value: Terminate
+        template: examples/gateway.yaml
+
+  - it: should create Certificate when cert-manager enabled
+    set:
+      profile: production-ha
+      gatewayAPI:
+        examples:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: examples/certificate.yaml
+      - equal:
+          path: kind
+          value: Certificate
+        template: examples/certificate.yaml
+      - equal:
+          path: spec.dnsNames[0]
+          value: example.local
+        template: examples/certificate.yaml
+
+  - it: should not create Certificate when cert-manager disabled
+    set:
+      profile: dev
+      gatewayAPI:
+        examples:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: examples/certificate.yaml
+
+  - it: should use custom namespace for examples
+    set:
+      gatewayAPI:
+        examples:
+          enabled: true
+          namespace: custom-ns
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: custom-ns
+        template: examples/gateway.yaml
+      - equal:
+          path: metadata.namespace
+          value: custom-ns
+        template: examples/httproute.yaml
+        documentIndex: 0

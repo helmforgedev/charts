@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "envoy-gateway.fullname" . }}-config
+  labels:
+    {{- include "envoy-gateway.labels" . | nindent 4 }}
+data:
+  envoy-gateway.yaml: |
+    apiVersion: gateway.envoyproxy.io/v1alpha1
+    kind: EnvoyGateway
+    gateway:
+      controllerName: gateway.envoyproxy.io/gatewayclass-controller
+    provider:
+      type: Kubernetes
+      kubernetes:
+        rateLimitDeployment:
+          {{- if .Values.rateLimiting.enabled }}
+          replicas: {{ .Values.rateLimiting.redis.enabled | ternary 1 0 }}
+          {{- else }}
+          replicas: 0
+          {{- end }}
+    {{- if .Values.monitoring.enabled }}
+    telemetry:
+      metrics:
+        prometheus:
+          enabled: true
+      {{- if .Values.monitoring.accessLogs.enabled }}
+      accessLog:
+        format:
+          type: {{ .Values.monitoring.accessLogs.format | default "json" }}
+      {{- end }}
+    {{- end }}

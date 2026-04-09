@@ -1,0 +1,286 @@
+================================================================================
+  Envoy Gateway {{ .Chart.AppVersion }} - Successfully Installed
+================================================================================
+
+Release Name: {{ .Release.Name }}
+Namespace:    {{ .Release.Namespace }}
+Profile:      {{ .Values.profile | default "custom" }}
+
+--------------------------------------------------------------------------------
+1. DEPLOYMENT STATUS
+--------------------------------------------------------------------------------
+
+Controller:
+  Mode:     Deployment
+  Replicas: {{ include "envoy-gateway.controller.replicaCount" . }}
+  Image:    {{ include "envoy-gateway.controller.image" . }}
+
+Proxy:
+{{- $mode := include "envoy-gateway.proxy.mode" . }}
+  Mode:     {{ $mode }}
+{{- if eq $mode "Deployment" }}
+  Replicas: {{ include "envoy-gateway.proxy.replicaCount" . }}
+{{- else }}
+  Replicas: One per node (DaemonSet)
+{{- end }}
+  Image:    {{ include "envoy-gateway.proxy.image" . }}
+
+Check deployment status:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+--------------------------------------------------------------------------------
+2. GATEWAY API RESOURCES
+--------------------------------------------------------------------------------
+
+GatewayClass: {{ .Values.gatewayClass.name }}
+
+Verify GatewayClass:
+  kubectl get gatewayclass {{ .Values.gatewayClass.name }}
+
+{{- if .Values.gatewayAPI.examples.enabled }}
+
+Example Gateway and HTTPRoute deployed in namespace: {{ include "envoy-gateway.examples.namespace" . }}
+
+View example resources:
+  kubectl get gateway,httproute -n {{ include "envoy-gateway.examples.namespace" . }}
+
+Test example HTTPRoute:
+{{- $serviceType := .Values.proxy.service.type }}
+{{- if eq $serviceType "LoadBalancer" }}
+  # Get LoadBalancer IP
+  export GATEWAY_IP=$(kubectl get svc {{ include "envoy-gateway.fullname" . }}-proxy -n {{ .Release.Namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+  # Test HTTP request
+  curl -H "Host: example.local" http://$GATEWAY_IP/
+{{- else if eq $serviceType "NodePort" }}
+  # Get NodePort
+  export NODE_PORT=$(kubectl get svc {{ include "envoy-gateway.fullname" . }}-proxy -n {{ .Release.Namespace }} -o jsonpath='{.spec.ports[?(@.name=="http")].nodePort}')
+  export NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+
+  # Test HTTP request
+  curl -H "Host: example.local" http://$NODE_IP:$NODE_PORT/
+{{- else }}
+  # Port-forward to test locally
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "envoy-gateway.fullname" . }}-proxy 8080:80
+
+  # In another terminal
+  curl -H "Host: example.local" http://localhost:8080/
+{{- end }}
+
+{{- else }}
+
+Example resources disabled. To create your own Gateway:
+
+cat <<EOF | kubectl apply -f -
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: my-gateway
+  namespace: {{ .Release.Namespace }}
+spec:
+  gatewayClassName: {{ .Values.gatewayClass.name }}
+  listeners:
+  - name: http
+    protocol: HTTP
+    port: 80
+    allowedRoutes:
+      namespaces:
+        from: All
+EOF
+
+{{- end }}
+
+--------------------------------------------------------------------------------
+3. CERTIFICATE MANAGEMENT
+--------------------------------------------------------------------------------
+
+{{- $certManagerEnabled := include "envoy-gateway.certManager.enabled" . | trim }}
+{{- if eq $certManagerEnabled "true" }}
+
+cert-manager Integration: Enabled
+Issuer: {{ .Values.certificates.certManager.issuer }} ({{ .Values.certificates.certManager.issuerKind }})
+Auto-Provision: {{ .Values.certificates.autoProvision }}
+
+{{- if .Values.gatewayAPI.examples.enabled }}
+
+Example certificate created:
+  kubectl get certificate {{ include "envoy-gateway.fullname" . }}-example-tls -n {{ include "envoy-gateway.examples.namespace" . }}
+
+{{- end }}
+
+To create TLS-enabled Gateway:
+  1. Create Certificate resource referencing your issuer
+  2. Create Gateway listener with HTTPS protocol
+  3. Reference certificate secret in tls.certificateRefs
+
+{{- else }}
+
+cert-manager Integration: Disabled
+
+To enable TLS with cert-manager:
+  helm upgrade {{ .Release.Name }} envoy-gateway \
+    --set certificates.certManager.enabled=true \
+    --set certificates.certManager.issuer=<your-issuer> \
+    --reuse-values
+
+{{- end }}
+
+--------------------------------------------------------------------------------
+4. MONITORING AND OBSERVABILITY
+--------------------------------------------------------------------------------
+
+{{- if .Values.monitoring.enabled }}
+
+Monitoring: Enabled
+
+{{- if .Values.monitoring.prometheus.serviceMonitor }}
+Prometheus ServiceMonitors created for:
+  - Controller metrics (port 8081)
+  - Proxy metrics (admin port 19000)
+
+View metrics:
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "envoy-gateway.fullname" . }}-controller 8081:8081
+  curl http://localhost:8081/metrics
+{{- end }}
+
+{{- if .Values.monitoring.accessLogs.enabled }}
+Access Logs: Enabled (format: {{ .Values.monitoring.accessLogs.format }})
+
+View proxy access logs:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=proxy -f
+{{- end }}
+
+{{- else }}
+
+Monitoring: Disabled
+
+To enable monitoring:
+  helm upgrade {{ .Release.Name }} envoy-gateway \
+    --set monitoring.enabled=true \
+    --set monitoring.prometheus.serviceMonitor=true \
+    --reuse-values
+
+{{- end }}
+
+--------------------------------------------------------------------------------
+5. RATE LIMITING
+--------------------------------------------------------------------------------
+
+{{- if .Values.rateLimiting.enabled }}
+
+Rate Limiting: Enabled
+
+{{- if .Values.rateLimiting.redis.enabled }}
+Redis Backend: Enabled (distributed rate limiting)
+
+To configure rate limiting on HTTPRoute:
+  1. Create RateLimitPolicy
+  2. Attach to HTTPRoute via extensionRef
+
+{{- end }}
+
+{{- else }}
+
+Rate Limiting: Disabled
+
+To enable rate limiting with Redis:
+  helm upgrade {{ .Release.Name }} envoy-gateway \
+    --set rateLimiting.enabled=true \
+    --set rateLimiting.redis.enabled=true \
+    --reuse-values
+
+{{- end }}
+
+--------------------------------------------------------------------------------
+6. PROFILE PRESETS
+--------------------------------------------------------------------------------
+
+Current profile: {{ .Values.profile | default "custom" }}
+
+Available profiles:
+
+dev:
+  - Single replica controller and proxy
+  - Minimal resources (100m CPU, 128Mi memory)
+  - No TLS
+  - Perfect for local development (k3d, kind, minikube)
+
+staging:
+  - 2 replica controller and proxy
+  - Medium resources (500m CPU, 512Mi memory)
+  - Self-signed TLS with cert-manager
+  - Suitable for pre-production testing
+
+production-ha:
+  - 2 replica controller with leader election
+  - Proxy as DaemonSet (one per node)
+  - Production resources (1000m CPU, 1Gi memory)
+  - cert-manager TLS with production issuer
+  - Anti-affinity rules
+  - PodDisruptionBudgets
+  - High availability configuration
+
+custom (default):
+  - Full control via values.yaml
+  - Configure all settings individually
+
+To switch profile:
+  helm upgrade {{ .Release.Name }} envoy-gateway --set profile=production-ha --reuse-values
+
+--------------------------------------------------------------------------------
+7. QUICK TROUBLESHOOTING
+--------------------------------------------------------------------------------
+
+Check controller logs:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=controller -f
+
+Check proxy logs:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=proxy -f
+
+Check Gateway status:
+{{- if .Values.gatewayAPI.examples.enabled }}
+  kubectl describe gateway {{ include "envoy-gateway.fullname" . }}-example -n {{ include "envoy-gateway.examples.namespace" . }}
+{{- else }}
+  kubectl get gateway -A
+{{- end }}
+
+Check HTTPRoute status:
+{{- if .Values.gatewayAPI.examples.enabled }}
+  kubectl describe httproute {{ include "envoy-gateway.fullname" . }}-example -n {{ include "envoy-gateway.examples.namespace" . }}
+{{- else }}
+  kubectl get httproute -A
+{{- end }}
+
+Check GatewayClass status:
+  kubectl describe gatewayclass {{ .Values.gatewayClass.name }}
+
+View Envoy admin interface:
+  kubectl port-forward -n {{ .Release.Namespace }} <proxy-pod> 19000:19000
+  # Access http://localhost:19000/
+
+--------------------------------------------------------------------------------
+8. NEXT STEPS
+--------------------------------------------------------------------------------
+
+1. Verify Gateway is ready:
+   kubectl wait --for=condition=Programmed gateway/{{ if .Values.gatewayAPI.examples.enabled }}{{ include "envoy-gateway.fullname" . }}-example{{ else }}my-gateway{{ end }} -n {{ if .Values.gatewayAPI.examples.enabled }}{{ include "envoy-gateway.examples.namespace" . }}{{ else }}{{ .Release.Namespace }}{{ end }} --timeout=300s
+
+2. Create HTTPRoutes for your applications
+   Reference: https://gateway-api.sigs.k8s.io/guides/http-routing/
+
+3. Configure TLS certificates
+   Reference: https://gateway.envoyproxy.io/latest/user/tls/
+
+4. Explore advanced features:
+   - Rate limiting
+   - External authentication
+   - Traffic splitting
+   - Request/response modification
+
+--------------------------------------------------------------------------------
+
+Documentation: https://helmforge.dev/docs/charts/envoy-gateway
+Gateway API:   https://gateway-api.sigs.k8s.io/
+Envoy Gateway: https://gateway.envoyproxy.io/
+
+================================================================================

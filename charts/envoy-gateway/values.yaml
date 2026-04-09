@@ -1,0 +1,285 @@
+# Default values for envoy-gateway
+# This is a YAML-formatted file.
+
+# -- Profile preset for quick deployment configuration
+# @default -- custom
+profile: custom  # Options: dev, staging, production-ha, custom
+
+# Profile presets:
+# - dev: Single replica, minimal resources, no TLS (local testing)
+# - staging: 2 replicas, medium resources, self-signed TLS
+# - production-ha: HA deployment with DaemonSet, cert-manager TLS, anti-affinity
+
+## Gateway Controller Configuration
+controller:
+  # -- Number of controller replicas (overridden by profile)
+  replicaCount: 1
+
+  image:
+    # -- Controller image repository
+    repository: docker.io/envoyproxy/gateway
+    # -- Controller image pull policy
+    pullPolicy: IfNotPresent
+    # -- Controller image tag (defaults to chart appVersion)
+    tag: "v1.0.0"
+
+  # -- Resources for controller (overridden by profile)
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # -- Node selector for controller pods
+  nodeSelector: {}
+
+  # -- Tolerations for controller pods
+  tolerations: []
+
+  # -- Affinity rules for controller pods (anti-affinity set by production-ha profile)
+  affinity: {}
+
+  # -- Pod security context
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    fsGroup: 65532
+
+  # -- Container security context
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+
+## Envoy Proxy Configuration
+proxy:
+  # -- Deployment mode: Deployment or DaemonSet (overridden by profile)
+  # production-ha profile uses DaemonSet for one proxy per node
+  mode: Deployment  # Options: Deployment, DaemonSet
+
+  # -- Number of proxy replicas (only for Deployment mode, overridden by profile)
+  replicaCount: 1
+
+  image:
+    # -- Proxy image repository
+    repository: docker.io/envoyproxy/envoy
+    # -- Proxy image pull policy
+    pullPolicy: IfNotPresent
+    # -- Proxy image tag
+    tag: "v1.29.0"
+
+  # -- Resources for proxy (overridden by profile)
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  # -- Horizontal Pod Autoscaler (only for Deployment mode)
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+
+  # -- Node selector for proxy pods
+  nodeSelector: {}
+
+  # -- Tolerations for proxy pods
+  tolerations: []
+
+  # -- Affinity rules for proxy pods (anti-affinity set by production-ha profile)
+  affinity: {}
+
+  # -- Pod security context
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    fsGroup: 65532
+
+  # -- Container security context
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+
+  # -- Service configuration for proxy
+  service:
+    type: LoadBalancer
+    # -- HTTP port
+    httpPort: 80
+    # -- HTTPS port
+    httpsPort: 443
+    # -- Annotations for proxy service
+    annotations: {}
+
+## Gateway API Example Resources
+gatewayAPI:
+  examples:
+    # -- Create example Gateway and HTTPRoute resources
+    enabled: true
+    # -- Namespace for example resources (defaults to Release.Namespace)
+    namespace: ""
+
+## Certificate Management
+certificates:
+  certManager:
+    # -- Enable cert-manager integration
+    enabled: false
+    # -- Issuer name (ClusterIssuer or Issuer)
+    issuer: selfsigned
+    # -- Issuer kind
+    issuerKind: ClusterIssuer
+  # -- Auto-provision certificates for Gateway listeners
+  autoProvision: false
+
+## Monitoring and Observability
+monitoring:
+  # -- Enable monitoring (Prometheus)
+  enabled: false
+  prometheus:
+    # -- Create ServiceMonitor for Prometheus Operator
+    serviceMonitor: true
+  # -- Enable access logs
+  accessLogs:
+    enabled: true
+    # -- Access log format (json or text)
+    format: json
+
+## Rate Limiting
+rateLimiting:
+  # -- Enable rate limiting
+  enabled: false
+  # -- Deploy Redis for distributed rate limiting
+  redis:
+    enabled: false
+  # -- Rate limit presets
+  presets:
+    # -- API preset: 100 req/min per IP
+    api: false
+    # -- Strict preset: 10 req/min per IP
+    strict: false
+
+## Security and Hardening
+security:
+  # -- Enable NetworkPolicies
+  networkPolicies: false
+  # -- Enable PodSecurityStandard restricted
+  podSecurityStandards: true
+
+## High Availability (set by production-ha profile)
+highAvailability:
+  # -- Enable HA mode (controller replicas, proxy DaemonSet, anti-affinity, PDB)
+  enabled: false
+  # -- PodDisruptionBudget
+  podDisruptionBudget:
+    minAvailable: 1
+
+## ServiceAccount
+serviceAccount:
+  # -- Create service account
+  create: true
+  # -- Service account name (generated if not set)
+  name: ""
+  # -- Annotations for service account
+  annotations: {}
+
+## RBAC
+rbac:
+  # -- Create RBAC resources
+  create: true
+
+## GatewayClass
+gatewayClass:
+  # -- GatewayClass name
+  name: envoy-gateway
+  # -- Create GatewayClass resource
+  create: true
+
+## Image pull secrets
+imagePullSecrets: []
+
+## Name overrides
+nameOverride: ""
+fullnameOverride: ""
+
+## Pod annotations
+podAnnotations: {}
+
+## Pod labels
+podLabels: {}
+
+# =============================================================================
+# PROFILE PRESET EXAMPLES
+# =============================================================================
+
+# Example: Development profile
+# profile: dev
+#
+# Configures:
+# - controller.replicaCount: 1
+# - proxy.mode: Deployment
+# - proxy.replicaCount: 1
+# - Minimal resources (100m CPU, 128Mi memory)
+# - No TLS (for local testing)
+# - gatewayAPI.examples.enabled: true
+
+# Example: Staging profile
+# profile: staging
+#
+# Configures:
+# - controller.replicaCount: 2
+# - proxy.mode: Deployment
+# - proxy.replicaCount: 2
+# - Medium resources (500m CPU, 512Mi memory)
+# - Self-signed TLS certificates
+# - gatewayAPI.examples.enabled: true
+
+# Example: Production HA profile
+# profile: production-ha
+#
+# Configures:
+# - controller.replicaCount: 2 (with leader election)
+# - proxy.mode: DaemonSet (one per node)
+# - Production resources (1000m CPU, 1Gi memory)
+# - cert-manager TLS (certificates.certManager.enabled: true)
+# - Anti-affinity rules
+# - PodDisruptionBudgets
+# - highAvailability.enabled: true
+
+# =============================================================================
+# ADVANCED CONFIGURATION
+# =============================================================================
+
+# Example: Enable monitoring
+# monitoring:
+#   enabled: true
+#   prometheus:
+#     serviceMonitor: true
+#   accessLogs:
+#     enabled: true
+#     format: json
+
+# Example: Enable rate limiting with Redis
+# rateLimiting:
+#   enabled: true
+#   redis:
+#     enabled: true
+#   presets:
+#     api: true
+
+# Example: Enable cert-manager
+# certificates:
+#   certManager:
+#     enabled: true
+#     issuer: letsencrypt-prod
+#     issuerKind: ClusterIssuer
+#   autoProvision: true

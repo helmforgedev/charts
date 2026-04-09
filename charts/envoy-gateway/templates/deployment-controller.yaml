@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "envoy-gateway.fullname" . }}-controller
+  labels:
+    {{- include "envoy-gateway.controller.labels" . | nindent 4 }}
+spec:
+  replicas: {{ include "envoy-gateway.controller.replicaCount" . }}
+  selector:
+    matchLabels:
+      {{- include "envoy-gateway.controller.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "envoy-gateway.controller.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "envoy-gateway.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.controller.podSecurityContext | nindent 8 }}
+      containers:
+      - name: envoy-gateway
+        securityContext:
+          {{- toYaml .Values.controller.securityContext | nindent 10 }}
+        image: {{ include "envoy-gateway.controller.image" . }}
+        imagePullPolicy: {{ .Values.controller.image.pullPolicy }}
+        command:
+        - envoy-gateway
+        args:
+        - server
+        - --config-path=/config/envoy-gateway.yaml
+        env:
+        - name: ENVOY_GATEWAY_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: KUBERNETES_CLUSTER_DOMAIN
+          value: {{ .Values.kubernetesClusterDomain | default "cluster.local" }}
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: 8081
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          {{- include "envoy-gateway.controller.resources" . | nindent 10 }}
+        volumeMounts:
+        - name: config
+          mountPath: /config
+          readOnly: true
+        - name: certs
+          mountPath: /certs
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: {{ include "envoy-gateway.fullname" . }}-config
+          defaultMode: 420
+      - name: certs
+        secret:
+          secretName: {{ include "envoy-gateway.fullname" . }}-certs
+          defaultMode: 420
+          optional: true
+      {{- with .Values.controller.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.controller.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- $affinity := include "envoy-gateway.controller.affinity" . | trim }}
+      {{- if $affinity }}
+      affinity:
+        {{- $affinity | nindent 8 }}
+      {{- end }}
