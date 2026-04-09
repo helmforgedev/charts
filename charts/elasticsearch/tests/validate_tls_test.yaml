@@ -1,0 +1,61 @@
+suite: elasticsearch - TLS configuration validation (Camada 1)
+templates:
+  - templates/certificate.yaml
+
+tests:
+  # ─────────────────────────────────────────────────────────────────────
+  # Happy paths — should NOT fail
+  # ─────────────────────────────────────────────────────────────────────
+  - it: security disabled should not trigger any TLS validator
+    set:
+      security.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: existingTlsSecret set should satisfy validator
+    set:
+      security.enabled: true
+      security.existingTlsSecret: my-tls-secret
+    asserts:
+      - hasDocuments:
+          count: 0   # certManager not enabled, so no resources rendered
+
+  - it: certManager.enabled should satisfy validator (even without CRD lookup in unit test)
+    set:
+      security.enabled: true
+      security.tls.certManager.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 2  # Issuer + Certificate
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Camada 1 failures — should fail with descriptive error
+  # ─────────────────────────────────────────────────────────────────────
+  - it: security enabled without any TLS source should fail
+    set:
+      security.enabled: true
+      security.existingTlsSecret: ""
+      security.tls.certManager.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "security.enabled=true requires exactly one TLS source"
+
+  - it: both selfSignedInit and certManager enabled simultaneously should fail
+    set:
+      security.enabled: true
+      security.tls.certManager.enabled: true
+      security.tls.selfSignedInit.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "Cannot enable both"
+
+  - it: certManager.install without certManager.enabled should fail
+    set:
+      security.enabled: true
+      certManager.install: true
+      security.tls.certManager.enabled: false
+      security.existingTlsSecret: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "security.enabled=true requires exactly one TLS source"

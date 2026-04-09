@@ -1,0 +1,193 @@
+{{/*
+=============================================================================
+Self-Signed TLS Certificate Renewal CronJob (Camada 3 - optional)
+=============================================================================
+Runs monthly. Checks if the TLS Secret certificate expires within
+selfSignedInit.renewBeforeDays. If yes, regenerates and patches the Secret.
+=============================================================================
+*/}}
+{{- if and (eq (include "elasticsearch.security.enabled" .) "true") .Values.security.tls.selfSignedInit.enabled }}
+{{- $fullname := include "elasticsearch.fullname" . }}
+{{- $secretName := include "elasticsearch.selfSignedSecretName" . }}
+{{- $namespace := .Release.Namespace }}
+{{- $days := .Values.security.tls.selfSignedInit.durationDays | default 365 }}
+{{- $renewBefore := .Values.security.tls.selfSignedInit.renewBeforeDays | default 30 }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $fullname }}-tls-renew
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $fullname }}-tls-renew
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $fullname }}-tls-renew
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $fullname }}-tls-renew
+subjects:
+  - kind: ServiceAccount
+    name: {{ $fullname }}-tls-renew
+    namespace: {{ $namespace }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $fullname }}-tls-renew
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+spec:
+  schedule: "0 3 1 * *"   # 3am on 1st of every month
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 180
+      template:
+        metadata:
+          labels:
+            {{- include "elasticsearch.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: tls-renew
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: {{ $fullname }}-tls-renew
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+          containers:
+            - name: tls-renew
+              image: {{ .Values.security.tls.selfSignedInit.image.repository }}:{{ .Values.security.tls.selfSignedInit.image.tag }}
+              imagePullPolicy: {{ .Values.security.tls.selfSignedInit.image.pullPolicy }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop: ["ALL"]
+              env:
+                - name: SECRET_NAME
+                  value: {{ $secretName | quote }}
+                - name: NAMESPACE
+                  value: {{ $namespace | quote }}
+                - name: DAYS
+                  value: {{ $days | quote }}
+                - name: RENEW_BEFORE_DAYS
+                  value: {{ $renewBefore | quote }}
+                - name: FULLNAME
+                  value: {{ $fullname | quote }}
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+
+                  echo "🔍 Checking TLS certificate expiry for ${SECRET_NAME}..."
+
+                  # ── Extract current cert from Secret ─────────────────────────
+                  TMPDIR=$(mktemp -d)
+                  trap "rm -rf $TMPDIR" EXIT
+
+                  kubectl get secret "${SECRET_NAME}" -n "${NAMESPACE}" \
+                    -o jsonpath='{.data.tls\.crt}' | base64 -d > "${TMPDIR}/current.crt" 2>/dev/null || {
+                    echo "⚠️  Secret not found — skipping renewal (run helm upgrade to regenerate)."
+                    exit 0
+                  }
+
+                  # ── Check days until expiry ──────────────────────────────────
+                  EXPIRY=$(openssl x509 -noout -enddate -in "${TMPDIR}/current.crt" | cut -d= -f2)
+                  EXPIRY_EPOCH=$(date -d "${EXPIRY}" +%s 2>/dev/null || date -j -f "%b %d %H:%M:%S %Y %Z" "${EXPIRY}" +%s)
+                  NOW_EPOCH=$(date +%s)
+                  DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+
+                  echo "📅 Certificate expires: ${EXPIRY} (${DAYS_LEFT} days remaining)"
+                  echo "🔔 Renewal threshold: ${RENEW_BEFORE_DAYS} days"
+
+                  if [ "${DAYS_LEFT}" -gt "${RENEW_BEFORE_DAYS}" ]; then
+                    echo "✅ Certificate is valid for ${DAYS_LEFT} more days — no renewal needed."
+                    exit 0
+                  fi
+
+                  echo "⚠️  Certificate expires in ${DAYS_LEFT} days — RENEWING..."
+
+                  # ── Regenerate (same logic as init Job) ─────────────────────
+                  cat > "${TMPDIR}/san.cnf" <<EOF
+                  [req]
+                  distinguished_name = req_distinguished_name
+                  x509_extensions = v3_req
+                  prompt = no
+                  [req_distinguished_name]
+                  CN = ${FULLNAME}
+                  O = HelmForge Elasticsearch
+                  [v3_req]
+                  subjectAltName = @alt_names
+                  keyUsage = critical, digitalSignature, keyEncipherment
+                  extendedKeyUsage = serverAuth, clientAuth
+                  [alt_names]
+                  DNS.1 = ${FULLNAME}
+                  DNS.2 = ${FULLNAME}.${NAMESPACE}
+                  DNS.3 = ${FULLNAME}.${NAMESPACE}.svc
+                  DNS.4 = ${FULLNAME}.${NAMESPACE}.svc.cluster.local
+                  DNS.5 = *.${FULLNAME}-master-headless.${NAMESPACE}.svc.cluster.local
+                  DNS.6 = *.${FULLNAME}-data-headless.${NAMESPACE}.svc.cluster.local
+                  DNS.7 = *.${FULLNAME}-coordinating-headless.${NAMESPACE}.svc.cluster.local
+                  DNS.8 = *.${FULLNAME}-hot-headless.${NAMESPACE}.svc.cluster.local
+                  DNS.9 = *.${FULLNAME}-warm-headless.${NAMESPACE}.svc.cluster.local
+                  DNS.10 = localhost
+                  IP.1 = 127.0.0.1
+                  EOF
+
+                  openssl genrsa -out "${TMPDIR}/ca.key" 4096 2>/dev/null
+                  openssl req -new -x509 -days "${DAYS}" \
+                    -key "${TMPDIR}/ca.key" \
+                    -out "${TMPDIR}/ca.crt" \
+                    -subj "/CN=HelmForge-ES-CA/O=HelmForge" 2>/dev/null
+
+                  openssl genrsa -out "${TMPDIR}/tls.key" 2048 2>/dev/null
+                  openssl req -new \
+                    -key "${TMPDIR}/tls.key" \
+                    -out "${TMPDIR}/tls.csr" \
+                    -config "${TMPDIR}/san.cnf" 2>/dev/null
+
+                  openssl x509 -req -days "${DAYS}" \
+                    -in "${TMPDIR}/tls.csr" \
+                    -CA "${TMPDIR}/ca.crt" \
+                    -CAkey "${TMPDIR}/ca.key" \
+                    -CAcreateserial \
+                    -out "${TMPDIR}/tls.crt" \
+                    -extensions v3_req \
+                    -extfile "${TMPDIR}/san.cnf" 2>/dev/null
+
+                  # ── Patch the existing Secret ────────────────────────────────
+                  kubectl create secret generic "${SECRET_NAME}" \
+                    -n "${NAMESPACE}" \
+                    --from-file=ca.crt="${TMPDIR}/ca.crt" \
+                    --from-file=tls.crt="${TMPDIR}/tls.crt" \
+                    --from-file=tls.key="${TMPDIR}/tls.key" \
+                    --dry-run=client -o yaml | kubectl apply -f -
+
+                  echo "✅ TLS Secret renewed. New expiry: $(openssl x509 -noout -enddate -in ${TMPDIR}/tls.crt)"
+                  echo "⚠️  NOTE: Elasticsearch pods must be restarted to pick up the new certificate."
+                  echo "   Run: kubectl rollout restart statefulset -l app.kubernetes.io/name=elasticsearch -n ${NAMESPACE}"
+{{- end }}

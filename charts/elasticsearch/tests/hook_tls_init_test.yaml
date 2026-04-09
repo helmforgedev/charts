@@ -1,0 +1,92 @@
+suite: elasticsearch - self-signed TLS init hook (Camada 3)
+templates:
+  - templates/hook-tls-init.yaml
+
+tests:
+  - it: hook-tls-init not rendered when selfSignedInit disabled
+    set:
+      security.enabled: true
+      security.tls.selfSignedInit.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: hook-tls-init not rendered when security disabled
+    set:
+      security.enabled: false
+      security.tls.selfSignedInit.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: hook-tls-init renders 4 resources (SA + Role + RoleBinding + Job)
+    set:
+      security.enabled: true
+      security.tls.selfSignedInit.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 4
+
+  - it: ServiceAccount has pre-install hook annotation
+    set:
+      security.enabled: true
+      security.tls.selfSignedInit.enabled: true
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: "pre-install,pre-upgrade"
+
+  - it: Job has correct hook annotations
+    set:
+      security.enabled: true
+      security.tls.selfSignedInit.enabled: true
+    documentIndex: 3
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: "pre-install,pre-upgrade"
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: "before-hook-creation,hook-succeeded"
+
+  - it: Job uses the configured openssl image
+    set:
+      security.enabled: true
+      security.tls.selfSignedInit.enabled: true
+      security.tls.selfSignedInit.image.repository: myrepo/openssl
+      security.tls.selfSignedInit.image.tag: "3.4.0"
+    documentIndex: 3
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "myrepo/openssl:3.4.0"
+
+  - it: Job has SECRET_NAME env referencing the TLS secret
+    set:
+      security.enabled: true
+      security.tls.selfSignedInit.enabled: true
+    documentIndex: 3
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SECRET_NAME
+            value: "RELEASE-NAME-elasticsearch-tls"
+
+  - it: Job security context runs as non-root
+    set:
+      security.enabled: true
+      security.tls.selfSignedInit.enabled: true
+    documentIndex: 3
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000

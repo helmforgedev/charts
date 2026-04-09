@@ -452,3 +452,36 @@ dataTiers:
 monitoring:
   grafana:
     dashboards: false
+
+# =============================================================================
+# cert-manager Subchart (optional infrastructure dependency)
+# =============================================================================
+certManager:
+  # -- Install cert-manager as a subchart. Set true ONLY if cert-manager is
+  # -- NOT already installed in your cluster. If you already have cert-manager,
+  # -- leave this false and enable security.tls.certManager.enabled instead.
+  # --
+  # -- WARNING: If you later set install=false and run helm uninstall,
+  # -- cert-manager CRDs may be removed, breaking ALL Certificate/Issuer
+  # -- resources in your cluster. The official chart uses
+  # -- helm.sh/resource-policy: keep on CRDs to mitigate this.
+  install: false
+  # -- Install cert-manager CRDs (required for Certificate/Issuer resources)
+  installCRDs: true
+
+# Self-signed TLS init job values (merged into security.tls section)
+# This is appended here due to YAML merge — Helm deep-merges with values.yaml main security block
+security:
+  tls:
+    selfSignedInit:
+      # -- Generate a self-signed certificate via pre-install Job (no cert-manager needed)
+      # -- Use when: air-gapped clusters, bare-metal without cert-manager
+      enabled: false
+      image:
+        repository: docker.io/alpine/openssl
+        tag: "3.3.2"
+        pullPolicy: IfNotPresent
+      # -- Certificate validity in days
+      durationDays: 365
+      # -- Renew if expiring within this many days (used by renewal CronJob)
+      renewBeforeDays: 30

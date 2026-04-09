@@ -615,3 +615,55 @@ Usage: {{ include "elasticsearch.computeHeap" "8Gi" }}
 {{- if lt $heap 1 -}}{{- $heap = 1 -}}{{- end -}}
 {{- printf "%dg" $heap -}}
 {{- end -}}
+
+{{/*
+=============================================================================
+TLS Configuration Validators (Camada 1)
+=============================================================================
+Called from certificate.yaml to validate that security is configured correctly
+before any resource creation.
+*/}}
+
+{{/*
+Validate that security.enabled has exactly one TLS source configured.
+Fails with a clear error message before any resource is created.
+*/}}
+{{- define "elasticsearch.validateTls" -}}
+{{- if eq (include "elasticsearch.security.enabled" .) "true" -}}
+  {{- $hasCertManager := and .Values.security .Values.security.tls .Values.security.tls.certManager (index .Values.security.tls.certManager "enabled") -}}
+  {{- $hasExistingSecret := and .Values.security .Values.security.existingTlsSecret -}}
+  {{- $selfInit := and .Values.security .Values.security.tls .Values.security.tls.selfSignedInit -}}
+  {{- $hasSelfSigned := and $selfInit (index .Values.security.tls.selfSignedInit "enabled") -}}
+  {{- if not (or $hasCertManager $hasExistingSecret $hasSelfSigned) -}}
+    {{- fail (printf "ERROR: security.enabled=true requires exactly one TLS source:\n\n  Option 1 - cert-manager (cluster has cert-manager installed):\n    security.tls.certManager.enabled: true\n\n  Option 2 - cert-manager (let this chart install it):\n    certManager.install: true\n    security.tls.certManager.enabled: true\n\n  Option 3 - self-signed (no cert-manager, works in air-gapped clusters):\n    security.tls.selfSignedInit.enabled: true\n\n  Option 4 - bring your own certificate:\n    security.existingTlsSecret: <secret-name>\n    # Secret must have keys: ca.crt, tls.crt, tls.key\n\n  See: https://helmforge.dev/docs/charts/elasticsearch#security") -}}
+  {{- end -}}
+  {{- if and $hasSelfSigned $hasCertManager -}}
+    {{- fail "ERROR: Cannot enable both security.tls.selfSignedInit.enabled and security.tls.certManager.enabled simultaneously. Choose one TLS source." -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Assert cert-manager CRDs are present in the cluster.
+Uses Helm lookup — only effective during helm install/upgrade (not helm template offline).
+*/}}
+{{- define "elasticsearch.assertCertManagerCRDs" -}}
+{{- $cmEnabled := and .Values.security .Values.security.tls .Values.security.tls.certManager (index .Values.security.tls.certManager "enabled") -}}
+{{- if $cmEnabled -}}
+  {{- $cmInstall := and .Values.certManager (index .Values.certManager "install") -}}
+  {{- if not $cmInstall -}}
+    {{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "certificates.cert-manager.io" -}}
+    {{- if not $crd -}}
+      {{- fail "ERROR: cert-manager CRDs not found in cluster.\n\ncert-manager is required for security.tls.certManager.enabled=true.\n\nOptions:\n  1. Install cert-manager manually:\n     https://cert-manager.io/docs/installation/\n\n  2. Let this chart install it:\n     helm upgrade <release> helmforge/elasticsearch \\\n       --set certManager.install=true\n\n  3. Use self-signed init instead (no cert-manager needed):\n     --set security.tls.certManager.enabled=false \\\n     --set security.tls.selfSignedInit.enabled=true" -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+TLS secret name for self-signed init Job
+*/}}
+{{- define "elasticsearch.selfSignedSecretName" -}}
+{{- printf "%s-tls" (include "elasticsearch.fullname" .) -}}
+{{- end -}}
+
