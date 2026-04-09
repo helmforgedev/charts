@@ -1,0 +1,136 @@
+{{- if eq (include "elasticsearch.backupEnabled" .) "true" -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-backup-script
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+data:
+  backup.sh: |
+    #!/bin/sh
+    set -e
+
+    SCHEME="{{ if eq (include "elasticsearch.security.enabled" .) "true" }}https{{ else }}http{{ end }}"
+    ES_HOST="{{ include "elasticsearch.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local"
+    ES_PORT="{{ .Values.service.httpPort }}"
+    BASE_URL="${SCHEME}://${ES_HOST}:${ES_PORT}"
+    REPO_NAME="helmforge-s3"
+    SNAPSHOT_NAME="snapshot-$(date +%Y%m%d-%H%M%S)"
+    RETENTION_DAYS="{{ .Values.backup.retention.days }}"
+    SSL_FLAGS="{{ if eq (include "elasticsearch.security.enabled" .) "true" }}-k{{ end }}"
+    AUTH_FLAGS="{{ if eq (include "elasticsearch.security.enabled" .) "true" }}-u elastic:${ELASTIC_PASSWORD}{{ end }}"
+
+    echo "=== Registering S3 repository ==="
+    curl -sf ${SSL_FLAGS} ${AUTH_FLAGS} -X PUT "${BASE_URL}/_snapshot/${REPO_NAME}" \
+      -H 'Content-Type: application/json' \
+      -d "{
+        \"type\": \"s3\",
+        \"settings\": {
+          \"bucket\": \"${S3_BUCKET}\",
+          \"region\": \"${S3_REGION}\",
+          \"endpoint\": \"${S3_ENDPOINT}\",
+          \"base_path\": \"${S3_PREFIX}\"
+        }
+      }"
+
+    echo ""
+    echo "=== Creating snapshot: ${SNAPSHOT_NAME} ==="
+    curl -sf ${SSL_FLAGS} ${AUTH_FLAGS} -X PUT "${BASE_URL}/_snapshot/${REPO_NAME}/${SNAPSHOT_NAME}?wait_for_completion=true" \
+      -H 'Content-Type: application/json' \
+      -d '{"include_global_state": true}'
+
+    echo ""
+    echo "=== Snapshot created successfully ==="
+
+    if [ "${RETENTION_DAYS}" -gt "0" ]; then
+      echo "=== Pruning snapshots older than ${RETENTION_DAYS} days ==="
+      CUTOFF=$(date -d "${RETENTION_DAYS} days ago" +%s 2>/dev/null || date -v-${RETENTION_DAYS}d +%s)
+      SNAPSHOTS=$(curl -sf ${SSL_FLAGS} ${AUTH_FLAGS} "${BASE_URL}/_snapshot/${REPO_NAME}/_all" | \
+        grep -o '"snapshot":"[^"]*"' | sed 's/"snapshot":"//;s/"//')
+      for s in ${SNAPSHOTS}; do
+        SNAP_INFO=$(curl -sf ${SSL_FLAGS} ${AUTH_FLAGS} "${BASE_URL}/_snapshot/${REPO_NAME}/${s}")
+        START_MS=$(echo "${SNAP_INFO}" | grep -o '"start_time_in_millis":[0-9]*' | grep -o '[0-9]*')
+        START_S=$((START_MS / 1000))
+        if [ "${START_S}" -lt "${CUTOFF}" ]; then
+          echo "Deleting old snapshot: ${s}"
+          curl -sf ${SSL_FLAGS} ${AUTH_FLAGS} -X DELETE "${BASE_URL}/_snapshot/${REPO_NAME}/${s}"
+        fi
+      done
+    fi
+
+    echo "=== Backup complete ==="
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  suspend: {{ .Values.backup.suspend }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "elasticsearch.componentSelectorLabels" (dict "root" . "component" "backup") | nindent 12 }}
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: {{ include "elasticsearch.serviceAccountName" . }}
+          containers:
+            - name: backup
+              image: {{ printf "%s:%s" .Values.backup.image.repository .Values.backup.image.tag }}
+              imagePullPolicy: {{ .Values.backup.image.pullPolicy }}
+              command: ["/bin/sh", "/scripts/backup.sh"]
+              env:
+                - name: S3_BUCKET
+                  value: {{ .Values.backup.s3.bucket | quote }}
+                - name: S3_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                - name: S3_ENDPOINT
+                  value: {{ .Values.backup.s3.endpoint | quote }}
+                - name: S3_PREFIX
+                  value: {{ .Values.backup.s3.prefix | quote }}
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "elasticsearch.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretAccessKeyKey }}
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "elasticsearch.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+                {{- if eq (include "elasticsearch.security.enabled" .) "true" }}
+                - name: ELASTIC_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "elasticsearch.credentialsSecretName" . }}
+                      key: elastic-password
+                {{- end }}
+              resources:
+                {{- if .Values.backup.resources }}
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+                {{- else }}
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 256Mi
+                {{- end }}
+              volumeMounts:
+                - name: backup-script
+                  mountPath: /scripts
+          volumes:
+            - name: backup-script
+              configMap:
+                name: {{ include "elasticsearch.fullname" . }}-backup-script
+                defaultMode: 0755
+{{- end }}

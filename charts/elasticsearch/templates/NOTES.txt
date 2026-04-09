@@ -1,0 +1,177 @@
+{{- $profile := include "elasticsearch.profile" . -}}
+{{- $fullname := include "elasticsearch.fullname" . -}}
+{{- $masterReplicas := int (include "elasticsearch.master.replicaCount" .) -}}
+{{- $dataReplicas := int (include "elasticsearch.data.replicaCount" .) -}}
+{{- $coordReplicas := int (include "elasticsearch.coordinating.replicaCount" .) -}}
+{{- $securityEnabled := include "elasticsearch.security.enabled" . -}}
+{{- $scheme := ternary "https" "http" (eq $securityEnabled "true") -}}
+{{- $namespace := .Release.Namespace -}}
+
+╔══════════════════════════════════════════════════════════════════════╗
+║           Elasticsearch — Deployed via HelmForge                    ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+✅  Deployment complete!
+
+Cluster Profile : {{ $profile | upper }}
+Cluster Name    : {{ .Values.clusterName }}
+Version         : {{ .Chart.AppVersion }}
+Security        : {{ if eq $securityEnabled "true" }}ENABLED (TLS + auth){{ else }}DISABLED (no TLS){{ end }}
+
+CLUSTER TOPOLOGY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Master nodes      : {{ $masterReplicas }}
+  Data nodes        : {{ $dataReplicas }}
+  Coordinating nodes: {{ $coordReplicas }}
+  Total nodes       : {{ add $masterReplicas $dataReplicas $coordReplicas }}
+
+{{- if gt $dataReplicas 0 }}
+  Heap (master)     : {{ include "elasticsearch.master.heapSize" . }}
+  Heap (data)       : {{ include "elasticsearch.data.heapSize" . }}
+{{- else }}
+  Heap (master/all) : {{ include "elasticsearch.master.heapSize" . }}
+{{- end }}
+
+ACCESS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  From inside the cluster:
+    HOST: {{ $fullname }}.{{ $namespace }}.svc.cluster.local
+    HTTP: {{ $scheme }}://{{ $fullname }}.{{ $namespace }}.svc.cluster.local:9200
+
+  Port-forward to your machine:
+    kubectl port-forward svc/{{ $fullname }} 9200:9200 -n {{ $namespace }}
+    Then: curl {{ $scheme }}://localhost:9200
+
+{{- if eq $securityEnabled "true" }}
+CREDENTIALS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Get the elastic user password:
+    kubectl get secret {{ include "elasticsearch.credentialsSecretName" . }} \
+      -n {{ $namespace }} \
+      -o jsonpath='{.data.elastic-password}' | base64 -d
+
+  Test with credentials:
+    curl -u elastic:<password> -k {{ $scheme }}://localhost:9200
+{{- else }}
+QUICK CHECK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Once port-forwarded:
+    curl http://localhost:9200
+    curl http://localhost:9200/_cluster/health?pretty
+{{- end }}
+
+CLUSTER HEALTH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Check health:
+    kubectl exec -it {{ $fullname }}-master-0 -n {{ $namespace }} -- \
+      curl -s{{ if eq $securityEnabled "true" }}ku elastic:$(cat /dev/stdin){{ end }} \
+      {{ $scheme }}://localhost:9200/_cluster/health?pretty
+
+  Watch pod status:
+    kubectl get pods -n {{ $namespace }} -l app.kubernetes.io/name=elasticsearch -w
+
+  View logs (master-0):
+    kubectl logs {{ $fullname }}-master-0 -n {{ $namespace }} -f
+
+{{- if .Values.backup.enabled }}
+BACKUP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Schedule : {{ .Values.backup.schedule }}
+  Bucket   : {{ .Values.backup.s3.bucket }}
+  Retention: {{ .Values.backup.retention.days }} days
+
+  Trigger a manual backup:
+    kubectl create job --from=cronjob/{{ $fullname }}-backup \
+      manual-backup-$(date +%s) -n {{ $namespace }}
+
+  List snapshots (after port-forward):
+    curl {{ $scheme }}://localhost:9200/_snapshot/helmforge-s3/_all?pretty
+{{- else }}
+⚠️  BACKUP DISABLED — enable with:
+    helm upgrade {{ .Release.Name }} helmforge/elasticsearch \
+      --set backup.enabled=true \
+      --set backup.s3.bucket=<bucket> \
+      --set backup.s3.accessKey=<key> \
+      --set backup.s3.secretKey=<secret>
+{{- end }}
+
+{{- if or .Values.ilm.logs.enabled .Values.ilm.metrics.enabled .Values.ilm.traces.enabled }}
+ILM POLICIES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  {{- if .Values.ilm.logs.enabled }}
+  ✅ helmforge-logs   — hot:{{ .Values.ilm.logs.hotDays }}d → warm:{{ .Values.ilm.logs.warmDays }}d → cold:{{ .Values.ilm.logs.coldDays }}d → delete:{{ .Values.ilm.logs.deleteDays }}d
+  {{- end }}
+  {{- if .Values.ilm.metrics.enabled }}
+  ✅ helmforge-metrics — hot:{{ .Values.ilm.metrics.hotDays }}d → warm:{{ .Values.ilm.metrics.warmDays }}d → delete:{{ .Values.ilm.metrics.deleteDays }}d
+  {{- end }}
+  {{- if .Values.ilm.traces.enabled }}
+  ✅ helmforge-traces  — hot:{{ .Values.ilm.traces.hotDays }}d → warm:{{ .Values.ilm.traces.warmDays }}d → delete:{{ .Values.ilm.traces.deleteDays }}d
+  {{- end }}
+
+  Apply ILM policy to an index:
+    curl -X POST "localhost:9200/_ilm/policy/helmforge-logs/_explain?pretty"
+{{- end }}
+
+{{- if .Values.monitoring.enabled }}
+MONITORING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✅ Prometheus exporter running on port 9114
+  {{- if .Values.monitoring.serviceMonitor.enabled }}
+  ✅ ServiceMonitor created for Prometheus Operator
+  {{- end }}
+  {{- if .Values.monitoring.prometheusRule.enabled }}
+  ✅ Alert rules created
+  {{- end }}
+{{- end }}
+
+{{- if .Values.kibana.enabled }}
+KIBANA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Port-forward Kibana:
+    kubectl port-forward svc/{{ $fullname }}-kibana 5601:5601 -n {{ $namespace }}
+    Open: http://localhost:5601
+{{- end }}
+
+GETTING STARTED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  1. Wait for cluster to form:
+     kubectl wait --for=condition=ready pod \
+       -l app.kubernetes.io/name=elasticsearch \
+       -n {{ $namespace }} --timeout=300s
+
+  2. Create a test index:
+     curl -X PUT "localhost:9200/test-index" \
+       -H 'Content-Type: application/json' \
+       -d '{"settings":{"number_of_shards":1,"number_of_replicas":0}}'
+
+  3. Index a document:
+     curl -X POST "localhost:9200/test-index/_doc" \
+       -H 'Content-Type: application/json' \
+       -d '{"title":"Hello HelmForge","@timestamp":"{{ now | date "2006-01-02T15:04:05" }}"}'
+
+  4. Search:
+     curl "localhost:9200/test-index/_search?q=HelmForge&pretty"
+
+TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Pods stuck in Pending? Check PVC provisioning:
+    kubectl get pvc -n {{ $namespace }}
+
+  Pods stuck in Init? vm.max_map_count not set:
+    kubectl describe pod {{ $fullname }}-master-0 -n {{ $namespace }}
+    # Ensure sysctlInit.enabled=true or set vm.max_map_count=262144 on nodes
+
+  Cluster not forming? Check seed hosts:
+    kubectl exec -it {{ $fullname }}-master-0 -n {{ $namespace }} -- \
+      curl -s localhost:9200/_cat/nodes?v
+
+  Check full chart docs:
+    https://helmforge.dev/docs/charts/elasticsearch
+
+{{- if eq $profile "dev" }}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  Running in DEV profile (single node, no HA)
+    For production use:
+    helm upgrade {{ .Release.Name }} helmforge/elasticsearch \
+      --set clusterProfile=production-ha
+{{- end }}

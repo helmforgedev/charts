@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+data:
+  elasticsearch.yml: |
+    cluster.name: {{ .Values.clusterName | quote }}
+    network.host: "0.0.0.0"
+
+    # Discovery
+    discovery.seed_hosts: {{ printf "%s-master-headless" (include "elasticsearch.fullname" .) | quote }}
+    cluster.initial_master_nodes:
+      {{- $fullname := include "elasticsearch.fullname" . -}}
+      {{- $replicas := int (include "elasticsearch.master.replicaCount" .) -}}
+      {{- range until $replicas }}
+      - {{ printf "%s-master-%d" $fullname . | quote }}
+      {{- end }}
+
+    # Memory
+    bootstrap.memory_lock: false
+
+    # X-Pack Security
+    xpack.security.enabled: {{ include "elasticsearch.security.enabled" . }}
+    xpack.license.self_generated.type: basic
+
+    {{ if eq (include "elasticsearch.security.enabled" .) "true" -}}
+    xpack.security.transport.ssl.enabled: true
+    xpack.security.transport.ssl.verification_mode: certificate
+    xpack.security.transport.ssl.keystore.path: /usr/share/elasticsearch/config/certs/tls.key
+    xpack.security.transport.ssl.truststore.path: /usr/share/elasticsearch/config/certs/ca.crt
+    xpack.security.http.ssl.enabled: true
+    xpack.security.http.ssl.keystore.path: /usr/share/elasticsearch/config/certs/tls.key
+    {{- end }}
+
+    {{- with .Values.extraConfig }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}

@@ -1,0 +1,141 @@
+{{- if gt (int (include "elasticsearch.data.replicaCount" .)) 0 -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.componentLabels" (dict "root" . "component" "data") | nindent 4 }}
+spec:
+  serviceName: {{ include "elasticsearch.fullname" . }}-data-headless
+  replicas: {{ include "elasticsearch.data.replicaCount" . }}
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "elasticsearch.componentSelectorLabels" (dict "root" . "component" "data") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "elasticsearch.componentLabels" (dict "root" . "component" "data") | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.data.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "elasticsearch.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if .Values.sysctlInit.enabled }}
+      initContainers:
+        - name: sysctl
+          image: {{ printf "%s:%s" .Values.sysctlInit.image.repository .Values.sysctlInit.image.tag }}
+          imagePullPolicy: {{ .Values.sysctlInit.image.pullPolicy }}
+          command: ["sysctl", "-w", "vm.max_map_count=262144"]
+          securityContext:
+            privileged: true
+            runAsUser: 0
+      {{- end }}
+      containers:
+        - name: elasticsearch
+          image: {{ include "elasticsearch.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 9200
+              protocol: TCP
+            - name: transport
+              containerPort: 9300
+              protocol: TCP
+          env:
+            - name: node.name
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: node.roles
+              value: "data,data_content,data_hot,data_warm"
+            - name: ES_JAVA_OPTS
+              value: {{ printf "-Xms%s -Xmx%s" (include "elasticsearch.data.heapSize" .) (include "elasticsearch.data.heapSize" .) | quote }}
+            {{- include "elasticsearch.commonEnv" . | nindent 12 }}
+          {{- include "elasticsearch.livenessProbe" . | nindent 10 }}
+          {{- include "elasticsearch.readinessProbe" . | nindent 10 }}
+          {{- include "elasticsearch.startupProbe" . | nindent 10 }}
+          resources:
+            {{- include "elasticsearch.data.resources" . | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/elasticsearch/data
+            {{- include "elasticsearch.tlsVolumeMounts" . | nindent 12 }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- if .Values.monitoring.enabled }}
+        - name: metrics
+          image: {{ include "elasticsearch.exporter.image" . }}
+          imagePullPolicy: {{ .Values.monitoring.image.pullPolicy }}
+          args:
+            - {{ printf "--es.uri=%s://localhost:9200" (ternary "https" "http" (eq (include "elasticsearch.security.enabled" .) "true")) }}
+            {{- if eq (include "elasticsearch.security.enabled" .) "true" }}
+            - --es.ssl-skip-verify
+            {{- end }}
+          ports:
+            - name: metrics
+              containerPort: 9114
+              protocol: TCP
+          resources:
+            {{- if .Values.monitoring.resources }}
+            {{- toYaml .Values.monitoring.resources | nindent 12 }}
+            {{- else }}
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+            {{- end }}
+        {{- end }}
+      volumes:
+        {{- include "elasticsearch.tlsVolumes" . | nindent 8 }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.data.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.data.affinity }}
+      affinity:
+        {{- toYaml .Values.data.affinity | nindent 8 }}
+      {{- else }}
+      {{- include "elasticsearch.antiAffinity" (dict "root" . "component" "data") | nindent 6 }}
+      {{- end }}
+      {{- with .Values.data.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "elasticsearch.componentSelectorLabels" (dict "root" . "component" "data") | nindent 10 }}
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.data.persistence.storageClass }}
+        storageClassName: {{ .Values.data.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ include "elasticsearch.data.persistence.size" . }}
+{{- end }}

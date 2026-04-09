@@ -1,0 +1,254 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Elasticsearch Helm Chart Values",
+  "type": "object",
+  "properties": {
+    "clusterProfile": {
+      "type": "string",
+      "enum": ["dev", "staging", "production-ha"],
+      "description": "Cluster profile preset. Controls default replicas, resources, and security.",
+      "default": "dev"
+    },
+    "clusterName": {
+      "type": "string",
+      "description": "Elasticsearch cluster name",
+      "default": "helmforge-cluster"
+    },
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name"
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the full release name"
+    },
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Elasticsearch image repository (must be fully qualified)"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Elasticsearch image tag (must not be latest)"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      },
+      "required": ["repository", "tag"]
+    },
+    "master": {
+      "type": "object",
+      "description": "Master node configuration",
+      "properties": {
+        "replicaCount": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "description": "Number of master-eligible nodes (must be odd for HA)"
+        },
+        "heapSize": {
+          "type": ["string", "null"],
+          "description": "JVM heap size (e.g. '2g'). Auto-calculated if null."
+        },
+        "resources": {
+          "type": "object"
+        },
+        "persistence": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "storageClass": {
+              "type": "string"
+            },
+            "size": {
+              "type": ["string", "null"]
+            }
+          }
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "description": "Data node configuration",
+      "properties": {
+        "replicaCount": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "heapSize": {
+          "type": ["string", "null"]
+        },
+        "resources": {
+          "type": "object"
+        },
+        "persistence": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "storageClass": {
+              "type": "string"
+            },
+            "size": {
+              "type": ["string", "null"]
+            }
+          }
+        }
+      }
+    },
+    "coordinating": {
+      "type": "object",
+      "description": "Coordinating node configuration",
+      "properties": {
+        "replicaCount": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "heapSize": {
+          "type": ["string", "null"]
+        },
+        "resources": {
+          "type": "object"
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable X-Pack security (TLS + authentication)"
+        },
+        "generatePasswords": {
+          "type": "boolean",
+          "default": true
+        },
+        "existingTlsSecret": {
+          "type": "string",
+          "description": "Existing secret with TLS certificates"
+        },
+        "existingCredentialsSecret": {
+          "type": "string",
+          "description": "Existing secret with built-in user passwords"
+        }
+      }
+    },
+    "backup": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "schedule": {
+          "type": "string",
+          "description": "Cron schedule for snapshot backups"
+        },
+        "s3": {
+          "type": "object",
+          "properties": {
+            "bucket": {
+              "type": "string"
+            },
+            "region": {
+              "type": "string"
+            },
+            "endpoint": {
+              "type": "string"
+            }
+          }
+        },
+        "retention": {
+          "type": "object",
+          "properties": {
+            "days": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "ilm": {
+      "type": "object",
+      "description": "Index Lifecycle Management policy presets",
+      "properties": {
+        "logs": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "hotDays": {"type": "integer", "minimum": 1},
+            "warmDays": {"type": "integer", "minimum": 1},
+            "coldDays": {"type": "integer", "minimum": 0},
+            "deleteDays": {"type": "integer", "minimum": 1}
+          }
+        },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "hotDays": {"type": "integer", "minimum": 1},
+            "warmDays": {"type": "integer", "minimum": 1},
+            "deleteDays": {"type": "integer", "minimum": 1}
+          }
+        },
+        "traces": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "hotDays": {"type": "integer", "minimum": 1},
+            "warmDays": {"type": "integer", "minimum": 1},
+            "deleteDays": {"type": "integer", "minimum": 1}
+          }
+        }
+      }
+    },
+    "monitoring": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "kibana": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "replicaCount": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer"]
+        },
+        "httpPort": {
+          "type": "integer",
+          "default": 9200
+        },
+        "transportPort": {
+          "type": "integer",
+          "default": 9300
+        }
+      }
+    }
+  }
+}

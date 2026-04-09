@@ -1,0 +1,575 @@
+{{/*
+=============================================================================
+Standard naming helpers
+=============================================================================
+*/}}
+
+{{- define "elasticsearch.name" -}}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "elasticsearch.fullname" -}}
+{{- if .Values.fullnameOverride -}}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := include "elasticsearch.name" . -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "elasticsearch.chart" -}}
+{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "elasticsearch.labels" -}}
+helm.sh/chart: {{ include "elasticsearch.chart" . }}
+{{ include "elasticsearch.selectorLabels" . }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+app.kubernetes.io/part-of: helmforge
+{{- with .Values.commonLabels }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
+{{- define "elasticsearch.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "elasticsearch.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}
+
+{{/*
+Component-specific selector labels.
+Usage: {{ include "elasticsearch.componentSelectorLabels" (dict "root" . "component" "master") }}
+*/}}
+{{- define "elasticsearch.componentSelectorLabels" -}}
+{{ include "elasticsearch.selectorLabels" .root }}
+app.kubernetes.io/component: {{ .component }}
+{{- end -}}
+
+{{/*
+Component-specific full labels (including helm.sh/chart etc.).
+*/}}
+{{- define "elasticsearch.componentLabels" -}}
+{{ include "elasticsearch.labels" .root }}
+app.kubernetes.io/component: {{ .component }}
+{{- end -}}
+
+{{- define "elasticsearch.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create -}}
+{{- default (include "elasticsearch.fullname" .) .Values.serviceAccount.name -}}
+{{- else -}}
+{{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "elasticsearch.image" -}}
+{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
+{{- end -}}
+
+{{/*
+=============================================================================
+Cluster Profile helpers
+Returns resolved value: first from per-role override, then from profile default.
+=============================================================================
+*/}}
+
+{{/*
+Return the resolved clusterProfile.
+Validates that the value is one of: dev, staging, production-ha
+*/}}
+{{- define "elasticsearch.profile" -}}
+{{- $p := .Values.clusterProfile | default "dev" -}}
+{{- if not (has $p (list "dev" "staging" "production-ha")) -}}
+  {{- fail (printf "clusterProfile must be one of: dev, staging, production-ha (got %s)" $p) -}}
+{{- end -}}
+{{- $p -}}
+{{- end -}}
+
+{{/*
+Master replica count (profile-driven, user-overridable)
+dev=1, staging=1, production-ha=3
+*/}}
+{{- define "elasticsearch.master.replicaCount" -}}
+{{- if not (kindIs "invalid" .Values.master.replicaCount) -}}
+  {{- .Values.master.replicaCount -}}
+{{- else -}}
+  {{- $p := include "elasticsearch.profile" . -}}
+  {{- if eq $p "production-ha" -}}3
+  {{- else -}}1
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Data replica count
+dev=0 (master acts as data), staging=2, production-ha=3
+*/}}
+{{- define "elasticsearch.data.replicaCount" -}}
+{{- if not (kindIs "invalid" .Values.data.replicaCount) -}}
+  {{- .Values.data.replicaCount -}}
+{{- else -}}
+  {{- $p := include "elasticsearch.profile" . -}}
+  {{- if eq $p "dev" -}}0
+  {{- else if eq $p "staging" -}}2
+  {{- else -}}3
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Coordinating replica count
+dev=0, staging=0, production-ha=2
+*/}}
+{{- define "elasticsearch.coordinating.replicaCount" -}}
+{{- if not (kindIs "invalid" .Values.coordinating.replicaCount) -}}
+  {{- .Values.coordinating.replicaCount -}}
+{{- else -}}
+  {{- $p := include "elasticsearch.profile" . -}}
+  {{- if eq $p "production-ha" -}}2
+  {{- else -}}0
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Master persistence size
+dev=disabled, staging=10Gi, production-ha=20Gi
+*/}}
+{{- define "elasticsearch.master.persistence.size" -}}
+{{- if .Values.master.persistence.size -}}
+  {{- .Values.master.persistence.size -}}
+{{- else -}}
+  {{- $p := include "elasticsearch.profile" . -}}
+  {{- if eq $p "staging" -}}10Gi
+  {{- else if eq $p "production-ha" -}}20Gi
+  {{- else -}}10Gi
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Data persistence size
+dev=10Gi, staging=50Gi, production-ha=200Gi
+*/}}
+{{- define "elasticsearch.data.persistence.size" -}}
+{{- if .Values.data.persistence.size -}}
+  {{- .Values.data.persistence.size -}}
+{{- else -}}
+  {{- $p := include "elasticsearch.profile" . -}}
+  {{- if eq $p "staging" -}}50Gi
+  {{- else if eq $p "production-ha" -}}200Gi
+  {{- else -}}10Gi
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Master resources (profile-driven defaults)
+*/}}
+{{- define "elasticsearch.master.resources" -}}
+{{- if .Values.master.resources -}}
+  {{- toYaml .Values.master.resources -}}
+{{- else -}}
+  {{- $p := include "elasticsearch.profile" . -}}
+  {{- if eq $p "dev" -}}
+requests:
+  cpu: 200m
+  memory: 2Gi
+limits:
+  cpu: 1
+  memory: 2Gi
+  {{- else if eq $p "staging" -}}
+requests:
+  cpu: 500m
+  memory: 4Gi
+limits:
+  cpu: 2
+  memory: 4Gi
+  {{- else -}}
+requests:
+  cpu: 500m
+  memory: 4Gi
+limits:
+  cpu: 2
+  memory: 4Gi
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Data resources (profile-driven defaults)
+*/}}
+{{- define "elasticsearch.data.resources" -}}
+{{- if .Values.data.resources -}}
+  {{- toYaml .Values.data.resources -}}
+{{- else -}}
+  {{- $p := include "elasticsearch.profile" . -}}
+  {{- if eq $p "staging" -}}
+requests:
+  cpu: 1
+  memory: 8Gi
+limits:
+  cpu: 4
+  memory: 8Gi
+  {{- else if eq $p "production-ha" -}}
+requests:
+  cpu: 2
+  memory: 16Gi
+limits:
+  cpu: 8
+  memory: 16Gi
+  {{- else -}}
+requests:
+  cpu: 500m
+  memory: 4Gi
+limits:
+  cpu: 2
+  memory: 4Gi
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Coordinating resources (profile-driven defaults)
+*/}}
+{{- define "elasticsearch.coordinating.resources" -}}
+{{- if .Values.coordinating.resources -}}
+  {{- toYaml .Values.coordinating.resources -}}
+{{- else -}}
+requests:
+  cpu: 500m
+  memory: 4Gi
+limits:
+  cpu: 2
+  memory: 8Gi
+{{- end -}}
+{{- end -}}
+
+{{/*
+Compute heap size from memory limit (50% rule, max 31g).
+Accepts a resource dict (from .Values.master.resources or profile default).
+Returns: e.g. "1g", "4g", "16g", "31g"
+*/}}
+{{- define "elasticsearch.heapFromResources" -}}
+{{- $resourcesStr := . -}}
+{{- $heap := "1g" -}}
+{{/*
+  We parse the memory limit string: e.g. "2Gi", "16Gi", "512Mi"
+  and return 50% as JVM heap.
+  Supported units: Gi, Mi. Output is always in g/m.
+*/}}
+{{- if contains "Gi" $resourcesStr -}}
+  {{- $parts := splitList "Gi" $resourcesStr -}}
+  {{- $memGiStr := trim (last (splitList "memory: " (first $parts))) -}}
+  {{/* strip everything after newline */}}
+  {{- $memGiStr = first (splitList "\n" $memGiStr) | trim -}}
+  {{- $memGi := int $memGiStr -}}
+  {{- $halfGi := div $memGi 2 -}}
+  {{- if gt $halfGi 31 -}}
+    {{- $heap = "31g" -}}
+  {{- else if gt $halfGi 0 -}}
+    {{- $heap = printf "%dg" $halfGi -}}
+  {{- end -}}
+{{- else if contains "Mi" $resourcesStr -}}
+  {{- $heap = "512m" -}}
+{{- end -}}
+{{- $heap -}}
+{{- end -}}
+
+{{/*
+Resolved heap size for master (explicit or auto-calculated)
+*/}}
+{{- define "elasticsearch.master.heapSize" -}}
+{{- if .Values.master.heapSize -}}
+  {{- .Values.master.heapSize -}}
+{{- else -}}
+  {{- $res := include "elasticsearch.master.resources" . -}}
+  {{- include "elasticsearch.heapFromResources" $res -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Resolved heap size for data nodes
+*/}}
+{{- define "elasticsearch.data.heapSize" -}}
+{{- if .Values.data.heapSize -}}
+  {{- .Values.data.heapSize -}}
+{{- else -}}
+  {{- $res := include "elasticsearch.data.resources" . -}}
+  {{- include "elasticsearch.heapFromResources" $res -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Resolved heap size for coordinating nodes
+*/}}
+{{- define "elasticsearch.coordinating.heapSize" -}}
+{{- if .Values.coordinating.heapSize -}}
+  {{- .Values.coordinating.heapSize -}}
+{{- else -}}
+  {{- $res := include "elasticsearch.coordinating.resources" . -}}
+  {{- include "elasticsearch.heapFromResources" $res -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Security enabled: explicit value OR profile=production-ha
+*/}}
+{{- define "elasticsearch.security.enabled" -}}
+{{- if .Values.security.enabled -}}
+true
+{{- else if eq (include "elasticsearch.profile" .) "production-ha" -}}
+true
+{{- else -}}
+false
+{{- end -}}
+{{- end -}}
+
+{{/*
+Credentials secret name
+*/}}
+{{- define "elasticsearch.credentialsSecretName" -}}
+{{- if .Values.security.existingCredentialsSecret -}}
+{{- .Values.security.existingCredentialsSecret -}}
+{{- else -}}
+{{- printf "%s-credentials" (include "elasticsearch.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+TLS secret name
+*/}}
+{{- define "elasticsearch.tlsSecretName" -}}
+{{- if .Values.security.existingTlsSecret -}}
+{{- .Values.security.existingTlsSecret -}}
+{{- else -}}
+{{- printf "%s-tls" (include "elasticsearch.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Backup secret name
+*/}}
+{{- define "elasticsearch.backupSecretName" -}}
+{{- if .Values.backup.s3.existingSecret -}}
+{{- .Values.backup.s3.existingSecret -}}
+{{- else -}}
+{{- printf "%s-backup" (include "elasticsearch.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Backup validation
+*/}}
+{{- define "elasticsearch.backupEnabled" -}}
+{{- if .Values.backup.enabled -}}
+  {{- if not .Values.backup.s3.bucket -}}
+    {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- end -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
+Split-brain quorum validation: master count must be odd and >= 3 for production-ha
+*/}}
+{{- define "elasticsearch.validateMasterCount" -}}
+{{- $replicas := int (include "elasticsearch.master.replicaCount" .) -}}
+{{- $p := include "elasticsearch.profile" . -}}
+{{- if and (eq $p "production-ha") (lt $replicas 3) -}}
+  {{- fail "production-ha profile requires at least 3 master nodes for split-brain prevention" -}}
+{{- end -}}
+{{- if and (gt $replicas 1) (eq (mod $replicas 2) 0) -}}
+  {{- fail (printf "master.replicaCount must be an odd number (got %d) to prevent split-brain" $replicas) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Compute discovery.zen.minimum_master_nodes (quorum = floor(masters/2) + 1)
+*/}}
+{{- define "elasticsearch.minimumMasterNodes" -}}
+{{- $replicas := int (include "elasticsearch.master.replicaCount" .) -}}
+{{- add (div $replicas 2) 1 -}}
+{{- end -}}
+
+{{/*
+Build the seed hosts list for cluster discovery (master headless DNS names)
+*/}}
+{{- define "elasticsearch.seedHosts" -}}
+{{- $fullname := include "elasticsearch.fullname" . -}}
+{{- $replicas := int (include "elasticsearch.master.replicaCount" .) -}}
+{{- $hosts := list -}}
+{{- range until $replicas -}}
+  {{- $hosts = append $hosts (printf "%s-master-%d.%s-master-headless" $fullname . $fullname) -}}
+{{- end -}}
+{{- join "," $hosts -}}
+{{- end -}}
+
+{{/*
+Build the initial_master_nodes list (comma-separated pod names)
+*/}}
+{{- define "elasticsearch.initialMasterNodes" -}}
+{{- $fullname := include "elasticsearch.fullname" . -}}
+{{- $replicas := int (include "elasticsearch.master.replicaCount" .) -}}
+{{- $names := list -}}
+{{- range until $replicas -}}
+  {{- $names = append $names (printf "%s-master-%d" $fullname .) -}}
+{{- end -}}
+{{- join "," $names -}}
+{{- end -}}
+
+{{/*
+Common Elasticsearch environment variables
+*/}}
+{{- define "elasticsearch.commonEnv" -}}
+- name: cluster.name
+  value: {{ .Values.clusterName | quote }}
+- name: network.host
+  value: "0.0.0.0"
+- name: discovery.seed_hosts
+  value: {{ printf "%s-master-headless" (include "elasticsearch.fullname" .) | quote }}
+- name: cluster.initial_master_nodes
+  value: {{ include "elasticsearch.initialMasterNodes" . | quote }}
+- name: ELASTIC_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "elasticsearch.credentialsSecretName" . }}
+      key: elastic-password
+      optional: {{ eq (include "elasticsearch.security.enabled" .) "false" | quote }}
+- name: xpack.security.enabled
+  value: {{ include "elasticsearch.security.enabled" . | quote }}
+{{- if eq (include "elasticsearch.security.enabled" .) "true" }}
+- name: xpack.security.transport.ssl.enabled
+  value: "true"
+- name: xpack.security.transport.ssl.verification_mode
+  value: "certificate"
+- name: xpack.security.transport.ssl.key
+  value: /usr/share/elasticsearch/config/certs/tls.key
+- name: xpack.security.transport.ssl.certificate
+  value: /usr/share/elasticsearch/config/certs/tls.crt
+- name: xpack.security.transport.ssl.certificate_authorities
+  value: /usr/share/elasticsearch/config/certs/ca.crt
+- name: xpack.security.http.ssl.enabled
+  value: "true"
+- name: xpack.security.http.ssl.key
+  value: /usr/share/elasticsearch/config/certs/tls.key
+- name: xpack.security.http.ssl.certificate
+  value: /usr/share/elasticsearch/config/certs/tls.crt
+- name: xpack.security.http.ssl.certificate_authorities
+  value: /usr/share/elasticsearch/config/certs/ca.crt
+{{- end }}
+{{- with .Values.extraEnv }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
+{{/*
+TLS volume mounts (when security is enabled)
+*/}}
+{{- define "elasticsearch.tlsVolumeMounts" -}}
+{{- if eq (include "elasticsearch.security.enabled" .) "true" -}}
+- name: tls-certs
+  mountPath: /usr/share/elasticsearch/config/certs
+  readOnly: true
+{{- end -}}
+{{- end -}}
+
+{{/*
+TLS volumes (when security is enabled)
+*/}}
+{{- define "elasticsearch.tlsVolumes" -}}
+{{- if eq (include "elasticsearch.security.enabled" .) "true" -}}
+- name: tls-certs
+  secret:
+    secretName: {{ include "elasticsearch.tlsSecretName" . }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Liveness probe for ES HTTP endpoint
+*/}}
+{{- define "elasticsearch.livenessProbe" -}}
+{{- if .Values.livenessProbe.enabled -}}
+livenessProbe:
+  tcpSocket:
+    port: http
+  initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+  periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+  timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+  failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Readiness probe
+*/}}
+{{- define "elasticsearch.readinessProbe" -}}
+{{- if .Values.readinessProbe.enabled -}}
+readinessProbe:
+  httpGet:
+    path: /_cluster/health?local=true
+    port: http
+    {{- if eq (include "elasticsearch.security.enabled" .) "true" }}
+    scheme: HTTPS
+    {{- end }}
+  initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+  periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+  timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+  failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Startup probe
+*/}}
+{{- define "elasticsearch.startupProbe" -}}
+{{- if .Values.startupProbe.enabled -}}
+startupProbe:
+  tcpSocket:
+    port: http
+  initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+  periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+  timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+  failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Anti-affinity for production-ha nodes (prevent co-location of same component)
+Usage: {{ include "elasticsearch.antiAffinity" (dict "root" . "component" "master") }}
+*/}}
+{{- define "elasticsearch.antiAffinity" -}}
+{{- $p := include "elasticsearch.profile" .root -}}
+{{- if and (eq $p "production-ha") (empty .root.Values.master.affinity) -}}
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              {{- include "elasticsearch.componentSelectorLabels" (dict "root" .root "component" .component) | nindent 14 }}
+          topologyKey: kubernetes.io/hostname
+{{- end -}}
+{{- end -}}
+
+{{/*
+Kibana image
+*/}}
+{{- define "elasticsearch.kibana.image" -}}
+{{- printf "%s:%s" .Values.kibana.image.repository .Values.kibana.image.tag -}}
+{{- end -}}
+
+{{/*
+Monitoring exporter image
+*/}}
+{{- define "elasticsearch.exporter.image" -}}
+{{- printf "%s:%s" .Values.monitoring.image.repository .Values.monitoring.image.tag -}}
+{{- end -}}

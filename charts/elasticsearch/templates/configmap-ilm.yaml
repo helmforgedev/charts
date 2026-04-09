@@ -1,0 +1,107 @@
+{{/* ILM policy ConfigMap — only rendered when at least one policy is enabled */}}
+{{- $anyEnabled := or .Values.ilm.logs.enabled .Values.ilm.metrics.enabled .Values.ilm.traces.enabled -}}
+{{- if $anyEnabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "elasticsearch.fullname" . }}-ilm-policies
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+data:
+  {{- if .Values.ilm.logs.enabled }}
+  helmforge-logs-policy.json: |
+    {
+      "policy": {
+        "phases": {
+          "hot": {
+            "min_age": "0ms",
+            "actions": {
+              "rollover": {
+                "max_primary_shard_size": {{ .Values.ilm.logs.rolloverSize | quote }},
+                "max_docs": {{ .Values.ilm.logs.rolloverDocs }}
+              }
+            }
+          },
+          "warm": {
+            "min_age": "{{ .Values.ilm.logs.hotDays }}d",
+            "actions": {
+              "shrink": { "number_of_shards": 1 },
+              "forcemerge": { "max_num_segments": 1 }
+            }
+          },
+          {{- if gt (int .Values.ilm.logs.coldDays) 0 }}
+          "cold": {
+            "min_age": "{{ .Values.ilm.logs.warmDays }}d",
+            "actions": {
+              "freeze": {}
+            }
+          },
+          {{- end }}
+          "delete": {
+            "min_age": "{{ .Values.ilm.logs.deleteDays }}d",
+            "actions": { "delete": {} }
+          }
+        }
+      }
+    }
+  {{- end }}
+  {{- if .Values.ilm.metrics.enabled }}
+  helmforge-metrics-policy.json: |
+    {
+      "policy": {
+        "phases": {
+          "hot": {
+            "min_age": "0ms",
+            "actions": {
+              "rollover": {
+                "max_primary_shard_size": {{ .Values.ilm.metrics.rolloverSize | quote }},
+                "max_docs": {{ .Values.ilm.metrics.rolloverDocs }}
+              }
+            }
+          },
+          "warm": {
+            "min_age": "{{ .Values.ilm.metrics.hotDays }}d",
+            "actions": {
+              "shrink": { "number_of_shards": 1 },
+              "forcemerge": { "max_num_segments": 1 }
+            }
+          },
+          "delete": {
+            "min_age": "{{ .Values.ilm.metrics.deleteDays }}d",
+            "actions": { "delete": {} }
+          }
+        }
+      }
+    }
+  {{- end }}
+  {{- if .Values.ilm.traces.enabled }}
+  helmforge-traces-policy.json: |
+    {
+      "policy": {
+        "phases": {
+          "hot": {
+            "min_age": "0ms",
+            "actions": {
+              "rollover": {
+                "max_primary_shard_size": {{ .Values.ilm.traces.rolloverSize | quote }},
+                "max_docs": {{ .Values.ilm.traces.rolloverDocs }}
+              }
+            }
+          },
+          "warm": {
+            "min_age": "{{ .Values.ilm.traces.hotDays }}d",
+            "actions": {
+              "shrink": { "number_of_shards": 1 },
+              "forcemerge": { "max_num_segments": 1 }
+            }
+          },
+          "delete": {
+            "min_age": "{{ .Values.ilm.traces.deleteDays }}d",
+            "actions": { "delete": {} }
+          }
+        }
+      }
+    }
+  {{- end }}
+{{- end }}

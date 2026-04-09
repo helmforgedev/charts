@@ -1,0 +1,65 @@
+suite: elasticsearch - kibana
+templates:
+  - templates/kibana.yaml
+
+tests:
+  - it: kibana disabled renders no resources
+    set:
+      kibana:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: kibana enabled renders Deployment and Service
+    set:
+      kibana:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: Deployment
+        documentIndex: 0
+      - isKind:
+          of: Service
+        documentIndex: 1
+
+  - it: kibana with ingress renders 3 documents
+    set:
+      kibana:
+        enabled: true
+        ingress:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 3
+      - isKind:
+          of: Ingress
+        documentIndex: 2
+
+  - it: kibana uses correct Elasticsearch URL
+    set:
+      kibana:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ELASTICSEARCH_HOSTS
+            value: "http://RELEASE-NAME-elasticsearch.NAMESPACE.svc.cluster.local:9200"
+        documentIndex: 0
+
+  - it: kibana with security uses https url
+    set:
+      kibana:
+        enabled: true
+      security:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ELASTICSEARCH_HOSTS
+            value: "https://RELEASE-NAME-elasticsearch.NAMESPACE.svc.cluster.local:9200"
+        documentIndex: 0
