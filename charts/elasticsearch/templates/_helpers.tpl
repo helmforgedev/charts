@@ -442,7 +442,7 @@ Common Elasticsearch environment variables
     secretKeyRef:
       name: {{ include "elasticsearch.credentialsSecretName" . }}
       key: elastic-password
-      optional: {{ eq (include "elasticsearch.security.enabled" .) "false" | quote }}
+      optional: {{ eq (include "elasticsearch.security.enabled" .) "false" }}
 - name: xpack.security.enabled
   value: {{ include "elasticsearch.security.enabled" . | quote }}
 {{- if eq (include "elasticsearch.security.enabled" .) "true" }}
