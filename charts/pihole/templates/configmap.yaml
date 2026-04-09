@@ -1,4 +1,4 @@
-{{- if or .Values.dns.customRecords .Values.dns.cnameRecords .Values.dns.customDnsmasq }}
+{{- if or .Values.dns.customRecords .Values.dns.cnameRecords .Values.dns.customDnsmasq .Values.dns.conditionalForwarding.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -16,6 +16,25 @@ data:
   05-custom-cname.conf: |
     {{- range .Values.dns.cnameRecords }}
     {{ . }}
+    {{- end }}
+  {{- end }}
+  {{- if .Values.dns.conditionalForwarding.enabled }}
+  04-conditional-forwarding.conf: |
+    # Conditional forwarding for local domain
+    {{- if and .Values.dns.conditionalForwarding.domain .Values.dns.conditionalForwarding.router }}
+    server=/{{ .Values.dns.conditionalForwarding.domain }}/{{ .Values.dns.conditionalForwarding.router }}
+    {{- end }}
+    {{- if and .Values.dns.conditionalForwarding.network .Values.dns.conditionalForwarding.router }}
+    # Reverse DNS for local network
+    {{- $parts := splitList "/" .Values.dns.conditionalForwarding.network }}
+    {{- $ip := index $parts 0 }}
+    {{- $octets := splitList "." $ip }}
+    {{- if eq (len $octets) 4 }}
+    server=/{{ index $octets 2 }}.{{ index $octets 1 }}.{{ index $octets 0 }}.in-addr.arpa/{{ .Values.dns.conditionalForwarding.router }}
+    {{- end }}
+    {{- end }}
+    {{- range .Values.dns.conditionalForwarding.customRules }}
+    server=/{{ .domain }}/{{ .server }}
     {{- end }}
   {{- end }}
   {{- if .Values.dns.customDnsmasq }}

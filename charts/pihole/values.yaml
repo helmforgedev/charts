@@ -50,10 +50,27 @@ pihole:
   # -- Enable DNSSEC validation
   dnssec: false
 
+  # -- FTL advanced configuration
+  ftl:
+    # -- DNS cache size (default: 10000)
+    cacheSize: 10000
+    # -- Privacy level: 0=show all, 1=hide domains, 2=hide domains+clients, 3=anonymous
+    privacyLevel: 0
+    # -- Block CNAME-cloaked trackers (default: true)
+    cnameInspection: true
+    # -- Rate limiting (queries/sec per client, 0=disabled)
+    rateLimit: 1000
+    # -- Block AAAA queries on A-only networks (default: false)
+    blockAAAA: false
+    # -- Query logging (default: true)
+    queryLogging: true
+    # -- Use database for queries (required for long-term stats)
+    useDatabase: true
+
   # -- Additional environment variables for the Pi-hole container
   # extraEnv:
-  #   - name: FTLCONF_dns_cache_size
-  #     value: "10000"
+  #   - name: FTLCONF_custom_option
+  #     value: "value"
   extraEnv: []
 
 # =============================================================================
@@ -75,6 +92,61 @@ admin:
 # =============================================================================
 
 dns:
+  # -- Blocklist preset: none, basic, balanced, aggressive, gaming-friendly
+  # - none: No preset lists (use custom adlists only)
+  # - basic: StevenBlack hosts (~170k domains)
+  # - balanced: StevenBlack + Hagezi Multi NORMAL (~970k domains)
+  # - aggressive: StevenBlack + Hagezi Multi PRO + Threat Intelligence (~2.6M domains)
+  # - gaming-friendly: Balanced + Gaming platform whitelists (Xbox, PS, Nintendo)
+  preset: "none"
+
+  # -- Custom blocklist URLs (added to preset)
+  # adlists:
+  #   - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+  #   - https://s3.amazonaws.com/lists.disconnect.me/simple_tracking.txt
+  adlists: []
+
+  # -- Automatic whitelist presets for common services
+  whitelistPresets:
+    # -- Whitelist Microsoft services (Windows Update, Office 365, etc)
+    microsoft: false
+    # -- Whitelist Apple services (iCloud, App Store, iMessage, etc)
+    apple: false
+    # -- Whitelist Google services (YouTube, Play Store, etc)
+    google: false
+    # -- Whitelist gaming platforms (Xbox Live, PSN, Nintendo, Steam)
+    gaming: false
+    # -- Whitelist smart home devices (Alexa, Google Home, etc)
+    smartHome: false
+
+  # -- Manual whitelisted domains (added to presets)
+  whitelist: []
+
+  # -- Blacklisted domains (exact matches)
+  blacklist: []
+
+  # -- Regex filters for blocking (advanced)
+  # regex:
+  #   - "^ad[sxv]?[0-9]*\\..*"
+  #   - ".*\\.(click|top|tk|ml)$"
+  regex: []
+
+  # -- Conditional forwarding for local domains
+  conditionalForwarding:
+    # -- Enable conditional forwarding
+    enabled: false
+    # -- Local network domain (e.g., "home.local", "lan")
+    domain: ""
+    # -- Local network CIDR (e.g., "192.168.1.0/24")
+    network: ""
+    # -- Router/DNS server IP for reverse lookups
+    router: ""
+    # -- Additional conditional forwarding rules
+    # customRules:
+    #   - domain: "corp.example.com"
+    #     server: "10.0.0.1"
+    customRules: []
+
   # -- Custom local DNS A records
   # Each entry: "IP HOSTNAME"
   # customRecords:
@@ -92,21 +164,6 @@ dns:
   #   - "server=/corp.example.com/10.0.0.1"
   #   - "address=/blocked.example.com/0.0.0.0"
   customDnsmasq: []
-
-  # -- Blocklist URLs for gravity database
-  # adlists:
-  #   - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
-  #   - https://s3.amazonaws.com/lists.disconnect.me/simple_tracking.txt
-  adlists: []
-
-  # -- Whitelisted domains
-  whitelist: []
-
-  # -- Blacklisted domains
-  blacklist: []
-
-  # -- Regex filters for blocking
-  regex: []
 
 # =============================================================================
 # Persistence
@@ -130,6 +187,110 @@ persistence:
 
   # -- Annotations for the PVC
   annotations: {}
+
+# =============================================================================
+# Gravity Database Initialization
+# =============================================================================
+# Init container that populates gravity.db with adlists, whitelist, blacklist,
+# and regex before Pi-hole starts. This enables automation of blocklist management.
+# =============================================================================
+
+gravity:
+  # -- Enable automated gravity database initialization
+  enabled: true
+
+  # -- Run pihole -g after populating database (updates gravity)
+  updateOnInit: true
+
+  image:
+    # -- Init container image repository
+    repository: docker.io/library/alpine
+    # -- Init container image tag
+    tag: "3.22"
+    # -- Init container pull policy
+    pullPolicy: IfNotPresent
+
+  # -- Resources for the init container
+  resources: {}
+    # requests:
+    #   cpu: 50m
+    #   memory: 64Mi
+    # limits:
+    #   cpu: 200m
+    #   memory: 128Mi
+
+# =============================================================================
+# Backup Automation
+# =============================================================================
+# Automated S3 backups of Pi-hole configuration and gravity database.
+# =============================================================================
+
+backup:
+  # -- Enable automated backups to S3
+  enabled: false
+
+  # -- Backup schedule (cron format)
+  schedule: "0 3 * * *"  # Daily at 3 AM UTC
+
+  # -- Job backoff limit
+  backoffLimit: 1
+
+  # -- Job history limits
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+
+  # -- Concurrency policy (Forbid, Allow, Replace)
+  concurrencyPolicy: Forbid
+
+  # -- What to backup
+  include:
+    # -- Backup gravity database (blocklists, whitelist, blacklist, regex, groups)
+    gravity: true
+    # -- Backup custom DNS records
+    customDns: true
+    # -- Backup dnsmasq configuration
+    dnsmasq: true
+
+  images:
+    # -- Backup utility image (tar + gzip)
+    utility:
+      repository: docker.io/library/alpine
+      tag: "3.22"
+      pullPolicy: IfNotPresent
+    # -- S3 uploader image (MinIO client)
+    uploader:
+      repository: docker.io/helmforge/mc
+      tag: "1.0.0"
+      pullPolicy: IfNotPresent
+
+  # -- Resources for backup containers
+  resources: {}
+    # requests:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # limits:
+    #   cpu: 500m
+    #   memory: 256Mi
+
+  s3:
+    # -- S3-compatible endpoint URL
+    endpoint: ""
+
+    # -- Target bucket name
+    bucket: ""
+
+    # -- Key prefix within the bucket
+    prefix: "pihole"
+
+    # -- Use an existing secret for S3 credentials
+    # Keys: access-key, secret-key
+    existingSecret: ""
+
+    # -- S3 access key ID
+    accessKey: ""
+
+    # -- S3 secret access key
+    secretKey: ""
 
 # =============================================================================
 # Resources
@@ -385,3 +546,77 @@ extraVolumes: []
 
 # -- Extra Kubernetes manifests to deploy alongside the chart
 extraManifests: []
+
+# =============================================================================
+# Configuration Examples
+# =============================================================================
+# Uncomment and adjust the relevant example below for quick setup
+# =============================================================================
+
+# Example 1: Home network with balanced blocking and monitoring
+# --------------------------------------------------------------
+# dns:
+#   preset: "balanced"
+#   whitelistPresets:
+#     microsoft: true
+#     apple: true
+#     gaming: true
+#   conditionalForwarding:
+#     enabled: true
+#     domain: "home.local"
+#     network: "192.168.1.0/24"
+#     router: "192.168.1.1"
+# metrics:
+#   enabled: true
+#   serviceMonitor:
+#     enabled: true
+# serviceDns:
+#   type: LoadBalancer
+#   loadBalancerIP: "192.168.1.53"
+
+# Example 2: Aggressive blocking for restricted network (kids/office)
+# --------------------------------------------------------------------
+# dns:
+#   preset: "aggressive"
+#   blacklist:
+#     - "tiktok.com"
+#     - "snapchat.com"
+#     - "instagram.com"
+#   whitelistPresets:
+#     microsoft: true  # For school/work devices
+#     google: false
+# pihole:
+#   ftl:
+#     queryLogging: true
+#     privacyLevel: 1
+
+# Example 3: Privacy-first setup with recursive DNS (no third-party DNS)
+# -----------------------------------------------------------------------
+# dns:
+#   preset: "balanced"
+# unbound:
+#   enabled: true
+# pihole:
+#   dnssec: true
+#   ftl:
+#     privacyLevel: 2
+#     cnameInspection: true
+# backup:
+#   enabled: true
+#   s3:
+#     endpoint: "https://s3.amazonaws.com"
+#     bucket: "my-pihole-backups"
+#     existingSecret: "pihole-s3-creds"
+
+# Example 4: Gaming-optimized setup
+# ----------------------------------
+# dns:
+#   preset: "gaming-friendly"
+#   whitelistPresets:
+#     gaming: true
+#     microsoft: true  # For Xbox
+# pihole:
+#   upstreamDns: "1.1.1.1;1.0.0.1"  # Cloudflare (low latency)
+#   ftl:
+#     cacheSize: 20000
+#     rateLimit: 2000

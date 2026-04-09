@@ -43,6 +43,23 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if .Values.gravity.enabled }}
+      initContainers:
+        - name: gravity-init
+          image: "{{ .Values.gravity.image.repository }}:{{ .Values.gravity.image.tag }}"
+          imagePullPolicy: {{ .Values.gravity.image.pullPolicy }}
+          command: ["/bin/sh", "/scripts/init-gravity.sh"]
+          {{- with .Values.gravity.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: pihole-data
+              mountPath: /etc/pihole
+            - name: gravity-init-scripts
+              mountPath: /scripts
+              readOnly: true
+      {{- end }}
       containers:
         - name: pihole
           image: {{ include "pihole.image" . }}
@@ -69,6 +86,34 @@ spec:
                   key: {{ include "pihole.secretKey" . }}
             - name: FTLCONF_misc_etc_dnsmasq_d
               value: "true"
+            {{- if .Values.pihole.ftl.cacheSize }}
+            - name: FTLCONF_dns_cache_size
+              value: {{ .Values.pihole.ftl.cacheSize | quote }}
+            {{- end }}
+            {{- if ne (int .Values.pihole.ftl.privacyLevel) 0 }}
+            - name: FTLCONF_misc_privacylevel
+              value: {{ .Values.pihole.ftl.privacyLevel | quote }}
+            {{- end }}
+            {{- if not .Values.pihole.ftl.cnameInspection }}
+            - name: FTLCONF_dns_cname_inspection
+              value: "false"
+            {{- end }}
+            {{- if .Values.pihole.ftl.rateLimit }}
+            - name: FTLCONF_dns_ratelimit
+              value: {{ .Values.pihole.ftl.rateLimit | quote }}
+            {{- end }}
+            {{- if .Values.pihole.ftl.blockAAAA }}
+            - name: FTLCONF_dns_blockAAAA
+              value: "true"
+            {{- end }}
+            {{- if not .Values.pihole.ftl.queryLogging }}
+            - name: FTLCONF_misc_queryLogging
+              value: "false"
+            {{- end }}
+            {{- if not .Values.pihole.ftl.useDatabase }}
+            - name: FTLCONF_database_DBfile
+              value: ""
+            {{- end }}
             {{- with .Values.pihole.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -138,6 +183,12 @@ spec:
               subPath: 05-custom-cname.conf
               readOnly: true
             {{- end }}
+            {{- if .Values.dns.conditionalForwarding.enabled }}
+            - name: conditional-forwarding
+              mountPath: /etc/dnsmasq.d/04-conditional-forwarding.conf
+              subPath: 04-conditional-forwarding.conf
+              readOnly: true
+            {{- end }}
             {{- if .Values.dns.customDnsmasq }}
             - name: custom-dnsmasq
               mountPath: /etc/dnsmasq.d/06-custom.conf
@@ -194,6 +245,12 @@ spec:
           {{- end }}
         - name: dnsmasq-config
           emptyDir: {}
+        {{- if .Values.gravity.enabled }}
+        - name: gravity-init-scripts
+          configMap:
+            name: {{ include "pihole.fullname" . }}-gravity-init
+            defaultMode: 0755
+        {{- end }}
         {{- if .Values.dns.customRecords }}
         - name: custom-records
           configMap:
@@ -209,6 +266,14 @@ spec:
             items:
               - key: 05-custom-cname.conf
                 path: 05-custom-cname.conf
+        {{- end }}
+        {{- if .Values.dns.conditionalForwarding.enabled }}
+        - name: conditional-forwarding
+          configMap:
+            name: {{ include "pihole.configMapName" . }}
+            items:
+              - key: 04-conditional-forwarding.conf
+                path: 04-conditional-forwarding.conf
         {{- end }}
         {{- if .Values.dns.customDnsmasq }}
         - name: custom-dnsmasq

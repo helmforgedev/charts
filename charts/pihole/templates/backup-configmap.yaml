@@ -1,0 +1,96 @@
+{{- if .Values.backup.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pihole.fullname" . }}-backup-scripts
+  labels:
+    {{- include "pihole.labels" . | nindent 4 }}
+data:
+  backup.sh: |
+    #!/bin/sh
+    set -e
+
+    echo "=== Pi-hole Backup Started ==="
+    DATE=$(date +%Y-%m-%d-%H%M%S)
+    BACKUP_DIR="/tmp/pihole-backup-${DATE}"
+    ARCHIVE="/tmp/pihole-backup-${DATE}.tar.gz"
+
+    mkdir -p "${BACKUP_DIR}"
+
+    {{- if .Values.backup.include.gravity }}
+    if [ -f /etc/pihole/gravity.db ]; then
+      echo "Backing up gravity database..."
+      cp /etc/pihole/gravity.db "${BACKUP_DIR}/gravity.db"
+    fi
+    {{- end }}
+
+    {{- if .Values.backup.include.customDns }}
+    if [ -f /etc/pihole/custom.list ]; then
+      echo "Backing up custom DNS records..."
+      cp /etc/pihole/custom.list "${BACKUP_DIR}/custom.list"
+    fi
+    {{- end }}
+
+    {{- if .Values.backup.include.dnsmasq }}
+    if [ -d /etc/dnsmasq.d ]; then
+      echo "Backing up dnsmasq configuration..."
+      mkdir -p "${BACKUP_DIR}/dnsmasq.d"
+      cp -r /etc/dnsmasq.d/* "${BACKUP_DIR}/dnsmasq.d/" || true
+    fi
+    {{- end }}
+
+    echo "Creating backup archive..."
+    cd /tmp
+    tar -czf "${ARCHIVE}" "pihole-backup-${DATE}"
+
+    echo "Backup archive created: ${ARCHIVE}"
+    echo "Archive size: $(du -h ${ARCHIVE} | cut -f1)"
+
+    # Cleanup temp directory
+    rm -rf "${BACKUP_DIR}"
+
+    echo "=== Backup Complete ==="
+
+  upload.sh: |
+    #!/bin/sh
+    set -e
+
+    echo "=== S3 Upload Started ==="
+
+    if [ -z "${S3_ENDPOINT}" ] || [ -z "${S3_BUCKET}" ]; then
+      echo "ERROR: S3_ENDPOINT and S3_BUCKET must be set"
+      exit 1
+    fi
+
+    if [ -z "${S3_ACCESS_KEY}" ] || [ -z "${S3_SECRET_KEY}" ]; then
+      echo "ERROR: S3 credentials not found"
+      exit 1
+    fi
+
+    # Find the backup archive
+    ARCHIVE=$(ls -t /tmp/pihole-backup-*.tar.gz | head -1)
+
+    if [ ! -f "${ARCHIVE}" ]; then
+      echo "ERROR: No backup archive found"
+      exit 1
+    fi
+
+    FILENAME=$(basename "${ARCHIVE}")
+    S3_PATH="${S3_PREFIX}/${FILENAME}"
+
+    echo "Configuring MinIO client..."
+    mc alias set s3 "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}"
+
+    echo "Uploading ${FILENAME} to s3/${S3_BUCKET}/${S3_PATH}..."
+    mc cp "${ARCHIVE}" "s3/${S3_BUCKET}/${S3_PATH}"
+
+    echo "Upload complete!"
+    echo "S3 Location: s3://${S3_BUCKET}/${S3_PATH}"
+
+    # List recent backups
+    echo ""
+    echo "Recent backups:"
+    mc ls "s3/${S3_BUCKET}/${S3_PREFIX}/" | tail -5 || true
+
+    echo "=== S3 Upload Complete ==="
+{{- end }}

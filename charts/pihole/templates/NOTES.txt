@@ -1,50 +1,117 @@
-Pi-hole has been deployed!
+=============================================================================
+Pi-hole DNS Sinkhole deployed successfully!
+=============================================================================
 
-{{- if eq .Values.serviceDns.type "LoadBalancer" }}
-
-DNS Service:
-  Your DNS service is exposed via LoadBalancer.
-  {{- if .Values.serviceDns.loadBalancerIP }}
-  Configure your clients to use DNS server: {{ .Values.serviceDns.loadBalancerIP }}
-  {{- else }}
-  Get the DNS IP with:
-    kubectl get svc {{ include "pihole.fullname" . }}-dns -n {{ .Release.Namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
-  {{- end }}
-{{- else }}
-  DNS is available at: {{ include "pihole.fullname" . }}-dns.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.serviceDns.port }}
-{{- end }}
-
-Web Admin:
+WEB ADMIN:
 {{- if .Values.ingress.enabled }}
   {{- range .Values.ingress.hosts }}
-  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}/admin
+   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}/admin
   {{- end }}
 {{- else }}
-  kubectl port-forward svc/{{ include "pihole.fullname" . }}-web -n {{ .Release.Namespace }} 8080:{{ .Values.serviceWeb.port }}
-  Then visit: http://localhost:8080/admin
+   kubectl port-forward svc/{{ include "pihole.fullname" . }}-web -n {{ .Release.Namespace }} 8080:{{ .Values.serviceWeb.port }}
+   Open: http://localhost:8080/admin
 {{- end }}
 
-Admin Password:
-{{- if .Values.admin.existingSecret }}
-  Using existing secret: {{ .Values.admin.existingSecret }}
-{{- else if .Values.admin.password }}
-  Using the password from values.
+   Password: {{- if .Values.admin.existingSecret }} {{ .Values.admin.existingSecret }} (existing secret)
+{{- else if .Values.admin.password }} <from values.yaml>
+{{- else }} kubectl get secret {{ include "pihole.fullname" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.password}' | base64 -d
+{{- end }}
+
+DNS SERVICE:
+   Type: {{ .Values.serviceDns.type }}
+{{- if eq .Values.serviceDns.type "LoadBalancer" }}
+  {{- if .Values.serviceDns.loadBalancerIP }}
+   IP: {{ .Values.serviceDns.loadBalancerIP }}
+  {{- else }}
+   IP: kubectl get svc {{ include "pihole.fullname" . }}-dns -n {{ .Release.Namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+  {{- end }}
+{{- else if eq .Values.serviceDns.type "NodePort" }}
+   Port: kubectl get svc {{ include "pihole.fullname" . }}-dns -n {{ .Release.Namespace }} -o jsonpath='{.spec.ports[?(@.name=="dns-udp")].nodePort}'
 {{- else }}
-  Auto-generated. Retrieve with:
-    kubectl get secret {{ include "pihole.fullname" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.password}' | base64 -d
+   Internal: {{ include "pihole.fullname" . }}-dns.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.serviceDns.port }}
+{{- end }}
+
+BLOCKLISTS:
+{{- if ne .Values.dns.preset "none" }}
+   Preset: {{ .Values.dns.preset }}
+{{- else }}
+   Preset: none (using custom lists only)
+{{- end }}
+{{- $adlists := include "pihole.adlists" . | fromYamlArray }}
+   Total adlists: {{ len $adlists }}
+{{- $whitelist := include "pihole.whitelist" . | fromYamlArray }}
+{{- if gt (len $whitelist) 0 }}
+   Whitelist: {{ len $whitelist }} domains (including presets)
+{{- end }}
+{{- if .Values.dns.blacklist }}
+   Blacklist: {{ len .Values.dns.blacklist }} domains
+{{- end }}
+{{- if .Values.dns.regex }}
+   Regex filters: {{ len .Values.dns.regex }}
+{{- end }}
+
+{{- if .Values.dns.whitelistPresets }}
+   Whitelist Presets:
+{{- if .Values.dns.whitelistPresets.microsoft }} - Microsoft
+{{- end }}
+{{- if .Values.dns.whitelistPresets.apple }} - Apple
+{{- end }}
+{{- if .Values.dns.whitelistPresets.google }} - Google
+{{- end }}
+{{- if .Values.dns.whitelistPresets.gaming }} - Gaming
+{{- end }}
+{{- if .Values.dns.whitelistPresets.smartHome }} - Smart Home
+{{- end }}
 {{- end }}
 
 {{- if .Values.unbound.enabled }}
 
-Unbound (Recursive DNS):
-  Unbound sidecar is enabled. Pi-hole uses 127.0.0.1#{{ .Values.unbound.port }} for recursive DNS resolution.
+RECURSIVE DNS:
+   Unbound sidecar: enabled (privacy-first DNS)
+   Pi-hole upstream: 127.0.0.1#{{ .Values.unbound.port }}
 {{- end }}
 
 {{- if .Values.metrics.enabled }}
 
-Metrics:
-  Prometheus metrics are available on port {{ .Values.metrics.port }}.
-  {{- if .Values.metrics.serviceMonitor.enabled }}
-  A ServiceMonitor has been created for Prometheus Operator.
-  {{- end }}
+METRICS:
+   Exporter: enabled on port {{ .Values.metrics.port }}
+{{- if .Values.metrics.serviceMonitor.enabled }}
+   ServiceMonitor: created for Prometheus Operator
 {{- end }}
+   Metrics endpoint: http://{{ include "pihole.fullname" . }}-web:{{ .Values.metrics.port }}/metrics
+{{- end }}
+
+{{- if .Values.backup.enabled }}
+
+BACKUP:
+   S3 backups: enabled
+   Schedule: {{ .Values.backup.schedule }}
+   Bucket: s3://{{ .Values.backup.s3.bucket }}/{{ .Values.backup.s3.prefix }}
+{{- end }}
+
+{{- if .Values.dns.conditionalForwarding.enabled }}
+
+CONDITIONAL FORWARDING:
+{{- if .Values.dns.conditionalForwarding.domain }}
+   Local domain: {{ .Values.dns.conditionalForwarding.domain }}
+{{- end }}
+{{- if .Values.dns.conditionalForwarding.network }}
+   Network: {{ .Values.dns.conditionalForwarding.network }}
+{{- end }}
+{{- if .Values.dns.conditionalForwarding.router }}
+   Router: {{ .Values.dns.conditionalForwarding.router }}
+{{- end }}
+{{- end }}
+
+NEXT STEPS:
+   1. Update device/router DNS settings to point to Pi-hole service IP
+   2. Access web admin to view real-time statistics
+   3. Wait for gravity to update (automatic on first run)
+   4. Monitor blocked queries in the web dashboard
+
+DOCUMENTATION:
+   Chart: https://helmforge.dev/docs/charts/pihole
+   Pi-hole: https://docs.pi-hole.net/
+   Source: https://github.com/helmforgedev/charts/tree/main/charts/pihole
+
+=============================================================================
