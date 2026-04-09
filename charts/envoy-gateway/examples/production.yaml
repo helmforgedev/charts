@@ -1,0 +1,77 @@
+# Production Envoy Gateway with full HA, rate limiting, monitoring, and security
+# Use case: Production deployment with DaemonSet, Let's Encrypt TLS, and all features
+
+profile: production-ha
+
+gatewayClass:
+  name: envoy-gateway
+
+gatewayAPI:
+  examples:
+    enabled: false  # No examples in production
+
+certificates:
+  certManager:
+    enabled: true
+    issuer: letsencrypt-prod
+    issuerKind: ClusterIssuer
+  autoProvision: false
+
+rateLimiting:
+  enabled: true
+  redis:
+    enabled: true
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    persistence:
+      enabled: true
+      size: 2Gi
+      storageClass: fast-ssd
+  presets:
+    api: true
+
+monitoring:
+  enabled: true
+  prometheus:
+    serviceMonitor: true
+    prometheusRule: true
+  grafana:
+    dashboards: true
+  accessLogs:
+    enabled: true
+    format: json
+
+security:
+  networkPolicies: true
+  podSecurityStandards: true
+
+highAvailability:
+  enabled: true
+  podDisruptionBudget:
+    minAvailable: 1
+
+proxy:
+  service:
+    type: LoadBalancer
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+      service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+  autoscaling:
+    enabled: false  # DaemonSet doesn't use HPA
+
+controller:
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+nodeSelector:
+  kubernetes.io/os: linux
