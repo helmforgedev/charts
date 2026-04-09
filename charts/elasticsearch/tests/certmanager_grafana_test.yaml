@@ -1,11 +1,9 @@
-suite: elasticsearch - cert-manager and Grafana dashboards
+suite: elasticsearch - cert-manager certificates
+templates:
+  - templates/certificate.yaml
 
 tests:
-  # ─────────────────────────────────────────────────────────
-  # cert-manager Certificate
-  # ─────────────────────────────────────────────────────────
   - it: Certificate not created when security disabled
-    template: templates/certificate.yaml
     set:
       security.enabled: false
       security.tls.certManager.enabled: true
@@ -14,7 +12,6 @@ tests:
           count: 0
 
   - it: Certificate not created when certManager disabled even if security enabled
-    template: templates/certificate.yaml
     set:
       security.enabled: true
       security.tls.certManager.enabled: false
@@ -23,7 +20,6 @@ tests:
           count: 0
 
   - it: Certificate not created when existingTlsSecret is set
-    template: templates/certificate.yaml
     set:
       security.enabled: true
       security.tls.certManager.enabled: true
@@ -33,7 +29,6 @@ tests:
           count: 0
 
   - it: self-signed Issuer and Certificate created when certManager enabled
-    template: templates/certificate.yaml
     set:
       security.enabled: true
       security.tls.certManager.enabled: true
@@ -49,7 +44,6 @@ tests:
         documentIndex: 1
 
   - it: Certificate uses ClusterIssuer when clusterIssuer=true (no Issuer created)
-    template: templates/certificate.yaml
     set:
       security.enabled: true
       security.tls.certManager.enabled: true
@@ -67,8 +61,7 @@ tests:
           path: spec.issuerRef.name
           value: letsencrypt-prod
 
-  - it: Certificate secretName matches tlsSecretName helper
-    template: templates/certificate.yaml
+  - it: Certificate secretName matches pattern
     set:
       security.enabled: true
       security.tls.certManager.enabled: true
@@ -78,42 +71,3 @@ tests:
           path: spec.secretName
           pattern: ".*-elasticsearch-tls"
         documentIndex: 1
-
-  # ─────────────────────────────────────────────────────────
-  # Grafana Dashboards
-  # ─────────────────────────────────────────────────────────
-  - it: Grafana dashboards ConfigMap not created when monitoring disabled
-    template: templates/grafana-dashboards.yaml
-    set:
-      monitoring.enabled: false
-      monitoring.grafana.dashboards: true
-    asserts:
-      - hasDocuments:
-          count: 0
-
-  - it: Grafana dashboards ConfigMap not created when dashboards disabled
-    template: templates/grafana-dashboards.yaml
-    set:
-      monitoring.enabled: true
-      monitoring.grafana.dashboards: false
-    asserts:
-      - hasDocuments:
-          count: 0
-
-  - it: Grafana dashboards ConfigMap created when both enabled
-    template: templates/grafana-dashboards.yaml
-    set:
-      monitoring.enabled: true
-      monitoring.grafana.dashboards: true
-    asserts:
-      - isKind:
-          of: ConfigMap
-      - equal:
-          path: metadata.labels["grafana_dashboard"]
-          value: "1"
-      - isNotNullOrEmpty:
-          path: data["elasticsearch-cluster-health.json"]
-      - isNotNullOrEmpty:
-          path: data["elasticsearch-jvm-metrics.json"]
-      - isNotNullOrEmpty:
-          path: data["elasticsearch-query-performance.json"]

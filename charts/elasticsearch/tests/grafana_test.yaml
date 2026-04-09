@@ -1,0 +1,37 @@
+suite: elasticsearch - Grafana dashboards
+templates:
+  - templates/grafana-dashboards.yaml
+
+tests:
+  - it: Grafana dashboards ConfigMap not created when monitoring disabled
+    set:
+      monitoring.enabled: false
+      monitoring.grafana.dashboards: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: Grafana dashboards ConfigMap not created when dashboards flag disabled
+    set:
+      monitoring.enabled: true
+      monitoring.grafana.dashboards: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: Grafana dashboards ConfigMap created when both flags enabled
+    set:
+      monitoring.enabled: true
+      monitoring.grafana.dashboards: true
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.labels["grafana_dashboard"]
+          value: "1"
+      - isNotNullOrEmpty:
+          path: data["elasticsearch-cluster-health.json"]
+      - isNotNullOrEmpty:
+          path: data["elasticsearch-jvm-metrics.json"]
+      - isNotNullOrEmpty:
+          path: data["elasticsearch-query-performance.json"]
