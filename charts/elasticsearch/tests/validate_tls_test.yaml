@@ -19,18 +19,19 @@ tests:
       security.existingTlsSecret: my-tls-secret
     asserts:
       - hasDocuments:
-          count: 0   # certManager not enabled, so no resources rendered
+          count: 0   # certManager not enabled, no resources rendered
 
-  - it: certManager.enabled should satisfy validator (even without CRD lookup in unit test)
+  - it: certManager.enabled satisfies validator (CRD check bypassed via skipCRDCheck)
     set:
       security.enabled: true
       security.tls.certManager.enabled: true
+      security.tls.certManager.skipCRDCheck: true
     asserts:
       - hasDocuments:
           count: 2  # Issuer + Certificate
 
   # ─────────────────────────────────────────────────────────────────────
-  # Camada 1 failures — should fail with descriptive error
+  # Camada 1 failures — errorMessage must match exact fail() string
   # ─────────────────────────────────────────────────────────────────────
   - it: security enabled without any TLS source should fail
     set:
@@ -39,7 +40,7 @@ tests:
       security.tls.certManager.enabled: false
     asserts:
       - failedTemplate:
-          errorMessage: "security.enabled=true requires exactly one TLS source"
+          errorMessage: "security.enabled=true requires a TLS source. Set one of: security.tls.certManager.enabled=true, security.tls.selfSignedInit.enabled=true, or security.existingTlsSecret=<name>. See: https://helmforge.dev/docs/charts/elasticsearch#security"
 
   - it: both selfSignedInit and certManager enabled simultaneously should fail
     set:
@@ -48,9 +49,9 @@ tests:
       security.tls.selfSignedInit.enabled: true
     asserts:
       - failedTemplate:
-          errorMessage: "Cannot enable both"
+          errorMessage: "Cannot enable both security.tls.selfSignedInit.enabled and security.tls.certManager.enabled. Choose only one TLS source."
 
-  - it: certManager.install without certManager.enabled should fail
+  - it: certManager.install without any TLS source should fail
     set:
       security.enabled: true
       certManager.install: true
@@ -58,4 +59,4 @@ tests:
       security.existingTlsSecret: ""
     asserts:
       - failedTemplate:
-          errorMessage: "security.enabled=true requires exactly one TLS source"
+          errorMessage: "security.enabled=true requires a TLS source. Set one of: security.tls.certManager.enabled=true, security.tls.selfSignedInit.enabled=true, or security.existingTlsSecret=<name>. See: https://helmforge.dev/docs/charts/elasticsearch#security"
