@@ -1,0 +1,90 @@
+suite: S3 Upload Provider
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should configure S3 upload provider env vars
+    template: templates/deployment.yaml
+    set:
+      strapi:
+        upload:
+          provider: aws-s3
+          s3:
+            enabled: true
+            bucket: test-bucket
+            region: us-west-2
+            accessKey: testkey
+            secretKey: testsecret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: test-strapi-upload-s3
+                key: access-key
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AWS_BUCKET
+            value: test-bucket
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AWS_REGION
+            value: us-west-2
+
+  - it: should create S3 upload secret
+    template: templates/secret.yaml
+    set:
+      strapi:
+        upload:
+          provider: aws-s3
+          s3:
+            enabled: true
+            bucket: test-bucket
+            accessKey: testkey
+            secretKey: testsecret
+    asserts:
+      - containsDocument:
+          kind: Secret
+          apiVersion: v1
+          name: test-strapi-upload-s3
+      - isSubset:
+          path: data
+          content:
+            access-key: dGVzdGtleQ==
+            secret-key: dGVzdHNlY3JldA==
+        documentIndex: 1
+
+  - it: should allow multi-replica with S3
+    template: templates/deployment.yaml
+    set:
+      replicaCount: 3
+      strapi:
+        upload:
+          provider: aws-s3
+          s3:
+            enabled: true
+            bucket: test-bucket
+            accessKey: key
+            secretKey: secret
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: should fail multi-replica without S3
+    template: templates/deployment.yaml
+    set:
+      replicaCount: 2
+      strapi:
+        upload:
+          provider: local
+    asserts:
+      - failedTemplate:
+          errorMessage: "Multi-replica deployment requires S3 or Cloudinary upload provider. Set strapi.upload.provider to 'aws-s3' or 'cloudinary' and configure credentials, or set replicaCount to 1."

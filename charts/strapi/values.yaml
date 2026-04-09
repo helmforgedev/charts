@@ -16,6 +16,11 @@ fullnameOverride: ""
 # -- Labels added to every resource created by this chart
 commonLabels: {}
 
+# -- Number of replicas for the Strapi deployment
+# IMPORTANT: Multi-replica (>1) requires S3 or Cloudinary upload provider.
+# Local filesystem uploads only work with replicaCount: 1
+replicaCount: 1
+
 # =============================================================================
 # Image
 # =============================================================================
@@ -63,6 +68,238 @@ strapi:
   #   - name: STRAPI_TELEMETRY_DISABLED
   #     value: "true"
   extraEnv: []
+
+  # ===========================================================================
+  # Upload Provider
+  # ===========================================================================
+  # By default, Strapi stores uploads on the local filesystem (PVC).
+  # For production multi-replica deployments, configure an S3-compatible
+  # provider or Cloudinary to store uploads in object storage.
+  # ===========================================================================
+
+  upload:
+    # -- Upload provider: local | aws-s3 | cloudinary
+    provider: local
+
+    s3:
+      # -- Enable S3/MinIO upload provider
+      enabled: false
+
+      # -- S3 endpoint (leave empty for AWS S3, set for MinIO/R2/Backblaze)
+      # Example: "https://minio.example.com"
+      endpoint: ""
+
+      # -- S3 region
+      region: us-east-1
+
+      # -- S3 bucket for uploads
+      bucket: ""
+
+      # -- S3 path prefix (folder)
+      prefix: ""
+
+      # -- Use existing secret for S3 credentials
+      # Keys: access-key, secret-key
+      existingSecret: ""
+
+      # -- Key in existing secret for access key
+      existingSecretAccessKeyKey: access-key
+
+      # -- Key in existing secret for secret key
+      existingSecretSecretKeyKey: secret-key
+
+      # -- Inline S3 access key (not recommended for production)
+      accessKey: ""
+
+      # -- Inline S3 secret key (not recommended for production)
+      secretKey: ""
+
+      # -- S3 ACL (private | public-read)
+      acl: private
+
+      # -- Base URL for accessing files (CDN). If empty, S3 URL is used.
+      baseUrl: ""
+
+      # -- Custom S3 parameters (e.g., CacheControl, ContentDisposition)
+      params: {}
+
+    cloudinary:
+      # -- Enable Cloudinary upload provider
+      enabled: false
+
+      # -- Cloudinary cloud name
+      cloudName: ""
+
+      # -- Cloudinary API key
+      apiKey: ""
+
+      # -- Cloudinary API secret (use existingSecret in production)
+      apiSecret: ""
+
+      # -- Use existing secret for Cloudinary credentials
+      # Keys: api-key, api-secret
+      existingSecret: ""
+
+      # -- Key in existing secret for API key
+      existingSecretApiKeyKey: api-key
+
+      # -- Key in existing secret for API secret
+      existingSecretApiSecretKey: api-secret
+
+  # ===========================================================================
+  # Performance Tuning
+  # ===========================================================================
+
+  performance:
+    # -- Node.js options (e.g., "--max-old-space-size=2048")
+    nodeOptions: ""
+
+    # -- Log level: fatal | error | warn | info | debug | trace
+    logLevel: info
+
+    # -- Pretty print logs (development only)
+    prettyPrint: false
+
+    # -- Force JSON structured logs
+    forceJsonLogs: true
+
+  # ===========================================================================
+  # Admin Panel Configuration
+  # ===========================================================================
+
+  admin:
+    # -- Custom admin panel path (default: /admin)
+    path: /admin
+
+    # -- Enable admin panel auto-open on start (development only)
+    autoOpen: false
+
+    # -- Admin JWT expiration time (e.g., 7d, 30d)
+    jwtExpiration: 7d
+
+    # -- Rate limit for admin login attempts
+    rateLimit:
+      enabled: true
+      max: 5
+      timeWindow: 900000  # 15 minutes in ms
+
+    # -- Forgotten password configuration
+    forgotPassword:
+      enabled: true
+
+  # ===========================================================================
+  # Email Configuration
+  # ===========================================================================
+
+  email:
+    # -- Email provider: smtp | sendgrid | none
+    provider: none
+
+    # -- Default "from" email address
+    defaultFrom: noreply@example.com
+
+    # -- Default "reply-to" email address
+    defaultReplyTo: ""
+
+    smtp:
+      # -- SMTP host
+      host: ""
+
+      # -- SMTP port
+      port: 587
+
+      # -- SMTP username
+      username: ""
+
+      # -- SMTP password (use existingSecret in production)
+      password: ""
+
+      # -- Use existing secret for SMTP credentials
+      # Keys: smtp-password
+      existingSecret: ""
+
+      # -- Key in existing secret for password
+      existingSecretPasswordKey: smtp-password
+
+      # -- Use TLS
+      secure: false
+
+      # -- Require TLS
+      requireTLS: true
+
+      # -- Ignore TLS errors (not recommended)
+      ignoreTLS: false
+
+    sendgrid:
+      # -- SendGrid API key
+      apiKey: ""
+
+      # -- Use existing secret
+      # Keys: sendgrid-api-key
+      existingSecret: ""
+
+      # -- Key in existing secret
+      existingSecretApiKeyKey: sendgrid-api-key
+
+  # ===========================================================================
+  # GraphQL Configuration
+  # ===========================================================================
+
+  graphql:
+    # -- Enable GraphQL playground in development
+    playgroundEnabled: false
+
+    # -- GraphQL endpoint path
+    endpoint: /graphql
+
+    # -- Enable GraphQL introspection (disable in production)
+    introspection: false
+
+    # -- Max query depth
+    maxDepth: 10
+
+    # -- Max query complexity
+    maxComplexity: 1000
+
+    # -- Enable Apollo sandbox
+    apolloSandbox: false
+
+  # ===========================================================================
+  # API Configuration
+  # ===========================================================================
+
+  api:
+    # -- REST API configuration
+    rest:
+      # -- Default limit for pagination
+      defaultLimit: 25
+
+      # -- Max limit for pagination
+      maxLimit: 100
+
+  # ===========================================================================
+  # Server Configuration
+  # ===========================================================================
+
+  server:
+    # -- Body parser size limits
+    bodyParser:
+      jsonLimit: 1mb
+      formLimit: 56kb
+      textLimit: 1mb
+
+    # -- Enable response compression
+    compression:
+      enabled: true
+
+    # -- Enable cron jobs
+    cron:
+      enabled: true
+
+    # -- Logger configuration
+    logger:
+      # -- Logger level (see performance.logLevel for runtime override)
+      level: info
 
 # =============================================================================
 # Application Secrets
@@ -156,6 +393,27 @@ database:
     ssl:
       # -- Set DATABASE_SSL=true
       enabled: false
+
+  # ===========================================================================
+  # Database Connection Pooling (PostgreSQL & MySQL only)
+  # ===========================================================================
+  # Important: Calculate max connections needed:
+  #   total_connections = replicaCount * pool.max + buffer
+  # Ensure your database max_connections is set accordingly.
+  # ===========================================================================
+
+  pool:
+    # -- Minimum database connections per replica
+    min: 2
+
+    # -- Maximum database connections per replica
+    max: 10
+
+    # -- Connection acquisition timeout (ms)
+    acquireTimeoutMillis: 30000
+
+    # -- Idle connection timeout (ms)
+    idleTimeoutMillis: 30000
 
 # =============================================================================
 # PostgreSQL Subchart
@@ -499,3 +757,384 @@ extraVolumes: []
 
 # -- Extra Kubernetes manifests to deploy alongside the chart
 extraManifests: []
+
+# =============================================================================
+# CONFIGURATION PRESETS & EXAMPLES
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Example 1: Production with S3 uploads and PostgreSQL (Multi-replica ready)
+# -----------------------------------------------------------------------------
+#
+# image:
+#   repository: ghcr.io/myorg/mystrapi
+#   tag: "1.0.0"
+#   pullPolicy: IfNotPresent
+#
+# replicaCount: 3
+#
+# postgresql:
+#   enabled: true
+#   auth:
+#     database: strapi
+#     username: strapi
+#     existingSecret: strapi-postgresql-secret
+#   primary:
+#     persistence:
+#       enabled: true
+#       size: 20Gi
+#
+# database:
+#   pool:
+#     min: 2
+#     max: 8
+#
+# strapi:
+#   url: https://cms.example.com
+#
+#   upload:
+#     provider: aws-s3
+#     s3:
+#       enabled: true
+#       bucket: mycompany-strapi-uploads
+#       region: us-east-1
+#       existingSecret: strapi-s3-secret
+#
+#   email:
+#     provider: smtp
+#     defaultFrom: noreply@example.com
+#     defaultReplyTo: support@example.com
+#     smtp:
+#       host: smtp.sendgrid.net
+#       port: 587
+#       username: apikey
+#       existingSecret: strapi-smtp-secret
+#
+#   admin:
+#     jwtExpiration: 7d
+#     rateLimit:
+#       enabled: true
+#       max: 5
+#       timeWindow: 900000
+#
+#   performance:
+#     nodeOptions: "--max-old-space-size=2048"
+#     logLevel: warn
+#     forceJsonLogs: true
+#
+#   graphql:
+#     playgroundEnabled: false
+#     introspection: false
+#
+# backup:
+#   enabled: true
+#   schedule: "0 2 * * *"
+#   s3:
+#     endpoint: https://s3.amazonaws.com
+#     bucket: mycompany-strapi-backups
+#     existingSecret: strapi-backup-s3-secret
+#
+# persistence:
+#   enabled: true
+#   size: 10Gi
+#   storageClass: fast-ssd
+#
+# ingress:
+#   enabled: true
+#   ingressClassName: nginx
+#   annotations:
+#     cert-manager.io/cluster-issuer: letsencrypt-prod
+#     nginx.ingress.kubernetes.io/rate-limit: "100"
+#     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+#   hosts:
+#     - host: cms.example.com
+#       paths:
+#         - path: /
+#           pathType: Prefix
+#   tls:
+#     - secretName: strapi-tls
+#       hosts:
+#         - cms.example.com
+#
+# resources:
+#   requests:
+#     cpu: 500m
+#     memory: 1Gi
+#   limits:
+#     cpu: "2"
+#     memory: 2.5Gi  # Must accommodate NODE_OPTIONS
+#
+# podDisruptionBudget:
+#   enabled: true
+#   minAvailable: 1
+
+# -----------------------------------------------------------------------------
+# Example 2: Development with SQLite and local uploads (Single replica)
+# -----------------------------------------------------------------------------
+#
+# image:
+#   repository: mystrapi
+#   tag: latest
+#   pullPolicy: Never
+#
+# replicaCount: 1
+#
+# database:
+#   mode: sqlite
+#
+# strapi:
+#   nodeEnv: development
+#   url: http://localhost:1337
+#
+#   upload:
+#     provider: local
+#
+#   admin:
+#     autoOpen: true
+#     rateLimit:
+#       enabled: false
+#
+#   performance:
+#     logLevel: debug
+#     prettyPrint: true
+#     forceJsonLogs: false
+#
+#   graphql:
+#     playgroundEnabled: true
+#     introspection: true
+#
+# persistence:
+#   enabled: true
+#   size: 1Gi
+#
+# resources:
+#   requests:
+#     cpu: 100m
+#     memory: 256Mi
+#   limits:
+#     cpu: "1"
+#     memory: 512Mi
+
+# -----------------------------------------------------------------------------
+# Example 3: Multi-region with MinIO object storage
+# -----------------------------------------------------------------------------
+#
+# image:
+#   repository: ghcr.io/myorg/mystrapi
+#   tag: "1.0.0"
+#
+# replicaCount: 2
+#
+# postgresql:
+#   enabled: true
+#   architecture: replication
+#   auth:
+#     database: strapi
+#     username: strapi
+#     existingSecret: strapi-postgresql-secret
+#   primary:
+#     persistence:
+#       size: 20Gi
+#   readReplicas:
+#     replicaCount: 1
+#
+# strapi:
+#   upload:
+#     provider: aws-s3
+#     s3:
+#       enabled: true
+#       endpoint: https://minio.example.com
+#       bucket: strapi-uploads
+#       region: us-east-1
+#       existingSecret: strapi-minio-secret
+#
+#   email:
+#     provider: sendgrid
+#     defaultFrom: cms@example.com
+#     sendgrid:
+#       existingSecret: strapi-sendgrid-secret
+#
+# backup:
+#   enabled: true
+#   schedule: "0 3 * * *"
+#   s3:
+#     endpoint: https://minio.example.com
+#     bucket: strapi-backups
+#     existingSecret: strapi-backup-minio-secret
+
+# -----------------------------------------------------------------------------
+# Example 4: High-security production with external database
+# -----------------------------------------------------------------------------
+#
+# image:
+#   repository: ghcr.io/myorg/mystrapi
+#   tag: "1.0.0"
+#
+# replicaCount: 3
+#
+# database:
+#   mode: external
+#   external:
+#     vendor: postgres
+#     host: postgres.production.svc.cluster.local
+#     port: 5432
+#     name: strapi
+#     username: strapi
+#     existingSecret: strapi-external-db-secret
+#     ssl:
+#       enabled: true
+#   pool:
+#     min: 2
+#     max: 6
+#
+# strapi:
+#   upload:
+#     provider: aws-s3
+#     s3:
+#       enabled: true
+#       bucket: strapi-uploads-prod
+#       region: us-east-1
+#       existingSecret: strapi-s3-secret
+#       acl: private
+#
+#   email:
+#     provider: smtp
+#     defaultFrom: noreply@example.com
+#     smtp:
+#       host: smtp.example.com
+#       port: 587
+#       existingSecret: strapi-smtp-secret
+#       secure: true
+#       requireTLS: true
+#
+#   admin:
+#     path: /secure-admin
+#     jwtExpiration: 1d
+#     rateLimit:
+#       enabled: true
+#       max: 3
+#       timeWindow: 900000
+#
+#   performance:
+#     nodeOptions: "--max-old-space-size=4096"
+#     logLevel: error
+#     forceJsonLogs: true
+#
+#   graphql:
+#     playgroundEnabled: false
+#     introspection: false
+#     maxDepth: 5
+#     maxComplexity: 500
+#
+# serviceAccount:
+#   create: true
+#   annotations:
+#     iam.gke.io/gcp-service-account: strapi-sa@project.iam.gserviceaccount.com
+#
+# resources:
+#   requests:
+#     cpu: "1"
+#     memory: 2Gi
+#   limits:
+#     cpu: "4"
+#     memory: 5Gi
+#
+# affinity:
+#   podAntiAffinity:
+#     requiredDuringSchedulingIgnoredDuringExecution:
+#       - labelSelector:
+#           matchLabels:
+#             app.kubernetes.io/name: strapi
+#         topologyKey: kubernetes.io/hostname
+#
+# podDisruptionBudget:
+#   enabled: true
+#   minAvailable: 2
+#
+# networkPolicy:
+#   enabled: true
+#   ingress:
+#     from:
+#       - namespaceSelector:
+#           matchLabels:
+#             name: ingress-nginx
+#   egress:
+#     - to:
+#         - namespaceSelector:
+#             matchLabels:
+#               name: database
+#       ports:
+#         - protocol: TCP
+#           port: 5432
+
+# -----------------------------------------------------------------------------
+# Example 5: Staging with Cloudinary uploads
+# -----------------------------------------------------------------------------
+#
+# image:
+#   repository: ghcr.io/myorg/mystrapi
+#   tag: "staging"
+#
+# replicaCount: 2
+#
+# postgresql:
+#   enabled: true
+#   auth:
+#     database: strapi
+#     username: strapi
+#     password: change-me-staging
+#   primary:
+#     persistence:
+#       size: 10Gi
+#
+# strapi:
+#   url: https://cms-staging.example.com
+#
+#   upload:
+#     provider: cloudinary
+#     cloudinary:
+#       enabled: true
+#       cloudName: mycompany-staging
+#       existingSecret: strapi-cloudinary-secret
+#
+#   email:
+#     provider: smtp
+#     defaultFrom: staging-cms@example.com
+#     smtp:
+#       host: smtp.mailtrap.io
+#       port: 2525
+#       existingSecret: strapi-mailtrap-secret
+#
+#   admin:
+#     jwtExpiration: 7d
+#
+#   performance:
+#     logLevel: info
+#     forceJsonLogs: true
+#
+#   graphql:
+#     playgroundEnabled: true
+#     introspection: true
+#
+# ingress:
+#   enabled: true
+#   ingressClassName: nginx
+#   annotations:
+#     cert-manager.io/cluster-issuer: letsencrypt-staging
+#   hosts:
+#     - host: cms-staging.example.com
+#       paths:
+#         - path: /
+#           pathType: Prefix
+#   tls:
+#     - secretName: strapi-staging-tls
+#       hosts:
+#         - cms-staging.example.com
+#
+# resources:
+#   requests:
+#     cpu: 250m
+#     memory: 512Mi
+#   limits:
+#     cpu: "1"
+#     memory: 1Gi

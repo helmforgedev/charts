@@ -17,6 +17,11 @@
       "type": "object",
       "description": "Labels added to every resource created by this chart."
     },
+    "replicaCount": {
+      "type": "integer",
+      "description": "Number of replicas. Multi-replica requires S3/Cloudinary upload provider.",
+      "minimum": 1
+    },
     "image": {
       "type": "object",
       "description": "Container image configuration.",
@@ -87,6 +92,157 @@
           "description": "Additional environment variables for the Strapi container.",
           "items": {
             "type": "object"
+          }
+        },
+        "upload": {
+          "type": "object",
+          "properties": {
+            "provider": { "type": "string", "enum": ["local", "aws-s3", "cloudinary"] },
+            "s3": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "endpoint": { "type": "string" },
+                "region": { "type": "string" },
+                "bucket": { "type": "string" },
+                "prefix": { "type": "string" },
+                "existingSecret": { "type": "string" },
+                "existingSecretAccessKeyKey": { "type": "string" },
+                "existingSecretSecretKeyKey": { "type": "string" },
+                "accessKey": { "type": "string" },
+                "secretKey": { "type": "string" },
+                "acl": { "type": "string" },
+                "baseUrl": { "type": "string" },
+                "params": { "type": "object" }
+              }
+            },
+            "cloudinary": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "cloudName": { "type": "string" },
+                "apiKey": { "type": "string" },
+                "apiSecret": { "type": "string" },
+                "existingSecret": { "type": "string" },
+                "existingSecretApiKeyKey": { "type": "string" },
+                "existingSecretApiSecretKey": { "type": "string" }
+              }
+            }
+          }
+        },
+        "performance": {
+          "type": "object",
+          "properties": {
+            "nodeOptions": { "type": "string" },
+            "logLevel": { "type": "string", "enum": ["fatal", "error", "warn", "info", "debug", "trace"] },
+            "prettyPrint": { "type": "boolean" },
+            "forceJsonLogs": { "type": "boolean" }
+          }
+        },
+        "admin": {
+          "type": "object",
+          "properties": {
+            "path": { "type": "string" },
+            "autoOpen": { "type": "boolean" },
+            "jwtExpiration": { "type": "string" },
+            "rateLimit": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "max": { "type": "integer" },
+                "timeWindow": { "type": "integer" }
+              }
+            },
+            "forgotPassword": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" }
+              }
+            }
+          }
+        },
+        "email": {
+          "type": "object",
+          "properties": {
+            "provider": { "type": "string", "enum": ["none", "smtp", "sendgrid"] },
+            "defaultFrom": { "type": "string" },
+            "defaultReplyTo": { "type": "string" },
+            "smtp": {
+              "type": "object",
+              "properties": {
+                "host": { "type": "string" },
+                "port": { "type": "integer" },
+                "username": { "type": "string" },
+                "password": { "type": "string" },
+                "existingSecret": { "type": "string" },
+                "existingSecretPasswordKey": { "type": "string" },
+                "secure": { "type": "boolean" },
+                "requireTLS": { "type": "boolean" },
+                "ignoreTLS": { "type": "boolean" }
+              }
+            },
+            "sendgrid": {
+              "type": "object",
+              "properties": {
+                "apiKey": { "type": "string" },
+                "existingSecret": { "type": "string" },
+                "existingSecretApiKeyKey": { "type": "string" }
+              }
+            }
+          }
+        },
+        "graphql": {
+          "type": "object",
+          "properties": {
+            "playgroundEnabled": { "type": "boolean" },
+            "endpoint": { "type": "string" },
+            "introspection": { "type": "boolean" },
+            "maxDepth": { "type": "integer" },
+            "maxComplexity": { "type": "integer" },
+            "apolloSandbox": { "type": "boolean" }
+          }
+        },
+        "api": {
+          "type": "object",
+          "properties": {
+            "rest": {
+              "type": "object",
+              "properties": {
+                "defaultLimit": { "type": "integer" },
+                "maxLimit": { "type": "integer" }
+              }
+            }
+          }
+        },
+        "server": {
+          "type": "object",
+          "properties": {
+            "bodyParser": {
+              "type": "object",
+              "properties": {
+                "jsonLimit": { "type": "string" },
+                "formLimit": { "type": "string" },
+                "textLimit": { "type": "string" }
+              }
+            },
+            "compression": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" }
+              }
+            },
+            "cron": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" }
+              }
+            },
+            "logger": {
+              "type": "object",
+              "properties": {
+                "level": { "type": "string" }
+              }
+            }
           }
         }
       }
@@ -208,6 +364,30 @@
                   "description": "Set DATABASE_SSL=true."
                 }
               }
+            }
+          }
+        },
+        "pool": {
+          "type": "object",
+          "description": "Database connection pooling configuration.",
+          "properties": {
+            "min": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Minimum database connections per replica."
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum database connections per replica."
+            },
+            "acquireTimeoutMillis": {
+              "type": "integer",
+              "description": "Connection acquisition timeout (ms)."
+            },
+            "idleTimeoutMillis": {
+              "type": "integer",
+              "description": "Idle connection timeout (ms)."
             }
           }
         }

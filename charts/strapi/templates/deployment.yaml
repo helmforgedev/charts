@@ -5,7 +5,7 @@ metadata:
   labels:
     {{- include "strapi.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ include "strapi.replicaCount" . }}
   selector:
     matchLabels:
       {{- include "strapi.selectorLabels" . | nindent 6 }}
@@ -150,13 +150,181 @@ spec:
             - name: DATABASE_FILENAME
               value: {{ include "strapi.sqlitePath" . | quote }}
             {{- end }}
+            {{- if ne (include "strapi.databaseMode" .) "sqlite" }}
+            {{- if .Values.database.pool }}
+            - name: DATABASE_POOL_MIN
+              value: {{ .Values.database.pool.min | default 2 | toString | quote }}
+            - name: DATABASE_POOL_MAX
+              value: {{ .Values.database.pool.max | default 10 | toString | quote }}
+            {{- if .Values.database.pool.acquireTimeoutMillis }}
+            - name: DATABASE_POOL_ACQUIRE_TIMEOUT
+              value: {{ .Values.database.pool.acquireTimeoutMillis | toString | quote }}
+            {{- end }}
+            {{- if .Values.database.pool.idleTimeoutMillis }}
+            - name: DATABASE_POOL_IDLE_TIMEOUT
+              value: {{ .Values.database.pool.idleTimeoutMillis | toString | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.strapi.performance.nodeOptions }}
+            - name: NODE_OPTIONS
+              value: {{ .Values.strapi.performance.nodeOptions | quote }}
+            {{- end }}
+            - name: STRAPI_LOG_LEVEL
+              value: {{ .Values.strapi.performance.logLevel | default "info" | quote }}
+            {{- if .Values.strapi.performance.forceJsonLogs }}
+            - name: STRAPI_LOG_FORCE_JSON
+              value: "true"
+            {{- end }}
+            {{- if .Values.strapi.performance.prettyPrint }}
+            - name: STRAPI_LOG_PRETTY_PRINT
+              value: "true"
+            {{- end }}
+            {{- if .Values.strapi.admin.path }}
+            - name: ADMIN_PATH
+              value: {{ .Values.strapi.admin.path | quote }}
+            {{- end }}
+            {{- if .Values.strapi.admin.jwtExpiration }}
+            - name: ADMIN_JWT_EXPIRATION
+              value: {{ .Values.strapi.admin.jwtExpiration | quote }}
+            {{- end }}
+            {{- if .Values.strapi.admin.rateLimit.enabled }}
+            - name: ADMIN_RATE_LIMIT_ENABLED
+              value: "true"
+            - name: ADMIN_RATE_LIMIT_MAX
+              value: {{ .Values.strapi.admin.rateLimit.max | default 5 | toString | quote }}
+            - name: ADMIN_RATE_LIMIT_TIME_WINDOW
+              value: {{ .Values.strapi.admin.rateLimit.timeWindow | default 900000 | toString | quote }}
+            {{- end }}
+            {{- if ne .Values.strapi.email.provider "none" }}
+            - name: EMAIL_PROVIDER
+              value: {{ .Values.strapi.email.provider | quote }}
+            - name: EMAIL_DEFAULT_FROM
+              value: {{ .Values.strapi.email.defaultFrom | quote }}
+            {{- if .Values.strapi.email.defaultReplyTo }}
+            - name: EMAIL_DEFAULT_REPLY_TO
+              value: {{ .Values.strapi.email.defaultReplyTo | quote }}
+            {{- end }}
+            {{- if eq .Values.strapi.email.provider "smtp" }}
+            - name: EMAIL_SMTP_HOST
+              value: {{ .Values.strapi.email.smtp.host | quote }}
+            - name: EMAIL_SMTP_PORT
+              value: {{ .Values.strapi.email.smtp.port | default 587 | toString | quote }}
+            {{- if .Values.strapi.email.smtp.username }}
+            - name: EMAIL_SMTP_USERNAME
+              value: {{ .Values.strapi.email.smtp.username | quote }}
+            {{- end }}
+            {{- if or .Values.strapi.email.smtp.password .Values.strapi.email.smtp.existingSecret }}
+            - name: EMAIL_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "strapi.emailSecretName" . }}
+                  key: {{ .Values.strapi.email.smtp.existingSecretPasswordKey }}
+            {{- end }}
+            - name: EMAIL_SMTP_SECURE
+              value: {{ .Values.strapi.email.smtp.secure | toString | quote }}
+            - name: EMAIL_SMTP_REQUIRE_TLS
+              value: {{ .Values.strapi.email.smtp.requireTLS | toString | quote }}
+            {{- if .Values.strapi.email.smtp.ignoreTLS }}
+            - name: EMAIL_SMTP_IGNORE_TLS
+              value: "true"
+            {{- end }}
+            {{- else if eq .Values.strapi.email.provider "sendgrid" }}
+            {{- if or .Values.strapi.email.sendgrid.apiKey .Values.strapi.email.sendgrid.existingSecret }}
+            - name: SENDGRID_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "strapi.emailSecretName" . }}
+                  key: {{ .Values.strapi.email.sendgrid.existingSecretApiKeyKey }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if eq .Values.strapi.upload.provider "aws-s3" }}
+            {{- if .Values.strapi.upload.s3.enabled }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "strapi.uploadS3SecretName" . }}
+                  key: {{ .Values.strapi.upload.s3.existingSecretAccessKeyKey }}
+            - name: AWS_ACCESS_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "strapi.uploadS3SecretName" . }}
+                  key: {{ .Values.strapi.upload.s3.existingSecretSecretKeyKey }}
+            {{- if .Values.strapi.upload.s3.region }}
+            - name: AWS_REGION
+              value: {{ .Values.strapi.upload.s3.region | quote }}
+            {{- end }}
+            {{- if .Values.strapi.upload.s3.endpoint }}
+            - name: AWS_ENDPOINT
+              value: {{ .Values.strapi.upload.s3.endpoint | quote }}
+            {{- end }}
+            - name: AWS_BUCKET
+              value: {{ .Values.strapi.upload.s3.bucket | quote }}
+            {{- if .Values.strapi.upload.s3.prefix }}
+            - name: AWS_PREFIX
+              value: {{ .Values.strapi.upload.s3.prefix | quote }}
+            {{- end }}
+            {{- if .Values.strapi.upload.s3.baseUrl }}
+            - name: AWS_BASE_URL
+              value: {{ .Values.strapi.upload.s3.baseUrl | quote }}
+            {{- end }}
+            {{- end }}
+            {{- else if eq .Values.strapi.upload.provider "cloudinary" }}
+            {{- if .Values.strapi.upload.cloudinary.enabled }}
+            - name: CLOUDINARY_CLOUD_NAME
+              value: {{ .Values.strapi.upload.cloudinary.cloudName | quote }}
+            {{- if or .Values.strapi.upload.cloudinary.apiKey .Values.strapi.upload.cloudinary.existingSecret }}
+            - name: CLOUDINARY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "strapi.uploadCloudinarySecretName" . }}
+                  key: {{ .Values.strapi.upload.cloudinary.existingSecretApiKeyKey }}
+            - name: CLOUDINARY_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "strapi.uploadCloudinarySecretName" . }}
+                  key: {{ .Values.strapi.upload.cloudinary.existingSecretApiSecretKey }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.strapi.graphql.playgroundEnabled }}
+            - name: GRAPHQL_PLAYGROUND_ENABLED
+              value: "true"
+            {{- end }}
+            {{- if .Values.strapi.graphql.endpoint }}
+            - name: GRAPHQL_ENDPOINT
+              value: {{ .Values.strapi.graphql.endpoint | quote }}
+            {{- end }}
+            {{- if not .Values.strapi.graphql.introspection }}
+            - name: GRAPHQL_INTROSPECTION
+              value: "false"
+            {{- end }}
+            {{- if .Values.strapi.graphql.maxDepth }}
+            - name: GRAPHQL_MAX_DEPTH
+              value: {{ .Values.strapi.graphql.maxDepth | toString | quote }}
+            {{- end }}
+            {{- if .Values.strapi.graphql.maxComplexity }}
+            - name: GRAPHQL_MAX_COMPLEXITY
+              value: {{ .Values.strapi.graphql.maxComplexity | toString | quote }}
+            {{- end }}
+            {{- if .Values.strapi.api.rest.defaultLimit }}
+            - name: API_REST_DEFAULT_LIMIT
+              value: {{ .Values.strapi.api.rest.defaultLimit | toString | quote }}
+            {{- end }}
+            {{- if .Values.strapi.api.rest.maxLimit }}
+            - name: API_REST_MAX_LIMIT
+              value: {{ .Values.strapi.api.rest.maxLimit | toString | quote }}
+            {{- end }}
             {{- with .Values.strapi.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- if .Values.startupProbe.enabled }}
           startupProbe:
-            tcpSocket:
+            httpGet:
+              path: /_health
               port: http
+              scheme: HTTP
             initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.startupProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
@@ -164,8 +332,10 @@ spec:
           {{- end }}
           {{- if .Values.livenessProbe.enabled }}
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /_health
               port: http
+              scheme: HTTP
             initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
@@ -173,8 +343,10 @@ spec:
           {{- end }}
           {{- if .Values.readinessProbe.enabled }}
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /_health
               port: http
+              scheme: HTTP
             initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
