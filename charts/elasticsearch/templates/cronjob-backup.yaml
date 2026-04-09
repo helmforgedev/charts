@@ -1,4 +1,4 @@
-﻿{{- if eq (include "elasticsearch.backupEnabled" .) "true" -}}
+{{- if eq (include "elasticsearch.backupEnabled" .) "true" -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -7,10 +7,21 @@ metadata:
   labels:
     {{- include "elasticsearch.labels" . | nindent 4 }}
 data:
+  # Executed by initContainer (helmforge/mc) — ensures S3 bucket exists
+  mc-init.sh: |
+    #!/bin/sh
+    set -e
+    echo "=== Configuring MinIO/S3 alias ==="
+    mc alias set minio "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}" --api S3v4
+    echo "=== Ensuring bucket exists: ${S3_BUCKET} ==="
+    mc mb --ignore-existing "minio/${S3_BUCKET}"
+    echo "=== Bucket ready ==="
+
+  # Executed by main container (curlimages/curl) — calls ES Snapshot API
+  # repository-s3 is a built-in module in Elasticsearch 8.x — no plugin install needed
   backup.sh: |
     #!/bin/sh
     set -e
-
     SCHEME="{{ if eq (include "elasticsearch.security.enabled" .) "true" }}https{{ else }}http{{ end }}"
     ES_HOST="{{ include "elasticsearch.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local"
     ES_PORT="{{ .Values.service.httpPort }}"
@@ -20,34 +31,16 @@ data:
     RETENTION_DAYS="{{ .Values.backup.retention.days }}"
     SSL_FLAGS="{{ if eq (include "elasticsearch.security.enabled" .) "true" }}-k{{ end }}"
     AUTH_FLAGS="{{ if eq (include "elasticsearch.security.enabled" .) "true" }}-u elastic:${ELASTIC_PASSWORD}{{ end }}"
-
-    echo "=== Registering S3 repository ==="
-    curl -sf ${SSL_FLAGS} ${AUTH_FLAGS} -X PUT "${BASE_URL}/_snapshot/${REPO_NAME}" \
-      -H 'Content-Type: application/json' \
-      -d "{
-        \"type\": \"s3\",
-        \"settings\": {
-          \"bucket\": \"${S3_BUCKET}\",
-          \"region\": \"${S3_REGION}\",
-          \"endpoint\": \"${S3_ENDPOINT}\",
-          \"base_path\": \"${S3_PREFIX}\"
-        }
-      }"
-
-    echo ""
+    echo "=== Registering S3 snapshot repository ==="
+    curl -sf ${SSL_FLAGS} ${AUTH_FLAGS} -X PUT "${BASE_URL}/_snapshot/${REPO_NAME}" -H "Content-Type: application/json" -d "{\"type\":\"s3\",\"settings\":{\"bucket\":\"${S3_BUCKET}\",\"region\":\"${S3_REGION}\",\"endpoint\":\"${S3_ENDPOINT}\",\"path_style_access\":true,\"base_path\":\"${S3_PREFIX}\"}}"
+    echo "=== Registered ==="
     echo "=== Creating snapshot: ${SNAPSHOT_NAME} ==="
-    curl -sf ${SSL_FLAGS} ${AUTH_FLAGS} -X PUT "${BASE_URL}/_snapshot/${REPO_NAME}/${SNAPSHOT_NAME}?wait_for_completion=true" \
-      -H 'Content-Type: application/json' \
-      -d '{"include_global_state": true}'
-
-    echo ""
-    echo "=== Snapshot created successfully ==="
-
+    curl -sf ${SSL_FLAGS} ${AUTH_FLAGS} -X PUT "${BASE_URL}/_snapshot/${REPO_NAME}/${SNAPSHOT_NAME}?wait_for_completion=true" -H "Content-Type: application/json" -d "{\"include_global_state\":true}"
+    echo "=== Snapshot created: ${SNAPSHOT_NAME} ==="
     if [ "${RETENTION_DAYS}" -gt "0" ]; then
       echo "=== Pruning snapshots older than ${RETENTION_DAYS} days ==="
       CUTOFF=$(date -d "${RETENTION_DAYS} days ago" +%s 2>/dev/null || date -v-${RETENTION_DAYS}d +%s)
-      SNAPSHOTS=$(curl -sf ${SSL_FLAGS} ${AUTH_FLAGS} "${BASE_URL}/_snapshot/${REPO_NAME}/_all" | \
-        grep -o '"snapshot":"[^"]*"' | sed 's/"snapshot":"//;s/"//')
+      SNAPSHOTS=$(curl -sf ${SSL_FLAGS} ${AUTH_FLAGS} "${BASE_URL}/_snapshot/${REPO_NAME}/_all" | grep -o '"snapshot":"[^"]*"' | sed 's/"snapshot":"//;s/"//')
       for s in ${SNAPSHOTS}; do
         SNAP_INFO=$(curl -sf ${SSL_FLAGS} ${AUTH_FLAGS} "${BASE_URL}/_snapshot/${REPO_NAME}/${s}")
         START_MS=$(echo "${SNAP_INFO}" | grep -o '"start_time_in_millis":[0-9]*' | grep -o '[0-9]*')
@@ -58,7 +51,6 @@ data:
         fi
       done
     fi
-
     echo "=== Backup complete ==="
 ---
 apiVersion: batch/v1
@@ -83,11 +75,38 @@ spec:
         spec:
           restartPolicy: OnFailure
           serviceAccountName: {{ include "elasticsearch.serviceAccountName" . }}
-          containers:
-            - name: backup
+          # Step 1: mc ensures the S3 bucket exists before ES can write snapshots to it
+          initContainers:
+            - name: ensure-bucket
               image: {{ printf "%s:%s" .Values.backup.image.repository .Values.backup.image.tag }}
               imagePullPolicy: {{ .Values.backup.image.pullPolicy }}
-              command: ["/bin/sh", "-c", "sed 's/\r//g' /scripts/backup.sh | sh"]
+              # tr strips Windows CRLF (\r) — sed is unavailable in the helmforge/mc image
+              command: ["/bin/sh", "-c", "tr -d '\\r' < /scripts/mc-init.sh > /tmp/init.sh && /bin/sh /tmp/init.sh"]
+              env:
+                - name: S3_BUCKET
+                  value: {{ .Values.backup.s3.bucket | quote }}
+                - name: S3_ENDPOINT
+                  value: {{ .Values.backup.s3.endpoint | quote }}
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "elasticsearch.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretAccessKeyKey }}
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "elasticsearch.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+              volumeMounts:
+                - name: backup-script
+                  mountPath: /scripts
+          # Step 2: curl calls the ES Snapshot API (repository-s3 is built-in to ES 8.x)
+          containers:
+            - name: backup
+              image: {{ printf "%s:%s" .Values.backup.curlImage.repository .Values.backup.curlImage.tag }}
+              imagePullPolicy: {{ .Values.backup.curlImage.pullPolicy }}
+              # sed strips Windows CRLF before executing the script
+              command: ["/bin/sh", "-c", "sed 's/\\r//g' /scripts/backup.sh | sh"]
               env:
                 - name: S3_BUCKET
                   value: {{ .Values.backup.s3.bucket | quote }}
