@@ -7,8 +7,12 @@ Activated when: security.enabled=true AND security.tls.selfSignedInit.enabled=tr
 Creates:
   - ServiceAccount (for Secret creation)
   - Role + RoleBinding (create/get secrets in namespace)
-  - Job (pre-install,pre-upgrade): generates RSA key + self-signed cert via openssl
-    and stores it as a TLS Secret. Idempotent: skips if Secret already exists.
+  - Job (pre-install,pre-upgrade):
+      initContainer: openssl (generates RSA key + self-signed cert)
+      container:     bitnami/kubectl (creates the K8s Secret)
+      shared volume: emptyDir (/certs)
+
+Idempotent: checks if Secret already exists before generating.
 =============================================================================
 */}}
 {{- if and (eq (include "elasticsearch.security.enabled" .) "true") .Values.security.tls.selfSignedInit.enabled }}
@@ -44,7 +48,7 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get", "create"]
+    verbs: ["get", "create", "apply", "patch", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -78,22 +82,23 @@ metadata:
     "helm.sh/hook-weight": "0"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
-  backoffLimit: 2
-  activeDeadlineSeconds: 120
+  backoffLimit: 1
+  activeDeadlineSeconds: 180
   template:
     metadata:
       labels:
         {{- include "elasticsearch.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: tls-init
     spec:
-      restartPolicy: OnFailure
+      restartPolicy: Never
       serviceAccountName: {{ $fullname }}-tls-init
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-      containers:
-        - name: tls-init
+        runAsNonRoot: false
+      volumes:
+        - name: certs
+          emptyDir: {}
+      initContainers:
+        - name: generate-certs
           image: {{ .Values.security.tls.selfSignedInit.image.repository }}:{{ .Values.security.tls.selfSignedInit.image.tag }}
           imagePullPolicy: {{ .Values.security.tls.selfSignedInit.image.pullPolicy }}
           securityContext:
@@ -102,36 +107,24 @@ spec:
             capabilities:
               drop: ["ALL"]
           env:
-            - name: SECRET_NAME
-              value: {{ $secretName | quote }}
-            - name: NAMESPACE
-              value: {{ $namespace | quote }}
             - name: DAYS
               value: {{ $days | quote }}
             - name: FULLNAME
               value: {{ $fullname | quote }}
-            - name: RELEASE_NAMESPACE
+            - name: NAMESPACE
               value: {{ $namespace | quote }}
+          volumeMounts:
+            - name: certs
+              mountPath: /certs
           command:
             - /bin/sh
             - -c
             - |
               set -e
+              echo "Generating self-signed TLS certificate for ${FULLNAME}..."
 
-              # ── idempotency: skip if secret already exists ──────────────────
-              if kubectl get secret "${SECRET_NAME}" -n "${NAMESPACE}" >/dev/null 2>&1; then
-                echo "✅ TLS Secret '${SECRET_NAME}' already exists — skipping generation."
-                exit 0
-              fi
-
-              echo "🔐 Generating self-signed TLS certificate for ${FULLNAME}..."
-
-              TMPDIR=$(mktemp -d)
-              trap "rm -rf $TMPDIR" EXIT
-
-              # ── Subject Alternative Names ────────────────────────────────────
-              # Covers all headless service DNS entries used by Elasticsearch nodes
-              cat > "${TMPDIR}/san.cnf" <<EOF
+              # Subject Alternative Names covering all Elasticsearch DNS entries
+              cat > /certs/san.cnf << EOF
               [req]
               distinguished_name = req_distinguished_name
               x509_extensions = v3_req
@@ -151,49 +144,68 @@ spec:
               DNS.5 = *.${FULLNAME}-master-headless.${NAMESPACE}.svc.cluster.local
               DNS.6 = *.${FULLNAME}-data-headless.${NAMESPACE}.svc.cluster.local
               DNS.7 = *.${FULLNAME}-coordinating-headless.${NAMESPACE}.svc.cluster.local
-              DNS.8 = *.${FULLNAME}-hot-headless.${NAMESPACE}.svc.cluster.local
-              DNS.9 = *.${FULLNAME}-warm-headless.${NAMESPACE}.svc.cluster.local
-              DNS.10 = localhost
+              DNS.8 = localhost
               IP.1 = 127.0.0.1
               EOF
 
-              # ── Generate CA key + self-signed CA cert ────────────────────────
-              openssl genrsa -out "${TMPDIR}/ca.key" 4096 2>/dev/null
+              openssl genrsa -out /certs/ca.key 4096 2>/dev/null
               openssl req -new -x509 -days "${DAYS}" \
-                -key "${TMPDIR}/ca.key" \
-                -out "${TMPDIR}/ca.crt" \
-                -subj "/CN=HelmForge-ES-CA/O=HelmForge" \
-                2>/dev/null
+                -key /certs/ca.key \
+                -out /certs/ca.crt \
+                -subj "/CN=HelmForge-ES-CA/O=HelmForge" 2>/dev/null
 
-              # ── Generate node key + CSR ──────────────────────────────────────
-              openssl genrsa -out "${TMPDIR}/tls.key" 2048 2>/dev/null
+              openssl genrsa -out /certs/tls.key 2048 2>/dev/null
               openssl req -new \
-                -key "${TMPDIR}/tls.key" \
-                -out "${TMPDIR}/tls.csr" \
-                -config "${TMPDIR}/san.cnf" \
-                2>/dev/null
+                -key /certs/tls.key \
+                -out /certs/tls.csr \
+                -config /certs/san.cnf 2>/dev/null
 
-              # ── Sign the CSR with the CA ─────────────────────────────────────
               openssl x509 -req -days "${DAYS}" \
-                -in "${TMPDIR}/tls.csr" \
-                -CA "${TMPDIR}/ca.crt" \
-                -CAkey "${TMPDIR}/ca.key" \
+                -in /certs/tls.csr \
+                -CA /certs/ca.crt \
+                -CAkey /certs/ca.key \
                 -CAcreateserial \
-                -out "${TMPDIR}/tls.crt" \
+                -out /certs/tls.crt \
                 -extensions v3_req \
-                -extfile "${TMPDIR}/san.cnf" \
-                2>/dev/null
+                -extfile /certs/san.cnf 2>/dev/null
 
-              echo "✅ Certificate generated. Creating Kubernetes Secret..."
+              echo "Certificate generated:"
+              openssl x509 -noout -subject -enddate -in /certs/tls.crt
+      containers:
+        - name: create-secret
+          image: docker.io/bitnami/kubectl:1.31.5
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: SECRET_NAME
+              value: {{ $secretName | quote }}
+            - name: NAMESPACE
+              value: {{ $namespace | quote }}
+          volumeMounts:
+            - name: certs
+              mountPath: /certs
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
 
-              # ── Create Kubernetes TLS Secret ─────────────────────────────────
+              # Idempotency: skip if Secret already exists and has valid data
+              if kubectl get secret "${SECRET_NAME}" -n "${NAMESPACE}" >/dev/null 2>&1; then
+                echo "TLS Secret '${SECRET_NAME}' already exists - skipping creation."
+                exit 0
+              fi
+
+              echo "Creating TLS Secret '${SECRET_NAME}'..."
               kubectl create secret generic "${SECRET_NAME}" \
                 -n "${NAMESPACE}" \
-                --from-file=ca.crt="${TMPDIR}/ca.crt" \
-                --from-file=tls.crt="${TMPDIR}/tls.crt" \
-                --from-file=tls.key="${TMPDIR}/tls.key" \
-                --dry-run=client -o yaml | kubectl apply -f -
+                --from-file=ca.crt=/certs/ca.crt \
+                --from-file=tls.crt=/certs/tls.crt \
+                --from-file=tls.key=/certs/tls.key
 
-              echo "✅ TLS Secret '${SECRET_NAME}' created successfully."
-              openssl x509 -noout -subject -enddate -in "${TMPDIR}/tls.crt"
+              echo "TLS Secret created successfully."
 {{- end }}

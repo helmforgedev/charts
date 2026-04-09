@@ -54,7 +54,7 @@ tests:
           path: metadata.annotations["helm.sh/hook-delete-policy"]
           value: "before-hook-creation,hook-succeeded"
 
-  - it: Job uses the configured openssl image
+  - it: Job uses the configured openssl image in initContainer
     set:
       security.enabled: true
       security.tls.selfSignedInit.enabled: true
@@ -63,10 +63,23 @@ tests:
     documentIndex: 3
     asserts:
       - equal:
-          path: spec.template.spec.containers[0].image
+          path: spec.template.spec.initContainers[0].image
           value: "myrepo/openssl:3.4.0"
 
-  - it: Job has SECRET_NAME env referencing the TLS secret
+  - it: Job create-secret container uses bitnami/kubectl image
+    set:
+      security.enabled: true
+      security.tls.selfSignedInit.enabled: true
+    documentIndex: 3
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: "create-secret"
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "bitnami/kubectl"
+
+  - it: Job has SECRET_NAME env in create-secret container
     set:
       security.enabled: true
       security.tls.selfSignedInit.enabled: true
@@ -78,7 +91,19 @@ tests:
             name: SECRET_NAME
             value: "RELEASE-NAME-elasticsearch-tls"
 
-  - it: Job security context runs as non-root
+  - it: Job uses emptyDir volume named certs
+    set:
+      security.enabled: true
+      security.tls.selfSignedInit.enabled: true
+    documentIndex: 3
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: certs
+            emptyDir: {}
+
+  - it: Job security context does not require non-root
     set:
       security.enabled: true
       security.tls.selfSignedInit.enabled: true
@@ -86,7 +111,4 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.securityContext.runAsNonRoot
-          value: true
-      - equal:
-          path: spec.template.spec.securityContext.runAsUser
-          value: 1000
+          value: false

@@ -57,7 +57,7 @@ metadata:
   labels:
     {{- include "elasticsearch.labels" . | nindent 4 }}
 spec:
-  schedule: "0 3 1 * *"   # 3am on 1st of every month
+  schedule: "0 3 1 * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -74,9 +74,7 @@ spec:
           restartPolicy: OnFailure
           serviceAccountName: {{ $fullname }}-tls-renew
           securityContext:
-            runAsNonRoot: true
-            runAsUser: 1000
-            runAsGroup: 1000
+            runAsNonRoot: false
           containers:
             - name: tls-renew
               image: {{ .Values.security.tls.selfSignedInit.image.repository }}:{{ .Values.security.tls.selfSignedInit.image.tag }}
@@ -102,61 +100,49 @@ spec:
                 - -c
                 - |
                   set -e
+                  echo "Checking TLS certificate expiry for ${SECRET_NAME}..."
 
-                  echo "🔍 Checking TLS certificate expiry for ${SECRET_NAME}..."
-
-                  # ── Extract current cert from Secret ─────────────────────────
                   TMPDIR=$(mktemp -d)
                   trap "rm -rf $TMPDIR" EXIT
 
                   kubectl get secret "${SECRET_NAME}" -n "${NAMESPACE}" \
                     -o jsonpath='{.data.tls\.crt}' | base64 -d > "${TMPDIR}/current.crt" 2>/dev/null || {
-                    echo "⚠️  Secret not found — skipping renewal (run helm upgrade to regenerate)."
+                    echo "Secret not found - skipping renewal."
                     exit 0
                   }
 
-                  # ── Check days until expiry ──────────────────────────────────
                   EXPIRY=$(openssl x509 -noout -enddate -in "${TMPDIR}/current.crt" | cut -d= -f2)
                   EXPIRY_EPOCH=$(date -d "${EXPIRY}" +%s 2>/dev/null || date -j -f "%b %d %H:%M:%S %Y %Z" "${EXPIRY}" +%s)
                   NOW_EPOCH=$(date +%s)
                   DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
 
-                  echo "📅 Certificate expires: ${EXPIRY} (${DAYS_LEFT} days remaining)"
-                  echo "🔔 Renewal threshold: ${RENEW_BEFORE_DAYS} days"
+                  echo "Certificate expires: ${EXPIRY} (${DAYS_LEFT} days remaining)"
 
                   if [ "${DAYS_LEFT}" -gt "${RENEW_BEFORE_DAYS}" ]; then
-                    echo "✅ Certificate is valid for ${DAYS_LEFT} more days — no renewal needed."
+                    echo "Certificate valid for ${DAYS_LEFT} more days - no renewal needed."
                     exit 0
                   fi
 
-                  echo "⚠️  Certificate expires in ${DAYS_LEFT} days — RENEWING..."
+                  echo "Certificate expires in ${DAYS_LEFT} days - renewing..."
 
-                  # ── Regenerate (same logic as init Job) ─────────────────────
-                  cat > "${TMPDIR}/san.cnf" <<EOF
+                  cat > "${TMPDIR}/san.cnf" << 'SANCNF'
                   [req]
                   distinguished_name = req_distinguished_name
                   x509_extensions = v3_req
                   prompt = no
                   [req_distinguished_name]
-                  CN = ${FULLNAME}
+                  CN = elasticsearch
                   O = HelmForge Elasticsearch
                   [v3_req]
                   subjectAltName = @alt_names
                   keyUsage = critical, digitalSignature, keyEncipherment
                   extendedKeyUsage = serverAuth, clientAuth
                   [alt_names]
-                  DNS.1 = ${FULLNAME}
-                  DNS.2 = ${FULLNAME}.${NAMESPACE}
-                  DNS.3 = ${FULLNAME}.${NAMESPACE}.svc
-                  DNS.4 = ${FULLNAME}.${NAMESPACE}.svc.cluster.local
-                  DNS.5 = *.${FULLNAME}-master-headless.${NAMESPACE}.svc.cluster.local
-                  DNS.6 = *.${FULLNAME}-data-headless.${NAMESPACE}.svc.cluster.local
-                  DNS.7 = *.${FULLNAME}-coordinating-headless.${NAMESPACE}.svc.cluster.local
-                  DNS.8 = *.${FULLNAME}-hot-headless.${NAMESPACE}.svc.cluster.local
-                  DNS.9 = *.${FULLNAME}-warm-headless.${NAMESPACE}.svc.cluster.local
-                  DNS.10 = localhost
+                  DNS.1 = localhost
                   IP.1 = 127.0.0.1
-                  EOF
+                  SANCNF
+
+                  sed -i "s/CN = elasticsearch/CN = ${FULLNAME}/" "${TMPDIR}/san.cnf"
 
                   openssl genrsa -out "${TMPDIR}/ca.key" 4096 2>/dev/null
                   openssl req -new -x509 -days "${DAYS}" \
@@ -179,7 +165,6 @@ spec:
                     -extensions v3_req \
                     -extfile "${TMPDIR}/san.cnf" 2>/dev/null
 
-                  # ── Patch the existing Secret ────────────────────────────────
                   kubectl create secret generic "${SECRET_NAME}" \
                     -n "${NAMESPACE}" \
                     --from-file=ca.crt="${TMPDIR}/ca.crt" \
@@ -187,7 +172,6 @@ spec:
                     --from-file=tls.key="${TMPDIR}/tls.key" \
                     --dry-run=client -o yaml | kubectl apply -f -
 
-                  echo "✅ TLS Secret renewed. New expiry: $(openssl x509 -noout -enddate -in ${TMPDIR}/tls.crt)"
-                  echo "⚠️  NOTE: Elasticsearch pods must be restarted to pick up the new certificate."
-                  echo "   Run: kubectl rollout restart statefulset -l app.kubernetes.io/name=elasticsearch -n ${NAMESPACE}"
+                  echo "TLS Secret renewed successfully."
+                  echo "NOTE: Elasticsearch pods must be restarted to pick up the new certificate."
 {{- end }}
