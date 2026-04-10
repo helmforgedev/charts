@@ -9,6 +9,11 @@
 - [ ] Documentation only
 - [ ] CI / repository workflow
 
+## PR Governance
+
+- [ ] I linked an existing issue in this PR body (`Resolves #NNN` or `Related to #NNN`)
+- [ ] If this is a new chart PR, labels `enhancement` and `type:feature` are applied
+
 ## Checklist
 
 - [ ] I created this branch from updated `main`
