@@ -1,0 +1,55 @@
+{{- if .Values.securityPolicy.create }}
+{{- $targetName := include "envoy-gateway.securityPolicy.targetName" . }}
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: {{ include "envoy-gateway.fullname" . }}-security
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "envoy-gateway.labels" . | nindent 4 }}
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: {{ .Values.securityPolicy.targetKind }}
+    name: {{ $targetName }}
+  {{- if .Values.securityPolicy.jwt.enabled }}
+  jwt:
+    providers:
+    {{- toYaml .Values.securityPolicy.jwt.providers | nindent 4 }}
+  {{- end }}
+  {{- if .Values.securityPolicy.oidc.enabled }}
+  oidc:
+    provider:
+      issuer: {{ .Values.securityPolicy.oidc.provider.issuer }}
+      {{- if .Values.securityPolicy.oidc.provider.authorizationEndpoint }}
+      authorizationEndpoint: {{ .Values.securityPolicy.oidc.provider.authorizationEndpoint }}
+      {{- end }}
+      {{- if .Values.securityPolicy.oidc.provider.tokenEndpoint }}
+      tokenEndpoint: {{ .Values.securityPolicy.oidc.provider.tokenEndpoint }}
+      {{- end }}
+    clientID: {{ .Values.securityPolicy.oidc.clientID }}
+    clientSecret:
+      name: {{ .Values.securityPolicy.oidc.clientSecret.name }}
+    redirectURL: {{ .Values.securityPolicy.oidc.redirectURL }}
+    scopes:
+    {{- toYaml .Values.securityPolicy.oidc.scopes | nindent 4 }}
+  {{- end }}
+  {{- if .Values.securityPolicy.apiKey.enabled }}
+  apiKey:
+    credentialRefs:
+    {{- toYaml .Values.securityPolicy.apiKey.credentials | nindent 4 }}
+  {{- end }}
+  {{- if .Values.securityPolicy.cors.enabled }}
+  cors:
+    allowOrigins:
+    {{- range .Values.securityPolicy.cors.allowOrigins }}
+    - type: Exact
+      value: {{ . | quote }}
+    {{- end }}
+    allowMethods:
+    {{- toYaml .Values.securityPolicy.cors.allowMethods | nindent 4 }}
+    allowHeaders:
+    {{- toYaml .Values.securityPolicy.cors.allowHeaders | nindent 4 }}
+    maxAge: {{ .Values.securityPolicy.cors.maxAge }}s
+  {{- end }}
+{{- end }}

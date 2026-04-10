@@ -1,0 +1,72 @@
+suite: SecurityPolicy
+templates:
+  - securitypolicy.yaml
+tests:
+  - it: should not create SecurityPolicy by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create SecurityPolicy when enabled with JWT
+    set:
+      securityPolicy:
+        create: true
+        jwt:
+          enabled: true
+          providers:
+            - name: google
+              issuer: https://accounts.google.com
+              remoteJWKS:
+                uri: https://www.googleapis.com/oauth2/v3/certs
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: kind
+          value: SecurityPolicy
+      - equal:
+          path: spec.jwt.providers[0].name
+          value: google
+      - equal:
+          path: spec.jwt.providers[0].issuer
+          value: https://accounts.google.com
+
+  - it: should target Gateway by default
+    set:
+      securityPolicy:
+        create: true
+        jwt:
+          enabled: true
+          providers:
+            - name: test
+              issuer: https://test.example.com
+              remoteJWKS:
+                uri: https://test.example.com/.well-known/jwks.json
+    asserts:
+      - equal:
+          path: spec.targetRef.kind
+          value: Gateway
+      - equal:
+          path: spec.targetRef.group
+          value: gateway.networking.k8s.io
+
+  - it: should create CORS policy when enabled
+    set:
+      securityPolicy:
+        create: true
+        cors:
+          enabled: true
+          allowOrigins:
+            - "https://example.com"
+          allowMethods:
+            - GET
+            - POST
+          allowHeaders:
+            - Authorization
+          maxAge: 3600
+    asserts:
+      - isNotEmpty:
+          path: spec.cors
+      - equal:
+          path: spec.cors.allowOrigins[0].value
+          value: "https://example.com"

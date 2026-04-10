@@ -5,18 +5,20 @@ Envoy Gateway provides comprehensive observability through Prometheus metrics, G
 ## Architecture
 
 ```
-Envoy Proxy → Metrics (9090) ─┐
-                               ├→ Prometheus → Grafana
-Controller → Metrics (8081) ──┘
-                               
-Envoy Proxy → Access Logs → stdout
+EG-managed Proxy Pods → Metrics (dynamic) ─┐
+                                            ├→ Prometheus → Grafana
+Controller → Metrics (8081) ───────────────┘
+
+EG-managed Proxy Pods → Access Logs → stdout
 ```
+
+Proxy pods are created dynamically by the EG operator when a `Gateway` resource exists. They are named `envoy-<namespace>-<gateway-name>-<uid>` and do not have a fixed service name, so proxy scraping must use pod-level service discovery.
 
 ## Components
 
-- **Prometheus Metrics**: Scraped from Envoy proxy (port 9090) and controller (port 8081)
-- **ServiceMonitor**: Automated Prometheus scrape configuration
-- **PrometheusRule**: 7 pre-configured alerts for production monitoring
+- **Prometheus Metrics**: Scraped from the controller (port 8081); proxy pods are discovered dynamically
+- **ServiceMonitor**: 1 ServiceMonitor for the controller (proxy service names are dynamic)
+- **PrometheusRule**: 6 pre-configured alerts for production monitoring
 - **Grafana Dashboards**: Official Envoy Gateway dashboards (ConfigMaps)
 - **Access Logs**: Request/response logging in JSON or text format
 
@@ -43,14 +45,13 @@ monitoring:
     prometheusRule: true
 ```
 
-Includes 7 production-ready alerts:
+Includes 6 production-ready alerts:
 - **ProxyHighMemoryUsage** — Proxy memory > 80%
 - **ProxyHighCPUUsage** — Proxy CPU > 80%
 - **ControllerHighMemoryUsage** — Controller memory > 80%
 - **ControllerDown** — Controller unavailable
 - **ProxyHighConnectionRate** — Unusual connection spikes
 - **ProxyHighErrorRate** — 5xx errors > 5%
-- **CertificateExpiringSoon** — TLS cert expires < 7 days
 
 ### Full Observability Stack
 
@@ -89,7 +90,7 @@ kubectl get servicemonitor -l app.kubernetes.io/name=envoy-gateway
 
 ### Without Prometheus Operator
 
-Manually configure Prometheus scrape jobs:
+Manually configure Prometheus scrape jobs. Because proxy pods are provisioned dynamically by the EG operator (named `envoy-<namespace>-<gateway-name>-<uid>`), only the controller can be scraped via a fixed service name. Proxy metrics should be discovered via pod labels:
 
 ```yaml
 scrape_configs:
@@ -103,20 +104,6 @@ scrape_configs:
   - source_labels: [__meta_kubernetes_service_name]
     action: keep
     regex: envoy-gateway-controller
-  - source_labels: [__meta_kubernetes_endpoint_port_name]
-    action: keep
-    regex: metrics
-
-- job_name: envoy-gateway-proxy
-  kubernetes_sd_configs:
-  - role: endpoints
-    namespaces:
-      names:
-      - default
-  relabel_configs:
-  - source_labels: [__meta_kubernetes_service_name]
-    action: keep
-    regex: envoy-gateway-proxy
   - source_labels: [__meta_kubernetes_endpoint_port_name]
     action: keep
     regex: metrics
@@ -150,7 +137,13 @@ histogram_quantile(0.99, rate(rest_client_request_duration_seconds_bucket[5m]))
 
 ### Proxy Metrics
 
-**Endpoint**: `http://envoy-gateway-proxy:9090/stats/prometheus`
+**Endpoint**: Proxy pods are created dynamically by the EG operator with names like `envoy-<namespace>-<gateway-name>-<uid>`. Access metrics via port-forward to a specific pod on port 9090.
+
+Example:
+```bash
+kubectl port-forward pod/<envoy-pod-name> 9090:9090
+curl http://localhost:9090/stats/prometheus
+```
 
 Key metrics:
 - `envoy_http_downstream_rq_total` — Total requests
@@ -274,19 +267,6 @@ Triggers when controller memory exceeds 80%:
 
 **Action**: Increase controller memory limits.
 
-### CertificateExpiringSoon
-
-Triggers when TLS certificate expires in less than 7 days:
-
-```yaml
-- alert: CertificateExpiringSoon
-  expr: certmanager_certificate_expiration_timestamp_seconds - time() < 604800
-  for: 1h
-  severity: warning
-```
-
-**Action**: Check cert-manager renewal process.
-
 ## Grafana Dashboards
 
 ### Installing Dashboards
@@ -405,15 +385,20 @@ Example log entry:
 
 ### Viewing Access Logs
 
+Proxy pods are dynamically provisioned by the EG operator. Get the pod name first:
+
 ```bash
+# List EG-managed proxy pods
+kubectl get pods -l app.kubernetes.io/component=proxy
+
 # Tail proxy logs
-kubectl logs -f deployment/envoy-gateway-proxy -c envoy
+kubectl logs -f <envoy-pod-name> -c envoy
 
 # Filter by status code (JSON format)
-kubectl logs deployment/envoy-gateway-proxy -c envoy | jq 'select(.response_code >= 500)'
+kubectl logs <envoy-pod-name> -c envoy | jq 'select(.response_code >= 500)'
 
 # Filter by path
-kubectl logs deployment/envoy-gateway-proxy -c envoy | jq 'select(.path | startswith("/api"))'
+kubectl logs <envoy-pod-name> -c envoy | jq 'select(.path | startswith("/api"))'
 ```
 
 ### Log Aggregation
@@ -495,8 +480,7 @@ spec:
 2. **Use JSON access logs** — Better for log aggregation and querying
 3. **Set up Grafana dashboards** — Visual monitoring is essential
 4. **Configure alert notifications** — Integrate with PagerDuty, Slack, etc.
-5. **Monitor certificate expiration** — Prevent TLS outages
-6. **Track error rates** — Set up SLIs/SLOs for availability
+5. **Track error rates** — Set up SLIs/SLOs for availability
 7. **Use distributed tracing** — Debug complex request flows
 8. **Aggregate logs centrally** — Don't rely on kubectl logs for production
 
@@ -509,17 +493,19 @@ spec:
 **Diagnosis**:
 
 ```bash
-# Check ServiceMonitor exists
+# Check ServiceMonitor exists (only controller ServiceMonitor is created)
 kubectl get servicemonitor -l app.kubernetes.io/name=envoy-gateway
 
 # Check Prometheus targets
 # (Access Prometheus UI → Status → Targets)
 
-# Test metrics endpoint
+# Test controller metrics endpoint
 kubectl port-forward svc/envoy-gateway-controller 8081:8081
 curl http://localhost:8081/metrics
 
-kubectl port-forward svc/envoy-gateway-proxy 9090:9090
+# Test proxy metrics (proxy pods have dynamic names)
+kubectl get pods -l app.kubernetes.io/component=proxy
+kubectl port-forward pod/<envoy-pod-name> 9090:9090
 curl http://localhost:9090/stats/prometheus
 ```
 
@@ -561,8 +547,9 @@ kubectl get prometheusrule envoy-gateway-alerts
 # Check access logs enabled
 helm get values envoy-gateway | grep accessLogs
 
-# Check proxy logs
-kubectl logs deployment/envoy-gateway-proxy -c envoy
+# Check proxy logs (proxy pods are dynamically named by EG operator)
+kubectl get pods -l app.kubernetes.io/component=proxy
+kubectl logs <envoy-pod-name> -c envoy
 
 # Check for errors
 kubectl logs deployment/envoy-gateway-controller

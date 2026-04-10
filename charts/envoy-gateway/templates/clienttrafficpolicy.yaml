@@ -1,0 +1,43 @@
+{{- if .Values.clientTrafficPolicy.create }}
+{{- $targetName := .Values.clientTrafficPolicy.targetName | default (include "envoy-gateway.gateway.name" .) }}
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: {{ include "envoy-gateway.fullname" . }}-client
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "envoy-gateway.labels" . | nindent 4 }}
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: {{ $targetName }}
+  {{- with .Values.clientTrafficPolicy.connection.connectionLimit }}
+  connection:
+    connectionLimit:
+      value: {{ .value }}
+  {{- end }}
+  {{- if or .Values.clientTrafficPolicy.tls.minVersion .Values.clientTrafficPolicy.tls.maxVersion }}
+  tls:
+    {{- if .Values.clientTrafficPolicy.tls.minVersion }}
+    minVersion: {{ .Values.clientTrafficPolicy.tls.minVersion | quote }}
+    {{- end }}
+    {{- if .Values.clientTrafficPolicy.tls.maxVersion }}
+    maxVersion: {{ .Values.clientTrafficPolicy.tls.maxVersion | quote }}
+    {{- end }}
+    {{- if .Values.clientTrafficPolicy.tls.ciphers }}
+    ciphers:
+    {{- toYaml .Values.clientTrafficPolicy.tls.ciphers | nindent 4 }}
+    {{- end }}
+  {{- end }}
+  http1:
+    enableTrailers: {{ .Values.clientTrafficPolicy.http1.enableTrailers }}
+    preserveHeaderCase: {{ .Values.clientTrafficPolicy.http1.preserveHeaderCase }}
+    {{- if .Values.clientTrafficPolicy.http1.http10.enabled }}
+    http10:
+      useDefaultHost: true
+    {{- end }}
+  timeout:
+    http:
+      requestReceivedTimeout: {{ .Values.clientTrafficPolicy.timeout.http.requestReceivedTimeout }}
+{{- end }}

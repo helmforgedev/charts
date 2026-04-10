@@ -5,12 +5,12 @@ Envoy Gateway supports distributed rate limiting with Redis backend for API prot
 ## Architecture
 
 ```
-Client → Gateway (Envoy) → Rate Limit Service → Redis
+Client → Gateway (EG Operator provisions Envoy) → Rate Limit Service → Redis
                     ↓
                Backend Service
 ```
 
-1. Envoy proxy receives requests
+1. Envoy proxy pods (provisioned automatically by the EG operator when a Gateway resource exists) receive requests
 2. Rate limit service checks Redis for request counts
 3. Requests within limits are forwarded to backends
 4. Requests exceeding limits receive 429 (Too Many Requests)
@@ -80,7 +80,7 @@ rateLimiting:
     api: true
 ```
 
-Creates `BackendTrafficPolicy` with:
+Creates `BackendTrafficPolicy` with a `targetRef.kind: Gateway` targeting the active Gateway resource:
 - **Limit**: 100 requests per minute
 - **Scope**: Per client IP (x-real-ip header)
 - **Type**: Global (distributed across all proxy instances)

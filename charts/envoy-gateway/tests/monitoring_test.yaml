@@ -3,7 +3,7 @@ templates:
   - servicemonitor.yaml
   - configmap.yaml
 tests:
-  - it: should create ServiceMonitors when monitoring enabled
+  - it: should create one ServiceMonitor when monitoring enabled
     set:
       monitoring:
         enabled: true
@@ -11,7 +11,7 @@ tests:
           serviceMonitor: true
     asserts:
       - hasDocuments:
-          count: 2
+          count: 1
         template: servicemonitor.yaml
       - equal:
           path: kind
@@ -23,11 +23,6 @@ tests:
           value: metrics
         template: servicemonitor.yaml
         documentIndex: 0
-      - equal:
-          path: spec.endpoints[0].port
-          value: admin
-        template: servicemonitor.yaml
-        documentIndex: 1
 
   - it: should not create ServiceMonitors when monitoring disabled
     set:
@@ -59,20 +54,10 @@ tests:
     asserts:
       - matchRegex:
           path: data["envoy-gateway.yaml"]
-          pattern: "type: json"
+          pattern: "type: JSON"
         template: configmap.yaml
 
-  - it: should disable rate limiting by default
-    set:
-      rateLimiting:
-        enabled: false
-    asserts:
-      - matchRegex:
-          path: data["envoy-gateway.yaml"]
-          pattern: "replicas: 0"
-        template: configmap.yaml
-
-  - it: should enable rate limiting when configured
+  - it: should include rateLimit redis url in configmap when rate limiting enabled
     set:
       rateLimiting:
         enabled: true
@@ -81,5 +66,19 @@ tests:
     asserts:
       - matchRegex:
           path: data["envoy-gateway.yaml"]
-          pattern: "replicas: 1"
+          pattern: "rateLimit"
+        template: configmap.yaml
+      - matchRegex:
+          path: data["envoy-gateway.yaml"]
+          pattern: "redis://"
+        template: configmap.yaml
+
+  - it: should not have rateLimit section in configmap when rate limiting disabled
+    set:
+      rateLimiting:
+        enabled: false
+    asserts:
+      - notMatchRegex:
+          path: data["envoy-gateway.yaml"]
+          pattern: "rateLimit"
         template: configmap.yaml

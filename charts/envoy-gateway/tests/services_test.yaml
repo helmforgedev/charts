@@ -1,8 +1,7 @@
 suite: Services and HPA
 templates:
   - service-controller.yaml
-  - service-proxy.yaml
-  - hpa-proxy.yaml
+  - envoyproxy-config.yaml
 tests:
   - it: should create controller service
     asserts:
@@ -34,56 +33,25 @@ tests:
             protocol: TCP
         template: service-controller.yaml
 
-  - it: should create proxy service with LoadBalancer by default
+  - it: should configure proxy service type LoadBalancer by default in EnvoyProxy CRD
     asserts:
-      - hasDocuments:
-          count: 1
-        template: service-proxy.yaml
       - equal:
-          path: kind
-          value: Service
-        template: service-proxy.yaml
-      - equal:
-          path: spec.type
+          path: spec.provider.kubernetes.envoyService.type
           value: LoadBalancer
-        template: service-proxy.yaml
-      - equal:
-          path: spec.ports[0].port
-          value: 80
-        template: service-proxy.yaml
-      - equal:
-          path: spec.ports[1].port
-          value: 443
-        template: service-proxy.yaml
+        template: envoyproxy-config.yaml
 
-  - it: should allow custom proxy service type
+  - it: should allow custom proxy service type via EnvoyProxy CRD
     set:
       proxy:
         service:
-          type: NodePort
+          type: ClusterIP
     asserts:
       - equal:
-          path: spec.type
-          value: NodePort
-        template: service-proxy.yaml
+          path: spec.provider.kubernetes.envoyService.type
+          value: ClusterIP
+        template: envoyproxy-config.yaml
 
-  - it: should allow custom proxy service ports
-    set:
-      proxy:
-        service:
-          httpPort: 8080
-          httpsPort: 8443
-    asserts:
-      - equal:
-          path: spec.ports[0].port
-          value: 8080
-        template: service-proxy.yaml
-      - equal:
-          path: spec.ports[1].port
-          value: 8443
-        template: service-proxy.yaml
-
-  - it: should apply proxy service annotations
+  - it: should apply proxy service annotations in EnvoyProxy CRD
     set:
       proxy:
         service:
@@ -91,53 +59,37 @@ tests:
             service.beta.kubernetes.io/aws-load-balancer-type: nlb
     asserts:
       - equal:
-          path: metadata.annotations["service.beta.kubernetes.io/aws-load-balancer-type"]
+          path: spec.provider.kubernetes.envoyService.annotations["service.beta.kubernetes.io/aws-load-balancer-type"]
           value: nlb
-        template: service-proxy.yaml
+        template: envoyproxy-config.yaml
 
-  - it: should create HPA when autoscaling enabled
+  - it: should configure HPA in EnvoyProxy CRD when autoscaling enabled
     set:
       proxy:
-        mode: Deployment
         autoscaling:
           enabled: true
           minReplicas: 2
           maxReplicas: 10
           targetCPUUtilizationPercentage: 80
     asserts:
-      - hasDocuments:
-          count: 1
-        template: hpa-proxy.yaml
+      - isNotEmpty:
+          path: spec.provider.kubernetes.envoyHpa
+        template: envoyproxy-config.yaml
       - equal:
-          path: kind
-          value: HorizontalPodAutoscaler
-        template: hpa-proxy.yaml
-      - equal:
-          path: spec.minReplicas
+          path: spec.provider.kubernetes.envoyHpa.minReplicas
           value: 2
-        template: hpa-proxy.yaml
+        template: envoyproxy-config.yaml
       - equal:
-          path: spec.maxReplicas
+          path: spec.provider.kubernetes.envoyHpa.maxReplicas
           value: 10
-        template: hpa-proxy.yaml
+        template: envoyproxy-config.yaml
 
-  - it: should not create HPA when autoscaling disabled
+  - it: should not have envoyHpa when autoscaling disabled
     set:
       proxy:
         autoscaling:
           enabled: false
     asserts:
-      - hasDocuments:
-          count: 0
-        template: hpa-proxy.yaml
-
-  - it: should not create HPA for DaemonSet mode
-    set:
-      proxy:
-        mode: DaemonSet
-        autoscaling:
-          enabled: true
-    asserts:
-      - hasDocuments:
-          count: 0
-        template: hpa-proxy.yaml
+      - isNull:
+          path: spec.provider.kubernetes.envoyHpa
+        template: envoyproxy-config.yaml

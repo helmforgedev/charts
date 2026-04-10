@@ -1,5 +1,7 @@
 # Production Envoy Gateway with full HA, rate limiting, monitoring, and security
-# Use case: Production deployment with DaemonSet, Let's Encrypt TLS, and all features
+# Use case: Production deployment with DaemonSet proxy mode and all features
+# Note: For HTTPS, create a TLS Secret externally (e.g., via cert-manager) and
+#       reference it in gateway.listeners.https.tls.certificateRef.name
 
 profile: production-ha
 
@@ -10,12 +12,13 @@ gatewayAPI:
   examples:
     enabled: false  # No examples in production
 
-certificates:
-  certManager:
-    enabled: true
-    issuer: letsencrypt-prod
-    issuerKind: ClusterIssuer
-  autoProvision: false
+proxy:
+  kind: DaemonSet  # One proxy per node
+  service:
+    type: LoadBalancer
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+      service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
 
 rateLimiting:
   enabled: true
@@ -55,14 +58,19 @@ highAvailability:
   podDisruptionBudget:
     minAvailable: 1
 
-proxy:
-  service:
-    type: LoadBalancer
-    annotations:
-      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
-      service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
-  autoscaling:
-    enabled: false  # DaemonSet doesn't use HPA
+gateway:
+  create: true
+  listeners:
+    http:
+      enabled: true
+      port: 80
+    https:
+      enabled: true
+      port: 443
+      tls:
+        mode: Terminate
+        certificateRef:
+          name: my-tls-cert  # Must be created separately (e.g., via cert-manager or manual)
 
 controller:
   resources:

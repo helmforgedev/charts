@@ -1,0 +1,77 @@
+suite: Gateway Resource
+templates:
+  - gateway.yaml
+tests:
+  - it: should create Gateway by default
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: kind
+          value: Gateway
+      - equal:
+          path: spec.gatewayClassName
+          value: envoy-gateway
+      - equal:
+          path: spec.listeners[0].name
+          value: http
+      - equal:
+          path: spec.listeners[0].port
+          value: 80
+      - equal:
+          path: spec.listeners[0].protocol
+          value: HTTP
+
+  - it: should not create Gateway when disabled
+    set:
+      gateway:
+        create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should use custom gateway name
+    set:
+      gateway:
+        name: my-gateway
+    asserts:
+      - equal:
+          path: metadata.name
+          value: my-gateway
+
+  - it: should default to release name when name not set
+    asserts:
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
+
+  - it: should add HTTPS listener when enabled
+    set:
+      gateway:
+        listeners:
+          https:
+            enabled: true
+            port: 443
+            tls:
+              mode: Terminate
+              certificateRef:
+                name: my-tls-secret
+    asserts:
+      - equal:
+          path: spec.listeners[1].name
+          value: https
+      - equal:
+          path: spec.listeners[1].protocol
+          value: HTTPS
+      - equal:
+          path: spec.listeners[1].tls.mode
+          value: Terminate
+
+  - it: should use custom GatewayClass name
+    set:
+      gatewayClass:
+        name: my-class
+    asserts:
+      - equal:
+          path: spec.gatewayClassName
+          value: my-class

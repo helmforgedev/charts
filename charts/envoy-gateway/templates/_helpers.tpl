@@ -65,22 +65,6 @@ app.kubernetes.io/component: controller
 {{- end }}
 
 {{/*
-Proxy labels
-*/}}
-{{- define "envoy-gateway.proxy.labels" -}}
-{{ include "envoy-gateway.labels" . }}
-app.kubernetes.io/component: proxy
-{{- end }}
-
-{{/*
-Proxy selector labels
-*/}}
-{{- define "envoy-gateway.proxy.selectorLabels" -}}
-{{ include "envoy-gateway.selectorLabels" . }}
-app.kubernetes.io/component: proxy
-{{- end }}
-
-{{/*
 Create the name of the service account to use
 */}}
 {{- define "envoy-gateway.serviceAccountName" -}}
@@ -98,41 +82,10 @@ Profile preset resolution - controller replica count
 {{- $profile := .Values.profile | default "custom" }}
 {{- if eq $profile "dev" }}
 {{- 1 }}
-{{- else if eq $profile "staging" }}
-{{- 2 }}
 {{- else if eq $profile "production-ha" }}
 {{- 2 }}
 {{- else }}
 {{- .Values.controller.replicaCount | default 1 }}
-{{- end }}
-{{- end }}
-
-{{/*
-Profile preset resolution - proxy mode (Deployment or DaemonSet)
-*/}}
-{{- define "envoy-gateway.proxy.mode" -}}
-{{- $profile := .Values.profile | default "custom" }}
-{{- if eq $profile "production-ha" }}
-{{- "DaemonSet" }}
-{{- else }}
-{{- .Values.proxy.mode | default "Deployment" }}
-{{- end }}
-{{- end }}
-
-{{/*
-Profile preset resolution - proxy replica count (only for Deployment mode)
-*/}}
-{{- define "envoy-gateway.proxy.replicaCount" -}}
-{{- $profile := .Values.profile | default "custom" }}
-{{- $mode := include "envoy-gateway.proxy.mode" . }}
-{{- if eq $mode "DaemonSet" }}
-{{- 0 }}
-{{- else if eq $profile "dev" }}
-{{- 1 }}
-{{- else if eq $profile "staging" }}
-{{- 2 }}
-{{- else }}
-{{- .Values.proxy.replicaCount | default 1 }}
 {{- end }}
 {{- end }}
 
@@ -148,13 +101,6 @@ requests:
 limits:
   cpu: 500m
   memory: 512Mi
-{{- else if eq $profile "staging" }}
-requests:
-  cpu: 500m
-  memory: 512Mi
-limits:
-  cpu: 1000m
-  memory: 1Gi
 {{- else if eq $profile "production-ha" }}
 requests:
   cpu: 1000m
@@ -179,13 +125,6 @@ requests:
 limits:
   cpu: 1000m
   memory: 1Gi
-{{- else if eq $profile "staging" }}
-requests:
-  cpu: 500m
-  memory: 512Mi
-limits:
-  cpu: 2000m
-  memory: 2Gi
 {{- else if eq $profile "production-ha" }}
 requests:
   cpu: 1000m
@@ -195,20 +134,6 @@ limits:
   memory: 4Gi
 {{- else }}
 {{- toYaml .Values.proxy.resources }}
-{{- end }}
-{{- end }}
-
-{{/*
-Profile preset resolution - cert-manager enabled
-*/}}
-{{- define "envoy-gateway.certManager.enabled" -}}
-{{- $profile := .Values.profile | default "custom" }}
-{{- if eq $profile "production-ha" }}
-{{- true }}
-{{- else if eq $profile "staging" }}
-{{- true }}
-{{- else }}
-{{- .Values.certificates.certManager.enabled | default false }}
 {{- end }}
 {{- end }}
 
@@ -244,26 +169,6 @@ podAntiAffinity:
 {{- end }}
 
 {{/*
-Profile preset resolution - anti-affinity for proxy
-*/}}
-{{- define "envoy-gateway.proxy.affinity" -}}
-{{- $haEnabled := include "envoy-gateway.ha.enabled" . | trim }}
-{{- $mode := include "envoy-gateway.proxy.mode" . }}
-{{- if and (eq $haEnabled "true") (eq $mode "Deployment") }}
-podAntiAffinity:
-  preferredDuringSchedulingIgnoredDuringExecution:
-  - weight: 100
-    podAffinityTerm:
-      labelSelector:
-        matchLabels:
-          {{- include "envoy-gateway.proxy.selectorLabels" . | nindent 10 }}
-      topologyKey: kubernetes.io/hostname
-{{- else if .Values.proxy.affinity }}
-{{- toYaml .Values.proxy.affinity }}
-{{- end }}
-{{- end }}
-
-{{/*
 Controller image
 */}}
 {{- define "envoy-gateway.controller.image" -}}
@@ -271,15 +176,52 @@ Controller image
 {{- end }}
 
 {{/*
-Proxy image
-*/}}
-{{- define "envoy-gateway.proxy.image" -}}
-{{- printf "%s:%s" .Values.proxy.image.repository .Values.proxy.image.tag }}
-{{- end }}
-
-{{/*
 Gateway API examples namespace
 */}}
 {{- define "envoy-gateway.examples.namespace" -}}
 {{- .Values.gatewayAPI.examples.namespace | default .Release.Namespace }}
+{{- end }}
+
+{{/*
+Gateway name - returns gateway.name or release name
+*/}}
+{{- define "envoy-gateway.gateway.name" -}}
+{{- .Values.gateway.name | default .Release.Name }}
+{{- end }}
+
+{{/*
+SecurityPolicy target name - returns targetName or gateway name
+*/}}
+{{- define "envoy-gateway.securityPolicy.targetName" -}}
+{{- .Values.securityPolicy.targetName | default (include "envoy-gateway.gateway.name" .) }}
+{{- end }}
+
+{{/*
+Rate limit Redis URL - returns internal or external Redis URL
+*/}}
+{{- define "envoy-gateway.ratelimit.redisUrl" -}}
+{{- if .Values.rateLimiting.redis.enabled }}
+{{- printf "redis://%s-redis.%s.svc.cluster.local:6379" (include "envoy-gateway.fullname" .) .Release.Namespace }}
+{{- else if .Values.rateLimiting.externalRedis.host }}
+{{- printf "redis://%s:%d" .Values.rateLimiting.externalRedis.host (.Values.rateLimiting.externalRedis.port | int) }}
+{{- end }}
+{{- end }}
+
+{{/*
+Proxy pod spec fragment (nodeSelector, tolerations, affinity) for EnvoyProxy CRD
+*/}}
+{{- define "envoy-gateway.proxy.podSpec" -}}
+{{- if .Values.proxy.nodeSelector }}
+nodeSelector:
+  {{- toYaml .Values.proxy.nodeSelector | nindent 2 }}
+{{- end }}
+{{- if .Values.proxy.tolerations }}
+tolerations:
+  {{- toYaml .Values.proxy.tolerations | nindent 2 }}
+{{- end }}
+{{- $affinity := .Values.proxy.affinity }}
+{{- if $affinity }}
+affinity:
+  {{- toYaml $affinity | nindent 2 }}
+{{- end }}
 {{- end }}
