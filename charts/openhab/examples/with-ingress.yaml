@@ -1,0 +1,52 @@
+# openHAB with nginx Ingress and TLS
+# Use case: Home lab or small production with external access via domain name
+# Requirements: nginx-ingress-controller, cert-manager (for TLS)
+
+image:
+  tag: "4.2.2"
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    # Websocket support required for /rest/events SSE endpoint
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+    # TLS via cert-manager
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: openhab.yourdomain.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: openhab-tls
+      hosts:
+        - openhab.yourdomain.com
+
+env:
+  TZ: "Europe/Berlin"
+
+persistence:
+  userdata:
+    size: 10Gi
+  conf:
+    size: 2Gi
+  addons:
+    size: 5Gi
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 2000m
+    memory: 2Gi

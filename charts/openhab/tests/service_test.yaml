@@ -1,0 +1,62 @@
+suite: Service
+templates:
+  - service.yaml
+tests:
+  - it: should create a Service
+    asserts:
+      - isKind:
+          of: Service
+
+  - it: should default to ClusterIP type
+    asserts:
+      - equal:
+          path: spec.type
+          value: ClusterIP
+
+  - it: should expose port 8080
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            port: 8080
+            targetPort: http
+            protocol: TCP
+            name: http
+
+  - it: should accept NodePort type
+    set:
+      service.type: NodePort
+    asserts:
+      - equal:
+          path: spec.type
+          value: NodePort
+
+  - it: should accept LoadBalancer type
+    set:
+      service.type: LoadBalancer
+    asserts:
+      - equal:
+          path: spec.type
+          value: LoadBalancer
+
+  - it: should set custom port
+    set:
+      service.port: 9090
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 9090
+
+  - it: should not create karaf service when disabled
+    set:
+      karaf.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: should create karaf service when enabled
+    set:
+      karaf.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 2

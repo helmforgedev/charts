@@ -1,0 +1,179 @@
+suite: StatefulSet
+templates:
+  - statefulset.yaml
+tests:
+  - it: should create a StatefulSet
+    asserts:
+      - isKind:
+          of: StatefulSet
+
+  - it: should have replicas set to 1
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should use the correct image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/openhab/openhab:4.2.2
+
+  - it: should set UID 9001 in podSecurityContext
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 9001
+
+  - it: should set GID 9001 in podSecurityContext
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsGroup
+          value: 9001
+
+  - it: should set fsGroup 9001 in podSecurityContext
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 9001
+
+  - it: should disable privilege escalation
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+
+  - it: should drop ALL capabilities
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop[0]
+          value: ALL
+
+  - it: should expose http port 8080
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 8080
+            protocol: TCP
+
+  - it: should set TZ environment variable
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TZ
+            value: UTC
+
+  - it: should mount userdata volume when persistence enabled
+    set:
+      persistence.userdata.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: userdata
+            mountPath: /openhab/userdata
+
+  - it: should mount conf volume when persistence enabled
+    set:
+      persistence.conf.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: conf
+            mountPath: /openhab/conf
+
+  - it: should mount addons volume when persistence enabled
+    set:
+      persistence.addons.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: addons
+            mountPath: /openhab/addons
+
+  - it: should not mount karaf port when karaf disabled
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: karaf
+
+  - it: should expose karaf port when enabled
+    set:
+      karaf.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: karaf
+            containerPort: 8101
+            protocol: TCP
+
+  - it: should have startup probe on /rest/alive
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /rest/alive
+
+  - it: should have liveness probe on /rest/alive
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /rest/alive
+
+  - it: should have readiness probe on /rest/alive
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /rest/alive
+
+  - it: should mount sitemaps configmap with subPath when enabled
+    set:
+      configMaps.sitemaps.enabled: true
+      configMaps.sitemaps.files:
+        myhome.sitemap: "sitemap myhome {}"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: sitemaps
+            mountPath: /openhab/conf/sitemaps/myhome.sitemap
+            subPath: myhome.sitemap
+
+  - it: should mount things configmap with subPath when enabled
+    set:
+      configMaps.things.enabled: true
+      configMaps.things.files:
+        network.things: "Thing network:pingdevice:router []"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: things
+            mountPath: /openhab/conf/things/network.things
+            subPath: network.things
+
+  - it: should mount items configmap with subPath when enabled
+    set:
+      configMaps.items.enabled: true
+      configMaps.items.files:
+        lights.items: "Switch Light_GF_Corridor"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: items
+            mountPath: /openhab/conf/items/lights.items
+            subPath: lights.items
+
+  - it: should fail when replicaCount greater than 1
+    set:
+      replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: "openHAB does not support horizontal scaling. replicaCount MUST be 1. Running multiple replicas against the same persistent storage will corrupt data."

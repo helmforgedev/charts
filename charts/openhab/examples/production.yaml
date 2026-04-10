@@ -1,0 +1,95 @@
+# openHAB production deployment — full featured
+# Use case: Production home automation server with external access,
+#           GitOps configuration, admin credentials stored in Secret,
+#           Karaf console for administration, larger storage.
+
+image:
+  tag: "4.2.2"
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: openhab.yourdomain.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: openhab-tls
+      hosts:
+        - openhab.yourdomain.com
+
+# Store admin credentials for reference
+admin:
+  secretEnabled: true
+  username: admin
+  # Use a strong password — set via --set admin.password=<value> or external secret
+  password: ""
+
+# GitOps-managed configuration
+configMaps:
+  sitemaps:
+    enabled: true
+    files:
+      default.sitemap: |
+        sitemap default label="openHAB" {
+          Frame label="Overview" {
+            Text item=gTemperature label="Temperature [%.1f C]"
+          }
+        }
+
+karaf:
+  enabled: true
+  service:
+    type: ClusterIP
+    port: 8101
+
+env:
+  TZ: "Europe/Berlin"
+  EXTRA_JAVA_OPTS: "-Xms512m -Xmx1536m"
+
+persistence:
+  userdata:
+    size: 20Gi
+    storageClass: "fast-ssd"
+  conf:
+    size: 5Gi
+    storageClass: "fast-ssd"
+  addons:
+    size: 10Gi
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 768Mi
+  limits:
+    cpu: 4000m
+    memory: 3Gi
+
+podSecurityContext:
+  runAsUser: 9001
+  runAsGroup: 9001
+  fsGroup: 9001
+
+# Schedule on nodes with SSD storage
+nodeSelector:
+  node-role: storage
+
+# Tolerate dedicated storage nodes
+tolerations:
+  - key: "storage"
+    operator: "Equal"
+    value: "ssd"
+    effect: "NoSchedule"

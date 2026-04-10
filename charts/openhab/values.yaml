@@ -1,0 +1,257 @@
+# -- Container image configuration
+image:
+  # -- Image repository
+  repository: docker.io/openhab/openhab
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+  # -- Image tag (defaults to chart appVersion). Never use 'latest'.
+  tag: "4.2.2"
+
+# -- Image pull secrets
+imagePullSecrets: []
+
+# -- Number of replicas.
+# @default -- 1
+# WARNING: openHAB does NOT support horizontal scaling. This MUST remain 1.
+replicaCount: 1
+
+# -- Override the chart name
+nameOverride: ""
+# -- Override the full release name
+fullnameOverride: ""
+
+# -- ServiceAccount configuration
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: true
+  # -- Annotations to add to the ServiceAccount
+  annotations: {}
+  # -- Name of the ServiceAccount (defaults to release name)
+  name: ""
+
+# -- Annotations to add to the pod
+podAnnotations: {}
+
+# -- Labels to add to the pod
+podLabels: {}
+
+# -- Pod-level security context
+# openHAB requires UID/GID 9001 (enforced by the official image entrypoint)
+podSecurityContext:
+  runAsUser: 9001
+  runAsGroup: 9001
+  fsGroup: 9001
+
+# -- Container-level security context
+securityContext:
+  allowPrivilegeEscalation: false
+  # readOnlyRootFilesystem must remain false — openHAB writes to internal dirs at runtime
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+# -- Service configuration
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- HTTP port
+  port: 8080
+
+# -- Ingress configuration
+ingress:
+  # -- Enable ingress
+  enabled: false
+  # -- Ingress class name
+  className: ""
+  # -- Ingress annotations
+  # Websocket support is required for openHAB's /rest/events endpoint.
+  # Uncomment the block below for nginx-ingress:
+  annotations: {}
+  # nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+  # nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  # nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+  # nginx.ingress.kubernetes.io/configuration-snippet: |
+  #   proxy_set_header Upgrade $http_upgrade;
+  #   proxy_set_header Connection "upgrade";
+  hosts:
+    - host: openhab.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  # - secretName: openhab-tls
+  #   hosts:
+  #     - openhab.local
+
+# -- Persistent storage for openHAB data directories
+persistence:
+  # -- userdata: Runtime state, JSONDB, logs, persistence data (REQUIRED)
+  userdata:
+    # -- Enable PVC for userdata
+    enabled: true
+    # -- Storage class name (empty = cluster default)
+    storageClass: ""
+    # -- Access mode
+    accessMode: ReadWriteOnce
+    # -- Storage size
+    size: 5Gi
+    # -- Use an existing PVC instead of creating one
+    existingClaim: ""
+
+  # -- conf: Configuration files, live-reloaded by openHAB (REQUIRED)
+  conf:
+    # -- Enable PVC for conf
+    enabled: true
+    # -- Storage class name (empty = cluster default)
+    storageClass: ""
+    # -- Access mode
+    accessMode: ReadWriteOnce
+    # -- Storage size
+    size: 1Gi
+    # -- Use an existing PVC instead of creating one
+    existingClaim: ""
+
+  # -- addons: Drop-in JAR addons not available via marketplace (optional)
+  addons:
+    # -- Enable PVC for addons
+    enabled: true
+    # -- Storage class name (empty = cluster default)
+    storageClass: ""
+    # -- Access mode
+    accessMode: ReadWriteOnce
+    # -- Storage size
+    size: 2Gi
+    # -- Use an existing PVC instead of creating one
+    existingClaim: ""
+
+# -- Admin credentials configuration.
+# openHAB does not support env-var-based admin bootstrap natively.
+# On first boot, create the admin user through the web UI at port 8080.
+admin:
+  # -- Create a Secret to store admin credentials as a reference
+  secretEnabled: false
+  # -- Admin username (stored in Secret for reference only)
+  username: admin
+  # -- Admin password (stored in Secret for reference only — NOT injected automatically)
+  password: ""
+  # -- Use an existing Secret (must contain keys: username, password)
+  existingSecret: ""
+
+# -- ConfigMap-based configuration files (live-reloaded by openHAB).
+# Changes to files in /openhab/conf/ are picked up automatically within seconds.
+# These ConfigMaps are mounted as additional files into the conf PVC mount point.
+configMaps:
+  # -- Sitemap files mounted to /openhab/conf/sitemaps/
+  sitemaps:
+    # -- Enable sitemap ConfigMap
+    enabled: false
+    # -- Map of filename -> file content
+    files: {}
+    # Example:
+    # files:
+    #   myhome.sitemap: |
+    #     sitemap myhome label="My Home" {
+    #       Frame label="Ground Floor" {
+    #         Switch item=Light_GF_Corridor label="Corridor Light"
+    #       }
+    #     }
+
+  # -- Things files mounted to /openhab/conf/things/
+  things:
+    # -- Enable things ConfigMap
+    enabled: false
+    # -- Map of filename -> file content
+    files: {}
+    # Example:
+    # files:
+    #   network.things: |
+    #     Thing network:pingdevice:myhostname [ hostname="192.168.1.1", retry=1, timeout=5000, refreshInterval=60000 ]
+
+  # -- Items files mounted to /openhab/conf/items/
+  items:
+    # -- Enable items ConfigMap
+    enabled: false
+    # -- Map of filename -> file content
+    files: {}
+    # Example:
+    # files:
+    #   myhome.items: |
+    #     Switch Light_GF_Corridor "Corridor Light" { channel="..." }
+
+# -- Environment variables for the openHAB container
+env:
+  # -- Timezone (e.g. Europe/Berlin, America/Sao_Paulo)
+  TZ: "UTC"
+  # -- Extra JVM options (e.g. -Xms512m -Xmx1g)
+  EXTRA_JAVA_OPTS: ""
+  # -- HTTP port (must match service.port)
+  OPENHAB_HTTP_PORT: "8080"
+  # -- HTTPS port
+  OPENHAB_HTTPS_PORT: "8443"
+
+# -- Apache Karaf SSH admin console (port 8101)
+karaf:
+  # -- Enable Karaf SSH service
+  enabled: false
+  service:
+    # -- Service type for Karaf SSH
+    type: ClusterIP
+    # -- Karaf SSH port
+    port: 8101
+
+# -- Resource requests and limits
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+
+# -- Startup probe — allows openHAB time to load all OSGi bundles (60-120s on first boot)
+startupProbe:
+  httpGet:
+    path: /rest/alive
+    port: http
+  # 30 attempts x 10s = 5 minutes maximum startup window
+  failureThreshold: 30
+  periodSeconds: 10
+
+# -- Liveness probe
+livenessProbe:
+  httpGet:
+    path: /rest/alive
+    port: http
+  periodSeconds: 30
+  failureThreshold: 3
+  timeoutSeconds: 5
+
+# -- Readiness probe
+readinessProbe:
+  httpGet:
+    path: /rest/alive
+    port: http
+  periodSeconds: 10
+  failureThreshold: 5
+  timeoutSeconds: 5
+
+# -- Node selector
+nodeSelector: {}
+
+# -- Tolerations
+tolerations: []
+
+# -- Affinity rules
+affinity: {}
+
+# -- Extra volumes (e.g. for custom addons from a hostPath)
+extraVolumes: []
+
+# -- Extra volume mounts
+extraVolumeMounts: []
+
+# -- Extra environment variables (as a list of name/value or name/valueFrom)
+extraEnv: []
+# - name: MY_VAR
+#   value: "my-value"

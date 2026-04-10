@@ -1,0 +1,79 @@
+suite: ConfigMaps
+templates:
+  - configmap.yaml
+tests:
+  - it: should not create any ConfigMap when all disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create sitemaps ConfigMap when enabled with files
+    set:
+      configMaps.sitemaps.enabled: true
+      configMaps.sitemaps.files:
+        myhome.sitemap: "sitemap myhome {}"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: metadata.name
+          pattern: .*-sitemaps
+
+  - it: should create things ConfigMap when enabled with files
+    set:
+      configMaps.things.enabled: true
+      configMaps.things.files:
+        network.things: "Thing network:pingdevice:router []"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: metadata.name
+          pattern: .*-things
+
+  - it: should create items ConfigMap when enabled with files
+    set:
+      configMaps.items.enabled: true
+      configMaps.items.files:
+        lights.items: "Switch Light_GF"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: metadata.name
+          pattern: .*-items
+
+  - it: should create all three ConfigMaps when all enabled
+    set:
+      configMaps.sitemaps.enabled: true
+      configMaps.sitemaps.files:
+        myhome.sitemap: "sitemap myhome {}"
+      configMaps.things.enabled: true
+      configMaps.things.files:
+        network.things: "Thing network:pingdevice:router []"
+      configMaps.items.enabled: true
+      configMaps.items.files:
+        lights.items: "Switch Light_GF"
+    asserts:
+      - hasDocuments:
+          count: 3
+
+  - it: should have live-reload annotation on sitemaps ConfigMap
+    set:
+      configMaps.sitemaps.enabled: true
+      configMaps.sitemaps.files:
+        myhome.sitemap: "sitemap myhome {}"
+    asserts:
+      - equal:
+          path: metadata.annotations["helmforge.dev/live-reload"]
+          value: "true"
+
+  - it: should not create sitemaps ConfigMap when enabled but no files
+    set:
+      configMaps.sitemaps.enabled: true
+      configMaps.sitemaps.files: {}
+    asserts:
+      - hasDocuments:
+          count: 0
