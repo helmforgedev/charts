@@ -2,7 +2,7 @@ suite: Certgen Job
 templates:
   - certgen-job.yaml
 tests:
-  - it: should create 4 certgen resources
+  - it: should create 4 certgen resources (SA + ClusterRole + ClusterRoleBinding + Job)
     asserts:
       - hasDocuments:
           count: 4
@@ -14,18 +14,18 @@ tests:
           value: ServiceAccount
         documentIndex: 0
 
-  - it: should create certgen Role as second document
+  - it: should create certgen ClusterRole as second document
     asserts:
       - equal:
           path: kind
-          value: Role
+          value: ClusterRole
         documentIndex: 1
 
-  - it: should create certgen RoleBinding as third document
+  - it: should create certgen ClusterRoleBinding as third document
     asserts:
       - equal:
           path: kind
-          value: RoleBinding
+          value: ClusterRoleBinding
         documentIndex: 2
 
   - it: should create certgen Job as fourth document
@@ -39,18 +39,18 @@ tests:
           value: certgen
         documentIndex: 3
 
+  - it: should pass --disable-topology-injector flag to certgen
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --disable-topology-injector
+        documentIndex: 3
+
   - it: should have pre-install hook annotation on Job
     asserts:
       - equal:
           path: metadata.annotations["helm.sh/hook"]
           value: pre-install,pre-upgrade
-        documentIndex: 3
-
-  - it: should use controller image by default
-    asserts:
-      - matchRegex:
-          path: spec.template.spec.containers[0].image
-          pattern: "envoyproxy/gateway:v1.7.1"
         documentIndex: 3
 
   - it: should have pre-install hook annotation on ServiceAccount
@@ -59,3 +59,30 @@ tests:
           path: metadata.annotations["helm.sh/hook"]
           value: pre-install,pre-upgrade
         documentIndex: 0
+
+  - it: should use controller image by default
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "envoyproxy/gateway:v1.7.1"
+        documentIndex: 3
+
+  - it: should grant ClusterRole secrets permission
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["secrets"]
+            verbs: ["get", "list", "create", "update", "patch"]
+        documentIndex: 1
+
+  - it: should grant ClusterRole mutatingwebhookconfigurations permission
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: ["admissionregistration.k8s.io"]
+            resources: ["mutatingwebhookconfigurations"]
+            verbs: ["get", "update", "patch"]
+        documentIndex: 1

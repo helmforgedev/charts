@@ -3,19 +3,24 @@ templates:
   - service-controller.yaml
   - envoyproxy-config.yaml
 tests:
-  - it: should create controller service
+  - it: should create 2 service documents (controller + xds)
     asserts:
       - hasDocuments:
-          count: 1
+          count: 2
         template: service-controller.yaml
+
+  - it: should create controller service as first document
+    asserts:
       - equal:
           path: kind
           value: Service
         template: service-controller.yaml
+        documentIndex: 0
       - equal:
           path: spec.type
           value: ClusterIP
         template: service-controller.yaml
+        documentIndex: 0
       - contains:
           path: spec.ports
           content:
@@ -24,6 +29,7 @@ tests:
             targetPort: http
             protocol: TCP
         template: service-controller.yaml
+        documentIndex: 0
       - contains:
           path: spec.ports
           content:
@@ -32,6 +38,24 @@ tests:
             targetPort: metrics
             protocol: TCP
         template: service-controller.yaml
+        documentIndex: 0
+
+  - it: should create xDS service named envoy-gateway as second document
+    asserts:
+      - equal:
+          path: metadata.name
+          value: envoy-gateway
+        template: service-controller.yaml
+        documentIndex: 1
+      - contains:
+          path: spec.ports
+          content:
+            name: xds
+            port: 18000
+            targetPort: 18000
+            protocol: TCP
+        template: service-controller.yaml
+        documentIndex: 1
 
   - it: should configure proxy service type LoadBalancer by default in EnvoyProxy CRD
     asserts:
