@@ -82,9 +82,10 @@ helm install my-openhab helmforge/openhab -f values.yaml
 - ConfigMap-based live configuration reload (sitemaps, things, items)
 - Proper security context (UID/GID 9001 as required by the openHAB image)
 - Startup/liveness/readiness probes via `/rest/alive`
-- Optional Ingress with websocket annotation guidance
-- Optional Karaf SSH admin console
+- Optional Ingress with websocket annotation guidance for `/rest/events`
+- Optional Karaf SSH admin console (port 8101)
 - Optional admin credentials Secret
+- Prometheus metrics via `/rest/metrics/prometheus` (pod annotations + ServiceMonitor)
 - Fail-fast validation (replicaCount must be 1)
 
 ## Configuration
@@ -136,6 +137,57 @@ Use feature flags instead to enable optional components.
 | `configMaps.items.enabled` | Enable items ConfigMap | `false` |
 | `configMaps.items.files` | Map of filename → content | `{}` |
 
+### Metrics Parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `metrics.enabled` | Enable Prometheus metrics support | `false` |
+| `metrics.podAnnotations.enabled` | Add `prometheus.io/*` pod annotations | `true` |
+| `metrics.serviceMonitor.enabled` | Create ServiceMonitor for Prometheus Operator | `false` |
+| `metrics.serviceMonitor.namespace` | ServiceMonitor namespace | release namespace |
+| `metrics.serviceMonitor.interval` | Scrape interval | `60s` |
+| `metrics.serviceMonitor.scrapeTimeout` | Scrape timeout | `10s` |
+| `metrics.serviceMonitor.additionalLabels` | Extra labels on ServiceMonitor | `{}` |
+
+## Prometheus Metrics
+
+openHAB exposes Prometheus metrics via the **Metrics addon** at:
+
+```
+GET /rest/metrics/prometheus   (port 8080, no authentication required)
+```
+
+**Step 1** — Install the Metrics addon in openHAB:
+*Settings → Add-on Store → Integrations → Metrics*
+
+**Step 2** — Enable metrics in chart values:
+
+```yaml
+# Annotation-based scraping (works without Prometheus Operator)
+metrics:
+  enabled: true
+  podAnnotations:
+    enabled: true
+
+# --- OR ---
+
+# Prometheus Operator (ServiceMonitor)
+metrics:
+  enabled: true
+  podAnnotations:
+    enabled: false
+  serviceMonitor:
+    enabled: true
+    interval: 60s
+    additionalLabels:
+      release: prometheus   # must match your Prometheus selector
+```
+
+**Metrics exposed**: openHAB events (per topic), bundle states, thing states,
+rule executions, threadpool statistics, JVM metrics (memory, GC, threads).
+
+See [Prometheus Metrics Guide](docs/metrics.md) for full details.
+
 ## Examples
 
 - [Simple Deployment](examples/simple.yaml)
@@ -148,6 +200,7 @@ Use feature flags instead to enable optional components.
 - [ConfigMaps & Live Reload](docs/configmaps-live-reload.md)
 - [Storage](docs/storage.md)
 - [Security](docs/security.md)
+- [Prometheus Metrics](docs/metrics.md)
 
 ## First Boot — Admin Setup
 
