@@ -19,35 +19,40 @@ tests:
           path: spec.template.spec.containers[0].image
           value: docker.io/openhab/openhab:4.2.2
 
-  - it: should set UID 9001 in podSecurityContext
+  # The openHAB entrypoint must start as root to create the openhab user/group
+  # (groupadd/useradd/chown) before dropping to UID 9001 via gosu.
+  # runAsUser/runAsGroup must NOT be set — only fsGroup is needed.
+  - it: should not set runAsUser in podSecurityContext (entrypoint needs root)
     asserts:
-      - equal:
+      - notExists:
           path: spec.template.spec.securityContext.runAsUser
-          value: 9001
 
-  - it: should set GID 9001 in podSecurityContext
+  - it: should not set runAsGroup in podSecurityContext (entrypoint needs root)
     asserts:
-      - equal:
+      - notExists:
           path: spec.template.spec.securityContext.runAsGroup
-          value: 9001
 
-  - it: should set fsGroup 9001 in podSecurityContext
+  - it: should set fsGroup 9001 so PVCs are accessible after privilege drop
     asserts:
       - equal:
           path: spec.template.spec.securityContext.fsGroup
           value: 9001
 
-  - it: should disable privilege escalation
+  - it: should not drop ALL capabilities (entrypoint needs CAP_SETUID, CAP_SETGID, CAP_CHOWN)
     asserts:
-      - equal:
-          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
-          value: false
+      - notExists:
+          path: spec.template.spec.containers[0].securityContext.capabilities
 
-  - it: should drop ALL capabilities
+  - it: should not disallow privilege escalation (gosu needs it during init)
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+
+  - it: should keep readOnlyRootFilesystem false
     asserts:
       - equal:
-          path: spec.template.spec.containers[0].securityContext.capabilities.drop[0]
-          value: ALL
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: false
 
   - it: should expose http port 8080
     asserts:
@@ -114,23 +119,24 @@ tests:
             containerPort: 8101
             protocol: TCP
 
-  - it: should have startup probe on /rest/alive
+  # /rest/alive does not exist in openHAB 4.x — /rest/uuid returns 200 (no auth)
+  - it: should have startup probe on /rest/uuid
     asserts:
       - equal:
           path: spec.template.spec.containers[0].startupProbe.httpGet.path
-          value: /rest/alive
+          value: /rest/uuid
 
-  - it: should have liveness probe on /rest/alive
+  - it: should have liveness probe on /rest/uuid
     asserts:
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.httpGet.path
-          value: /rest/alive
+          value: /rest/uuid
 
-  - it: should have readiness probe on /rest/alive
+  - it: should have readiness probe on /rest/uuid
     asserts:
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.httpGet.path
-          value: /rest/alive
+          value: /rest/uuid
 
   - it: should mount sitemaps configmap with subPath when enabled
     set:

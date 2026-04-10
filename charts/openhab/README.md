@@ -80,8 +80,8 @@ helm install my-openhab helmforge/openhab -f values.yaml
 - Single-instance StatefulSet with stable PVC attachment
 - Three persistent volumes (userdata, conf, addons) with configurable sizes
 - ConfigMap-based live configuration reload (sitemaps, things, items)
-- Proper security context (UID/GID 9001 as required by the openHAB image)
-- Startup/liveness/readiness probes via `/rest/alive`
+- Correct security context (`fsGroup: 9001`; `runAsUser`/`runAsGroup` intentionally unset — entrypoint manages privilege drop via gosu)
+- Startup/liveness/readiness probes via `/rest/uuid` (returns 200, no auth required)
 - Optional Ingress with websocket annotation guidance for `/rest/events`
 - Optional Karaf SSH admin console (port 8101)
 - Optional admin credentials Secret
@@ -103,9 +103,7 @@ Use feature flags instead to enable optional components.
 | `image.tag` | openHAB image tag | `4.2.2` |
 | `image.repository` | Image repository | `docker.io/openhab/openhab` |
 | `replicaCount` | Must be 1 — no clustering support | `1` |
-| `podSecurityContext.runAsUser` | UID (required by openHAB image) | `9001` |
-| `podSecurityContext.runAsGroup` | GID (required by openHAB image) | `9001` |
-| `podSecurityContext.fsGroup` | fsGroup for PVC ownership | `9001` |
+| `podSecurityContext.fsGroup` | fsGroup for PVC ownership after privilege drop | `9001` |
 | `service.type` | Service type | `ClusterIP` |
 | `service.port` | HTTP port | `8080` |
 | `ingress.enabled` | Enable Ingress | `false` |

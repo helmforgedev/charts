@@ -35,21 +35,25 @@ podAnnotations: {}
 # -- Labels to add to the pod
 podLabels: {}
 
-# -- Pod-level security context
-# openHAB requires UID/GID 9001 (enforced by the official image entrypoint)
+# -- Pod-level security context.
+# fsGroup: 9001 ensures mounted PVC directories are group-accessible after the
+# entrypoint drops privileges to UID 9001 via gosu.
+#
+# runAsUser and runAsGroup are intentionally NOT set here.
+# The openHAB image entrypoint starts as root, creates the 'openhab' user/group
+# (UID/GID 9001) if absent, chowns the data directories, then execs
+# 'gosu openhab' to drop privileges. Setting runAsUser: 9001 would break
+# this initialization sequence (groupadd/useradd require root).
 podSecurityContext:
-  runAsUser: 9001
-  runAsGroup: 9001
   fsGroup: 9001
 
-# -- Container-level security context
+# -- Container-level security context.
+# allowPrivilegeEscalation and capabilities restrictions are intentionally
+# omitted: the entrypoint requires CAP_SETUID, CAP_SETGID, and CAP_CHOWN
+# during initialization before dropping to the openhab user.
+# readOnlyRootFilesystem must remain false — openHAB writes to internal dirs at runtime.
 securityContext:
-  allowPrivilegeEscalation: false
-  # readOnlyRootFilesystem must remain false — openHAB writes to internal dirs at runtime
   readOnlyRootFilesystem: false
-  capabilities:
-    drop:
-      - ALL
 
 # -- Service configuration
 service:
@@ -209,19 +213,24 @@ resources:
     cpu: 2000m
     memory: 2Gi
 
-# -- Startup probe — allows openHAB time to load all OSGi bundles (60-120s on first boot)
+# -- Startup probe — allows openHAB time to load all OSGi bundles.
+# Uses /rest/uuid which returns 200 (no auth) as soon as the REST API is ready.
+# NOTE: /rest/alive does NOT exist in openHAB 4.x — use /rest/uuid instead.
+# On first boot this can take 2-5 minutes; on slow hardware up to 10 minutes.
+# The probe window = failureThreshold × periodSeconds.
 startupProbe:
   httpGet:
-    path: /rest/alive
+    path: /rest/uuid
     port: http
-  # 30 attempts x 10s = 5 minutes maximum startup window
-  failureThreshold: 30
+  # 60 attempts x 10s = 10 minutes maximum startup window.
+  # Keep this generous: openHAB's OSGi bundle loading depends heavily on hardware.
+  failureThreshold: 60
   periodSeconds: 10
 
 # -- Liveness probe
 livenessProbe:
   httpGet:
-    path: /rest/alive
+    path: /rest/uuid
     port: http
   periodSeconds: 30
   failureThreshold: 3
@@ -230,7 +239,7 @@ livenessProbe:
 # -- Readiness probe
 readinessProbe:
   httpGet:
-    path: /rest/alive
+    path: /rest/uuid
     port: http
   periodSeconds: 10
   failureThreshold: 5
