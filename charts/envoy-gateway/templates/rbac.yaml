@@ -6,31 +6,42 @@ metadata:
   labels:
     {{- include "envoy-gateway.labels" . | nindent 4 }}
 rules:
+# Core resources — read (cluster-scoped: nodes, pods, namespaces, endpoints)
 - apiGroups:
   - ""
   resources:
   - namespaces
+  - nodes
+  - pods
+  - endpoints
   - services
   - secrets
   - configmaps
+  - serviceaccounts
   verbs:
   - get
   - list
   - watch
+# Core resources — write (EG provisions proxy infra: services, secrets, configmaps, serviceaccounts)
 - apiGroups:
   - ""
   resources:
   - services
   - secrets
+  - configmaps
+  - serviceaccounts
   verbs:
   - create
   - update
   - patch
   - delete
+  - deletecollection
+# Apps resources — EG provisions Deployments and DaemonSets for proxy pods
 - apiGroups:
   - apps
   resources:
   - deployments
+  - daemonsets
   verbs:
   - get
   - list
@@ -39,6 +50,73 @@ rules:
   - update
   - patch
   - delete
+  - deletecollection
+# HPA — EG manages autoscaling for proxy Deployments
+- apiGroups:
+  - autoscaling
+  resources:
+  - horizontalpodautoscalers
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+  - deletecollection
+# Batch — EG creates Jobs for certgen and other tasks
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+  - deletecollection
+# Policy — EG creates PodDisruptionBudgets for proxy HA
+- apiGroups:
+  - policy
+  resources:
+  - poddisruptionbudgets
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+  - deletecollection
+# EndpointSlices — required for backend service discovery
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+# RBAC — EG provisions roles/rolebindings for proxy ServiceAccounts
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - roles
+  - rolebindings
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+# Gateway API resources
 - apiGroups:
   - gateway.networking.k8s.io
   resources:
@@ -72,6 +150,7 @@ rules:
   - get
   - update
   - patch
+# Envoy Gateway CRDs
 - apiGroups:
   - gateway.envoyproxy.io
   resources:
@@ -110,6 +189,7 @@ rules:
   - get
   - update
   - patch
+# Events
 - apiGroups:
   - ""
   resources:

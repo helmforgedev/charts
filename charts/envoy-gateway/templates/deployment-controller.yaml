@@ -54,22 +54,28 @@ spec:
         - name: metrics
           containerPort: 8081
           protocol: TCP
+        - name: xds
+          containerPort: 18000
+          protocol: TCP
+        - name: wasm
+          containerPort: 18002
+          protocol: TCP
         startupProbe:
           httpGet:
             path: /healthz
-            port: http
+            port: metrics
           failureThreshold: 30
           periodSeconds: 5
         livenessProbe:
           httpGet:
             path: /healthz
-            port: http
+            port: metrics
           initialDelaySeconds: 15
           periodSeconds: 20
         readinessProbe:
           httpGet:
             path: /readyz
-            port: http
+            port: metrics
           initialDelaySeconds: 10
           periodSeconds: 10
         resources:
@@ -88,7 +94,8 @@ spec:
           defaultMode: 420
       - name: certs
         secret:
-          secretName: {{ include "envoy-gateway.fullname" . }}-certs
+          # certgen creates this secret with a fixed name (EG upstream convention)
+          secretName: envoy-gateway
           defaultMode: 420
       {{- with .Values.controller.nodeSelector }}
       nodeSelector:
