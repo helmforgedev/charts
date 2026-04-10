@@ -44,7 +44,7 @@ kubectl port-forward svc/my-openhab 8080:8080
 ```bash
 helm install my-openhab helmforge/openhab \
   --set ingress.enabled=true \
-  --set ingress.className=nginx \
+  --set ingress.ingressClassName=nginx \
   --set "ingress.hosts[0].host=openhab.myhouse.com" \
   --set "ingress.hosts[0].paths[0].path=/" \
   --set "ingress.hosts[0].paths[0].pathType=Prefix"
@@ -107,6 +107,7 @@ Use feature flags instead to enable optional components.
 | `service.type` | Service type | `ClusterIP` |
 | `service.port` | HTTP port | `8080` |
 | `ingress.enabled` | Enable Ingress | `false` |
+| `ingress.ingressClassName` | Ingress class name | `""` |
 | `env.TZ` | Timezone | `UTC` |
 | `env.EXTRA_JAVA_OPTS` | Extra JVM options | `""` |
 | `karaf.enabled` | Enable Karaf SSH console | `false` |
