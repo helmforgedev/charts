@@ -10,10 +10,13 @@ spec:
   provider:
     type: Kubernetes
     kubernetes:
+      {{- $podSpec := include "envoy-gateway.proxy.podSpec" . | trim }}
       {{- if eq .Values.proxy.kind "DaemonSet" }}
       envoyDaemonSet:
+        {{- if $podSpec }}
         pod:
-          {{- include "envoy-gateway.proxy.podSpec" . | nindent 10 }}
+          {{- $podSpec | nindent 10 }}
+        {{- end }}
         container:
           image: {{ printf "%s:%s" .Values.proxy.image.repository .Values.proxy.image.tag }}
           resources:
@@ -21,8 +24,10 @@ spec:
       {{- else }}
       envoyDeployment:
         replicas: {{ .Values.proxy.replicaCount }}
+        {{- if $podSpec }}
         pod:
-          {{- include "envoy-gateway.proxy.podSpec" . | nindent 10 }}
+          {{- $podSpec | nindent 10 }}
+        {{- end }}
         container:
           image: {{ printf "%s:%s" .Values.proxy.image.repository .Values.proxy.image.tag }}
           resources:
