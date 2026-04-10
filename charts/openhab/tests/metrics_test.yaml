@@ -1,0 +1,102 @@
+suite: Metrics
+templates:
+  - statefulset.yaml
+tests:
+  - it: should not add prometheus annotations when metrics disabled
+    set:
+      metrics.enabled: false
+    asserts:
+      - notExists:
+          path: spec.template.metadata.annotations["prometheus.io/scrape"]
+
+  - it: should add prometheus.io/scrape annotation when metrics enabled
+    set:
+      metrics.enabled: true
+      metrics.podAnnotations.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/scrape"]
+          value: "true"
+
+  - it: should set correct prometheus.io/path annotation
+    set:
+      metrics.enabled: true
+      metrics.podAnnotations.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/path"]
+          value: /rest/metrics/prometheus
+
+  - it: should set correct prometheus.io/port annotation
+    set:
+      metrics.enabled: true
+      metrics.podAnnotations.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/port"]
+          value: "8080"
+
+  - it: should not add prometheus annotations when podAnnotations.enabled is false
+    set:
+      metrics.enabled: true
+      metrics.podAnnotations.enabled: false
+    asserts:
+      - notExists:
+          path: spec.template.metadata.annotations["prometheus.io/scrape"]
+---
+suite: ServiceMonitor
+templates:
+  - servicemonitor.yaml
+tests:
+  - it: should not create ServiceMonitor when metrics disabled
+    set:
+      metrics.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not create ServiceMonitor when serviceMonitor disabled
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create ServiceMonitor when both enabled
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+      - equal:
+          path: spec.endpoints[0].path
+          value: /rest/metrics/prometheus
+      - equal:
+          path: spec.endpoints[0].port
+          value: http
+      - equal:
+          path: spec.endpoints[0].interval
+          value: 60s
+
+  - it: should set custom scrape interval
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+      metrics.serviceMonitor.interval: 30s
+    asserts:
+      - equal:
+          path: spec.endpoints[0].interval
+          value: 30s
+
+  - it: should set additional labels on ServiceMonitor
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+      metrics.serviceMonitor.additionalLabels:
+        release: prometheus
+    asserts:
+      - equal:
+          path: metadata.labels.release
+          value: prometheus

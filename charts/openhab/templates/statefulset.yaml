@@ -16,10 +16,15 @@ spec:
   serviceName: {{ include "openhab.fullname" . }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
       annotations:
+        {{- if and .Values.metrics.enabled .Values.metrics.podAnnotations.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /rest/metrics/prometheus
+        prometheus.io/port: {{ .Values.env.OPENHAB_HTTP_PORT | default "8080" | quote }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
       labels:
         {{- include "openhab.labels" . | nindent 8 }}
         {{- with .Values.podLabels }}
