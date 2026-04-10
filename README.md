@@ -13,7 +13,7 @@
   <a href="https://github.com/helmforgedev/charts/actions/workflows/publish.yml"><img src="https://github.com/helmforgedev/charts/actions/workflows/publish.yml/badge.svg" alt="Publish" /></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" /></a>
   <a href="https://artifacthub.io/packages/search?repo=helmforge"><img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/helmforge" alt="Artifact Hub" /></a>
-  <img src="https://img.shields.io/badge/Helm-3-blue?logo=helm" alt="Helm 3" />
+  <img src="https://img.shields.io/badge/Helm-4-blue?logo=helm" alt="Helm 4" />
   <img src="https://img.shields.io/badge/Kubernetes-≥1.26-blue?logo=kubernetes" alt="Kubernetes >=1.26" />
   <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen" alt="PRs Welcome" /></a>
 </p>
@@ -101,7 +101,7 @@ Each chart includes a `ci/` directory with test values files. The pipeline runs 
 
 ### Kubernetes Compatibility
 
-All charts require **Helm 3** (`apiVersion: v2`) and target **Kubernetes 1.26+**.
+All charts require **Helm 4** (`apiVersion: v2`) and target **Kubernetes 1.26+**.
 
 | Kubernetes Version | Status |
 |--------------------|--------|
