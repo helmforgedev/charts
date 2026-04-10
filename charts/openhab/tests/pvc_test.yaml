@@ -1,0 +1,84 @@
+suite: PersistentVolumeClaims
+templates:
+  - pvc.yaml
+tests:
+  - it: should create 3 PVCs by default
+    asserts:
+      - hasDocuments:
+          count: 3
+
+  - it: should create userdata PVC with correct size
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: spec.resources.requests.storage
+          value: 5Gi
+      - equal:
+          path: spec.accessModes[0]
+          value: ReadWriteOnce
+
+  - it: should create conf PVC with correct size
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: spec.resources.requests.storage
+          value: 1Gi
+
+  - it: should create addons PVC with correct size
+    documentIndex: 2
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: spec.resources.requests.storage
+          value: 2Gi
+
+  - it: should not create userdata PVC when existingClaim is set
+    set:
+      persistence.userdata.existingClaim: my-userdata
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: should not create conf PVC when existingClaim is set
+    set:
+      persistence.conf.existingClaim: my-conf
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: should not create addons PVC when existingClaim is set
+    set:
+      persistence.addons.existingClaim: my-addons
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: should set custom storageClass for userdata
+    set:
+      persistence.userdata.storageClass: fast-ssd
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: fast-ssd
+
+  - it: should not create userdata PVC when disabled
+    set:
+      persistence.userdata.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: should create no PVCs when all disabled
+    set:
+      persistence.userdata.enabled: false
+      persistence.conf.enabled: false
+      persistence.addons.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

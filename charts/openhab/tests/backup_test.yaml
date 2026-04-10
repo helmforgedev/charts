@@ -1,0 +1,294 @@
+---
+suite: Backup CronJob
+templates:
+  - backup-cronjob.yaml
+tests:
+  - it: should not create CronJob when backup disabled
+    set:
+      backup.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create CronJob when backup enabled
+    set:
+      backup.enabled: true
+    asserts:
+      - isKind:
+          of: CronJob
+
+  - it: should use the configured schedule
+    set:
+      backup.enabled: true
+      backup.schedule: "0 2 * * *"
+    asserts:
+      - equal:
+          path: spec.schedule
+          value: "0 2 * * *"
+
+  - it: should set concurrencyPolicy
+    set:
+      backup.enabled: true
+      backup.concurrencyPolicy: Forbid
+    asserts:
+      - equal:
+          path: spec.concurrencyPolicy
+          value: Forbid
+
+  - it: should set suspend flag
+    set:
+      backup.enabled: true
+      backup.suspend: true
+    asserts:
+      - equal:
+          path: spec.suspend
+          value: true
+
+  - it: should set successfulJobsHistoryLimit
+    set:
+      backup.enabled: true
+      backup.successfulJobsHistoryLimit: 5
+    asserts:
+      - equal:
+          path: spec.successfulJobsHistoryLimit
+          value: 5
+
+  - it: should set failedJobsHistoryLimit
+    set:
+      backup.enabled: true
+      backup.failedJobsHistoryLimit: 2
+    asserts:
+      - equal:
+          path: spec.failedJobsHistoryLimit
+          value: 2
+
+  - it: should have backup initContainer using alpine image
+    set:
+      backup.enabled: true
+      backup.images.utility.repository: docker.io/library/alpine
+      backup.images.utility.tag: "3.22"
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].image
+          value: "docker.io/library/alpine:3.22"
+
+  - it: should have upload container using helmforge/mc image
+    set:
+      backup.enabled: true
+      backup.images.uploader.repository: docker.io/helmforge/mc
+      backup.images.uploader.tag: "1.0.0"
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].image
+          value: "docker.io/helmforge/mc:1.0.0"
+
+  - it: should set S3_ENDPOINT env var
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: "https://minio.example.com"
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: S3_ENDPOINT
+            value: "https://minio.example.com"
+
+  - it: should set S3_BUCKET env var
+    set:
+      backup.enabled: true
+      backup.s3.bucket: my-backups
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: S3_BUCKET
+            value: my-backups
+
+  - it: should set S3_PREFIX env var
+    set:
+      backup.enabled: true
+      backup.s3.prefix: openhab/prod
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: S3_PREFIX
+            value: openhab/prod
+
+  - it: should reference the backup secret for S3 credentials
+    set:
+      backup.enabled: true
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[3].valueFrom.secretKeyRef.key
+          value: access-key
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[4].valueFrom.secretKeyRef.key
+          value: secret-key
+
+  - it: should reference existingSecret when provided
+    set:
+      backup.enabled: true
+      backup.s3.existingSecret: my-s3-secret
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[3].valueFrom.secretKeyRef.name
+          value: my-s3-secret
+
+  - it: should mount userdata volume when include.userdata is true
+    set:
+      backup.enabled: true
+      backup.include.userdata: true
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: userdata
+            mountPath: /openhab/userdata
+            readOnly: true
+
+  - it: should not mount userdata volume when include.userdata is false
+    set:
+      backup.enabled: true
+      backup.include.userdata: false
+      backup.include.conf: true
+    asserts:
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: userdata
+            mountPath: /openhab/userdata
+            readOnly: true
+
+  - it: should mount conf volume when include.conf is true
+    set:
+      backup.enabled: true
+      backup.include.conf: true
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: conf
+            mountPath: /openhab/conf
+            readOnly: true
+
+  - it: should not mount conf volume when include.conf is false
+    set:
+      backup.enabled: true
+      backup.include.conf: false
+    asserts:
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: conf
+            mountPath: /openhab/conf
+            readOnly: true
+
+  - it: should run with securityContext UID/GID 9001
+    set:
+      backup.enabled: true
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.securityContext.runAsUser
+          value: 9001
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.securityContext.runAsGroup
+          value: 9001
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.securityContext.fsGroup
+          value: 9001
+
+  - it: should mount backup-scripts ConfigMap
+    set:
+      backup.enabled: true
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: backup-scripts
+            mountPath: /scripts
+            readOnly: true
+
+  - it: should have backup-temp emptyDir volume
+    set:
+      backup.enabled: true
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.volumes
+          content:
+            name: backup-temp
+            emptyDir: {}
+
+---
+suite: Backup ConfigMap
+templates:
+  - backup-configmap.yaml
+tests:
+  - it: should not create ConfigMap when backup disabled
+    set:
+      backup.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create ConfigMap when backup enabled
+    set:
+      backup.enabled: true
+    asserts:
+      - isKind:
+          of: ConfigMap
+
+  - it: should contain backup.sh script
+    set:
+      backup.enabled: true
+    asserts:
+      - isNotNullOrEmpty:
+          path: data["backup.sh"]
+
+  - it: should contain upload.sh script
+    set:
+      backup.enabled: true
+    asserts:
+      - isNotNullOrEmpty:
+          path: data["upload.sh"]
+
+  - it: should use custom archivePrefix in upload.sh
+    set:
+      backup.enabled: true
+      backup.archivePrefix: myhab
+    asserts:
+      - matchRegex:
+          path: data["upload.sh"]
+          pattern: "myhab-backup-"
+
+---
+suite: Backup Secret
+templates:
+  - backup-secret.yaml
+tests:
+  - it: should not create Secret when backup disabled
+    set:
+      backup.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not create Secret when existingSecret is set
+    set:
+      backup.enabled: true
+      backup.s3.existingSecret: my-s3-secret
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create Secret when backup enabled and no existingSecret
+    set:
+      backup.enabled: true
+      backup.s3.accessKey: AKIATEST
+      backup.s3.secretKey: supersecret
+    asserts:
+      - isKind:
+          of: Secret
+      - equal:
+          path: type
+          value: Opaque

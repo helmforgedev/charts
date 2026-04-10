@@ -1,0 +1,158 @@
+{{- include "openhab.validateReplicaCount" . }}
+{{- include "openhab.validateAdmin" . }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "openhab.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "openhab.labels" . | nindent 4 }}
+spec:
+  # openHAB does not support horizontal scaling — always 1 replica
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "openhab.selectorLabels" . | nindent 6 }}
+  serviceName: {{ include "openhab.fullname" . }}
+  template:
+    metadata:
+      annotations:
+        {{- if and .Values.metrics.enabled .Values.metrics.podAnnotations.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /rest/metrics/prometheus
+        prometheus.io/port: {{ .Values.env.OPENHAB_HTTP_PORT | default "8080" | quote }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "openhab.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "openhab.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.env.OPENHAB_HTTP_PORT | default "8080" | int }}
+              protocol: TCP
+            {{- if .Values.karaf.enabled }}
+            - name: karaf
+              containerPort: {{ .Values.karaf.service.port }}
+              protocol: TCP
+            {{- end }}
+          env:
+            - name: TZ
+              value: {{ .Values.env.TZ | quote }}
+            - name: EXTRA_JAVA_OPTS
+              value: {{ .Values.env.EXTRA_JAVA_OPTS | quote }}
+            - name: OPENHAB_HTTP_PORT
+              value: {{ .Values.env.OPENHAB_HTTP_PORT | quote }}
+            - name: OPENHAB_HTTPS_PORT
+              value: {{ .Values.env.OPENHAB_HTTPS_PORT | quote }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          startupProbe:
+            {{- toYaml .Values.startupProbe | nindent 12 }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.persistence.userdata.enabled }}
+            - name: userdata
+              mountPath: /openhab/userdata
+            {{- end }}
+            {{- if .Values.persistence.conf.enabled }}
+            - name: conf
+              mountPath: /openhab/conf
+            {{- end }}
+            {{- if .Values.persistence.addons.enabled }}
+            - name: addons
+              mountPath: /openhab/addons
+            {{- end }}
+            {{- if .Values.configMaps.sitemaps.enabled }}
+            {{- range $filename, $content := .Values.configMaps.sitemaps.files }}
+            - name: sitemaps
+              mountPath: /openhab/conf/sitemaps/{{ $filename }}
+              subPath: {{ $filename }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.configMaps.things.enabled }}
+            {{- range $filename, $content := .Values.configMaps.things.files }}
+            - name: things
+              mountPath: /openhab/conf/things/{{ $filename }}
+              subPath: {{ $filename }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.configMaps.items.enabled }}
+            {{- range $filename, $content := .Values.configMaps.items.files }}
+            - name: items
+              mountPath: /openhab/conf/items/{{ $filename }}
+              subPath: {{ $filename }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        {{- if .Values.persistence.userdata.enabled }}
+        - name: userdata
+          persistentVolumeClaim:
+            claimName: {{ include "openhab.userdataPvcName" . }}
+        {{- end }}
+        {{- if .Values.persistence.conf.enabled }}
+        - name: conf
+          persistentVolumeClaim:
+            claimName: {{ include "openhab.confPvcName" . }}
+        {{- end }}
+        {{- if .Values.persistence.addons.enabled }}
+        - name: addons
+          persistentVolumeClaim:
+            claimName: {{ include "openhab.addonsPvcName" . }}
+        {{- end }}
+        {{- if .Values.configMaps.sitemaps.enabled }}
+        - name: sitemaps
+          configMap:
+            name: {{ include "openhab.fullname" . }}-sitemaps
+        {{- end }}
+        {{- if .Values.configMaps.things.enabled }}
+        - name: things
+          configMap:
+            name: {{ include "openhab.fullname" . }}-things
+        {{- end }}
+        {{- if .Values.configMaps.items.enabled }}
+        - name: items
+          configMap:
+            name: {{ include "openhab.fullname" . }}-items
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

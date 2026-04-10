@@ -1,0 +1,42 @@
+suite: Validations
+templates:
+  - statefulset.yaml
+tests:
+  - it: should fail when replicaCount is 2
+    set:
+      replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: "openHAB does not support horizontal scaling. replicaCount MUST be 1. Running multiple replicas against the same persistent storage will corrupt data."
+
+  - it: should pass when replicaCount is 1
+    set:
+      replicaCount: 1
+    asserts:
+      - isKind:
+          of: StatefulSet
+
+  - it: should fail when admin.secretEnabled is true but no password and no existingSecret
+    set:
+      admin.secretEnabled: true
+      admin.password: ""
+      admin.existingSecret: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "admin.password is required when admin.secretEnabled is true and admin.existingSecret is not set."
+
+  - it: should pass when admin.secretEnabled is true with password
+    set:
+      admin.secretEnabled: true
+      admin.password: "mypassword"
+    asserts:
+      - isKind:
+          of: StatefulSet
+
+  - it: should pass when admin.secretEnabled is true with existingSecret
+    set:
+      admin.secretEnabled: true
+      admin.existingSecret: "my-secret"
+    asserts:
+      - isKind:
+          of: StatefulSet

@@ -1,0 +1,89 @@
+{{- if .Values.backup.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "openhab.fullname" . }}-backup-scripts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "openhab.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+data:
+  backup.sh: |
+    #!/bin/sh
+    set -e
+
+    echo "=== openHAB Backup Started ==="
+    DATE=$(date +%Y-%m-%d-%H%M%S)
+    ARCHIVE_NAME="{{ .Values.backup.archivePrefix }}-backup-${DATE}.tar.gz"
+    ARCHIVE="/tmp/${ARCHIVE_NAME}"
+
+    echo "Timestamp : ${DATE}"
+    echo "Archive   : ${ARCHIVE}"
+
+    {{- if .Values.backup.include.userdata }}
+    echo ""
+    echo "-- Backing up /openhab/userdata (excluding logs, tmp, cache) --"
+    tar -czf "${ARCHIVE}" \
+      --exclude="/openhab/userdata/logs" \
+      --exclude="/openhab/userdata/tmp" \
+      --exclude="/openhab/userdata/cache" \
+      {{- if .Values.backup.include.conf }}
+      /openhab/userdata \
+      /openhab/conf
+      {{- else }}
+      /openhab/userdata
+      {{- end }}
+    {{- else if .Values.backup.include.conf }}
+    echo ""
+    echo "-- Backing up /openhab/conf --"
+    tar -czf "${ARCHIVE}" /openhab/conf
+    {{- end }}
+
+    echo ""
+    echo "Archive size: $(du -h ${ARCHIVE} | cut -f1)"
+    echo "=== Backup Complete ==="
+
+  upload.sh: |
+    #!/bin/sh
+    set -e
+
+    echo "=== S3 Upload Started ==="
+
+    if [ -z "${S3_ENDPOINT}" ] || [ -z "${S3_BUCKET}" ]; then
+      echo "ERROR: S3_ENDPOINT and S3_BUCKET must be configured"
+      exit 1
+    fi
+
+    if [ -z "${S3_ACCESS_KEY}" ] || [ -z "${S3_SECRET_KEY}" ]; then
+      echo "ERROR: S3 credentials (access-key, secret-key) are not set"
+      exit 1
+    fi
+
+    ARCHIVE=$(ls -t /tmp/{{ .Values.backup.archivePrefix }}-backup-*.tar.gz 2>/dev/null | head -1)
+
+    if [ -z "${ARCHIVE}" ] || [ ! -f "${ARCHIVE}" ]; then
+      echo "ERROR: No backup archive found in /tmp"
+      exit 1
+    fi
+
+    FILENAME=$(basename "${ARCHIVE}")
+    S3_TARGET="s3/${S3_BUCKET}/${S3_PREFIX}/${FILENAME}"
+
+    echo "Archive  : ${FILENAME} ($(du -h ${ARCHIVE} | cut -f1))"
+    echo "Target   : ${S3_TARGET}"
+
+    echo ""
+    echo "Configuring MinIO client..."
+    mc alias set s3 "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}" --quiet
+
+    echo "Uploading..."
+    mc cp "${ARCHIVE}" "${S3_TARGET}"
+
+    echo ""
+    echo "Recent backups in bucket:"
+    mc ls "s3/${S3_BUCKET}/${S3_PREFIX}/" 2>/dev/null | tail -5 || true
+
+    echo ""
+    echo "=== Upload Complete ==="
+    echo "Location: s3://${S3_BUCKET}/${S3_PREFIX}/${FILENAME}"
+{{- end }}

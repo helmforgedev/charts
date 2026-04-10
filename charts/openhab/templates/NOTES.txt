@@ -1,0 +1,204 @@
+================================================================================
+openHAB {{ .Chart.AppVersion }} - Home Automation Platform
+================================================================================
+
+Release   : {{ .Release.Name }}
+Namespace : {{ .Release.Namespace }}
+Version   : {{ .Chart.Version }}
+App       : {{ .Chart.AppVersion }}
+
+================================================================================
+1. ACCESSING openHAB
+================================================================================
+
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+  openHAB Web UI: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else if eq .Values.service.type "NodePort" }}
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "openhab.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo "openHAB Web UI: http://$NODE_IP:$NODE_PORT"
+{{- else if eq .Values.service.type "LoadBalancer" }}
+  NOTE: It may take a few minutes for the LoadBalancer IP to be assigned.
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "openhab.fullname" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo "openHAB Web UI: http://$SERVICE_IP:{{ .Values.service.port }}"
+{{- else }}
+  Port-forward to access the web UI:
+
+  kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ include "openhab.fullname" . }} 8080:{{ .Values.service.port }}
+
+  openHAB Web UI: http://127.0.0.1:8080
+{{- end }}
+
+================================================================================
+2. FIRST BOOT - ADMIN SETUP
+================================================================================
+
+  openHAB does not support automated admin credential injection.
+  On first boot, you will be prompted to create an administrator account
+  through the web UI setup wizard.
+
+  This is a one-time step. Credentials are stored persistently in:
+    /openhab/userdata/jsondb/auth.json
+
+{{- if .Values.admin.secretEnabled }}
+
+  Admin credentials are stored in Secret '{{ include "openhab.adminSecretName" . }}' for reference:
+
+  Username:
+    kubectl get secret --namespace {{ .Release.Namespace }} {{ include "openhab.adminSecretName" . }} \
+      -o jsonpath="{.data.username}" | base64 --decode
+
+  Password:
+    kubectl get secret --namespace {{ .Release.Namespace }} {{ include "openhab.adminSecretName" . }} \
+      -o jsonpath="{.data.password}" | base64 --decode
+{{- end }}
+
+================================================================================
+3. STARTUP TIME
+================================================================================
+
+  openHAB loads OSGi bundles at startup and may take 60-120 seconds on the
+  first boot, or 30-60 seconds on subsequent starts with a warm cache.
+
+  Wait for the pod to be READY before accessing the web UI:
+
+  kubectl wait --namespace {{ .Release.Namespace }} \
+    pod -l app.kubernetes.io/name={{ include "openhab.name" . }} \
+    --for=condition=Ready --timeout=300s
+
+================================================================================
+4. PERSISTENT STORAGE
+================================================================================
+
+{{- if .Values.persistence.userdata.enabled }}
+  userdata ({{ .Values.persistence.userdata.size }}): Runtime state, logs, JSONDB
+    PVC: {{ include "openhab.userdataPvcName" . }}
+    Mount: /openhab/userdata
+{{- else }}
+  WARNING: userdata persistence is disabled. All runtime data (rules state,
+  persistence data, logs) will be lost on pod restart!
+{{- end }}
+
+{{- if .Values.persistence.conf.enabled }}
+  conf ({{ .Values.persistence.conf.size }}): Configuration files (live-reloaded)
+    PVC: {{ include "openhab.confPvcName" . }}
+    Mount: /openhab/conf
+{{- else }}
+  WARNING: conf persistence is disabled. All configuration files will be lost
+  on pod restart!
+{{- end }}
+
+{{- if .Values.persistence.addons.enabled }}
+  addons ({{ .Values.persistence.addons.size }}): Drop-in JAR addons
+    PVC: {{ include "openhab.addonsPvcName" . }}
+    Mount: /openhab/addons
+{{- end }}
+
+================================================================================
+5. CONFIGURATION - LIVE RELOAD
+================================================================================
+
+{{- if or .Values.configMaps.sitemaps.enabled .Values.configMaps.things.enabled .Values.configMaps.items.enabled }}
+  ConfigMap-managed files are mounted into /openhab/conf/ and automatically
+  detected by openHAB's file watcher (no restart required, ~2-5 second delay).
+
+  Active ConfigMaps:
+  {{- if .Values.configMaps.sitemaps.enabled }}
+    Sitemaps -> /openhab/conf/sitemaps/
+      ConfigMap: {{ include "openhab.fullname" . }}-sitemaps
+      Files: {{ .Values.configMaps.sitemaps.files | keys | join ", " }}
+  {{- end }}
+  {{- if .Values.configMaps.things.enabled }}
+    Things   -> /openhab/conf/things/
+      ConfigMap: {{ include "openhab.fullname" . }}-things
+      Files: {{ .Values.configMaps.things.files | keys | join ", " }}
+  {{- end }}
+  {{- if .Values.configMaps.items.enabled }}
+    Items    -> /openhab/conf/items/
+      ConfigMap: {{ include "openhab.fullname" . }}-items
+      Files: {{ .Values.configMaps.items.files | keys | join ", " }}
+  {{- end }}
+
+  To update a configuration file, edit the values and run helm upgrade.
+  openHAB will pick up the change automatically.
+{{- else }}
+  No ConfigMaps configured. Manage configuration files directly via:
+    kubectl exec --namespace {{ .Release.Namespace }} \
+      deploy/{{ include "openhab.fullname" . }} -- ls /openhab/conf/
+
+  Or copy files to the pod:
+    kubectl cp ./myfile.items \
+      {{ .Release.Namespace }}/$(kubectl get pod -n {{ .Release.Namespace }} \
+      -l app.kubernetes.io/name={{ include "openhab.name" . }} -o name | head -1 | cut -d/ -f2):/openhab/conf/items/
+{{- end }}
+
+================================================================================
+6. KARAF SSH CONSOLE
+================================================================================
+
+{{- if .Values.karaf.enabled }}
+  Karaf admin console is enabled on port {{ .Values.karaf.service.port }}.
+
+  Port-forward and connect:
+    kubectl port-forward --namespace {{ .Release.Namespace }} \
+      svc/{{ include "openhab.fullname" . }}-karaf {{ .Values.karaf.service.port }}:{{ .Values.karaf.service.port }}
+
+    ssh -p {{ .Values.karaf.service.port }} openhab@127.0.0.1
+    # Default Karaf password: habopen
+
+  Useful Karaf commands:
+    bundle:list            # List all OSGi bundles
+    feature:list           # List available features
+    log:tail               # Tail the openHAB log
+    smarthome:items list   # List all items
+{{- else }}
+  Karaf SSH console is disabled. Enable with:
+    karaf:
+      enabled: true
+{{- end }}
+
+================================================================================
+7. TROUBLESHOOTING
+================================================================================
+
+  Check pod status:
+    kubectl get pods --namespace {{ .Release.Namespace }} \
+      -l app.kubernetes.io/name={{ include "openhab.name" . }}
+
+  View logs (live):
+    kubectl logs --namespace {{ .Release.Namespace }} \
+      -l app.kubernetes.io/name={{ include "openhab.name" . }} -f
+
+  View openHAB application log:
+    kubectl exec --namespace {{ .Release.Namespace }} \
+      $(kubectl get pod -n {{ .Release.Namespace }} \
+      -l app.kubernetes.io/name={{ include "openhab.name" . }} -o name | head -1) -- \
+      tail -f /openhab/userdata/logs/openhab.log
+
+  Describe pod (for events/errors):
+    kubectl describe pod --namespace {{ .Release.Namespace }} \
+      -l app.kubernetes.io/name={{ include "openhab.name" . }}
+
+  Check startup probe:
+    kubectl get pod --namespace {{ .Release.Namespace }} \
+      -l app.kubernetes.io/name={{ include "openhab.name" . }} \
+      -o jsonpath='{.items[0].status.containerStatuses[0].started}'
+
+  Common issues:
+    - Pod stuck in Init: startup probe not yet passing (normal for 60-120s)
+    - CrashLoopBackOff: check UID/GID on PVC (must be 9001)
+    - 403 Forbidden: complete the first-boot setup wizard
+    - ConfigMap not reflected: Kubernetes syncs ConfigMaps every ~60s by default
+
+================================================================================
+8. DOCUMENTATION
+================================================================================
+
+  Full documentation: https://helmforge.dev/docs/charts/openhab
+  openHAB docs:       https://www.openhab.org/docs/
+  Community forum:    https://community.openhab.org/
+  Chart issues:       https://github.com/helmforgedev/charts/issues
+
+================================================================================

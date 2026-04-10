@@ -1,0 +1,75 @@
+# openHAB with GitOps-managed configuration via ConfigMaps
+# Use case: Infrastructure-as-Code for home automation — manage sitemaps,
+#           things, and items declaratively. Changes are applied live (no restart).
+
+image:
+  tag: "4.2.2"
+
+env:
+  TZ: "America/Sao_Paulo"
+
+configMaps:
+  # Sitemaps define the UI layout in the openHAB Basic UI / HABPanel
+  sitemaps:
+    enabled: true
+    files:
+      myhome.sitemap: |
+        sitemap myhome label="My Home" {
+          Frame label="Ground Floor" {
+            Switch item=Light_GF_Corridor    label="Corridor Light"
+            Switch item=Light_GF_Kitchen     label="Kitchen Light"
+            Text   item=Temperature_GF       label="Temperature [%.1f C]"
+          }
+          Frame label="Climate" {
+            Text item=Temperature_Outdoor label="Outdoor [%.1f C]"
+            Text item=Humidity_Outdoor    label="Humidity [%d %%]"
+          }
+        }
+
+  # Things define physical devices and their channels
+  things:
+    enabled: true
+    files:
+      network.things: |
+        Thing network:pingdevice:router [
+          hostname="192.168.1.1",
+          retry=1,
+          timeout=5000,
+          refreshInterval=60000
+        ]
+      mqtt.things: |
+        Bridge mqtt:broker:mybroker [ host="mosquitto", port=1883, secure=false ] {
+          Thing mqtt:topic:mysensor "My Sensor" {
+            Channels:
+              Type number : temperature [ stateTopic="home/sensor/temperature" ]
+              Type number : humidity    [ stateTopic="home/sensor/humidity" ]
+          }
+        }
+
+  # Items link things/channels to logical entities visible in the UI
+  items:
+    enabled: true
+    files:
+      lights.items: |
+        Switch Light_GF_Corridor "Corridor Light" <light>  { channel="..." }
+        Switch Light_GF_Kitchen  "Kitchen Light"  <light>  { channel="..." }
+      climate.items: |
+        Number:Temperature Temperature_GF       "Ground Floor [%.1f %unit%]" <temperature>
+        Number:Temperature Temperature_Outdoor  "Outdoor [%.1f %unit%]"      <temperature>
+        Number:Dimensionless Humidity_Outdoor   "Outdoor Humidity [%d %%]"   <humidity>
+
+persistence:
+  userdata:
+    size: 5Gi
+  conf:
+    size: 2Gi
+  addons:
+    size: 2Gi
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 2000m
+    memory: 2Gi

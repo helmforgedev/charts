@@ -1,0 +1,81 @@
+suite: Ingress
+templates:
+  - ingress.yaml
+tests:
+  - it: should not create Ingress when disabled
+    set:
+      ingress.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create Ingress when enabled
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: openhab.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+
+  - it: should set ingressClassName when provided
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: nginx
+      ingress.hosts:
+        - host: openhab.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+
+  - it: should set host correctly
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: openhab.myhouse.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - equal:
+          path: spec.rules[0].host
+          value: openhab.myhouse.com
+
+  - it: should set TLS when configured
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: openhab.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+      ingress.tls:
+        - secretName: openhab-tls
+          hosts:
+            - openhab.example.com
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: openhab-tls
+
+  - it: should set annotations
+    set:
+      ingress.enabled: true
+      ingress.annotations:
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      ingress.hosts:
+        - host: openhab.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-read-timeout"]
+          value: "3600"
