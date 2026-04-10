@@ -86,6 +86,7 @@ helm install my-openhab helmforge/openhab -f values.yaml
 - Optional Karaf SSH admin console (port 8101)
 - Optional admin credentials Secret
 - Prometheus metrics via `/rest/metrics/prometheus` (pod annotations + ServiceMonitor)
+- Automated S3 backup via CronJob (tar + MinIO client)
 - Fail-fast validation (replicaCount must be 1)
 
 ## Configuration
@@ -149,6 +150,32 @@ Use feature flags instead to enable optional components.
 | `metrics.serviceMonitor.scrapeTimeout` | Scrape timeout | `10s` |
 | `metrics.serviceMonitor.additionalLabels` | Extra labels on ServiceMonitor | `{}` |
 
+### Backup Parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `backup.enabled` | Enable automated backup CronJob | `false` |
+| `backup.schedule` | Cron schedule | `0 3 * * *` |
+| `backup.suspend` | Suspend the CronJob | `false` |
+| `backup.concurrencyPolicy` | CronJob concurrency policy | `Forbid` |
+| `backup.successfulJobsHistoryLimit` | Successful job history to retain | `3` |
+| `backup.failedJobsHistoryLimit` | Failed job history to retain | `3` |
+| `backup.backoffLimit` | Job backoff limit | `1` |
+| `backup.archivePrefix` | Archive filename prefix | `openhab` |
+| `backup.include.userdata` | Back up `/openhab/userdata` | `true` |
+| `backup.include.conf` | Back up `/openhab/conf` | `true` |
+| `backup.images.utility.repository` | Backup utility image | `docker.io/library/alpine` |
+| `backup.images.utility.tag` | Backup utility tag | `3.22` |
+| `backup.images.uploader.repository` | S3 uploader image | `docker.io/helmforge/mc` |
+| `backup.images.uploader.tag` | S3 uploader tag | `1.0.0` |
+| `backup.resources` | Resource requests/limits for backup containers | `{}` |
+| `backup.s3.endpoint` | S3-compatible endpoint URL | `""` |
+| `backup.s3.bucket` | Target bucket name | `""` |
+| `backup.s3.prefix` | Key prefix within the bucket | `openhab` |
+| `backup.s3.accessKey` | S3 access key | `""` |
+| `backup.s3.secretKey` | S3 secret key | `""` |
+| `backup.s3.existingSecret` | Existing Secret name (keys: `access-key`, `secret-key`) | `""` |
+
 ## Prometheus Metrics
 
 openHAB exposes Prometheus metrics via the **Metrics addon** at:
@@ -195,12 +222,42 @@ See [Prometheus Metrics Guide](docs/metrics.md) for full details.
 - [With ConfigMaps (GitOps)](examples/with-configmaps.yaml)
 - [Full Production](examples/production.yaml)
 
+## Automated Backup
+
+The chart includes an optional CronJob that archives your openHAB data and uploads it to any S3-compatible storage using the MinIO client.
+
+```yaml
+backup:
+  enabled: true
+  schedule: "0 3 * * *"
+  s3:
+    endpoint: "https://minio.example.com"
+    bucket: "openhab-backups"
+    prefix: "prod"
+    accessKey: "AKIAEXAMPLE"
+    secretKey: "supersecretkey"
+```
+
+To avoid storing credentials in values, use an existing Secret:
+
+```yaml
+backup:
+  enabled: true
+  s3:
+    endpoint: "https://minio.example.com"
+    bucket: "openhab-backups"
+    existingSecret: "my-s3-credentials"   # keys: access-key, secret-key
+```
+
+See [Automated Backup Guide](docs/backup.md) for full details including restore instructions.
+
 ## Architecture Guides
 
 - [ConfigMaps & Live Reload](docs/configmaps-live-reload.md)
 - [Storage](docs/storage.md)
 - [Security](docs/security.md)
 - [Prometheus Metrics](docs/metrics.md)
+- [Automated Backup](docs/backup.md)
 
 ## First Boot — Admin Setup
 

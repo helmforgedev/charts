@@ -267,6 +267,86 @@ metrics:
     # -- Metric relabelings
     metricRelabelings: []
 
+# -- Automated backup configuration.
+# Creates a CronJob that tars openHAB data directories and uploads them to
+# an S3-compatible bucket using the MinIO client (mc).
+#
+# Directories backed up:
+#   - /openhab/userdata (always) — JSONDB, persistence data, rules state
+#   - /openhab/conf    (optional) — items, things, sitemaps, rules files
+#
+# Excluded from userdata backup (not needed for restore):
+#   - userdata/logs   — log files
+#   - userdata/tmp    — temporary files
+#   - userdata/cache  — OSGi bundle cache (rebuilt automatically on startup)
+backup:
+  # -- Enable automated backup CronJob
+  enabled: false
+
+  # -- Backup schedule in cron format
+  schedule: "0 3 * * *"  # Daily at 03:00 UTC
+
+  # -- Suspend the CronJob without deleting it
+  suspend: false
+
+  # -- CronJob concurrency policy
+  concurrencyPolicy: Forbid
+
+  # -- Successful job history to retain
+  successfulJobsHistoryLimit: 3
+
+  # -- Failed job history to retain
+  failedJobsHistoryLimit: 3
+
+  # -- Job backoff limit
+  backoffLimit: 1
+
+  # -- Prefix used in backup archive names: openhab-backup-<timestamp>.tar.gz
+  archivePrefix: openhab
+
+  # -- What to include in the backup
+  include:
+    # -- Backup /openhab/userdata (JSONDB, persistence, rules state) — STRONGLY recommended
+    userdata: true
+    # -- Backup /openhab/conf (items, things, sitemaps, rules files)
+    # Set to false if you manage conf entirely via ConfigMaps (GitOps)
+    conf: true
+
+  images:
+    # -- Backup utility image (provides tar, gzip, cp)
+    utility:
+      repository: docker.io/library/alpine
+      tag: "3.22"
+      pullPolicy: IfNotPresent
+    # -- S3 uploader image (MinIO client)
+    uploader:
+      repository: docker.io/helmforge/mc
+      tag: "1.0.0"
+      pullPolicy: IfNotPresent
+
+  # -- Resource requests/limits for backup containers
+  resources: {}
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # limits:
+  #   cpu: 500m
+  #   memory: 256Mi
+
+  s3:
+    # -- S3-compatible endpoint URL (e.g. https://s3.amazonaws.com or https://minio.example.com)
+    endpoint: ""
+    # -- Target bucket name
+    bucket: ""
+    # -- Key prefix within the bucket
+    prefix: "openhab"
+    # -- S3 access key (stored in a Secret)
+    accessKey: ""
+    # -- S3 secret key (stored in a Secret)
+    secretKey: ""
+    # -- Use an existing Secret for S3 credentials (keys: access-key, secret-key)
+    existingSecret: ""
+
 # -- Node selector
 nodeSelector: {}
 
