@@ -1,11 +1,10 @@
 suite: Profile Presets
 templates:
   - deployment-controller.yaml
-  - deployment-proxy.yaml
-  - daemonset-proxy.yaml
+  - envoyproxy-config.yaml
   - configmap.yaml
 tests:
-  - it: should apply dev profile correctly
+  - it: should apply dev profile correctly to controller
     set:
       profile: dev
     asserts:
@@ -13,10 +12,6 @@ tests:
           path: spec.replicas
           value: 1
         template: deployment-controller.yaml
-      - equal:
-          path: spec.replicas
-          value: 1
-        template: deployment-proxy.yaml
       - equal:
           path: spec.template.spec.containers[0].resources.requests.cpu
           value: "100m"
@@ -26,28 +21,7 @@ tests:
           value: "128Mi"
         template: deployment-controller.yaml
 
-  - it: should apply staging profile correctly
-    set:
-      profile: staging
-    asserts:
-      - equal:
-          path: spec.replicas
-          value: 2
-        template: deployment-controller.yaml
-      - equal:
-          path: spec.replicas
-          value: 2
-        template: deployment-proxy.yaml
-      - equal:
-          path: spec.template.spec.containers[0].resources.requests.cpu
-          value: "500m"
-        template: deployment-controller.yaml
-      - equal:
-          path: spec.template.spec.containers[0].resources.requests.memory
-          value: "512Mi"
-        template: deployment-controller.yaml
-
-  - it: should apply production-ha profile with DaemonSet
+  - it: should apply production-ha profile with 2 controller replicas
     set:
       profile: production-ha
     asserts:
@@ -55,12 +29,6 @@ tests:
           path: spec.replicas
           value: 2
         template: deployment-controller.yaml
-      - hasDocuments:
-          count: 1
-        template: daemonset-proxy.yaml
-      - hasDocuments:
-          count: 0
-        template: deployment-proxy.yaml
       - equal:
           path: spec.template.spec.containers[0].resources.requests.cpu
           value: "1000m"
@@ -70,26 +38,66 @@ tests:
           value: "1Gi"
         template: deployment-controller.yaml
 
-  - it: should use Deployment mode for custom profile by default
+  - it: should apply dev profile proxy resources to EnvoyProxy CRD
+    set:
+      profile: dev
+    asserts:
+      - equal:
+          path: spec.provider.kubernetes.envoyDeployment.container.resources.requests.cpu
+          value: 100m
+        template: envoyproxy-config.yaml
+      - equal:
+          path: spec.provider.kubernetes.envoyDeployment.container.resources.requests.memory
+          value: 128Mi
+        template: envoyproxy-config.yaml
+
+  - it: should apply production-ha profile proxy resources to EnvoyProxy CRD with DaemonSet
+    set:
+      profile: production-ha
+      proxy:
+        kind: DaemonSet
+    asserts:
+      - isNotEmpty:
+          path: spec.provider.kubernetes.envoyDaemonSet
+        template: envoyproxy-config.yaml
+      - equal:
+          path: spec.provider.kubernetes.envoyDaemonSet.container.resources.requests.cpu
+          value: 1000m
+        template: envoyproxy-config.yaml
+
+  - it: should use custom profile values from values.yaml
+    set:
+      profile: custom
+      controller:
+        replicaCount: 3
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+        template: deployment-controller.yaml
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: "200m"
+        template: deployment-controller.yaml
+
+  - it: should use Deployment kind by default in custom profile
     set:
       profile: custom
     asserts:
-      - hasDocuments:
-          count: 1
-        template: deployment-proxy.yaml
-      - hasDocuments:
-          count: 0
-        template: daemonset-proxy.yaml
+      - isNotEmpty:
+          path: spec.provider.kubernetes.envoyDeployment
+        template: envoyproxy-config.yaml
 
-  - it: should allow DaemonSet override in custom profile
+  - it: should use DaemonSet kind when proxy.kind is DaemonSet
     set:
       profile: custom
       proxy:
-        mode: DaemonSet
+        kind: DaemonSet
     asserts:
-      - hasDocuments:
-          count: 0
-        template: deployment-proxy.yaml
-      - hasDocuments:
-          count: 1
-        template: daemonset-proxy.yaml
+      - isNotEmpty:
+          path: spec.provider.kubernetes.envoyDaemonSet
+        template: envoyproxy-config.yaml

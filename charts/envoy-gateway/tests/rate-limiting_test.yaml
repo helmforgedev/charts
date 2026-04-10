@@ -82,6 +82,11 @@ tests:
           value: 100
         template: ratelimit-policies.yaml
         documentIndex: 1
+      - equal:
+          path: spec.targetRef.kind
+          value: Gateway
+        template: ratelimit-policies.yaml
+        documentIndex: 1
 
   - it: should create strict rate limit policy
     set:
@@ -143,7 +148,7 @@ tests:
           path: spec.volumeClaimTemplates
         template: redis-statefulset.yaml
 
-  - it: should configure rate limit replicas in configmap
+  - it: should include rateLimit redis url in configmap when rate limiting enabled
     set:
       rateLimiting:
         enabled: true
@@ -152,15 +157,19 @@ tests:
     asserts:
       - matchRegex:
           path: data["envoy-gateway.yaml"]
-          pattern: "replicas: 1"
+          pattern: "rateLimit"
+        template: configmap.yaml
+      - matchRegex:
+          path: data["envoy-gateway.yaml"]
+          pattern: "redis://"
         template: configmap.yaml
 
-  - it: should disable rate limit replicas when disabled
+  - it: should not have rateLimit section in configmap when rate limiting disabled
     set:
       rateLimiting:
         enabled: false
     asserts:
-      - matchRegex:
+      - notMatchRegex:
           path: data["envoy-gateway.yaml"]
-          pattern: "replicas: 0"
+          pattern: "rateLimit"
         template: configmap.yaml

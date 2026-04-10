@@ -13,20 +13,22 @@ data:
     provider:
       type: Kubernetes
       kubernetes:
-        rateLimitDeployment:
-          {{- if .Values.rateLimiting.enabled }}
-          replicas: {{ .Values.rateLimiting.redis.enabled | ternary 1 0 }}
-          {{- else }}
-          replicas: 0
-          {{- end }}
+        envoyDeploymentSpec: {}
+    {{- if .Values.rateLimiting.enabled }}
+    rateLimit:
+      backend:
+        type: Redis
+        redis:
+          url: {{ include "envoy-gateway.ratelimit.redisUrl" . }}
+    {{- end }}
     {{- if .Values.monitoring.enabled }}
     telemetry:
       metrics:
         prometheus:
-          enabled: true
+          disable: false
       {{- if .Values.monitoring.accessLogs.enabled }}
       accessLog:
         format:
-          type: {{ .Values.monitoring.accessLogs.format | default "json" }}
+          type: {{ .Values.monitoring.accessLogs.format | upper }}
       {{- end }}
     {{- end }}

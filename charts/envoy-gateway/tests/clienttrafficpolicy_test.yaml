@@ -1,0 +1,46 @@
+suite: ClientTrafficPolicy
+templates:
+  - clienttrafficpolicy.yaml
+tests:
+  - it: should not create ClientTrafficPolicy by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create ClientTrafficPolicy when enabled
+    set:
+      clientTrafficPolicy:
+        create: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: kind
+          value: ClientTrafficPolicy
+
+  - it: should target Gateway
+    set:
+      clientTrafficPolicy:
+        create: true
+    asserts:
+      - equal:
+          path: spec.targetRef.kind
+          value: Gateway
+      - equal:
+          path: spec.targetRef.group
+          value: gateway.networking.k8s.io
+
+  - it: should configure TLS versions
+    set:
+      clientTrafficPolicy:
+        create: true
+        tls:
+          minVersion: "TLSv1.3"
+          maxVersion: "TLSv1.3"
+    asserts:
+      - equal:
+          path: spec.tls.minVersion
+          value: "TLSv1.3"
+      - equal:
+          path: spec.tls.maxVersion
+          value: "TLSv1.3"

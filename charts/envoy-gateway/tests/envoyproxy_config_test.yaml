@@ -1,0 +1,111 @@
+suite: EnvoyProxy Configuration
+templates:
+  - envoyproxy-config.yaml
+tests:
+  - it: should create EnvoyProxy when gatewayClass is enabled
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: kind
+          value: EnvoyProxy
+      - equal:
+          path: spec.provider.type
+          value: Kubernetes
+
+  - it: should not create EnvoyProxy when gatewayClass disabled
+    set:
+      gatewayClass:
+        create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should configure Deployment mode by default
+    asserts:
+      - isNotEmpty:
+          path: spec.provider.kubernetes.envoyDeployment
+      - equal:
+          path: spec.provider.kubernetes.envoyDeployment.replicas
+          value: 1
+
+  - it: should configure DaemonSet mode when kind is DaemonSet
+    set:
+      proxy:
+        kind: DaemonSet
+    asserts:
+      - isNotEmpty:
+          path: spec.provider.kubernetes.envoyDaemonSet
+      - isNull:
+          path: spec.provider.kubernetes.envoyDeployment
+
+  - it: should set proxy service type
+    set:
+      proxy:
+        service:
+          type: ClusterIP
+    asserts:
+      - equal:
+          path: spec.provider.kubernetes.envoyService.type
+          value: ClusterIP
+
+  - it: should configure proxy resources
+    set:
+      proxy:
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+    asserts:
+      - equal:
+          path: spec.provider.kubernetes.envoyDeployment.container.resources.requests.cpu
+          value: 200m
+
+  - it: should configure HPA when autoscaling enabled
+    set:
+      proxy:
+        autoscaling:
+          enabled: true
+          minReplicas: 2
+          maxReplicas: 8
+          targetCPUUtilizationPercentage: 80
+    asserts:
+      - isNotEmpty:
+          path: spec.provider.kubernetes.envoyHpa
+      - equal:
+          path: spec.provider.kubernetes.envoyHpa.minReplicas
+          value: 2
+      - equal:
+          path: spec.provider.kubernetes.envoyHpa.maxReplicas
+          value: 8
+
+  - it: should have shutdown configuration
+    asserts:
+      - equal:
+          path: spec.shutdown.drainTimeout
+          value: 60s
+
+  - it: should configure dev profile proxy resources
+    set:
+      profile: dev
+    asserts:
+      - equal:
+          path: spec.provider.kubernetes.envoyDeployment.container.resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.provider.kubernetes.envoyDeployment.container.resources.limits.cpu
+          value: 1000m
+
+  - it: should configure production-ha profile proxy resources
+    set:
+      profile: production-ha
+    asserts:
+      - equal:
+          path: spec.provider.kubernetes.envoyDeployment.container.resources.requests.cpu
+          value: 1000m
+      - equal:
+          path: spec.provider.kubernetes.envoyDeployment.container.resources.limits.memory
+          value: 4Gi

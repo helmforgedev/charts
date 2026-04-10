@@ -1,0 +1,61 @@
+suite: Certgen Job
+templates:
+  - certgen-job.yaml
+tests:
+  - it: should create 4 certgen resources
+    asserts:
+      - hasDocuments:
+          count: 4
+
+  - it: should create certgen ServiceAccount as first document
+    asserts:
+      - equal:
+          path: kind
+          value: ServiceAccount
+        documentIndex: 0
+
+  - it: should create certgen Role as second document
+    asserts:
+      - equal:
+          path: kind
+          value: Role
+        documentIndex: 1
+
+  - it: should create certgen RoleBinding as third document
+    asserts:
+      - equal:
+          path: kind
+          value: RoleBinding
+        documentIndex: 2
+
+  - it: should create certgen Job as fourth document
+    asserts:
+      - equal:
+          path: kind
+          value: Job
+        documentIndex: 3
+      - equal:
+          path: spec.template.spec.containers[0].args[0]
+          value: certgen
+        documentIndex: 3
+
+  - it: should have pre-install hook annotation on Job
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-install,pre-upgrade
+        documentIndex: 3
+
+  - it: should use controller image by default
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "envoyproxy/gateway:v1.7.1"
+        documentIndex: 3
+
+  - it: should have pre-install hook annotation on ServiceAccount
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-install,pre-upgrade
+        documentIndex: 0

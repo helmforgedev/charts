@@ -1,0 +1,61 @@
+suite: BackendTrafficPolicy
+templates:
+  - backendtrafficpolicy.yaml
+tests:
+  - it: should not create BackendTrafficPolicy by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create BackendTrafficPolicy when enabled with retries
+    set:
+      backendTrafficPolicy:
+        create: true
+        retries:
+          enabled: true
+          numRetries: 5
+          perTryTimeout: "5s"
+          retryOn:
+            httpStatusCodes:
+              - 502
+              - 503
+            triggers:
+              - connect-failure
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: kind
+          value: BackendTrafficPolicy
+      - equal:
+          path: spec.retry.numRetries
+          value: 5
+      - equal:
+          path: spec.retry.perTryTimeout
+          value: "5s"
+
+  - it: should target Gateway by default
+    set:
+      backendTrafficPolicy:
+        create: true
+    asserts:
+      - equal:
+          path: spec.targetRef.kind
+          value: Gateway
+      - equal:
+          path: spec.targetRef.group
+          value: gateway.networking.k8s.io
+
+  - it: should enable circuit breaker when configured
+    set:
+      backendTrafficPolicy:
+        create: true
+        circuitBreaker:
+          enabled: true
+          maxConnections: 2048
+          maxParallelRequests: 1024
+          maxPendingRequests: 1024
+    asserts:
+      - equal:
+          path: spec.circuitBreaker.maxConnections
+          value: 2048

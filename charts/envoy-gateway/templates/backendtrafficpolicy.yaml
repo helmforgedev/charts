@@ -1,0 +1,53 @@
+{{- if .Values.backendTrafficPolicy.create }}
+{{- $targetName := .Values.backendTrafficPolicy.targetName | default (include "envoy-gateway.gateway.name" .) }}
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: {{ include "envoy-gateway.fullname" . }}-backend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "envoy-gateway.labels" . | nindent 4 }}
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: {{ .Values.backendTrafficPolicy.targetKind }}
+    name: {{ $targetName }}
+  {{- if .Values.backendTrafficPolicy.retries.enabled }}
+  retry:
+    numRetries: {{ .Values.backendTrafficPolicy.retries.numRetries }}
+    perTryTimeout: {{ .Values.backendTrafficPolicy.retries.perTryTimeout }}
+    retryOn:
+      httpStatusCodes:
+      {{- toYaml .Values.backendTrafficPolicy.retries.retryOn.httpStatusCodes | nindent 6 }}
+      triggers:
+      {{- toYaml .Values.backendTrafficPolicy.retries.retryOn.triggers | nindent 6 }}
+  {{- end }}
+  {{- with .Values.backendTrafficPolicy.timeout }}
+  timeout:
+    http:
+      {{- if .http.requestTimeout }}
+      requestTimeout: {{ .http.requestTimeout }}
+      {{- end }}
+      {{- if .http.idleTimeout }}
+      idleTimeout: {{ .http.idleTimeout }}
+      {{- end }}
+  {{- end }}
+  {{- if .Values.backendTrafficPolicy.circuitBreaker.enabled }}
+  circuitBreaker:
+    maxConnections: {{ .Values.backendTrafficPolicy.circuitBreaker.maxConnections }}
+    maxParallelRequests: {{ .Values.backendTrafficPolicy.circuitBreaker.maxParallelRequests }}
+    maxPendingRequests: {{ .Values.backendTrafficPolicy.circuitBreaker.maxPendingRequests }}
+  {{- end }}
+  {{- if .Values.backendTrafficPolicy.healthCheck.active.enabled }}
+  healthCheck:
+    active:
+      timeout: {{ .Values.backendTrafficPolicy.healthCheck.active.timeout }}
+      interval: {{ .Values.backendTrafficPolicy.healthCheck.active.interval }}
+      unhealthyThreshold: {{ .Values.backendTrafficPolicy.healthCheck.active.unhealthyThreshold }}
+      healthyThreshold: {{ .Values.backendTrafficPolicy.healthCheck.active.healthyThreshold }}
+      http:
+        path: {{ .Values.backendTrafficPolicy.healthCheck.active.http.path | quote }}
+        expectedStatuses:
+        {{- toYaml .Values.backendTrafficPolicy.healthCheck.active.http.expectedStatuses | nindent 8 }}
+  {{- end }}
+{{- end }}

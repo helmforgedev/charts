@@ -1,3 +1,4 @@
+{{- if .Values.gatewayClass.create }}
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: EnvoyProxy
 metadata:
@@ -9,14 +10,36 @@ spec:
   provider:
     type: Kubernetes
     kubernetes:
-      envoyDeployment:
-        {{- $mode := include "envoy-gateway.proxy.mode" . }}
-        {{- if ne $mode "DaemonSet" }}
-        replicas: {{ include "envoy-gateway.proxy.replicaCount" . }}
-        {{- end }}
+      {{- if eq .Values.proxy.kind "DaemonSet" }}
+      envoyDaemonSet:
         pod:
-          securityContext:
-            {{- toYaml .Values.proxy.podSecurityContext | nindent 12 }}
+          {{- include "envoy-gateway.proxy.podSpec" . | nindent 10 }}
+        container:
+          image: {{ printf "%s:%s" .Values.proxy.image.repository .Values.proxy.image.tag }}
+          resources:
+            {{- include "envoy-gateway.proxy.resources" . | nindent 12 }}
+      {{- else }}
+      envoyDeployment:
+        replicas: {{ .Values.proxy.replicaCount }}
+        pod:
+          {{- include "envoy-gateway.proxy.podSpec" . | nindent 10 }}
+        container:
+          image: {{ printf "%s:%s" .Values.proxy.image.repository .Values.proxy.image.tag }}
+          resources:
+            {{- include "envoy-gateway.proxy.resources" . | nindent 12 }}
+      {{- if .Values.proxy.autoscaling.enabled }}
+      envoyHpa:
+        minReplicas: {{ .Values.proxy.autoscaling.minReplicas }}
+        maxReplicas: {{ .Values.proxy.autoscaling.maxReplicas }}
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: {{ .Values.proxy.autoscaling.targetCPUUtilizationPercentage }}
+      {{- end }}
+      {{- end }}
       envoyService:
         type: {{ .Values.proxy.service.type }}
         {{- with .Values.proxy.service.annotations }}
@@ -39,3 +62,7 @@ spec:
       prometheus:
         disable: false
   {{- end }}
+  shutdown:
+    drainTimeout: 60s
+    minDrainDuration: 5s
+{{- end }}

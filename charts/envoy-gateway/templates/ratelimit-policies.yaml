@@ -1,10 +1,4 @@
 {{- if .Values.rateLimiting.enabled }}
-{{- $redisUrl := "" }}
-{{- if .Values.rateLimiting.redis.enabled }}
-{{- $redisUrl = printf "%s-redis.%s.svc.cluster.local:6379" (include "envoy-gateway.fullname" .) .Release.Namespace }}
-{{- else if .Values.rateLimiting.externalRedis.host }}
-{{- $redisUrl = printf "%s:%d" .Values.rateLimiting.externalRedis.host (.Values.rateLimiting.externalRedis.port | int) }}
-{{- end }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -37,6 +31,10 @@ metadata:
   labels:
     {{- include "envoy-gateway.labels" . | nindent 4 }}
 spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: {{ include "envoy-gateway.gateway.name" . }}
   rateLimit:
     type: Global
     global:
@@ -58,6 +56,10 @@ metadata:
   labels:
     {{- include "envoy-gateway.labels" . | nindent 4 }}
 spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: {{ include "envoy-gateway.gateway.name" . }}
   rateLimit:
     type: Global
     global:

@@ -1,16 +1,12 @@
 # Default values for envoy-gateway
 # This is a YAML-formatted file.
 
-# -- Profile preset for quick deployment configuration
+# -- Profile preset for quick deployment
 # @default -- custom
-profile: custom  # Options: dev, staging, production-ha, custom
+# Options: dev, production-ha, custom
+profile: custom
 
-# Profile presets:
-# - dev: Single replica, minimal resources, no TLS (local testing)
-# - staging: 2 replicas, medium resources, self-signed TLS
-# - production-ha: HA deployment with DaemonSet, cert-manager TLS, anti-affinity
-
-## Gateway Controller Configuration
+## Controller (EG operator pod)
 controller:
   # -- Number of controller replicas (overridden by profile)
   replicaCount: 1
@@ -21,16 +17,16 @@ controller:
     # -- Controller image pull policy
     pullPolicy: IfNotPresent
     # -- Controller image tag (defaults to chart appVersion)
-    tag: "v1.0.0"
+    tag: "v1.7.1"
 
   # -- Resources for controller (overridden by profile)
   resources:
     requests:
       cpu: 100m
-      memory: 128Mi
+      memory: 256Mi
     limits:
       cpu: 500m
-      memory: 512Mi
+      memory: 1Gi
 
   # -- Node selector for controller pods
   nodeSelector: {}
@@ -38,7 +34,7 @@ controller:
   # -- Tolerations for controller pods
   tolerations: []
 
-  # -- Affinity rules for controller pods (anti-affinity set by production-ha profile)
+  # -- Affinity rules for controller pods
   affinity: {}
 
   # -- Pod security context
@@ -55,13 +51,21 @@ controller:
         - ALL
     readOnlyRootFilesystem: true
 
-## Envoy Proxy Configuration
-proxy:
-  # -- Deployment mode: Deployment or DaemonSet (overridden by profile)
-  # production-ha profile uses DaemonSet for one proxy per node
-  mode: Deployment  # Options: Deployment, DaemonSet
+## Certgen Job (generates TLS certs for controller webhook + xDS)
+certgen:
+  image:
+    # -- Certgen image repository
+    repository: docker.io/envoyproxy/gateway
+    # -- Certgen image pull policy
+    pullPolicy: IfNotPresent
+    # -- Certgen image tag (defaults to chart appVersion)
+    tag: "v1.7.1"
 
-  # -- Number of proxy replicas (only for Deployment mode, overridden by profile)
+## Proxy configuration via EnvoyProxy CRD (EG manages the actual proxy pods)
+proxy:
+  # -- Proxy provisioning mode: Deployment or DaemonSet
+  kind: Deployment
+  # -- Number of proxy replicas (only for Deployment kind)
   replicaCount: 1
 
   image:
@@ -69,23 +73,29 @@ proxy:
     repository: docker.io/envoyproxy/envoy
     # -- Proxy image pull policy
     pullPolicy: IfNotPresent
-    # -- Proxy image tag
-    tag: "v1.29.0"
+    # -- Envoy image tag for EG v1.7.1 (distroless)
+    tag: "distroless-v1.33.0"
 
-  # -- Resources for proxy (overridden by profile)
+  # -- Resources for proxy pods (overridden by profile)
   resources:
     requests:
       cpu: 100m
-      memory: 128Mi
+      memory: 512Mi
     limits:
       cpu: 1000m
-      memory: 1Gi
+      memory: 2Gi
 
-  # -- Horizontal Pod Autoscaler (only for Deployment mode)
+  service:
+    # -- Proxy service type
+    type: LoadBalancer
+    # -- Annotations for proxy service
+    annotations: {}
+
+  # -- Horizontal Pod Autoscaler (only for Deployment kind)
   autoscaling:
     enabled: false
-    minReplicas: 2
-    maxReplicas: 10
+    minReplicas: 1
+    maxReplicas: 5
     targetCPUUtilizationPercentage: 80
 
   # -- Node selector for proxy pods
@@ -94,52 +104,209 @@ proxy:
   # -- Tolerations for proxy pods
   tolerations: []
 
-  # -- Affinity rules for proxy pods (anti-affinity set by production-ha profile)
+  # -- Affinity rules for proxy pods
   affinity: {}
 
-  # -- Pod security context
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 65532
-    fsGroup: 65532
+## GatewayClass
+gatewayClass:
+  # -- GatewayClass name
+  name: envoy-gateway
+  # -- Create GatewayClass resource
+  create: true
 
-  # -- Container security context
-  securityContext:
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop:
-        - ALL
-    readOnlyRootFilesystem: true
+## Gateway resource (triggers EG to provision proxy pods)
+gateway:
+  # -- Create a default Gateway resource
+  create: true
+  # -- Name of the Gateway (defaults to release name)
+  name: ""
+  listeners:
+    http:
+      enabled: true
+      port: 80
+    https:
+      enabled: false
+      port: 443
+      tls:
+        mode: Terminate
+        certificateRef:
+          # -- Name of the TLS secret (must be in same namespace)
+          name: ""
+          namespace: ""
 
-  # -- Service configuration for proxy
-  service:
-    type: LoadBalancer
-    # -- HTTP port
-    httpPort: 80
-    # -- HTTPS port
-    httpsPort: 443
-    # -- Annotations for proxy service
-    annotations: {}
+## SecurityPolicy — EG-native auth (JWT, OIDC, API Key, CORS)
+securityPolicy:
+  # -- Create a SecurityPolicy resource
+  create: false
+  # -- Target Gateway or HTTPRoute (Gateway or HTTPRoute)
+  targetKind: Gateway
+  # -- Target resource name (defaults to gateway.name or release name)
+  targetName: ""
 
-## Gateway API Example Resources
-gatewayAPI:
-  examples:
-    # -- Create example Gateway and HTTPRoute resources
-    enabled: true
-    # -- Namespace for example resources (defaults to Release.Namespace)
-    namespace: ""
-
-## Certificate Management
-certificates:
-  certManager:
-    # -- Enable cert-manager integration
+  jwt:
     enabled: false
-    # -- Issuer name (ClusterIssuer or Issuer)
-    issuer: selfsigned
-    # -- Issuer kind
-    issuerKind: ClusterIssuer
-  # -- Auto-provision certificates for Gateway listeners
-  autoProvision: false
+    providers: []
+    # Example:
+    # - name: google
+    #   issuer: https://accounts.google.com
+    #   audiences:
+    #     - my-app
+    #   remoteJWKS:
+    #     uri: https://www.googleapis.com/oauth2/v3/certs
+
+  oidc:
+    enabled: false
+    provider:
+      issuer: ""
+      authorizationEndpoint: ""
+      tokenEndpoint: ""
+    clientID: ""
+    clientSecret:
+      name: ""
+    redirectURL: ""
+    scopes:
+      - openid
+
+  apiKey:
+    enabled: false
+    # -- Secret names containing API keys (key: key-name, value: api-key)
+    credentials: []
+    # - name: my-api-keys
+
+  cors:
+    enabled: false
+    allowOrigins:
+      - "*"
+    allowMethods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+    allowHeaders:
+      - Authorization
+      - Content-Type
+    maxAge: 86400
+
+## BackendTrafficPolicy — retries, timeouts, circuit breaking, health checks
+backendTrafficPolicy:
+  # -- Create a BackendTrafficPolicy resource
+  create: false
+  # -- Target Gateway or HTTPRoute
+  targetKind: Gateway
+  targetName: ""
+
+  retries:
+    enabled: false
+    numRetries: 3
+    perTryTimeout: "10s"
+    retryOn:
+      httpStatusCodes:
+        - 502
+        - 503
+        - 504
+      triggers:
+        - connect-failure
+        - retriable-status-codes
+
+  timeout:
+    http:
+      # -- How long the proxy will wait for a complete request
+      requestTimeout: "60s"
+      # -- How long the proxy will wait for a response from the backend
+      idleTimeout: "60s"
+
+  circuitBreaker:
+    enabled: false
+    maxConnections: 1024
+    maxParallelRequests: 1024
+    maxPendingRequests: 1024
+
+  healthCheck:
+    active:
+      enabled: false
+      timeout: "1s"
+      interval: "3s"
+      unhealthyThreshold: 3
+      healthyThreshold: 1
+      http:
+        path: "/health"
+        expectedStatuses:
+          - 200
+
+## ClientTrafficPolicy — listener-level settings
+clientTrafficPolicy:
+  # -- Create a ClientTrafficPolicy resource
+  create: false
+  targetName: ""
+
+  connection:
+    # -- Maximum concurrent connections per listener
+    connectionLimit:
+      value: 10000
+
+  tls:
+    # -- Minimum TLS version (TLSv1.2 or TLSv1.3)
+    minVersion: "TLSv1.2"
+    # -- Maximum TLS version
+    maxVersion: "TLSv1.3"
+    ciphers: []
+
+  http1:
+    enableTrailers: true
+    preserveHeaderCase: false
+    http10:
+      enabled: false
+
+  http2:
+    initialStreamWindowSize: "64Ki"
+    initialConnectionWindowSize: "1Mi"
+
+  timeout:
+    http:
+      # -- Request timeout on the listener side
+      requestReceivedTimeout: "10s"
+
+## Rate Limiting
+rateLimiting:
+  # -- Enable global rate limiting
+  enabled: false
+  redis:
+    # -- Deploy Redis for rate limiting state
+    enabled: false
+    image:
+      repository: docker.io/redis
+      tag: "8.0.2-alpine"
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    persistence:
+      enabled: true
+      size: 1Gi
+      storageClass: ""
+  externalRedis:
+    host: ""
+    port: 6379
+    auth:
+      enabled: false
+      secretName: ""
+      secretKey: password
+  # -- Rate limit service (envoyproxy/ratelimit) — deployed by EG when enabled
+  service:
+    image:
+      repository: docker.io/envoyproxy/ratelimit
+      tag: "19f2079f"
+  # -- Pre-built rate limit policy presets
+  presets:
+    # -- Apply 100 req/min per IP to default gateway
+    api: false
+    # -- Apply 10 req/min per IP to default gateway
+    strict: false
 
 ## Monitoring and Observability
 monitoring:
@@ -153,54 +320,10 @@ monitoring:
   grafana:
     # -- Create ConfigMap with Grafana dashboards
     dashboards: false
-  # -- Enable access logs
   accessLogs:
     enabled: true
     # -- Access log format (json or text)
     format: json
-
-## Rate Limiting
-rateLimiting:
-  # -- Enable rate limiting
-  enabled: false
-  # -- Deploy Redis for distributed rate limiting
-  redis:
-    enabled: false
-    # -- Redis image configuration
-    image:
-      repository: docker.io/redis
-      tag: "7.2-alpine"
-      pullPolicy: IfNotPresent
-    # -- Redis resources
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
-    # -- Redis persistence
-    persistence:
-      enabled: true
-      size: 1Gi
-      storageClass: ""
-  # -- External Redis configuration (if not deploying Redis)
-  externalRedis:
-    # -- External Redis host
-    host: ""
-    # -- External Redis port
-    port: 6379
-    # -- External Redis auth (secretKeyRef)
-    auth:
-      enabled: false
-      secretName: ""
-      secretKey: password
-  # -- Rate limit presets
-  presets:
-    # -- API preset: 100 req/min per IP
-    api: false
-    # -- Strict preset: 10 req/min per IP
-    strict: false
 
 ## Security and Hardening
 security:
@@ -209,13 +332,20 @@ security:
   # -- Enable PodSecurityStandard restricted
   podSecurityStandards: true
 
-## High Availability (set by production-ha profile)
+## High Availability
 highAvailability:
-  # -- Enable HA mode (controller replicas, proxy DaemonSet, anti-affinity, PDB)
+  # -- Enable HA mode (controller replicas, anti-affinity, PDB)
   enabled: false
-  # -- PodDisruptionBudget
   podDisruptionBudget:
     minAvailable: 1
+
+## Gateway API Examples
+gatewayAPI:
+  examples:
+    # -- Create example Gateway and HTTPRoute resources
+    enabled: true
+    # -- Namespace for example resources (defaults to Release.Namespace)
+    namespace: ""
 
 ## ServiceAccount
 serviceAccount:
@@ -231,13 +361,6 @@ rbac:
   # -- Create RBAC resources
   create: true
 
-## GatewayClass
-gatewayClass:
-  # -- GatewayClass name
-  name: envoy-gateway
-  # -- Create GatewayClass resource
-  create: true
-
 ## Image pull secrets
 imagePullSecrets: []
 
@@ -251,69 +374,4 @@ podAnnotations: {}
 ## Pod labels
 podLabels: {}
 
-# =============================================================================
-# PROFILE PRESET EXAMPLES
-# =============================================================================
-
-# Example: Development profile
-# profile: dev
-#
-# Configures:
-# - controller.replicaCount: 1
-# - proxy.mode: Deployment
-# - proxy.replicaCount: 1
-# - Minimal resources (100m CPU, 128Mi memory)
-# - No TLS (for local testing)
-# - gatewayAPI.examples.enabled: true
-
-# Example: Staging profile
-# profile: staging
-#
-# Configures:
-# - controller.replicaCount: 2
-# - proxy.mode: Deployment
-# - proxy.replicaCount: 2
-# - Medium resources (500m CPU, 512Mi memory)
-# - Self-signed TLS certificates
-# - gatewayAPI.examples.enabled: true
-
-# Example: Production HA profile
-# profile: production-ha
-#
-# Configures:
-# - controller.replicaCount: 2 (with leader election)
-# - proxy.mode: DaemonSet (one per node)
-# - Production resources (1000m CPU, 1Gi memory)
-# - cert-manager TLS (certificates.certManager.enabled: true)
-# - Anti-affinity rules
-# - PodDisruptionBudgets
-# - highAvailability.enabled: true
-
-# =============================================================================
-# ADVANCED CONFIGURATION
-# =============================================================================
-
-# Example: Enable monitoring
-# monitoring:
-#   enabled: true
-#   prometheus:
-#     serviceMonitor: true
-#   accessLogs:
-#     enabled: true
-#     format: json
-
-# Example: Enable rate limiting with Redis
-# rateLimiting:
-#   enabled: true
-#   redis:
-#     enabled: true
-#   presets:
-#     api: true
-
-# Example: Enable cert-manager
-# certificates:
-#   certManager:
-#     enabled: true
-#     issuer: letsencrypt-prod
-#     issuerKind: ClusterIssuer
-#   autoProvision: true
+kubernetesClusterDomain: cluster.local

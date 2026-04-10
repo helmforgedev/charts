@@ -1,7 +1,6 @@
 suite: High Availability Features
 templates:
   - deployment-controller.yaml
-  - deployment-proxy.yaml
   - pdb-controller.yaml
   - configmap.yaml
 tests:
@@ -21,22 +20,6 @@ tests:
           value: kubernetes.io/hostname
         template: deployment-controller.yaml
 
-  - it: should apply anti-affinity in production-ha profile for proxy Deployment
-    set:
-      profile: custom
-      proxy:
-        mode: Deployment
-      highAvailability:
-        enabled: true
-    asserts:
-      - isNotEmpty:
-          path: spec.template.spec.affinity
-        template: deployment-proxy.yaml
-      - equal:
-          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].weight
-          value: 100
-        template: deployment-proxy.yaml
-
   - it: should not apply anti-affinity by default
     set:
       profile: dev
@@ -44,9 +27,6 @@ tests:
       - isNull:
           path: spec.template.spec.affinity
         template: deployment-controller.yaml
-      - isNull:
-          path: spec.template.spec.affinity
-        template: deployment-proxy.yaml
 
   - it: should create PodDisruptionBudget in HA mode
     set:
@@ -93,3 +73,12 @@ tests:
           path: spec.minAvailable
           value: 2
         template: pdb-controller.yaml
+
+  - it: should give 2 controller replicas in production-ha profile
+    set:
+      profile: production-ha
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+        template: deployment-controller.yaml
