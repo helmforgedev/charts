@@ -1,68 +1,60 @@
 suite: Rate Limiting
 templates:
-  - redis-statefulset.yaml
-  - redis-service.yaml
   - ratelimit-policies.yaml
   - configmap.yaml
 tests:
-  - it: should create Redis StatefulSet when rate limiting enabled
+  # Redis subchart is rendered by Helm, not by helm-unittest.
+  # Tests here cover configmap URL generation and rate limit policies.
+
+  - it: should include rateLimit redis url in configmap when subchart redis enabled
     set:
       rateLimiting:
         enabled: true
-        redis:
-          enabled: true
+      redis:
+        enabled: true
     asserts:
-      - hasDocuments:
-          count: 1
-        template: redis-statefulset.yaml
-      - equal:
-          path: kind
-          value: StatefulSet
-        template: redis-statefulset.yaml
-      - equal:
-          path: spec.replicas
-          value: 1
-        template: redis-statefulset.yaml
+      - matchRegex:
+          path: data["envoy-gateway.yaml"]
+          pattern: "rateLimit"
+        template: configmap.yaml
+      - matchRegex:
+          path: data["envoy-gateway.yaml"]
+          pattern: "redis://RELEASE-NAME-redis\."
+        template: configmap.yaml
 
-  - it: should not create Redis when disabled
+  - it: should use external redis url when externalRedis host set
+    set:
+      rateLimiting:
+        enabled: true
+        externalRedis:
+          host: my-redis.infra.svc.cluster.local
+          port: 6379
+      redis:
+        enabled: false
+    asserts:
+      - matchRegex:
+          path: data["envoy-gateway.yaml"]
+          pattern: "redis://my-redis\.infra\.svc\.cluster\.local:6379"
+        template: configmap.yaml
+
+  - it: should not have rateLimit section in configmap when rate limiting disabled
     set:
       rateLimiting:
         enabled: false
     asserts:
-      - hasDocuments:
-          count: 0
-        template: redis-statefulset.yaml
-      - hasDocuments:
-          count: 0
-        template: redis-service.yaml
-
-  - it: should create Redis Service
-    set:
-      rateLimiting:
-        enabled: true
-        redis:
-          enabled: true
-    asserts:
-      - hasDocuments:
-          count: 1
-        template: redis-service.yaml
-      - equal:
-          path: kind
-          value: Service
-        template: redis-service.yaml
-      - equal:
-          path: spec.clusterIP
-          value: None
-        template: redis-service.yaml
+      - notMatchRegex:
+          path: data["envoy-gateway.yaml"]
+          pattern: "rateLimit"
+        template: configmap.yaml
 
   - it: should create rate limit policies with api preset
     set:
       rateLimiting:
         enabled: true
-        redis:
-          enabled: true
         presets:
           api: true
+      redis:
+        enabled: true
     asserts:
       - hasDocuments:
           count: 2
@@ -92,10 +84,10 @@ tests:
     set:
       rateLimiting:
         enabled: true
-        redis:
-          enabled: true
         presets:
           strict: true
+      redis:
+        enabled: true
     asserts:
       - hasDocuments:
           count: 2
@@ -110,66 +102,12 @@ tests:
     set:
       rateLimiting:
         enabled: true
-        redis:
-          enabled: true
         presets:
           api: true
           strict: true
+      redis:
+        enabled: true
     asserts:
       - hasDocuments:
           count: 3
         template: ratelimit-policies.yaml
-
-  - it: should use persistence for Redis
-    set:
-      rateLimiting:
-        enabled: true
-        redis:
-          enabled: true
-          persistence:
-            enabled: true
-            size: 2Gi
-    asserts:
-      - equal:
-          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
-          value: 2Gi
-        template: redis-statefulset.yaml
-
-  - it: should use emptyDir when persistence disabled
-    set:
-      rateLimiting:
-        enabled: true
-        redis:
-          enabled: true
-          persistence:
-            enabled: false
-    asserts:
-      - isNull:
-          path: spec.volumeClaimTemplates
-        template: redis-statefulset.yaml
-
-  - it: should include rateLimit redis url in configmap when rate limiting enabled
-    set:
-      rateLimiting:
-        enabled: true
-        redis:
-          enabled: true
-    asserts:
-      - matchRegex:
-          path: data["envoy-gateway.yaml"]
-          pattern: "rateLimit"
-        template: configmap.yaml
-      - matchRegex:
-          path: data["envoy-gateway.yaml"]
-          pattern: "redis://"
-        template: configmap.yaml
-
-  - it: should not have rateLimit section in configmap when rate limiting disabled
-    set:
-      rateLimiting:
-        enabled: false
-    asserts:
-      - notMatchRegex:
-          path: data["envoy-gateway.yaml"]
-          pattern: "rateLimit"
-        template: configmap.yaml

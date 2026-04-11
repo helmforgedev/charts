@@ -271,24 +271,13 @@ clientTrafficPolicy:
 rateLimiting:
   # -- Enable global rate limiting
   enabled: false
-  redis:
-    # -- Deploy Redis for rate limiting state
-    enabled: false
+  # -- Rate limit service (envoyproxy/ratelimit) — deployed by EG when enabled
+  service:
     image:
-      repository: docker.io/redis
-      tag: "8.0.2-alpine"
-      pullPolicy: IfNotPresent
-    resources:
-      requests:
-        cpu: 50m
-        memory: 64Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
-    persistence:
-      enabled: true
-      size: 1Gi
-      storageClass: ""
+      repository: docker.io/envoyproxy/ratelimit
+      tag: "19f2079f"
+  # -- Use an external Redis instead of the bundled subchart
+  # Set this if redis.enabled=false and you want to point to your own Redis.
   externalRedis:
     host: ""
     port: 6379
@@ -296,17 +285,41 @@ rateLimiting:
       enabled: false
       secretName: ""
       secretKey: password
-  # -- Rate limit service (envoyproxy/ratelimit) — deployed by EG when enabled
-  service:
-    image:
-      repository: docker.io/envoyproxy/ratelimit
-      tag: "19f2079f"
   # -- Pre-built rate limit policy presets
   presets:
     # -- Apply 100 req/min per IP to default gateway
     api: false
     # -- Apply 10 req/min per IP to default gateway
     strict: false
+
+# =============================================================================
+# Redis subchart (helmforge/redis) — used for global rate limiting state
+# Set rateLimiting.enabled=true together with redis.enabled=true to activate.
+# All keys here are forwarded to the helmforge/redis chart.
+# See: https://helmforge.dev/docs/charts/redis
+# =============================================================================
+redis:
+  # -- Enable the Redis subchart for rate limiting
+  enabled: false
+  # -- Redis topology (standalone is sufficient for rate limiting)
+  architecture: standalone
+  auth:
+    # -- Enable password authentication
+    enabled: true
+    # -- Auto-generated password if empty
+    password: ""
+  standalone:
+    persistence:
+      enabled: true
+      size: 1Gi
+      storageClass: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
 ## Monitoring and Observability
 monitoring:

@@ -197,11 +197,13 @@ SecurityPolicy target name - returns targetName or gateway name
 {{- end }}
 
 {{/*
-Rate limit Redis URL - returns internal or external Redis URL
+Rate limit Redis URL — returns subchart or external Redis URL.
+Subchart (redis.enabled=true): redis service is named "<release>-redis" by the helmforge/redis chart.
+External (rateLimiting.externalRedis.host set): use the provided host/port.
 */}}
 {{- define "envoy-gateway.ratelimit.redisUrl" -}}
-{{- if .Values.rateLimiting.redis.enabled }}
-{{- printf "redis://%s-redis.%s.svc.cluster.local:6379" (include "envoy-gateway.fullname" .) .Release.Namespace }}
+{{- if .Values.redis.enabled }}
+{{- printf "redis://%s-redis.%s.svc.cluster.local:6379" .Release.Name .Release.Namespace }}
 {{- else if .Values.rateLimiting.externalRedis.host }}
 {{- printf "redis://%s:%d" .Values.rateLimiting.externalRedis.host (.Values.rateLimiting.externalRedis.port | int) }}
 {{- end }}
