@@ -84,3 +84,42 @@ tests:
       - equal:
           path: spec.externalIPs[0]
           value: "203.0.113.10"
+
+  - it: should set static NodePorts on the client Service when configured
+    documentIndex: 0
+    set:
+      service.mqttNodePort: 31883
+      service.websocketNodePort: 31901
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: mqtt
+            port: 1883
+            targetPort: mqtt
+            protocol: TCP
+            nodePort: 31883
+      - contains:
+          path: spec.ports
+          content:
+            name: websocket
+            port: 9001
+            targetPort: websocket
+            protocol: TCP
+            nodePort: 31901
+
+  - it: should set mqtts NodePort when TLS and mqttsNodePort are set
+    documentIndex: 0
+    set:
+      broker.tls.enabled: true
+      broker.tls.certSecretName: mosquitto-tls
+      service.mqttsNodePort: 30883
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: mqtts
+            port: 8883
+            targetPort: mqtts
+            protocol: TCP
+            nodePort: 30883

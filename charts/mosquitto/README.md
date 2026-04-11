@@ -29,6 +29,7 @@ helm install mosquitto oci://ghcr.io/helmforgedev/helm/mosquitto
 - **Native MQTT TLS Listener** — optional TLS/mTLS listener using an existing Kubernetes Secret
 - **Broker Pressure Limits** — optional connection and queue/message size limits to reduce abuse impact
 - **MQTTX Web Companion** — optional browser client deployment for quick testing
+- **Service exposure** — optional `externalIPs` and static Kubernetes `nodePort` values per listener (MQTT, WebSocket, MQTTS)
 - **Values Schema** — `values.schema.json` validates user-supplied values and improves ArtifactHub rendering
 
 ## Important Notes
@@ -38,6 +39,7 @@ helm install mosquitto oci://ghcr.io/helmforgedev/helm/mosquitto
 - federated mode is based on Mosquitto bridges, not on native shared-state clustering
 - federated brokers still do **not** share sessions or retained state like a true clustered MQTT platform
 - the default Service routing uses `sessionAffinity=None` for broader compatibility; enable `ClientIP` only when sticky routing is explicitly needed
+- set `service.mqttNodePort`, `service.websocketNodePort`, and `service.mqttsNodePort` to a non-zero port (typically `30000`–`32767`) to pin static NodePorts; keep them at `0` to let the cluster assign ports automatically
 - `service.externalIPs` maps to `spec.externalIPs` on the broker Service for clusters that route traffic to those addresses
 - federated multi-replica installs automatically prefer spreading broker pods across nodes unless you provide custom `affinity` or `topologySpreadConstraints`
 - when `broker.tls.enabled=true`, set `broker.tls.certSecretName` to an existing Secret containing `tls.crt` and `tls.key` (and optionally `ca.crt` for mTLS)
@@ -106,6 +108,19 @@ mqttxWeb:
             pathType: Prefix
 ```
 
+### NodePort with static NodePorts and external IPs
+
+```yaml
+service:
+  type: NodePort
+  mqttNodePort: 31883
+  websocketNodePort: 31901
+  externalIPs:
+    - 203.0.113.10
+```
+
+When `broker.tls.enabled=true`, use `service.mqttsNodePort` instead of `mqttNodePort` for the TLS listener.
+
 ### Public Broker with MQTT TLS
 
 ```yaml
@@ -146,8 +161,16 @@ broker:
 | `broker.federation.topicPattern` | `#` | Topic pattern bridged between federated brokers |
 | `auth.enabled` | `false` | Enable username/password authentication |
 | `acl.enabled` | `false` | Enable ACL file generation |
+| `service.type` | `ClusterIP` | Service type: `ClusterIP`, `NodePort`, or `LoadBalancer` |
 | `service.sessionAffinity` | `None` | Service routing policy for client traffic |
+| `service.mqttPort` | `1883` | Service port for plain MQTT (when TLS is disabled) |
+| `service.websocketPort` | `9001` | Service port for WebSocket |
+| `service.mqttsPort` | `8883` | Service port for MQTT TLS (when TLS is enabled) |
+| `service.mqttNodePort` | `0` | Static NodePort for MQTT; `0` omits the field (auto-assigned when using NodePort/LoadBalancer) |
+| `service.websocketNodePort` | `0` | Static NodePort for WebSocket |
+| `service.mqttsNodePort` | `0` | Static NodePort for MQTTS (TLS) |
 | `service.externalIPs` | `[]` | Optional `spec.externalIPs` entries for the broker Service |
+| `service.externalTrafficPolicy` | `Cluster` | Used when `service.type` is `NodePort` or `LoadBalancer` |
 | `websocketIngress.enabled` | `false` | Expose broker WebSocket through ingress |
 | `mqttxWeb.enabled` | `false` | Deploy MQTTX Web companion UI |
 
