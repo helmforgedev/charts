@@ -38,6 +38,7 @@ helm install mosquitto oci://ghcr.io/helmforgedev/helm/mosquitto
 - federated mode is based on Mosquitto bridges, not on native shared-state clustering
 - federated brokers still do **not** share sessions or retained state like a true clustered MQTT platform
 - the default Service routing uses `sessionAffinity=None` for broader compatibility; enable `ClientIP` only when sticky routing is explicitly needed
+- `service.externalIPs` maps to `spec.externalIPs` on the broker Service for clusters that route traffic to those addresses
 - federated multi-replica installs automatically prefer spreading broker pods across nodes unless you provide custom `affinity` or `topologySpreadConstraints`
 - when `broker.tls.enabled=true`, set `broker.tls.certSecretName` to an existing Secret containing `tls.crt` and `tls.key` (and optionally `ca.crt` for mTLS)
 - when `broker.tls.enabled=true`, the chart disables the plain MQTT `1883` listener and Service port, serving MQTT only on `broker.tls.port` (default `8883`)
@@ -146,6 +147,7 @@ broker:
 | `auth.enabled` | `false` | Enable username/password authentication |
 | `acl.enabled` | `false` | Enable ACL file generation |
 | `service.sessionAffinity` | `None` | Service routing policy for client traffic |
+| `service.externalIPs` | `[]` | Optional `spec.externalIPs` entries for the broker Service |
 | `websocketIngress.enabled` | `false` | Expose broker WebSocket through ingress |
 | `mqttxWeb.enabled` | `false` | Deploy MQTTX Web companion UI |
 
