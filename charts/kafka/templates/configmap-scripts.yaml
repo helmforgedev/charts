@@ -38,7 +38,7 @@ data:
 
     {{- with .Values.config.common }}
     cat >> "${config_file}" <<'EOF'
-    {{ . }}
+{{- . | nindent 4 }}
     EOF
     {{- end }}
 
@@ -55,7 +55,7 @@ data:
         "${config_file}"
       {{- with .Values.config.singleBroker }}
       cat >> "${config_file}" <<'EOF'
-      {{ . }}
+{{- . | nindent 6 }}
       EOF
       {{- end }}
       echo "inter.broker.listener.name=CLIENT" >> "${config_file}"
@@ -69,7 +69,8 @@ data:
     elif [ "${component}" = "controller" ]; then
       initial_controllers=""
       controller_count="{{ .Values.cluster.controllers.replicaCount }}"
-      advertised_controller="${HOSTNAME}.{{ include "kafka.controllerHeadlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}"
+      broker_count="{{ .Values.cluster.brokers.replicaCount }}"
+      advertised_host="${HOSTNAME}.{{ include "kafka.controllerHeadlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}"
       i=0
       while [ "${i}" -lt "${controller_count}" ]; do
         if [ -n "${initial_controllers}" ]; then
@@ -79,19 +80,33 @@ data:
         initial_controllers="${initial_controllers}${i}@{{ include "kafka.controllerStatefulSetName" . }}-${i}.{{ include "kafka.controllerHeadlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.listeners.controller.port }}:${dir_id}"
         i=$((i + 1))
       done
-      sed -i \
-        -e "s|__NODE_ID__|${ordinal}|g" \
-        -e "s|__PROCESS_ROLES__|controller|g" \
-        -e "s|__LISTENERS__|CONTROLLER://:{{ .Values.listeners.controller.port }}|g" \
-        -e "s|__ADVERTISED_LISTENERS__|CONTROLLER://${advertised_controller}:{{ .Values.listeners.controller.port }}|g" \
-        -e "s|__OFFSETS_TOPIC_RF__|{{ include "kafka.internalReplicationFactor" . }}|g" \
-        -e "s|__TRANSACTION_TOPIC_RF__|{{ include "kafka.internalReplicationFactor" . }}|g" \
-        -e "s|__TRANSACTION_MIN_ISR__|{{ include "kafka.minInSyncReplicas" . }}|g" \
-        -e "s|__MIN_ISR__|{{ include "kafka.minInSyncReplicas" . }}|g" \
-        "${config_file}"
+      if [ "${broker_count}" = "0" ]; then
+        sed -i \
+          -e "s|__NODE_ID__|${ordinal}|g" \
+          -e "s|__PROCESS_ROLES__|broker,controller|g" \
+          -e "s|__LISTENERS__|CLIENT://:{{ .Values.listeners.client.port }},CONTROLLER://:{{ .Values.listeners.controller.port }}|g" \
+          -e "s|__ADVERTISED_LISTENERS__|CLIENT://${advertised_host}:{{ .Values.listeners.client.port }},CONTROLLER://${advertised_host}:{{ .Values.listeners.controller.port }}|g" \
+          -e "s|__OFFSETS_TOPIC_RF__|{{ include "kafka.internalReplicationFactor" . }}|g" \
+          -e "s|__TRANSACTION_TOPIC_RF__|{{ include "kafka.internalReplicationFactor" . }}|g" \
+          -e "s|__TRANSACTION_MIN_ISR__|{{ include "kafka.minInSyncReplicas" . }}|g" \
+          -e "s|__MIN_ISR__|{{ include "kafka.minInSyncReplicas" . }}|g" \
+          "${config_file}"
+        echo "inter.broker.listener.name=CLIENT" >> "${config_file}"
+      else
+        sed -i \
+          -e "s|__NODE_ID__|${ordinal}|g" \
+          -e "s|__PROCESS_ROLES__|controller|g" \
+          -e "s|__LISTENERS__|CONTROLLER://:{{ .Values.listeners.controller.port }}|g" \
+          -e "s|__ADVERTISED_LISTENERS__|CONTROLLER://${advertised_host}:{{ .Values.listeners.controller.port }}|g" \
+          -e "s|__OFFSETS_TOPIC_RF__|{{ include "kafka.internalReplicationFactor" . }}|g" \
+          -e "s|__TRANSACTION_TOPIC_RF__|{{ include "kafka.internalReplicationFactor" . }}|g" \
+          -e "s|__TRANSACTION_MIN_ISR__|{{ include "kafka.minInSyncReplicas" . }}|g" \
+          -e "s|__MIN_ISR__|{{ include "kafka.minInSyncReplicas" . }}|g" \
+          "${config_file}"
+      fi
       {{- with .Values.config.controller }}
       cat >> "${config_file}" <<'EOF'
-      {{ . }}
+{{- . | nindent 6 }}
       EOF
       {{- end }}
       if [ ! -f "${data_dir}/meta.properties" ]; then
@@ -117,7 +132,7 @@ data:
       echo "inter.broker.listener.name=INTERNAL" >> "${config_file}"
       {{- with .Values.config.broker }}
       cat >> "${config_file}" <<'EOF'
-      {{ . }}
+{{- . | nindent 6 }}
       EOF
       {{- end }}
       if [ ! -f "${data_dir}/meta.properties" ]; then

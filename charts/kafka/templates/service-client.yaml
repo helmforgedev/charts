@@ -15,7 +15,15 @@ spec:
   type: {{ .Values.service.type }}
   selector:
     {{- include "kafka.selectorLabels" . | nindent 4 }}
-    app.kubernetes.io/component: {{ if eq .Values.architecture "cluster" }}broker{{ else }}single-broker{{ end }}
+    {{- if eq .Values.architecture "cluster" }}
+    {{- if eq (.Values.cluster.brokers.replicaCount | int) 0 }}
+    app.kubernetes.io/component: controller
+    {{- else }}
+    app.kubernetes.io/component: broker
+    {{- end }}
+    {{- else }}
+    app.kubernetes.io/component: single-broker
+    {{- end }}
   ports:
     - name: client
       port: {{ .Values.listeners.client.port }}

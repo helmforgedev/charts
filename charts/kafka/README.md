@@ -27,6 +27,7 @@ helm install kafka oci://ghcr.io/helmforgedev/helm/kafka -f values.yaml
 |-------------|-------------|----------|
 | `single-broker` | development, CI, demos, and simple internal workloads without node-level broker redundancy | [docs/single-broker.md](docs/single-broker.md) |
 | `cluster` | production-oriented Kafka with dedicated KRaft controllers and brokers | [docs/cluster.md](docs/cluster.md) |
+| `cluster` (combined mode) | 3-node HA production deployments where each controller also acts as a broker (`brokers.replicaCount: 0`) | [docs/combined-mode.md](docs/combined-mode.md) |
 
 ## What this chart covers
 
@@ -64,7 +65,7 @@ singleBroker:
     size: 8Gi
 ```
 
-Cluster:
+Cluster (dedicated controllers and brokers):
 
 ```yaml
 architecture: cluster
@@ -79,6 +80,24 @@ cluster:
     replicaCount: 3
     persistence:
       size: 50Gi
+
+pdb:
+  enabled: true
+```
+
+Cluster (combined mode - controllers act as brokers):
+
+```yaml
+architecture: cluster
+
+cluster:
+  minInSyncReplicas: 2
+  controllers:
+    replicaCount: 3
+    persistence:
+      size: 50Gi
+  brokers:
+    replicaCount: 0  # Combined mode: process.roles=broker,controller
 
 pdb:
   enabled: true
@@ -116,7 +135,7 @@ metrics:
 | `config.autoCreateTopicsEnabled` | Enable automatic topic creation | `false` |
 | `singleBroker.persistence.enabled` | Enable PVC in single-broker mode | `true` |
 | `cluster.controllers.replicaCount` | Controller replicas in cluster mode | `3` |
-| `cluster.brokers.replicaCount` | Broker replicas in cluster mode | `3` |
+| `cluster.brokers.replicaCount` | Broker replicas in cluster mode. Set to `0` for combined mode (controllers act as brokers) | `3` |
 | `cluster.minInSyncReplicas` | Minimum ISR in cluster mode | `2` |
 | `metrics.enabled` | Enable JMX exporter javaagent metrics | `false` |
 | `metrics.serviceMonitor.enabled` | Create ServiceMonitor resources | `false` |
@@ -128,6 +147,7 @@ The `ci/` directory covers the main supported paths:
 
 - `single-broker.yaml`
 - `cluster.yaml`
+- `combined-mode.yaml`
 - `metrics.yaml`
 - `cluster-tuned.yaml`
 
@@ -137,11 +157,13 @@ See `examples/`:
 
 - [single-broker.yaml](examples/single-broker.yaml)
 - [cluster-production.yaml](examples/cluster-production.yaml)
+- [combined-mode/](examples/combined-mode/)
 
 ## Architecture guides
 
 - [Single Broker](docs/single-broker.md)
 - [Cluster](docs/cluster.md)
+- [Combined Mode](docs/combined-mode.md)
 
 ## Important notes
 
