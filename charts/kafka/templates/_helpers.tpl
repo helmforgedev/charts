@@ -100,7 +100,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "kafka.internalReplicationFactor" -}}
 {{- if eq .Values.architecture "cluster" -}}
+{{- if eq (.Values.cluster.brokers.replicaCount | int) 0 -}}
+{{- min 3 (.Values.cluster.controllers.replicaCount | int) -}}
+{{- else -}}
 {{- min 3 (.Values.cluster.brokers.replicaCount | int) -}}
+{{- end -}}
 {{- else -}}
 1
 {{- end -}}
@@ -183,10 +187,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if and (eq .Values.architecture "cluster") (lt (.Values.cluster.controllers.replicaCount | int) 3) -}}
 {{- fail "cluster.controllers.replicaCount must be at least 3 for cluster mode" -}}
 {{- end -}}
-{{- if and (eq .Values.architecture "cluster") (lt (.Values.cluster.brokers.replicaCount | int) 3) -}}
-{{- fail "cluster.brokers.replicaCount must be at least 3 for cluster mode" -}}
+{{- if and (eq .Values.architecture "cluster") (gt (.Values.cluster.brokers.replicaCount | int) 0) (lt (.Values.cluster.brokers.replicaCount | int) 3) -}}
+{{- fail "cluster.brokers.replicaCount must be 0 (combined mode: controllers act as brokers) or at least 3 for dedicated-broker mode" -}}
 {{- end -}}
-{{- if and (eq .Values.architecture "cluster") (gt (.Values.cluster.minInSyncReplicas | int) (.Values.cluster.brokers.replicaCount | int)) -}}
+{{- if and (eq .Values.architecture "cluster") (gt (.Values.cluster.brokers.replicaCount | int) 0) (gt (.Values.cluster.minInSyncReplicas | int) (.Values.cluster.brokers.replicaCount | int)) -}}
 {{- fail "cluster.minInSyncReplicas cannot be greater than cluster.brokers.replicaCount" -}}
+{{- end -}}
+{{- if and (eq .Values.architecture "cluster") (eq (.Values.cluster.brokers.replicaCount | int) 0) (gt (.Values.cluster.minInSyncReplicas | int) (.Values.cluster.controllers.replicaCount | int)) -}}
+{{- fail "cluster.minInSyncReplicas cannot be greater than cluster.controllers.replicaCount in combined mode" -}}
 {{- end -}}
 {{- end -}}
