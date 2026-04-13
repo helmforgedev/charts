@@ -92,6 +92,13 @@ helm unittest charts/<chart-name>
 for f in charts/<chart-name>/ci/*.yaml; do helm template test-release charts/<chart-name> -f "$f"; done
 ```
 
+Shortcut script (runs the same checks and prints a PR checklist snippet):
+
+```bash
+./test.sh <chart-name>
+./test.sh --all
+```
+
 For every new chart and every release update:
 
 - local `k3d` validation is mandatory before pushing the PR
