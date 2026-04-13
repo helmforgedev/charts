@@ -34,11 +34,13 @@ helm install kafka oci://ghcr.io/helmforgedev/helm/kafka -f values.yaml
 - KRaft only
 - official Kafka `4.2.0` runtime image
 - persistent storage for single-broker, controllers, and brokers
+- automatic cleanup of `lost+found` directories in PVCs (ext4/xfs compatibility)
 - stable in-cluster advertised listeners for brokers
 - explicit KRaft cluster ID and controller directory ID secret handling
 - optional Prometheus metrics through the JMX exporter javaagent
 - optional `ServiceMonitor`
 - optional `PodDisruptionBudget`
+- support for `extraInitContainers` for custom initialization logic
 
 ## What this chart does not try to automate in v1
 
@@ -170,6 +172,7 @@ See `examples/`:
 - the bootstrap service is internal-only in v1
 - broker advertised listeners use stable StatefulSet pod DNS names
 - for production, do not treat this chart as a shortcut around Kafka capacity planning, topic design, and client retry behavior
+- the chart automatically removes `lost+found` directories from PVCs during pod initialization to prevent Kafka startup failures on ext4/xfs filesystems
 
 <!-- @AI-METADATA
 type: chart-readme

@@ -59,8 +59,30 @@ spec:
       topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.metrics.enabled }}
       initContainers:
+        - name: cleanup-lost-found
+          image: {{ include "kafka.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              if [ -d "${KAFKA_DATA_DIR}/lost+found" ]; then
+                echo "Removing ${KAFKA_DATA_DIR}/lost+found directory..."
+                rm -rf "${KAFKA_DATA_DIR}/lost+found"
+                echo "✓ lost+found removed successfully"
+              fi
+          env:
+            - name: KAFKA_DATA_DIR
+              value: /var/lib/kafka/data
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/kafka/data
+        {{- if .Values.metrics.enabled }}
         - name: copy-jmx-agent
           image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
           imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
@@ -73,7 +95,10 @@ spec:
           volumeMounts:
             - name: jmx-agent
               mountPath: /jmx
-      {{- end }}
+        {{- end }}
+        {{- with .Values.extraInitContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       containers:
         - name: kafka
           image: {{ include "kafka.image" . | quote }}
