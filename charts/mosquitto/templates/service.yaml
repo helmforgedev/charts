@@ -14,6 +14,10 @@ spec:
   {{- if or (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer") }}
   externalTrafficPolicy: {{ .Values.service.externalTrafficPolicy }}
   {{- end }}
+  {{- if gt (len .Values.service.externalIPs) 0 }}
+  externalIPs:
+    {{- .Values.service.externalIPs | toYaml | nindent 4 }}
+  {{- end }}
   selector:
     {{- include "mosquitto.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: broker
@@ -23,16 +27,25 @@ spec:
       port: {{ .Values.service.mqttPort }}
       targetPort: mqtt
       protocol: TCP
+      {{- if ne (int .Values.service.mqttNodePort) 0 }}
+      nodePort: {{ .Values.service.mqttNodePort }}
+      {{- end }}
     {{- end }}
     - name: websocket
       port: {{ .Values.service.websocketPort }}
       targetPort: websocket
       protocol: TCP
+      {{- if ne (int .Values.service.websocketNodePort) 0 }}
+      nodePort: {{ .Values.service.websocketNodePort }}
+      {{- end }}
     {{- if .Values.broker.tls.enabled }}
     - name: mqtts
       port: {{ .Values.service.mqttsPort }}
       targetPort: mqtts
       protocol: TCP
+      {{- if ne (int .Values.service.mqttsNodePort) 0 }}
+      nodePort: {{ .Values.service.mqttsNodePort }}
+      {{- end }}
     {{- end }}
 ---
 apiVersion: v1
