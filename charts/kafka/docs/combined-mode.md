@@ -65,7 +65,8 @@ When `brokers.replicaCount=0`:
 2. **Process roles**: Start script generates `process.roles=broker,controller` in server.properties
 3. **Listeners**: Controllers expose both `CLIENT://0.0.0.0:9092` and `CONTROLLER://0.0.0.0:9093`
 4. **Service selector**: The `kafka` client service selector points to `component: controller` pods
-5. **Replication factor**: Internal topics use `min(3, controllers.replicaCount)` instead of brokers
+5. **Headless service**: Controller headless service exposes both ports (9092 for inter-broker, 9093 for quorum)
+6. **Replication factor**: Internal topics use `min(3, controllers.replicaCount)` instead of brokers
 
 ## Validation before production
 
