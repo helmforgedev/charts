@@ -234,6 +234,25 @@ jobs:
             echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
           done
 
+      - name: Make OCI package public
+        if: steps.semver.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CHART="${{ matrix.chart }}"
+          ENCODED="helm%2F${CHART}"
+          STATUS=$(gh api "orgs/${{ github.repository_owner }}/packages/container/${ENCODED}" --jq '.visibility' 2>/dev/null || echo "unknown")
+          echo "Current visibility for ${CHART}: ${STATUS}"
+          if [ "$STATUS" != "public" ]; then
+            echo "Setting ${CHART} package visibility to public..."
+            gh api --method PATCH "orgs/${{ github.repository_owner }}/packages/container/${ENCODED}" \
+              --field visibility=public \
+              && echo "✓ Package is now public" \
+              || echo "⚠ Could not set visibility (may need write:packages scope or manual org setting)"
+          else
+            echo "✓ Package is already public"
+          fi
+
       - name: Upload provenance file
         if: steps.semver.outputs.skip != 'true'
         id: prov
