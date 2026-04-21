@@ -124,6 +124,9 @@ metrics:
 
 | Key | Default | Description |
 |-----|---------|-------------|
+| `image.repository` | `docker.io/pihole/pihole` | Pi-hole container image repository |
+| `image.tag` | `2026.04.0` | Pi-hole container image tag (Core v6.4.1, FTL v6.6) |
+| `image.pullPolicy` | `IfNotPresent` | Pi-hole image pull policy |
 | `pihole.timezone` | `UTC` | Timezone for logs and scheduled tasks |
 | `pihole.upstreamDns` | `8.8.8.8;8.8.4.4` | Upstream DNS servers (semicolon-delimited) |
 | `pihole.listeningMode` | `ALL` | DNS listening mode (LOCAL, ALL, SINGLE, BIND) |

@@ -25,33 +25,99 @@ data:
 
     if [ ! -f "$DB" ]; then
       echo "Gravity database not found. Creating initial schema..."
-      sqlite3 "$DB" "PRAGMA foreign_keys=ON;"
-      sqlite3 "$DB" "CREATE TABLE IF NOT EXISTS adlist (id INTEGER PRIMARY KEY AUTOINCREMENT, address TEXT NOT NULL UNIQUE, enabled BOOLEAN NOT NULL DEFAULT 1, date_added INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), date_modified INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), comment TEXT, date_updated INTEGER, number INTEGER NOT NULL DEFAULT 0, invalid_domains INTEGER NOT NULL DEFAULT 0, status INTEGER NOT NULL DEFAULT 0, abp_entries INTEGER NOT NULL DEFAULT 0);"
-      sqlite3 "$DB" "CREATE TABLE IF NOT EXISTS domainlist (id INTEGER PRIMARY KEY AUTOINCREMENT, type INTEGER NOT NULL DEFAULT 0, domain TEXT NOT NULL, enabled BOOLEAN NOT NULL DEFAULT 1, date_added INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), date_modified INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), comment TEXT, UNIQUE(domain, type));"
-      sqlite3 "$DB" "CREATE TABLE IF NOT EXISTS \"group\" (id INTEGER PRIMARY KEY AUTOINCREMENT, enabled BOOLEAN NOT NULL DEFAULT 1, name TEXT NOT NULL UNIQUE, date_added INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), date_modified INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), description TEXT);"
-      sqlite3 "$DB" "INSERT OR IGNORE INTO \"group\" (id, name, description) VALUES (0, 'Default', 'The default group');"
+    else
+      echo "Gravity database found. Ensuring Pi-hole v6 schema compatibility..."
     fi
+
+    sqlite3 "$DB" <<'SQL'
+    PRAGMA foreign_keys=OFF;
+    BEGIN TRANSACTION;
+    CREATE TABLE IF NOT EXISTS "group" (id INTEGER PRIMARY KEY AUTOINCREMENT, enabled BOOLEAN NOT NULL DEFAULT 1, name TEXT UNIQUE NOT NULL, date_added INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), date_modified INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), description TEXT);
+    INSERT OR IGNORE INTO "group" (id, enabled, name, description) VALUES (0, 1, 'Default', 'The default group');
+    CREATE TABLE IF NOT EXISTS domainlist (id INTEGER PRIMARY KEY AUTOINCREMENT, type INTEGER NOT NULL DEFAULT 0, domain TEXT NOT NULL, enabled BOOLEAN NOT NULL DEFAULT 1, date_added INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), date_modified INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), comment TEXT, UNIQUE(domain, type));
+    CREATE TABLE IF NOT EXISTS adlist (id INTEGER PRIMARY KEY AUTOINCREMENT, address TEXT NOT NULL, enabled BOOLEAN NOT NULL DEFAULT 1, date_added INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), date_modified INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), comment TEXT, date_updated INTEGER, number INTEGER NOT NULL DEFAULT 0, invalid_domains INTEGER NOT NULL DEFAULT 0, status INTEGER NOT NULL DEFAULT 0, abp_entries INTEGER NOT NULL DEFAULT 0, type INTEGER NOT NULL DEFAULT 0, UNIQUE(address, type));
+    CREATE TABLE IF NOT EXISTS adlist_by_group (adlist_id INTEGER NOT NULL REFERENCES adlist (id) ON DELETE CASCADE, group_id INTEGER NOT NULL REFERENCES "group" (id) ON DELETE CASCADE, PRIMARY KEY (adlist_id, group_id));
+    CREATE TABLE IF NOT EXISTS gravity (domain TEXT NOT NULL, adlist_id INTEGER NOT NULL REFERENCES adlist (id));
+    CREATE TABLE IF NOT EXISTS antigravity (domain TEXT NOT NULL, adlist_id INTEGER NOT NULL REFERENCES adlist (id));
+    CREATE TABLE IF NOT EXISTS info (property TEXT PRIMARY KEY, value TEXT NOT NULL);
+    INSERT OR IGNORE INTO info VALUES ('version', '20');
+    INSERT OR IGNORE INTO info VALUES ('gravity_restored', 'false');
+    CREATE TABLE IF NOT EXISTS domainlist_by_group (domainlist_id INTEGER NOT NULL REFERENCES domainlist (id) ON DELETE CASCADE, group_id INTEGER NOT NULL REFERENCES "group" (id) ON DELETE CASCADE, PRIMARY KEY (domainlist_id, group_id));
+    CREATE TABLE IF NOT EXISTS client (id INTEGER PRIMARY KEY AUTOINCREMENT, ip TEXT NOT NULL UNIQUE, date_added INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), date_modified INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), comment TEXT);
+    CREATE TABLE IF NOT EXISTS client_by_group (client_id INTEGER NOT NULL REFERENCES client (id) ON DELETE CASCADE, group_id INTEGER NOT NULL REFERENCES "group" (id) ON DELETE CASCADE, PRIMARY KEY (client_id, group_id));
+    COMMIT;
+    SQL
+
+    if ! sqlite3 "$DB" "SELECT type FROM adlist LIMIT 1;" >/dev/null 2>&1; then
+      echo "Adding missing Pi-hole v6 adlist.type column..."
+      sqlite3 "$DB" "ALTER TABLE adlist ADD COLUMN type INTEGER NOT NULL DEFAULT 0;"
+    fi
+
+    sqlite3 "$DB" <<'SQL'
+    PRAGMA foreign_keys=ON;
+    BEGIN TRANSACTION;
+    INSERT OR IGNORE INTO adlist_by_group (adlist_id, group_id) SELECT id, 0 FROM adlist;
+    INSERT OR IGNORE INTO domainlist_by_group (domainlist_id, group_id) SELECT id, 0 FROM domainlist;
+    INSERT OR IGNORE INTO client_by_group (client_id, group_id) SELECT id, 0 FROM client;
+    DROP VIEW IF EXISTS vw_allowlist;
+    DROP VIEW IF EXISTS vw_denylist;
+    DROP VIEW IF EXISTS vw_regex_allowlist;
+    DROP VIEW IF EXISTS vw_regex_denylist;
+    DROP VIEW IF EXISTS vw_gravity;
+    DROP VIEW IF EXISTS vw_antigravity;
+    DROP VIEW IF EXISTS vw_adlist;
+    DROP TRIGGER IF EXISTS tr_adlist_update;
+    DROP TRIGGER IF EXISTS tr_client_update;
+    DROP TRIGGER IF EXISTS tr_domainlist_update;
+    DROP TRIGGER IF EXISTS tr_domainlist_add;
+    DROP TRIGGER IF EXISTS tr_client_add;
+    DROP TRIGGER IF EXISTS tr_adlist_add;
+    DROP TRIGGER IF EXISTS tr_group_update;
+    DROP TRIGGER IF EXISTS tr_group_zero;
+    DROP TRIGGER IF EXISTS tr_domainlist_delete;
+    DROP TRIGGER IF EXISTS tr_adlist_delete;
+    DROP TRIGGER IF EXISTS tr_client_delete;
+    CREATE TRIGGER tr_adlist_update AFTER UPDATE OF address, enabled, comment ON adlist BEGIN UPDATE adlist SET date_modified = (cast(strftime('%s', 'now') as int)) WHERE id = NEW.id; END;
+    CREATE TRIGGER tr_client_update AFTER UPDATE ON client BEGIN UPDATE client SET date_modified = (cast(strftime('%s', 'now') as int)) WHERE ip = NEW.ip; END;
+    CREATE TRIGGER tr_domainlist_update AFTER UPDATE ON domainlist BEGIN UPDATE domainlist SET date_modified = (cast(strftime('%s', 'now') as int)) WHERE domain = NEW.domain; END;
+    CREATE VIEW vw_allowlist AS SELECT domain, domainlist.id AS id, domainlist_by_group.group_id AS group_id FROM domainlist LEFT JOIN domainlist_by_group ON domainlist_by_group.domainlist_id = domainlist.id LEFT JOIN "group" ON "group".id = domainlist_by_group.group_id WHERE domainlist.enabled = 1 AND (domainlist_by_group.group_id IS NULL OR "group".enabled = 1) AND domainlist.type = 0 ORDER BY domainlist.id;
+    CREATE VIEW vw_denylist AS SELECT domain, domainlist.id AS id, domainlist_by_group.group_id AS group_id FROM domainlist LEFT JOIN domainlist_by_group ON domainlist_by_group.domainlist_id = domainlist.id LEFT JOIN "group" ON "group".id = domainlist_by_group.group_id WHERE domainlist.enabled = 1 AND (domainlist_by_group.group_id IS NULL OR "group".enabled = 1) AND domainlist.type = 1 ORDER BY domainlist.id;
+    CREATE VIEW vw_regex_allowlist AS SELECT domain, domainlist.id AS id, domainlist_by_group.group_id AS group_id FROM domainlist LEFT JOIN domainlist_by_group ON domainlist_by_group.domainlist_id = domainlist.id LEFT JOIN "group" ON "group".id = domainlist_by_group.group_id WHERE domainlist.enabled = 1 AND (domainlist_by_group.group_id IS NULL OR "group".enabled = 1) AND domainlist.type = 2 ORDER BY domainlist.id;
+    CREATE VIEW vw_regex_denylist AS SELECT domain, domainlist.id AS id, domainlist_by_group.group_id AS group_id FROM domainlist LEFT JOIN domainlist_by_group ON domainlist_by_group.domainlist_id = domainlist.id LEFT JOIN "group" ON "group".id = domainlist_by_group.group_id WHERE domainlist.enabled = 1 AND (domainlist_by_group.group_id IS NULL OR "group".enabled = 1) AND domainlist.type = 3 ORDER BY domainlist.id;
+    CREATE VIEW vw_gravity AS SELECT domain, adlist.id AS adlist_id, adlist_by_group.group_id AS group_id FROM gravity LEFT JOIN adlist_by_group ON adlist_by_group.adlist_id = gravity.adlist_id LEFT JOIN adlist ON adlist.id = gravity.adlist_id LEFT JOIN "group" ON "group".id = adlist_by_group.group_id WHERE adlist.enabled = 1 AND (adlist_by_group.group_id IS NULL OR "group".enabled = 1);
+    CREATE VIEW vw_antigravity AS SELECT domain, adlist.id AS adlist_id, adlist_by_group.group_id AS group_id FROM antigravity LEFT JOIN adlist_by_group ON adlist_by_group.adlist_id = antigravity.adlist_id LEFT JOIN adlist ON adlist.id = antigravity.adlist_id LEFT JOIN "group" ON "group".id = adlist_by_group.group_id WHERE adlist.enabled = 1 AND (adlist_by_group.group_id IS NULL OR "group".enabled = 1) AND adlist.type = 1;
+    CREATE VIEW vw_adlist AS SELECT DISTINCT address, id, type FROM adlist WHERE enabled = 1 ORDER BY id;
+    CREATE TRIGGER tr_domainlist_add AFTER INSERT ON domainlist BEGIN INSERT INTO domainlist_by_group (domainlist_id, group_id) VALUES (NEW.id, 0); END;
+    CREATE TRIGGER tr_client_add AFTER INSERT ON client BEGIN INSERT INTO client_by_group (client_id, group_id) VALUES (NEW.id, 0); END;
+    CREATE TRIGGER tr_adlist_add AFTER INSERT ON adlist BEGIN INSERT INTO adlist_by_group (adlist_id, group_id) VALUES (NEW.id, 0); END;
+    CREATE TRIGGER tr_group_update AFTER UPDATE ON "group" BEGIN UPDATE "group" SET date_modified = (cast(strftime('%s', 'now') as int)) WHERE id = NEW.id; END;
+    CREATE TRIGGER tr_group_zero AFTER DELETE ON "group" BEGIN INSERT OR IGNORE INTO "group" (id, enabled, name) VALUES (0, 1, 'Default'); END;
+    CREATE TRIGGER tr_domainlist_delete AFTER DELETE ON domainlist BEGIN DELETE FROM domainlist_by_group WHERE domainlist_id = OLD.id; END;
+    CREATE TRIGGER tr_adlist_delete AFTER DELETE ON adlist BEGIN DELETE FROM adlist_by_group WHERE adlist_id = OLD.id; END;
+    CREATE TRIGGER tr_client_delete AFTER DELETE ON client BEGIN DELETE FROM client_by_group WHERE client_id = OLD.id; END;
+    COMMIT;
+    SQL
 
     echo "Populating gravity database..."
 
     # Add adlists
     {{- range (include "pihole.adlists" . | mustFromJson) }}
-    sqlite3 "$DB" "INSERT OR IGNORE INTO adlist (address, enabled, comment) VALUES ('{{ . }}', 1, 'Added by Helm chart');"
+    sqlite3 "$DB" "INSERT OR IGNORE INTO adlist (address, type, enabled, comment) VALUES ('{{ . | replace "'" "''" }}', 0, 1, 'Added by Helm chart');"
     {{- end }}
 
     # Add whitelist domains (type=0)
     {{- range (include "pihole.whitelist" . | mustFromJson) }}
-    sqlite3 "$DB" "INSERT OR IGNORE INTO domainlist (type, domain, enabled, comment) VALUES (0, '{{ . }}', 1, 'Added by Helm chart');"
+    sqlite3 "$DB" "INSERT OR IGNORE INTO domainlist (type, domain, enabled, comment) VALUES (0, '{{ . | replace "'" "''" }}', 1, 'Added by Helm chart');"
     {{- end }}
 
     # Add blacklist domains (type=1)
     {{- range .Values.dns.blacklist }}
-    sqlite3 "$DB" "INSERT OR IGNORE INTO domainlist (type, domain, enabled, comment) VALUES (1, '{{ . }}', 1, 'Added by Helm chart');"
+    sqlite3 "$DB" "INSERT OR IGNORE INTO domainlist (type, domain, enabled, comment) VALUES (1, '{{ . | replace "'" "''" }}', 1, 'Added by Helm chart');"
     {{- end }}
 
     # Add regex blacklist (type=3)
     {{- range .Values.dns.regex }}
-    sqlite3 "$DB" "INSERT OR IGNORE INTO domainlist (type, domain, enabled, comment) VALUES (3, '{{ . }}', 1, 'Added by Helm chart');"
+    sqlite3 "$DB" "INSERT OR IGNORE INTO domainlist (type, domain, enabled, comment) VALUES (3, '{{ . | replace "'" "''" }}', 1, 'Added by Helm chart');"
     {{- end }}
 
     echo "Gravity database populated successfully."
