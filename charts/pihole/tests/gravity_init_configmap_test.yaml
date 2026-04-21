@@ -1,0 +1,57 @@
+suite: Gravity Init ConfigMap
+templates:
+  - templates/gravity-init-configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render gravity init configmap by default
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: test-pihole-gravity-init
+
+  - it: should include Pi-hole v6 gravity schema objects
+    asserts:
+      - matchRegex:
+          path: data["init-gravity.sh"]
+          pattern: "CREATE TABLE IF NOT EXISTS info"
+      - matchRegex:
+          path: data["init-gravity.sh"]
+          pattern: "CREATE TABLE IF NOT EXISTS adlist_by_group"
+      - matchRegex:
+          path: data["init-gravity.sh"]
+          pattern: "CREATE TABLE IF NOT EXISTS domainlist_by_group"
+      - matchRegex:
+          path: data["init-gravity.sh"]
+          pattern: "CREATE TABLE IF NOT EXISTS client"
+      - matchRegex:
+          path: data["init-gravity.sh"]
+          pattern: "ALTER TABLE adlist ADD COLUMN type INTEGER NOT NULL DEFAULT 0"
+      - matchRegex:
+          path: data["init-gravity.sh"]
+          pattern: "CREATE VIEW vw_gravity"
+      - matchRegex:
+          path: data["init-gravity.sh"]
+          pattern: "CREATE TRIGGER tr_adlist_add"
+      - matchRegex:
+          path: data["init-gravity.sh"]
+          pattern: "INSERT OR IGNORE INTO adlist_by_group"
+
+  - it: should insert adlists as Pi-hole v6 block lists
+    set:
+      dns.adlists:
+        - https://example.com/block.txt
+    asserts:
+      - matchRegex:
+          path: data["init-gravity.sh"]
+          pattern: "INSERT OR IGNORE INTO adlist \\(address, type, enabled, comment\\) VALUES \\('https://example.com/block.txt', 0, 1, 'Added by Helm chart'\\)"
+
+  - it: should not render when gravity is disabled
+    set:
+      gravity.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
