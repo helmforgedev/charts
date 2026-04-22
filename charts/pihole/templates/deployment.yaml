@@ -61,6 +61,75 @@ spec:
             - name: gravity-init-scripts
               mountPath: /scripts
               readOnly: true
+        {{- if .Values.gravity.updateOnInit }}
+        - name: gravity-update
+          image: {{ include "pihole.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Running Pi-hole gravity update after Helm-managed lists were reconciled..."
+              pihole-FTL --config >/dev/null
+              pihole -g
+          env:
+            - name: TZ
+              value: {{ .Values.pihole.timezone | quote }}
+            - name: FTLCONF_dns_upstreams
+              value: {{ include "pihole.upstreamDns" . | quote }}
+            - name: FTLCONF_dns_listeningMode
+              value: {{ .Values.pihole.listeningMode | quote }}
+            {{- if .Values.pihole.dnssec }}
+            - name: FTLCONF_dns_dnssec
+              value: "true"
+            {{- end }}
+            - name: FTLCONF_webserver_api_password
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pihole.secretName" . }}
+                  key: {{ include "pihole.secretKey" . }}
+            - name: FTLCONF_misc_etc_dnsmasq_d
+              value: "true"
+            {{- if .Values.pihole.ftl.cacheSize }}
+            - name: FTLCONF_dns_cache_size
+              value: {{ .Values.pihole.ftl.cacheSize | quote }}
+            {{- end }}
+            {{- if ne (int .Values.pihole.ftl.privacyLevel) 0 }}
+            - name: FTLCONF_misc_privacylevel
+              value: {{ .Values.pihole.ftl.privacyLevel | quote }}
+            {{- end }}
+            {{- if not .Values.pihole.ftl.cnameInspection }}
+            - name: FTLCONF_dns_cname_inspection
+              value: "false"
+            {{- end }}
+            {{- if .Values.pihole.ftl.rateLimit }}
+            - name: FTLCONF_dns_ratelimit
+              value: {{ .Values.pihole.ftl.rateLimit | quote }}
+            {{- end }}
+            {{- if .Values.pihole.ftl.blockAAAA }}
+            - name: FTLCONF_dns_blockAAAA
+              value: "true"
+            {{- end }}
+            {{- if not .Values.pihole.ftl.queryLogging }}
+            - name: FTLCONF_misc_queryLogging
+              value: "false"
+            {{- end }}
+            {{- if not .Values.pihole.ftl.useDatabase }}
+            - name: FTLCONF_database_DBfile
+              value: ""
+            {{- end }}
+            {{- with .Values.pihole.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.gravity.updateResources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: pihole-data
+              mountPath: /etc/pihole
+        {{- end }}
       {{- end }}
       containers:
         - name: pihole

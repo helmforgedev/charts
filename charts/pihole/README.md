@@ -153,6 +153,15 @@ metrics:
 | `dns.blacklist` | `[]` | Blacklisted domains |
 | `dns.regex` | `[]` | Regex filters for blocking |
 
+### Gravity
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `gravity.enabled` | `true` | Reconcile Pi-hole gravity schema and Helm-managed lists before Pi-hole starts |
+| `gravity.updateOnInit` | `true` | Run `pihole -g` in a follow-up init container after Helm-managed lists are reconciled |
+| `gravity.resources` | `{}` | Resources for the gravity schema/list init container |
+| `gravity.updateResources` | `{}` | Resources for the gravity update init container |
+
 ### Persistence
 
 | Key | Default | Description |
