@@ -1,0 +1,16 @@
+suite: StatefulSet Replicas
+templates:
+  - statefulset-replicas.yaml
+  - configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should use template1 for replica recovery readiness check
+    template: statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          value: PGPASSWORD="${POSTGRES_PASSWORD}" psql -U postgres -h 127.0.0.1 -p 5432 -d template1 -tAc "SELECT CASE WHEN pg_is_in_recovery() THEN 1 ELSE 0 END" | grep -qx 1
