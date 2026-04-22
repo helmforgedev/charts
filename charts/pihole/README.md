@@ -33,7 +33,7 @@ helm install pihole oci://ghcr.io/helmforgedev/helm/pihole \
 - **Unbound Sidecar** — Optional recursive DNS resolver eliminating third-party DNS dependency
 - **Pi-hole v6+ Support** — Uses `FTLCONF_` environment variables for modern configuration
 - **Prometheus Metrics** — pihole-exporter sidecar with ServiceMonitor support
-- **Ingress Support** — Configurable ingress with TLS and `/` to `/admin` redirect for the web admin interface
+- **Ingress Support** — Configurable ingress with TLS for the web admin interface
 - **DHCP Support** — Optional DHCP server with hostNetwork mode
 - **DNSSEC Validation** — Optional DNS Security Extensions
 
@@ -182,8 +182,6 @@ metrics:
 |-----|---------|-------------|
 | `ingress.enabled` | `false` | Enable ingress |
 | `ingress.ingressClassName` | `""` | Ingress class (traefik, nginx, etc.) |
-| `ingress.rootRedirect.enabled` | `true` | Add nginx ingress `/` to `/admin` redirect |
-| `ingress.rootRedirect.target` | `/admin` | Redirect target for root requests |
 | `ingress.hosts` | `[]` | Ingress hosts and paths |
 | `ingress.tls` | `[]` | TLS configuration |
 
