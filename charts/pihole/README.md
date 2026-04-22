@@ -167,6 +167,8 @@ metrics:
 
 | Key | Default | Description |
 |-----|---------|-------------|
+| `hostNetwork` | `false` | Use host network for the main Pi-hole pod |
+| `dnsPolicy` | `""` | Pod DNS policy; defaults to `ClusterFirstWithHostNet` when host networking is enabled |
 | `serviceDns.type` | `LoadBalancer` | DNS service type |
 | `serviceDns.port` | `53` | DNS port |
 | `serviceDns.loadBalancerIP` | — | Fixed IP for DNS stability |
