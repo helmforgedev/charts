@@ -1,11 +1,15 @@
 {{- if .Values.ingress.enabled }}
+{{- $annotations := deepCopy (.Values.ingress.annotations | default dict) }}
+{{- if .Values.ingress.rootRedirect.enabled }}
+{{- $_ := set $annotations "nginx.ingress.kubernetes.io/app-root" .Values.ingress.rootRedirect.target }}
+{{- end }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ include "pihole.fullname" . }}
   labels:
     {{- include "pihole.labels" . | nindent 4 }}
-  {{- with .Values.ingress.annotations }}
+  {{- with $annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}

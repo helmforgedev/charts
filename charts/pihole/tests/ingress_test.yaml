@@ -95,3 +95,29 @@ tests:
       - equal:
           path: metadata.annotations["cert-manager.io/cluster-issuer"]
           value: letsencrypt-prod
+
+  - it: should redirect ingress root to admin by default
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: pihole.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/app-root"]
+          value: /admin
+
+  - it: should allow disabling ingress root redirect
+    set:
+      ingress.enabled: true
+      ingress.rootRedirect.enabled: false
+      ingress.hosts:
+        - host: pihole.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - isNull:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/app-root"]
