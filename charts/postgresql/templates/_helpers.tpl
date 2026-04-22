@@ -165,13 +165,17 @@ app.kubernetes.io/role: {{ .role }}
 {{- end -}}
 {{- end -}}
 
+{{- define "postgresql.maintenanceDatabase" -}}
+template1
+{{- end -}}
+
 {{- define "postgresql.probeCommandString" -}}
-{{- if .Values.tls.enabled }}export PGSSLMODE={{ .Values.tls.sslMode | quote }}; export PGSSLROOTCERT=/tls/{{ .Values.tls.caFilename }}; {{- end }}PGPASSWORD="${POSTGRES_PASSWORD}" pg_isready -U postgres -h 127.0.0.1 -p {{ .Values.service.port }}
+{{- if .Values.tls.enabled }}export PGSSLMODE={{ .Values.tls.sslMode | quote }}; export PGSSLROOTCERT=/tls/{{ .Values.tls.caFilename }}; {{- end }}PGPASSWORD="${POSTGRES_PASSWORD}" pg_isready -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d {{ include "postgresql.maintenanceDatabase" . }}
 {{- end -}}
 
 {{- define "postgresql.primaryReadinessCommandString" -}}
 {{- if and (eq .Values.architecture "replication") .Values.replication.primary.probes.requireWritable -}}
-{{- if .Values.tls.enabled }}export PGSSLMODE={{ .Values.tls.sslMode | quote }}; export PGSSLROOTCERT=/tls/{{ .Values.tls.caFilename }}; {{- end }}PGPASSWORD="${POSTGRES_PASSWORD}" psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d postgres -tAc "SELECT CASE WHEN pg_is_in_recovery() THEN 1 ELSE 0 END" | grep -qx 0
+{{- if .Values.tls.enabled }}export PGSSLMODE={{ .Values.tls.sslMode | quote }}; export PGSSLROOTCERT=/tls/{{ .Values.tls.caFilename }}; {{- end }}PGPASSWORD="${POSTGRES_PASSWORD}" psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d {{ include "postgresql.maintenanceDatabase" . }} -tAc "SELECT CASE WHEN pg_is_in_recovery() THEN 1 ELSE 0 END" | grep -qx 0
 {{- else -}}
 {{ include "postgresql.probeCommandString" . }}
 {{- end -}}
@@ -179,7 +183,7 @@ app.kubernetes.io/role: {{ .role }}
 
 {{- define "postgresql.replicaReadinessCommandString" -}}
 {{- if and (eq .Values.architecture "replication") .Values.replication.readReplicas.probes.requireRecoveryMode -}}
-{{- if .Values.tls.enabled }}export PGSSLMODE={{ .Values.tls.sslMode | quote }}; export PGSSLROOTCERT=/tls/{{ .Values.tls.caFilename }}; {{- end }}PGPASSWORD="${POSTGRES_PASSWORD}" psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d postgres -tAc "SELECT CASE WHEN pg_is_in_recovery() THEN 1 ELSE 0 END" | grep -qx 1
+{{- if .Values.tls.enabled }}export PGSSLMODE={{ .Values.tls.sslMode | quote }}; export PGSSLROOTCERT=/tls/{{ .Values.tls.caFilename }}; {{- end }}PGPASSWORD="${POSTGRES_PASSWORD}" psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d {{ include "postgresql.maintenanceDatabase" . }} -tAc "SELECT CASE WHEN pg_is_in_recovery() THEN 1 ELSE 0 END" | grep -qx 1
 {{- else -}}
 {{ include "postgresql.probeCommandString" . }}
 {{- end -}}
@@ -187,7 +191,7 @@ app.kubernetes.io/role: {{ .role }}
 
 {{- define "postgresql.metricsEnv" -}}
 - name: DATA_SOURCE_URI
-  value: 127.0.0.1:{{ .Values.service.port }}/postgres?sslmode={{ if .Values.tls.enabled }}{{ .Values.tls.sslMode }}{{ else }}disable{{ end }}{{ if and .Values.tls.enabled (or (eq .Values.tls.sslMode "verify-ca") (eq .Values.tls.sslMode "verify-full")) }}&sslrootcert=/tls/{{ .Values.tls.caFilename }}{{ end }}
+  value: 127.0.0.1:{{ .Values.service.port }}/{{ include "postgresql.maintenanceDatabase" . }}?sslmode={{ if .Values.tls.enabled }}{{ .Values.tls.sslMode }}{{ else }}disable{{ end }}{{ if and .Values.tls.enabled (or (eq .Values.tls.sslMode "verify-ca") (eq .Values.tls.sslMode "verify-full")) }}&sslrootcert=/tls/{{ .Values.tls.caFilename }}{{ end }}
 - name: DATA_SOURCE_USER
   value: postgres
 - name: DATA_SOURCE_PASS

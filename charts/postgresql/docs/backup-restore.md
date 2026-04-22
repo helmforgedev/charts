@@ -43,7 +43,7 @@ psql \
   --host <postgres-host> \
   --port 5432 \
   --username postgres \
-  --dbname postgres \
+  --dbname template1 \
   --file /tmp/postgresql-restore.sql
 ```
 
