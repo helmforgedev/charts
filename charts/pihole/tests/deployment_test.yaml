@@ -89,6 +89,65 @@ tests:
             name: FTLCONF_misc_etc_dnsmasq_d
             value: "true"
 
+  - it: should set Pi-hole v6 rate limit env vars
+    template: templates/deployment.yaml
+    set:
+      pihole.ftl.rateLimit: 2000
+      pihole.ftl.rateLimitInterval: 120
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FTLCONF_dns_rateLimit_count
+            value: "2000"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FTLCONF_dns_rateLimit_interval
+            value: "120"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FTLCONF_dns_ratelimit
+
+  - it: should set Pi-hole v6 rate limit env vars on gravity update init container
+    template: templates/deployment.yaml
+    set:
+      pihole.ftl.rateLimit: 2000
+      pihole.ftl.rateLimitInterval: 120
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[1].env
+          content:
+            name: FTLCONF_dns_rateLimit_count
+            value: "2000"
+      - contains:
+          path: spec.template.spec.initContainers[1].env
+          content:
+            name: FTLCONF_dns_rateLimit_interval
+            value: "120"
+      - notContains:
+          path: spec.template.spec.initContainers[1].env
+          content:
+            name: FTLCONF_dns_ratelimit
+
+  - it: should disable Pi-hole v6 rate limiting with zero values
+    template: templates/deployment.yaml
+    set:
+      pihole.ftl.rateLimit: 0
+      pihole.ftl.rateLimitInterval: 120
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FTLCONF_dns_rateLimit_count
+            value: "0"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FTLCONF_dns_rateLimit_interval
+            value: "0"
+
   - it: should include extra env vars
     template: templates/deployment.yaml
     set:
@@ -333,6 +392,55 @@ tests:
       - equal:
           path: spec.template.spec.containers[1].image
           value: "docker.io/mvance/unbound:1.22.0"
+
+  - it: should run gravity update init container by default
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: gravity-update
+      - equal:
+          path: spec.template.spec.initContainers[1].image
+          value: "docker.io/pihole/pihole:2026.04.0"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "pihole -g"
+      - contains:
+          path: spec.template.spec.initContainers[1].volumeMounts
+          content:
+            name: pihole-data
+            mountPath: /etc/pihole
+
+  - it: should not run gravity update init container when disabled
+    template: templates/deployment.yaml
+    set:
+      gravity.updateOnInit: false
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.initContainers
+          count: 1
+      - notContains:
+          path: spec.template.spec.initContainers
+          content:
+            name: gravity-update
+
+  - it: should set resources on gravity update init container
+    template: templates/deployment.yaml
+    set:
+      gravity.updateResources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.initContainers[1].resources.limits.memory
+          value: 512Mi
 
   - it: should override upstream DNS to unbound when enabled
     template: templates/deployment.yaml

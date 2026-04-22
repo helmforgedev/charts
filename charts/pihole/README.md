@@ -131,6 +131,8 @@ metrics:
 | `pihole.upstreamDns` | `8.8.8.8;8.8.4.4` | Upstream DNS servers (semicolon-delimited) |
 | `pihole.listeningMode` | `ALL` | DNS listening mode (LOCAL, ALL, SINGLE, BIND) |
 | `pihole.dnssec` | `false` | Enable DNSSEC validation |
+| `pihole.ftl.rateLimit` | `1000` | Rate limiting query count per client; set to `0` to disable |
+| `pihole.ftl.rateLimitInterval` | `60` | Rate limiting interval in seconds |
 | `pihole.extraEnv` | `[]` | Additional environment variables |
 
 ### Admin
@@ -152,6 +154,15 @@ metrics:
 | `dns.whitelist` | `[]` | Whitelisted domains |
 | `dns.blacklist` | `[]` | Blacklisted domains |
 | `dns.regex` | `[]` | Regex filters for blocking |
+
+### Gravity
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `gravity.enabled` | `true` | Reconcile Pi-hole gravity schema and Helm-managed lists before Pi-hole starts |
+| `gravity.updateOnInit` | `true` | Run `pihole -g` in a follow-up init container after Helm-managed lists are reconciled |
+| `gravity.resources` | `{}` | Resources for the gravity schema/list init container |
+| `gravity.updateResources` | `{}` | Resources for the gravity update init container |
 
 ### Persistence
 
