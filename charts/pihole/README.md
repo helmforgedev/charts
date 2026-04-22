@@ -131,6 +131,8 @@ metrics:
 | `pihole.upstreamDns` | `8.8.8.8;8.8.4.4` | Upstream DNS servers (semicolon-delimited) |
 | `pihole.listeningMode` | `ALL` | DNS listening mode (LOCAL, ALL, SINGLE, BIND) |
 | `pihole.dnssec` | `false` | Enable DNSSEC validation |
+| `pihole.ftl.rateLimit` | `1000` | Rate limiting query count per client; set to `0` to disable |
+| `pihole.ftl.rateLimitInterval` | `60` | Rate limiting interval in seconds |
 | `pihole.extraEnv` | `[]` | Additional environment variables |
 
 ### Admin

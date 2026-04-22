@@ -89,6 +89,65 @@ tests:
             name: FTLCONF_misc_etc_dnsmasq_d
             value: "true"
 
+  - it: should set Pi-hole v6 rate limit env vars
+    template: templates/deployment.yaml
+    set:
+      pihole.ftl.rateLimit: 2000
+      pihole.ftl.rateLimitInterval: 120
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FTLCONF_dns_rateLimit_count
+            value: "2000"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FTLCONF_dns_rateLimit_interval
+            value: "120"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FTLCONF_dns_ratelimit
+
+  - it: should set Pi-hole v6 rate limit env vars on gravity update init container
+    template: templates/deployment.yaml
+    set:
+      pihole.ftl.rateLimit: 2000
+      pihole.ftl.rateLimitInterval: 120
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[1].env
+          content:
+            name: FTLCONF_dns_rateLimit_count
+            value: "2000"
+      - contains:
+          path: spec.template.spec.initContainers[1].env
+          content:
+            name: FTLCONF_dns_rateLimit_interval
+            value: "120"
+      - notContains:
+          path: spec.template.spec.initContainers[1].env
+          content:
+            name: FTLCONF_dns_ratelimit
+
+  - it: should disable Pi-hole v6 rate limiting with zero values
+    template: templates/deployment.yaml
+    set:
+      pihole.ftl.rateLimit: 0
+      pihole.ftl.rateLimitInterval: 120
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FTLCONF_dns_rateLimit_count
+            value: "0"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FTLCONF_dns_rateLimit_interval
+            value: "0"
+
   - it: should include extra env vars
     template: templates/deployment.yaml
     set:
