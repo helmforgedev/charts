@@ -156,6 +156,8 @@ metrics:
 - use `initdb.scripts` for deterministic first-boot SQL or shell customization
 - use `initdb.existingConfigMap` when scripts are already managed elsewhere
 - remember that `docker-entrypoint-initdb.d` runs only during first initialization of a fresh data directory
+- the chart keeps internal maintenance traffic on PostgreSQL's standard `postgres` database
+- when an older reused PVC is missing `postgres`, the primary pod repairs that database during startup before probes and internal clients depend on it
 
 ### Observability
 
@@ -181,6 +183,7 @@ metrics:
 - use the `replicas` Service only for read traffic
 - use the `replicas` Service when you need horizontal scale for read-only workloads
 - built-in backup dumps all PostgreSQL databases and global objects from the writable primary endpoint and uploads the compressed archive to S3-compatible storage
+- internal probes, metrics, backup, and administrative validation commands are expected to succeed against `postgres`
 - treat restore validation, retention policy, WAL strategy, and failover as operational workflows that still require explicit runbooks
 - review the operational guides before promoting `replication` to production
 

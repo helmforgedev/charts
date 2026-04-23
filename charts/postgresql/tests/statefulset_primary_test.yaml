@@ -126,7 +126,7 @@ tests:
           path: spec.template.spec.containers[0].livenessProbe
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.exec.command[2]
-          value: PGPASSWORD="${POSTGRES_PASSWORD}" pg_isready -U postgres -h 127.0.0.1 -p 5432 -d template1
+          value: PGPASSWORD="${POSTGRES_PASSWORD}" pg_isready -U postgres -h 127.0.0.1 -p 5432 -d postgres
 
   - it: should have readiness probe by default
     template: statefulset-primary.yaml
@@ -139,18 +139,31 @@ tests:
     asserts:
       - isNotNull:
           path: spec.template.spec.containers[0].startupProbe
-      - equal:
+      - matchRegex:
           path: spec.template.spec.containers[0].startupProbe.exec.command[2]
-          value: PGPASSWORD="${POSTGRES_PASSWORD}" pg_isready -U postgres -h 127.0.0.1 -p 5432 -d template1
+          pattern: 'psql -U postgres -h 127\.0\.0\.1 -p 5432 -d template1 -tAc "SELECT 1"'
+      - matchRegex:
+          path: spec.template.spec.containers[0].startupProbe.exec.command[2]
+          pattern: 'createdb -U postgres -h 127\.0\.0\.1 -p 5432 postgres'
 
-  - it: should use template1 for replication primary readiness check
+  - it: should use postgres for replication primary readiness check
     template: statefulset-primary.yaml
     set:
       architecture: replication
     asserts:
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
-          value: PGPASSWORD="${POSTGRES_PASSWORD}" psql -U postgres -h 127.0.0.1 -p 5432 -d template1 -tAc "SELECT CASE WHEN pg_is_in_recovery() THEN 1 ELSE 0 END" | grep -qx 0
+          value: PGPASSWORD="${POSTGRES_PASSWORD}" psql -U postgres -h 127.0.0.1 -p 5432 -d postgres -tAc "SELECT CASE WHEN pg_is_in_recovery() THEN 1 ELSE 0 END" | grep -qx 0
+
+  - it: should repair the postgres maintenance database on reused data directories
+    template: statefulset-primary.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].lifecycle.postStart.exec.command[2]
+          pattern: 'psql -U postgres -h 127\.0\.0\.1 -p 5432 -d template1 -tAc "SELECT 1 FROM pg_database WHERE datname = ''postgres''"'
+      - matchRegex:
+          path: spec.template.spec.containers[0].lifecycle.postStart.exec.command[2]
+          pattern: 'createdb -U postgres -h 127\.0\.0\.1 -p 5432 postgres'
 
   - it: should create VolumeClaimTemplate when persistence is enabled
     template: statefulset-primary.yaml
@@ -219,7 +232,16 @@ tests:
           path: spec.template.spec.containers[1].env
           content:
             name: DATA_SOURCE_URI
-            value: 127.0.0.1:5432/template1?sslmode=disable
+            value: 127.0.0.1:5432/postgres?sslmode=disable
+      - equal:
+          path: spec.template.spec.containers[1].args[0]
+          value: --config.file=/etc/postgres-exporter/postgres_exporter.yml
+      - contains:
+          path: spec.template.spec.containers[1].volumeMounts
+          content:
+            name: config
+            mountPath: /etc/postgres-exporter
+            readOnly: true
 
   - it: should not mount TLS volume by default
     template: statefulset-primary.yaml

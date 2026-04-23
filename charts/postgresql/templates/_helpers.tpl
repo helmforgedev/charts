@@ -166,16 +166,36 @@ app.kubernetes.io/role: {{ .role }}
 {{- end -}}
 
 {{- define "postgresql.maintenanceDatabase" -}}
-template1
+postgres
+{{- end -}}
+
+{{- define "postgresql.libpqEnvExports" -}}
+{{- if .Values.tls.enabled }}export PGSSLMODE={{ .Values.tls.sslMode | quote }}; export PGSSLROOTCERT=/tls/{{ .Values.tls.caFilename }}; {{- end -}}
 {{- end -}}
 
 {{- define "postgresql.probeCommandString" -}}
-{{- if .Values.tls.enabled }}export PGSSLMODE={{ .Values.tls.sslMode | quote }}; export PGSSLROOTCERT=/tls/{{ .Values.tls.caFilename }}; {{- end }}PGPASSWORD="${POSTGRES_PASSWORD}" pg_isready -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d {{ include "postgresql.maintenanceDatabase" . }}
+{{- include "postgresql.libpqEnvExports" . }}PGPASSWORD="${POSTGRES_PASSWORD}" pg_isready -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d {{ include "postgresql.maintenanceDatabase" . }}
+{{- end -}}
+
+{{- define "postgresql.primaryStartupProbeCommandString" -}}
+DATA_DIR="${PGDATA:-/var/lib/postgresql/data/pgdata}"
+if [ ! -s "${DATA_DIR}/PG_VERSION" ]; then
+  exit 1
+fi
+{{ include "postgresql.libpqEnvExports" . }}export PGPASSWORD="${POSTGRES_PASSWORD}"
+if psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d template1 -tAc "SELECT 1" >/dev/null 2>&1; then
+  if ! psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d template1 -tAc "SELECT 1 FROM pg_database WHERE datname = '{{ include "postgresql.maintenanceDatabase" . }}'" | grep -qx 1; then
+    createdb -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} {{ include "postgresql.maintenanceDatabase" . }}
+  fi
+  {{ include "postgresql.probeCommandString" . }}
+  exit $?
+fi
+exit 1
 {{- end -}}
 
 {{- define "postgresql.primaryReadinessCommandString" -}}
 {{- if and (eq .Values.architecture "replication") .Values.replication.primary.probes.requireWritable -}}
-{{- if .Values.tls.enabled }}export PGSSLMODE={{ .Values.tls.sslMode | quote }}; export PGSSLROOTCERT=/tls/{{ .Values.tls.caFilename }}; {{- end }}PGPASSWORD="${POSTGRES_PASSWORD}" psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d {{ include "postgresql.maintenanceDatabase" . }} -tAc "SELECT CASE WHEN pg_is_in_recovery() THEN 1 ELSE 0 END" | grep -qx 0
+{{- include "postgresql.libpqEnvExports" . }}PGPASSWORD="${POSTGRES_PASSWORD}" psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d {{ include "postgresql.maintenanceDatabase" . }} -tAc "SELECT CASE WHEN pg_is_in_recovery() THEN 1 ELSE 0 END" | grep -qx 0
 {{- else -}}
 {{ include "postgresql.probeCommandString" . }}
 {{- end -}}
@@ -183,10 +203,34 @@ template1
 
 {{- define "postgresql.replicaReadinessCommandString" -}}
 {{- if and (eq .Values.architecture "replication") .Values.replication.readReplicas.probes.requireRecoveryMode -}}
-{{- if .Values.tls.enabled }}export PGSSLMODE={{ .Values.tls.sslMode | quote }}; export PGSSLROOTCERT=/tls/{{ .Values.tls.caFilename }}; {{- end }}PGPASSWORD="${POSTGRES_PASSWORD}" psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d {{ include "postgresql.maintenanceDatabase" . }} -tAc "SELECT CASE WHEN pg_is_in_recovery() THEN 1 ELSE 0 END" | grep -qx 1
+{{- include "postgresql.libpqEnvExports" . }}PGPASSWORD="${POSTGRES_PASSWORD}" psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d {{ include "postgresql.maintenanceDatabase" . }} -tAc "SELECT CASE WHEN pg_is_in_recovery() THEN 1 ELSE 0 END" | grep -qx 1
 {{- else -}}
 {{ include "postgresql.probeCommandString" . }}
 {{- end -}}
+{{- end -}}
+
+{{- define "postgresql.ensureMaintenanceDatabaseCommandString" -}}
+DATA_DIR="${PGDATA:-/var/lib/postgresql/data/pgdata}"
+if [ ! -s "${DATA_DIR}/PG_VERSION" ]; then
+  exit 0
+fi
+{{ include "postgresql.libpqEnvExports" . }}export PGPASSWORD="${POSTGRES_PASSWORD}"
+for attempt in $(seq 1 150); do
+  if psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d template1 -tAc "SELECT 1" >/dev/null 2>&1; then
+    if psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d template1 -tAc "SELECT 1 FROM pg_database WHERE datname = '{{ include "postgresql.maintenanceDatabase" . }}'" | grep -qx 1; then
+      if {{ include "postgresql.probeCommandString" . }} >/dev/null 2>&1; then
+        exit 0
+      fi
+      sleep 2
+      continue
+    fi
+    createdb -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} {{ include "postgresql.maintenanceDatabase" . }}
+    exit 0
+  fi
+  sleep 2
+done
+echo "Unable to verify or repair the {{ include "postgresql.maintenanceDatabase" . }} database on this PostgreSQL data directory." >&2
+exit 1
 {{- end -}}
 
 {{- define "postgresql.metricsEnv" -}}
