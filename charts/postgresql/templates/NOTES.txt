@@ -1,26 +1,153 @@
-PostgreSQL release: {{ .Release.Name }}
+======================================================================
+ PostgreSQL has been deployed
+======================================================================
 
-Architecture: {{ .Values.architecture }}
-Client service: {{ include "postgresql.clientServiceName" . }}
-Primary service: {{ include "postgresql.primaryServiceName" . }}
-Port: {{ .Values.service.port }}
+Release:            {{ .Release.Name }}
+Namespace:          {{ .Release.Namespace }}
+Architecture:       {{ .Values.architecture }}
+Client Service:     {{ include "postgresql.clientServiceName" . }}
+Primary Service:    {{ include "postgresql.primaryServiceName" . }}
+Port:               {{ .Values.service.port }}
+Maintenance DB:     postgres
+Application DB:     {{ .Values.auth.database }}
+Application User:   {{ .Values.auth.username }}
 {{- if eq .Values.architecture "replication" }}
-Replicas service: {{ include "postgresql.replicasServiceName" . }}
-
-This chart provides asynchronous replication with a fixed writable primary.
-It does not implement automatic failover or operator-style cluster management.
+Replicas Service:   {{ include "postgresql.replicasServiceName" . }}
+Replica Count:      {{ .Values.replication.readReplicas.replicaCount }}
 {{- end }}
 
-Get the generated secret:
-  kubectl get secret {{ include "postgresql.secretName" . }} -n {{ .Release.Namespace }} -o yaml
+======================================================================
+ ACCESS
+======================================================================
 
-Connect using port-forward:
-  kubectl port-forward svc/{{ include "postgresql.primaryServiceName" . }} 5432:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+Port-forward the writable endpoint:
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "postgresql.primaryServiceName" . }} 5432:{{ .Values.service.port }}
 
-Get the PostgreSQL superuser password:
-  kubectl get secret {{ include "postgresql.secretName" . }} -n {{ .Release.Namespace }} -o jsonpath="{.data.{{ .Values.auth.existingSecretPostgresPasswordKey }}}" | base64 -d
+Connect with psql to the default PostgreSQL maintenance database:
+  PGPASSWORD="$(kubectl get secret {{ include "postgresql.secretName" . }} -n {{ .Release.Namespace }} -o jsonpath="{.data.{{ .Values.auth.existingSecretPostgresPasswordKey }}}" | base64 -d)" \
+  psql -h 127.0.0.1 -p 5432 -U postgres -d postgres
 
-Basic troubleshooting:
-  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+Connect to the application database:
+  PGPASSWORD="$(kubectl get secret {{ include "postgresql.secretName" . }} -n {{ .Release.Namespace }} -o jsonpath="{.data.{{ .Values.auth.existingSecretUserPasswordKey }}}" | base64 -d)" \
+  psql -h 127.0.0.1 -p 5432 -U {{ .Values.auth.username }} -d {{ .Values.auth.database }}
+
+{{- if eq .Values.architecture "replication" }}
+Read-only clients should use:
+  {{ include "postgresql.replicasServiceName" . }}:{{ .Values.service.port }}
+
+Writable clients should use:
+  {{ include "postgresql.primaryServiceName" . }}:{{ .Values.service.port }}
+{{- end }}
+
+======================================================================
+ CONFIGURATION
+======================================================================
+
+- The chart keeps internal probes, metrics, and backup workflows on the standard `postgres` database.
+- If a reused data directory is missing `postgres`, the primary pod repairs it automatically during startup before normal readiness checks rely on it.
+- The application bootstrap database remains `{{ .Values.auth.database }}` and is created only on first initialization of a fresh data directory.
+- `docker-entrypoint-initdb.d` scripts do not run again on reused PVCs.
+{{- if .Values.tls.enabled }}
+- TLS is enabled for server and internal clients with sslmode `{{ .Values.tls.sslMode }}`.
+{{- else }}
+- TLS is disabled for internal chart traffic.
+{{- end }}
+{{- if .Values.metrics.enabled }}
+- Metrics exporter is enabled on port `{{ .Values.service.metricsPort }}`.
+{{- end }}
+{{- if .Values.backup.enabled }}
+- Built-in logical backup CronJob is enabled with schedule `{{ .Values.backup.schedule }}`.
+{{- end }}
+
+======================================================================
+ GETTING STARTED
+======================================================================
+
+1. Wait for PostgreSQL to become ready:
+   kubectl wait --for=condition=ready pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --timeout=600s
+
+2. List the chart resources:
+   kubectl get all -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+3. Confirm the `postgres` and application databases exist:
+   kubectl exec -n {{ .Release.Namespace }} {{ include "postgresql.primaryStatefulSetName" . }}-0 -- \
+     psql -U postgres -d postgres -tAc "SELECT datname FROM pg_database ORDER BY datname;"
+
+4. Validate basic SQL connectivity:
+   kubectl exec -n {{ .Release.Namespace }} {{ include "postgresql.primaryStatefulSetName" . }}-0 -- \
+     psql -U postgres -d postgres -c "SELECT current_database(), current_user, version();"
+
+{{- if eq .Values.architecture "replication" }}
+5. Validate replication state from the primary:
+   kubectl exec -n {{ .Release.Namespace }} {{ include "postgresql.primaryStatefulSetName" . }}-0 -- \
+     psql -U postgres -d postgres -c "SELECT application_name, state, sync_state FROM pg_stat_replication;"
+{{- end }}
+
+======================================================================
+ VALIDATION
+======================================================================
+
+Check pod readiness and restarts:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -o wide
+
+Inspect recent logs from all running containers:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --all-containers --tail=200
+
+Inspect the primary PostgreSQL container logs directly:
+  kubectl logs -n {{ .Release.Namespace }} {{ include "postgresql.primaryStatefulSetName" . }}-0 -c postgresql --tail=200
+
+Check that PostgreSQL accepts connections on `postgres`:
+  kubectl exec -n {{ .Release.Namespace }} {{ include "postgresql.primaryStatefulSetName" . }}-0 -- \
+    pg_isready -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d postgres
+
+{{- if .Values.metrics.enabled }}
+Validate metrics output:
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "postgresql.primaryMetricsServiceName" . }} {{ .Values.service.metricsPort }}:{{ .Values.service.metricsPort }}
+  curl http://127.0.0.1:{{ .Values.service.metricsPort }}/metrics
+{{- end }}
+
+{{- if .Values.backup.enabled }}
+Check the backup CronJob and recent Jobs:
+  kubectl get cronjob,jobs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+{{- end }}
+
+======================================================================
+ TROUBLESHOOTING
+======================================================================
+
+Describe a failing pod:
   kubectl describe pod -n {{ .Release.Namespace }} <pod-name>
-  kubectl logs -n {{ .Release.Namespace }} {{ include "postgresql.primaryStatefulSetName" . }}-0
+
+Check database list if you suspect an old PVC is missing the default database:
+  kubectl exec -n {{ .Release.Namespace }} {{ include "postgresql.primaryStatefulSetName" . }}-0 -- \
+    psql -U postgres -d template1 -tAc "SELECT datname FROM pg_database WHERE datname = 'postgres';"
+
+Check primary PostgreSQL events and warnings:
+  kubectl logs -n {{ .Release.Namespace }} {{ include "postgresql.primaryStatefulSetName" . }}-0 -c postgresql --since=10m
+
+{{- if eq .Values.architecture "replication" }}
+Check replica recovery state:
+  kubectl exec -n {{ .Release.Namespace }} {{ include "postgresql.replicaStatefulSetName" . }}-0 -- \
+    psql -U postgres -d postgres -tAc "SELECT pg_is_in_recovery();"
+{{- end }}
+
+======================================================================
+ RESOURCES
+======================================================================
+
+HelmForge chart docs:
+  https://helmforge.dev/docs/charts/postgresql
+
+Chart source:
+  https://github.com/helmforgedev/charts/tree/main/charts/postgresql
+
+Official PostgreSQL website:
+  https://www.postgresql.org
+
+Official PostgreSQL documentation:
+  https://www.postgresql.org/docs/current/
+
+Official PostgreSQL Docker image:
+  https://hub.docker.com/_/postgres
+
+Happy Helmforging :)

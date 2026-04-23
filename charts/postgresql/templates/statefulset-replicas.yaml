@@ -40,7 +40,7 @@ spec:
               fi
               mkdir -p "${DATA_DIR}"
               chmod 0700 "${DATA_DIR}"
-              until pg_isready -h {{ include "postgresql.primaryServiceName" . }} -p {{ .Values.service.port }} -U {{ .Values.auth.replicationUsername }}; do
+              until pg_isready -h {{ include "postgresql.primaryServiceName" . }} -p {{ .Values.service.port }} -U {{ .Values.auth.replicationUsername }} -d {{ include "postgresql.maintenanceDatabase" . }}; do
                 sleep 5
               done
               rm -rf "${DATA_DIR:?}"/*
@@ -167,6 +167,8 @@ spec:
         - name: postgres-exporter
           image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
           imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
+          args:
+            - --config.file=/etc/postgres-exporter/postgres_exporter.yml
           ports:
             - name: metrics
               containerPort: {{ .Values.service.metricsPort }}
@@ -181,6 +183,9 @@ spec:
             {{- include "postgresql.metricsResourcesPreset" . | nindent 12 }}
             {{- end }}
           volumeMounts:
+            - name: config
+              mountPath: /etc/postgres-exporter
+              readOnly: true
             {{- if .Values.tls.enabled }}
             - name: tls
               mountPath: /tls

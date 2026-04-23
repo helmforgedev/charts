@@ -75,6 +75,14 @@ spec:
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - sh
+                  - -ec
+                  - |
+                    {{- include "postgresql.ensureMaintenanceDatabaseCommandString" . | nindent 20 }}
           {{- if .Values.livenessProbe.enabled }}
           livenessProbe:
             exec:
@@ -105,7 +113,7 @@ spec:
               command:
                 - sh
                 - -ec
-                - {{ include "postgresql.probeCommandString" . | quote }}
+                - {{ include "postgresql.primaryStartupProbeCommandString" . | quote }}
             initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.startupProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
@@ -146,6 +154,8 @@ spec:
         - name: postgres-exporter
           image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
           imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
+          args:
+            - --config.file=/etc/postgres-exporter/postgres_exporter.yml
           ports:
             - name: metrics
               containerPort: {{ .Values.service.metricsPort }}
@@ -160,6 +170,9 @@ spec:
             {{- include "postgresql.metricsResourcesPreset" . | nindent 12 }}
             {{- end }}
           volumeMounts:
+            - name: config
+              mountPath: /etc/postgres-exporter
+              readOnly: true
             {{- if .Values.tls.enabled }}
             - name: tls
               mountPath: /tls
