@@ -1,0 +1,159 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-drupal
+
+  - it: should use Recreate strategy
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should set the requested replica count
+    template: templates/deployment.yaml
+    set:
+      replicaCount: 2
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+
+  - it: should use the pinned Drupal image
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/library/drupal:11.3.8-apache-bookworm
+
+  - it: should include the seed-sites init container
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: seed-sites
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: docker.io/library/drupal:11.3.8-apache-bookworm
+
+  - it: should mount the sites directory
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: sites-data
+            mountPath: /var/www/html/sites
+
+  - it: should use PVC by default
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: sites-data
+            persistentVolumeClaim:
+              claimName: test-drupal
+
+  - it: should use emptyDir when persistence is disabled
+    template: templates/deployment.yaml
+    set:
+      persistence.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: sites-data
+            emptyDir: {}
+
+  - it: should expose HTTP port 80
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 80
+            protocol: TCP
+
+  - it: should render startup probe by default
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /
+
+  - it: should render liveness probe by default
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /
+
+  - it: should render readiness probe by default
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /
+
+  - it: should mount php.ini when configured
+    template: templates/deployment.yaml
+    set:
+      php.ini: |
+        memory_limit = 256M
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: php-config
+            mountPath: /usr/local/etc/php/conf.d/custom.ini
+            subPath: custom.ini
+            readOnly: true
+
+  - it: should include extra environment variables
+    template: templates/deployment.yaml
+    set:
+      drupal.extraEnv:
+        - name: PHP_MEMORY_LIMIT
+          value: "256M"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PHP_MEMORY_LIMIT
+            value: "256M"
+
+  - it: should render cleanly in sqlite mode
+    template: templates/deployment.yaml
+    set:
+      database.mode: sqlite
+      mysql.enabled: false
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: should render cleanly with external database settings
+    template: templates/deployment.yaml
+    set:
+      database.mode: external
+      database.external.host: db.example.com
+      database.external.port: 3306
+      database.external.name: drupal
+      database.external.username: drupal
+      mysql.enabled: false
+    asserts:
+      - isKind:
+          of: Deployment
