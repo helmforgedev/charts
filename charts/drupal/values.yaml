@@ -1,0 +1,223 @@
+# =============================================================================
+# Drupal Helm Chart
+# =============================================================================
+# This chart deploys Drupal using the Docker Official Image.
+#
+# Important:
+# - Drupal upstream does not currently publish its own upstream-maintained
+#   runtime container image.
+# - This chart therefore uses docker.io/library/drupal.
+# - The chart prepares Kubernetes resources and persistent storage, then guides
+#   the user through the Drupal web installer.
+#
+# Persistence strategy:
+# - Persist only /var/www/html/sites
+# - Seed the directory from the image through an init container
+# =============================================================================
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+# -- Number of Drupal replicas. Single replica is recommended unless you use shared storage for /sites.
+replicaCount: 1
+
+image:
+  # -- Drupal container image repository
+  repository: docker.io/library/drupal
+  # -- Drupal container image tag
+  tag: "11.3.8-apache-bookworm"
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+drupal:
+  # -- Friendly site name used in docs and NOTES guidance
+  siteName: Drupal
+  # -- Install profile suggested in NOTES.txt
+  installProfile: standard
+  # -- Locale suggested in NOTES.txt
+  locale: en
+  # -- SQLite file path to use when database.mode=sqlite
+  sqlitePath: sites/default/files/.ht.sqlite
+  # -- Additional environment variables for the Drupal container
+  extraEnv: []
+
+# =============================================================================
+# Database Mode
+# =============================================================================
+# Drupal setup is completed through the web installer. This chart therefore
+# provisions the runtime and database path, then exposes the exact installer
+# values in NOTES.txt.
+#
+# Mode detection:
+# 1. database.external.host -> external
+# 2. mysql.enabled -> mysql
+# 3. otherwise -> sqlite
+# =============================================================================
+
+database:
+  # -- Database mode: auto | external | mysql | sqlite
+  mode: auto
+
+  external:
+    # -- External database hostname
+    host: ""
+    # -- External database port
+    port: 3306
+    # -- External database name
+    name: drupal
+    # -- External database username
+    username: drupal
+
+mysql:
+  # -- Deploy MySQL as a subchart for the Drupal installer
+  enabled: true
+  architecture: standalone
+  auth:
+    # -- Database name created on first bootstrap
+    database: drupal
+    # -- Database username created on first bootstrap
+    username: drupal
+    # -- Database password (auto-generated if empty)
+    password: ""
+    # -- Root password (auto-generated if empty)
+    rootPassword: ""
+    # -- Existing secret with MySQL passwords
+    existingSecret: ""
+    # -- Secret key for the application user password
+    existingSecretUserPasswordKey: mysql-user-password
+
+  primary:
+    persistence:
+      # -- Enable persistence for MySQL data
+      enabled: true
+      # -- PVC size for MySQL
+      size: 8Gi
+
+# =============================================================================
+# Persistent Storage
+# =============================================================================
+
+persistence:
+  # -- Enable persistent storage for /var/www/html/sites
+  enabled: true
+  # -- Storage class (leave empty for cluster default)
+  storageClass: ""
+  # -- Access mode for the sites PVC
+  accessMode: ReadWriteOnce
+  # -- Size of the sites PVC
+  size: 8Gi
+  # -- Use an existing PVC instead of creating one
+  existingClaim: ""
+  # -- Annotations for the sites PVC
+  annotations: {}
+
+# =============================================================================
+# PHP
+# =============================================================================
+
+php:
+  # -- Extra php.ini content mounted into /usr/local/etc/php/conf.d/custom.ini
+  ini: ""
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- HTTP service port
+  port: 80
+  # -- Annotations for the service
+  annotations: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable ingress for Drupal
+  enabled: false
+  # -- Ingress class name
+  ingressClassName: ""
+  # -- Annotations for the ingress
+  annotations: {}
+  # -- Ingress hosts
+  hosts: []
+  # -- TLS configuration
+  tls: []
+
+# =============================================================================
+# Resources and Probes
+# =============================================================================
+
+resources: {}
+
+startupProbe:
+  # -- Enable startup probe
+  enabled: true
+  # -- Probe path
+  path: /
+  initialDelaySeconds: 15
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+
+livenessProbe:
+  # -- Enable liveness probe
+  enabled: true
+  # -- Probe path
+  path: /
+  initialDelaySeconds: 0
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  # -- Enable readiness probe
+  enabled: true
+  # -- Probe path
+  path: /
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# =============================================================================
+# Scheduling and Security
+# =============================================================================
+
+podSecurityContext: {}
+securityContext: {}
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount
+  create: false
+  # -- Name override for the ServiceAccount
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+podLabels: {}
+podAnnotations: {}
+
+# =============================================================================
+# Escape Hatches
+# =============================================================================
+
+extraVolumes: []
+extraVolumeMounts: []
+
+# -- Extra manifests to deploy alongside the chart
+extraManifests: []
