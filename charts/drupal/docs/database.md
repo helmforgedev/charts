@@ -17,6 +17,8 @@ Use the following values from `NOTES.txt` during installation:
 - Database username: `mysql.auth.username`
 - Database password: retrieved from the MySQL auth secret
 
+This is the recommended production path when you do not need horizontal scaling beyond the bundled MySQL defaults.
+
 ## External Database
 
 Set:
@@ -34,7 +36,9 @@ mysql:
   enabled: false
 ```
 
-The chart does not create or manage the external database password. Provide your own credentials during the installer flow.
+The chart does not create or manage the external database password for the installer flow. Provide your own credentials during installation.
+
+If you also enable chart-managed backups for an external database, set `backup.database.password` or `backup.database.existingSecret`.
 
 ## SQLite
 
@@ -54,4 +58,4 @@ Recommended installer path:
 sites/default/files/.ht.sqlite
 ```
 
-Use SQLite for lightweight environments, evaluation, or disposable setups. It is not the recommended production path for most Drupal installations.
+Use SQLite for lightweight environments, evaluation, or controlled single-replica installs. It is not the recommended production path for most Drupal installations and it cannot be combined with horizontal scaling.

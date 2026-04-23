@@ -71,6 +71,40 @@ Image string.
 {{- end }}
 
 {{/*
+Desired replica count before validations.
+*/}}
+{{- define "drupal.desiredReplicasRaw" -}}
+{{- if .Values.autoscaling.enabled -}}
+{{- .Values.autoscaling.minReplicas | int -}}
+{{- else -}}
+{{- .Values.replicaCount | int -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Validated desired replica count.
+*/}}
+{{- define "drupal.replicaCount" -}}
+{{- $replicas := (include "drupal.desiredReplicasRaw" . | int) -}}
+{{- $dbMode := include "drupal.databaseMode" . -}}
+{{- if and (eq $dbMode "sqlite") (not (hasPrefix "sites/" .Values.drupal.sqlitePath)) -}}
+{{- fail "database.mode=sqlite requires drupal.sqlitePath to stay under sites/ so persistence and backup cover the database file" -}}
+{{- end -}}
+{{- if gt $replicas 1 -}}
+  {{- if eq $dbMode "sqlite" -}}
+    {{- fail "Multi-replica Drupal requires a MySQL-compatible database. SQLite is supported only for single-replica deployments." -}}
+  {{- end -}}
+  {{- if not .Values.persistence.enabled -}}
+    {{- fail "Multi-replica Drupal requires persistence.enabled=true so uploaded files and installer state are shared across replicas." -}}
+  {{- end -}}
+  {{- if ne (.Values.persistence.accessMode | default "ReadWriteOnce") "ReadWriteMany" -}}
+    {{- fail "Multi-replica Drupal requires persistence.accessMode=ReadWriteMany so /var/www/html/sites can be shared safely." -}}
+  {{- end -}}
+{{- end -}}
+{{- $replicas -}}
+{{- end -}}
+
+{{/*
 Database mode detection (auto | external | mysql | sqlite).
 Auto precedence:
   1. database.external.host -> external
@@ -201,5 +235,134 @@ MySQL password secret key for installer guidance.
 {{- .Values.mysql.auth.existingSecretUserPasswordKey | default "mysql-user-password" -}}
 {{- else -}}
 {{- print "mysql-user-password" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Whether backup is enabled, with validation.
+*/}}
+{{- define "drupal.backupEnabled" -}}
+{{- if .Values.backup.enabled -}}
+  {{- if not .Values.persistence.enabled -}}
+    {{- fail "backup.enabled requires persistence.enabled=true so Drupal sites files are included in each backup." -}}
+  {{- end -}}
+  {{- if not .Values.backup.s3.endpoint -}}
+    {{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if not .Values.backup.s3.bucket -}}
+    {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- end -}}
+  {{- $dbMode := include "drupal.databaseMode" . -}}
+  {{- if and (eq $dbMode "sqlite") (not (hasPrefix "sites/" .Values.drupal.sqlitePath)) -}}
+    {{- fail "backup.enabled with database.mode=sqlite requires drupal.sqlitePath to stay under sites/" -}}
+  {{- end -}}
+  {{- if and (ne $dbMode "sqlite") (eq (.Values.backup.database.existingSecret | default "") "") (eq (.Values.backup.database.password | default "") "") (eq $dbMode "external") -}}
+    {{- fail "backup.enabled with database.mode=external requires backup.database.existingSecret or backup.database.password so mysqldump can authenticate." -}}
+  {{- end -}}
+true
+{{- else -}}
+false
+{{- end -}}
+{{- end -}}
+
+{{/*
+Whether autoscaling is enabled, with validation.
+*/}}
+{{- define "drupal.autoscalingEnabled" -}}
+{{- if .Values.autoscaling.enabled -}}
+  {{- if lt (.Values.autoscaling.maxReplicas | int) (.Values.autoscaling.minReplicas | int) -}}
+    {{- fail "autoscaling.maxReplicas must be greater than or equal to autoscaling.minReplicas" -}}
+  {{- end -}}
+  {{- if not (or .Values.autoscaling.targetCPUUtilizationPercentage .Values.autoscaling.targetMemoryUtilizationPercentage) -}}
+    {{- fail "autoscaling.enabled requires at least one target metric" -}}
+  {{- end -}}
+  {{- $_ := include "drupal.replicaCount" . -}}
+true
+{{- else -}}
+false
+{{- end -}}
+{{- end -}}
+
+{{/*
+Backup S3 secret name.
+*/}}
+{{- define "drupal.backupSecretName" -}}
+{{- if .Values.backup.s3.existingSecret -}}
+{{- .Values.backup.s3.existingSecret -}}
+{{- else -}}
+{{- printf "%s-backup" (include "drupal.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Backup database password secret name.
+*/}}
+{{- define "drupal.backupDatabasePasswordSecretName" -}}
+{{- if .Values.backup.database.existingSecret -}}
+{{- .Values.backup.database.existingSecret -}}
+{{- else if .Values.backup.database.password -}}
+{{- printf "%s-backup-db" (include "drupal.fullname" .) -}}
+{{- else -}}
+{{- include "drupal.mysqlPasswordSecretName" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Backup database password secret key.
+*/}}
+{{- define "drupal.backupDatabasePasswordSecretKey" -}}
+{{- if .Values.backup.database.existingSecret -}}
+{{- .Values.backup.database.existingSecretPasswordKey | default "database-password" -}}
+{{- else if .Values.backup.database.password -}}
+database-password
+{{- else -}}
+{{- include "drupal.mysqlPasswordSecretKey" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Backup database host.
+*/}}
+{{- define "drupal.backupDatabaseHost" -}}
+{{- if .Values.backup.database.host -}}
+{{- .Values.backup.database.host -}}
+{{- else -}}
+{{- include "drupal.databaseHost" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Backup database port.
+*/}}
+{{- define "drupal.backupDatabasePort" -}}
+{{- if .Values.backup.database.port -}}
+{{- .Values.backup.database.port | toString -}}
+{{- else -}}
+{{- include "drupal.databasePort" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Backup database name.
+*/}}
+{{- define "drupal.backupDatabaseName" -}}
+{{- if .Values.backup.database.name -}}
+{{- .Values.backup.database.name -}}
+{{- else -}}
+{{- include "drupal.databaseName" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Backup database username.
+*/}}
+{{- define "drupal.backupDatabaseUsername" -}}
+{{- if .Values.backup.database.username -}}
+{{- .Values.backup.database.username -}}
+{{- else -}}
+{{- include "drupal.databaseUsername" . -}}
 {{- end -}}
 {{- end -}}

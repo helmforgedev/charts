@@ -1,0 +1,107 @@
+suite: Backup
+templates:
+  - templates/backup-configmap.yaml
+  - templates/backup-cronjob.yaml
+  - templates/backup-secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not create backup resources by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create mysql backup resources with inline S3 credentials
+    template: templates/backup-cronjob.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: drupal-backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[1].name
+          value: mysql-backup
+
+  - it: should create sqlite backup init container in sqlite mode
+    template: templates/backup-cronjob.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: drupal-backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+      database.mode: sqlite
+      mysql.enabled: false
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[1].name
+          value: sqlite-backup
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[1].env[1].value
+          value: /var/www/html/sites/default/files/.ht.sqlite
+
+  - it: should create inline external backup database password secret
+    template: templates/backup-secret.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: drupal-backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+      backup.database.password: dbsecret
+      database.mode: external
+      database.external.host: db.example.com
+      mysql.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: test-drupal-backup-db
+        documentIndex: 1
+
+  - it: should create inline S3 secret when backup is enabled
+    template: templates/backup-secret.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: drupal-backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: test-drupal-backup
+
+  - it: should fail backup without endpoint
+    template: templates/backup-secret.yaml
+    set:
+      backup.enabled: true
+      backup.s3.bucket: drupal-backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.endpoint is required when backup.enabled is true"
+
+  - it: should fail external database backup without database credentials
+    template: templates/backup-secret.yaml
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: drupal-backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+      database.mode: external
+      database.external.host: db.example.com
+      mysql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.enabled with database.mode=external requires backup.database.existingSecret or backup.database.password so mysqldump can authenticate."

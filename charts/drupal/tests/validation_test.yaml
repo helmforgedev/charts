@@ -1,0 +1,36 @@
+suite: Validations
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should fail multi-replica without RWX storage
+    set:
+      replicaCount: 2
+      database.mode: mysql
+      mysql.enabled: true
+      persistence.accessMode: ReadWriteOnce
+    asserts:
+      - failedTemplate:
+          errorMessage: "Multi-replica Drupal requires persistence.accessMode=ReadWriteMany so /var/www/html/sites can be shared safely."
+
+  - it: should fail multi-replica without persistence
+    set:
+      replicaCount: 2
+      database.mode: mysql
+      mysql.enabled: true
+      persistence.enabled: false
+      persistence.accessMode: ReadWriteMany
+    asserts:
+      - failedTemplate:
+          errorMessage: "Multi-replica Drupal requires persistence.enabled=true so uploaded files and installer state are shared across replicas."
+
+  - it: should fail sqlite path outside sites when sqlite mode is active
+    set:
+      database.mode: sqlite
+      mysql.enabled: false
+      drupal.sqlitePath: private/db.sqlite
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.mode=sqlite requires drupal.sqlitePath to stay under sites/ so persistence and backup cover the database file"

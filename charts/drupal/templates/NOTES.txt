@@ -45,6 +45,7 @@ HEALTH:       http://{{ include "drupal.fullname" . }}.{{ .Release.Namespace }}.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 {{- $dbMode := include "drupal.databaseMode" . }}
+{{- $replicas := include "drupal.replicaCount" . | int }}
 Detected mode: {{ $dbMode }}
 
 {{- if eq $dbMode "mysql" }}
@@ -85,7 +86,7 @@ Use this path in the installer:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Deployment:
-  Replicas:              {{ .Values.replicaCount }}
+  Replicas:              {{ $replicas }}
   Image:                 {{ .Values.image.repository }}:{{ .Values.image.tag }}
   Service Type:          {{ .Values.service.type }}
   Service Port:          {{ .Values.service.port }}
@@ -124,6 +125,21 @@ Ingress:
 
 PHP:
   Custom php.ini:        {{ if .Values.php.ini }}enabled{{ else }}disabled{{ end }}
+
+Autoscaling:
+  Enabled:               {{ .Values.autoscaling.enabled }}
+  {{- if .Values.autoscaling.enabled }}
+  Min replicas:          {{ .Values.autoscaling.minReplicas }}
+  Max replicas:          {{ .Values.autoscaling.maxReplicas }}
+  {{- end }}
+
+Backups:
+  Enabled:               {{ .Values.backup.enabled }}
+  {{- if .Values.backup.enabled }}
+  Schedule:              {{ .Values.backup.schedule }}
+  Bucket:                {{ .Values.backup.s3.bucket }}
+  Prefix:                {{ .Values.backup.s3.prefix }}
+  {{- end }}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   GETTING STARTED
@@ -218,7 +234,7 @@ View MySQL logs:
   WARNINGS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-{{- if gt (.Values.replicaCount | int) 1 }}
+{{- if gt $replicas 1 }}
 WARNING: Multi-replica Drupal deployment detected.
 
 Drupal uploads and installer-generated state live under /sites. The default
@@ -226,6 +242,7 @@ PVC settings are intended for single-replica use.
 
 Recommended actions:
   - use shared writable storage before scaling above one replica
+  - keep backups enabled for files and database recovery
   - or keep replicaCount=1
 
 {{- end }}
@@ -242,6 +259,14 @@ NOTE: SQLite mode is active.
 
 This is useful for lightweight environments and evaluation, but it is not the
 preferred production path for most Drupal sites.
+
+{{- end }}
+{{- if .Values.backup.enabled }}
+NOTE: Scheduled backups are enabled.
+
+Each backup job archives:
+  - Drupal sites files
+  - the active database (MySQL dump or SQLite snapshot)
 
 {{- end }}
 

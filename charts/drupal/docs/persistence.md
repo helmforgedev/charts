@@ -20,11 +20,17 @@ This chart:
 
 This preserves installer output and uploaded files while keeping the core application files in the image layer.
 
-## Multi-Replica Warning
+## Multi-Replica Behavior
 
 The default storage mode is:
 
 - `ReadWriteOnce`
 - single replica
 
-If you scale `replicaCount` above 1, use shared writable storage or keep a single replica. Otherwise uploaded files and installer-generated state may not behave consistently across pods.
+If you scale Drupal above one replica, the chart requires:
+
+- `persistence.enabled=true`
+- `persistence.accessMode=ReadWriteMany`
+- a MySQL-compatible database
+
+This is enforced directly in the chart so unsafe multi-replica combinations fail during render time instead of breaking later in production.

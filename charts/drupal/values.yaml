@@ -26,7 +26,7 @@ image:
   # -- Drupal container image repository
   repository: docker.io/library/drupal
   # -- Drupal container image tag
-  tag: "11.3.8-apache-bookworm"
+  tag: "11.3.8-php8.5-apache-bookworm"
   # -- Image pull policy
   pullPolicy: IfNotPresent
 
@@ -155,7 +155,13 @@ ingress:
 # Resources and Probes
 # =============================================================================
 
-resources: {}
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
 
 startupProbe:
   # -- Enable startup probe
@@ -188,10 +194,109 @@ readinessProbe:
   failureThreshold: 3
 
 # =============================================================================
+# Autoscaling and Availability
+# =============================================================================
+
+autoscaling:
+  # -- Enable HorizontalPodAutoscaler. Requires MySQL-compatible database and RWX sites storage.
+  enabled: false
+  # -- Minimum number of replicas when autoscaling is enabled
+  minReplicas: 2
+  # -- Maximum number of replicas when autoscaling is enabled
+  maxReplicas: 5
+  # -- Target average CPU utilization percentage
+  targetCPUUtilizationPercentage: 75
+  # -- Target average memory utilization percentage
+  targetMemoryUtilizationPercentage: 80
+
+pdb:
+  # -- Create a PodDisruptionBudget for the Drupal workload
+  enabled: false
+  # -- Minimum healthy pods during voluntary disruptions
+  minAvailable: 1
+  # -- Maximum unavailable pods during voluntary disruptions
+  maxUnavailable: ""
+
+# =============================================================================
+# Backup (CronJob + S3)
+# =============================================================================
+
+backup:
+  # -- Enable scheduled backups to S3-compatible storage
+  enabled: false
+  # -- Cron schedule for backups
+  schedule: "0 3 * * *"
+  # -- Suspend the CronJob without deleting it
+  suspend: false
+  # -- CronJob concurrency policy
+  concurrencyPolicy: Forbid
+  # -- Number of successful job records to keep
+  successfulJobsHistoryLimit: 3
+  # -- Number of failed job records to keep
+  failedJobsHistoryLimit: 3
+  # -- Maximum retries per backup job
+  backoffLimit: 1
+  # -- Prefix for generated backup archive names
+  archivePrefix: drupal
+
+  images:
+    # -- Image used for mysqldump operations
+    mysql: docker.io/library/mysql:8.4
+    # -- Image used for consistent SQLite backup generation
+    sqlite: docker.io/library/python:3.13-alpine
+    # -- Image used to archive Drupal sites files
+    archiver: docker.io/library/alpine:3.22
+    # -- Image used to upload archives to S3-compatible storage
+    uploader: docker.io/helmforge/mc:1.0.0
+
+  # -- Resources for backup containers
+  resources: {}
+
+  s3:
+    # -- S3-compatible endpoint URL
+    endpoint: ""
+    # -- Target bucket name
+    bucket: ""
+    # -- Key prefix within the bucket
+    prefix: drupal
+    # -- Auto-create the bucket if it does not exist
+    createBucketIfNotExists: true
+    # -- Use an existing secret for S3 credentials
+    existingSecret: ""
+    # -- Key in the existing secret for the S3 access key
+    existingSecretAccessKeyKey: access-key
+    # -- Key in the existing secret for the S3 secret key
+    existingSecretSecretKeyKey: secret-key
+    # -- Inline S3 access key when not using an existing secret
+    accessKey: ""
+    # -- Inline S3 secret key when not using an existing secret
+    secretKey: ""
+
+  database:
+    # -- Override backup database host (defaults to the active Drupal DB host)
+    host: ""
+    # -- Override backup database port
+    port: ""
+    # -- Override backup database name
+    name: ""
+    # -- Override backup database username
+    username: ""
+    # -- Inline backup database password override
+    password: ""
+    # -- Existing secret with backup database password override
+    existingSecret: ""
+    # -- Secret key in backup.database.existingSecret for the database password
+    existingSecretPasswordKey: database-password
+    # -- Extra arguments passed to mysqldump
+    mysqldumpArgs: "--single-transaction --quick --skip-lock-tables --no-tablespaces"
+
+# =============================================================================
 # Scheduling and Security
 # =============================================================================
 
-podSecurityContext: {}
+podSecurityContext:
+  fsGroup: 33
+  fsGroupChangePolicy: OnRootMismatch
 securityContext: {}
 
 serviceAccount:
