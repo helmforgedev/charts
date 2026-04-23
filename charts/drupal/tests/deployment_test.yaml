@@ -22,10 +22,25 @@ tests:
           path: spec.strategy.type
           value: Recreate
 
+  - it: should use RollingUpdate when scaling safely
+    template: templates/deployment.yaml
+    set:
+      replicaCount: 2
+      database.mode: mysql
+      mysql.enabled: true
+      persistence.accessMode: ReadWriteMany
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+
   - it: should set the requested replica count
     template: templates/deployment.yaml
     set:
       replicaCount: 2
+      database.mode: mysql
+      mysql.enabled: true
+      persistence.accessMode: ReadWriteMany
     asserts:
       - equal:
           path: spec.replicas
@@ -36,7 +51,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: docker.io/library/drupal:11.3.8-apache-bookworm
+          value: docker.io/library/drupal:11.3.8-php8.5-apache-bookworm
 
   - it: should include the seed-sites init container
     template: templates/deployment.yaml
@@ -46,7 +61,7 @@ tests:
           value: seed-sites
       - equal:
           path: spec.template.spec.initContainers[0].image
-          value: docker.io/library/drupal:11.3.8-apache-bookworm
+          value: docker.io/library/drupal:11.3.8-php8.5-apache-bookworm
 
   - it: should mount the sites directory
     template: templates/deployment.yaml
@@ -109,6 +124,29 @@ tests:
           path: spec.template.spec.containers[0].readinessProbe.httpGet.path
           value: /
 
+  - it: should render default resource requests and limits
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 250m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 512Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: "1"
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 1Gi
+
+  - it: should render pod fsGroup defaults
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 33
+
   - it: should mount php.ini when configured
     template: templates/deployment.yaml
     set:
@@ -157,3 +195,15 @@ tests:
     asserts:
       - isKind:
           of: Deployment
+
+  - it: should set minReplicas on the deployment when autoscaling is enabled
+    template: templates/deployment.yaml
+    set:
+      autoscaling.enabled: true
+      autoscaling.minReplicas: 2
+      autoscaling.maxReplicas: 5
+      persistence.accessMode: ReadWriteMany
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2

@@ -1,0 +1,166 @@
+{{- if .Values.backup.enabled }}
+{{- $_ := include "drupal.backupEnabled" . }}
+{{- $dbMode := include "drupal.databaseMode" . -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "drupal.fullname" . }}-backup
+  labels:
+    {{- include "drupal.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  suspend: {{ .Values.backup.suspend }}
+  concurrencyPolicy: {{ .Values.backup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "drupal.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: Never
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.serviceAccount.create }}
+          serviceAccountName: {{ include "drupal.serviceAccountName" . }}
+          {{- end }}
+          {{- with .Values.priorityClassName }}
+          priorityClassName: {{ . }}
+          {{- end }}
+          {{- with .Values.podSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          initContainers:
+            - name: archive-sites
+              image: {{ .Values.backup.images.archiver | quote }}
+              command: ["/bin/sh", "/scripts/archive-sites.sh"]
+              volumeMounts:
+                - name: backup-scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: backup-workdir
+                  mountPath: /backup/out
+                - name: sites-data
+                  mountPath: /var/www/html/sites
+                  readOnly: true
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+            {{- if eq $dbMode "sqlite" }}
+            - name: sqlite-backup
+              image: {{ .Values.backup.images.sqlite | quote }}
+              command: ["python", "/scripts/sqlite-backup.py"]
+              env:
+                - name: BACKUP_ARCHIVE_PREFIX
+                  value: {{ .Values.backup.archivePrefix | quote }}
+                - name: SQLITE_PATH
+                  value: {{ printf "/var/www/html/%s" .Values.drupal.sqlitePath | quote }}
+              volumeMounts:
+                - name: backup-scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: backup-workdir
+                  mountPath: /backup/out
+                - name: sites-data
+                  mountPath: /var/www/html/sites
+                  readOnly: true
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+            {{- else }}
+            - name: mysql-backup
+              image: {{ .Values.backup.images.mysql | quote }}
+              command: ["/bin/sh", "/scripts/mysql-backup.sh"]
+              env:
+                - name: DB_HOST
+                  value: {{ include "drupal.backupDatabaseHost" . | quote }}
+                - name: DB_PORT
+                  value: {{ include "drupal.backupDatabasePort" . | quote }}
+                - name: DB_NAME
+                  value: {{ include "drupal.backupDatabaseName" . | quote }}
+                - name: DB_USERNAME
+                  value: {{ include "drupal.backupDatabaseUsername" . | quote }}
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "drupal.backupDatabasePasswordSecretName" . }}
+                      key: {{ include "drupal.backupDatabasePasswordSecretKey" . }}
+                - name: MYSQL_DUMP_EXTRA_ARGS
+                  value: {{ .Values.backup.database.mysqldumpArgs | quote }}
+              volumeMounts:
+                - name: backup-scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: backup-workdir
+                  mountPath: /backup/out
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+            {{- end }}
+          containers:
+            - name: upload
+              image: {{ .Values.backup.images.uploader | quote }}
+              command: ["/bin/sh", "/scripts/upload-backup.sh"]
+              env:
+                - name: S3_ENDPOINT
+                  value: {{ .Values.backup.s3.endpoint | quote }}
+                - name: S3_BUCKET
+                  value: {{ .Values.backup.s3.bucket | quote }}
+                - name: S3_PREFIX
+                  value: {{ .Values.backup.s3.prefix | quote }}
+                - name: S3_CREATE_BUCKET_IF_NOT_EXISTS
+                  value: {{ ternary "true" "false" .Values.backup.s3.createBucketIfNotExists | quote }}
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "drupal.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretAccessKeyKey | default "access-key" }}
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "drupal.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretSecretKeyKey | default "secret-key" }}
+              volumeMounts:
+                - name: backup-scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: backup-workdir
+                  mountPath: /backup/out
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+          volumes:
+            - name: backup-scripts
+              configMap:
+                name: {{ include "drupal.fullname" . }}-backup-scripts
+                defaultMode: 0755
+            - name: backup-workdir
+              emptyDir: {}
+            - name: sites-data
+              persistentVolumeClaim:
+                claimName: {{ include "drupal.sitesClaimName" . }}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

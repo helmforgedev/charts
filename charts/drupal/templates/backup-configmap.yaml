@@ -1,0 +1,95 @@
+{{- if .Values.backup.enabled }}
+{{- $_ := include "drupal.backupEnabled" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "drupal.fullname" . }}-backup-scripts
+  labels:
+    {{- include "drupal.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+data:
+  archive-sites.sh: |
+    #!/bin/sh
+    set -eu
+    timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+    archive="/backup/out/{{ .Values.backup.archivePrefix }}-sites-${timestamp}.tar.gz"
+    mkdir -p /backup/out
+    tar -C /var/www/html -czf "${archive}" sites
+    printf "%s" "${archive}" > /backup/out/sites-backup-file
+    echo "Sites archive created: ${archive}"
+  mysql-backup.sh: |
+    #!/bin/sh
+    set -eu
+    timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+    archive="/backup/out/{{ .Values.backup.archivePrefix }}-mysql-${timestamp}.sql.gz"
+    mkdir -p /backup/out
+    export MYSQL_PWD="${DB_PASSWORD}"
+    mysqldump ${MYSQL_DUMP_EXTRA_ARGS:-} \
+      --host="${DB_HOST}" \
+      --port="${DB_PORT}" \
+      --user="${DB_USERNAME}" \
+      "${DB_NAME}" | gzip -c > "${archive}"
+    printf "%s" "${archive}" > /backup/out/database-backup-file
+    echo "MySQL archive created: ${archive}"
+  sqlite-backup.py: |
+    import datetime
+    import gzip
+    import os
+    import shutil
+    import sqlite3
+
+    prefix = os.environ["BACKUP_ARCHIVE_PREFIX"]
+    source = os.environ["SQLITE_PATH"]
+    out_dir = "/backup/out"
+    os.makedirs(out_dir, exist_ok=True)
+
+    timestamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
+    temp_copy = os.path.join(out_dir, f"{prefix}-sqlite-{timestamp}.sqlite")
+    archive = f"{temp_copy}.gz"
+    marker = os.path.join(out_dir, "database-backup-file")
+
+    if not os.path.exists(source):
+      raise SystemExit(f"SQLite source file not found: {source}")
+
+    src = sqlite3.connect(f"file:{source}?mode=ro", uri=True)
+    dst = sqlite3.connect(temp_copy)
+    src.backup(dst)
+    dst.close()
+    src.close()
+
+    verify = sqlite3.connect(temp_copy)
+    result = verify.execute("PRAGMA quick_check;").fetchone()
+    verify.close()
+    if not result or result[0].lower() != "ok":
+      raise SystemExit(f"SQLite quick_check failed: {result}")
+
+    with open(temp_copy, "rb") as plain_file, gzip.open(archive, "wb") as gzip_file:
+      shutil.copyfileobj(plain_file, gzip_file)
+
+    os.remove(temp_copy)
+    with open(marker, "w", encoding="utf-8") as marker_file:
+      marker_file.write(archive)
+
+    print(f"SQLite archive created: {archive}")
+  upload-backup.sh: |
+    #!/bin/sh
+    set -eu
+    target="backup/${S3_BUCKET}"
+    if [ -n "${S3_PREFIX:-}" ]; then
+      target="${target}/${S3_PREFIX}"
+    fi
+
+    mc alias set backup "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}"
+    if [ "${S3_CREATE_BUCKET_IF_NOT_EXISTS}" = "true" ]; then
+      mc mb --ignore-existing "backup/${S3_BUCKET}"
+    fi
+
+    for marker in /backup/out/sites-backup-file /backup/out/database-backup-file; do
+      if [ -f "${marker}" ]; then
+        archive="$(cat "${marker}")"
+        mc cp "${archive}" "${target}/"
+      fi
+    done
+
+    echo "All Drupal backups uploaded successfully."
+{{- end }}

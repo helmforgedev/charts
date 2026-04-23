@@ -1,0 +1,37 @@
+suite: HorizontalPodAutoscaler
+templates:
+  - templates/hpa.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not create HPA by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create HPA when enabled with RWX storage
+    set:
+      autoscaling.enabled: true
+      autoscaling.minReplicas: 2
+      autoscaling.maxReplicas: 5
+      persistence.accessMode: ReadWriteMany
+    asserts:
+      - isKind:
+          of: HorizontalPodAutoscaler
+      - equal:
+          path: spec.minReplicas
+          value: 2
+      - equal:
+          path: spec.maxReplicas
+          value: 5
+
+  - it: should fail autoscaling for sqlite deployments
+    set:
+      autoscaling.enabled: true
+      persistence.accessMode: ReadWriteMany
+      database.mode: sqlite
+      mysql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "Multi-replica Drupal requires a MySQL-compatible database. SQLite is supported only for single-replica deployments."
