@@ -1,0 +1,75 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Gitea has been successfully deployed!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Chart:      {{ .Chart.Name }}
+Version:    {{ .Chart.Version }}
+AppVersion: {{ .Chart.AppVersion }}
+Release:    {{ .Release.Name }}
+Namespace:  {{ .Release.Namespace }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ACCESS INFORMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{{- if .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+WEB UI:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+{{- end }}
+{{- else }}
+Port-forward to access Gitea locally:
+
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "gitea.fullname" . }} 3000:{{ .Values.service.http.port | default 3000 }}
+
+  WEB UI:   http://localhost:3000/
+{{- end }}
+
+SSH (if enabled):
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "gitea.fullname" . }}-ssh 2222:{{ .Values.service.ssh.port | default 2222 }}
+
+  SSH:  ssh://git@localhost:2222/<org>/<repo>.git
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  GETTING STARTED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=gitea -n {{ .Release.Namespace }} --timeout=300s
+2. kubectl get pods -l app.kubernetes.io/name=gitea -n {{ .Release.Namespace }}
+3. kubectl logs -l app.kubernetes.io/name=gitea -n {{ .Release.Namespace }} --all-containers --tail=50 -f
+4. Open the Web UI and complete the Gitea setup wizard (first access)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  kubectl describe pod -l app.kubernetes.io/name=gitea -n {{ .Release.Namespace }}
+  kubectl logs -l app.kubernetes.io/name=gitea -n {{ .Release.Namespace }} --all-containers --tail=100
+  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+  kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+{{- if .Values.postgresql.enabled }}
+View PostgreSQL logs:
+  kubectl logs -l app.kubernetes.io/name=postgresql -n {{ .Release.Namespace }} --all-containers --tail=50
+{{- end }}
+{{- if .Values.mysql.enabled }}
+View MySQL logs:
+  kubectl logs -l app.kubernetes.io/name=mysql -n {{ .Release.Namespace }} --all-containers --tail=50
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  WARNINGS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{{- if not .Values.ingress.enabled }}
+
+NOTE: Ingress is not enabled. Access via port-forward (see above).
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ADDITIONAL RESOURCES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Documentation:  https://helmforge.dev/docs/charts/gitea
+Gitea:          https://gitea.com | https://github.com/go-gitea/gitea
+
+Happy Helmforging :)

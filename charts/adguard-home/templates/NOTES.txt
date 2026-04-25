@@ -1,0 +1,223 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  AdGuard Home has been successfully deployed!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Chart:      {{ .Chart.Name }}
+Version:    {{ .Chart.Version }}
+AppVersion: {{ .Chart.AppVersion }}
+Release:    {{ .Release.Name }}
+Namespace:  {{ .Release.Namespace }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ACCESS INFORMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{{- if (include "adguard-home.hasConfig" .) }}
+Mode: Pre-configured (setup wizard bypassed)
+{{- else }}
+Mode: Setup wizard (first-access via port 3000)
+{{- end }}
+
+{{- if .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+ADMIN PANEL: https://{{ $host.host }}/
+{{- end }}
+{{- else }}
+Port-forward to access the Admin Panel locally:
+
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "adguard-home.fullname" . }}-web 3000:{{ .Values.service.web.port }}
+
+{{- if (include "adguard-home.hasConfig" .) }}
+  ADMIN PANEL: http://localhost:3000/
+{{- else }}
+  SETUP WIZARD: http://localhost:3000/  (first-run wizard runs on port 3000)
+{{- end }}
+{{- end }}
+
+DNS Service:
+  Type: {{ .Values.service.dns.type }}
+{{- if eq .Values.service.dns.type "LoadBalancer" }}
+  Get assigned IP:
+    export DNS_IP=$(kubectl get svc {{ include "adguard-home.fullname" . }}-dns \
+      -n {{ .Release.Namespace }} \
+      -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+    echo "DNS server: $DNS_IP:53"
+{{- else if eq .Values.service.dns.type "NodePort" }}
+  Get NodePort:
+    export NODE_PORT=$(kubectl get svc {{ include "adguard-home.fullname" . }}-dns \
+      -n {{ .Release.Namespace }} \
+      -o jsonpath='{.spec.ports[0].nodePort}')
+    echo "DNS NodePort: $NODE_PORT"
+{{- else }}
+  Internal DNS endpoint (ClusterIP):
+    {{ include "adguard-home.fullname" . }}-dns.{{ .Release.Namespace }}.svc.cluster.local:53
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  CONFIGURATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Deployment:
+  Image:              {{ include "adguard-home.image" . }}
+  Strategy:           Recreate (single-instance, no rolling update)
+  Persistence (conf): {{ .Values.persistence.conf.enabled }} ({{ .Values.persistence.conf.size }})
+  Persistence (work): {{ .Values.persistence.work.enabled }} ({{ .Values.persistence.work.size }})
+
+Configuration:
+{{- if (include "adguard-home.hasConfig" .) }}
+  Mode:               Pre-seeded (AdGuardHome.yaml mounted from secret)
+{{- else }}
+  Mode:               Interactive wizard on first access
+{{- end }}
+
+Optional Features:
+  Sync:               {{ .Values.sync.enabled }}
+{{- if .Values.sync.enabled }}
+  Sync Image:         {{ .Values.sync.image.repository }}:{{ .Values.sync.image.tag }}
+  Sync Cron:          {{ .Values.sync.cron }}
+  Sync RunOnStart:    {{ .Values.sync.runOnStart }}
+{{- end }}
+  Backup:             {{ .Values.backup.enabled }}
+{{- if .Values.backup.enabled }}
+  Backup Schedule:    {{ .Values.backup.schedule }}
+  Backup Destination: {{ .Values.backup.s3.bucket | default "<not configured>" }}
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  GETTING STARTED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Wait for AdGuard Home to be ready:
+   kubectl wait --for=condition=ready pod \
+     -l app.kubernetes.io/name=adguard-home \
+     -n {{ .Release.Namespace }} --timeout=300s
+
+2. Check pod status:
+   kubectl get pods -l app.kubernetes.io/name=adguard-home -n {{ .Release.Namespace }}
+
+3. View startup logs:
+   kubectl logs -l app.kubernetes.io/name=adguard-home \
+     -n {{ .Release.Namespace }} --all-containers --tail=50
+
+{{- if not (include "adguard-home.hasConfig" .) }}
+4. Complete initial setup via the web wizard:
+   kubectl port-forward -n {{ .Release.Namespace }} \
+     svc/{{ include "adguard-home.fullname" . }}-web 3000:{{ .Values.service.web.port }}
+   Open: http://localhost:3000/
+
+5. After wizard completion, configure your network to use this server as DNS.
+{{- else }}
+4. Verify DNS is responding:
+   kubectl exec -n {{ .Release.Namespace }} \
+     deploy/{{ include "adguard-home.fullname" . }} -- \
+     nslookup google.com 127.0.0.1
+
+5. Access the admin panel (see ACCESS INFORMATION above).
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Check pod status:
+  kubectl get pods -l app.kubernetes.io/name=adguard-home -n {{ .Release.Namespace }}
+
+Describe pod (events and errors):
+  kubectl describe pod -l app.kubernetes.io/name=adguard-home -n {{ .Release.Namespace }}
+
+View application logs:
+  kubectl logs -l app.kubernetes.io/name=adguard-home \
+    -n {{ .Release.Namespace }} --all-containers --tail=100
+
+{{- if (include "adguard-home.hasConfig" .) }}
+View init container (config seeder) logs:
+  kubectl logs -l app.kubernetes.io/name=adguard-home \
+    -n {{ .Release.Namespace }} -c copy-config
+{{- end }}
+
+Check PVC status:
+  kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Check service endpoints:
+  kubectl get endpoints -n {{ .Release.Namespace }} | grep {{ include "adguard-home.fullname" . }}
+
+View all chart resources:
+  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Execute shell in pod (for debugging):
+  kubectl exec -n {{ .Release.Namespace }} \
+    -it deploy/{{ include "adguard-home.fullname" . }} -- /bin/sh
+
+{{- if .Values.sync.enabled }}
+View sync logs:
+  kubectl logs -l app.kubernetes.io/name=adguard-home \
+    -n {{ .Release.Namespace }} -c adguardhome-sync --tail=50
+{{- end }}
+
+{{- if .Values.backup.enabled }}
+Check backup CronJob status:
+  kubectl get cronjob {{ include "adguard-home.fullname" . }}-backup -n {{ .Release.Namespace }}
+
+View last backup job logs:
+  kubectl logs -n {{ .Release.Namespace }} \
+    -l app.kubernetes.io/component=backup --all-containers --tail=50
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  WARNINGS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{{- if and .Values.backup.enabled (not .Values.backup.s3.bucket) }}
+
+WARNING: Backup is enabled but no S3 bucket is configured!
+Backup jobs will fail. Configure the bucket:
+  helm upgrade {{ .Release.Name }} adguard-home \
+    --set backup.s3.endpoint=https://s3.example.com \
+    --set backup.s3.bucket=my-backup-bucket \
+    --reuse-values
+{{- end }}
+
+{{- if and .Values.sync.enabled (not .Values.sync.origin.url) }}
+
+WARNING: Sync is enabled but origin URL is not configured!
+Configure the origin AdGuard Home instance:
+  helm upgrade {{ .Release.Name }} adguard-home \
+    --set sync.origin.url=http://adguard-primary.example.com \
+    --set sync.origin.username=admin \
+    --reuse-values
+{{- end }}
+
+{{- if not .Values.persistence.conf.enabled }}
+
+WARNING: Configuration persistence (conf) is disabled!
+AdGuard Home configuration will be lost on pod restart.
+Enable for production:
+  helm upgrade {{ .Release.Name }} adguard-home \
+    --set persistence.conf.enabled=true --reuse-values
+{{- end }}
+
+{{- if not .Values.persistence.work.enabled }}
+
+WARNING: Data persistence (work) is disabled!
+Query logs, statistics and filter lists will be lost on pod restart.
+Enable for production:
+  helm upgrade {{ .Release.Name }} adguard-home \
+    --set persistence.work.enabled=true --reuse-values
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ADDITIONAL RESOURCES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Documentation:        https://helmforge.dev/docs/charts/adguard-home
+Chart Repository:     https://github.com/helmforgedev/charts/tree/main/charts/adguard-home
+Report Issues:        https://github.com/helmforgedev/charts/issues
+
+AdGuard Home:         https://adguard.com/adguard-home/overview.html
+AdGuard Home Docs:    https://github.com/AdguardTeam/AdGuardHome/wiki
+AdGuardHome Sync:     https://github.com/bakito/adguardhome-sync
+
+For questions or feedback about this chart, please visit:
+  https://github.com/helmforgedev/charts/discussions
+
+Happy Helmforging :)

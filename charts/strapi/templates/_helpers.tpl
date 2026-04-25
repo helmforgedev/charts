@@ -220,6 +220,10 @@ sqlite
 {{- $mode := include "strapi.databaseMode" . -}}
 {{- if and (eq $mode "external") .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecret -}}
+{{- else if eq $mode "postgresql" -}}
+{{- printf "%s-postgresql-auth" .Release.Name -}}
+{{- else if eq $mode "mysql" -}}
+{{- printf "%s-mysql-auth" .Release.Name -}}
 {{- else -}}
 {{- printf "%s-database" (include "strapi.fullname" .) -}}
 {{- end -}}
@@ -229,6 +233,10 @@ sqlite
 {{- $mode := include "strapi.databaseMode" . -}}
 {{- if and (eq $mode "external") .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecretPasswordKey -}}
+{{- else if eq $mode "postgresql" -}}
+user-password
+{{- else if eq $mode "mysql" -}}
+mysql-user-password
 {{- else -}}
 database-password
 {{- end -}}

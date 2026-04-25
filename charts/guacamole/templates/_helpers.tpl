@@ -107,6 +107,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "guacamole.dbSecretName" -}}
 {{- if .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecret -}}
+{{- else if and (eq (include "guacamole.dbType" .) "postgresql") .Values.postgresql.enabled -}}
+{{- printf "%s-postgresql-auth" .Release.Name -}}
+{{- else if and (eq (include "guacamole.dbType" .) "mysql") .Values.mysql.enabled -}}
+{{- printf "%s-mysql-auth" .Release.Name -}}
 {{- else -}}
 {{- printf "%s-database" (include "guacamole.fullname" .) -}}
 {{- end -}}
@@ -116,6 +120,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "guacamole.dbSecretPasswordKey" -}}
 {{- if .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecretPasswordKey -}}
+{{- else if and (eq (include "guacamole.dbType" .) "postgresql") .Values.postgresql.enabled -}}
+{{- "user-password" -}}
+{{- else if and (eq (include "guacamole.dbType" .) "mysql") .Values.mysql.enabled -}}
+{{- "mysql-user-password" -}}
 {{- else -}}
 {{- "password" -}}
 {{- end -}}

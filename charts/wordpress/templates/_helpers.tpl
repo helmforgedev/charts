@@ -165,6 +165,8 @@ Database password secret name.
 {{- $mode := include "wordpress.databaseMode" . -}}
 {{- if and (eq $mode "external") .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecret -}}
+{{- else if eq $mode "mysql" -}}
+{{- printf "%s-mysql-auth" .Release.Name -}}
 {{- else -}}
 {{- printf "%s-database" (include "wordpress.fullname" .) -}}
 {{- end -}}
@@ -177,6 +179,8 @@ Database password secret key.
 {{- $mode := include "wordpress.databaseMode" . -}}
 {{- if and (eq $mode "external") .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecretPasswordKey -}}
+{{- else if eq $mode "mysql" -}}
+{{- print "mysql-user-password" -}}
 {{- else -}}
 {{- print "database-password" -}}
 {{- end -}}
