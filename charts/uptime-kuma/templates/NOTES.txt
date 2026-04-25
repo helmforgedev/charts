@@ -1,0 +1,67 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Uptime Kuma has been successfully deployed!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Chart:      {{ .Chart.Name }}
+Version:    {{ .Chart.Version }}
+AppVersion: {{ .Chart.AppVersion }}
+Release:    {{ .Release.Name }}
+Namespace:  {{ .Release.Namespace }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ACCESS INFORMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{{- if .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+DASHBOARD:    http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+STATUS PAGE:  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/status/
+{{- end }}
+{{- else }}
+Port-forward to access Uptime Kuma locally:
+
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "uptime-kuma.fullname" . }} 3001:{{ .Values.service.port | default 3001 }}
+
+  DASHBOARD:    http://localhost:3001/
+  STATUS PAGE:  http://localhost:3001/status/
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  GETTING STARTED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=uptime-kuma -n {{ .Release.Namespace }} --timeout=300s
+2. kubectl get pods -l app.kubernetes.io/name=uptime-kuma -n {{ .Release.Namespace }}
+3. kubectl logs -l app.kubernetes.io/name=uptime-kuma -n {{ .Release.Namespace }} --all-containers --tail=50 -f
+4. Create your admin account on first access and add monitors
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  kubectl describe pod -l app.kubernetes.io/name=uptime-kuma -n {{ .Release.Namespace }}
+  kubectl logs -l app.kubernetes.io/name=uptime-kuma -n {{ .Release.Namespace }} --all-containers --tail=100
+  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+  kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  WARNINGS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{{- if not .Values.persistence.enabled }}
+
+WARNING: Persistence is disabled! All monitors and data will be lost on restart.
+{{- end }}
+{{- if not .Values.ingress.enabled }}
+
+NOTE: Ingress is not enabled. Access via port-forward (see above).
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ADDITIONAL RESOURCES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Documentation:  https://helmforge.dev/docs/charts/uptime-kuma
+Uptime Kuma:    https://uptime.kuma.pet | https://github.com/louislam/uptime-kuma
+
+Happy Helmforging :)

@@ -1,0 +1,106 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Authelia has been successfully deployed!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Chart:      {{ .Chart.Name }}
+Version:    {{ .Chart.Version }}
+AppVersion: {{ .Chart.AppVersion }}
+Release:    {{ .Release.Name }}
+Namespace:  {{ .Release.Namespace }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ACCESS INFORMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{{- if .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+AUTH PORTAL:  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+{{- end }}
+{{- else }}
+Port-forward to access Authelia locally:
+
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "authelia.fullname" . }} 9091:80
+
+  AUTH PORTAL:  http://localhost:9091/
+  HEALTH:       http://localhost:9091/api/health
+
+{{- end }}
+
+Internal cluster endpoint:
+  http://{{ include "authelia.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local/api/authz/forward-auth
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  GETTING STARTED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Wait for Authelia to be ready:
+   kubectl wait --for=condition=ready pod \
+     -l app.kubernetes.io/name=authelia \
+     -n {{ .Release.Namespace }} --timeout=300s
+
+2. Check pod status:
+   kubectl get pods -l app.kubernetes.io/name=authelia -n {{ .Release.Namespace }}
+
+3. View startup logs:
+   kubectl logs -l app.kubernetes.io/name=authelia \
+     -n {{ .Release.Namespace }} --all-containers --tail=50 -f
+
+4. Configure your reverse proxy to forward auth to:
+   http://{{ include "authelia.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local/api/authz/forward-auth
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Check pod status:
+  kubectl get pods -l app.kubernetes.io/name=authelia -n {{ .Release.Namespace }}
+
+Describe pod (events and errors):
+  kubectl describe pod -l app.kubernetes.io/name=authelia -n {{ .Release.Namespace }}
+
+View application logs:
+  kubectl logs -l app.kubernetes.io/name=authelia \
+    -n {{ .Release.Namespace }} --all-containers --tail=100
+
+Check service endpoints:
+  kubectl get endpoints -n {{ .Release.Namespace }} | grep {{ include "authelia.fullname" . }}
+
+View all chart resources:
+  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Execute shell in pod:
+  kubectl exec -n {{ .Release.Namespace }} \
+    -it deploy/{{ include "authelia.fullname" . }} -- /bin/sh
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  WARNINGS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{{- if not .Values.ingress.enabled }}
+
+NOTE: Ingress is not enabled. Configure your reverse proxy to route
+to the Authelia service using the forward-auth endpoint.
+{{- end }}
+
+IMPORTANT: Authelia requires proper configuration of:
+  - SMTP server for email notifications
+  - Session domain and cookie configuration
+  - At least one authentication backend (LDAP, file, or database)
+  - Trusted proxies for forward-auth to work correctly
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ADDITIONAL RESOURCES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Documentation:     https://helmforge.dev/docs/charts/authelia
+Chart Repository:  https://github.com/helmforgedev/charts/tree/main/charts/authelia
+Report Issues:     https://github.com/helmforgedev/charts/issues
+
+Authelia Website:  https://www.authelia.com
+Authelia Docs:     https://www.authelia.com/docs/
+Authelia GitHub:   https://github.com/authelia/authelia
+
+For questions or feedback about this chart, please visit:
+  https://github.com/helmforgedev/charts/discussions
+
+Happy Helmforging :)

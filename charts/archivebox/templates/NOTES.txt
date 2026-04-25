@@ -1,0 +1,182 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ArchiveBox has been successfully deployed!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Chart:      {{ .Chart.Name }}
+Version:    {{ .Chart.Version }}
+AppVersion: {{ .Chart.AppVersion }}
+Release:    {{ .Release.Name }}
+Namespace:  {{ .Release.Namespace }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ACCESS INFORMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{{- if .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+WEB UI:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+ADMIN:    http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/admin/
+API:      http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/api/v1/
+{{- end }}
+{{- else }}
+Port-forward to access ArchiveBox locally:
+
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "archivebox.fullname" . }} 8000:{{ .Values.service.port }}
+
+  WEB UI:   http://localhost:8000/
+  ADMIN:    http://localhost:8000/admin/
+  API:      http://localhost:8000/api/v1/
+
+{{- end }}
+
+Internal cluster endpoint:
+  http://{{ include "archivebox.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  CREDENTIALS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{{- if .Values.archivebox.existingSecret }}
+Credentials loaded from existing secret: {{ .Values.archivebox.existingSecret }}
+{{- else }}
+Admin Username: {{ .Values.archivebox.adminUsername | default "admin" }}
+Admin Password: (retrieve from secret)
+
+  kubectl get secret {{ include "archivebox.fullname" . }}-admin \
+    -n {{ .Release.Namespace }} \
+    -o jsonpath='{.data.admin-password}' | base64 -d
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  CONFIGURATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Deployment:
+  Image:              {{ include "archivebox.image" . }}
+  Timezone:           {{ .Values.archivebox.timezone | default "UTC" }}
+  Search Backend:     {{ .Values.archivebox.searchBackendEngine | default "ripgrep" }}
+  Max Media Size:     {{ .Values.archivebox.mediaMaxSize | default "750m" }}
+  Timeout (per URL):  {{ .Values.archivebox.timeout | default "60" }}s
+  Persistence:        {{ .Values.persistence.enabled }} ({{ .Values.persistence.size }})
+
+Visibility:
+  Public Index:       {{ .Values.archivebox.publicIndex | default "True" }}
+  Public Snapshots:   {{ .Values.archivebox.publicSnapshots | default "True" }}
+  Public Add Links:   {{ .Values.archivebox.publicAddLinks | default "False" }}
+
+Optional Features:
+  Backup:             {{ .Values.backup.enabled }}
+{{- if .Values.backup.enabled }}
+  Backup Schedule:    {{ .Values.backup.schedule }}
+  Backup Bucket:      {{ .Values.backup.s3.bucket | default "<not configured>" }}
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  GETTING STARTED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Wait for ArchiveBox to be ready:
+   kubectl wait --for=condition=ready pod \
+     -l app.kubernetes.io/name=archivebox \
+     -n {{ .Release.Namespace }} --timeout=300s
+
+2. Check pod status:
+   kubectl get pods -l app.kubernetes.io/name=archivebox -n {{ .Release.Namespace }}
+
+3. View startup logs:
+   kubectl logs -l app.kubernetes.io/name=archivebox \
+     -n {{ .Release.Namespace }} --all-containers --tail=50 -f
+
+4. Access the web interface (see ACCESS INFORMATION above)
+
+5. Add your first URL to archive via the Web UI or API:
+   curl -X POST http://localhost:8000/api/v1/add \
+     -H "Authorization: Bearer <your-api-token>" \
+     -d '{"urls": ["https://example.com"]}'
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Check pod status:
+  kubectl get pods -l app.kubernetes.io/name=archivebox -n {{ .Release.Namespace }}
+
+Describe pod (events and errors):
+  kubectl describe pod -l app.kubernetes.io/name=archivebox -n {{ .Release.Namespace }}
+
+View application logs:
+  kubectl logs -l app.kubernetes.io/name=archivebox \
+    -n {{ .Release.Namespace }} --all-containers --tail=100
+
+Check PVC status:
+  kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Check service endpoints:
+  kubectl get endpoints -n {{ .Release.Namespace }} | grep {{ include "archivebox.fullname" . }}
+
+View all chart resources:
+  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Execute shell in pod:
+  kubectl exec -n {{ .Release.Namespace }} \
+    -it deploy/{{ include "archivebox.fullname" . }} -- /bin/bash
+
+Run ArchiveBox CLI (list snapshots):
+  kubectl exec -n {{ .Release.Namespace }} \
+    deploy/{{ include "archivebox.fullname" . }} -- archivebox list
+
+{{- if .Values.backup.enabled }}
+Check backup CronJob:
+  kubectl get cronjob {{ include "archivebox.fullname" . }}-backup -n {{ .Release.Namespace }}
+
+View last backup job logs:
+  kubectl logs -n {{ .Release.Namespace }} \
+    -l app.kubernetes.io/component=backup --all-containers --tail=50
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  WARNINGS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{{- if not .Values.persistence.enabled }}
+
+WARNING: Persistence is disabled!
+All archived content and the SQLite database will be lost on pod restart.
+Enable for production:
+  helm upgrade {{ .Release.Name }} archivebox \
+    --set persistence.enabled=true --reuse-values
+{{- end }}
+
+{{- if not .Values.ingress.enabled }}
+
+NOTE: Ingress is not enabled. Access via port-forward (see above).
+{{- end }}
+
+{{- if not .Values.archivebox.adminPassword }}
+
+WARNING: No admin password set.
+ArchiveBox will require you to set a password on first access.
+Set it:
+  helm upgrade {{ .Release.Name }} archivebox \
+    --set archivebox.adminPassword=<strong-password> --reuse-values
+{{- end }}
+
+NOTE: ArchiveBox uses Chromium headless for archiving.
+Minimum recommended resources: 2 CPU cores, 2Gi RAM.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ADDITIONAL RESOURCES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Documentation:     https://helmforge.dev/docs/charts/archivebox
+Chart Repository:  https://github.com/helmforgedev/charts/tree/main/charts/archivebox
+Report Issues:     https://github.com/helmforgedev/charts/issues
+
+ArchiveBox:        https://archivebox.io
+ArchiveBox Docs:   https://docs.archivebox.io
+ArchiveBox GitHub: https://github.com/ArchiveBox/ArchiveBox
+
+For questions or feedback about this chart, please visit:
+  https://github.com/helmforgedev/charts/discussions
+
+Happy Helmforging :)
