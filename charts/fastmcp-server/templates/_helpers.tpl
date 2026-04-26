@@ -40,7 +40,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if and (has $env (list "prod" "production" "staging")) (eq .Values.auth.type "none") (not .Values.auth.allowNoAuth) -}}
 {{- fail "Production-like environments require auth.type other than 'none', or set auth.allowNoAuth=true for an explicit exception." -}}
 {{- end -}}
-{{- if and (eq .Values.auth.type "bearer") (not .Values.auth.bearer.token) (not .Values.auth.bearer.existingSecret) -}}
+{{- if and (or (eq .Values.auth.type "bearer") (and (eq .Values.auth.type "multi") (has "bearer" .Values.auth.providers))) (not .Values.auth.bearer.token) (not .Values.auth.bearer.existingSecret) -}}
 {{- fail "Bearer auth requires auth.bearer.token or auth.bearer.existingSecret." -}}
 {{- end -}}
 {{- if and .Values.sources.s3.enabled (not .Values.sources.s3.bucket) -}}
