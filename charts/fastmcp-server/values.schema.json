@@ -36,11 +36,56 @@
       "description": "MCP server configuration",
       "properties": {
         "name": { "type": "string", "description": "Server name announced in MCP responses" },
+        "version": { "type": "string", "description": "Server version announced by diagnostics APIs" },
+        "environment": {
+          "type": "string",
+          "description": "Deployment environment passed as MCP_ENV"
+        },
+        "host": { "type": "string", "description": "HTTP listen address" },
         "port": { "type": "integer", "minimum": 1, "maximum": 65535, "description": "HTTP port" },
         "path": { "type": "string", "pattern": "^/", "description": "MCP endpoint URL path" },
+        "workspace": { "type": "string", "pattern": "^/", "description": "Workspace directory used to stage synced MCP components" },
         "logLevel": { "type": "string", "enum": ["DEBUG", "INFO", "WARNING", "ERROR"], "description": "Log level" },
         "logFormat": { "type": "string", "enum": ["text", "json"], "description": "Log output format" },
-        "strictLoading": { "type": "boolean", "description": "Fail on boot if any tool/resource has errors" }
+        "strictLoading": { "type": "boolean", "description": "Fail on boot if any tool/resource has errors" },
+        "maskErrorDetails": {
+          "type": ["boolean", "string"],
+          "description": "Hide internal error details from MCP clients; empty uses the runtime default"
+        },
+        "onDuplicateTools": {
+          "type": "string",
+          "enum": ["warn", "error", "replace", "ignore"],
+          "description": "Duplicate tool handling mode"
+        },
+        "corsAllowedOrigins": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "CORS origins for external UI clients"
+        },
+        "maxSourceFileSizeBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum size in bytes for any loaded source file"
+        },
+        "maxKnowledgeBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum total loaded knowledge size in bytes"
+        },
+        "allowedKnowledgeExtensions": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^\\." },
+          "description": "Knowledge file extensions accepted by the server"
+        },
+        "strategy": {
+          "type": "object",
+          "description": "Deployment strategy"
+        },
+        "revisionHistoryLimit": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of old ReplicaSets to retain"
+        }
       },
       "required": ["name", "port", "path"]
     },
@@ -96,9 +141,16 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["none", "bearer", "jwt"],
+          "enum": ["none", "bearer", "jwt", "multi"],
           "description": "Authentication type"
         },
+        "allowNoAuth": { "type": "boolean" },
+        "scopes": { "type": "array", "items": { "type": "string" } },
+        "requiredScopes": { "type": "array", "items": { "type": "string" } },
+        "clientId": { "type": "string" },
+        "providers": { "type": "array", "items": { "type": "string", "enum": ["bearer", "jwt"] } },
+        "reloadRequiredScopes": { "type": "array", "items": { "type": "string" } },
+        "requireHumanApprovalForDestructive": { "type": "boolean" },
         "bearer": {
           "type": "object",
           "properties": {
@@ -112,7 +164,11 @@
           "properties": {
             "issuer": { "type": "string" },
             "audience": { "type": "string" },
-            "jwksUri": { "type": "string" }
+            "jwksUri": { "type": "string" },
+            "publicKey": { "type": "string" },
+            "publicKeyExistingSecret": { "type": "string" },
+            "publicKeyExistingSecretKey": { "type": "string" },
+            "algorithm": { "type": "string" }
           }
         }
       },
@@ -122,9 +178,15 @@
       "type": "object",
       "description": "Content sources (merge precedence: inline > S3 > Git)",
       "properties": {
+        "blockedFileAllowlist": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Explicit allowlist for source files normally blocked by the server safety filter"
+        },
         "inline": {
           "type": "object",
           "properties": {
+            "dir": { "type": "string", "pattern": "^/", "description": "Inline source directory inside the container" },
             "tools": { "type": "object", "description": "Python tool files (key=filename, value=content)" },
             "resources": { "type": "object", "description": "Python resource files" },
             "prompts": { "type": "object", "description": "Python prompt files" },
@@ -143,7 +205,10 @@
             "secretKey": { "type": "string" },
             "existingSecret": { "type": "string" },
             "existingSecretAccessKeyKey": { "type": "string" },
-            "existingSecretSecretKeyKey": { "type": "string" }
+            "existingSecretSecretKeyKey": { "type": "string" },
+            "include": { "type": "array", "items": { "type": "string" } },
+            "exclude": { "type": "array", "items": { "type": "string" } },
+            "syncInterval": { "type": "integer", "minimum": 0 }
           }
         },
         "git": {
@@ -155,9 +220,64 @@
             "path": { "type": "string" },
             "token": { "type": "string" },
             "existingSecret": { "type": "string" },
-            "existingSecretTokenKey": { "type": "string" }
+            "existingSecretTokenKey": { "type": "string" },
+            "username": { "type": "string" },
+            "allowedRepositories": { "type": "array", "items": { "type": "string" } },
+            "allowedBranches": { "type": "array", "items": { "type": "string" } },
+            "include": { "type": "array", "items": { "type": "string" } },
+            "exclude": { "type": "array", "items": { "type": "string" } },
+            "syncInterval": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "oci": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "registry": { "type": "string" },
+            "tag": { "type": "string" },
+            "username": { "type": "string" },
+            "password": { "type": "string" },
+            "existingSecret": { "type": "string" },
+            "existingSecretUsernameKey": { "type": "string" },
+            "existingSecretPasswordKey": { "type": "string" },
+            "include": { "type": "array", "items": { "type": "string" } },
+            "exclude": { "type": "array", "items": { "type": "string" } }
           }
         }
+      }
+    },
+    "hotReload": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "mountServers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "transport": { "type": "string" },
+              "url": { "type": "string" },
+              "namespace": { "type": "string" },
+              "auth": { "type": "object" }
+            },
+            "required": ["url"]
+          }
+        },
+        "rawMountServersJson": { "type": "string" }
+      }
+    },
+    "visibility": {
+      "type": "object",
+      "properties": {
+        "mode": { "type": "string", "enum": ["blocklist", "allowlist"] },
+        "enableTags": { "type": "array", "items": { "type": "string" } },
+        "disableTags": { "type": "array", "items": { "type": "string" } }
       }
     },
     "extraPipPackages": {
@@ -212,13 +332,16 @@
       "properties": {
         "create": { "type": "boolean" },
         "name": { "type": "string" },
-        "annotations": { "type": "object" }
+        "annotations": { "type": "object" },
+        "automountServiceAccountToken": { "type": "boolean" }
       }
     },
     "networkPolicy": {
       "type": "object",
       "properties": {
-        "enabled": { "type": "boolean" }
+        "enabled": { "type": "boolean" },
+        "ingress": { "type": "array" },
+        "egress": { "type": "array" }
       }
     },
     "pdb": {

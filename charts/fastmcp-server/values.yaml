@@ -27,16 +27,50 @@ imagePullSecrets: []
 server:
   # -- Server name announced in MCP responses
   name: fastmcp-server
+  # -- Server version announced by diagnostics APIs (defaults to Chart appVersion when empty)
+  version: ""
+  # -- Deployment environment. Production-like values enable stricter runtime defaults in the server.
+  environment: dev
+  # -- Listen address for the HTTP server
+  host: 0.0.0.0
   # -- HTTP port for the MCP endpoint
   port: 8000
   # -- URL path for the MCP endpoint
   path: /mcp
+  # -- Workspace directory used to stage synced MCP components
+  workspace: /app/workspace
   # -- Log level (DEBUG, INFO, WARNING, ERROR)
   logLevel: INFO
   # -- Log format: text or json (structured logging)
   logFormat: text
   # -- Strict loading: fail on boot if any tool/resource has errors
   strictLoading: false
+  # -- Hide internal error details from MCP clients. Empty uses the server runtime default.
+  maskErrorDetails: ""
+  # -- Duplicate tool handling mode: warn, error, replace, or ignore
+  onDuplicateTools: warn
+  # -- Comma-separated CORS origins for external UI clients
+  corsAllowedOrigins: []
+  # -- Maximum size in bytes for any loaded source file; 0 disables
+  maxSourceFileSizeBytes: 1048576
+  # -- Maximum total loaded knowledge size in bytes; 0 disables
+  maxKnowledgeBytes: 10485760
+  # -- Knowledge file extensions accepted by the server
+  allowedKnowledgeExtensions:
+    - .md
+    - .txt
+    - .json
+    - .yaml
+    - .yml
+    - .html
+    - .htm
+    - .csv
+    - .xml
+  # -- Deployment strategy for the server Deployment
+  strategy:
+    type: Recreate
+  # -- Number of old ReplicaSets to retain
+  revisionHistoryLimit: 10
 
 # =============================================================================
 # Web UI
@@ -96,8 +130,23 @@ sandboxing:
 # =============================================================================
 
 auth:
-  # -- Authentication type: none, bearer, jwt
+  # -- Authentication type: none, bearer, jwt, multi
   type: none
+  # -- Explicitly allow no-auth in production-like environments
+  allowNoAuth: false
+  # -- Scopes granted to the static bearer token
+  scopes: []
+  # -- Scopes required on every authenticated request
+  requiredScopes: []
+  # -- Client ID used for bearer-token audit logs
+  clientId: bearer-user
+  # -- Providers enabled when auth.type is multi
+  providers: []
+  # -- Scopes required for the /reload endpoint
+  reloadRequiredScopes:
+    - mcp:admin
+  # -- Require human_approved=true for destructive tools
+  requireHumanApprovalForDestructive: true
   bearer:
     # -- Static bearer token for authentication
     token: ""
@@ -112,6 +161,14 @@ auth:
     audience: ""
     # -- JWKS URI for JWT key verification
     jwksUri: ""
+    # -- JWT public key or HS* shared secret value (ignored if publicKeyExistingSecret is set)
+    publicKey: ""
+    # -- Existing secret containing JWT public key or HS* shared secret
+    publicKeyExistingSecret: ""
+    # -- Key in existing secret containing JWT public key or HS* shared secret
+    publicKeyExistingSecretKey: public-key
+    # -- JWT algorithm, for example RS256 or HS256
+    algorithm: ""
 
 # =============================================================================
 # Sources — Inline, S3, Git
@@ -119,8 +176,13 @@ auth:
 # Merge precedence: Inline (highest) > S3 > Git (lowest)
 
 sources:
+  # -- Explicit allowlist for source files normally blocked by the server safety filter
+  blockedFileAllowlist: []
+
   # -- Inline tools, resources, prompts, and knowledge mounted via ConfigMaps
   inline:
+    # -- Inline source directory inside the container
+    dir: /app/inline
     # -- Python tool files (key = filename, value = file content)
     # -- @default -- `{}` (no inline tools)
     tools: {}
@@ -179,6 +241,12 @@ sources:
     existingSecretAccessKeyKey: access-key
     # -- Key in existing secret for secret key
     existingSecretSecretKeyKey: secret-key
+    # -- Include glob patterns within each asset directory
+    include: []
+    # -- Exclude glob patterns within each asset directory
+    exclude: []
+    # -- Background sync interval in seconds; 0 disables periodic sync
+    syncInterval: 0
 
   # -- Git repository source
   git:
@@ -196,6 +264,76 @@ sources:
     existingSecret: ""
     # -- Key in existing secret for Git token
     existingSecretTokenKey: token
+    # -- Username used by the temporary Git askpass helper
+    username: x-access-token
+    # -- Allowed repository URL patterns
+    allowedRepositories: []
+    # -- Allowed branch name patterns
+    allowedBranches: []
+    # -- Include glob patterns within each asset directory
+    include: []
+    # -- Exclude glob patterns within each asset directory
+    exclude: []
+    # -- Background sync interval in seconds; 0 disables periodic sync
+    syncInterval: 0
+
+  # -- OCI artifact source
+  oci:
+    # -- Enable OCI source
+    enabled: false
+    # -- OCI artifact reference without tag
+    registry: ""
+    # -- OCI artifact tag
+    tag: ""
+    # -- Registry username (ignored if existingSecret is set)
+    username: ""
+    # -- Registry password (ignored if existingSecret is set)
+    password: ""
+    # -- Existing secret with OCI credentials
+    existingSecret: ""
+    # -- Key in existing secret for OCI username
+    existingSecretUsernameKey: username
+    # -- Key in existing secret for OCI password
+    existingSecretPasswordKey: password
+    # -- Include glob patterns within each asset directory
+    include: []
+    # -- Exclude glob patterns within each asset directory
+    exclude: []
+
+# =============================================================================
+# Hot Reload
+# =============================================================================
+
+hotReload:
+  # -- Watch inline Python files and rebuild components automatically
+  enabled: false
+
+# =============================================================================
+# Gateway
+# =============================================================================
+
+gateway:
+  # -- Run in gateway mode and mount remote MCP servers
+  enabled: false
+  # -- Structured remote MCP server mounts rendered as MCP_MOUNT_SERVERS JSON
+  mountServers: {}
+    # remote:
+    #   transport: streamable-http
+    #   url: https://remote.example.com/mcp
+  # -- Raw MCP_MOUNT_SERVERS JSON override. When set, mountServers is ignored.
+  rawMountServersJson: ""
+
+# =============================================================================
+# Visibility
+# =============================================================================
+
+visibility:
+  # -- Visibility mode: blocklist or allowlist
+  mode: blocklist
+  # -- Tags to expose when using allowlist mode
+  enableTags: []
+  # -- Tags to hide when using blocklist mode
+  disableTags: []
 
 # =============================================================================
 # Extra Pip Packages
@@ -301,11 +439,13 @@ initSync:
 
 serviceAccount:
   # -- Create a ServiceAccount
-  create: false
+  create: true
   # -- ServiceAccount name
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
+  # -- Automount the Kubernetes service account token
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Network Policy
@@ -314,6 +454,10 @@ serviceAccount:
 networkPolicy:
   # -- Enable NetworkPolicy
   enabled: false
+  # -- Ingress rules. Empty allows TCP traffic to server.port from all sources.
+  ingress: []
+  # -- Egress rules. Empty allows all egress when networkPolicy.enabled is true.
+  egress: []
 
 # =============================================================================
 # Resources and Security
@@ -357,9 +501,21 @@ replicaCount: 1
 
 resources: {}
 
-podSecurityContext: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+  readOnlyRootFilesystem: false
 
 # =============================================================================
 # Scheduling

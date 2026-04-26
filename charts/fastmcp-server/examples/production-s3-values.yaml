@@ -1,0 +1,45 @@
+# Production S3-backed FastMCP Server.
+# Use case: one remote S3-compatible bucket/prefix as the MCP content source.
+
+server:
+  environment: production
+  logFormat: json
+  strictLoading: true
+  maskErrorDetails: true
+  onDuplicateTools: warn
+
+auth:
+  type: bearer
+  scopes:
+    - mcp:read
+    - mcp:admin
+  bearer:
+    existingSecret: fastmcp-auth
+    existingSecretKey: token
+
+sources:
+  s3:
+    enabled: true
+    bucket: fastmcp-content
+    region: us-east-1
+    prefix: production
+    existingSecret: fastmcp-s3
+    include:
+      - tools/**
+      - resources/**
+      - prompts/**
+      - knowledge/**
+    exclude:
+      - "**/*.tmp"
+    syncInterval: 60
+
+metrics:
+  enabled: true
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

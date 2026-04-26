@@ -2,10 +2,19 @@
 
 server:
   name: production-mcp
+  environment: production
   logLevel: WARNING
+  logFormat: json
+  strictLoading: true
+  maskErrorDetails: true
+
+metrics:
+  enabled: true
 
 auth:
   type: bearer
+  reloadRequiredScopes:
+    - mcp:reload
   bearer:
     existingSecret: mcp-auth-token
 
@@ -15,6 +24,15 @@ sources:
     bucket: mcp-production-tools
     region: us-east-1
     existingSecret: mcp-s3-credentials
+    include:
+      - tools/**
+      - resources/**
+      - prompts/**
+      - knowledge/**
+    exclude:
+      - "**/*.tmp"
+      - "**/private/**"
+    syncInterval: 300
   inline:
     knowledge:
       runbook.md: |
@@ -45,6 +63,7 @@ persistence:
 
 serviceAccount:
   create: true
+  automountServiceAccountToken: false
 
 networkPolicy:
   enabled: true
@@ -65,3 +84,6 @@ podSecurityContext:
 securityContext:
   allowPrivilegeEscalation: false
   runAsNonRoot: true
+  capabilities:
+    drop:
+      - ALL
