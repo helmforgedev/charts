@@ -1,15 +1,44 @@
 # CI: all features enabled
 server:
   name: full-test-server
+  version: "0.11.0"
+  environment: staging
+  host: 0.0.0.0
   logLevel: DEBUG
+  maskErrorDetails: true
+  onDuplicateTools: warn
+  corsAllowedOrigins:
+    - https://mcp.example.com
+  maxSourceFileSizeBytes: 2097152
+  maxKnowledgeBytes: 31457280
+  allowedKnowledgeExtensions:
+    - .md
+    - .txt
+    - .json
 
 auth:
-  type: bearer
+  type: multi
+  scopes:
+    - mcp:read
+    - mcp:admin
+  requiredScopes:
+    - mcp:read
+  providers:
+    - bearer
+    - jwt
   bearer:
     token: ci-test-token-full
+  jwt:
+    issuer: https://auth.example.com
+    audience: fastmcp
+    publicKey: ci-jwt-secret
+    algorithm: HS256
 
 sources:
+  blockedFileAllowlist:
+    - knowledge/private-config.example
   inline:
+    dir: /app/inline
     tools:
       greet.py: |
         def greet(name: str) -> str:
@@ -24,13 +53,53 @@ sources:
     endpoint: "https://minio.example.com"
     bucket: mcp-assets
     region: us-east-1
-    accessKey: minioadmin
-    secretKey: minioadmin
+    accessKey: example-access-key
+    secretKey: example-secret-key
+    include:
+      - tools/**
+    exclude:
+      - "**/*.tmp"
+    syncInterval: 60
   git:
     enabled: true
     repository: "https://github.com/example/tools.git"
     branch: main
-    token: ghp_example
+    token: example-git-token
+    allowedRepositories:
+      - https://github.com/example/*
+    allowedBranches:
+      - main
+    include:
+      - tools/**
+    exclude:
+      - "**/*.tmp"
+    syncInterval: 120
+  oci:
+    enabled: true
+    registry: "oci://registry.example.com/mcp"
+    tag: "1.0.0"
+    username: ci
+    password: ci-password
+    include:
+      - tools/**
+
+hotReload:
+  enabled: true
+
+gateway:
+  enabled: true
+  mountServers:
+    remote:
+      transport: streamable-http
+      url: https://remote.example.com/mcp
+      namespace: remote
+
+visibility:
+  mode: allowlist
+  enableTags:
+    - public
+  disableTags:
+    - admin
 
 extraPipPackages:
   - requests

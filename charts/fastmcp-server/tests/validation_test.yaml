@@ -1,0 +1,67 @@
+suite: validations
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: should fail production without auth unless explicitly allowed
+    set:
+      server:
+        environment: production
+      auth:
+        type: none
+        allowNoAuth: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "Production-like environments require auth.type other than 'none', or set auth.allowNoAuth=true for an explicit exception."
+
+  - it: should fail bearer auth without token or existing secret
+    set:
+      auth:
+        type: bearer
+    asserts:
+      - failedTemplate:
+          errorMessage: "Bearer auth requires auth.bearer.token or auth.bearer.existingSecret."
+
+  - it: should fail S3 source without bucket
+    set:
+      sources:
+        s3:
+          enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "S3 source requires sources.s3.bucket when sources.s3.enabled=true."
+
+  - it: should fail Git source without repository
+    set:
+      sources:
+        git:
+          enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "Git source requires sources.git.repository when sources.git.enabled=true."
+
+  - it: should fail OCI source without registry
+    set:
+      sources:
+        oci:
+          enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "OCI source requires sources.oci.registry when sources.oci.enabled=true."
+
+  - it: should fail ServiceMonitor without metrics
+    set:
+      metrics:
+        enabled: false
+        serviceMonitor:
+          enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "ServiceMonitor requires metrics.enabled=true."
+
+  - it: should fail gateway without mounted servers
+    set:
+      gateway:
+        enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "Gateway mode requires gateway.mountServers or gateway.rawMountServersJson."

@@ -1,46 +1,110 @@
-FastMCP Server deployed!
+FastMCP Server has been deployed.
 
-  Server:   {{ .Values.server.name }}
-  Endpoint: http://{{ include "fastmcp-server.fullname" . }}:{{ .Values.service.port }}{{ .Values.server.path }}
-  Auth:     {{ .Values.auth.type }}
+Release:
+  Name:      {{ .Release.Name }}
+  Namespace: {{ .Release.Namespace }}
+  Chart:     {{ .Chart.Name }} {{ .Chart.Version }}
+  App:       {{ .Chart.AppVersion }}
+
+Runtime:
+  Server:      {{ .Values.server.name }}
+  Environment: {{ .Values.server.environment }}
+  Endpoint:    http://{{ include "fastmcp-server.fullname" . }}:{{ .Values.service.port }}{{ .Values.server.path }}
+  Workspace:   {{ .Values.server.workspace }}
+  Auth:        {{ .Values.auth.type }}
+  Gateway:     {{ .Values.gateway.enabled }}
+  Visibility:  {{ .Values.visibility.mode }}
+  Log format:  {{ .Values.server.logFormat }}
+  Strict load: {{ .Values.server.strictLoading }}
+
+Access:
+  Port-forward the service:
+    kubectl port-forward svc/{{ include "fastmcp-server.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+
+  MCP endpoint:
+    http://localhost:{{ .Values.service.port }}{{ .Values.server.path }}
 
 {{- if .Values.ui.enabled }}
-  Web UI:   http://{{ include "fastmcp-server.fullname" . }}:{{ .Values.service.port }}/ui
+  Web UI:
+    http://localhost:{{ .Values.service.port }}/ui
 {{- end }}
 
 {{- if .Values.metrics.enabled }}
-  Metrics:  http://{{ include "fastmcp-server.fullname" . }}:{{ .Values.service.port }}/metrics
+  Metrics:
+    http://localhost:{{ .Values.service.port }}/metrics
 {{- end }}
-
-To access the MCP endpoint:
-
-  kubectl port-forward svc/{{ include "fastmcp-server.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }} -n {{ .Release.Namespace }}
-  curl http://localhost:{{ .Values.service.port }}{{ .Values.server.path }}
 
 {{- if .Values.ingress.enabled }}
+Ingress:
 {{- range .Values.ingress.hosts }}
-
-  Ingress: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}{{ (first .paths).path }}
-{{- end }}
-{{- end }}
-
-{{- if ne .Values.auth.type "none" }}
-
-Authentication: {{ .Values.auth.type }}
-{{- if eq .Values.auth.type "bearer" }}
-  Requests must include: Authorization: Bearer <token>
+  - http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}{{ (first .paths).path }}
 {{- end }}
 {{- end }}
 
 Sources:
 {{- if (include "fastmcp-server.hasAnyInline" .) }}
-  - Inline (ConfigMap): enabled
+  Inline ConfigMaps: enabled
+{{- else }}
+  Inline ConfigMaps: disabled
 {{- end }}
 {{- if .Values.sources.s3.enabled }}
-  - S3: s3://{{ .Values.sources.s3.bucket }}/{{ .Values.sources.s3.prefix }}
+  S3: enabled, bucket={{ .Values.sources.s3.bucket }}, prefix={{ .Values.sources.s3.prefix | default "/" }}
+{{- else }}
+  S3: disabled
 {{- end }}
 {{- if .Values.sources.git.enabled }}
-  - Git: {{ .Values.sources.git.repository }} ({{ .Values.sources.git.branch }})
+  Git: enabled, repository={{ .Values.sources.git.repository }}, branch={{ .Values.sources.git.branch }}
+{{- else }}
+  Git: disabled
+{{- end }}
+{{- if .Values.sources.oci.enabled }}
+  OCI: enabled, registry={{ .Values.sources.oci.registry }}, tag={{ .Values.sources.oci.tag | default "(runtime default)" }}
+{{- else }}
+  OCI: disabled
 {{- end }}
 
-Documentation: https://helmforge.dev/docs/charts/fastmcp-server
+Runtime limits:
+  Max source file bytes: {{ .Values.server.maxSourceFileSizeBytes }}
+  Max knowledge bytes:   {{ .Values.server.maxKnowledgeBytes }}
+  Knowledge extensions:  {{ join "," .Values.server.allowedKnowledgeExtensions }}
+  Duplicate tools:       {{ .Values.server.onDuplicateTools }}
+{{- if .Values.server.corsAllowedOrigins }}
+  CORS origins:          {{ join "," .Values.server.corsAllowedOrigins }}
+{{- else }}
+  CORS origins:          none
+{{- end }}
+
+Validation:
+  Check workload status:
+    kubectl get pods,svc -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+  Wait for readiness:
+    kubectl wait --for=condition=ready pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --timeout=120s
+
+  Check health endpoints:
+    kubectl port-forward svc/{{ include "fastmcp-server.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+    curl http://localhost:{{ .Values.service.port }}/healthz
+    curl http://localhost:{{ .Values.service.port }}/readyz
+    curl http://localhost:{{ .Values.service.port }}/startupz
+
+Troubleshooting:
+  Describe pods:
+    kubectl describe pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+  Check all container logs:
+    kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --all-containers --tail=200 --prefix
+
+  Inspect rendered environment:
+    kubectl describe pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+{{- if not (include "fastmcp-server.hasAnyInline" .) }}
+Warning:
+  No inline tools, resources, prompts, or knowledge are configured. If no remote
+  source loads components either, /readyz may report not_ready because the server
+  has no MCP components loaded.
+
+{{- end }}
+Documentation:
+  https://helmforge.dev/docs/charts/fastmcp-server
+
+Happy Helmforging :)

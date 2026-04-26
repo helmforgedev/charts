@@ -6,8 +6,13 @@ A Helm chart for deploying [FastMCP Server](https://github.com/helmforgedev/fast
 
 - Multi-source loading with merge precedence: Inline > S3 > Git
 - Bearer token and JWT authentication via FastMCP
+- Multi-provider authentication with bearer and JWT
+- Auth scopes, reload scopes, and destructive-tool approval controls
 - Knowledge base files served as MCP resources
 - Extra pip packages installed at startup
+- S3, Git, and OCI source filters with optional background sync
+- Gateway mode for mounting remote MCP servers
+- Tool visibility filtering by tags
 - Built-in Web UI dashboard at `/ui`
 - Prometheus metrics with ServiceMonitor support
 - Structured JSON logging for log aggregation
@@ -85,8 +90,8 @@ sources:
     bucket: mcp-tools
     region: us-east-1
     prefix: production
-    accessKey: minioadmin
-    secretKey: minioadmin
+    accessKey: "<access-key>"
+    secretKey: "<secret-key>"
 ```
 
 Or with an existing secret:
@@ -112,7 +117,7 @@ sources:
     repository: "https://github.com/your-org/mcp-tools.git"
     branch: main
     path: ""
-    token: ghp_xxx  # for private repos
+    token: "<github-token>"  # for private repos
 ```
 
 ### Authentication
@@ -136,6 +141,54 @@ auth:
     audience: "mcp-server"
     jwksUri: "https://auth.example.com/.well-known/jwks.json"
 ```
+
+Multi-provider authentication:
+
+```yaml
+auth:
+  type: multi
+  providers:
+    - bearer
+    - jwt
+  scopes:
+    - mcp:read
+  reloadRequiredScopes:
+    - mcp:admin
+```
+
+See [Authentication](docs/authentication.md) for bearer, JWT, multi-provider,
+scope, and reload authorization examples.
+
+### Gateway Mode
+
+```yaml
+gateway:
+  enabled: true
+  mountServers:
+    remote:
+      transport: streamable-http
+      url: https://remote.example.com/mcp
+      namespace: remote
+```
+
+See [Gateway](docs/gateway.md) for gateway mode details.
+
+### Source Filters and Sync
+
+```yaml
+sources:
+  s3:
+    enabled: true
+    bucket: mcp-assets
+    include:
+      - tools/**
+    exclude:
+      - "**/*.tmp"
+    syncInterval: 60
+```
+
+See [Sources](docs/sources.md) for inline, S3, Git, OCI, and hot reload
+configuration.
 
 ### Observability
 
@@ -242,8 +295,10 @@ securityContext:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/helmforge/fastmcp-server` | Container image |
-| `image.tag` | `0.10.10` | Image tag |
+| `image.tag` | `0.11.0` | Image tag |
 | `server.name` | `fastmcp-server` | Server name in MCP responses |
+| `server.environment` | `dev` | Runtime environment passed as `MCP_ENV` |
+| `server.workspace` | `/app/workspace` | Workspace path for synced components |
 | `server.port` | `8000` | HTTP port |
 | `server.path` | `/mcp` | MCP endpoint path |
 | `server.logLevel` | `INFO` | Log level |
@@ -252,18 +307,25 @@ securityContext:
 | `ui.enabled` | `true` | Enable Web UI at `/ui` |
 | `metrics.enabled` | `false` | Enable Prometheus metrics at `/metrics` |
 | `metrics.serviceMonitor.enabled` | `false` | Create ServiceMonitor CRD |
-| `auth.type` | `none` | Authentication: `none`, `bearer`, `jwt` |
+| `auth.type` | `none` | Authentication: `none`, `bearer`, `jwt`, `multi` |
+| `auth.reloadRequiredScopes` | `["mcp:admin"]` | Scopes required for `/reload` |
 | `sources.inline.tools` | `{}` | Inline Python tool files |
 | `sources.inline.resources` | `{}` | Inline Python resource files |
 | `sources.inline.prompts` | `{}` | Inline Python prompt files |
 | `sources.inline.knowledge` | `{}` | Inline knowledge base files |
 | `sources.s3.enabled` | `false` | Enable S3 source |
 | `sources.s3.bucket` | `""` | S3 bucket name |
+| `sources.s3.syncInterval` | `0` | Periodic S3 sync interval in seconds |
 | `sources.git.enabled` | `false` | Enable Git source |
 | `sources.git.repository` | `""` | Git repository HTTPS URL |
+| `sources.git.syncInterval` | `0` | Periodic Git sync interval in seconds |
+| `sources.oci.enabled` | `false` | Enable OCI source |
+| `gateway.enabled` | `false` | Enable gateway mode |
+| `visibility.mode` | `blocklist` | Tool visibility strategy |
 | `extraPipPackages` | `[]` | Extra pip packages at startup |
 | `initSync.enabled` | `false` | Run source sync as init container |
 | `persistence.enabled` | `false` | Enable persistent workspace |
+| `serviceAccount.create` | `true` | Create a dedicated Kubernetes ServiceAccount |
 | `ingress.enabled` | `false` | Enable ingress |
 | `networkPolicy.enabled` | `false` | Enable NetworkPolicy |
 
@@ -321,6 +383,18 @@ Then use `http://localhost:8000/mcp` as the URL (no auth if `auth.type=none`).
 - [Basic inline tools](examples/basic/)
 - [S3 source with MinIO](examples/s3-minio/)
 - [Production setup](examples/production/)
+- [Production S3 source](examples/production-s3-values.yaml)
+- [Gateway mode](examples/gateway-values.yaml)
+- [JWT authentication](examples/jwt-values.yaml)
+- [Multi-auth](examples/multi-auth-values.yaml)
+- [Development hot reload](examples/dev-hot-reload-values.yaml)
+
+## Architecture Guides
+
+- [Authentication](docs/authentication.md)
+- [Sources](docs/sources.md)
+- [Gateway](docs/gateway.md)
+- [Operations](docs/operations.md)
 
 <!-- @AI-METADATA
 type: chart-readme
