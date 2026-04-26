@@ -203,6 +203,10 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           env:
+            {{- $extraEnvNames := list }}
+            {{- range .Values.extraEnv }}
+            {{- $extraEnvNames = append $extraEnvNames .name }}
+            {{- end }}
             - name: MCP_SERVER_NAME
               value: {{ .Values.server.name | quote }}
             - name: MCP_SERVER_VERSION
@@ -223,9 +227,9 @@ spec:
             - name: LOG_FORMAT
               value: {{ .Values.server.logFormat | quote }}
             {{- end }}
-            {{- if .Values.server.strictLoading }}
+            {{- if not (has "MCP_STRICT_LOADING" $extraEnvNames) }}
             - name: MCP_STRICT_LOADING
-              value: "true"
+              value: {{ .Values.server.strictLoading | quote }}
             {{- end }}
             {{- if ne (toString .Values.server.maskErrorDetails) "" }}
             - name: MCP_MASK_ERROR_DETAILS
