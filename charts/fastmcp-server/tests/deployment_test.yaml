@@ -698,6 +698,14 @@ tests:
             name: LOG_FORMAT
             value: "json"
 
+  - it: should set strict loading env to false by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_STRICT_LOADING
+            value: "false"
+
   - it: should set strict loading env when enabled
     set:
       server:
@@ -708,6 +716,25 @@ tests:
           content:
             name: MCP_STRICT_LOADING
             value: "true"
+
+  - it: should allow extraEnv to override strict loading env without duplicate default
+    set:
+      server:
+        strictLoading: false
+      extraEnv:
+        - name: MCP_STRICT_LOADING
+          value: "true"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_STRICT_LOADING
+            value: "true"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_STRICT_LOADING
+            value: "false"
 
   - it: should not have init container by default
     asserts:
