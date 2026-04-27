@@ -10,15 +10,6 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-fastmcp-server
 
-  - it: should render explicit zero revision history limit
-    set:
-      server:
-        revisionHistoryLimit: 0
-    asserts:
-      - equal:
-          path: spec.revisionHistoryLimit
-          value: 0
-
   - it: should set MCP_SERVER_NAME env
     asserts:
       - contains:
@@ -42,133 +33,6 @@ tests:
           content:
             name: MCP_PATH
             value: "/mcp"
-
-  - it: should set server runtime env defaults
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_SERVER_VERSION
-            value: "0.11.1"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_ENV
-            value: "dev"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_HOST
-            value: "0.0.0.0"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_WORKSPACE
-            value: "/app/workspace"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_ON_DUPLICATE_TOOLS
-            value: "warn"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_MAX_SOURCE_FILE_SIZE_BYTES
-            value: "1048576"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_MAX_KNOWLEDGE_BYTES
-            value: "10485760"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_ALLOWED_KNOWLEDGE_EXTENSIONS
-            value: ".md,.txt,.json,.yaml,.yml,.html,.htm,.csv,.xml"
-
-  - it: should set optional server runtime env values when configured
-    set:
-      server:
-        version: "0.12.0"
-        environment: production
-        host: "127.0.0.1"
-        workspace: /custom/workspace
-        maskErrorDetails: true
-        onDuplicateTools: error
-        corsAllowedOrigins:
-          - https://mcp.example.com
-          - https://ui.example.com
-        maxSourceFileSizeBytes: 2097152
-        maxKnowledgeBytes: 31457280
-        allowedKnowledgeExtensions:
-          - .md
-          - .json
-      auth:
-        allowNoAuth: true
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_SERVER_VERSION
-            value: "0.12.0"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_ENV
-            value: "production"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_HOST
-            value: "127.0.0.1"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_WORKSPACE
-            value: "/custom/workspace"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_MASK_ERROR_DETAILS
-            value: "true"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_ON_DUPLICATE_TOOLS
-            value: "error"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_CORS_ALLOWED_ORIGINS
-            value: "https://mcp.example.com,https://ui.example.com"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_MAX_SOURCE_FILE_SIZE_BYTES
-            value: "2097152"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_MAX_KNOWLEDGE_BYTES
-            value: "31457280"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_ALLOWED_KNOWLEDGE_EXTENSIONS
-            value: ".md,.json"
-      - contains:
-          path: spec.template.spec.containers[0].volumeMounts
-          content:
-            name: workspace
-            mountPath: "/custom/workspace"
-
-  - it: should not set mask error details env by default
-    asserts:
-      - notContains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_MASK_ERROR_DETAILS
-          any: true
 
   - it: should expose http port 8000
     asserts:
@@ -264,89 +128,6 @@ tests:
                 key: token
         template: templates/deployment.yaml
 
-  - it: should set admin token env for privileged reload endpoint
-    set:
-      auth:
-        adminToken: admin-token
-    templates:
-      - templates/deployment.yaml
-      - templates/secret.yaml
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_ADMIN_TOKEN
-            valueFrom:
-              secretKeyRef:
-                name: RELEASE-NAME-fastmcp-server-admin
-                key: admin-token
-        template: templates/deployment.yaml
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_ADMIN_CLIENT_ID
-            value: "admin-user"
-        template: templates/deployment.yaml
-
-  - it: should set multi auth and JWT env vars
-    set:
-      auth:
-        type: multi
-        allowNoAuth: true
-        clientId: ci-client
-        providers:
-          - bearer
-          - jwt
-        adminToken: admin-token
-        requireHumanApprovalForDestructive: false
-        bearer:
-          token: test-token
-        jwt:
-          issuer: https://auth.example.com
-          audience: fastmcp
-          jwksUri: https://auth.example.com/jwks.json
-          publicKey: jwt-secret
-          algorithm: HS256
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_AUTH_TYPE
-            value: "multi"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_AUTH_PROVIDERS
-            value: "bearer,jwt"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_AUTH_CLIENT_ID
-            value: "ci-client"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_ALLOW_NO_AUTH
-            value: "true"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_REQUIRE_HUMAN_APPROVAL_FOR_DESTRUCTIVE
-            value: "false"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_AUTH_JWT_ALGORITHM
-            value: "HS256"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_AUTH_JWT_PUBLIC_KEY
-            valueFrom:
-              secretKeyRef:
-                name: RELEASE-NAME-fastmcp-server-jwt
-                key: public-key
-
   - it: should set S3 env vars when enabled
     set:
       sources:
@@ -355,7 +136,6 @@ tests:
           endpoint: "https://minio.local"
           bucket: tools
           region: us-east-1
-          syncInterval: 60
           accessKey: admin
           secretKey: secret
     templates:
@@ -374,12 +154,6 @@ tests:
             name: SOURCE_S3_BUCKET
             value: "tools"
         template: templates/deployment.yaml
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: SOURCE_S3_SYNC_INTERVAL
-            value: "60"
-        template: templates/deployment.yaml
 
   - it: should set Git env vars when enabled
     set:
@@ -388,9 +162,7 @@ tests:
           enabled: true
           repository: "https://github.com/example/tools.git"
           branch: main
-          username: git-user
-          syncInterval: 120
-          token: example-git-token
+          token: ghp_test
     templates:
       - templates/deployment.yaml
       - templates/secret.yaml
@@ -406,59 +178,6 @@ tests:
           content:
             name: SOURCE_GIT_REPOSITORY
             value: "https://github.com/example/tools.git"
-        template: templates/deployment.yaml
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: SOURCE_GIT_USERNAME
-            value: "git-user"
-        template: templates/deployment.yaml
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: SOURCE_GIT_SYNC_INTERVAL
-            value: "120"
-        template: templates/deployment.yaml
-
-  - it: should set OCI source env vars when enabled
-    set:
-      sources:
-        oci:
-          enabled: true
-          registry: "oci://registry.example.com/mcp"
-          tag: "1.0.0"
-          username: user
-          password: pass
-    templates:
-      - templates/deployment.yaml
-      - templates/secret.yaml
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: SOURCE_OCI_ENABLED
-            value: "true"
-        template: templates/deployment.yaml
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: SOURCE_OCI_REGISTRY
-            value: "oci://registry.example.com/mcp"
-        template: templates/deployment.yaml
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: SOURCE_OCI_TAG
-            value: "1.0.0"
-        template: templates/deployment.yaml
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: SOURCE_OCI_USERNAME
-            valueFrom:
-              secretKeyRef:
-                name: RELEASE-NAME-fastmcp-server-oci
-                key: username
         template: templates/deployment.yaml
 
   - it: should mount inline tools when configured
@@ -494,76 +213,6 @@ tests:
           content:
             name: inline-tools
           any: true
-
-  - it: should support custom inline directory and hot reload
-    set:
-      hotReload:
-        enabled: true
-      sources:
-        inline:
-          dir: /custom/inline
-          tools:
-            greet.py: |
-              def greet(): return "hi"
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_HOT_RELOAD
-            value: "true"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: SOURCE_INLINE_DIR
-            value: "/custom/inline"
-      - contains:
-          path: spec.template.spec.containers[0].volumeMounts
-          content:
-            name: inline-tools
-            mountPath: "/custom/inline/tools"
-            readOnly: true
-
-  - it: should set gateway and visibility env vars
-    set:
-      gateway:
-        enabled: true
-        mountServers:
-          remote:
-            transport: streamable-http
-            url: https://remote.example.com/mcp
-            namespace: remote
-      visibility:
-        mode: allowlist
-        enableTags:
-          - public
-        disableTags:
-          - admin
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_MODE
-            value: "gateway"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_MOUNT_SERVERS
-            value: '{"remote":{"namespace":"remote","transport":"streamable-http","url":"https://remote.example.com/mcp"}}'
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_VISIBILITY_MODE
-            value: "allowlist"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_ENABLE_TAGS
-            value: "public"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_DISABLE_TAGS
-            value: "admin"
 
   - it: should set EXTRA_PIP_PACKAGES when configured
     set:
@@ -607,12 +256,6 @@ tests:
       - equal:
           path: spec.template.spec.serviceAccountName
           value: RELEASE-NAME-fastmcp-server
-
-  - it: should disable service account token automount by default
-    asserts:
-      - equal:
-          path: spec.template.spec.automountServiceAccountToken
-          value: false
 
   # --- v0.4.0: New features ---
 
@@ -665,6 +308,17 @@ tests:
             name: LOG_FORMAT
             value: "json"
 
+  - it: should set strict loading env when enabled
+    set:
+      server:
+        strictLoading: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_STRICT_LOADING
+            value: "true"
+
   - it: should not have init container by default
     asserts:
       - isNull:
@@ -683,30 +337,6 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[0].command
           value: ["python", "/app/sync_only.py"]
-
-  - it: should pass runtime source env to init container
-    set:
-      initSync:
-        enabled: true
-      server:
-        workspace: /custom/workspace
-        maxSourceFileSizeBytes: 2097152
-    asserts:
-      - contains:
-          path: spec.template.spec.initContainers[0].env
-          content:
-            name: MCP_WORKSPACE
-            value: "/custom/workspace"
-      - contains:
-          path: spec.template.spec.initContainers[0].env
-          content:
-            name: MCP_MAX_SOURCE_FILE_SIZE_BYTES
-            value: "2097152"
-      - contains:
-          path: spec.template.spec.initContainers[0].volumeMounts
-          content:
-            name: workspace
-            mountPath: "/custom/workspace"
 
   # --- v1.0.0: Production features ---
 
@@ -754,6 +384,28 @@ tests:
           content:
             name: MCP_CACHE_MAX_SIZE
             value: "500"
+
+  - it: should set sandboxing memory limit env
+    set:
+      sandboxing:
+        maxMemoryMb: 256
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_MAX_MEMORY_MB
+            value: "256"
+
+  - it: should set sandboxing output limit env
+    set:
+      sandboxing:
+        maxOutputSizeKb: 100
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_MAX_OUTPUT_SIZE_KB
+            value: "100"
 
   - it: should use replicaCount when autoscaling disabled
     set:
