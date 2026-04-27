@@ -117,6 +117,37 @@ app.kubernetes.io/role: {{ .role }}
 {{- printf "%s-replicas" (include "postgresql.fullname" .) -}}
 {{- end -}}
 
+{{- define "postgresql.primaryPvcName" -}}
+{{- printf "data-%s-0" (include "postgresql.primaryStatefulSetName" .) -}}
+{{- end -}}
+
+{{- define "postgresql.primaryPersistenceEnabled" -}}
+{{- if ternary .Values.replication.primary.persistence.enabled .Values.standalone.persistence.enabled (eq .Values.architecture "replication") -}}true{{- end -}}
+{{- end -}}
+
+{{- define "postgresql.detectedPrimaryPvc" -}}
+{{- if include "postgresql.primaryPersistenceEnabled" . -}}
+{{- $pvc := lookup "v1" "PersistentVolumeClaim" .Release.Namespace (include "postgresql.primaryPvcName" .) -}}
+{{- if $pvc -}}true{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "postgresql.validatePasswordGeneration" -}}
+{{- if and (not .Values.auth.existingSecret) (include "postgresql.detectedPrimaryPvc" .) (not .Values.auth.allowPasswordGenerationWithExistingData) -}}
+{{- $secretName := include "postgresql.secretName" . -}}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}
+{{- $hasPostgres := and $existing $existing.data (hasKey $existing.data .Values.auth.existingSecretPostgresPasswordKey) -}}
+{{- $hasUser := and $existing $existing.data (hasKey $existing.data .Values.auth.existingSecretUserPasswordKey) -}}
+{{- $hasReplication := and $existing $existing.data (hasKey $existing.data .Values.auth.existingSecretReplicationPasswordKey) -}}
+{{- $needsPostgres := and (not .Values.auth.postgresPassword) (not $hasPostgres) -}}
+{{- $needsUser := and (not .Values.auth.password) (not $hasUser) -}}
+{{- $needsReplication := and (eq .Values.architecture "replication") (not .Values.auth.replicationPassword) (not $hasReplication) -}}
+{{- if or $needsPostgres $needsUser $needsReplication -}}
+{{- fail (printf "Refusing to auto-generate PostgreSQL passwords because existing PVC %q was detected but the managed Secret is missing one or more required password keys. Restore/reuse the existing Secret, set explicit auth passwords that match the database, or set auth.allowPasswordGenerationWithExistingData=true only for an empty/reinitialized data directory." (include "postgresql.primaryPvcName" .)) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "postgresql.postgresPassword" -}}
 {{- $secretName := include "postgresql.secretName" . -}}
 {{- if .Values.auth.existingSecret -}}
@@ -128,6 +159,7 @@ app.kubernetes.io/role: {{ .role }}
 {{- if and $existing $existing.data (hasKey $existing.data .Values.auth.existingSecretPostgresPasswordKey) -}}
 {{- index $existing.data .Values.auth.existingSecretPostgresPasswordKey | b64dec -}}
 {{- else -}}
+{{- include "postgresql.validatePasswordGeneration" . -}}
 {{- randAlphaNum 32 -}}
 {{- end -}}
 {{- end -}}

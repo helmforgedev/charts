@@ -138,6 +138,7 @@ metrics:
 ### Security
 
 - prefer `auth.existingSecret` in production
+- keep the password Secret aligned with the password stored in any existing PVC; PostgreSQL does not rewrite `pg_authid` just because a Kubernetes Secret changed
 - keep client access internal unless there is a strong reason to expose PostgreSQL outside the cluster network
 - use `networkPolicy.enabled=true` or external platform controls when possible
 - rotate passwords through secret management workflows instead of editing values inline
@@ -170,6 +171,7 @@ metrics:
 
 - use `config.preset` for a small set of opinionated PostgreSQL defaults
 - use `config.pgHbaEntries` when you need structured host-based access rules
+- keep `config.localAuthMethod=scram-sha-256` for production so local socket clients do not bypass password auth
 - use `*.resourcesPreset` for small and predictable environment sizing before reaching for fully custom resources
 - keep `config.postgresql` and `config.pgHba` for raw overrides when structured values are not enough
 - keep `auth.database`, `auth.username`, and `auth.replicationUsername` as plain values; `existingSecret` is intentionally limited to sensitive runtime data

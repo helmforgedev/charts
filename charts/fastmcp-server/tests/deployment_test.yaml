@@ -272,6 +272,30 @@ tests:
                 key: token
         template: templates/deployment.yaml
 
+  - it: should set admin token env for privileged reload endpoint
+    set:
+      auth:
+        adminToken: admin-token
+    templates:
+      - templates/deployment.yaml
+      - templates/secret.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_ADMIN_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-fastmcp-server-admin
+                key: admin-token
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MCP_ADMIN_CLIENT_ID
+            value: "admin-user"
+        template: templates/deployment.yaml
+
   - it: should set multi auth, scopes, and JWT env vars
     set:
       auth:
@@ -286,8 +310,7 @@ tests:
         providers:
           - bearer
           - jwt
-        reloadRequiredScopes:
-          - mcp:admin
+        adminToken: admin-token
         requireHumanApprovalForDestructive: false
         bearer:
           token: test-token
@@ -333,11 +356,6 @@ tests:
           content:
             name: MCP_REQUIRE_HUMAN_APPROVAL_FOR_DESTRUCTIVE
             value: "false"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_RELOAD_REQUIRED_SCOPES
-            value: "mcp:admin"
       - contains:
           path: spec.template.spec.containers[0].env
           content:
