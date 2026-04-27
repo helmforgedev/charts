@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/helmforgedev/charts/actions/workflows/ci.yml"><img src="https://github.com/helmforgedev/charts/actions/workflows/ci.yml/badge.svg" alt="Tests" /></a>
   <a href="https://github.com/helmforgedev/charts/actions/workflows/publish.yml"><img src="https://github.com/helmforgedev/charts/actions/workflows/publish.yml/badge.svg" alt="Publish" /></a>
-  <a href="https://github.com/helmforgedev/charts/stargazers"><img src="https://img.shields.io/github/stars/helmforgedev/charts?style=flat&label=Stars" alt="GitHub stars" /></a>
+  <a href="https://github.com/helmforgedev/charts/stargazers"><img src="https://img.shields.io/github/stars/helmforgedev/charts?style=flat&label=Stars&logo=github" alt="GitHub stars" /></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" /></a>
   <a href="https://artifacthub.io/packages/search?repo=helmforge"><img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/helmforge" alt="Artifact Hub" /></a>
   <img src="https://img.shields.io/endpoint?url=https://repo.helmforge.dev/badges/charts-count.json" alt="Charts count" />
