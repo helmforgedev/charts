@@ -1,0 +1,31 @@
+suite: StatefulSet
+templates:
+  - statefulset.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render StatefulSet with retention policy
+    set:
+      workload:
+        type: StatefulSet
+        persistentVolumeClaimRetentionPolicy:
+          whenDeleted: Retain
+          whenScaled: Delete
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.persistentVolumeClaimRetentionPolicy.whenDeleted
+          value: Retain
+
+  - it: should use overridden service name as governing service
+    set:
+      workload:
+        type: StatefulSet
+      service:
+        nameOverride: stateful-headless
+    asserts:
+      - equal:
+          path: spec.serviceName
+          value: stateful-headless

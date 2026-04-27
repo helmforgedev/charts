@@ -1,0 +1,36 @@
+{{- if and .Values.keda.enabled .Values.keda.scaledObject.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "chart.fullname" . }}
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "chart.fullname" . }}
+    kind: {{ include "chart.workloadKind" . }}
+  pollingInterval: {{ .Values.keda.scaledObject.pollingInterval | default 30 }}
+  cooldownPeriod: {{ .Values.keda.scaledObject.cooldownPeriod | default 300 }}
+  minReplicaCount: {{ .Values.keda.scaledObject.minReplicaCount | default 0 }}
+  maxReplicaCount: {{ .Values.keda.scaledObject.maxReplicaCount | default 10 }}
+  triggers:
+    {{- toYaml .Values.keda.scaledObject.triggers | nindent 4 }}
+{{- end }}
+{{- if .Values.keda.enabled }}
+{{- range .Values.keda.scaledJobs | default list }}
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: {{ include "chart.namedResource" (dict "root" $ "name" .name) }}
+  labels:
+    {{- include "chart.labels" $ | nindent 4 }}
+spec:
+  pollingInterval: {{ .pollingInterval | default 30 }}
+  maxReplicaCount: {{ .maxReplicaCount | default 10 }}
+  jobTargetRef:
+    {{- toYaml .jobTargetRef | nindent 4 }}
+  triggers:
+    {{- toYaml .triggers | nindent 4 }}
+{{- end }}
+{{- end }}

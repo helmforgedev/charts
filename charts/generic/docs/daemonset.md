@@ -17,6 +17,7 @@ Common cases:
 - update strategy for rolling replacement
 - tolerations and node selection for infrastructure nodes
 - reuse of the same container, env, persistence, and observability patterns as other workloads
+- NetworkPolicy, RBAC, and ServiceMonitor/PodMonitor when node agents need platform integration
 
 ## What it does not deliver
 
@@ -30,6 +31,8 @@ Common cases:
 - set node selectors deliberately if the workload should run only on a subset of nodes
 - avoid ingress and external service exposure unless the daemon actually provides a node-facing API
 - keep resource requests realistic because a DaemonSet multiplies by node count
+- use `rollout.restartAt` only for deliberate daemon pod replacement
+- do not enable HPA for DaemonSets; the chart validates and blocks that invalid combination
 
 ## Most relevant values
 
@@ -41,6 +44,9 @@ Common cases:
 | `tolerations` | Node tolerance rules |
 | `nodeSelector` | Node filtering |
 | `serviceMonitor.*` | Observability hooks |
+| `podMonitor.*` | Pod-level Prometheus scraping |
+| `rbac.*` / `networkPolicy.*` | Agent permissions and traffic policy |
+| `rollout.restartAt` | Explicit restart marker for intentional pod rollouts |
 
 ## Example
 

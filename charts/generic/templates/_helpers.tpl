@@ -64,6 +64,34 @@ Service account name.
 {{- end -}}
 
 {{/*
+Primary Service name.
+*/}}
+{{- define "chart.serviceName" -}}
+{{- default (include "chart.fullname" .) .Values.service.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/*
+Named child resource.
+*/}}
+{{- define "chart.namedResource" -}}
+{{- printf "%s-%s" (include "chart.fullname" .root) .name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/*
+Checksum of chart-created ConfigMaps.
+*/}}
+{{- define "chart.configMapsChecksum" -}}
+{{- toYaml (.Values.configMaps | default list) | sha256sum -}}
+{{- end -}}
+
+{{/*
+Checksum of chart-created Secrets.
+*/}}
+{{- define "chart.secretsChecksum" -}}
+{{- toYaml (.Values.secrets | default list) | sha256sum -}}
+{{- end -}}
+
+{{/*
 Returns non-empty string if the workload is enabled, empty string if not.
 */}}
 {{- define "chart.hasWorkload" -}}
@@ -93,8 +121,10 @@ If the container defines image.repository, it overrides the global.
 {{- define "chart.containerImage" -}}
 {{- $globalRepo := .root.Values.image.repository -}}
 {{- $globalTag := .root.Values.image.tag -}}
+{{- $globalDigest := .root.Values.image.digest -}}
 {{- $repo := $globalRepo -}}
 {{- $tag := $globalTag -}}
+{{- $digest := $globalDigest -}}
 {{- if .container.image -}}
   {{- if .container.image.repository -}}
     {{- $repo = .container.image.repository -}}
@@ -102,8 +132,21 @@ If the container defines image.repository, it overrides the global.
   {{- if .container.image.tag -}}
     {{- $tag = .container.image.tag -}}
   {{- end -}}
+  {{- if .container.image.digest -}}
+    {{- $digest = .container.image.digest -}}
+  {{- end -}}
 {{- end -}}
+{{- with .root.Values.global.imageRegistry -}}
+  {{- $firstSegment := first (splitList "/" $repo) -}}
+  {{- if not (or (contains "." $firstSegment) (contains ":" $firstSegment) (eq $firstSegment "localhost")) -}}
+    {{- $repo = printf "%s/%s" (. | trimSuffix "/") $repo -}}
+  {{- end -}}
+{{- end -}}
+{{- if $digest -}}
+{{ printf "%s@%s" $repo ($digest | toString) }}
+{{- else -}}
 {{ printf "%s:%s" $repo ($tag | toString) }}
+{{- end -}}
 {{- end -}}
 
 {{/*
@@ -169,6 +212,22 @@ Used by deployment, job, and cronjob templates to avoid duplication.
   {{- if or .container.securityContext .root.Values.securityContext }}
   securityContext:
     {{- toYaml (.container.securityContext | default .root.Values.securityContext) | nindent 4 }}
+  {{- else if eq .root.Values.securityPreset "baseline" }}
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+  {{- else if eq .root.Values.securityPreset "restricted" }}
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
   {{- end }}
   {{- if or .container.volumeMounts .root.Values.persistence.mounts }}
   volumeMounts:
@@ -183,6 +242,12 @@ Used by deployment, job, and cronjob templates to avoid duplication.
   lifecycle:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+  {{- with .container.terminationMessagePath | default .root.Values.terminationMessagePath }}
+  terminationMessagePath: {{ . }}
+  {{- end }}
+  {{- with .container.terminationMessagePolicy | default .root.Values.terminationMessagePolicy }}
+  terminationMessagePolicy: {{ . }}
+  {{- end }}
 {{- end -}}
 
 {{/*
@@ -190,6 +255,7 @@ Pod spec shared by deployment, job, and cronjob.
 Accepts a dict with: root (global context), containers (list), podSpec (optional overrides).
 */}}
 {{- define "chart.podSpec" -}}
+{{- $podSpec := .podSpec | default dict -}}
 {{- with .root.Values.imagePullSecrets }}
 imagePullSecrets:
   {{- toYaml . | nindent 2 }}
@@ -198,19 +264,56 @@ serviceAccountName: {{ include "chart.serviceAccountName" .root }}
 {{- if hasKey .root.Values.serviceAccount "automountServiceAccountToken" }}
 automountServiceAccountToken: {{ .root.Values.serviceAccount.automountServiceAccountToken }}
 {{- end }}
-{{- with (.podSpec).priorityClassName | default .root.Values.priorityClassName }}
+{{- with $podSpec.priorityClassName | default .root.Values.priorityClassName }}
 priorityClassName: {{ . }}
 {{- end }}
-{{- if or .root.Values.podSecurityContext (.podSpec).podSecurityContext }}
-securityContext:
-  {{- toYaml ((.podSpec).podSecurityContext | default .root.Values.podSecurityContext) | nindent 2 }}
+{{- with $podSpec.preemptionPolicy | default .root.Values.preemptionPolicy }}
+preemptionPolicy: {{ . }}
 {{- end }}
-{{- with (.podSpec).terminationGracePeriodSeconds | default .root.Values.terminationGracePeriodSeconds }}
+{{- if or .root.Values.podSecurityContext $podSpec.podSecurityContext }}
+securityContext:
+  {{- toYaml ($podSpec.podSecurityContext | default .root.Values.podSecurityContext) | nindent 2 }}
+{{- else if eq .root.Values.securityPreset "baseline" }}
+securityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+{{- else if eq .root.Values.securityPreset "restricted" }}
+securityContext:
+  fsGroup: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  runAsUser: 1000
+  seccompProfile:
+    type: RuntimeDefault
+{{- end }}
+{{- with $podSpec.terminationGracePeriodSeconds | default .root.Values.terminationGracePeriodSeconds }}
 terminationGracePeriodSeconds: {{ . }}
 {{- end }}
-{{- if or .root.Values.initContainers (.podSpec).initContainers }}
+{{- with $podSpec.runtimeClassName | default .root.Values.runtimeClassName }}
+runtimeClassName: {{ . }}
+{{- end }}
+{{- with $podSpec.schedulerName | default .root.Values.schedulerName }}
+schedulerName: {{ . }}
+{{- end }}
+{{- if hasKey .root.Values "hostNetwork" }}
+hostNetwork: {{ ternary $podSpec.hostNetwork .root.Values.hostNetwork (hasKey $podSpec "hostNetwork") }}
+{{- end }}
+{{- if hasKey .root.Values "hostPID" }}
+hostPID: {{ ternary $podSpec.hostPID .root.Values.hostPID (hasKey $podSpec "hostPID") }}
+{{- end }}
+{{- if hasKey .root.Values "hostIPC" }}
+hostIPC: {{ ternary $podSpec.hostIPC .root.Values.hostIPC (hasKey $podSpec "hostIPC") }}
+{{- end }}
+{{- if hasKey .root.Values "shareProcessNamespace" }}
+shareProcessNamespace: {{ ternary $podSpec.shareProcessNamespace .root.Values.shareProcessNamespace (hasKey $podSpec "shareProcessNamespace") }}
+{{- end }}
+{{- if hasKey .root.Values "enableServiceLinks" }}
+enableServiceLinks: {{ ternary $podSpec.enableServiceLinks .root.Values.enableServiceLinks (hasKey $podSpec "enableServiceLinks") }}
+{{- end }}
+{{- if or .root.Values.initContainers $podSpec.initContainers }}
 initContainers:
-  {{- range (.podSpec).initContainers | default .root.Values.initContainers }}
+  {{- range $podSpec.initContainers | default .root.Values.initContainers }}
   {{- include "chart.containerSpec" (dict "root" $.root "container" .) | nindent 2 }}
   {{- end }}
 {{- end }}
@@ -220,35 +323,39 @@ containers:
   {{- range $i, $c := .containers }}
   {{- include "chart.containerSpec" (dict "root" $root "container" $c "index" $i "skipGlobalProbes" $skip) | nindent 2 }}
   {{- end }}
-{{- if or .root.Values.persistence.volumes (.podSpec).volumes }}
+{{- if or .root.Values.persistence.volumes $podSpec.volumes }}
 volumes:
   {{- with .root.Values.persistence.volumes }}
   {{- toYaml . | nindent 2 }}
   {{- end }}
-  {{- with (.podSpec).volumes }}
+  {{- with $podSpec.volumes }}
   {{- toYaml . | nindent 2 }}
   {{- end }}
 {{- end }}
-{{- with (.podSpec).nodeSelector | default .root.Values.nodeSelector }}
+{{- with $podSpec.nodeSelector | default .root.Values.nodeSelector }}
 nodeSelector:
   {{- toYaml . | nindent 2 }}
 {{- end }}
-{{- with (.podSpec).affinity | default .root.Values.affinity }}
+{{- with $podSpec.affinity | default .root.Values.affinity }}
 affinity:
   {{- toYaml . | nindent 2 }}
 {{- end }}
-{{- with (.podSpec).tolerations | default .root.Values.tolerations }}
+{{- with $podSpec.tolerations | default .root.Values.tolerations }}
 tolerations:
   {{- toYaml . | nindent 2 }}
 {{- end }}
-{{- with (.podSpec).topologySpreadConstraints | default .root.Values.topologySpreadConstraints }}
+{{- with $podSpec.topologySpreadConstraints | default .root.Values.topologySpreadConstraints }}
 topologySpreadConstraints:
   {{- toYaml . | nindent 2 }}
 {{- end }}
-{{- with (.podSpec).dnsPolicy }}
+{{- with $podSpec.hostAliases | default .root.Values.hostAliases }}
+hostAliases:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with $podSpec.dnsPolicy | default .root.Values.dnsPolicy }}
 dnsPolicy: {{ . }}
 {{- end }}
-{{- with (.podSpec).dnsConfig }}
+{{- with $podSpec.dnsConfig | default .root.Values.dnsConfig }}
 dnsConfig:
   {{- toYaml . | nindent 2 }}
 {{- end }}

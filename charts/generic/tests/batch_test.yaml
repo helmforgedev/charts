@@ -1,0 +1,51 @@
+suite: Batch
+templates:
+  - job.yaml
+  - cronjob.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render advanced Job fields
+    set:
+      jobs:
+        - name: worker
+          command: ["echo", "ok"]
+          parallelism: 2
+          completions: 4
+          completionMode: Indexed
+          suspend: true
+    asserts:
+      - isKind:
+          of: Job
+        template: job.yaml
+      - equal:
+          path: spec.parallelism
+          value: 2
+        template: job.yaml
+      - equal:
+          path: spec.suspend
+          value: true
+        template: job.yaml
+
+  - it: should render CronJob timezone and pod labels
+    set:
+      cronjobs:
+        - name: cleanup
+          schedule: "0 2 * * *"
+          timeZone: America/Sao_Paulo
+          command: ["echo", "ok"]
+          podLabels:
+            batch: cleanup
+    asserts:
+      - isKind:
+          of: CronJob
+        template: cronjob.yaml
+      - equal:
+          path: spec.timeZone
+          value: America/Sao_Paulo
+        template: cronjob.yaml
+      - equal:
+          path: spec.jobTemplate.spec.template.metadata.labels.batch
+          value: cleanup
+        template: cronjob.yaml

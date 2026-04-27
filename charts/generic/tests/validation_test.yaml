@@ -1,0 +1,38 @@
+suite: Validation
+templates:
+  - validate.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should fail when a container name is not DNS-1123
+    set:
+      containers:
+        - name: App
+    asserts:
+      - failedTemplate:
+          errorMessage: "containers[].name must be a DNS-1123 label: App"
+
+  - it: should fail when HPA targets a DaemonSet
+    set:
+      workload.type: DaemonSet
+      hpa.enabled: true
+      hpa.maxReplicas: 3
+    asserts:
+      - failedTemplate:
+          errorMessage: "hpa.enabled cannot be used with workload.type=DaemonSet"
+
+  - it: should fail when HPA omits maxReplicas
+    set:
+      hpa.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "hpa.maxReplicas is required when hpa.enabled=true"
+
+  - it: should fail when PDB has no availability budget
+    set:
+      pdb.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "pdb.minAvailable or pdb.maxUnavailable is required when pdb.enabled=true"
+

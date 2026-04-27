@@ -29,11 +29,24 @@ spec:
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+      {{- if or .Values.rollout.restartAt .Values.rollout.podAnnotations .Values.podAnnotations (and .Values.rollout.checksum.enabled (or (and .Values.rollout.checksum.configMaps .Values.configMaps) (and .Values.rollout.checksum.secrets .Values.secrets))) }}
       annotations:
-        timestamp: "{{ date "20060102150405" now }}"
+        {{- with .Values.rollout.restartAt }}
+        helmforge.dev/restartedAt: {{ . | quote }}
+        {{- end }}
+        {{- if and .Values.rollout.checksum.enabled .Values.rollout.checksum.configMaps .Values.configMaps }}
+        checksum/configmaps: {{ include "chart.configMapsChecksum" . }}
+        {{- end }}
+        {{- if and .Values.rollout.checksum.enabled .Values.rollout.checksum.secrets .Values.secrets }}
+        checksum/secrets: {{ include "chart.secretsChecksum" . }}
+        {{- end }}
+        {{- with .Values.rollout.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+      {{- end }}
     spec:
       {{- include "chart.podSpec" (dict "root" . "containers" .Values.containers) | nindent 6 }}
       restartPolicy: Always

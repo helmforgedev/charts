@@ -15,16 +15,23 @@ spec:
   {{- with .Values.hpa.metrics }}
   metrics:
     {{- range . }}
+    {{- if not .resource }}
+    - type: {{ .type }}
+      {{- omit . "type" | toYaml | nindent 6 }}
+    {{- else }}
     - type: Resource
       resource:
         name: {{ .resource }}
         target:
-          type: {{ .type }}
-          {{- if eq .type "AverageValue" }}
+          type: {{ .targetType | default .metricType | default .type | default "Utilization" }}
+          {{- if eq (.targetType | default .metricType | default .type | default "Utilization") "AverageValue" }}
           averageValue: {{ .target }}
-          {{- else if eq .type "Utilization" }}
+          {{- else if eq (.targetType | default .metricType | default .type | default "Utilization") "Utilization" }}
           averageUtilization: {{ .target }}
+          {{- else if eq (.targetType | default .metricType | default .type | default "Utilization") "Value" }}
+          value: {{ .target }}
           {{- end }}
+    {{- end }}
     {{- end }}
   {{- end }}
   {{- with .Values.hpa.behavior }}

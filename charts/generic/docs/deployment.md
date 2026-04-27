@@ -17,7 +17,9 @@ Common cases:
 - replica-based scaling
 - HPA and VPA compatibility
 - service and ingress integration
+- extra Services, headless Service mode, custom Ingress backends, and Gateway API HTTPRoutes
 - support for sidecars, init containers, probes, and ConfigMaps
+- optional Secrets, RBAC, NetworkPolicy, PodMonitor, PrometheusRule, and KEDA resources
 
 ## What it does not deliver
 
@@ -32,6 +34,7 @@ Common cases:
 - enable `hpa` only with meaningful metrics and sane requests
 - add `pdb.enabled=true` for production services with multiple replicas
 - use `topologySpreadConstraints` or anti-affinity for critical services
+- set `rollout.restartAt` only when you intentionally want to roll pods without another spec change
 
 ## Most relevant values
 
@@ -42,7 +45,14 @@ Common cases:
 | `containers` | Main and sidecar containers |
 | `service.*` | Service exposure |
 | `ingress.*` | HTTP ingress exposure |
+| `services[]` | Additional Service resources |
+| `gatewayApi.*` | Optional Gateway API HTTPRoutes |
+| `secrets[]` / `rbac.*` / `networkPolicy.*` | Opt-in security resources |
+| `podMonitor.*` / `prometheusRule.*` | Prometheus Operator resources |
+| `rollout.restartAt` | Explicit restart marker for intentional pod rollouts |
+| `rollout.checksum.*` | ConfigMap/Secret checksum-driven rollouts |
 | `hpa.*` | Horizontal autoscaling |
+| `keda.*` | Event-driven autoscaling with KEDA CRDs |
 | `pdb.*` | Disruption protection |
 | `updateStrategy.*` | Rolling update behavior |
 
@@ -79,6 +89,9 @@ hpa:
   enabled: true
   minReplicas: 3
   maxReplicas: 10
+
+rollout:
+  restartAt: ""
 ```
 
 <!-- @AI-METADATA

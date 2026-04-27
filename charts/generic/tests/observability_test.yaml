@@ -1,0 +1,69 @@
+suite: Observability
+templates:
+  - servicemonitor.yaml
+  - podmonitor.yaml
+  - prometheusrule.yaml
+  - vpa.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render ServiceMonitor
+    set:
+      serviceMonitor:
+        enabled: true
+        endpoints:
+          - port: http
+            path: /metrics
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+        template: servicemonitor.yaml
+      - equal:
+          path: spec.endpoints[0].path
+          value: /metrics
+        template: servicemonitor.yaml
+
+  - it: should render PodMonitor
+    set:
+      podMonitor:
+        enabled: true
+        podMetricsEndpoints:
+          - port: http
+            path: /metrics
+    asserts:
+      - isKind:
+          of: PodMonitor
+        template: podmonitor.yaml
+
+  - it: should render PrometheusRule
+    set:
+      prometheusRule:
+        enabled: true
+        groups:
+          - name: generic.rules
+            rules:
+              - alert: GenericDown
+                expr: up == 0
+    asserts:
+      - isKind:
+          of: PrometheusRule
+        template: prometheusrule.yaml
+      - equal:
+          path: spec.groups[0].name
+          value: generic.rules
+        template: prometheusrule.yaml
+
+  - it: should render VerticalPodAutoscaler
+    set:
+      vpa:
+        enabled: true
+        updateMode: Auto
+    asserts:
+      - isKind:
+          of: VerticalPodAutoscaler
+        template: vpa.yaml
+      - equal:
+          path: spec.updatePolicy.updateMode
+          value: Auto
+        template: vpa.yaml

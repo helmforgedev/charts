@@ -16,13 +16,27 @@ Namespace:  {{ .Release.Namespace }}
 {{- range $host := .Values.ingress.hosts }}
 URL:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
 {{- end }}
-{{- else if .Values.service.enabled }}
+{{- else if and (include "chart.hasWorkload" .) (ne .Values.service.enabled false) }}
 Port-forward to access the workload:
 
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ .Release.Name }} 8080:{{ .Values.service.port | default 80 }}
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "chart.serviceName" . }} 8080:{{ .Values.service.port | default 80 }}
 
   URL:  http://localhost:8080/
+{{- else if or .Values.jobs .Values.cronjobs }}
+This release does not expose a long-running workload.
+
+Inspect batch resources with:
+
+  kubectl get jobs,cronjobs -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
 {{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  CONFIGURATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Workload Enabled: {{ .Values.workload.enabled }}
+Workload Type:    {{ .Values.workload.type | default "Deployment" }}
+Service Enabled:  {{ ne .Values.service.enabled false }}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   GETTING STARTED

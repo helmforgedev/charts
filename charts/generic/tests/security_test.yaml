@@ -1,0 +1,73 @@
+suite: Security resources
+templates:
+  - secret.yaml
+  - rbac.yaml
+  - networkpolicy.yaml
+  - deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render declarative secrets
+    set:
+      secrets:
+        - name: app
+          stringData:
+            password: change-me
+    asserts:
+      - isKind:
+          of: Secret
+        template: secret.yaml
+      - equal:
+          path: metadata.name
+          value: test-app
+        template: secret.yaml
+
+  - it: should render role and rolebinding
+    set:
+      rbac:
+        create: true
+        rules:
+          - apiGroups: [""]
+            resources: ["pods"]
+            verbs: ["get"]
+    asserts:
+      - isKind:
+          of: Role
+        template: rbac.yaml
+        documentIndex: 0
+      - isKind:
+          of: RoleBinding
+        template: rbac.yaml
+        documentIndex: 1
+
+  - it: should render default deny NetworkPolicy
+    set:
+      networkPolicy:
+        enabled: true
+        defaultDeny: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+        template: networkpolicy.yaml
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+        template: networkpolicy.yaml
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+        template: networkpolicy.yaml
+
+  - it: should apply restricted security preset when contexts are not explicit
+    set:
+      securityPreset: restricted
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+        template: deployment.yaml

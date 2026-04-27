@@ -10,7 +10,10 @@ metadata:
     helm.sh/resource-policy: keep
 spec:
   accessModes:
-    - {{ .accessMode | default "ReadWriteOnce" }}
+    {{- toYaml (.accessModes | default (list (.accessMode | default "ReadWriteOnce"))) | nindent 4 }}
+  {{- with .volumeMode }}
+  volumeMode: {{ . }}
+  {{- end }}
   resources:
     requests:
       storage: {{ .capacity }}
@@ -19,5 +22,65 @@ spec:
   {{- end }}
   {{- if or .existingPVName (not .storageClassName) }}
   volumeName: {{ .existingPVName | default (printf "%s-%s" (include "chart.name" $) .name) }}
+  {{- end }}
+  {{- with .selector }}
+  selector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .dataSource }}
+  dataSource:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .dataSourceRef }}
+  dataSourceRef:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- range .Values.persistence.persistentVolumeClaims | default list }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "chart.namedResource" (dict "root" $ "name" .name) }}
+  labels:
+    {{- include "chart.labels" $ | nindent 4 }}
+    {{- with .labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if or .annotations .keep }}
+  annotations:
+    {{- if .keep }}
+    helm.sh/resource-policy: keep
+    {{- end }}
+    {{- with .annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  accessModes:
+    {{- toYaml (.accessModes | default (list "ReadWriteOnce")) | nindent 4 }}
+  {{- with .volumeMode }}
+  volumeMode: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .storage }}
+  {{- with .storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  {{- with .volumeName }}
+  volumeName: {{ . }}
+  {{- end }}
+  {{- with .selector }}
+  selector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .dataSource }}
+  dataSource:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .dataSourceRef }}
+  dataSourceRef:
+    {{- toYaml . | nindent 4 }}
   {{- end }}
 {{- end }}

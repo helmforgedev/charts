@@ -1,4 +1,5 @@
 {{- range .Values.jobs | default list }}
+{{- $hooks := .hooks | default dict }}
 ---
 apiVersion: batch/v1
 kind: Job
@@ -6,11 +7,44 @@ metadata:
   name: {{ .name }}
   labels:
     {{- include "chart.labels" $ | nindent 4 }}
-  {{- with .annotations }}
-  annotations:
+    {{- with .labels }}
     {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if or .annotations $hooks.enabled }}
+  annotations:
+    {{- if $hooks.enabled }}
+    "helm.sh/hook": {{ join "," ($hooks.events | default (list "pre-install" "pre-upgrade")) | quote }}
+    "helm.sh/hook-weight": {{ $hooks.weight | default 0 | quote }}
+    "helm.sh/hook-delete-policy": {{ $hooks.deletePolicy | default "before-hook-creation,hook-succeeded" | quote }}
+    {{- end }}
+    {{- with .annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   {{- end }}
 spec:
+  {{- with .parallelism }}
+  parallelism: {{ . }}
+  {{- end }}
+  {{- with .completions }}
+  completions: {{ . }}
+  {{- end }}
+  {{- with .completionMode }}
+  completionMode: {{ . }}
+  {{- end }}
+  {{- with .manualSelector }}
+  manualSelector: {{ . }}
+  {{- end }}
+  {{- with .podFailurePolicy }}
+  podFailurePolicy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .successPolicy }}
+  successPolicy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if hasKey . "suspend" }}
+  suspend: {{ .suspend }}
+  {{- end }}
   backoffLimit: {{ .backoffLimit | default 1 }}
   activeDeadlineSeconds: {{ .activeDeadlineSeconds | default 300 }}
   ttlSecondsAfterFinished: {{ .ttlSecondsAfterFinished | default 300 }}
@@ -19,8 +53,13 @@ spec:
       labels:
         {{- include "chart.selectorLabels" $ | nindent 8 }}
         job-name: {{ .name }}
+        {{- with .podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- if .podAnnotations }}
       annotations:
-        timestamp: "{{ date "20060102150405" now }}"
+        {{- toYaml .podAnnotations | nindent 8 }}
+      {{- end }}
     spec:
       restartPolicy: {{ .restartPolicy | default "Never" }}
       {{- include "chart.podSpec" (dict "root" $ "containers" (.containers | default (list .)) "podSpec" . "skipGlobalProbes" true) | nindent 6 }}

@@ -1,0 +1,52 @@
+{{- $namePattern := "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" -}}
+{{- range .Values.containers | default list }}
+{{- if not (regexMatch $namePattern .name) }}
+{{- fail (printf "containers[].name must be a DNS-1123 label: %s" .name) }}
+{{- end }}
+{{- end }}
+{{- range .Values.jobs | default list }}
+{{- if not (regexMatch $namePattern .name) }}
+{{- fail (printf "jobs[].name must be a DNS-1123 label: %s" .name) }}
+{{- end }}
+{{- end }}
+{{- range .Values.cronjobs | default list }}
+{{- if not (regexMatch $namePattern .name) }}
+{{- fail (printf "cronjobs[].name must be a DNS-1123 label: %s" .name) }}
+{{- end }}
+{{- if not .schedule }}
+{{- fail (printf "cronjobs[%s].schedule is required" .name) }}
+{{- end }}
+{{- end }}
+{{- range .Values.configMaps | default list }}
+{{- if not (regexMatch $namePattern .name) }}
+{{- fail (printf "configMaps[].name must be a DNS-1123 label: %s" .name) }}
+{{- end }}
+{{- end }}
+{{- if and .Values.hpa.enabled (eq (.Values.workload.type | default "Deployment") "DaemonSet") }}
+{{- fail "hpa.enabled cannot be used with workload.type=DaemonSet" }}
+{{- end }}
+{{- if and .Values.hpa.enabled (not .Values.hpa.maxReplicas) }}
+{{- fail "hpa.maxReplicas is required when hpa.enabled=true" }}
+{{- end }}
+{{- if and .Values.pdb.enabled (not .Values.pdb.minAvailable) (not .Values.pdb.maxUnavailable) }}
+{{- fail "pdb.minAvailable or pdb.maxUnavailable is required when pdb.enabled=true" }}
+{{- end }}
+{{- if and .Values.pdb.enabled .Values.pdb.minAvailable .Values.pdb.maxUnavailable }}
+{{- fail "set only one of pdb.minAvailable or pdb.maxUnavailable" }}
+{{- end }}
+{{- if and .Values.serviceMonitor.enabled (not .Values.serviceMonitor.endpoints) }}
+{{- fail "serviceMonitor.endpoints is required when serviceMonitor.enabled=true" }}
+{{- end }}
+{{- if and .Values.ingress.enabled (not .Values.ingress.hosts) (not .Values.ingress.defaultBackend) }}
+{{- fail "ingress.hosts or ingress.defaultBackend is required when ingress.enabled=true" }}
+{{- end }}
+{{- range .Values.persistence.storage | default list }}
+{{- if not .capacity }}
+{{- fail (printf "persistence.storage[%s].capacity is required" .name) }}
+{{- end }}
+{{- end }}
+{{- range .Values.persistence.persistentVolumeClaims | default list }}
+{{- if not .storage }}
+{{- fail (printf "persistence.persistentVolumeClaims[%s].storage is required" .name) }}
+{{- end }}
+{{- end }}
