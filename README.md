@@ -12,7 +12,7 @@
   <a href="https://github.com/helmforgedev/charts/actions/workflows/ci.yml"><img src="https://github.com/helmforgedev/charts/actions/workflows/ci.yml/badge.svg" alt="Tests" /></a>
   <a href="https://github.com/helmforgedev/charts/actions/workflows/publish.yml"><img src="https://github.com/helmforgedev/charts/actions/workflows/publish.yml/badge.svg" alt="Publish" /></a>
   <a href="https://github.com/helmforgedev/charts/stargazers"><img src="https://img.shields.io/github/stars/helmforgedev/charts?style=flat&label=Stars&logo=github" alt="GitHub stars" /></a>
-  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" /></a>
+  <a href="https://www.apache.org/licenses/LICENSE-2.0"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0" /></a>
   <a href="https://artifacthub.io/packages/search?repo=helmforge"><img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/helmforge" alt="Artifact Hub" /></a>
   <img src="https://img.shields.io/endpoint?url=https://repo.helmforge.dev/badges/charts-count.json" alt="Charts count" />
   <img src="https://img.shields.io/badge/Signed-GPG%20%2B%20Cosign-brightgreen" alt="GPG + Cosign Signed" />
@@ -25,7 +25,7 @@
 </p>
 
 <p align="center">
-  <a href="https://helmforge.dev">Website</a> · <a href="https://helmforge.dev/docs">Documentation</a> · <a href="https://repo.helmforge.dev">Helm Repository</a> · <a href="CONTRIBUTING.md">Contributing</a>
+  <a href="https://helmforge.dev">Website</a> · <a href="https://helmforge.dev/docs">Documentation</a> · <a href="https://repo.helmforge.dev">Helm Repository</a> · <a href="CONTRIBUTING.md">Contributing</a> · <a href="GOVERNANCE.md">Governance</a>
 </p>
 
 ## Quick Start
@@ -73,7 +73,7 @@ HelmForge is built on a simple principle: **use what upstream ships, make the Ku
 
 - **Official upstream images** — charts prefer images published by the application maintainers. No proprietary rebuild layer or vendor-specific runtime wrapper.
 - **Pinned version tags** — charts reference explicit, immutable image tags. No `:latest`, no floating tags, no surprises after a pull.
-- **MIT licensed** — the charts, tests, and docs are MIT. No open-core, no paid tiers, no license changes down the road.
+- **Apache-2.0 licensed** — the charts, tests, and docs use a CNCF-aligned permissive license. No open-core, no paid tiers, no license traps.
 - **GPG + Cosign signed** — every release includes GPG provenance files for Helm verification and [Sigstore Cosign](https://www.sigstore.dev/) keyless signatures on OCI artifacts via GitHub Actions OIDC.
 - **No vendor lock-in** — standard Helm, standard Kubernetes APIs, standard images. If you stop using HelmForge tomorrow, nothing breaks.
 - **Explicit values contracts** — product-oriented `values.yaml` files map directly to application and Kubernetes configuration, with schemas and validations where they prevent bad releases.
@@ -188,6 +188,14 @@ Charts use standard stable APIs (`apps/v1`, `batch/v1`, `networking.k8s.io/v1`) 
 
 Contributions are welcome. Please read the [contributing guide](CONTRIBUTING.md) for branch flow, validation requirements, commit conventions, and chart standards.
 
+Community and project governance documents:
+
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Governance](GOVERNANCE.md)
+- [Maintainers](MAINTAINERS.md)
+- [Adopters](ADOPTERS.md)
+- [Security Policy](SECURITY.md)
+
 ## Contributors
 
 <a href="https://github.com/helmforgedev/charts/graphs/contributors">
@@ -196,7 +204,7 @@ Contributions are welcome. Please read the [contributing guide](CONTRIBUTING.md)
 
 ## License
 
-MIT
+Apache License 2.0
 
 <!-- @AI-METADATA
 type: overview
@@ -211,8 +219,14 @@ scope: Repository
 relations:
   - .claude/AGENTS.md
   - docs/testing-strategy.md
+  - CONTRIBUTING.md
+  - CODE_OF_CONDUCT.md
+  - GOVERNANCE.md
+  - MAINTAINERS.md
+  - ADOPTERS.md
+  - SECURITY.md
 path: README.md
-version: 1.0
+version: 1.1
 date: 2026-04-01
 updated: 2026-04-27
 -->

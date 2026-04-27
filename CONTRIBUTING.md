@@ -143,6 +143,10 @@ Conventional Commits drive semantic versioning and release notes.
 
 - [README.md](README.md)
 - [SECURITY.md](SECURITY.md)
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- [GOVERNANCE.md](GOVERNANCE.md)
+- [MAINTAINERS.md](MAINTAINERS.md)
+- [ADOPTERS.md](ADOPTERS.md)
 
 <!-- @AI-METADATA
 type: guide
@@ -158,7 +162,11 @@ relations:
   - README.md
   - .claude/AGENTS.md
   - SECURITY.md
+  - CODE_OF_CONDUCT.md
+  - GOVERNANCE.md
+  - MAINTAINERS.md
+  - ADOPTERS.md
 path: CONTRIBUTING.md
-version: 1.1
-date: 2026-04-01
+version: 1.2
+date: 2026-04-27
 -->
