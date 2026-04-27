@@ -263,7 +263,7 @@ Key differences from the Bitnami MongoDB chart:
 |--------|-----------|---------|
 | Image | Official `mongo` | `bitnami/mongodb` |
 | Data path | `/data/db` | `/bitnami/mongodb` |
-| License | MIT | Custom (restricted) |
+| License | Apache-2.0 | Custom (restricted image terms) |
 | values.yaml | ~200 lines | ~2000+ lines |
 | Templates | ~15 files | ~30+ files |
 | Dependencies | None | `bitnami/common` library |

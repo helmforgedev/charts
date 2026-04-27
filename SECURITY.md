@@ -14,7 +14,7 @@ If you discover a security vulnerability in any HelmForge chart, please report i
 Instead, use one of the following methods:
 
 1. **GitHub Security Advisories** (preferred): [Report a vulnerability](https://github.com/helmforgedev/charts/security/advisories/new)
-2. **Email**: <helmforgedev@users.noreply.github.com>
+2. **Email**: <berlofa@helmforge.dev> or <maicon.berloffa@gmail.com>
 
 ### What to include
 
