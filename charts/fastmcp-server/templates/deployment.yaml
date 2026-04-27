@@ -1,4 +1,3 @@
-{{- include "fastmcp-server.validateValues" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -9,9 +8,8 @@ spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
-  revisionHistoryLimit: {{ .Values.server.revisionHistoryLimit }}
   strategy:
-    {{- toYaml .Values.server.strategy | nindent 4 }}
+    type: Recreate
   selector:
     matchLabels:
       {{- include "fastmcp-server.selectorLabels" . | nindent 6 }}
@@ -40,7 +38,6 @@ spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ .Values.serviceAccount.name | default (include "fastmcp-server.fullname" .) }}
       {{- end }}
-      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -54,13 +51,7 @@ spec:
           command: ["python", "/app/sync_only.py"]
           env:
             - name: MCP_WORKSPACE
-              value: {{ .Values.server.workspace | quote }}
-            - name: MCP_MAX_SOURCE_FILE_SIZE_BYTES
-              value: {{ .Values.server.maxSourceFileSizeBytes | int64 | quote }}
-            {{- if .Values.sources.inline.dir }}
-            - name: SOURCE_INLINE_DIR
-              value: {{ .Values.sources.inline.dir | quote }}
-            {{- end }}
+              value: /app/workspace
             {{- if .Values.sources.s3.enabled }}
             - name: SOURCE_S3_ENABLED
               value: "true"
@@ -98,8 +89,6 @@ spec:
             - name: SOURCE_GIT_PATH
               value: {{ . | quote }}
             {{- end }}
-            - name: SOURCE_GIT_USERNAME
-              value: {{ .Values.sources.git.username | quote }}
             {{- if or .Values.sources.git.token .Values.sources.git.existingSecret }}
             - name: SOURCE_GIT_TOKEN
               valueFrom:
@@ -108,49 +97,31 @@ spec:
                   key: {{ .Values.sources.git.existingSecretTokenKey | default "token" }}
             {{- end }}
             {{- end }}
-            {{- if .Values.sources.oci.enabled }}
-            - name: SOURCE_OCI_ENABLED
-              value: "true"
-            - name: SOURCE_OCI_REGISTRY
-              value: {{ .Values.sources.oci.registry | quote }}
-            {{- with .Values.sources.oci.tag }}
-            - name: SOURCE_OCI_TAG
-              value: {{ . | quote }}
-            {{- end }}
-            {{- if or .Values.sources.oci.username .Values.sources.oci.password .Values.sources.oci.existingSecret }}
-            - name: SOURCE_OCI_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "fastmcp-server.ociSecretName" . }}
-                  key: {{ .Values.sources.oci.existingSecretUsernameKey | default "username" }}
-            - name: SOURCE_OCI_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "fastmcp-server.ociSecretName" . }}
-                  key: {{ .Values.sources.oci.existingSecretPasswordKey | default "password" }}
-            {{- end }}
+            {{- if (include "fastmcp-server.hasAnyInline" .) }}
+            - name: SOURCE_INLINE_DIR
+              value: /app/inline
             {{- end }}
           volumeMounts:
             - name: workspace
-              mountPath: {{ .Values.server.workspace | quote }}
+              mountPath: /app/workspace
             {{- if (include "fastmcp-server.hasInlineTools" .) }}
             - name: inline-tools
-              mountPath: {{ printf "%s/tools" .Values.sources.inline.dir | quote }}
+              mountPath: /app/inline/tools
               readOnly: true
             {{- end }}
             {{- if (include "fastmcp-server.hasInlineResources" .) }}
             - name: inline-resources
-              mountPath: {{ printf "%s/resources" .Values.sources.inline.dir | quote }}
+              mountPath: /app/inline/resources
               readOnly: true
             {{- end }}
             {{- if (include "fastmcp-server.hasInlinePrompts" .) }}
             - name: inline-prompts
-              mountPath: {{ printf "%s/prompts" .Values.sources.inline.dir | quote }}
+              mountPath: /app/inline/prompts
               readOnly: true
             {{- end }}
             {{- if (include "fastmcp-server.hasInlineKnowledge" .) }}
             - name: inline-knowledge
-              mountPath: {{ printf "%s/knowledge" .Values.sources.inline.dir | quote }}
+              mountPath: /app/inline/knowledge
               readOnly: true
             {{- end }}
           {{- with .Values.securityContext }}
@@ -167,89 +138,24 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           env:
-            {{- $extraEnvNames := list }}
-            {{- range .Values.extraEnv }}
-            {{- $extraEnvNames = append $extraEnvNames .name }}
-            {{- end }}
             - name: MCP_SERVER_NAME
               value: {{ .Values.server.name | quote }}
-            - name: MCP_SERVER_VERSION
-              value: {{ .Values.server.version | default .Chart.AppVersion | quote }}
-            - name: MCP_ENV
-              value: {{ .Values.server.environment | quote }}
             - name: MCP_PORT
               value: {{ .Values.server.port | quote }}
             - name: MCP_PATH
               value: {{ .Values.server.path | quote }}
             - name: MCP_HOST
-              value: {{ .Values.server.host | quote }}
-            - name: MCP_WORKSPACE
-              value: {{ .Values.server.workspace | quote }}
+              value: "0.0.0.0"
             - name: LOG_LEVEL
               value: {{ .Values.server.logLevel | quote }}
             {{- if .Values.server.logFormat }}
             - name: LOG_FORMAT
               value: {{ .Values.server.logFormat | quote }}
             {{- end }}
-            {{- if ne (toString .Values.server.maskErrorDetails) "" }}
-            - name: MCP_MASK_ERROR_DETAILS
-              value: {{ .Values.server.maskErrorDetails | quote }}
-            {{- end }}
-            - name: MCP_ON_DUPLICATE_TOOLS
-              value: {{ .Values.server.onDuplicateTools | quote }}
-            {{- if .Values.server.corsAllowedOrigins }}
-            - name: MCP_CORS_ALLOWED_ORIGINS
-              value: {{ join "," .Values.server.corsAllowedOrigins | quote }}
-            {{- end }}
-            - name: MCP_MAX_SOURCE_FILE_SIZE_BYTES
-              value: {{ .Values.server.maxSourceFileSizeBytes | int64 | quote }}
-            - name: MCP_MAX_KNOWLEDGE_BYTES
-              value: {{ .Values.server.maxKnowledgeBytes | int64 | quote }}
-            - name: MCP_ALLOWED_KNOWLEDGE_EXTENSIONS
-              value: {{ join "," .Values.server.allowedKnowledgeExtensions | quote }}
-            - name: MCP_REQUIRE_HUMAN_APPROVAL_FOR_DESTRUCTIVE
-              value: {{ .Values.auth.requireHumanApprovalForDestructive | quote }}
-            {{- if .Values.auth.allowNoAuth }}
-            - name: MCP_ALLOW_NO_AUTH
+            {{- if .Values.server.strictLoading }}
+            - name: MCP_STRICT_LOADING
               value: "true"
             {{- end }}
-            {{- if .Values.auth.clientId }}
-            - name: MCP_AUTH_CLIENT_ID
-              value: {{ .Values.auth.clientId | quote }}
-            {{- end }}
-            {{- if or .Values.auth.adminToken .Values.auth.adminExistingSecret }}
-            - name: MCP_ADMIN_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "fastmcp-server.adminSecretName" . }}
-                  key: {{ .Values.auth.adminExistingSecretKey | default "admin-token" }}
-            {{- end }}
-            {{- if .Values.auth.adminClientId }}
-            - name: MCP_ADMIN_CLIENT_ID
-              value: {{ .Values.auth.adminClientId | quote }}
-            {{- end }}
-            {{- if .Values.gateway.enabled }}
-            - name: MCP_MODE
-              value: "gateway"
-            - name: MCP_MOUNT_SERVERS
-              value: {{ include "fastmcp-server.mountServersJson" . | quote }}
-            {{- end }}
-            {{- if .Values.visibility.enableTags }}
-            - name: MCP_ENABLE_TAGS
-              value: {{ join "," .Values.visibility.enableTags | quote }}
-            {{- end }}
-            {{- if .Values.visibility.disableTags }}
-            - name: MCP_DISABLE_TAGS
-              value: {{ join "," .Values.visibility.disableTags | quote }}
-            {{- end }}
-            - name: MCP_VISIBILITY_MODE
-              value: {{ .Values.visibility.mode | quote }}
-            {{- if .Values.hotReload.enabled }}
-            - name: MCP_HOT_RELOAD
-              value: "true"
-            {{- end }}
-            - name: SOURCE_INLINE_DIR
-              value: {{ .Values.sources.inline.dir | quote }}
             {{- if .Values.ui }}
             - name: MCP_UI_ENABLED
               value: {{ .Values.ui.enabled | quote }}
@@ -264,18 +170,14 @@ spec:
             - name: MCP_AUTH_TYPE
               value: {{ .Values.auth.type | quote }}
             {{- end }}
-            {{- if and (eq .Values.auth.type "multi") .Values.auth.providers }}
-            - name: MCP_AUTH_PROVIDERS
-              value: {{ join "," .Values.auth.providers | quote }}
-            {{- end }}
-            {{- if or (eq .Values.auth.type "bearer") (and (eq .Values.auth.type "multi") (has "bearer" .Values.auth.providers)) }}
+            {{- if eq .Values.auth.type "bearer" }}
             - name: MCP_AUTH_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fastmcp-server.authSecretName" . }}
                   key: {{ .Values.auth.bearer.existingSecretKey | default "token" }}
             {{- end }}
-            {{- if or (eq .Values.auth.type "jwt") (and (eq .Values.auth.type "multi") (has "jwt" .Values.auth.providers)) }}
+            {{- if eq .Values.auth.type "jwt" }}
             {{- with .Values.auth.jwt.issuer }}
             - name: MCP_AUTH_JWT_ISSUER
               value: {{ . | quote }}
@@ -287,17 +189,6 @@ spec:
             {{- with .Values.auth.jwt.jwksUri }}
             - name: MCP_AUTH_JWT_JWKS_URI
               value: {{ . | quote }}
-            {{- end }}
-            {{- with .Values.auth.jwt.algorithm }}
-            - name: MCP_AUTH_JWT_ALGORITHM
-              value: {{ . | quote }}
-            {{- end }}
-            {{- if or .Values.auth.jwt.publicKey .Values.auth.jwt.publicKeyExistingSecret }}
-            - name: MCP_AUTH_JWT_PUBLIC_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "fastmcp-server.jwtSecretName" . }}
-                  key: {{ .Values.auth.jwt.publicKeyExistingSecretKey | default "public-key" }}
             {{- end }}
             {{- end }}
             {{- if .Values.sources.s3.enabled }}
@@ -314,10 +205,6 @@ spec:
             {{- with .Values.sources.s3.prefix }}
             - name: SOURCE_S3_PREFIX
               value: {{ . | quote }}
-            {{- end }}
-            {{- if .Values.sources.s3.syncInterval }}
-            - name: SOURCE_S3_SYNC_INTERVAL
-              value: {{ .Values.sources.s3.syncInterval | int64 | quote }}
             {{- end }}
             - name: SOURCE_S3_ACCESS_KEY
               valueFrom:
@@ -341,40 +228,12 @@ spec:
             - name: SOURCE_GIT_PATH
               value: {{ . | quote }}
             {{- end }}
-            - name: SOURCE_GIT_USERNAME
-              value: {{ .Values.sources.git.username | quote }}
-            {{- if .Values.sources.git.syncInterval }}
-            - name: SOURCE_GIT_SYNC_INTERVAL
-              value: {{ .Values.sources.git.syncInterval | int64 | quote }}
-            {{- end }}
             {{- if or .Values.sources.git.token .Values.sources.git.existingSecret }}
             - name: SOURCE_GIT_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fastmcp-server.gitSecretName" . }}
                   key: {{ .Values.sources.git.existingSecretTokenKey | default "token" }}
-            {{- end }}
-            {{- end }}
-            {{- if .Values.sources.oci.enabled }}
-            - name: SOURCE_OCI_ENABLED
-              value: "true"
-            - name: SOURCE_OCI_REGISTRY
-              value: {{ .Values.sources.oci.registry | quote }}
-            {{- with .Values.sources.oci.tag }}
-            - name: SOURCE_OCI_TAG
-              value: {{ . | quote }}
-            {{- end }}
-            {{- if or .Values.sources.oci.username .Values.sources.oci.password .Values.sources.oci.existingSecret }}
-            - name: SOURCE_OCI_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "fastmcp-server.ociSecretName" . }}
-                  key: {{ .Values.sources.oci.existingSecretUsernameKey | default "username" }}
-            - name: SOURCE_OCI_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "fastmcp-server.ociSecretName" . }}
-                  key: {{ .Values.sources.oci.existingSecretPasswordKey | default "password" }}
             {{- end }}
             {{- end }}
             {{- with .Values.rateLimiting.default }}
@@ -393,9 +252,21 @@ spec:
             - name: MCP_CACHE_MAX_SIZE
               value: {{ .Values.caching.maxSize | quote }}
             {{- end }}
+            {{- if .Values.sandboxing.maxMemoryMb }}
+            - name: MCP_MAX_MEMORY_MB
+              value: {{ .Values.sandboxing.maxMemoryMb | quote }}
+            {{- end }}
+            {{- if .Values.sandboxing.maxOutputSizeKb }}
+            - name: MCP_MAX_OUTPUT_SIZE_KB
+              value: {{ .Values.sandboxing.maxOutputSizeKb | quote }}
+            {{- end }}
             {{- if .Values.extraPipPackages }}
             - name: EXTRA_PIP_PACKAGES
               value: {{ join "," .Values.extraPipPackages | quote }}
+            {{- end }}
+            {{- if (include "fastmcp-server.hasAnyInline" .) }}
+            - name: SOURCE_INLINE_DIR
+              value: /app/inline
             {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
@@ -440,25 +311,25 @@ spec:
           {{- end }}
           volumeMounts:
             - name: workspace
-              mountPath: {{ .Values.server.workspace | quote }}
+              mountPath: /app/workspace
             {{- if (include "fastmcp-server.hasInlineTools" .) }}
             - name: inline-tools
-              mountPath: {{ printf "%s/tools" .Values.sources.inline.dir | quote }}
+              mountPath: /app/inline/tools
               readOnly: true
             {{- end }}
             {{- if (include "fastmcp-server.hasInlineResources" .) }}
             - name: inline-resources
-              mountPath: {{ printf "%s/resources" .Values.sources.inline.dir | quote }}
+              mountPath: /app/inline/resources
               readOnly: true
             {{- end }}
             {{- if (include "fastmcp-server.hasInlinePrompts" .) }}
             - name: inline-prompts
-              mountPath: {{ printf "%s/prompts" .Values.sources.inline.dir | quote }}
+              mountPath: /app/inline/prompts
               readOnly: true
             {{- end }}
             {{- if (include "fastmcp-server.hasInlineKnowledge" .) }}
             - name: inline-knowledge
-              mountPath: {{ printf "%s/knowledge" .Values.sources.inline.dir | quote }}
+              mountPath: /app/inline/knowledge
               readOnly: true
             {{- end }}
             {{- with .Values.extraVolumeMounts }}
