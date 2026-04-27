@@ -36,3 +36,50 @@ tests:
       - failedTemplate:
           errorMessage: "pdb.minAvailable or pdb.maxUnavailable is required when pdb.enabled=true"
 
+  - it: should fail when ingress falls back to disabled primary service
+    set:
+      service.enabled: false
+      ingress:
+        enabled: true
+        hosts:
+          - host: app.example.com
+            paths:
+              - path: /
+                pathType: Prefix
+    asserts:
+      - failedTemplate:
+          errorMessage: "ingress paths require an explicit backend when service.enabled=false"
+
+  - it: should fail when HTTPRoute falls back to disabled primary service
+    set:
+      service.enabled: false
+      gatewayApi:
+        enabled: true
+        httpRoutes:
+          - name: app
+            parentRefs:
+              - name: gateway
+            rules:
+              - matches:
+                  - path:
+                      type: PathPrefix
+                      value: /
+    asserts:
+      - failedTemplate:
+          errorMessage: "gatewayApi.httpRoutes[].rules[].backendRefs is required when service.enabled=false"
+
+  - it: should fail when KEDA ScaledObject has no workload target
+    set:
+      workload.enabled: false
+      keda:
+        enabled: true
+        scaledObject:
+          enabled: true
+          triggers:
+            - type: cpu
+              metricType: Utilization
+              metadata:
+                value: "70"
+    asserts:
+      - failedTemplate:
+          errorMessage: "keda.scaledObject.enabled requires workload.enabled=true"

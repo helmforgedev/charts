@@ -250,8 +250,8 @@ The chart now includes opt-in primitives for common platform needs:
 - `secrets[]`, `externalSecrets`, and `sealedSecrets` for secret integration. ExternalSecret, SealedSecret, ServiceMonitor, PodMonitor, PrometheusRule, KEDA, VPA, and Gateway API resources require their CRDs to exist before enabling them.
 - `rbac.create` and `networkPolicy.enabled` for least-privilege identity and traffic policy.
 - `securityPreset: baseline` or `restricted` for opt-in security contexts when explicit contexts are not set.
-- `services[]`, `service.headless`, `service.nameOverride`, per-port `appProtocol`, and custom Ingress backends for richer networking.
-- `podMonitor`, `prometheusRule`, advanced HPA metrics, and optional KEDA ScaledObject/ScaledJob support.
+- `services[]`, `service.headless`, `service.nameOverride`, per-port `appProtocol`, and custom Ingress backends for richer networking. When `service.enabled=false`, Ingress paths must set `backend` and HTTPRoute rules must set `backendRefs`.
+- `podMonitor`, `prometheusRule`, advanced HPA metrics, and optional KEDA ScaledObject/ScaledJob support. KEDA ScaledObjects target the chart workload and require `workload.enabled=true`; use ScaledJobs for batch-only releases.
 - `persistence.persistentVolumeClaims[]` and explicit opt-in `persistence.persistentVolumes[]` for clearer storage ownership.
 
 ### Breaking-change migration notes
@@ -358,11 +358,11 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | `services` | Additional Service resources | `[]` |
 | `ingress.enabled` | Enable Ingress | `false` |
 | `ingress.ingressClassName` | Ingress class | `traefik` |
-| `ingress.hosts` | Ingress host rules | `[]` |
+| `ingress.hosts` | Ingress host rules; paths require explicit `backend` when `service.enabled=false` | `[]` |
 | `ingress.defaultBackend` | Ingress default backend | `{}` |
 | `ingress.tls` | TLS configuration | `[]` |
 | `gatewayApi.enabled` | Enable Gateway API HTTPRoutes | `false` |
-| `gatewayApi.httpRoutes` | HTTPRoute definitions | `[]` |
+| `gatewayApi.httpRoutes` | HTTPRoute definitions; rules require `backendRefs` when `service.enabled=false` | `[]` |
 | **Scheduling** | | |
 | `updateStrategy` | Deployment rollout strategy | `RollingUpdate 25%/25%` |
 | `nodeSelector` | Node selector | `{}` |
@@ -390,7 +390,7 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | `hpa.maxReplicas` | Maximum replicas | — |
 | `hpa.metrics` | Scaling metrics | `[]` |
 | `keda.enabled` | Enable KEDA custom resources | `false` |
-| `keda.scaledObject` | KEDA ScaledObject configuration | disabled |
+| `keda.scaledObject` | KEDA ScaledObject configuration for the chart workload; requires `workload.enabled=true` | disabled |
 | `keda.scaledJobs` | KEDA ScaledJob definitions | `[]` |
 | `vpa.enabled` | Enable VPA | `false` |
 | `vpa.updateMode` | VPA update mode | `Off` |

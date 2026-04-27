@@ -40,6 +40,27 @@
 {{- if and .Values.ingress.enabled (not .Values.ingress.hosts) (not .Values.ingress.defaultBackend) }}
 {{- fail "ingress.hosts or ingress.defaultBackend is required when ingress.enabled=true" }}
 {{- end }}
+{{- if and .Values.ingress.enabled (eq .Values.service.enabled false) }}
+{{- range .Values.ingress.hosts | default list }}
+{{- range .paths | default (list "/") }}
+{{- if or (kindIs "string" .) (not .backend) }}
+{{- fail "ingress paths require an explicit backend when service.enabled=false" }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if and .Values.gatewayApi.enabled (eq .Values.service.enabled false) }}
+{{- range .Values.gatewayApi.httpRoutes | default list }}
+{{- range .rules | default list }}
+{{- if not .backendRefs }}
+{{- fail "gatewayApi.httpRoutes[].rules[].backendRefs is required when service.enabled=false" }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if and .Values.keda.enabled .Values.keda.scaledObject.enabled (not (include "chart.hasWorkload" .)) }}
+{{- fail "keda.scaledObject.enabled requires workload.enabled=true" }}
+{{- end }}
 {{- range .Values.persistence.storage | default list }}
 {{- if not .capacity }}
 {{- fail (printf "persistence.storage[%s].capacity is required" .name) }}

@@ -22,6 +22,8 @@ gatewayApi:
 
 If a route rule omits `backendRefs`, it points at the primary Service using `service.port`. Use custom `backendRefs` for multi-service routing.
 
+When `service.enabled=false`, every HTTPRoute rule must define `backendRefs` explicitly. The chart fails validation instead of rendering routes to a Service it is not creating.
+
 <!-- @AI-METADATA
 type: chart-docs
 title: Generic Chart - Gateway API
@@ -35,4 +37,3 @@ path: charts/generic/docs/gateway.md
 version: 1.0
 date: 2026-04-27
 -->
-
