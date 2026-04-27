@@ -32,10 +32,6 @@ sources:
     bucket: mcp-assets
     prefix: production
     existingSecret: fastmcp-s3
-    include:
-      - tools/**
-    exclude:
-      - "**/*.tmp"
     syncInterval: 60
 ```
 
@@ -49,11 +45,6 @@ sources:
     branch: main
     path: mcp
     existingSecret: fastmcp-git
-    allowedRepositories:
-      - https://github.com/example/*
-    allowedBranches:
-      - main
-      - release/*
 ```
 
 ## OCI
@@ -65,16 +56,6 @@ sources:
     registry: oci://registry.example.com/mcp-content
     tag: "1.0.0"
     existingSecret: fastmcp-oci
-```
-
-## Safety Filters
-
-Use `sources.blockedFileAllowlist` only for intentional exceptions to the server source-file safety filter.
-
-```yaml
-sources:
-  blockedFileAllowlist:
-    - knowledge/private-config.example
 ```
 
 <!-- @AI-METADATA

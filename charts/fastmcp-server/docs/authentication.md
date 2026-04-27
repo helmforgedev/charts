@@ -7,9 +7,6 @@ FastMCP Server separates client authentication from source credentials and tool 
 ```yaml
 auth:
   type: bearer
-  scopes:
-    - mcp:read
-    - mcp:admin
   bearer:
     existingSecret: fastmcp-auth
     existingSecretKey: token
@@ -45,8 +42,6 @@ auth:
   providers:
     - bearer
     - jwt
-  scopes:
-    - mcp:read
 ```
 
 ## Reload Admin Token

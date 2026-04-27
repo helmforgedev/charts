@@ -103,9 +103,6 @@ tests:
         allowedKnowledgeExtensions:
           - .md
           - .json
-      sources:
-        blockedFileAllowlist:
-          - knowledge/private-config.example
       auth:
         allowNoAuth: true
     asserts:
@@ -159,11 +156,6 @@ tests:
           content:
             name: MCP_ALLOWED_KNOWLEDGE_EXTENSIONS
             value: ".md,.json"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: SOURCE_BLOCKED_FILE_ALLOWLIST
-            value: "knowledge/private-config.example"
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -296,16 +288,11 @@ tests:
             value: "admin-user"
         template: templates/deployment.yaml
 
-  - it: should set multi auth, scopes, and JWT env vars
+  - it: should set multi auth and JWT env vars
     set:
       auth:
         type: multi
         allowNoAuth: true
-        scopes:
-          - mcp:read
-          - mcp:admin
-        requiredScopes:
-          - mcp:read
         clientId: ci-client
         providers:
           - bearer
@@ -331,16 +318,6 @@ tests:
           content:
             name: MCP_AUTH_PROVIDERS
             value: "bearer,jwt"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_AUTH_SCOPES
-            value: "mcp:read,mcp:admin"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_AUTH_REQUIRED_SCOPES
-            value: "mcp:read"
       - contains:
           path: spec.template.spec.containers[0].env
           content:
@@ -378,10 +355,6 @@ tests:
           endpoint: "https://minio.local"
           bucket: tools
           region: us-east-1
-          include:
-            - tools/**
-          exclude:
-            - "**/*.tmp"
           syncInterval: 60
           accessKey: admin
           secretKey: secret
@@ -404,12 +377,6 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: SOURCE_S3_INCLUDE
-            value: "tools/**"
-        template: templates/deployment.yaml
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
             name: SOURCE_S3_SYNC_INTERVAL
             value: "60"
         template: templates/deployment.yaml
@@ -422,14 +389,6 @@ tests:
           repository: "https://github.com/example/tools.git"
           branch: main
           username: git-user
-          allowedRepositories:
-            - https://github.com/example/*
-          allowedBranches:
-            - main
-          include:
-            - tools/**
-          exclude:
-            - "**/*.tmp"
           syncInterval: 120
           token: example-git-token
     templates:
@@ -457,12 +416,6 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: SOURCE_GIT_ALLOWED_REPOSITORIES
-            value: "https://github.com/example/*"
-        template: templates/deployment.yaml
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
             name: SOURCE_GIT_SYNC_INTERVAL
             value: "120"
         template: templates/deployment.yaml
@@ -476,10 +429,6 @@ tests:
           tag: "1.0.0"
           username: user
           password: pass
-          include:
-            - tools/**
-          exclude:
-            - "**/*.tmp"
     templates:
       - templates/deployment.yaml
       - templates/secret.yaml
@@ -716,44 +665,6 @@ tests:
             name: LOG_FORMAT
             value: "json"
 
-  - it: should set strict loading env to false by default
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_STRICT_LOADING
-            value: "false"
-
-  - it: should set strict loading env when enabled
-    set:
-      server:
-        strictLoading: true
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_STRICT_LOADING
-            value: "true"
-
-  - it: should allow extraEnv to override strict loading env without duplicate default
-    set:
-      server:
-        strictLoading: false
-      extraEnv:
-        - name: MCP_STRICT_LOADING
-          value: "true"
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_STRICT_LOADING
-            value: "true"
-      - notContains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_STRICT_LOADING
-            value: "false"
-
   - it: should not have init container by default
     asserts:
       - isNull:
@@ -773,16 +684,13 @@ tests:
           path: spec.template.spec.initContainers[0].command
           value: ["python", "/app/sync_only.py"]
 
-  - it: should pass runtime source safety env to init container
+  - it: should pass runtime source env to init container
     set:
       initSync:
         enabled: true
       server:
         workspace: /custom/workspace
         maxSourceFileSizeBytes: 2097152
-      sources:
-        blockedFileAllowlist:
-          - knowledge/private-config.example
     asserts:
       - contains:
           path: spec.template.spec.initContainers[0].env
@@ -794,11 +702,6 @@ tests:
           content:
             name: MCP_MAX_SOURCE_FILE_SIZE_BYTES
             value: "2097152"
-      - contains:
-          path: spec.template.spec.initContainers[0].env
-          content:
-            name: SOURCE_BLOCKED_FILE_ALLOWLIST
-            value: "knowledge/private-config.example"
       - contains:
           path: spec.template.spec.initContainers[0].volumeMounts
           content:
@@ -851,28 +754,6 @@ tests:
           content:
             name: MCP_CACHE_MAX_SIZE
             value: "500"
-
-  - it: should set sandboxing memory limit env
-    set:
-      sandboxing:
-        maxMemoryMb: 256
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_MAX_MEMORY_MB
-            value: "256"
-
-  - it: should set sandboxing output limit env
-    set:
-      sandboxing:
-        maxOutputSizeKb: 100
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: MCP_MAX_OUTPUT_SIZE_KB
-            value: "100"
 
   - it: should use replicaCount when autoscaling disabled
     set:

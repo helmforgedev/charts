@@ -7,10 +7,10 @@ A Helm chart for deploying [FastMCP Server](https://github.com/helmforgedev/fast
 - Multi-source loading with merge precedence: Inline > S3 > Git
 - Bearer token and JWT authentication via FastMCP
 - Multi-provider authentication with bearer and JWT
-- Auth scopes, reload scopes, and destructive-tool approval controls
+- Dedicated admin token and destructive-tool approval controls
 - Knowledge base files served as MCP resources
 - Extra pip packages installed at startup
-- S3, Git, and OCI source filters with optional background sync
+- S3, Git, and OCI sources with optional background sync
 - Gateway mode for mounting remote MCP servers
 - Tool visibility filtering by tags
 - Built-in Web UI dashboard at `/ui`
@@ -19,7 +19,6 @@ A Helm chart for deploying [FastMCP Server](https://github.com/helmforgedev/fast
 - Dedicated health endpoints (`/healthz`, `/readyz`, `/startupz`)
 - Diagnostic endpoint at `/debug/info`
 - Init container pattern for source pre-sync
-- Strict loading mode for fail-fast on errors
 
 ## Quick Start
 
@@ -150,14 +149,12 @@ auth:
   providers:
     - bearer
     - jwt
-  scopes:
-    - mcp:read
   adminExistingSecret: fastmcp-admin
   adminExistingSecretKey: admin-token
 ```
 
 See [Authentication](docs/authentication.md) for bearer, JWT, multi-provider,
-scope, and reload admin token examples.
+and reload admin token examples.
 
 ### Gateway Mode
 
@@ -173,17 +170,13 @@ gateway:
 
 See [Gateway](docs/gateway.md) for gateway mode details.
 
-### Source Filters and Sync
+### Source Sync
 
 ```yaml
 sources:
   s3:
     enabled: true
     bucket: mcp-assets
-    include:
-      - tools/**
-    exclude:
-      - "**/*.tmp"
     syncInterval: 60
 ```
 
@@ -225,7 +218,6 @@ server:
   name: production-mcp
   logLevel: WARNING
   logFormat: json
-  strictLoading: true
 
 auth:
   type: bearer
@@ -295,7 +287,7 @@ securityContext:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/helmforge/fastmcp-server` | Container image |
-| `image.tag` | `0.11.0` | Image tag |
+| `image.tag` | `0.11.1` | Image tag |
 | `server.name` | `fastmcp-server` | Server name in MCP responses |
 | `server.environment` | `dev` | Runtime environment passed as `MCP_ENV` |
 | `server.workspace` | `/app/workspace` | Workspace path for synced components |
@@ -303,7 +295,6 @@ securityContext:
 | `server.path` | `/mcp` | MCP endpoint path |
 | `server.logLevel` | `INFO` | Log level |
 | `server.logFormat` | `text` | Log format: `text` or `json` |
-| `server.strictLoading` | `false` | Fail on boot if any component has errors |
 | `ui.enabled` | `true` | Enable Web UI at `/ui` |
 | `metrics.enabled` | `false` | Enable Prometheus metrics at `/metrics` |
 | `metrics.serviceMonitor.enabled` | `false` | Create ServiceMonitor CRD |
