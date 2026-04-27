@@ -203,7 +203,8 @@ jobs:
             else
               kind="changed"
             fi
-            CHANGES="${CHANGES}    - kind: ${kind}\n      description: ${desc}\n"
+            escaped_desc=$(printf '%s' "$desc" | sed 's/\\/\\\\/g; s/"/\\"/g')
+            CHANGES="${CHANGES}    - kind: ${kind}\n      description: \"${escaped_desc}\"\n"
           done <<< "$COMMITS"
 
           if [ -n "$CHANGES" ]; then
@@ -370,7 +371,7 @@ jobs:
   update-index:
     name: Update Helm repo index
     needs: [detect, publish]
-    if: always() && needs.publish.result == 'success'
+    if: always() && (needs.publish.result == 'success' || needs.publish.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main
@@ -388,13 +389,16 @@ jobs:
           fetch-depth: 1
 
       - name: Setup Helm
+        if: needs.publish.result == 'success'
         run: |
           curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 | DESIRED_VERSION=${{ env.HELM_VERSION }} bash
 
       - name: Login to GHCR
+        if: needs.publish.result == 'success'
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Download provenance files
+        if: needs.publish.result == 'success'
         uses: actions/download-artifact@v4
         with:
           pattern: provenance-*
@@ -402,6 +406,7 @@ jobs:
           merge-multiple: true
 
       - name: Sync chart packages from OCI
+        if: needs.publish.result == 'success'
         run: |
           cd gh-pages
 
@@ -425,6 +430,7 @@ jobs:
           ls -1 *.tgz 2>/dev/null || echo "none"
 
       - name: Copy provenance files
+        if: needs.publish.result == 'success'
         run: |
           echo "Provenance directory contents:"
           find provenance/ -type f -name '*.prov' 2>/dev/null || echo "  (no .prov files found)"
@@ -445,7 +451,14 @@ jobs:
             echo "Synced artifacthub-repo.yml to gh-pages"
           fi
 
+      - name: Generate Shields badges
+        run: |
+          node main-src/scripts/generate-charts-count-badge.mjs main-src gh-pages/badges/charts-count.json
+          echo "Generated badge endpoints:"
+          cat gh-pages/badges/charts-count.json
+
       - name: Rebuild repo index
+        if: needs.publish.result == 'success'
         run: |
           cd gh-pages
           if ls *.tgz 1>/dev/null 2>&1; then
@@ -467,6 +480,7 @@ jobs:
           git add *.tgz 2>/dev/null || true
           git add *.prov 2>/dev/null || true
           git add artifacthub-repo.yml 2>/dev/null || true
+          git add badges/*.json 2>/dev/null || true
           git diff --cached --quiet && echo "No changes to index, skip" || {
             git commit -m "ci: update helm repo index [skip ci]"
             git push origin gh-pages
