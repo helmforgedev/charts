@@ -26,6 +26,8 @@ HPA supports Resource metrics plus native autoscaling/v2 metric shapes such as P
 
 VPA and KEDA are CRD-backed and disabled by default. Use VPA for recommendations or vertical resizing, and KEDA for event-driven ScaledObjects or ScaledJobs.
 
+KEDA ScaledObjects target the chart-managed Deployment or StatefulSet and require `workload.enabled=true`. Use ScaledJobs for event-driven batch releases that do not render a long-running workload.
+
 ## Autoscaling and HA safety
 
 Deployment and StatefulSet HPA resources are supported by the Kubernetes `autoscaling/v2` API. Validate StatefulSet scaling with the application owner before enabling it in production, because ordered identity, storage semantics, and application clustering behavior remain workload-specific.
