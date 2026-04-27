@@ -9,6 +9,8 @@ on:
       - '!charts/**/examples/**'
       - '!charts/**/docs/**'
       - '.github/workflows/publish.yml'
+      - 'scripts/generate-charts-count-badge.mjs'
+      - 'scripts/generate-contributors-image.mjs'
   workflow_dispatch:
 
 concurrency:
@@ -452,10 +454,14 @@ jobs:
           fi
 
       - name: Generate Shields badges
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           node main-src/scripts/generate-charts-count-badge.mjs main-src gh-pages/badges/charts-count.json
+          node main-src/scripts/generate-contributors-image.mjs "${{ github.repository }}" gh-pages/badges/contributors.svg
           echo "Generated badge endpoints:"
           cat gh-pages/badges/charts-count.json
+          ls -lh gh-pages/badges/contributors.svg
 
       - name: Rebuild repo index
         if: needs.publish.result == 'success'
@@ -481,6 +487,7 @@ jobs:
           git add *.prov 2>/dev/null || true
           git add artifacthub-repo.yml 2>/dev/null || true
           git add badges/*.json 2>/dev/null || true
+          git add badges/*.svg 2>/dev/null || true
           git diff --cached --quiet && echo "No changes to index, skip" || {
             git commit -m "ci: update helm repo index [skip ci]"
             git push origin gh-pages

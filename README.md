@@ -9,8 +9,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/helmforgedev/charts/actions/workflows/ci.yml"><img src="https://github.com/helmforgedev/charts/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/helmforgedev/charts/actions/workflows/ci.yml"><img src="https://github.com/helmforgedev/charts/actions/workflows/ci.yml/badge.svg" alt="Tests" /></a>
   <a href="https://github.com/helmforgedev/charts/actions/workflows/publish.yml"><img src="https://github.com/helmforgedev/charts/actions/workflows/publish.yml/badge.svg" alt="Publish" /></a>
+  <a href="https://github.com/helmforgedev/charts/stargazers"><img src="https://img.shields.io/github/stars/helmforgedev/charts?style=flat&label=Stars" alt="GitHub stars" /></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" /></a>
   <a href="https://artifacthub.io/packages/search?repo=helmforge"><img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/helmforge" alt="Artifact Hub" /></a>
   <img src="https://img.shields.io/endpoint?url=https://repo.helmforge.dev/badges/charts-count.json" alt="Charts count" />
@@ -72,11 +73,11 @@ HelmForge is built on a simple principle: **use what upstream ships, make the Ku
 
 - **Official upstream images** — charts prefer images published by the application maintainers. No proprietary rebuild layer or vendor-specific runtime wrapper.
 - **Pinned version tags** — charts reference explicit, immutable image tags. No `:latest`, no floating tags, no surprises after a pull.
-- **MIT licensed** — the charts, CI, and docs are MIT. No open-core, no paid tiers, no license changes down the road.
+- **MIT licensed** — the charts, tests, and docs are MIT. No open-core, no paid tiers, no license changes down the road.
 - **GPG + Cosign signed** — every release includes GPG provenance files for Helm verification and [Sigstore Cosign](https://www.sigstore.dev/) keyless signatures on OCI artifacts via GitHub Actions OIDC.
 - **No vendor lock-in** — standard Helm, standard Kubernetes APIs, standard images. If you stop using HelmForge tomorrow, nothing breaks.
 - **Explicit values contracts** — product-oriented `values.yaml` files map directly to application and Kubernetes configuration, with schemas and validations where they prevent bad releases.
-- **Operator-first docs** — chart READMEs, site docs, examples, and CI values are kept close to the release surface.
+- **Operator-first docs** — chart READMEs, site docs, examples, and test values are kept close to the release surface.
 
 ## Charts
 
@@ -103,7 +104,7 @@ It supports:
 - RBAC, NetworkPolicy, ServiceMonitor, PodMonitor, PrometheusRule, VPA, HPA, and KEDA.
 - Safer validation for disabled-Service routing and KEDA ScaledObject targets.
 
-## CI/CD
+## Tests and Publishing
 
 Charts are automatically tested and published via GitHub Actions.
 
@@ -114,7 +115,7 @@ Push main --> publish.yml --> Detect --> Semver --> Package --> Publish to GHCR 
 
 Both workflows dynamically detect which charts changed and run jobs only for those charts using a matrix strategy. Changes to docs (`README.md`, `examples/`, `docs/`) are ignored.
 
-The `CI` workflow runs for pull requests and pushes to `main` that affect chart templates, chart metadata, tests, or the workflow itself. The `Publish` workflow runs on pushes to `main` and publishes chart releases. Documentation-only changes are intentionally excluded from chart CI and release publishing.
+The `Tests` workflow runs for pull requests and pushes to `main` that affect chart templates, chart metadata, tests, or the workflow itself. The `Publish` workflow runs on pushes to `main` and publishes chart releases. Documentation-only changes are intentionally excluded from chart tests and release publishing.
 
 Quality gates include:
 
@@ -179,13 +180,19 @@ All charts require **Helm 4** (`apiVersion: v2`) and target **Kubernetes 1.26+**
 | 1.34.x | Supported |
 | 1.35.x | Supported |
 
-CI validates rendered manifests with [kubeconform](https://github.com/yannh/kubeconform) against the default Kubernetes JSON schemas. Local runtime validation uses [k3d](https://k3d.io/) clusters.
+The Tests workflow validates rendered manifests with [kubeconform](https://github.com/yannh/kubeconform) against the default Kubernetes JSON schemas. Local runtime validation uses [k3d](https://k3d.io/) clusters.
 
 Charts use standard stable APIs (`apps/v1`, `batch/v1`, `networking.k8s.io/v1`) and avoid alpha/beta API versions to maximize compatibility.
 
 ## Contributing
 
 Contributions are welcome. Please read the [contributing guide](CONTRIBUTING.md) for branch flow, validation requirements, commit conventions, and chart standards.
+
+## Contributors
+
+<a href="https://github.com/helmforgedev/charts/graphs/contributors">
+  <img src="https://repo.helmforge.dev/badges/contributors.svg" alt="HelmForge Charts contributors" />
+</a>
 
 ## License
 
@@ -194,11 +201,11 @@ MIT
 <!-- @AI-METADATA
 type: overview
 title: HelmForge Charts
-description: Helm chart repository overview, installation, charts list, and CI/CD
+description: Helm chart repository overview, installation, charts list, tests, and publishing
 
 keywords: helm, charts, oci, ghcr, repository, install
 
-purpose: Repository overview with charts list, installation, CI/CD, and contributing guide
+purpose: Repository overview with charts list, installation, tests, publishing, and contributing guide
 scope: Repository
 
 relations:
