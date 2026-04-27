@@ -12,3 +12,21 @@ tests:
       - matchRegex:
           path: data["01-init-users.sh"]
           pattern: 'psql --username "\$\{POSTGRES_USER\}" --dbname postgres'
+
+  - it: should require SCRAM for local socket connections by default
+    template: configmap.yaml
+    documentIndex: 0
+    asserts:
+      - matchRegex:
+          path: data["pg_hba.conf"]
+          pattern: 'local\s+all\s+all\s+scram-sha-256'
+
+  - it: should allow overriding local socket authentication method
+    template: configmap.yaml
+    documentIndex: 0
+    set:
+      config.localAuthMethod: trust
+    asserts:
+      - matchRegex:
+          path: data["pg_hba.conf"]
+          pattern: 'local\s+all\s+all\s+trust'

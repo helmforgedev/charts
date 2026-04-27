@@ -117,6 +117,37 @@ app.kubernetes.io/role: {{ .role }}
 {{- printf "%s-replicas" (include "postgresql.fullname" .) -}}
 {{- end -}}
 
+{{- define "postgresql.primaryPvcName" -}}
+{{- printf "data-%s-0" (include "postgresql.primaryStatefulSetName" .) -}}
+{{- end -}}
+
+{{- define "postgresql.primaryPersistenceEnabled" -}}
+{{- if ternary .Values.replication.primary.persistence.enabled .Values.standalone.persistence.enabled (eq .Values.architecture "replication") -}}true{{- end -}}
+{{- end -}}
+
+{{- define "postgresql.detectedPrimaryPvc" -}}
+{{- if include "postgresql.primaryPersistenceEnabled" . -}}
+{{- $pvc := lookup "v1" "PersistentVolumeClaim" .Release.Namespace (include "postgresql.primaryPvcName" .) -}}
+{{- if $pvc -}}true{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "postgresql.validatePasswordGeneration" -}}
+{{- if and (not .Values.auth.existingSecret) (include "postgresql.detectedPrimaryPvc" .) (not .Values.auth.allowPasswordGenerationWithExistingData) -}}
+{{- $secretName := include "postgresql.secretName" . -}}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}
+{{- $hasPostgres := and $existing $existing.data (hasKey $existing.data .Values.auth.existingSecretPostgresPasswordKey) -}}
+{{- $hasUser := and $existing $existing.data (hasKey $existing.data .Values.auth.existingSecretUserPasswordKey) -}}
+{{- $hasReplication := and $existing $existing.data (hasKey $existing.data .Values.auth.existingSecretReplicationPasswordKey) -}}
+{{- $needsPostgres := and (not .Values.auth.postgresPassword) (not $hasPostgres) -}}
+{{- $needsUser := and (not .Values.auth.password) (not $hasUser) -}}
+{{- $needsReplication := and (eq .Values.architecture "replication") (not .Values.auth.replicationPassword) (not $hasReplication) -}}
+{{- if or $needsPostgres $needsUser $needsReplication -}}
+{{- fail (printf "Refusing to auto-generate PostgreSQL passwords because existing PVC %q was detected but the managed Secret is missing one or more required password keys. Restore/reuse the existing Secret, set explicit auth passwords that match the database, or set auth.allowPasswordGenerationWithExistingData=true only for an empty/reinitialized data directory." (include "postgresql.primaryPvcName" .)) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "postgresql.postgresPassword" -}}
 {{- $secretName := include "postgresql.secretName" . -}}
 {{- if .Values.auth.existingSecret -}}
@@ -128,6 +159,7 @@ app.kubernetes.io/role: {{ .role }}
 {{- if and $existing $existing.data (hasKey $existing.data .Values.auth.existingSecretPostgresPasswordKey) -}}
 {{- index $existing.data .Values.auth.existingSecretPostgresPasswordKey | b64dec -}}
 {{- else -}}
+{{- include "postgresql.validatePasswordGeneration" . -}}
 {{- randAlphaNum 32 -}}
 {{- end -}}
 {{- end -}}
@@ -178,23 +210,12 @@ postgres
 {{- end -}}
 
 {{- define "postgresql.primaryStartupProbeCommandString" -}}
-DATA_DIR="${PGDATA:-/var/lib/postgresql/data/pgdata}"
-if [ ! -s "${DATA_DIR}/PG_VERSION" ]; then
-  exit 1
-fi
-{{ include "postgresql.libpqEnvExports" . }}export PGPASSWORD="${POSTGRES_PASSWORD}"
-if psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d template1 -tAc "SELECT 1" >/dev/null 2>&1; then
-  if ! psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d template1 -tAc "SELECT 1 FROM pg_database WHERE datname = '{{ include "postgresql.maintenanceDatabase" . }}'" | grep -qx 1; then
-    createdb -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} {{ include "postgresql.maintenanceDatabase" . }}
-  fi
-  {{ include "postgresql.probeCommandString" . }}
-  exit $?
-fi
-exit 1
+{{ include "postgresql.ensureMaintenanceDatabaseCommandString" . }}
 {{- end -}}
 
 {{- define "postgresql.primaryReadinessCommandString" -}}
-{{- if and (eq .Values.architecture "replication") .Values.replication.primary.probes.requireWritable -}}
+{{ include "postgresql.ensureMaintenanceDatabaseCommandString" . }}
+{{ if and (eq .Values.architecture "replication") .Values.replication.primary.probes.requireWritable -}}
 {{- include "postgresql.libpqEnvExports" . }}PGPASSWORD="${POSTGRES_PASSWORD}" psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d {{ include "postgresql.maintenanceDatabase" . }} -tAc "SELECT CASE WHEN pg_is_in_recovery() THEN 1 ELSE 0 END" | grep -qx 0
 {{- else -}}
 {{ include "postgresql.probeCommandString" . }}
@@ -212,25 +233,17 @@ exit 1
 {{- define "postgresql.ensureMaintenanceDatabaseCommandString" -}}
 DATA_DIR="${PGDATA:-/var/lib/postgresql/data/pgdata}"
 if [ ! -s "${DATA_DIR}/PG_VERSION" ]; then
-  exit 0
+  exit 1
 fi
 {{ include "postgresql.libpqEnvExports" . }}export PGPASSWORD="${POSTGRES_PASSWORD}"
-for attempt in $(seq 1 150); do
-  if psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d template1 -tAc "SELECT 1" >/dev/null 2>&1; then
-    if psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d template1 -tAc "SELECT 1 FROM pg_database WHERE datname = '{{ include "postgresql.maintenanceDatabase" . }}'" | grep -qx 1; then
-      if {{ include "postgresql.probeCommandString" . }} >/dev/null 2>&1; then
-        exit 0
-      fi
-      sleep 2
-      continue
-    fi
+if psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d template1 -tAc "SELECT 1" >/dev/null 2>&1; then
+  if ! psql -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} -d template1 -tAc "SELECT 1 FROM pg_database WHERE datname = '{{ include "postgresql.maintenanceDatabase" . }}'" | grep -qx 1; then
     createdb -U postgres -h 127.0.0.1 -p {{ .Values.service.port }} {{ include "postgresql.maintenanceDatabase" . }}
-    exit 0
   fi
-  sleep 2
-done
-echo "Unable to verify or repair the {{ include "postgresql.maintenanceDatabase" . }} database on this PostgreSQL data directory." >&2
-exit 1
+else
+  echo "Unable to verify or repair the {{ include "postgresql.maintenanceDatabase" . }} database on this PostgreSQL data directory." >&2
+  exit 1
+fi
 {{- end -}}
 
 {{- define "postgresql.metricsEnv" -}}

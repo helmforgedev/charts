@@ -269,9 +269,16 @@ spec:
             - name: MCP_AUTH_CLIENT_ID
               value: {{ .Values.auth.clientId | quote }}
             {{- end }}
-            {{- with .Values.auth.reloadRequiredScopes }}
-            - name: MCP_RELOAD_REQUIRED_SCOPES
-              value: {{ join "," . | quote }}
+            {{- if or .Values.auth.adminToken .Values.auth.adminExistingSecret }}
+            - name: MCP_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fastmcp-server.adminSecretName" . }}
+                  key: {{ .Values.auth.adminExistingSecretKey | default "admin-token" }}
+            {{- end }}
+            {{- if .Values.auth.adminClientId }}
+            - name: MCP_ADMIN_CLIENT_ID
+              value: {{ .Values.auth.adminClientId | quote }}
             {{- end }}
             {{- if .Values.gateway.enabled }}
             - name: MCP_MODE

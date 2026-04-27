@@ -152,12 +152,12 @@ auth:
     - jwt
   scopes:
     - mcp:read
-  reloadRequiredScopes:
-    - mcp:admin
+  adminExistingSecret: fastmcp-admin
+  adminExistingSecretKey: admin-token
 ```
 
 See [Authentication](docs/authentication.md) for bearer, JWT, multi-provider,
-scope, and reload authorization examples.
+scope, and reload admin token examples.
 
 ### Gateway Mode
 
@@ -308,7 +308,8 @@ securityContext:
 | `metrics.enabled` | `false` | Enable Prometheus metrics at `/metrics` |
 | `metrics.serviceMonitor.enabled` | `false` | Create ServiceMonitor CRD |
 | `auth.type` | `none` | Authentication: `none`, `bearer`, `jwt`, `multi` |
-| `auth.reloadRequiredScopes` | `["mcp:admin"]` | Scopes required for `/reload` |
+| `auth.adminToken` | `""` | Dedicated admin token for privileged endpoints such as `/reload` |
+| `auth.adminExistingSecret` | `""` | Existing Secret containing the admin token |
 | `sources.inline.tools` | `{}` | Inline Python tool files |
 | `sources.inline.resources` | `{}` | Inline Python resource files |
 | `sources.inline.prompts` | `{}` | Inline Python prompt files |

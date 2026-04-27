@@ -47,9 +47,19 @@ auth:
     - jwt
   scopes:
     - mcp:read
-  reloadRequiredScopes:
-    - mcp:admin
 ```
+
+## Reload Admin Token
+
+`/reload` performs source sync and component rebuild, so it should use a privileged token separate from normal MCP client auth.
+
+```yaml
+auth:
+  adminExistingSecret: fastmcp-admin
+  adminExistingSecretKey: admin-token
+```
+
+If `auth.adminToken` or `auth.adminExistingSecret` is not set, the server falls back to regular HTTP auth for compatibility. Production deployments should configure a dedicated admin token.
 
 ## Production Guardrail
 

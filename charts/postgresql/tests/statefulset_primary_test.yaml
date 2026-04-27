@@ -151,18 +151,31 @@ tests:
     set:
       architecture: replication
     asserts:
-      - equal:
+      - matchRegex:
           path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
-          value: PGPASSWORD="${POSTGRES_PASSWORD}" psql -U postgres -h 127.0.0.1 -p 5432 -d postgres -tAc "SELECT CASE WHEN pg_is_in_recovery() THEN 1 ELSE 0 END" | grep -qx 0
+          pattern: 'createdb -U postgres -h 127\.0\.0\.1 -p 5432 postgres'
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: 'psql -U postgres -h 127\.0\.0\.1 -p 5432 -d postgres -tAc "SELECT CASE WHEN pg_is_in_recovery\(\) THEN 1 ELSE 0 END" \| grep -qx 0'
 
-  - it: should repair the postgres maintenance database on reused data directories
+  - it: should not use postStart for maintenance database repair
     template: statefulset-primary.yaml
     asserts:
+      - isNull:
+          path: spec.template.spec.containers[0].lifecycle
       - matchRegex:
-          path: spec.template.spec.containers[0].lifecycle.postStart.exec.command[2]
-          pattern: 'psql -U postgres -h 127\.0\.0\.1 -p 5432 -d template1 -tAc "SELECT 1 FROM pg_database WHERE datname = ''postgres''"'
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: 'createdb -U postgres -h 127\.0\.0\.1 -p 5432 postgres'
+
+  - it: should keep maintenance database repair when startup probe is disabled
+    template: statefulset-primary.yaml
+    set:
+      startupProbe.enabled: false
+    asserts:
+      - isNull:
+          path: spec.template.spec.containers[0].startupProbe
       - matchRegex:
-          path: spec.template.spec.containers[0].lifecycle.postStart.exec.command[2]
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
           pattern: 'createdb -U postgres -h 127\.0\.0\.1 -p 5432 postgres'
 
   - it: should create VolumeClaimTemplate when persistence is enabled

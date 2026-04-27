@@ -69,6 +69,15 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- end -}}
 {{- end -}}
 
+{{/* Admin auth secret name */}}
+{{- define "fastmcp-server.adminSecretName" -}}
+  {{- if .Values.auth.adminExistingSecret -}}
+    {{- .Values.auth.adminExistingSecret -}}
+  {{- else -}}
+    {{- printf "%s-admin" (include "fastmcp-server.fullname" .) -}}
+  {{- end -}}
+{{- end -}}
+
 {{/* JWT public key secret name */}}
 {{- define "fastmcp-server.jwtSecretName" -}}
 {{- if .Values.auth.jwt.publicKeyExistingSecret -}}
