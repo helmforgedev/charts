@@ -328,7 +328,7 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | `image.pullPolicy` | Pull policy | `IfNotPresent` |
 | `imagePullSecrets` | Registry pull secrets | `[]` |
 | **Containers** | | |
-| `containers` | List of container specs | 1 container on port 8080 |
+| `containers` | List of container specs | 1 container on port 80 |
 | `initContainers` | Init container specs | `[]` |
 | **Environment** | | |
 | `env` | Global env vars for all containers | `[]` |
@@ -350,8 +350,8 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | **Networking** | | |
 | `service.enabled` | Create the default Service for long-running workloads | `true` |
 | `service.type` | Service type | `ClusterIP` |
-| `service.port` | Service port | `8080` |
-| `service.targetPort` | Target port | `8080` |
+| `service.port` | Service port | `80` |
+| `service.targetPort` | Target port | `80` |
 | `service.nameOverride` | Override primary Service name | `""` |
 | `service.headless.enabled` | Render primary Service as headless | `false` |
 | `service.extraPorts` | Additional service ports | `[]` |

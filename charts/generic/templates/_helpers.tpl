@@ -137,7 +137,8 @@ If the container defines image.repository, it overrides the global.
   {{- end -}}
 {{- end -}}
 {{- with .root.Values.global.imageRegistry -}}
-  {{- if and (not (contains "/" $repo)) (not (contains "." $repo)) (not (contains ":" $repo)) -}}
+  {{- $firstSegment := first (splitList "/" $repo) -}}
+  {{- if not (or (contains "." $firstSegment) (contains ":" $firstSegment) (eq $firstSegment "localhost")) -}}
     {{- $repo = printf "%s/%s" (. | trimSuffix "/") $repo -}}
   {{- end -}}
 {{- end -}}
