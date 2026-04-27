@@ -11,6 +11,8 @@ on:
       - '.github/workflows/publish.yml'
       - 'scripts/generate-charts-count-badge.mjs'
       - 'scripts/generate-contributors-image.mjs'
+      - 'scripts/filter-helm-index.mjs'
+      - 'scripts/artifacthub-invalid-versions.json'
   workflow_dispatch:
 
 concurrency:
@@ -391,7 +393,6 @@ jobs:
           fetch-depth: 1
 
       - name: Setup Helm
-        if: needs.publish.result == 'success'
         run: |
           curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 | DESIRED_VERSION=${{ env.HELM_VERSION }} bash
 
@@ -464,7 +465,6 @@ jobs:
           ls -lh gh-pages/badges/contributors.svg
 
       - name: Rebuild repo index
-        if: needs.publish.result == 'success'
         run: |
           cd gh-pages
           if ls *.tgz 1>/dev/null 2>&1; then
@@ -475,6 +475,16 @@ jobs:
             fi
           else
             echo "No chart packages found, skipping index rebuild"
+          fi
+
+      - name: Filter Artifact Hub invalid historical versions
+        run: |
+          if [ -f gh-pages/index.yaml ]; then
+            node main-src/scripts/filter-helm-index.mjs \
+              gh-pages/index.yaml \
+              main-src/scripts/artifacthub-invalid-versions.json
+          else
+            echo "No index.yaml found, skipping Artifact Hub index filter"
           fi
 
       - name: Commit and push
