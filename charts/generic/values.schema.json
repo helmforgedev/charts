@@ -3,7 +3,7 @@
   "title": "Generic Helm Chart Values",
   "description": "Configuration values for the Generic Helm chart. Supports Deployments, StatefulSets, DaemonSets, Jobs, and CronJobs with multi-container pods, envFrom, initContainers, extraManifests, and more.",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "properties": {
     "replicaCount": {
       "type": "integer",
@@ -57,6 +57,17 @@
         }
       }
     },
+    "global": {
+      "type": "object",
+      "description": "Global settings shared by the chart",
+      "properties": {
+        "imageRegistry": {
+          "type": "string",
+          "description": "Optional registry prefix applied to image repositories without a registry",
+          "default": ""
+        }
+      }
+    },
     "image": {
       "type": "object",
       "description": "Default container image configuration",
@@ -65,18 +76,23 @@
         "repository": {
           "type": "string",
           "description": "Container image repository",
-          "default": "container.registry.io/project/image"
+          "default": "docker.io/library/nginx"
         },
         "tag": {
           "type": "string",
           "description": "Container image tag",
-          "default": "latest"
+          "default": "1.27.5"
+        },
+        "digest": {
+          "type": "string",
+          "description": "Container image digest. When set, it takes precedence over tag.",
+          "default": ""
         },
         "pullPolicy": {
           "type": "string",
           "description": "Image pull policy",
           "enum": ["Always", "IfNotPresent", "Never"],
-          "default": "Always"
+          "default": "IfNotPresent"
         }
       }
     },
@@ -196,6 +212,11 @@
         "annotations": {
           "type": "object",
           "description": "Annotations for the ServiceAccount"
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean",
+          "description": "Mount the Kubernetes API token into workload pods",
+          "default": false
         }
       }
     },
@@ -223,6 +244,12 @@
       "type": "object",
       "description": "Container-level security context"
     },
+    "securityPreset": {
+      "type": "string",
+      "description": "Optional security preset applied only when explicit pod/container contexts are not set",
+      "enum": ["", "baseline", "restricted"],
+      "default": ""
+    },
     "service": {
       "type": "object",
       "description": "Kubernetes Service configuration",
@@ -232,6 +259,11 @@
           "description": "Service type",
           "enum": ["ClusterIP", "NodePort", "LoadBalancer"],
           "default": "ClusterIP"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Create the default Service for long-running workloads",
+          "default": true
         },
         "port": {
           "type": "integer",
@@ -280,6 +312,13 @@
             }
           }
         }
+      }
+    },
+    "services": {
+      "type": "array",
+      "description": "Additional Services for the same workload selector",
+      "items": {
+        "type": "object"
       }
     },
     "ingress": {
@@ -402,11 +441,31 @@
       "description": "Priority class name",
       "default": ""
     },
+    "preemptionPolicy": {
+      "type": "string",
+      "description": "Pod preemption policy",
+      "default": ""
+    },
     "terminationGracePeriodSeconds": {
       "type": "integer",
       "description": "Grace period for pod termination in seconds",
       "default": 30
     },
+    "runtimeClassName": { "type": "string", "default": "" },
+    "schedulerName": { "type": "string", "default": "" },
+    "hostNetwork": { "type": "boolean", "default": false },
+    "hostPID": { "type": "boolean", "default": false },
+    "hostIPC": { "type": "boolean", "default": false },
+    "shareProcessNamespace": { "type": "boolean", "default": false },
+    "enableServiceLinks": { "type": "boolean", "default": true },
+    "dnsPolicy": { "type": "string", "default": "" },
+    "dnsConfig": { "type": "object" },
+    "hostAliases": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "terminationMessagePath": { "type": "string", "default": "" },
+    "terminationMessagePolicy": { "type": "string", "default": "" },
     "podLabels": {
       "type": "object",
       "description": "Extra labels on pods only"
@@ -418,6 +477,30 @@
     "annotations": {
       "type": "object",
       "description": "Annotations on the workload resource itself"
+    },
+    "rollout": {
+      "type": "object",
+      "description": "Explicit rollout controls",
+      "properties": {
+        "restartAt": {
+          "type": "string",
+          "description": "Set to a new value when you intentionally want to roll pods",
+          "default": ""
+        },
+        "podAnnotations": {
+          "type": "object",
+          "description": "Annotations rendered with rollout controls"
+        },
+        "checksum": {
+          "type": "object",
+          "description": "Checksum rollout controls",
+          "properties": {
+            "enabled": { "type": "boolean", "default": true },
+            "configMaps": { "type": "boolean", "default": true },
+            "secrets": { "type": "boolean", "default": true }
+          }
+        }
+      }
     },
     "hpa": {
       "type": "object",
@@ -552,6 +635,67 @@
         }
       }
     },
+    "podMonitor": {
+      "type": "object",
+      "description": "PodMonitor configuration for Prometheus Operator",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "labels": { "type": "object" },
+        "podMetricsEndpoints": { "type": "array", "items": { "type": "object" } },
+        "namespaceSelector": { "type": "object" }
+      }
+    },
+    "prometheusRule": {
+      "type": "object",
+      "description": "PrometheusRule configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "labels": { "type": "object" },
+        "groups": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "secrets": {
+      "type": "array",
+      "description": "Secret definitions to create",
+      "items": { "type": "object" }
+    },
+    "externalSecrets": {
+      "type": "object",
+      "description": "ExternalSecret resources",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "items": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "sealedSecrets": {
+      "type": "object",
+      "description": "SealedSecret resources",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "items": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "rbac": {
+      "type": "object",
+      "description": "RBAC resources",
+      "properties": {
+        "create": { "type": "boolean", "default": false },
+        "rules": { "type": "array", "items": { "type": "object" } },
+        "clusterRole": { "type": "object" }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "NetworkPolicy configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "defaultDeny": { "type": "boolean", "default": false },
+        "podSelector": { "type": "object" },
+        "policyTypes": { "type": "array", "items": { "type": "string" } },
+        "ingress": { "type": "array", "items": { "type": "object" } },
+        "egress": { "type": "array", "items": { "type": "object" } }
+      }
+    },
     "jobs": {
       "type": "array",
       "description": "Kubernetes Job definitions",
@@ -618,6 +762,23 @@
       "description": "Inject arbitrary Kubernetes manifests. Supports Helm templating via tpl.",
       "items": {
         "type": "object"
+      }
+    },
+    "keda": {
+      "type": "object",
+      "description": "KEDA ScaledObject and ScaledJob configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "scaledObject": { "type": "object" },
+        "scaledJobs": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "gatewayApi": {
+      "type": "object",
+      "description": "Gateway API HTTPRoute configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "httpRoutes": { "type": "array", "items": { "type": "object" } }
       }
     }
   }

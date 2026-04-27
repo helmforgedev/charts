@@ -1,0 +1,77 @@
+suite: Gateway API and KEDA
+templates:
+  - gateway-httproute.yaml
+  - keda.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render HTTPRoute
+    set:
+      gatewayApi:
+        enabled: true
+        httpRoutes:
+          - name: app
+            parentRefs:
+              - name: gateway
+            hostnames:
+              - app.example.com
+            rules:
+              - matches:
+                  - path:
+                      type: PathPrefix
+                      value: /
+    asserts:
+      - isKind:
+          of: HTTPRoute
+        template: gateway-httproute.yaml
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: test
+        template: gateway-httproute.yaml
+
+  - it: should render KEDA ScaledObject
+    set:
+      keda:
+        enabled: true
+        scaledObject:
+          enabled: true
+          triggers:
+            - type: cpu
+              metricType: Utilization
+              metadata:
+                value: "70"
+    asserts:
+      - isKind:
+          of: ScaledObject
+        template: keda.yaml
+
+  - it: should render KEDA ScaledJob
+    set:
+      keda:
+        enabled: true
+        scaledJobs:
+          - name: worker
+            jobTargetRef:
+              template:
+                spec:
+                  restartPolicy: Never
+                  containers:
+                    - name: worker
+                      image: docker.io/library/busybox:1.36.1
+                      command: ["sh", "-c", "echo ok"]
+            triggers:
+              - type: cron
+                metadata:
+                  timezone: UTC
+                  start: "0 * * * *"
+                  end: "5 * * * *"
+                  desiredReplicas: "1"
+    asserts:
+      - isKind:
+          of: ScaledJob
+        template: keda.yaml
+      - equal:
+          path: metadata.name
+          value: test-worker
+        template: keda.yaml

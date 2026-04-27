@@ -17,6 +17,8 @@ Common cases:
 - `cronjobs` for scheduled execution
 - shared container conventions for image, env, mounts, and resources
 - the ability to ship a batch-only release with `workload.enabled: false`
+- parallelism, completions, completion mode, pod failure policy, success policy, and suspend controls
+- optional Helm hook annotations for migration-style Jobs
 
 ## What it does not deliver
 
@@ -29,7 +31,9 @@ Common cases:
 - set `workload.enabled: false` when the release exists only for jobs or cronjobs
 - keep job commands explicit and deterministic
 - set timeouts and retry behavior intentionally
+- use Helm hooks only for lifecycle-coupled migrations and keep their delete policy explicit
 - avoid bundling unrelated maintenance tasks into one release unless lifecycle is shared
+- set `podAnnotations` on individual jobs or cronjobs when batch pod metadata is needed
 
 ## Most relevant values
 
@@ -41,6 +45,9 @@ Common cases:
 | `env` | Shared environment variables |
 | `persistence.*` | Shared volumes and mounts when needed |
 | `serviceAccount.*` | Batch identity and permissions |
+| `parallelism` / `completions` | Job execution shape |
+| `hooks.*` | Optional Helm hook behavior for Jobs |
+| `podAnnotations` | Optional pod template annotations per job or cronjob |
 
 ## Example
 

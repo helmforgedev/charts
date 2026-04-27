@@ -45,10 +45,15 @@ workload:
 # Image
 # =============================================================================
 
+global:
+  # -- Optional registry prefix applied to image repositories without a registry
+  imageRegistry: ""
+
 image:
-  repository: container.registry.io/project/image
-  tag: latest
-  pullPolicy: Always
+  repository: docker.io/library/nginx
+  tag: "1.27.5"
+  digest: ""
+  pullPolicy: IfNotPresent
 
 
 imagePullSecrets: []
@@ -110,6 +115,7 @@ envFrom: []
 serviceAccount:
   create: false
   # name: ""
+  automountServiceAccountToken: false
   annotations: {}
 
 # =============================================================================
@@ -145,22 +151,48 @@ securityContext: {}
   # runAsNonRoot: true
   # runAsUser: 1000
 
+# -- Optional security preset. Empty leaves contexts unchanged.
+# baseline sets non-root/seccomp and drops Linux capabilities when not overridden.
+# restricted also sets read-only root filesystem and default UID/GID/fsGroup.
+securityPreset: ""
+  # "" | baseline | restricted
+
 # =============================================================================
 # Service
 # =============================================================================
 
 service:
+  enabled: true
   type: ClusterIP
   port: 8080
   targetPort: 8080
+  nameOverride: ""
   # clusterIP: ""
   # loadBalancerIP: ""
+  # loadBalancerClass: ""
   # externalIPs: []
+  # externalTrafficPolicy: Cluster
+  # internalTrafficPolicy: Cluster
+  # sessionAffinity: None
+  # ipFamilyPolicy: SingleStack
+  # ipFamilies: []
   # annotations: {}
+  # labels: {}
+  # headless:
+  #   enabled: false
   # extraPorts:
   #   - name: metrics
   #     port: 9090
   #     targetPort: 9090
+  #     appProtocol: http
+
+services: []
+  # - name: metrics
+  #   type: ClusterIP
+  #   ports:
+  #     - name: metrics
+  #       port: 9090
+  #       targetPort: 9090
 
 # =============================================================================
 # Ingress
@@ -178,6 +210,12 @@ ingress:
     #   paths:
     #     - path: /
     #       pathType: Prefix
+    #       backend:
+    #         service:
+    #           name: custom-service
+    #           port:
+    #             number: 8080
+  # defaultBackend: {}
   tls: []
     # - hosts:
     #     - app.example.com
@@ -206,7 +244,20 @@ tolerations: []
 affinity: {}
 topologySpreadConstraints: []
 priorityClassName: ""
+preemptionPolicy: ""
 terminationGracePeriodSeconds: 30
+runtimeClassName: ""
+schedulerName: ""
+hostNetwork: false
+hostPID: false
+hostIPC: false
+shareProcessNamespace: false
+enableServiceLinks: true
+dnsPolicy: ""
+dnsConfig: {}
+hostAliases: []
+terminationMessagePath: ""
+terminationMessagePolicy: ""
 
 # -- Extra labels on pods only
 podLabels: {}
@@ -214,6 +265,19 @@ podLabels: {}
 podAnnotations: {}
 # -- Annotations on the workload resource itself
 annotations: {}
+
+# =============================================================================
+# Rollout
+# =============================================================================
+# Set restartAt to a new value when you intentionally want a rollout.
+
+rollout:
+  restartAt: ""
+  podAnnotations: {}
+  checksum:
+    enabled: true
+    configMaps: true
+    secrets: true
 
 # =============================================================================
 # Autoscaling (not available for DaemonSet)
@@ -282,6 +346,23 @@ persistence:
     #   #   server: 10.0.0.1
     #   #   path: /exports/data
 
+  persistentVolumeClaims: []
+    # - name: data
+    #   storage: 10Gi
+    #   accessModes: ["ReadWriteOnce"]
+    #   storageClassName: standard
+    #   keep: true
+
+  persistentVolumes: []
+    # - name: data
+    #   create: false
+    #   storage: 10Gi
+    #   accessModes: ["ReadWriteOnce"]
+    #   reclaimPolicy: Retain
+    #   nfs:
+    #     server: 10.0.0.1
+    #     path: /exports/data
+
 # =============================================================================
 # ConfigMaps
 # =============================================================================
@@ -289,10 +370,39 @@ persistence:
 configMaps: []
   # - name: app-config
   #   data:
-  #     config.yaml: |
+    #     config.yaml: |
   #       key: value
   #     settings.json: |
   #       {"debug": false}
+
+secrets: []
+  # - name: app-secret
+  #   type: Opaque
+  #   stringData:
+  #     password: change-me
+
+externalSecrets:
+  enabled: false
+  items: []
+
+sealedSecrets:
+  enabled: false
+  items: []
+
+rbac:
+  create: false
+  rules: []
+  clusterRole:
+    create: false
+    rules: []
+
+networkPolicy:
+  enabled: false
+  defaultDeny: false
+  podSelector: {}
+  policyTypes: []
+  ingress: []
+  egress: []
 
 # =============================================================================
 # ServiceMonitor (Prometheus Operator)
@@ -306,6 +416,17 @@ serviceMonitor:
   #     path: /metrics
   #     interval: 30s
 
+podMonitor:
+  enabled: false
+  labels: {}
+  podMetricsEndpoints: []
+  # namespaceSelector: {}
+
+prometheusRule:
+  enabled: false
+  labels: {}
+  groups: []
+
 # =============================================================================
 # Jobs
 # =============================================================================
@@ -314,10 +435,15 @@ jobs: []
   # - name: db-migrate
   #   image:
   #     repository: my-app
-  #     tag: latest
+  #     tag: "1.0.0"
   #   command: ["npm", "run", "migrate"]
   #   backoffLimit: 3
   #   activeDeadlineSeconds: 600
+  #   hooks:
+  #     enabled: false
+  #     events: ["pre-install", "pre-upgrade"]
+  #     weight: 0
+  #     deletePolicy: before-hook-creation,hook-succeeded
 
 # =============================================================================
 # CronJobs
@@ -329,10 +455,25 @@ cronjobs: []
   #   timeZone: America/Sao_Paulo
   #   image:
   #     repository: my-app
-  #     tag: latest
+  #     tag: "1.0.0"
   #   command: ["npm", "run", "cleanup"]
   #   concurrencyPolicy: Forbid
   #   suspend: false
+
+keda:
+  enabled: false
+  scaledObject:
+    enabled: false
+    pollingInterval: 30
+    cooldownPeriod: 300
+    minReplicaCount: 0
+    maxReplicaCount: 10
+    triggers: []
+  scaledJobs: []
+
+gatewayApi:
+  enabled: false
+  httpRoutes: []
 
 # =============================================================================
 # Extra Manifests

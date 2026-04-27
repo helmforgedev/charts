@@ -55,4 +55,61 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "container.registry.io/project/image:latest"
+          value: "docker.io/library/nginx:1.27.5"
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: IfNotPresent
+
+  - it: should use image digest when configured
+    set:
+      image.digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "docker.io/library/nginx@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+  - it: should allow per-container image override
+    set:
+      containers:
+        - name: app
+          image:
+            repository: docker.io/library/busybox
+            tag: "1.36"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "docker.io/library/busybox:1.36"
+
+  - it: should apply global registry to unqualified repositories
+    set:
+      global.imageRegistry: registry.example.com
+      image.repository: nginx
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "registry.example.com/nginx:1.27.5"
+
+  - it: should allow per-container image digest override
+    set:
+      containers:
+        - name: app
+          image:
+            repository: docker.io/library/busybox
+            digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "docker.io/library/busybox@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+  - it: should omit automatic timestamp annotations by default
+    asserts:
+      - notExists:
+          path: spec.template.metadata.annotations.timestamp
+
+  - it: should render explicit restart annotation
+    set:
+      rollout.restartAt: "2026-04-27T00:00:00Z"
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["helmforge.dev/restartedAt"]
+          value: "2026-04-27T00:00:00Z"

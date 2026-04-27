@@ -31,3 +31,39 @@ tests:
             port: 8080
             protocol: TCP
             targetPort: 8080
+
+  - it: should not render when service is disabled
+    set:
+      service.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render a headless primary service
+    set:
+      service:
+        enabled: true
+        headless:
+          enabled: true
+        port: 8080
+        targetPort: 8080
+    asserts:
+      - equal:
+          path: spec.clusterIP
+          value: None
+
+  - it: should render additional services
+    documentIndex: 1
+    set:
+      services:
+        - name: metrics
+          ports:
+            - name: metrics
+              port: 9090
+              targetPort: 9090
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: test-metrics

@@ -1,5 +1,5 @@
 {{- if .Values.ingress.enabled }}
-{{- $fullName := include "chart.fullname" . -}}
+{{- $fullName := include "chart.serviceName" . -}}
 {{- $svcPort := .Values.service.port -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -13,6 +13,10 @@ metadata:
   {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.ingressClassName | default "traefik" }}
+  {{- with .Values.ingress.defaultBackend }}
+  defaultBackend:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   {{- if .Values.ingress.tls }}
   tls:
     {{- range .Values.ingress.tls }}
@@ -39,10 +43,14 @@ spec:
             pathType: {{ .pathType | default "Prefix" }}
           {{- end }}
             backend:
+              {{- if and (not (kindIs "string" .)) .backend }}
+              {{- toYaml .backend | nindent 14 }}
+              {{- else }}
               service:
                 name: {{ $fullName }}
                 port:
                   number: {{ $svcPort }}
+              {{- end }}
           {{- end }}
     {{- end }}
 {{- end }}

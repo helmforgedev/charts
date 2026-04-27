@@ -1,18 +1,26 @@
-{{- if include "chart.hasWorkload" . }}
+{{- if and (include "chart.hasWorkload" .) (ne .Values.service.enabled false) }}
+{{- $headless := dig "headless" "enabled" false .Values.service }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "chart.fullname" . }}
+  name: {{ include "chart.serviceName" . }}
   labels:
     {{- include "chart.labels" . | nindent 4 }}
+    {{- with .Values.service.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   {{- with .Values.service.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  type: {{ .Values.service.type | default "ClusterIP" }}
+  type: {{ ternary "ClusterIP" (.Values.service.type | default "ClusterIP") $headless }}
+  {{- if $headless }}
+  clusterIP: None
+  {{- else }}
   {{- with .Values.service.clusterIP }}
   clusterIP: {{ . }}
+  {{- end }}
   {{- end }}
   {{- with .Values.service.externalIPs }}
   externalIPs:
@@ -21,17 +29,75 @@ spec:
   {{- with .Values.service.loadBalancerIP }}
   loadBalancerIP: {{ . }}
   {{- end }}
+  {{- with .Values.service.loadBalancerClass }}
+  loadBalancerClass: {{ . }}
+  {{- end }}
+  {{- with .Values.service.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.internalTrafficPolicy }}
+  internalTrafficPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.sessionAffinity }}
+  sessionAffinity: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   ports:
     - port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.targetPort | default .Values.service.port }}
       protocol: TCP
       name: http
+      {{- with .Values.service.appProtocol }}
+      appProtocol: {{ . }}
+      {{- end }}
+      {{- with .Values.service.nodePort }}
+      nodePort: {{ . }}
+      {{- end }}
     {{- range .Values.service.extraPorts }}
     - port: {{ .port }}
       targetPort: {{ .targetPort | default .port }}
       protocol: {{ .protocol | default "TCP" }}
       name: {{ .name }}
+      {{- with .appProtocol }}
+      appProtocol: {{ . }}
+      {{- end }}
+      {{- with .nodePort }}
+      nodePort: {{ . }}
+      {{- end }}
     {{- end }}
   selector:
     {{- include "chart.selectorLabels" . | nindent 4 }}
+{{- end }}
+{{- if include "chart.hasWorkload" . }}
+{{- range .Values.services | default list }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "chart.namedResource" (dict "root" $ "name" .name) }}
+  labels:
+    {{- include "chart.labels" $ | nindent 4 }}
+    {{- with .labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .type | default "ClusterIP" }}
+  {{- with .clusterIP }}
+  clusterIP: {{ . }}
+  {{- end }}
+  ports:
+    {{- toYaml .ports | nindent 4 }}
+  selector:
+    {{- include "chart.selectorLabels" $ | nindent 4 }}
+{{- end }}
 {{- end }}

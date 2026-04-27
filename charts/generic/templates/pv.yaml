@@ -13,7 +13,10 @@ spec:
   capacity:
     storage: {{ .capacity }}
   accessModes:
-    - {{ .accessMode | default "ReadWriteOnce" }}
+    {{- toYaml (.accessModes | default (list (.accessMode | default "ReadWriteOnce"))) | nindent 4 }}
+  {{- with .volumeMode }}
+  volumeMode: {{ . }}
+  {{- end }}
   persistentVolumeReclaimPolicy: {{ .reclaimPolicy | default "Retain" }}
   {{- with .storageClassName }}
   storageClassName: {{ . | quote }}
@@ -27,6 +30,53 @@ spec:
   hostPath:
     path: {{ .path }}
     type: {{ .type | default "DirectoryOrCreate" }}
+  {{- end }}
+  {{- with .csi }}
+  csi:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}
+{{- range .Values.persistence.persistentVolumes | default list }}
+{{- if .create }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "chart.namedResource" (dict "root" $ "name" .name) }}
+  labels:
+    {{- include "chart.labels" $ | nindent 4 }}
+    {{- with .labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if or .annotations .keep }}
+  annotations:
+    {{- if .keep }}
+    helm.sh/resource-policy: keep
+    {{- end }}
+    {{- with .annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  capacity:
+    storage: {{ .storage }}
+  accessModes:
+    {{- toYaml (.accessModes | default (list "ReadWriteOnce")) | nindent 4 }}
+  {{- with .volumeMode }}
+  volumeMode: {{ . }}
+  {{- end }}
+  persistentVolumeReclaimPolicy: {{ .reclaimPolicy | default "Retain" }}
+  {{- with .storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  {{- with .nfs }}
+  nfs:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .hostPath }}
+  hostPath:
+    {{- toYaml . | nindent 4 }}
   {{- end }}
   {{- with .csi }}
   csi:

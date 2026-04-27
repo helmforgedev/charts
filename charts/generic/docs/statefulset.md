@@ -16,6 +16,7 @@ Common cases:
 - stable pod names
 - ordered or parallel pod management
 - `volumeClaimTemplates`
+- optional `persistentVolumeClaimRetentionPolicy`
 - service discovery via headless-style patterns when required by the workload
 
 ## What it does not deliver
@@ -28,8 +29,11 @@ Common cases:
 
 - use `StatefulSet` only when stable identity is genuinely required
 - define `workload.volumeClaimTemplates` for per-pod storage
+- use `workload.persistentVolumeClaimRetentionPolicy` intentionally because it affects data retention on scale down or delete
+- enable `service.headless.enabled` when stable per-pod DNS is required
 - choose `OrderedReady` or `Parallel` intentionally
 - test rolling upgrades with real persistence attached
+- use `rollout.restartAt` only for deliberate pod restarts
 - avoid using the generic chart for complex datastores that deserve product-specific topology handling
 
 ## Most relevant values
@@ -39,9 +43,12 @@ Common cases:
 | `workload.type` | Must be `StatefulSet` |
 | `workload.podManagementPolicy` | `OrderedReady` or `Parallel` |
 | `workload.volumeClaimTemplates` | PVC templates per replica |
+| `workload.persistentVolumeClaimRetentionPolicy` | PVC retention on deletion or scale-down |
 | `replicaCount` | Number of replicas |
 | `service.*` | Service behavior for the stateful workload |
+| `service.headless.enabled` | Headless Service mode |
 | `persistence.mounts` | Shared mounts across containers |
+| `rollout.restartAt` | Explicit restart marker for intentional pod rollouts |
 | `affinity` | Placement strategy |
 
 ## Example

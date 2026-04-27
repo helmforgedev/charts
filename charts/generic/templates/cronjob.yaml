@@ -6,6 +6,9 @@ metadata:
   name: {{ .name }}
   labels:
     {{- include "chart.labels" $ | nindent 4 }}
+    {{- with .labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   {{- with .annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -26,6 +29,19 @@ spec:
   {{- end }}
   jobTemplate:
     spec:
+      {{- with .parallelism }}
+      parallelism: {{ . }}
+      {{- end }}
+      {{- with .completions }}
+      completions: {{ . }}
+      {{- end }}
+      {{- with .completionMode }}
+      completionMode: {{ . }}
+      {{- end }}
+      {{- with .podFailurePolicy }}
+      podFailurePolicy:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       backoffLimit: {{ .backoffLimit | default 1 }}
       activeDeadlineSeconds: {{ .activeDeadlineSeconds | default 300 }}
       ttlSecondsAfterFinished: {{ .ttlSecondsAfterFinished | default 300 }}
@@ -34,8 +50,13 @@ spec:
           labels:
             {{- include "chart.selectorLabels" $ | nindent 12 }}
             cronjob-name: {{ .name }}
+            {{- with .podLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .podAnnotations }}
           annotations:
-            timestamp: "{{ date "20060102150405" now }}"
+            {{- toYaml .podAnnotations | nindent 12 }}
+          {{- end }}
         spec:
           restartPolicy: {{ .restartPolicy | default "Never" }}
           {{- include "chart.podSpec" (dict "root" $ "containers" (.containers | default (list .)) "podSpec" . "skipGlobalProbes" true) | nindent 10 }}

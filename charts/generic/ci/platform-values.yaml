@@ -1,0 +1,130 @@
+workload:
+  enabled: true
+  type: Deployment
+
+image:
+  repository: docker.io/library/nginx
+  tag: "1.27.5"
+  pullPolicy: IfNotPresent
+
+containers:
+  - name: app
+    ports:
+      - name: http
+        containerPort: 8080
+    terminationMessagePolicy: FallbackToLogsOnError
+
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false
+
+service:
+  enabled: true
+  port: 8080
+  targetPort: 8080
+  labels:
+    app.example.com/tier: web
+  extraPorts:
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+      appProtocol: http
+
+services:
+  - name: admin
+    ports:
+      - name: admin
+        port: 9091
+        targetPort: 9091
+
+ingress:
+  enabled: true
+  hosts:
+    - host: generic.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+
+configMaps:
+  - name: app
+    data:
+      app.yaml: |
+        feature: enabled
+
+secrets:
+  - name: app
+    stringData:
+      token: change-me
+
+rbac:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["configmaps"]
+      verbs: ["get", "list"]
+
+networkPolicy:
+  enabled: true
+  defaultDeny: true
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8080
+
+persistence:
+  persistentVolumeClaims:
+    - name: data
+      storage: 1Gi
+      accessModes: ["ReadWriteOnce"]
+
+podMonitor:
+  enabled: true
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+
+prometheusRule:
+  enabled: true
+  groups:
+    - name: generic.rules
+      rules:
+        - alert: GenericDown
+          expr: up == 0
+          for: 5m
+          labels:
+            severity: warning
+
+gatewayApi:
+  enabled: true
+  httpRoutes:
+    - name: web
+      parentRefs:
+        - name: gateway
+      hostnames:
+        - generic.example.com
+      rules:
+        - matches:
+            - path:
+                type: PathPrefix
+                value: /
+
+keda:
+  enabled: true
+  scaledObject:
+    enabled: true
+    triggers:
+      - type: cpu
+        metricType: Utilization
+        metadata:
+          value: "70"
+
+extraManifests:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: '{{ include "chart.fullname" . }}-extra'
+    data:
+      rendered: "true"
+

@@ -228,6 +228,40 @@ extraManifests:
       policyTypes: [Ingress, Egress]
 ```
 
+### Explicit rollouts
+
+The chart does not add time-based pod annotations during normal renders. To intentionally roll long-running workloads, set:
+
+```yaml
+rollout:
+  restartAt: "2026-04-27T00:00:00Z"
+  podAnnotations:
+    app.example.com/restarted-by: platform
+  checksum:
+    enabled: true
+    configMaps: true
+    secrets: true
+```
+
+### Platform integrations
+
+The chart now includes opt-in primitives for common platform needs:
+
+- `secrets[]`, `externalSecrets`, and `sealedSecrets` for secret integration. ExternalSecret, SealedSecret, ServiceMonitor, PodMonitor, PrometheusRule, KEDA, VPA, and Gateway API resources require their CRDs to exist before enabling them.
+- `rbac.create` and `networkPolicy.enabled` for least-privilege identity and traffic policy.
+- `securityPreset: baseline` or `restricted` for opt-in security contexts when explicit contexts are not set.
+- `services[]`, `service.headless`, `service.nameOverride`, per-port `appProtocol`, and custom Ingress backends for richer networking.
+- `podMonitor`, `prometheusRule`, advanced HPA metrics, and optional KEDA ScaledObject/ScaledJob support.
+- `persistence.persistentVolumeClaims[]` and explicit opt-in `persistence.persistentVolumes[]` for clearer storage ownership.
+
+### Breaking-change migration notes
+
+- The default image is now pinned to `docker.io/library/nginx:1.27.5` with `IfNotPresent` instead of relying on `latest`.
+- Pod templates are deterministic; use `rollout.restartAt` or checksum-enabled ConfigMaps/Secrets for intentional rollouts.
+- HPA now fails validation when used with `DaemonSet` or when `hpa.maxReplicas` is missing.
+- `pdb.enabled` requires exactly one of `pdb.minAvailable` or `pdb.maxUnavailable`.
+- Optional CRD-backed resources are disabled by default and must only be enabled in clusters where the corresponding operator/API is installed.
+
 ## Operational guidance
 
 ### When this chart fits well
@@ -267,6 +301,10 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 - [`docs/statefulset.md`](docs/statefulset.md) — stable identity, persistent storage, and rollout expectations
 - [`docs/daemonset.md`](docs/daemonset.md) — node-level agents and one-pod-per-node behavior
 - [`docs/batch.md`](docs/batch.md) — one-off jobs and scheduled workloads
+- [`docs/security.md`](docs/security.md) — ServiceAccount, Secrets, RBAC, and NetworkPolicy
+- [`docs/observability.md`](docs/observability.md) — ServiceMonitor, PodMonitor, PrometheusRule, VPA, HPA, and KEDA
+- [`docs/gateway.md`](docs/gateway.md) — Gateway API HTTPRoute patterns
+- [`docs/storage.md`](docs/storage.md) — PVC/PV ownership and StatefulSet storage patterns
 
 ## Values Reference
 
@@ -283,9 +321,11 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | `workload.volumeClaimTemplates` | StatefulSet PVC templates | `[]` |
 | `workload.updateStrategy` | StatefulSet/DaemonSet update strategy | — |
 | **Image** | | |
-| `image.repository` | Container image repository | `container.registry.io/project/image` |
-| `image.tag` | Image tag | `latest` |
-| `image.pullPolicy` | Pull policy | `Always` |
+| `global.imageRegistry` | Optional registry prefix for unqualified repositories | `""` |
+| `image.repository` | Container image repository | `docker.io/library/nginx` |
+| `image.tag` | Image tag | `1.27.5` |
+| `image.digest` | Image digest, takes precedence over tag | `""` |
+| `image.pullPolicy` | Pull policy | `IfNotPresent` |
 | `imagePullSecrets` | Registry pull secrets | `[]` |
 | **Containers** | | |
 | `containers` | List of container specs | 1 container on port 8080 |
@@ -297,6 +337,7 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | `serviceAccount.create` | Create a ServiceAccount | `false` |
 | `serviceAccount.name` | ServiceAccount name | `""` |
 | `serviceAccount.annotations` | ServiceAccount annotations | `{}` |
+| `serviceAccount.automountServiceAccountToken` | Mount API token into pods | `false` |
 | **Resources & Probes** | | |
 | `resources` | Default resource limits/requests | `{}` |
 | `livenessProbe` | Global liveness probe (first container) | `{}` |
@@ -305,15 +346,23 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | **Security** | | |
 | `podSecurityContext` | Pod-level security context | `{}` |
 | `securityContext` | Container-level security context | `{}` |
+| `securityPreset` | Optional `baseline` or `restricted` preset when explicit contexts are absent | `""` |
 | **Networking** | | |
+| `service.enabled` | Create the default Service for long-running workloads | `true` |
 | `service.type` | Service type | `ClusterIP` |
 | `service.port` | Service port | `8080` |
 | `service.targetPort` | Target port | `8080` |
+| `service.nameOverride` | Override primary Service name | `""` |
+| `service.headless.enabled` | Render primary Service as headless | `false` |
 | `service.extraPorts` | Additional service ports | `[]` |
+| `services` | Additional Service resources | `[]` |
 | `ingress.enabled` | Enable Ingress | `false` |
 | `ingress.ingressClassName` | Ingress class | `traefik` |
 | `ingress.hosts` | Ingress host rules | `[]` |
+| `ingress.defaultBackend` | Ingress default backend | `{}` |
 | `ingress.tls` | TLS configuration | `[]` |
+| `gatewayApi.enabled` | Enable Gateway API HTTPRoutes | `false` |
+| `gatewayApi.httpRoutes` | HTTPRoute definitions | `[]` |
 | **Scheduling** | | |
 | `updateStrategy` | Deployment rollout strategy | `RollingUpdate 25%/25%` |
 | `nodeSelector` | Node selector | `{}` |
@@ -322,11 +371,27 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | `topologySpreadConstraints` | Topology spread | `[]` |
 | `priorityClassName` | Priority class | `""` |
 | `terminationGracePeriodSeconds` | Graceful shutdown timeout | `30` |
+| `runtimeClassName` | RuntimeClass name | `""` |
+| `schedulerName` | Custom scheduler | `""` |
+| `hostAliases` | Pod host aliases | `[]` |
+| `dnsPolicy` | Pod DNS policy | `""` |
+| `dnsConfig` | Pod DNS config | `{}` |
+| `hostNetwork` | Use node network namespace | `false` |
+| `hostPID` | Use node PID namespace | `false` |
+| `hostIPC` | Use node IPC namespace | `false` |
+| `shareProcessNamespace` | Share process namespace between containers | `false` |
+| `enableServiceLinks` | Inject Service env vars into pods | `true` |
+| `rollout.restartAt` | Explicit restart marker for pod template annotations | `""` |
+| `rollout.podAnnotations` | Rollout-specific pod annotations | `{}` |
+| `rollout.checksum` | ConfigMap/Secret checksum rollout controls | enabled |
 | **Autoscaling** | | |
 | `hpa.enabled` | Enable HPA (not for DaemonSet) | `false` |
 | `hpa.minReplicas` | Minimum replicas | `1` |
 | `hpa.maxReplicas` | Maximum replicas | — |
 | `hpa.metrics` | Scaling metrics | `[]` |
+| `keda.enabled` | Enable KEDA custom resources | `false` |
+| `keda.scaledObject` | KEDA ScaledObject configuration | disabled |
+| `keda.scaledJobs` | KEDA ScaledJob definitions | `[]` |
 | `vpa.enabled` | Enable VPA | `false` |
 | `vpa.updateMode` | VPA update mode | `Off` |
 | `pdb.enabled` | Enable PodDisruptionBudget | `false` |
@@ -335,12 +400,26 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | **Storage** | | |
 | `persistence.volumes` | Extra volumes | `[]` |
 | `persistence.mounts` | Volume mounts for all containers | `[]` |
-| `persistence.storage` | PV/PVC definitions | `[]` |
+| `persistence.storage` | Legacy PV/PVC definitions | `[]` |
+| `persistence.persistentVolumeClaims` | Declarative PVCs | `[]` |
+| `persistence.persistentVolumes` | Explicit opt-in PVs | `[]` |
 | **Observability** | | |
 | `serviceMonitor.enabled` | Enable Prometheus ServiceMonitor | `false` |
 | `serviceMonitor.endpoints` | Scrape endpoints | `[]` |
+| `podMonitor.enabled` | Enable Prometheus PodMonitor | `false` |
+| `podMonitor.podMetricsEndpoints` | Pod scrape endpoints | `[]` |
+| `prometheusRule.enabled` | Enable PrometheusRule | `false` |
+| `prometheusRule.groups` | Prometheus alert/recording rule groups | `[]` |
 | **ConfigMaps** | | |
 | `configMaps` | Declarative ConfigMap resources | `[]` |
+| **Security** | | |
+| `secrets` | Declarative Secret resources | `[]` |
+| `externalSecrets.enabled` | Enable ExternalSecret resources | `false` |
+| `sealedSecrets.enabled` | Enable SealedSecret resources | `false` |
+| `rbac.create` | Create Role and RoleBinding | `false` |
+| `rbac.clusterRole.create` | Create ClusterRole and ClusterRoleBinding | `false` |
+| `networkPolicy.enabled` | Create NetworkPolicy | `false` |
+| `networkPolicy.defaultDeny` | Render default-deny policy shape | `false` |
 | **Batch** | | |
 | `jobs` | One-time Job definitions | `[]` |
 | `cronjobs` | CronJob definitions | `[]` |

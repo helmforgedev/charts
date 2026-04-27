@@ -1,0 +1,43 @@
+suite: Storage
+templates:
+  - pvc.yaml
+  - pv.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render declarative PVCs
+    set:
+      persistence:
+        persistentVolumeClaims:
+          - name: data
+            storage: 10Gi
+            accessModes: ["ReadWriteOnce"]
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+        template: pvc.yaml
+      - equal:
+          path: metadata.name
+          value: test-data
+        template: pvc.yaml
+
+  - it: should render explicit PVs
+    set:
+      persistence:
+        persistentVolumes:
+          - name: data
+            create: true
+            storage: 10Gi
+            accessModes: ["ReadWriteOnce"]
+            hostPath:
+              path: /tmp/data
+              type: DirectoryOrCreate
+    asserts:
+      - isKind:
+          of: PersistentVolume
+        template: pv.yaml
+      - equal:
+          path: metadata.name
+          value: test-data
+        template: pv.yaml
