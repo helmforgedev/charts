@@ -19,6 +19,13 @@ tests:
       - failedTemplate:
           errorMessage: "SQLite mode requires persistence.enabled=true or persistence.existingClaim to avoid losing Gophish state."
 
+  - it: should fail when SQLite path is relative
+    set:
+      database.sqlite.path: gophish.db
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.sqlite.path must be an absolute path because it is used as a Kubernetes volume mount target."
+
   - it: should fail ambiguous auto database mode
     set:
       mysql.enabled: true
@@ -122,6 +129,17 @@ tests:
       - failedTemplate:
           errorMessage: "gophish.adminServer.certPath and gophish.adminServer.keyPath must share the same directory when gophish.adminServer.certSecret is set."
 
+  - it: should fail admin native TLS when cert path is relative
+    set:
+      gophish:
+        adminServer:
+          certSecret: admin-tls
+          certPath: tls.crt
+          keyPath: /opt/gophish/tls/admin/tls.key
+    asserts:
+      - failedTemplate:
+          errorMessage: "gophish.adminServer.certPath must be an absolute path when gophish.adminServer.certSecret is set."
+
   - it: should fail phish native TLS when cert and key paths use different directories
     set:
       gophish:
@@ -132,6 +150,17 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "gophish.phishServer.certPath and gophish.phishServer.keyPath must share the same directory when gophish.phishServer.certSecret is set."
+
+  - it: should fail phish native TLS when key path is relative
+    set:
+      gophish:
+        phishServer:
+          certSecret: phish-tls
+          certPath: /opt/gophish/tls/phish/tls.crt
+          keyPath: tls.key
+    asserts:
+      - failedTemplate:
+          errorMessage: "gophish.phishServer.keyPath must be an absolute path when gophish.phishServer.certSecret is set."
 
   - it: should fail backup for MySQL mode
     set:

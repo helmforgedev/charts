@@ -147,6 +147,9 @@ __GOPHISH_DATABASE_DSN__
 {{- if and (eq $mode "sqlite") (not .Values.persistence.enabled) (not .Values.persistence.existingClaim) -}}
 {{- fail "SQLite mode requires persistence.enabled=true or persistence.existingClaim to avoid losing Gophish state." -}}
 {{- end -}}
+{{- if and (eq $mode "sqlite") (not (hasPrefix "/" .Values.database.sqlite.path)) -}}
+{{- fail "database.sqlite.path must be an absolute path because it is used as a Kubernetes volume mount target." -}}
+{{- end -}}
 {{- if and (eq .Values.database.mode "sqlite") .Values.mysql.enabled -}}
 {{- fail "database.mode=sqlite cannot be combined with mysql.enabled=true. Disable mysql.enabled or set database.mode=mysql." -}}
 {{- end -}}
@@ -177,8 +180,20 @@ __GOPHISH_DATABASE_DSN__
 {{- if and .Values.phishIngress.enabled (not .Values.phishIngress.hosts) -}}
 {{- fail "phishIngress.enabled=true requires at least one phishIngress.hosts entry." -}}
 {{- end -}}
+{{- if and .Values.gophish.adminServer.certSecret (not (hasPrefix "/" .Values.gophish.adminServer.certPath)) -}}
+{{- fail "gophish.adminServer.certPath must be an absolute path when gophish.adminServer.certSecret is set." -}}
+{{- end -}}
+{{- if and .Values.gophish.adminServer.certSecret (not (hasPrefix "/" .Values.gophish.adminServer.keyPath)) -}}
+{{- fail "gophish.adminServer.keyPath must be an absolute path when gophish.adminServer.certSecret is set." -}}
+{{- end -}}
 {{- if and .Values.gophish.adminServer.certSecret (ne (dir .Values.gophish.adminServer.certPath) (dir .Values.gophish.adminServer.keyPath)) -}}
 {{- fail "gophish.adminServer.certPath and gophish.adminServer.keyPath must share the same directory when gophish.adminServer.certSecret is set." -}}
+{{- end -}}
+{{- if and .Values.gophish.phishServer.certSecret (not (hasPrefix "/" .Values.gophish.phishServer.certPath)) -}}
+{{- fail "gophish.phishServer.certPath must be an absolute path when gophish.phishServer.certSecret is set." -}}
+{{- end -}}
+{{- if and .Values.gophish.phishServer.certSecret (not (hasPrefix "/" .Values.gophish.phishServer.keyPath)) -}}
+{{- fail "gophish.phishServer.keyPath must be an absolute path when gophish.phishServer.certSecret is set." -}}
 {{- end -}}
 {{- if and .Values.gophish.phishServer.certSecret (ne (dir .Values.gophish.phishServer.certPath) (dir .Values.gophish.phishServer.keyPath)) -}}
 {{- fail "gophish.phishServer.certPath and gophish.phishServer.keyPath must share the same directory when gophish.phishServer.certSecret is set." -}}
