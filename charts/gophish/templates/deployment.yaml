@@ -1,0 +1,202 @@
+{{- include "gophish.validateAll" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gophish.fullname" . }}
+  labels:
+    {{- include "gophish.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "gophish.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gophish.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/config-secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "gophish.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: gophish
+          image: {{ include "gophish.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              cp /opt/gophish/config-src/{{ include "gophish.configSecretKey" . }} /opt/gophish/config.json
+              {{- if eq (include "gophish.needsRuntimeDsn" .) "true" }}
+              if [ -n "${MYSQL_PASSWORD:-}" ]; then
+                GOPHISH_DATABASE_DSN="${GOPHISH_DATABASE_USERNAME}:${MYSQL_PASSWORD}@(${GOPHISH_DATABASE_HOST}:${GOPHISH_DATABASE_PORT})/${GOPHISH_DATABASE_NAME}?${GOPHISH_DATABASE_PARAMETERS}"
+              fi
+              if [ -n "${GOPHISH_DATABASE_DSN:-}" ]; then
+                jq --arg db_path "${GOPHISH_DATABASE_DSN}" '.db_path = $db_path' /opt/gophish/config.json > /opt/gophish/config.json.tmp
+                cat /opt/gophish/config.json.tmp > /opt/gophish/config.json
+                rm -f /opt/gophish/config.json.tmp
+              fi
+              {{- end }}
+              exec ./gophish
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: admin
+              containerPort: {{ .Values.adminService.targetPort }}
+              protocol: TCP
+            - name: phish
+              containerPort: {{ .Values.phishService.targetPort }}
+              protocol: TCP
+          {{- if or (eq (include "gophish.needsRuntimeDsn" .) "true") .Values.extraEnv }}
+          env:
+            {{- if and (eq (include "gophish.effectiveDatabaseMode" . | trim) "external") .Values.database.external.existingSecret }}
+            - name: GOPHISH_DATABASE_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.external.existingSecret }}
+                  key: {{ .Values.database.external.existingSecretDsnKey }}
+            {{- end }}
+            {{- if eq (include "gophish.effectiveDatabaseMode" . | trim) "mysql" }}
+            - name: GOPHISH_DATABASE_HOST
+              value: {{ include "gophish.mysqlServiceName" . | quote }}
+            - name: GOPHISH_DATABASE_PORT
+              value: {{ include "gophish.mysqlPort" . | quote }}
+            - name: GOPHISH_DATABASE_NAME
+              value: {{ .Values.mysql.auth.database | quote }}
+            - name: GOPHISH_DATABASE_USERNAME
+              value: {{ .Values.mysql.auth.username | quote }}
+            - name: GOPHISH_DATABASE_PARAMETERS
+              value: {{ .Values.database.external.parameters | quote }}
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gophish.mysqlSecretName" . }}
+                  key: {{ .Values.mysql.auth.existingSecretUserPasswordKey }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            tcpSocket:
+              port: admin
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            tcpSocket:
+              port: admin
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            tcpSocket:
+              port: phish
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /opt/gophish/config-src/{{ include "gophish.configSecretKey" . }}
+              subPath: {{ include "gophish.configSecretKey" . }}
+              readOnly: true
+            - name: data
+              mountPath: {{ include "gophish.sqliteDirectory" . }}
+            {{- if .Values.gophish.adminServer.certSecret }}
+            - name: admin-tls
+              mountPath: {{ dir .Values.gophish.adminServer.certPath }}
+              readOnly: true
+            {{- end }}
+            {{- if .Values.gophish.phishServer.certSecret }}
+            - name: phish-tls
+              mountPath: {{ dir .Values.gophish.phishServer.certPath }}
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: config
+          secret:
+            secretName: {{ include "gophish.configSecretName" . }}
+        - name: data
+          {{- if or .Values.persistence.enabled .Values.persistence.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ include "gophish.dataClaimName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if .Values.gophish.adminServer.certSecret }}
+        - name: admin-tls
+          secret:
+            secretName: {{ .Values.gophish.adminServer.certSecret }}
+            items:
+              - key: {{ .Values.gophish.adminServer.certKey }}
+                path: {{ base .Values.gophish.adminServer.certPath }}
+              - key: {{ .Values.gophish.adminServer.keyKey }}
+                path: {{ base .Values.gophish.adminServer.keyPath }}
+        {{- end }}
+        {{- if .Values.gophish.phishServer.certSecret }}
+        - name: phish-tls
+          secret:
+            secretName: {{ .Values.gophish.phishServer.certSecret }}
+            items:
+              - key: {{ .Values.gophish.phishServer.certKey }}
+                path: {{ base .Values.gophish.phishServer.certPath }}
+              - key: {{ .Values.gophish.phishServer.keyKey }}
+                path: {{ base .Values.gophish.phishServer.keyPath }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}

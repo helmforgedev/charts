@@ -1,0 +1,210 @@
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/config-secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-gophish
+
+  - it: should use the pinned official image
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/gophish/gophish:0.12.1
+
+  - it: should expose admin and phishing container ports
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: admin
+            containerPort: 3333
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: phish
+            containerPort: 80
+            protocol: TCP
+
+  - it: should run with service account token automount disabled
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: test-gophish
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: should copy config from Secret and run gophish directly
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command[0]
+          value: /bin/sh
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "cp /opt/gophish/config-src/config.json /opt/gophish/config.json"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "exec ./gophish"
+
+  - it: should use an existing config Secret and custom key
+    template: templates/deployment.yaml
+    set:
+      gophish.config.existingSecret: managed-config
+      gophish.config.existingSecretKey: custom.json
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].secret.secretName
+          value: managed-config
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].subPath
+          value: custom.json
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "config-src/custom.json"
+
+  - it: should ignore custom config key unless an existing config Secret is used
+    template: templates/deployment.yaml
+    set:
+      gophish.config.existingSecretKey: custom.json
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].subPath
+          value: config.json
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "config-src/config.json"
+
+  - it: should mount the SQLite data directory
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /opt/gophish/data
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: test-gophish-data
+
+  - it: should set TCP probes
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.tcpSocket.port
+          value: admin
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+          value: admin
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.tcpSocket.port
+          value: phish
+
+  - it: should apply default resources and security context
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 512Mi
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.add
+          content: NET_BIND_SERVICE
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+
+  - it: should add extra env and volumes
+    template: templates/deployment.yaml
+    set:
+      extraEnv:
+        - name: TZ
+          value: UTC
+      extraVolumes:
+        - name: scratch
+          emptyDir: {}
+      extraVolumeMounts:
+        - name: scratch
+          mountPath: /scratch
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TZ
+            value: UTC
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: scratch
+            emptyDir: {}
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: scratch
+            mountPath: /scratch
+
+  - it: should mount an existing PVC claim when configured
+    template: templates/deployment.yaml
+    set:
+      persistence.existingClaim: existing-gophish-data
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: existing-gophish-data
+
+  - it: should mount an existing PVC claim when persistence creation is disabled
+    template: templates/deployment.yaml
+    set:
+      persistence:
+        enabled: false
+        existingClaim: existing-gophish-data
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: existing-gophish-data
+
+  - it: should use the configured embedded MySQL service port in the runtime DSN
+    template: templates/deployment.yaml
+    set:
+      database.mode: mysql
+      mysql:
+        enabled: true
+        service:
+          port: 3307
+        auth:
+          password: local-test-db-pass
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[1].value
+          value: "3307"

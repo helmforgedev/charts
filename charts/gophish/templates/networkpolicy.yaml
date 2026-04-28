@@ -1,0 +1,133 @@
+{{- include "gophish.validateAll" . }}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "gophish.fullname" . }}
+  labels:
+    {{- include "gophish.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "gophish.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if .Values.networkPolicy.egress.enabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.adminService.targetPort }}
+      from:
+        {{- if .Values.networkPolicy.admin.allowSameNamespace }}
+        - podSelector: {}
+        {{- end }}
+        {{- range .Values.networkPolicy.admin.namespaceSelectors }}
+        - namespaceSelector:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- range .Values.networkPolicy.admin.podSelectors }}
+        - podSelector:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- range .Values.networkPolicy.admin.ipBlocks }}
+        - ipBlock:
+            cidr: {{ .cidr | quote }}
+            {{- with .except }}
+            except:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+        {{- end }}
+        {{- with .Values.networkPolicy.admin.extraFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if not (or .Values.networkPolicy.admin.allowSameNamespace .Values.networkPolicy.admin.namespaceSelectors .Values.networkPolicy.admin.podSelectors .Values.networkPolicy.admin.ipBlocks .Values.networkPolicy.admin.extraFrom) }}
+        []
+        {{- end }}
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.phishService.targetPort }}
+      from:
+        {{- if .Values.networkPolicy.phish.allowSameNamespace }}
+        - podSelector: {}
+        {{- end }}
+        {{- range .Values.networkPolicy.phish.namespaceSelectors }}
+        - namespaceSelector:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- range .Values.networkPolicy.phish.podSelectors }}
+        - podSelector:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- range .Values.networkPolicy.phish.ipBlocks }}
+        - ipBlock:
+            cidr: {{ .cidr | quote }}
+            {{- with .except }}
+            except:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+        {{- end }}
+        {{- with .Values.networkPolicy.phish.extraFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if not (or .Values.networkPolicy.phish.allowSameNamespace .Values.networkPolicy.phish.namespaceSelectors .Values.networkPolicy.phish.podSelectors .Values.networkPolicy.phish.ipBlocks .Values.networkPolicy.phish.extraFrom) }}
+        []
+        {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  egress:
+    {{- if .Values.networkPolicy.egress.allowDns }}
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+    {{- if eq (include "gophish.effectiveDatabaseMode" . | trim) "mysql" }}
+    - ports:
+        - protocol: TCP
+          port: {{ include "gophish.mysqlPort" . }}
+      to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ default "mysql" .Values.mysql.nameOverride }}
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: mysql
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.externalDatabase.enabled }}
+    - ports:
+        {{- range .Values.networkPolicy.egress.externalDatabase.ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+      to:
+        {{- range .Values.networkPolicy.egress.externalDatabase.cidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+        {{- range .Values.networkPolicy.egress.externalDatabase.namespaceSelectors }}
+        - namespaceSelector:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- range .Values.networkPolicy.egress.externalDatabase.podSelectors }}
+        - podSelector:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.smtp.enabled }}
+    - ports:
+        {{- range .Values.networkPolicy.egress.smtp.ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+      to:
+        {{- range .Values.networkPolicy.egress.smtp.cidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.extra }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

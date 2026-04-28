@@ -1,0 +1,132 @@
+suite: Services
+templates:
+  - templates/service-admin.yaml
+  - templates/service-phish.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render admin Service
+    template: templates/service-admin.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - notExists:
+          path: spec.ipFamilyPolicy
+      - notExists:
+          path: spec.ipFamilies
+      - equal:
+          path: metadata.name
+          value: test-gophish-admin
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: admin
+      - contains:
+          path: spec.ports
+          content:
+            name: admin
+            port: 3333
+            targetPort: admin
+            protocol: TCP
+
+  - it: should render phishing Service
+    template: templates/service-phish.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - notExists:
+          path: spec.ipFamilyPolicy
+      - notExists:
+          path: spec.ipFamilies
+      - equal:
+          path: metadata.name
+          value: test-gophish-phish
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: phish
+      - contains:
+          path: spec.ports
+          content:
+            name: phish
+            port: 80
+            targetPort: phish
+            protocol: TCP
+
+  - it: should use selector labels
+    template: templates/service-admin.yaml
+    asserts:
+      - equal:
+          path: spec.selector["app.kubernetes.io/name"]
+          value: gophish
+      - equal:
+          path: spec.selector["app.kubernetes.io/instance"]
+          value: test
+
+  - it: should set admin Service dual-stack fields when configured
+    template: templates/service-admin.yaml
+    set:
+      adminService:
+        ipFamilyPolicy: PreferDualStack
+        ipFamilies:
+          - IPv4
+          - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv4
+      - equal:
+          path: spec.ipFamilies[1]
+          value: IPv6
+
+  - it: should set phishing Service dual-stack fields when configured
+    template: templates/service-phish.yaml
+    set:
+      phishService:
+        ipFamilyPolicy: RequireDualStack
+        ipFamilies:
+          - IPv6
+          - IPv4
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: RequireDualStack
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv6
+      - equal:
+          path: spec.ipFamilies[1]
+          value: IPv4
+
+  - it: should support SingleStack IPv6 on the admin Service
+    template: templates/service-admin.yaml
+    set:
+      adminService:
+        ipFamilyPolicy: SingleStack
+        ipFamilies:
+          - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: SingleStack
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv6
+
+  - it: should support SingleStack IPv6 on the phishing Service
+    template: templates/service-phish.yaml
+    set:
+      phishService:
+        ipFamilyPolicy: SingleStack
+        ipFamilies:
+          - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: SingleStack
+        documentIndex: 0
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv6

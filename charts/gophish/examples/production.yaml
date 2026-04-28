@@ -1,0 +1,38 @@
+# Gophish production-oriented deployment.
+# Use case: public phishing ingress, private admin access, and external MySQL.
+
+database:
+  mode: external
+  external:
+    host: mysql.database.svc.cluster.local
+    name: gophish
+    username: gophish
+    existingSecret: gophish-db
+    existingSecretDsnKey: dsn
+
+phishIngress:
+  enabled: true
+  hosts:
+    - host: training.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: gophish-phish-tls
+      hosts:
+        - training.example.com
+
+networkPolicy:
+  enabled: true
+  admin:
+    ipBlocks:
+      - cidr: 10.10.0.0/16
+  phish:
+    namespaceSelectors:
+      - matchLabels:
+          kubernetes.io/metadata.name: ingress-system
+  egress:
+    externalDatabase:
+      enabled: true
+      cidrs:
+        - 10.0.0.0/8

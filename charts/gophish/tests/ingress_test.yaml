@@ -1,0 +1,75 @@
+suite: Ingress
+templates:
+  - templates/ingress-admin.yaml
+  - templates/ingress-phish.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render ingresses by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render admin ingress with TLS
+    template: templates/ingress-admin.yaml
+    set:
+      adminIngress:
+        enabled: true
+        ingressClassName: nginx
+        annotations:
+          nginx.ingress.kubernetes.io/backend-protocol: HTTP
+        tls:
+          - secretName: admin-tls
+            hosts:
+              - admin.example.com
+        hosts:
+          - host: admin.example.com
+            paths:
+              - path: /
+                pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: metadata.name
+          value: test-gophish-admin
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.tls[0].secretName
+          value: admin-tls
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.name
+          value: test-gophish-admin
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.name
+          value: admin
+
+  - it: should render phishing ingress
+    template: templates/ingress-phish.yaml
+    set:
+      phishIngress:
+        enabled: true
+        ingressClassName: traefik
+        hosts:
+          - host: phish.example.com
+            paths:
+              - path: /
+                pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: metadata.name
+          value: test-gophish-phish
+      - equal:
+          path: spec.ingressClassName
+          value: traefik
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.name
+          value: test-gophish-phish
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.name
+          value: phish

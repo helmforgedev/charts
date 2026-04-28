@@ -1,0 +1,59 @@
+suite: Config Secret
+templates:
+  - templates/config-secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render generated config Secret by default
+    asserts:
+      - isKind:
+          of: Secret
+      - equal:
+          path: metadata.name
+          value: test-gophish-config
+      - exists:
+          path: stringData["config.json"]
+
+  - it: should keep generated config Secret on config.json when existingSecretKey is customized without an existing Secret
+    set:
+      gophish.config.existingSecretKey: custom.json
+    asserts:
+      - exists:
+          path: stringData["config.json"]
+      - notExists:
+          path: stringData["custom.json"]
+
+  - it: should configure SQLite by default
+    asserts:
+      - matchRegex:
+          path: stringData["config.json"]
+          pattern: '"db_name": "sqlite3"'
+      - matchRegex:
+          path: stringData["config.json"]
+          pattern: '"db_path": "/opt/gophish/data/gophish.db"'
+
+  - it: should include separated admin and phishing listen URLs
+    asserts:
+      - matchRegex:
+          path: stringData["config.json"]
+          pattern: '"listen_url": "0.0.0.0:3333"'
+      - matchRegex:
+          path: stringData["config.json"]
+          pattern: '"listen_url": "0.0.0.0:80"'
+
+  - it: should include trusted origins
+    set:
+      gophish.adminServer.trustedOrigins:
+        - https://admin.example.com
+    asserts:
+      - matchRegex:
+          path: stringData["config.json"]
+          pattern: '"trusted_origins": \["https://admin.example.com"\]'
+
+  - it: should not render generated Secret when existing config Secret is used
+    set:
+      gophish.config.existingSecret: managed-config
+    asserts:
+      - hasDocuments:
+          count: 0

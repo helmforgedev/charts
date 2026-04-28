@@ -1,0 +1,41 @@
+{{- include "gophish.validateAll" . }}
+{{- if .Values.adminIngress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "gophish.fullname" . }}-admin
+  labels:
+    {{- include "gophish.labels" . | nindent 4 }}
+    app.kubernetes.io/component: admin
+  {{- with .Values.adminIngress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.adminIngress.ingressClassName }}
+  ingressClassName: {{ .Values.adminIngress.ingressClassName }}
+  {{- end }}
+  tls:
+    {{- range .Values.adminIngress.tls }}
+    - secretName: {{ .secretName }}
+      hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+    {{- end }}
+  rules:
+    {{- range .Values.adminIngress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range (.paths | default (list (dict "path" "/" "pathType" "Prefix"))) }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "gophish.fullname" $ }}-admin
+                port:
+                  name: admin
+          {{- end }}
+    {{- end }}
+{{- end }}

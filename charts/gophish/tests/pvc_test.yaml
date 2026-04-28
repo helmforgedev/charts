@@ -1,0 +1,43 @@
+suite: PVC
+templates:
+  - templates/pvc.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a PVC by default
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: metadata.name
+          value: test-gophish-data
+
+  - it: should set default size and access mode
+    asserts:
+      - equal:
+          path: spec.resources.requests.storage
+          value: 5Gi
+      - contains:
+          path: spec.accessModes
+          content: ReadWriteOnce
+
+  - it: should set storage class and annotations
+    set:
+      persistence.storageClass: fast
+      persistence.annotations:
+        helm.sh/resource-policy: keep
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: fast
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+
+  - it: should not render when existingClaim is set
+    set:
+      persistence.existingClaim: existing-gophish-data
+    asserts:
+      - hasDocuments:
+          count: 0

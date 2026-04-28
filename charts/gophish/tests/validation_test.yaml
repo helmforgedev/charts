@@ -1,0 +1,217 @@
+suite: Validations
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should fail when SQLite uses multiple replicas
+    set:
+      replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: "SQLite mode requires replicaCount=1. Configure database.mode=external or database.mode=mysql for multi-replica experiments after validating shared database behavior, or set replicaCount to 1."
+
+  - it: should fail when SQLite persistence is disabled
+    set:
+      persistence.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "SQLite mode requires persistence.enabled=true or persistence.existingClaim to avoid losing Gophish state."
+
+  - it: should fail when SQLite path is relative
+    set:
+      database.sqlite.path: gophish.db
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.sqlite.path must be an absolute path because it is used as a Kubernetes volume mount target."
+
+  - it: should fail when SQLite data directory shadows the application root
+    set:
+      database.sqlite.path: /opt/gophish/gophish.db
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.sqlite.path must not resolve to /opt/gophish because the data volume would hide the application binary."
+
+  - it: should fail ambiguous auto database mode
+    set:
+      mysql.enabled: true
+      database.external.host: mysql.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.mode=auto cannot select safely when both mysql.enabled and database.external.* are set. Choose database.mode=mysql or database.mode=external explicitly."
+
+  - it: should fail external mode without database target
+    set:
+      database.mode: external
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.mode=external requires database.external.host or database.external.existingSecret."
+
+  - it: should fail admin ingress without TLS
+    set:
+      adminIngress:
+        enabled: true
+        hosts:
+          - host: admin.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: "adminIngress.enabled=true requires adminIngress.tls because the admin UI is privileged. Use port-forward for private access or configure TLS explicitly."
+
+  - it: should fail admin ingress without hosts
+    set:
+      adminIngress:
+        enabled: true
+        tls:
+          - secretName: admin-tls
+            hosts:
+              - admin.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: "adminIngress.enabled=true requires at least one adminIngress.hosts entry."
+
+  - it: should fail phishing ingress without hosts
+    set:
+      phishIngress:
+        enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "phishIngress.enabled=true requires at least one phishIngress.hosts entry."
+
+  - it: should fail sqlite mode with embedded MySQL enabled
+    set:
+      database.mode: sqlite
+      mysql.enabled: true
+      mysql.auth.password: local-test-password
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.mode=sqlite cannot be combined with mysql.enabled=true. Disable mysql.enabled or set database.mode=mysql."
+
+  - it: should fail external mode with embedded MySQL enabled
+    set:
+      database.mode: external
+      database.external.existingSecret: gophish-db
+      mysql.enabled: true
+      mysql.auth.password: local-test-password
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.mode=external cannot be combined with mysql.enabled=true. Use external database values or embedded MySQL, not both."
+
+  - it: should fail mysql mode with external database values
+    set:
+      database.mode: mysql
+      database.external.host: mysql.example.com
+      mysql.enabled: true
+      mysql.auth.password: local-test-password
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.mode=mysql cannot be combined with database.external.*. Remove external database values or set database.mode=external."
+
+  - it: should fail mysql mode when embedded dependency is disabled
+    set:
+      database.mode: mysql
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.mode=mysql requires mysql.enabled=true so the embedded MySQL dependency and credential Secret are installed."
+
+  - it: should fail inline external database password without explicit opt-in
+    set:
+      database:
+        mode: external
+        external:
+          host: mysql.example.com
+          password: local-test-password
+    asserts:
+      - failedTemplate:
+          errorMessage: "Inline external database passwords require database.external.allowInlinePassword=true and are intended only for local tests. Use database.external.existingSecret for production."
+
+  - it: should fail admin native TLS when cert and key paths use different directories
+    set:
+      gophish:
+        adminServer:
+          certSecret: admin-tls
+          certPath: /opt/gophish/tls/admin/tls.crt
+          keyPath: /opt/gophish/private/admin/tls.key
+    asserts:
+      - failedTemplate:
+          errorMessage: "gophish.adminServer.certPath and gophish.adminServer.keyPath must share the same directory when gophish.adminServer.certSecret is set."
+
+  - it: should fail admin native TLS when cert path is relative
+    set:
+      gophish:
+        adminServer:
+          certSecret: admin-tls
+          certPath: tls.crt
+          keyPath: /opt/gophish/tls/admin/tls.key
+    asserts:
+      - failedTemplate:
+          errorMessage: "gophish.adminServer.certPath must be an absolute path when gophish.adminServer.certSecret is set."
+
+  - it: should fail phish native TLS when cert and key paths use different directories
+    set:
+      gophish:
+        phishServer:
+          certSecret: phish-tls
+          certPath: /opt/gophish/tls/phish/tls.crt
+          keyPath: /opt/gophish/private/phish/tls.key
+    asserts:
+      - failedTemplate:
+          errorMessage: "gophish.phishServer.certPath and gophish.phishServer.keyPath must share the same directory when gophish.phishServer.certSecret is set."
+
+  - it: should fail phish native TLS when key path is relative
+    set:
+      gophish:
+        phishServer:
+          certSecret: phish-tls
+          certPath: /opt/gophish/tls/phish/tls.crt
+          keyPath: tls.key
+    asserts:
+      - failedTemplate:
+          errorMessage: "gophish.phishServer.keyPath must be an absolute path when gophish.phishServer.certSecret is set."
+
+  - it: should fail backup for MySQL mode
+    set:
+      mysql.enabled: true
+      mysql.auth.password: local-test-password
+      backup:
+        enabled: true
+        s3:
+          endpoint: http://minio.minio.svc.cluster.local:9000
+          bucket: gophish-backups
+          existingSecret: gophish-backup
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.enabled currently supports only SQLite mode. Use the MySQL dependency backup or external database backup tooling for MySQL modes."
+
+  - it: should fail backup without endpoint
+    set:
+      backup:
+        enabled: true
+        s3:
+          bucket: gophish-backups
+          existingSecret: gophish-backup
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.endpoint is required when backup.enabled=true."
+
+  - it: should fail backup without bucket
+    set:
+      backup:
+        enabled: true
+        s3:
+          endpoint: http://minio.minio.svc.cluster.local:9000
+          existingSecret: gophish-backup
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.bucket is required when backup.enabled=true."
+
+  - it: should fail backup without S3 credentials
+    set:
+      backup:
+        enabled: true
+        s3:
+          endpoint: http://minio.minio.svc.cluster.local:9000
+          bucket: gophish-backups
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey."
