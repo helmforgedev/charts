@@ -103,6 +103,10 @@ mysql
 {{- end -}}
 {{- end -}}
 
+{{- define "gophish.mysqlPort" -}}
+{{- dig "service" "port" 3306 .Values.mysql -}}
+{{- end -}}
+
 {{- define "gophish.mysqlSecretName" -}}
 {{- if .Values.mysql.auth.existingSecret -}}
 {{- .Values.mysql.auth.existingSecret -}}
