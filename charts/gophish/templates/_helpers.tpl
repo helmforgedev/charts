@@ -58,6 +58,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "gophish.configSecretKey" -}}
+{{- if .Values.gophish.config.existingSecret -}}
+{{- default "config.json" .Values.gophish.config.existingSecretKey -}}
+{{- else -}}
+config.json
+{{- end -}}
+{{- end -}}
+
 {{- define "gophish.sqliteDirectory" -}}
 {{- dir .Values.database.sqlite.path -}}
 {{- end -}}
@@ -149,6 +157,9 @@ __GOPHISH_DATABASE_DSN__
 {{- end -}}
 {{- if and (eq $mode "sqlite") (not (hasPrefix "/" .Values.database.sqlite.path)) -}}
 {{- fail "database.sqlite.path must be an absolute path because it is used as a Kubernetes volume mount target." -}}
+{{- end -}}
+{{- if and (eq $mode "sqlite") (eq (dir .Values.database.sqlite.path) "/opt/gophish") -}}
+{{- fail "database.sqlite.path must not resolve to /opt/gophish because the data volume would hide the application binary." -}}
 {{- end -}}
 {{- if and (eq .Values.database.mode "sqlite") .Values.mysql.enabled -}}
 {{- fail "database.mode=sqlite cannot be combined with mysql.enabled=true. Disable mysql.enabled or set database.mode=mysql." -}}
