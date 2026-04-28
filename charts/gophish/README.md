@@ -88,6 +88,20 @@ phishIngress:
           pathType: Prefix
 ```
 
+## Dual-Stack Services
+
+Admin and phishing Services can opt into Kubernetes dual-stack fields independently. Leave these values omitted to inherit cluster defaults.
+
+```yaml
+adminService:
+  ipFamilyPolicy: PreferDualStack
+
+phishService:
+  ipFamilyPolicy: PreferDualStack
+```
+
+Explicit `ipFamilies` should be used only on clusters that advertise those families.
+
 ## Backup
 
 The chart-managed backup supports SQLite mode only. It archives the chart-managed PVC path that contains the SQLite database and uploads the archive plus checksum to S3-compatible storage with `docker.io/helmforge/mc:1.0.0`.
@@ -127,4 +141,3 @@ helm unittest charts/gophish
 helm template gophish charts/gophish | kubeconform -strict -kubernetes-version 1.30.0 -schema-location default
 ct lint --target-branch main --charts charts/gophish
 ```
-

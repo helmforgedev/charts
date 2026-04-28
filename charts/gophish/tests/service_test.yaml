@@ -11,6 +11,10 @@ tests:
     asserts:
       - isKind:
           of: Service
+      - notExists:
+          path: spec.ipFamilyPolicy
+      - notExists:
+          path: spec.ipFamilies
       - equal:
           path: metadata.name
           value: test-gophish-admin
@@ -30,6 +34,10 @@ tests:
     asserts:
       - isKind:
           of: Service
+      - notExists:
+          path: spec.ipFamilyPolicy
+      - notExists:
+          path: spec.ipFamilies
       - equal:
           path: metadata.name
           value: test-gophish-phish
@@ -53,3 +61,72 @@ tests:
       - equal:
           path: spec.selector["app.kubernetes.io/instance"]
           value: test
+
+  - it: should set admin Service dual-stack fields when configured
+    template: templates/service-admin.yaml
+    set:
+      adminService:
+        ipFamilyPolicy: PreferDualStack
+        ipFamilies:
+          - IPv4
+          - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv4
+      - equal:
+          path: spec.ipFamilies[1]
+          value: IPv6
+
+  - it: should set phishing Service dual-stack fields when configured
+    template: templates/service-phish.yaml
+    set:
+      phishService:
+        ipFamilyPolicy: RequireDualStack
+        ipFamilies:
+          - IPv6
+          - IPv4
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: RequireDualStack
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv6
+      - equal:
+          path: spec.ipFamilies[1]
+          value: IPv4
+
+  - it: should support SingleStack IPv6 on the admin Service
+    template: templates/service-admin.yaml
+    set:
+      adminService:
+        ipFamilyPolicy: SingleStack
+        ipFamilies:
+          - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: SingleStack
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv6
+
+  - it: should support SingleStack IPv6 on the phishing Service
+    template: templates/service-phish.yaml
+    set:
+      phishService:
+        ipFamilyPolicy: SingleStack
+        ipFamilies:
+          - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: SingleStack
+        documentIndex: 0
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv6

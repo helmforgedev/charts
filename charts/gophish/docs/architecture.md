@@ -102,6 +102,7 @@ Chart decisions:
 
 - `adminService` targets container port `3333`.
 - `phishService` targets container port `80`.
+- Both Services support optional `ipFamilyPolicy` and `ipFamilies` values for IPv4, IPv6, or dual-stack clusters. Defaults are omitted so Services inherit cluster defaults.
 - `adminIngress.enabled` defaults to `false`.
 - `phishIngress.enabled` defaults to `false`.
 - Document port-forward access for admin as the first safe access path.
