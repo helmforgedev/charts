@@ -63,3 +63,29 @@ tests:
       - equal:
           path: spec.egress[2].to[0].ipBlock.cidr
           value: 10.20.0.0/16
+
+  - it: should allow embedded MySQL egress when NetworkPolicy is enabled
+    set:
+      database.mode: mysql
+      mysql:
+        enabled: true
+        auth:
+          password: local-test-db-pass
+      networkPolicy:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 3306
+      - equal:
+          path: spec.egress[1].to[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: mysql
+      - equal:
+          path: spec.egress[1].to[0].podSelector.matchLabels["app.kubernetes.io/instance"]
+          value: test
+      - equal:
+          path: spec.egress[1].to[0].podSelector.matchLabels["app.kubernetes.io/component"]
+          value: mysql
