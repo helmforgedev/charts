@@ -156,6 +156,9 @@ __GOPHISH_DATABASE_DSN__
 {{- if and (eq .Values.database.mode "mysql") (or .Values.database.external.host .Values.database.external.existingSecret) -}}
 {{- fail "database.mode=mysql cannot be combined with database.external.*. Remove external database values or set database.mode=external." -}}
 {{- end -}}
+{{- if and (eq .Values.database.mode "mysql") (not .Values.mysql.enabled) -}}
+{{- fail "database.mode=mysql requires mysql.enabled=true so the embedded MySQL dependency and credential Secret are installed." -}}
+{{- end -}}
 {{- if and (eq $mode "external") (not .Values.database.external.existingSecret) (not .Values.database.external.host) -}}
 {{- fail "database.mode=external requires database.external.host or database.external.existingSecret." -}}
 {{- end -}}
@@ -173,6 +176,12 @@ __GOPHISH_DATABASE_DSN__
 {{- end -}}
 {{- if and .Values.phishIngress.enabled (not .Values.phishIngress.hosts) -}}
 {{- fail "phishIngress.enabled=true requires at least one phishIngress.hosts entry." -}}
+{{- end -}}
+{{- if and .Values.gophish.adminServer.certSecret (ne (dir .Values.gophish.adminServer.certPath) (dir .Values.gophish.adminServer.keyPath)) -}}
+{{- fail "gophish.adminServer.certPath and gophish.adminServer.keyPath must share the same directory when gophish.adminServer.certSecret is set." -}}
+{{- end -}}
+{{- if and .Values.gophish.phishServer.certSecret (ne (dir .Values.gophish.phishServer.certPath) (dir .Values.gophish.phishServer.keyPath)) -}}
+{{- fail "gophish.phishServer.certPath and gophish.phishServer.keyPath must share the same directory when gophish.phishServer.certSecret is set." -}}
 {{- end -}}
 {{- if .Values.backup.enabled -}}
   {{- if ne $mode "sqlite" -}}

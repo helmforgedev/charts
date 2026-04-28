@@ -93,6 +93,13 @@ tests:
       - failedTemplate:
           errorMessage: "database.mode=mysql cannot be combined with database.external.*. Remove external database values or set database.mode=external."
 
+  - it: should fail mysql mode when embedded dependency is disabled
+    set:
+      database.mode: mysql
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.mode=mysql requires mysql.enabled=true so the embedded MySQL dependency and credential Secret are installed."
+
   - it: should fail inline external database password without explicit opt-in
     set:
       database:
@@ -103,6 +110,28 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "Inline external database passwords require database.external.allowInlinePassword=true and are intended only for local tests. Use database.external.existingSecret for production."
+
+  - it: should fail admin native TLS when cert and key paths use different directories
+    set:
+      gophish:
+        adminServer:
+          certSecret: admin-tls
+          certPath: /opt/gophish/tls/admin/tls.crt
+          keyPath: /opt/gophish/private/admin/tls.key
+    asserts:
+      - failedTemplate:
+          errorMessage: "gophish.adminServer.certPath and gophish.adminServer.keyPath must share the same directory when gophish.adminServer.certSecret is set."
+
+  - it: should fail phish native TLS when cert and key paths use different directories
+    set:
+      gophish:
+        phishServer:
+          certSecret: phish-tls
+          certPath: /opt/gophish/tls/phish/tls.crt
+          keyPath: /opt/gophish/private/phish/tls.key
+    asserts:
+      - failedTemplate:
+          errorMessage: "gophish.phishServer.certPath and gophish.phishServer.keyPath must share the same directory when gophish.phishServer.certSecret is set."
 
   - it: should fail backup for MySQL mode
     set:
