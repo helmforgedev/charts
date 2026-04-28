@@ -1,0 +1,109 @@
+suite: Database modes
+templates:
+  - templates/config-secret.yaml
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render SQLite config by default
+    template: templates/config-secret.yaml
+    asserts:
+      - matchRegex:
+          path: stringData["config.json"]
+          pattern: '"db_name": "sqlite3"'
+      - matchRegex:
+          path: stringData["config.json"]
+          pattern: '"db_path": "/opt/gophish/data/gophish.db"'
+
+  - it: should render embedded MySQL placeholder config and secret env
+    template: templates/deployment.yaml
+    set:
+      mysql.enabled: true
+      mysql.auth.password: local-test-password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GOPHISH_DATABASE_HOST
+            value: test-mysql
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-mysql-auth
+                key: mysql-user-password
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "GOPHISH_DATABASE_DSN="
+
+  - it: should use an embedded MySQL existing secret
+    template: templates/deployment.yaml
+    set:
+      database.mode: mysql
+      mysql.enabled: true
+      mysql.auth.existingSecret: gophish-mysql
+      mysql.auth.existingSecretUserPasswordKey: mysql-password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: gophish-mysql
+                key: mysql-password
+
+  - it: should use external DSN existing secret
+    template: templates/deployment.yaml
+    set:
+      database.mode: external
+      database.external.existingSecret: gophish-db
+      database.external.existingSecretDsnKey: dsn
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GOPHISH_DATABASE_DSN
+            valueFrom:
+              secretKeyRef:
+                name: gophish-db
+                key: dsn
+
+  - it: should render inline external DSN only when explicitly allowed
+    template: templates/config-secret.yaml
+    set:
+      database.mode: external
+      database.external.host: mysql.example.com
+      database.external.name: gophish
+      database.external.username: gophish
+      database.external.password: local-only-password
+      database.external.allowInlinePassword: true
+    asserts:
+      - matchRegex:
+          path: stringData["config.json"]
+          pattern: '"db_name": "mysql"'
+      - matchRegex:
+          path: stringData["config.json"]
+          pattern: 'gophish:local-only-password@\(mysql.example.com:3306\)/gophish'
+
+  - it: should fail inline external password without explicit local-test opt-in
+    template: templates/deployment.yaml
+    set:
+      database.mode: external
+      database.external.host: mysql.example.com
+      database.external.password: local-only-password
+    asserts:
+      - failedTemplate:
+          errorMessage: "Inline external database passwords require database.external.allowInlinePassword=true and are intended only for local tests. Use database.external.existingSecret for production."
+
+  - it: should fail external host without password or existing secret
+    template: templates/deployment.yaml
+    set:
+      database.mode: external
+      database.external.host: mysql.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.external.password is required when database.external.host is used without database.external.existingSecret."

@@ -1,0 +1,65 @@
+suite: NetworkPolicy
+templates:
+  - templates/networkpolicy.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render separated admin and phishing ingress rules
+    set:
+      networkPolicy:
+        enabled: true
+        admin:
+          namespaceSelectors:
+            - matchLabels:
+                kubernetes.io/metadata.name: platform-admin
+          ipBlocks:
+            - cidr: 10.10.0.0/16
+        phish:
+          namespaceSelectors:
+            - matchLabels:
+                kubernetes.io/metadata.name: ingress-system
+        egress:
+          externalDatabase:
+            enabled: true
+            cidrs:
+              - 10.0.0.0/8
+          smtp:
+            enabled: true
+            cidrs:
+              - 10.20.0.0/16
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: metadata.name
+          value: test-gophish
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 3333
+      - equal:
+          path: spec.ingress[1].ports[0].port
+          value: 80
+      - equal:
+          path: spec.ingress[0].from[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: platform-admin
+      - equal:
+          path: spec.ingress[1].from[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: ingress-system
+      - equal:
+          path: spec.egress[1].to[0].ipBlock.cidr
+          value: 10.0.0.0/8
+      - equal:
+          path: spec.egress[2].to[0].ipBlock.cidr
+          value: 10.20.0.0/16

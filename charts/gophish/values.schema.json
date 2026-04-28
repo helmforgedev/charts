@@ -1,0 +1,346 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Gophish Helm Chart Values",
+  "description": "Values for the Gophish Helm chart with separated admin and phishing services, SQLite default, MySQL support, NetworkPolicy, and SQLite backup.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "nameOverride": { "type": "string", "default": "" },
+    "fullnameOverride": { "type": "string", "default": "" },
+    "commonLabels": { "type": "object", "additionalProperties": { "type": "string" } },
+    "replicaCount": { "type": "integer", "minimum": 1, "default": 1 },
+    "clusterDomain": { "type": "string", "default": "cluster.local" },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": { "type": "string", "default": "docker.io/gophish/gophish" },
+        "tag": { "type": "string", "default": "0.12.1" },
+        "pullPolicy": { "$ref": "#/definitions/pullPolicy" }
+      }
+    },
+    "imagePullSecrets": { "type": "array", "items": { "type": "object" } },
+    "gophish": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "config": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "existingSecret": { "type": "string", "default": "" },
+            "existingSecretKey": { "type": "string", "default": "config.json" }
+          }
+        },
+        "adminServer": { "$ref": "#/definitions/serverConfigWithTrustedOrigins" },
+        "phishServer": { "$ref": "#/definitions/serverConfig" },
+        "logging": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "filename": { "type": "string", "default": "" },
+            "level": { "type": "string", "enum": ["", "debug", "info", "warning", "error"], "default": "" }
+          }
+        },
+        "contactAddress": { "type": "string", "default": "" }
+      }
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string", "enum": ["auto", "sqlite", "mysql", "external"], "default": "auto" },
+        "sqlite": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "default": "/opt/gophish/data/gophish.db" }
+          }
+        },
+        "external": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "vendor": { "type": "string", "enum": ["mysql"], "default": "mysql" },
+            "host": { "type": "string", "default": "" },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 3306 },
+            "name": { "type": "string", "default": "gophish" },
+            "username": { "type": "string", "default": "gophish" },
+            "password": { "type": "string", "default": "" },
+            "allowInlinePassword": { "type": "boolean", "default": false },
+            "existingSecret": { "type": "string", "default": "" },
+            "existingSecretDsnKey": { "type": "string", "default": "dsn" },
+            "parameters": { "type": "string", "default": "charset=utf8&parseTime=True&loc=UTC" }
+          }
+        }
+      }
+    },
+    "mysql": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "config": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "myCnf": { "type": "string" }
+          }
+        },
+        "auth": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "database": { "type": "string", "default": "gophish" },
+            "username": { "type": "string", "default": "gophish" },
+            "password": { "type": "string", "default": "" },
+            "existingSecret": { "type": "string", "default": "" },
+            "existingSecretUserPasswordKey": { "type": "string", "default": "mysql-user-password" }
+          }
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "existingClaim": { "type": "string", "default": "" },
+        "storageClass": { "type": "string", "default": "" },
+        "accessModes": { "type": "array", "items": { "type": "string" } },
+        "size": { "type": "string", "default": "5Gi" },
+        "annotations": { "type": "object" }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": { "type": "boolean", "default": true },
+        "name": { "type": "string", "default": "" },
+        "annotations": { "type": "object" },
+        "automountServiceAccountToken": { "type": "boolean", "default": false }
+      }
+    },
+    "adminService": { "$ref": "#/definitions/service" },
+    "phishService": { "$ref": "#/definitions/service" },
+    "adminIngress": { "$ref": "#/definitions/ingress" },
+    "phishIngress": { "$ref": "#/definitions/ingress" },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "admin": { "$ref": "#/definitions/networkPolicyIngressSurface" },
+        "phish": { "$ref": "#/definitions/networkPolicyIngressSurface" },
+        "egress": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "default": true },
+            "allowDns": { "type": "boolean", "default": true },
+            "externalDatabase": { "$ref": "#/definitions/networkPolicyEgressTarget" },
+            "smtp": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean", "default": false },
+                "cidrs": { "type": "array", "items": { "type": "string" } },
+                "ports": { "type": "array", "items": { "type": "integer", "minimum": 1, "maximum": 65535 } }
+              }
+            },
+            "extra": { "type": "array", "items": { "type": "object" } }
+          }
+        }
+      }
+    },
+    "backup": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "schedule": { "type": "string", "default": "0 3 * * *" },
+        "suspend": { "type": "boolean", "default": false },
+        "concurrencyPolicy": { "type": "string", "enum": ["Allow", "Forbid", "Replace"], "default": "Forbid" },
+        "successfulJobsHistoryLimit": { "type": "integer", "minimum": 0, "default": 3 },
+        "failedJobsHistoryLimit": { "type": "integer", "minimum": 0, "default": 3 },
+        "backoffLimit": { "type": "integer", "minimum": 0, "default": 1 },
+        "archivePrefix": { "type": "string", "default": "gophish" },
+        "images": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "archive": { "$ref": "#/definitions/image" },
+            "uploader": { "$ref": "#/definitions/image" }
+          }
+        },
+        "s3": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "endpoint": { "type": "string", "default": "" },
+            "bucket": { "type": "string", "default": "" },
+            "prefix": { "type": "string", "default": "gophish" },
+            "createBucketIfNotExists": { "type": "boolean", "default": true },
+            "existingSecret": { "type": "string", "default": "" },
+            "existingSecretAccessKeyKey": { "type": "string", "default": "access-key" },
+            "existingSecretSecretKeyKey": { "type": "string", "default": "secret-key" },
+            "accessKey": { "type": "string", "default": "" },
+            "secretKey": { "type": "string", "default": "" }
+          }
+        },
+        "resources": { "type": "object" },
+        "containerSecurityContext": { "type": "object" }
+      }
+    },
+    "probes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "startup": { "$ref": "#/definitions/probe" },
+        "liveness": { "$ref": "#/definitions/probe" },
+        "readiness": { "$ref": "#/definitions/probe" }
+      }
+    },
+    "resources": { "type": "object" },
+    "podSecurityContext": { "type": "object" },
+    "containerSecurityContext": { "type": "object" },
+    "nodeSelector": { "type": "object" },
+    "tolerations": { "type": "array", "items": { "type": "object" } },
+    "affinity": { "type": "object" },
+    "topologySpreadConstraints": { "type": "array", "items": { "type": "object" } },
+    "priorityClassName": { "type": "string", "default": "" },
+    "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0, "default": 30 },
+    "podLabels": { "type": "object" },
+    "podAnnotations": { "type": "object" },
+    "extraEnv": { "type": "array", "items": { "type": "object" } },
+    "extraVolumes": { "type": "array", "items": { "type": "object" } },
+    "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
+    "extraManifests": { "type": "array", "items": { "type": "object" } }
+  },
+  "definitions": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": { "type": "string" },
+        "tag": { "type": "string" },
+        "pullPolicy": { "$ref": "#/definitions/pullPolicy" }
+      }
+    },
+    "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "default": "IfNotPresent" },
+    "serverConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "listenUrl": { "type": "string" },
+        "useTls": { "type": "boolean" },
+        "certSecret": { "type": "string" },
+        "certKey": { "type": "string" },
+        "keyKey": { "type": "string" },
+        "certPath": { "type": "string" },
+        "keyPath": { "type": "string" }
+      }
+    },
+    "serverConfigWithTrustedOrigins": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "listenUrl": { "type": "string" },
+        "useTls": { "type": "boolean" },
+        "certSecret": { "type": "string" },
+        "certKey": { "type": "string" },
+        "keyKey": { "type": "string" },
+        "certPath": { "type": "string" },
+        "keyPath": { "type": "string" },
+        "trustedOrigins": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"], "default": "ClusterIP" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "targetPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "annotations": { "type": "object" }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "ingressClassName": { "type": "string", "default": "traefik" },
+        "annotations": { "type": "object" },
+        "hosts": { "type": "array", "items": { "$ref": "#/definitions/ingressHost" } },
+        "tls": { "type": "array", "items": { "$ref": "#/definitions/ingressTls" } }
+      }
+    },
+    "ingressHost": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "host": { "type": "string" },
+        "paths": { "type": "array", "items": { "$ref": "#/definitions/ingressPath" } }
+      }
+    },
+    "ingressPath": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string", "default": "/" },
+        "pathType": { "type": "string", "enum": ["Exact", "Prefix", "ImplementationSpecific"], "default": "Prefix" }
+      }
+    },
+    "ingressTls": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "secretName": { "type": "string" },
+        "hosts": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "networkPolicyIngressSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowSameNamespace": { "type": "boolean", "default": false },
+        "namespaceSelectors": { "type": "array", "items": { "type": "object" } },
+        "podSelectors": { "type": "array", "items": { "type": "object" } },
+        "ipBlocks": { "type": "array", "items": { "$ref": "#/definitions/ipBlock" } },
+        "extraFrom": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "networkPolicyEgressTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "cidrs": { "type": "array", "items": { "type": "string" } },
+        "namespaceSelectors": { "type": "array", "items": { "type": "object" } },
+        "podSelectors": { "type": "array", "items": { "type": "object" } },
+        "ports": { "type": "array", "items": { "type": "integer", "minimum": 1, "maximum": 65535 } }
+      }
+    },
+    "ipBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cidr": { "type": "string" },
+        "except": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

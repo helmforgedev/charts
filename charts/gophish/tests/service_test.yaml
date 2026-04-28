@@ -1,0 +1,55 @@
+suite: Services
+templates:
+  - templates/service-admin.yaml
+  - templates/service-phish.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render admin Service
+    template: templates/service-admin.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: test-gophish-admin
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: admin
+      - contains:
+          path: spec.ports
+          content:
+            name: admin
+            port: 3333
+            targetPort: admin
+            protocol: TCP
+
+  - it: should render phishing Service
+    template: templates/service-phish.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: test-gophish-phish
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: phish
+      - contains:
+          path: spec.ports
+          content:
+            name: phish
+            port: 80
+            targetPort: phish
+            protocol: TCP
+
+  - it: should use selector labels
+    template: templates/service-admin.yaml
+    asserts:
+      - equal:
+          path: spec.selector["app.kubernetes.io/name"]
+          value: gophish
+      - equal:
+          path: spec.selector["app.kubernetes.io/instance"]
+          value: test

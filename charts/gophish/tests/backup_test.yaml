@@ -1,0 +1,95 @@
+suite: Backup
+templates:
+  - templates/backup-configmap.yaml
+  - templates/backup-cronjob.yaml
+  - templates/secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render backup resources by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render backup ConfigMap
+    template: templates/backup-configmap.yaml
+    set:
+      backup:
+        enabled: true
+        s3:
+          endpoint: http://minio.minio.svc.cluster.local:9000
+          bucket: gophish-backups
+          accessKey: local-test-access
+          secretKey: local-test-secret
+    asserts:
+      - isKind:
+          of: ConfigMap
+
+  - it: should render backup CronJob
+    template: templates/backup-cronjob.yaml
+    set:
+      backup:
+        enabled: true
+        s3:
+          endpoint: http://minio.minio.svc.cluster.local:9000
+          bucket: gophish-backups
+          accessKey: local-test-access
+          secretKey: local-test-secret
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].name
+          value: archive
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].name
+          value: upload
+
+  - it: should render backup Secret
+    template: templates/secret.yaml
+    set:
+      backup:
+        enabled: true
+        s3:
+          endpoint: http://minio.minio.svc.cluster.local:9000
+          bucket: gophish-backups
+          accessKey: local-test-access
+          secretKey: local-test-secret
+    asserts:
+      - isKind:
+          of: Secret
+
+  - it: should use HelmForge uploader image
+    template: templates/backup-cronjob.yaml
+    set:
+      backup:
+        enabled: true
+        s3:
+          endpoint: http://minio.minio.svc.cluster.local:9000
+          bucket: gophish-backups
+          existingSecret: gophish-backup
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].image
+          value: docker.io/helmforge/mc:1.0.0
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].image
+          value: docker.io/library/busybox:1.37
+
+  - it: should use an existing backup secret
+    template: templates/backup-cronjob.yaml
+    set:
+      backup:
+        enabled: true
+        s3:
+          endpoint: http://minio.minio.svc.cluster.local:9000
+          bucket: gophish-backups
+          existingSecret: gophish-backup
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[2].valueFrom.secretKeyRef.name
+          value: gophish-backup
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env[3].valueFrom.secretKeyRef.name
+          value: gophish-backup

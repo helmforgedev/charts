@@ -1,0 +1,95 @@
+Gophish has been deployed.
+
+Access
+======
+
+{{- if .Values.adminIngress.enabled }}
+
+Admin URL(s):
+{{- range .Values.adminIngress.hosts }}
+- http{{ if $.Values.adminIngress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else }}
+
+Admin service:
+- kubectl port-forward svc/{{ include "gophish.fullname" . }}-admin 3333:{{ .Values.adminService.port }} -n {{ .Release.Namespace }}
+- http{{ if .Values.gophish.adminServer.useTls }}s{{ end }}://127.0.0.1:3333
+{{- end }}
+
+{{- if .Values.phishIngress.enabled }}
+
+Phishing URL(s):
+{{- range .Values.phishIngress.hosts }}
+- http{{ if $.Values.phishIngress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else }}
+
+Phishing service:
+- kubectl port-forward svc/{{ include "gophish.fullname" . }}-phish 8080:{{ .Values.phishService.port }} -n {{ .Release.Namespace }}
+- http://127.0.0.1:8080
+{{- end }}
+
+Operational notes:
+- database mode selected for this release: {{ include "gophish.effectiveDatabaseMode" . | trim }}
+- keep admin ingress separate from phishing campaign ingress
+- SQLite mode is intended for one replica and persistent storage
+- use database.mode=external or mysql.enabled=true before evaluating multi-replica operation
+- keep the first generated admin password in a secure operator vault after initial login
+
+Initial admin password
+======================
+
+Gophish writes the generated initial admin password to startup logs on first boot.
+Retrieve it only from trusted operator workstations and change it immediately after login:
+
+- kubectl logs deploy/{{ include "gophish.fullname" . }} -n {{ .Release.Namespace }} | grep "Please login with the username admin"
+
+Configuration
+=============
+
+Image:
+- {{ include "gophish.image" . }}
+
+Services:
+- admin: {{ .Values.adminService.port }}
+- phishing: {{ .Values.phishService.port }}
+
+{{- if .Values.backup.enabled }}
+
+Backup:
+- SQLite backup CronJob: {{ include "gophish.fullname" . }}-backup
+- S3 bucket: {{ .Values.backup.s3.bucket }}
+- S3 prefix: {{ .Values.backup.s3.prefix }}
+- Inspect backup jobs with: kubectl get jobs -l app.kubernetes.io/component=backup -n {{ .Release.Namespace }}
+{{- end }}
+
+Getting started
+===============
+
+Validate release objects after installation:
+- kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+- kubectl get secret {{ include "gophish.configSecretName" . }} -n {{ .Release.Namespace }}
+
+Troubleshooting
+===============
+
+Inspect workload status and logs:
+- kubectl describe pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+- kubectl logs -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Common checks:
+- admin UI not reachable: confirm admin service port-forward or admin ingress host/TLS
+- phishing endpoint not reachable: confirm phish service, phish ingress, and DNS
+- initial password not found: inspect first startup logs before log retention expires
+- SQLite issues: confirm PVC is bound and the pod can write {{ include "gophish.sqliteDirectory" . }}
+- MySQL issues: confirm DSN Secret, service reachability, and Gophish-compatible MySQL sql_mode
+- backup issues: inspect the backup Job logs and the S3 credential Secret
+
+Resources
+=========
+
+- Chart documentation: https://helmforge.dev/docs/charts/gophish
+- Gophish project: https://github.com/gophish/gophish
+- HelmForge issues: https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)

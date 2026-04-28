@@ -1,0 +1,102 @@
+{{- include "gophish.validateAll" . }}
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "gophish.fullname" . }}-backup
+  labels:
+    {{- include "gophish.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  suspend: {{ .Values.backup.suspend }}
+  concurrencyPolicy: {{ .Values.backup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "gophish.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: {{ include "gophish.serviceAccountName" . }}
+          automountServiceAccountToken: false
+          {{- with .Values.podSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          initContainers:
+            - name: archive
+              image: {{ include "gophish.backupImage" . | quote }}
+              imagePullPolicy: {{ .Values.backup.images.archive.pullPolicy }}
+              command:
+                - /bin/sh
+                - /scripts/backup.sh
+              {{- with .Values.backup.containerSecurityContext }}
+              securityContext:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: data
+                  mountPath: {{ include "gophish.sqliteDirectory" . }}
+                  readOnly: true
+                - name: backup
+                  mountPath: /backup
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+          containers:
+            - name: upload
+              image: {{ include "gophish.backupUploaderImage" . | quote }}
+              imagePullPolicy: {{ .Values.backup.images.uploader.pullPolicy }}
+              command:
+                - /bin/sh
+                - /scripts/upload.sh
+              env:
+                - name: MC_CONFIG_DIR
+                  value: /backup/.mc
+                - name: S3_ENDPOINT
+                  value: {{ .Values.backup.s3.endpoint | quote }}
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "gophish.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretAccessKeyKey }}
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "gophish.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+              {{- with .Values.backup.containerSecurityContext }}
+              securityContext:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: {{ include "gophish.dataClaimName" . }}
+            - name: backup
+              emptyDir: {}
+            - name: scripts
+              configMap:
+                name: {{ include "gophish.fullname" . }}-backup
+                defaultMode: 0755
+{{- end }}
