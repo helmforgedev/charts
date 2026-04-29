@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
 # Redis Helm Chart - Default Values
 # =============================================================================
@@ -24,7 +25,7 @@ commonLabels: {}
 
 image:
   repository: docker.io/library/redis
-  tag: "8.6.0"
+  tag: "8.6.2"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -155,6 +156,10 @@ service:
     redis: 6379
     sentinel: 26379
     metrics: 9121
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ""
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
 
 serviceAccount:
   create: false
@@ -235,3 +240,45 @@ extraEnv: []
 extraVolumes: []
 extraVolumeMounts: []
 extraManifests: []
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gateway:
+  # -- Enable Gateway API TCPRoute for Redis (requires Gateway API CRDs)
+  # Note: Redis uses TCP, not HTTP. HTTPRoute is not applicable.
+  # Use TCPRoute via Envoy Gateway or similar for layer-4 routing.
+  enabled: false
+  # -- Annotations for the TCPRoute/HTTPRoute
+  annotations: {}
+  # -- parentRefs pointing to your Gateway resource
+  parentRefs: []
+  # -- hostnames - used only when gateway supports HTTP routing
+  hostnames: []
+  # -- path (for HTTP gateways only)
+  path: /
+  pathType: PathPrefix
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret for the Redis auth Secret.
+  # Requires auth.existingSecret to be set to prevent credential drift between
+  # the chart-managed auth Secret and the ExternalSecret.
+  enabled: false
+  apiVersion: external-secrets.io/v1
+  refreshInterval: 1h
+  secretStoreRef:
+    name: ""
+    kind: SecretStore
+  target:
+    creationPolicy: Owner
+  # -- Data entries mapping remote keys to the Redis password key.
+  data: []
+  #   - secretKey: redis-password
+  #     remoteRef:
+  #       key: redis/auth
+  #       property: password
