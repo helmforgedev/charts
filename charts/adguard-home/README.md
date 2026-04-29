@@ -1,6 +1,7 @@
 # AdGuard Home
 
-A Helm chart for deploying [AdGuard Home](https://adguard.com/adguard-home/overview.html) on Kubernetes using the official [adguard/adguardhome](https://hub.docker.com/r/adguard/adguardhome) container image.
+A Helm chart for deploying [AdGuard Home](https://adguard.com/adguard-home/overview.html) on Kubernetes
+using the official [adguard/adguardhome](https://hub.docker.com/r/adguard/adguardhome) container image.
 
 ## Installation
 
@@ -175,7 +176,7 @@ backup:
 | `image.tag` | `""` (appVersion) | Image tag (auto-prefixed with `v`) |
 | `image.pullPolicy` | `IfNotPresent` | Pull policy |
 
-### Configuration
+### General Configuration
 
 | Key | Default | Description |
 |-----|---------|-------------|
