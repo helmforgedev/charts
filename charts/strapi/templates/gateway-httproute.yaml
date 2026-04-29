@@ -5,7 +5,7 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: {{ printf "%s-%s" (include "strapi.fullname" $) .name }}
+  name: {{ if .name }}{{ printf "%s-%s" (include "strapi.fullname" $) .name | trunc 63 | trimSuffix "-" }}{{ else }}{{ include "strapi.fullname" $ | trunc 63 | trimSuffix "-" }}{{ end }}
   labels:
     {{- include "strapi.labels" $ | nindent 4 }}
     {{- with .labels }}
@@ -16,31 +16,26 @@ metadata:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
+  {{- if .parentRefs }}
   parentRefs:
     {{- toYaml .parentRefs | nindent 4 }}
+  {{- end }}
   {{- with .hostnames }}
   hostnames:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+  {{- if .rules }}
   rules:
-    {{- if .rules }}
     {{- range .rules }}
     - {{- with .matches }}
       matches:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .backendRefs }}
       backendRefs:
-        {{- if .backendRefs }}
         {{- toYaml .backendRefs | nindent 8 }}
-        {{- else }}
-        - name: {{ include "strapi.fullname" $ }}
-          port: {{ $.Values.service.port }}
-        {{- end }}
+      {{- end }}
     {{- end }}
-    {{- else }}
-    - backendRefs:
-        - name: {{ include "strapi.fullname" $ }}
-          port: {{ $.Values.service.port }}
-    {{- end }}
+  {{- end }}
 {{- end }}
 {{- end }}
