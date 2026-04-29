@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Repo Health
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  helm-repo-index:
+    name: Helm Repo Index Health
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Verify index.yaml accessibility
+        run: |
+          HTTP_CODE=$(curl -sf -o /tmp/index.yaml -w "%{http_code}" \
+            "https://repo.helmforge.dev/index.yaml" 2>/dev/null || echo "000")
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Helm repository index.yaml returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+          echo "✅ index.yaml accessible (HTTP 200)"
+
+      - name: Verify chart coverage
+        run: |
+          # Count charts in repo
+          REPO_CHARTS=$(find charts/ -maxdepth 1 -mindepth 1 -type d | wc -l)
+
+          # Count entries in index.yaml (unique chart names)
+          INDEX_CHARTS=$(yq '.entries | keys | length' /tmp/index.yaml 2>/dev/null || echo "0")
+
+          echo "📊 Repository charts: $REPO_CHARTS"
+          echo "📊 Index entries: $INDEX_CHARTS"
+
+          if [ "$INDEX_CHARTS" -lt "$REPO_CHARTS" ]; then
+            MISSING=$((REPO_CHARTS - INDEX_CHARTS))
+            echo "::warning::$MISSING chart(s) missing from index.yaml (repo: $REPO_CHARTS, index: $INDEX_CHARTS)"
+
+            # List which charts are missing
+            REPO_LIST=$(find charts/ -maxdepth 1 -mindepth 1 -type d -printf '%f\n' | sort)
+            INDEX_LIST=$(yq '.entries | keys | .[]' /tmp/index.yaml 2>/dev/null | sort)
+            echo "Missing charts:"
+            comm -23 <(echo "$REPO_LIST") <(echo "$INDEX_LIST")
+          fi
+
+  oci-registry:
+    name: OCI Registry Health
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Helm
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 | bash
+
+      - name: Spot-check OCI chart access
+        run: |
+          # Verify at least one chart is accessible via OCI
+          if helm show chart oci://ghcr.io/helmforgedev/helm/generic 2>/dev/null; then
+            echo "✅ OCI registry accessible (generic chart verified)"
+          else
+            echo "::error::Cannot access OCI registry — helm show chart failed for generic"
+            exit 1
+          fi
+
+  badge-health:
+    name: Badge Health
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify charts-count badge
+        run: |
+          BADGE_URL="https://repo.helmforge.dev/badges/charts-count.json"
+          HTTP_CODE=$(curl -sf -o /tmp/badge.json -w "%{http_code}" "$BADGE_URL" 2>/dev/null || echo "000")
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Badge endpoint returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+          # Validate JSON structure
+          if ! jq -e '.schemaVersion' /tmp/badge.json >/dev/null 2>&1; then
+            echo "::error::Badge response is not valid shields.io JSON"
+            exit 1
+          fi
+
+          # Sanity check count
+          COUNT=$(jq -r '.message // "0"' /tmp/badge.json | tr -dc '0-9')
+          if [ -z "$COUNT" ] || [ "$COUNT" -lt 60 ]; then
+            echo "::warning::Badge shows $COUNT charts (expected ≥ 60)"
+          else
+            echo "✅ Badge health OK ($COUNT charts)"
+          fi

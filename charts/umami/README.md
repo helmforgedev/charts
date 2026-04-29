@@ -1,6 +1,8 @@
 # Umami Helm Chart
 
-Deploy [Umami](https://umami.is) on Kubernetes using the official [ghcr.io/umami-software/umami](https://github.com/umami-software/umami/pkgs/container/umami) container image. Privacy-first web analytics — no cookies, GDPR-compliant, lightweight alternative to Google Analytics.
+Deploy [Umami](https://umami.is) on Kubernetes using the official
+[ghcr.io/umami-software/umami](https://github.com/umami-software/umami/pkgs/container/umami) container image.
+Privacy-first web analytics — no cookies, GDPR-compliant, lightweight alternative to Google Analytics.
 
 ## Features
 

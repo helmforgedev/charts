@@ -1,6 +1,9 @@
 # Middleware Helm Chart
 
-Deploy [Middleware](https://www.middlewarehq.com) on Kubernetes using the official [middlewareeng/middleware](https://hub.docker.com/r/middlewareeng/middleware) container image. Open-source DORA metrics platform that measures Deployment Frequency, Lead Time, MTTR, and Change Failure Rate for engineering teams.
+Deploy [Middleware](https://www.middlewarehq.com) on Kubernetes using the official
+[middlewareeng/middleware](https://hub.docker.com/r/middlewareeng/middleware) container image.
+Open-source DORA metrics platform that measures Deployment Frequency, Lead Time, MTTR,
+and Change Failure Rate for engineering teams.
 
 ## Features
 

@@ -50,10 +50,10 @@ Recommended reading before installation:
 
 ## Official product references
 
-- RabbitMQ Downloads: https://www.rabbitmq.com/docs/download
-- RabbitMQ Cluster Formation: https://www.rabbitmq.com/docs/cluster-formation
-- RabbitMQ Quorum Queues: https://www.rabbitmq.com/quorum-queues.html
-- RabbitMQ TLS: https://www.rabbitmq.com/docs/ssl
+- RabbitMQ Downloads: <https://www.rabbitmq.com/docs/download>
+- RabbitMQ Cluster Formation: <https://www.rabbitmq.com/docs/cluster-formation>
+- RabbitMQ Quorum Queues: <https://www.rabbitmq.com/quorum-queues.html>
+- RabbitMQ TLS: <https://www.rabbitmq.com/docs/ssl>
 
 ## Operational direction
 
