@@ -83,6 +83,26 @@ jobs:
                 | sed "s/^v//; s/${TAG_VARIANT:-\$}$//" \
                 | sort -t. -k1,1n -k2,2n -k3,3n \
                 | tail -1)
+            elif echo "$REPO" | grep -q "quay.io"; then
+              # Quay.io — OCI distribution API with anonymous token
+              IMAGE_PATH="${REPO#quay.io/}"
+              QUAY_TOKEN=$(curl -sf \
+                "https://quay.io/v2/auth?scope=repository:${IMAGE_PATH}:pull&service=quay.io" \
+                2>/dev/null | jq -r '.token // empty' 2>/dev/null || echo "")
+              if [ -z "$QUAY_TOKEN" ]; then
+                echo "⚠️ Failed to obtain Quay token for $IMAGE_PATH — skipping"
+                echo "::endgroup::"
+                sleep 2
+                continue
+              fi
+              TAGS_JSON=$(curl -sf -H "Authorization: Bearer $QUAY_TOKEN" \
+                "https://quay.io/v2/${IMAGE_PATH}/tags/list" 2>/dev/null || echo "{}")
+              LATEST=$(echo "$TAGS_JSON" | jq -r '.tags[]? // empty' 2>/dev/null \
+                | { if [ -n "$TAG_VARIANT" ]; then grep -E "^v?[0-9]+\.[0-9]+(\.[0-9]+)?${TAG_VARIANT}$"; else grep -E '^v?[0-9]+\.[0-9]+(\.[0-9]+)?$'; fi; } \
+                | grep -vE '(-rc|-alpha|-beta|-dev|-snapshot|-pre)' \
+                | sed "s/^v//; s/${TAG_VARIANT:-\$}$//" \
+                | sort -t. -k1,1n -k2,2n -k3,3n \
+                | tail -1)
             elif echo "$REPO" | grep -qE "^(docker\.io/|[^./]+/[^./]+$)"; then
               # Docker Hub
               NAMESPACE=$(echo "$REPO" | sed 's|docker\.io/||' | cut -d'/' -f1)
