@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- define "countly.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -69,7 +70,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
-{{/* Backup — S3 secret name */}}
+{{/* Backup - S3 secret name */}}
 {{- define "countly.backupSecretName" -}}
 {{- if .Values.backup.s3.existingSecret -}}
 {{- .Values.backup.s3.existingSecret -}}
@@ -78,7 +79,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
-{{/* Backup — validate required fields */}}
+{{/* Backup - validate required fields */}}
 {{- define "countly.backupEnabled" -}}
 {{- if .Values.backup.enabled -}}
   {{- if not .Values.backup.s3.endpoint -}}
@@ -94,7 +95,7 @@ true
 {{- end -}}
 {{- end -}}
 
-{{/* Backup — MongoDB URI (hardcoded password for non-interactive dump) */}}
+{{/* Backup - MongoDB URI (hardcoded password for non-interactive dump) */}}
 {{- define "countly.backupMongodbUri" -}}
 {{- if .Values.backup.database.uri -}}
 {{- .Values.backup.database.uri -}}
