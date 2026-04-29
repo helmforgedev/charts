@@ -1,0 +1,94 @@
+suite: configmap tests
+templates:
+  - configmap.yaml
+  - secret.yaml
+tests:
+  - it: should enable subpath access
+    asserts:
+      - equal:
+          path: data.ENABLE_SUBPATH_BASED_ACCESS
+          value: "true"
+        template: configmap.yaml
+
+  - it: should set EMAIL as default auth provider
+    asserts:
+      - equal:
+          path: data.VITE_ALLOWED_AUTH_PROVIDERS
+          value: EMAIL
+        template: configmap.yaml
+
+  - it: should derive URLs from ingress.host
+    set:
+      ingress:
+        enabled: true
+        host: hoppscotch.example.com
+        tls:
+          - secretName: hoppscotch-tls
+            hosts:
+              - hoppscotch.example.com
+    asserts:
+      - equal:
+          path: data.VITE_BASE_URL
+          value: "https://hoppscotch.example.com"
+        template: configmap.yaml
+      - equal:
+          path: data.VITE_ADMIN_URL
+          value: "https://hoppscotch.example.com/admin"
+        template: configmap.yaml
+      - equal:
+          path: data.VITE_BACKEND_API_URL
+          value: "https://hoppscotch.example.com/backend/v1"
+        template: configmap.yaml
+      - equal:
+          path: data.VITE_BACKEND_WS_URL
+          value: "wss://hoppscotch.example.com/backend/graphql"
+        template: configmap.yaml
+
+  - it: should not set MAILER when disabled
+    asserts:
+      - notExists:
+          path: data.MAILER_SMTP_ENABLE
+        template: configmap.yaml
+
+  - it: should set MAILER when enabled
+    set:
+      mailer:
+        enabled: true
+        from: test@example.com
+        useCustomConfigs: false
+        smtpUrl: "smtps://test@example.com"
+    asserts:
+      - equal:
+          path: data.MAILER_SMTP_ENABLE
+          value: "true"
+        template: configmap.yaml
+
+  - it: should set GitHub auth config when enabled
+    set:
+      auth:
+        providers: "EMAIL,GITHUB"
+        github:
+          enabled: true
+          clientId: test-id
+          clientSecret: test-secret
+      ingress:
+        enabled: true
+        host: hoppscotch.example.com
+    asserts:
+      - equal:
+          path: data.GITHUB_SCOPE
+          value: "user:email"
+        template: configmap.yaml
+      - isNotNull:
+          path: data.GITHUB_CALLBACK_URL
+        template: configmap.yaml
+
+  - it: should set WHITELISTED_ORIGINS
+    asserts:
+      - isNotNull:
+          path: data.WHITELISTED_ORIGINS
+        template: configmap.yaml
+      - matchRegex:
+          path: data.WHITELISTED_ORIGINS
+          pattern: "app://hoppscotch"
+        template: configmap.yaml

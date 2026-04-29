@@ -1,0 +1,65 @@
+suite: ingress tests
+templates:
+  - ingress.yaml
+  - secret.yaml
+  - configmap.yaml
+tests:
+  - it: should not create Ingress by default
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: ingress.yaml
+
+  - it: should create Ingress when enabled
+    set:
+      ingress:
+        enabled: true
+        host: hoppscotch.example.com
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: ingress.yaml
+      - isKind:
+          of: Ingress
+        template: ingress.yaml
+
+  - it: should use correct host
+    set:
+      ingress:
+        enabled: true
+        host: hoppscotch.example.com
+    asserts:
+      - equal:
+          path: spec.rules[0].host
+          value: hoppscotch.example.com
+        template: ingress.yaml
+
+  - it: should configure TLS when set
+    set:
+      ingress:
+        enabled: true
+        host: hoppscotch.example.com
+        tls:
+          - secretName: hoppscotch-tls
+            hosts:
+              - hoppscotch.example.com
+    asserts:
+      - isNotNull:
+          path: spec.tls
+        template: ingress.yaml
+      - equal:
+          path: spec.tls[0].secretName
+          value: hoppscotch-tls
+        template: ingress.yaml
+
+  - it: should set ingressClassName when provided
+    set:
+      ingress:
+        enabled: true
+        host: hoppscotch.example.com
+        className: nginx
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+        template: ingress.yaml

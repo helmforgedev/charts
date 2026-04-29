@@ -1,0 +1,383 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# Hoppscotch Helm Chart - Default Values
+# =============================================================================
+# Supported modes:
+# - dev        Single replica, PostgreSQL subchart, EMAIL auth, minimal resources
+# - production Requires hostname + database, full auth support
+
+# -- Chart mode: dev | production
+mode: dev
+
+# -- Override chart name
+nameOverride: ""
+# -- Override full release name
+fullnameOverride: ""
+
+# -- Labels added to all resources
+commonLabels: {}
+
+# -- Kubernetes cluster domain
+clusterDomain: cluster.local
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Hoppscotch AIO image repository
+  repository: docker.io/hoppscotch/hoppscotch
+  # -- Hoppscotch image tag
+  tag: "2026.3.1"
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# URLs
+# =============================================================================
+# All URL values are auto-derived from ingress.host when left empty.
+# Override individually if needed.
+
+# -- Public URL where the frontend is accessible (VITE_BASE_URL).
+# Auto-derived as https://<ingress.host> when empty.
+baseUrl: ""
+
+# -- URL for the admin dashboard (VITE_ADMIN_URL).
+# Auto-derived as https://<ingress.host>/admin when empty.
+adminUrl: ""
+
+# -- Backend GraphQL URL (VITE_BACKEND_GQL_URL).
+# Auto-derived as https://<ingress.host>/backend/graphql when empty.
+backendGqlUrl: ""
+
+# -- Backend WebSocket URL (VITE_BACKEND_WS_URL). Must use wss:// in production.
+# Auto-derived as wss://<ingress.host>/backend/graphql when empty.
+backendWsUrl: ""
+
+# -- Backend REST API URL (VITE_BACKEND_API_URL).
+# Auto-derived as https://<ingress.host>/backend/v1 when empty.
+backendApiUrl: ""
+
+# -- Shortcode base URL (VITE_SHORTCODE_BASE_URL). Defaults to baseUrl.
+shortcodeBaseUrl: ""
+
+# -- Optional Terms of Service URL (VITE_APP_TOS_LINK).
+tosLink: ""
+
+# -- Optional Privacy Policy URL (VITE_APP_PRIVACY_POLICY_LINK).
+privacyPolicyLink: ""
+
+# =============================================================================
+# Encryption
+# =============================================================================
+
+encryption:
+  # -- Exactly 32-character key for encrypting sensitive data in the database.
+  # Auto-generated on first install if empty and no existingSecret is set.
+  # WARNING: changing this key after first install will corrupt all existing
+  # encrypted data in the database. Treat this key as immutable after first use.
+  key: ""
+  # -- Existing secret containing the DATA_ENCRYPTION_KEY.
+  existingSecret: ""
+  # -- Key within existingSecret that holds the encryption key.
+  existingSecretKey: data-encryption-key
+
+# =============================================================================
+# Database
+# =============================================================================
+
+# PostgreSQL subchart — enabled by default for dev mode.
+# Disable and configure database.external for production with an external DB.
+postgresql:
+  enabled: true
+  auth:
+    database: hoppscotch
+    username: hoppscotch
+    # -- PostgreSQL password. Auto-generated if empty.
+    password: ""
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+
+database:
+  # -- Use an external PostgreSQL instance instead of the bundled subchart.
+  external:
+    enabled: false
+    # -- External PostgreSQL host
+    host: ""
+    # -- External PostgreSQL port
+    port: 5432
+    # -- Database name
+    name: hoppscotch
+    # -- Database username
+    username: hoppscotch
+    # -- Database password (inline; use existingSecret for production)
+    password: ""
+    # -- Existing secret containing the database password.
+    existingSecret: ""
+    # -- Key within existingSecret that holds the password.
+    existingSecretPasswordKey: postgres-password
+    # -- Full DATABASE_URL override. Takes precedence over individual fields.
+    # Format: postgresql://user:pass@host:5432/db
+    url: ""
+    # -- Key within existingSecret that holds the full DATABASE_URL.
+    existingSecretUrlKey: database-url
+
+# =============================================================================
+# Authentication Providers
+# =============================================================================
+
+auth:
+  # -- Comma-separated list of enabled authentication providers.
+  # Valid values: GOOGLE, GITHUB, MICROSOFT, EMAIL
+  providers: "EMAIL"
+
+  github:
+    # -- Enable GitHub OAuth authentication
+    enabled: false
+    # -- GitHub OAuth App client ID
+    clientId: ""
+    # -- GitHub OAuth App client secret
+    clientSecret: ""
+    # -- Existing secret with GitHub credentials (keys: github-client-id, github-client-secret)
+    existingSecret: ""
+    existingSecretClientIdKey: github-client-id
+    existingSecretClientSecretKey: github-client-secret
+    # -- GitHub OAuth scope
+    scope: "user:email"
+    # -- Callback URL. Auto-derived from backendApiUrl when empty.
+    callbackUrl: ""
+
+  google:
+    # -- Enable Google OAuth authentication
+    enabled: false
+    # -- Google OAuth client ID
+    clientId: ""
+    # -- Google OAuth client secret
+    clientSecret: ""
+    # -- Existing secret with Google credentials
+    existingSecret: ""
+    existingSecretClientIdKey: google-client-id
+    existingSecretClientSecretKey: google-client-secret
+    # -- Google OAuth scope
+    scope: "email,profile"
+    # -- Callback URL. Auto-derived from backendApiUrl when empty.
+    callbackUrl: ""
+
+  microsoft:
+    # -- Enable Microsoft OAuth authentication
+    enabled: false
+    # -- Microsoft/Azure AD app client ID
+    clientId: ""
+    # -- Microsoft/Azure AD app client secret
+    clientSecret: ""
+    # -- Existing secret with Microsoft credentials
+    existingSecret: ""
+    existingSecretClientIdKey: microsoft-client-id
+    existingSecretClientSecretKey: microsoft-client-secret
+    # -- Microsoft OAuth scope
+    scope: "user.read"
+    # -- Callback URL. Auto-derived from backendApiUrl when empty.
+    callbackUrl: ""
+
+# =============================================================================
+# SMTP / Email
+# =============================================================================
+
+mailer:
+  # -- Enable SMTP email delivery
+  enabled: false
+  # -- From address for outgoing emails
+  from: ""
+  # -- Use custom field-by-field SMTP config instead of a URL
+  useCustomConfigs: false
+  # -- Full SMTP URL (used when useCustomConfigs=false)
+  # Format: smtps://user@domain.com:pass@smtp.domain.com
+  smtpUrl: ""
+  # -- SMTP host (used when useCustomConfigs=true)
+  host: ""
+  # -- SMTP port (used when useCustomConfigs=true)
+  port: 587
+  # -- Enable TLS/SSL (used when useCustomConfigs=true)
+  secure: true
+  # -- SMTP username (used when useCustomConfigs=true)
+  user: ""
+  # -- SMTP password (used when useCustomConfigs=true)
+  password: ""
+  # -- Reject unauthorized TLS certificates
+  tlsRejectUnauthorized: true
+  # -- Existing secret with SMTP credentials
+  existingSecret: ""
+  existingSecretSmtpUrlKey: smtp-url
+  existingSecretPasswordKey: smtp-password
+
+# =============================================================================
+# Deployment
+# =============================================================================
+
+# -- Number of Hoppscotch replicas. App is stateless — horizontal scaling is safe.
+replicaCount: 1
+
+deployment:
+  strategy:
+    # -- Rollout strategy type
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: true
+  # -- ServiceAccount name override
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# =============================================================================
+# Security Context
+# =============================================================================
+
+podSecurityContext:
+  fsGroup: 1000
+  runAsNonRoot: true
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# =============================================================================
+# Resources
+# =============================================================================
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  type: ClusterIP
+  port: 80
+  # -- Service IP family policy (GR-058 dual-stack)
+  # @default -- null (cluster default)
+  ipFamilyPolicy: null
+  # -- Service IP families (GR-058 dual-stack)
+  # @default -- [] (cluster default)
+  ipFamilies: []
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable Ingress
+  enabled: false
+  # -- IngressClass name
+  className: ""
+  # -- Primary hostname. Used to auto-derive VITE_* URLs when set.
+  host: ""
+  # -- Additional annotations
+  # Note: WebSocket requires proxy-read-timeout and upgrade annotations — see NOTES.txt
+  annotations: {}
+  # -- TLS configuration
+  tls: []
+
+# =============================================================================
+# Gateway API (GR-060)
+# =============================================================================
+
+gatewayAPI:
+  # -- Enable Gateway API HTTPRoute
+  enabled: false
+  # -- References to Gateway listeners (required when enabled)
+  parentRefs: []
+  # -- Hostnames for the HTTPRoute
+  hostnames: []
+  paths:
+    - type: PathPrefix
+      value: /
+  annotations: {}
+  tls: {}
+
+# =============================================================================
+# External Secrets Operator (GR-061)
+# =============================================================================
+
+externalSecrets:
+  # -- Enable ExternalSecret resource
+  enabled: false
+  secretStoreRef:
+    # -- Name of the SecretStore or ClusterSecretStore (required when enabled)
+    name: ""
+    kind: SecretStore
+  refreshInterval: "1h"
+  data: []
+  dataFrom: []
+  annotations: {}
+
+# =============================================================================
+# Monitoring
+# =============================================================================
+
+metrics:
+  enabled: false
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    labels: {}
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+
+networkPolicy:
+  enabled: false
+  ingress: []
+  egress: []
+
+# =============================================================================
+# Pod Disruption Budget
+# =============================================================================
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+# =============================================================================
+# Extras
+# =============================================================================
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+
+# -- Extra init containers (appended after wait-for-db and migrate)
+initContainers: []
+
+# -- Extra environment variables injected into the main container
+extraEnv: []
+
+# -- Extra envFrom entries (ConfigMaps, Secrets)
+extraEnvFrom: []

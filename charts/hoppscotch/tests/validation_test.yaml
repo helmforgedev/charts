@@ -1,0 +1,83 @@
+suite: validation tests
+templates:
+  - deployment.yaml
+  - secret.yaml
+  - configmap.yaml
+tests:
+  - it: should succeed in dev mode (default)
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: deployment.yaml
+
+  - it: should fail in production mode without hostname
+    set:
+      mode: production
+    asserts:
+      - failedTemplate:
+          errorMessage: "production mode requires ingress.host or baseUrl to be set"
+        template: deployment.yaml
+
+  - it: should fail in production mode without database
+    set:
+      mode: production
+      ingress:
+        host: hoppscotch.example.com
+      postgresql:
+        enabled: false
+      database:
+        external:
+          enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "production mode requires postgresql.enabled=true or database.external.enabled=true"
+        template: deployment.yaml
+
+  - it: should pass in production mode with hostname and postgresql
+    set:
+      mode: production
+      ingress:
+        host: hoppscotch.example.com
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: deployment.yaml
+
+  - it: should fail when encryption key is wrong length
+    set:
+      encryption:
+        key: "tooshort"
+    asserts:
+      - failedTemplate:
+          errorMessage: "encryption.key must be exactly 32 characters when set"
+        template: deployment.yaml
+
+  - it: should pass with valid 32-char encryption key
+    set:
+      encryption:
+        key: "12345678901234567890123456789012"
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: deployment.yaml
+
+  - it: should fail when gatewayAPI enabled without parentRefs
+    set:
+      gatewayAPI:
+        enabled: true
+        parentRefs: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "gatewayAPI.parentRefs is required when gatewayAPI.enabled=true"
+        template: deployment.yaml
+
+  - it: should fail when externalSecrets enabled without secretStoreRef.name
+    set:
+      externalSecrets:
+        enabled: true
+        secretStoreRef:
+          name: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.secretStoreRef.name is required when externalSecrets.enabled=true"
+        template: deployment.yaml
