@@ -76,15 +76,15 @@ Recommended reading before installation:
 
 ## Official product references
 
-- Keycloak downloads: https://www.keycloak.org/downloads
-- Keycloak release notes: https://www.keycloak.org/docs/latest/release_notes/index.html
-- Keycloak production configuration: https://www.keycloak.org/server/configuration-production
-- Keycloak hostname configuration: https://www.keycloak.org/server/hostname
-- Keycloak caching and transport stacks: https://www.keycloak.org/server/caching
-- Keycloak general configuration: https://www.keycloak.org/server/configuration
-- Keycloak all configuration: https://www.keycloak.org/server/all-config
-- Kubernetes Gateway API: https://kubernetes.io/docs/concepts/services-networking/gateway/
-- External Secrets Operator: https://external-secrets.io/latest/
+- [Keycloak downloads](https://www.keycloak.org/downloads)
+- [Keycloak release notes](https://www.keycloak.org/docs/latest/release_notes/index.html)
+- [Keycloak production configuration](https://www.keycloak.org/server/configuration-production)
+- [Keycloak hostname configuration](https://www.keycloak.org/server/hostname)
+- [Keycloak caching and transport stacks](https://www.keycloak.org/server/caching)
+- [Keycloak general configuration](https://www.keycloak.org/server/configuration)
+- [Keycloak all configuration](https://www.keycloak.org/server/all-config)
+- [Kubernetes Gateway API](https://kubernetes.io/docs/concepts/services-networking/gateway/)
+- [External Secrets Operator](https://external-secrets.io/latest/)
 
 ## Keycloak 26.6.x alignment
 
@@ -116,7 +116,10 @@ This chart exposes common Keycloak production options as first-class values:
 
 Gateway API support is optional and renders only `HTTPRoute` resources. The chart does not create `GatewayClass` or `Gateway` resources.
 
-External Secrets support is optional and intended only for clusters that already have External Secrets Operator and a `SecretStore` or `ClusterSecretStore`. The chart renders `ExternalSecret` resources that materialize the Kubernetes Secrets consumed by the existing `admin`, `database`, and `truststore` paths; it does not install the operator or create provider stores.
+External Secrets support is optional and intended only for clusters that already have External Secrets Operator and a
+`SecretStore` or `ClusterSecretStore`. The chart renders `ExternalSecret` resources that materialize the Kubernetes
+Secrets consumed by the existing `admin`, `database`, and `truststore` paths; it does not install the operator or create
+provider stores.
 
 ## Operational direction
 
