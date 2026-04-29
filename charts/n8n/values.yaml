@@ -23,7 +23,7 @@ image:
   # -- Container image repository
   repository: docker.io/n8nio/n8n
   # -- Container image tag
-  tag: "2.12.3"
+  tag: "2.19.0"
   # -- Image pull policy
   pullPolicy: IfNotPresent
 
@@ -314,6 +314,11 @@ service:
   # -- Annotations for the service
   annotations: {}
 
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ""
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
+
 # =============================================================================
 # Ingress
 # =============================================================================
@@ -486,3 +491,46 @@ extraVolumes: []
 
 # -- Extra Kubernetes manifests to deploy alongside the chart
 extraManifests: []
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gateway:
+  # -- Enable Gateway API HTTPRoute (alternative to Ingress; requires Gateway API CRDs)
+  enabled: false
+  # -- Gateway name to attach the HTTPRoute to
+  gatewayName: envoy-gateway
+  # -- Namespace of the gateway
+  gatewayNamespace: envoy-gateway
+  # -- Hostnames the HTTPRoute matches
+  hostnames: []
+    # - n8n.example.com
+  # -- Path prefix for the HTTPRoute
+  path: /
+  # -- Path match type
+  pathType: PathPrefix
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret for clusters running External Secrets Operator.
+  # Requires encryptionKey.existingSecret to be set to prevent credential drift.
+  enabled: false
+  # -- ExternalSecret apiVersion.
+  apiVersion: external-secrets.io/v1
+  # -- Refresh interval.
+  refreshInterval: 1h
+  secretStoreRef:
+    # -- Existing SecretStore or ClusterSecretStore name.
+    name: ""
+    kind: SecretStore
+  target:
+    creationPolicy: Owner
+  # -- ExternalSecret data entries mapping remote keys to the encryption key Secret.
+  data: []
+  #   - secretKey: encryption-key
+  #     remoteRef:
+  #       key: n8n/credentials
+  #       property: encryption-key
