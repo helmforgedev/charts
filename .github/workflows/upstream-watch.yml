@@ -54,17 +54,29 @@ jobs:
             [ -z "$TAG" ] && continue
             [ "$TAG" = "null" ] && continue
 
+            # Skip charts with non-semver tags (can't be monitored)
+            if ! echo "$TAG" | grep -qE '(^|[^0-9])v?[0-9]+\.[0-9]+'; then
+              echo "::group::$CHART — $REPO:$TAG"
+              echo "ℹ️ $CHART uses non-semver tag ($TAG) — skipping"
+              echo "::endgroup::"
+              sleep 2
+              continue
+            fi
+
             # Detect tag variant suffix (e.g. "-apache", "-management")
-            TAG_VARIANT=$(echo "$TAG" | sed -n 's/^v\?[0-9]\+\.[0-9]\+\(\.[0-9]\+\)\?\(-.\+\)/\2/p')
+            TAG_VARIANT=$(echo "$TAG" \
+              | sed -n 's/^v\?[0-9]\+\.[0-9]\+\(\.[0-9]\+\)\?\(-.\+\)/\2/p')
 
             echo "::group::$CHART — $REPO:$TAG"
 
-            # Determine registry and fetch tags
-            LATEST=""
+            # ---------------------------------------------------------------
+            # Fetch ALL semver tags from the registry (with pagination)
+            # ---------------------------------------------------------------
+            ALL_TAGS=""
+
             if echo "$REPO" | grep -q "ghcr.io"; then
               # GHCR — proper OCI token exchange flow
               IMAGE_PATH="${REPO#ghcr.io/}"
-              # Step 1: Exchange GITHUB_TOKEN for a registry-scoped bearer token
               GHCR_TOKEN=$(curl -sf \
                 -u "_:${GH_TOKEN}" \
                 "https://ghcr.io/token?scope=repository:${IMAGE_PATH}:pull&service=ghcr.io" \
@@ -75,14 +87,24 @@ jobs:
                 sleep 2
                 continue
               fi
-              # Step 2: Use scoped token to list tags
-              TAGS_JSON=$(curl -sf -H "Authorization: Bearer $GHCR_TOKEN" \
-                "https://ghcr.io/v2/${IMAGE_PATH}/tags/list" 2>/dev/null || echo "{}")
-              LATEST=$(echo "$TAGS_JSON" | jq -r '.tags[]? // empty' 2>/dev/null \
-                | { if [ -n "$TAG_VARIANT" ]; then grep -E "^v?[0-9]+\.[0-9]+(\.[0-9]+)?${TAG_VARIANT}$"; else grep -E '^v?[0-9]+\.[0-9]+(\.[0-9]+)?$'; fi; } \
-                | sed "s/^v//; s/${TAG_VARIANT:-\$}$//" \
-                | sort -t. -k1,1n -k2,2n -k3,3n \
-                | tail -1)
+              # Paginate through all tag pages (OCI Link header)
+              NEXT_URL="https://ghcr.io/v2/${IMAGE_PATH}/tags/list?n=1000"
+              while [ -n "$NEXT_URL" ]; do
+                RESPONSE=$(curl -sI -H "Authorization: Bearer $GHCR_TOKEN" \
+                  "$NEXT_URL" 2>/dev/null)
+                BODY=$(curl -sf -H "Authorization: Bearer $GHCR_TOKEN" \
+                  "$NEXT_URL" 2>/dev/null || echo "{}")
+                PAGE_TAGS=$(echo "$BODY" | jq -r '.tags[]? // empty' 2>/dev/null)
+                ALL_TAGS=$(printf '%s\n%s' "$ALL_TAGS" "$PAGE_TAGS")
+                # Check for next page via Link header
+                NEXT_URL=$(echo "$RESPONSE" \
+                  | grep -i '^link:' \
+                  | sed -n 's/.*<\(.*\)>; rel="next".*/\1/p' \
+                  | tr -d '\r')
+                # Resolve relative URLs to absolute
+                case "$NEXT_URL" in /*) NEXT_URL="https://ghcr.io${NEXT_URL}" ;; esac
+              done
+
             elif echo "$REPO" | grep -q "quay.io"; then
               # Quay.io — OCI distribution API with anonymous token
               IMAGE_PATH="${REPO#quay.io/}"
@@ -95,32 +117,41 @@ jobs:
                 sleep 2
                 continue
               fi
-              TAGS_JSON=$(curl -sf -H "Authorization: Bearer $QUAY_TOKEN" \
-                "https://quay.io/v2/${IMAGE_PATH}/tags/list" 2>/dev/null || echo "{}")
-              LATEST=$(echo "$TAGS_JSON" | jq -r '.tags[]? // empty' 2>/dev/null \
-                | { if [ -n "$TAG_VARIANT" ]; then grep -E "^v?[0-9]+\.[0-9]+(\.[0-9]+)?${TAG_VARIANT}$"; else grep -E '^v?[0-9]+\.[0-9]+(\.[0-9]+)?$'; fi; } \
-                | grep -vE '(-rc|-alpha|-beta|-dev|-snapshot|-pre)' \
-                | sed "s/^v//; s/${TAG_VARIANT:-\$}$//" \
-                | sort -t. -k1,1n -k2,2n -k3,3n \
-                | tail -1)
+              # Paginate through all tag pages
+              NEXT_URL="https://quay.io/v2/${IMAGE_PATH}/tags/list?n=1000"
+              while [ -n "$NEXT_URL" ]; do
+                RESPONSE=$(curl -sI -H "Authorization: Bearer $QUAY_TOKEN" \
+                  "$NEXT_URL" 2>/dev/null)
+                BODY=$(curl -sf -H "Authorization: Bearer $QUAY_TOKEN" \
+                  "$NEXT_URL" 2>/dev/null || echo "{}")
+                PAGE_TAGS=$(echo "$BODY" | jq -r '.tags[]? // empty' 2>/dev/null)
+                ALL_TAGS=$(printf '%s\n%s' "$ALL_TAGS" "$PAGE_TAGS")
+                NEXT_URL=$(echo "$RESPONSE" \
+                  | grep -i '^link:' \
+                  | sed -n 's/.*<\(.*\)>; rel="next".*/\1/p' \
+                  | tr -d '\r')
+                # Resolve relative URLs to absolute
+                case "$NEXT_URL" in /*) NEXT_URL="https://quay.io${NEXT_URL}" ;; esac
+              done
+
             elif echo "$REPO" | grep -qE "^(docker\.io/|[^./]+/[^./]+$)"; then
-              # Docker Hub
+              # Docker Hub — paginate through v2 API results
               NAMESPACE=$(echo "$REPO" | sed 's|docker\.io/||' | cut -d'/' -f1)
               IMAGE=$(echo "$REPO" | sed 's|docker\.io/||' | cut -d'/' -f2)
-              # Handle library images (single-segment names)
               if [ -z "$IMAGE" ]; then
                 IMAGE="$NAMESPACE"
                 NAMESPACE="library"
               fi
-              TAGS_JSON=$(curl -sf \
-                "https://hub.docker.com/v2/repositories/${NAMESPACE}/${IMAGE}/tags/?page_size=100&ordering=last_updated" \
-                2>/dev/null || echo "{}")
-              LATEST=$(echo "$TAGS_JSON" | jq -r '.results[]?.name // empty' 2>/dev/null \
-                | { if [ -n "$TAG_VARIANT" ]; then grep -E "^v?[0-9]+\.[0-9]+(\.[0-9]+)?${TAG_VARIANT}$"; else grep -E '^v?[0-9]+\.[0-9]+(\.[0-9]+)?$'; fi; } \
-                | grep -vE '(-rc|-alpha|-beta|-dev|-snapshot|-pre)' \
-                | sed "s/^v//; s/${TAG_VARIANT:-\$}$//" \
-                | sort -t. -k1,1n -k2,2n -k3,3n \
-                | tail -1)
+              NEXT_URL="https://hub.docker.com/v2/repositories/${NAMESPACE}/${IMAGE}/tags/?page_size=100&ordering=last_updated"
+              PAGE_COUNT=0
+              while [ -n "$NEXT_URL" ] && [ "$PAGE_COUNT" -lt 5 ]; do
+                BODY=$(curl -sf "$NEXT_URL" 2>/dev/null || echo "{}")
+                PAGE_TAGS=$(echo "$BODY" | jq -r '.results[]?.name // empty' 2>/dev/null)
+                ALL_TAGS=$(printf '%s\n%s' "$ALL_TAGS" "$PAGE_TAGS")
+                NEXT_URL=$(echo "$BODY" | jq -r '.next // empty' 2>/dev/null)
+                PAGE_COUNT=$((PAGE_COUNT + 1))
+              done
+
             else
               echo "⚠️ Unknown registry for $REPO — skipping"
               echo "::endgroup::"
@@ -128,8 +159,24 @@ jobs:
               continue
             fi
 
-            # Compare versions
-            CURRENT_CLEAN=$(echo "$TAG" | sed 's/^v//')
+            # ---------------------------------------------------------------
+            # Filter tags and find latest stable version
+            # ---------------------------------------------------------------
+            LATEST=$(echo "$ALL_TAGS" | grep -v '^$' \
+              | { if [ -n "$TAG_VARIANT" ]; then
+                    grep -E "^v?[0-9]+\.[0-9]+(\.[0-9]+)?${TAG_VARIANT}$"
+                  else
+                    grep -E '^v?[0-9]+\.[0-9]+(\.[0-9]+)?$'
+                  fi; } \
+              | grep -vE '(-rc|-alpha|-beta|-dev|-snapshot|-pre)' \
+              | sed "s/^v//; s/${TAG_VARIANT:-\$}$//" \
+              | sort -t. -k1,1n -k2,2n -k3,3n \
+              | tail -1)
+
+            # ---------------------------------------------------------------
+            # Compare versions (strip variant from current too)
+            # ---------------------------------------------------------------
+            CURRENT_CLEAN=$(echo "$TAG" | sed "s/^v//; s/${TAG_VARIANT:-\$}$//")
 
             if [ -z "$LATEST" ]; then
               echo "ℹ️ No stable semver tags found for $REPO"
@@ -146,7 +193,8 @@ jobs:
             fi
 
             # Check if newer version is actually greater (not older)
-            HIGHER=$(printf '%s\n%s' "$CURRENT_CLEAN" "$LATEST" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
+            HIGHER=$(printf '%s\n%s' "$CURRENT_CLEAN" "$LATEST" \
+              | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
             if [ "$HIGHER" = "$CURRENT_CLEAN" ]; then
               echo "ℹ️ $CHART current ($TAG) is newer than latest found ($LATEST) — skipping"
               echo "::endgroup::"
@@ -154,7 +202,13 @@ jobs:
               continue
             fi
 
-            echo "🔔 Update available: $CHART $TAG → $LATEST"
+            # Re-append variant suffix for display
+            LATEST_DISPLAY="$LATEST"
+            if [ -n "$TAG_VARIANT" ]; then
+              LATEST_DISPLAY="${LATEST}${TAG_VARIANT}"
+            fi
+
+            echo "🔔 Update available: $CHART $TAG → $LATEST_DISPLAY"
 
             # Check for existing open issue to avoid duplicates
             EXISTING=$(gh issue list \
@@ -202,12 +256,13 @@ jobs:
             # Determine registry name for the issue body
             REGISTRY_NAME="Docker Hub"
             echo "$REPO" | grep -q "ghcr.io" && REGISTRY_NAME="GHCR"
+            echo "$REPO" | grep -q "quay.io" && REGISTRY_NAME="Quay.io"
 
             ISSUE_BODY=$(echo "$ISSUE_BODY" \
               | sed "s|CHART_PLACEHOLDER|$CHART|g" \
               | sed "s|REPO_PLACEHOLDER|$REPO|g" \
               | sed "s|TAG_PLACEHOLDER|$TAG|g" \
-              | sed "s|LATEST_PLACEHOLDER|$LATEST|g" \
+              | sed "s|LATEST_PLACEHOLDER|$LATEST_DISPLAY|g" \
               | sed "s|REGISTRY_PLACEHOLDER|$REGISTRY_NAME|g")
 
             # Ensure all required labels exist (idempotent)
@@ -222,7 +277,7 @@ jobs:
               --color "0e8a16" --force 2>/dev/null || true
 
             gh issue create \
-              --title "chore($CHART): upstream image update available ($TAG → $LATEST)" \
+              --title "chore($CHART): upstream image update available ($TAG → $LATEST_DISPLAY)" \
               --body "$ISSUE_BODY" \
               --label "upstream-update,chart:${CHART},chore" \
               || echo "::warning::Failed to create issue for $CHART"
