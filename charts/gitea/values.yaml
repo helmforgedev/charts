@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
 # Gitea Configuration
 # =============================================================================
@@ -5,7 +6,7 @@
 # -- Gitea image
 image:
   repository: docker.io/gitea/gitea
-  tag: "1.25.5-rootless"
+  tag: "1.26.1-rootless"
   pullPolicy: IfNotPresent
 
 # -- Image pull secrets
@@ -77,7 +78,7 @@ admin:
 # Use `database.mode` to select explicitly, or leave as `auto` to auto-detect
 # based on which database section is configured.
 #
-# Auto-detection priority: external → postgresql → mysql → sqlite
+# Auto-detection priority: external - postgresql - mysql - sqlite
 # =============================================================================
 
 database:
@@ -236,6 +237,10 @@ service:
     port: 3000
     # -- Annotations for the HTTP service
     annotations: {}
+    # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack
+    ipFamilyPolicy: ""
+    # -- Service IP families override
+    ipFamilies: []
 
   ssh:
     # -- Enable SSH service
@@ -248,6 +253,10 @@ service:
     nodePort: ""
     # -- Annotations for the SSH service
     annotations: {}
+    # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack
+    ipFamilyPolicy: ""
+    # -- Service IP families override
+    ipFamilies: []
 
 # =============================================================================
 # Ingress
@@ -414,3 +423,43 @@ extraManifests: []
   #     name: extra-config
   #   data:
   #     key: value
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gateway:
+  # -- Enable Gateway API HTTPRoute for Gitea HTTP (requires Gateway API CRDs)
+  enabled: false
+  annotations: {}
+  parentRefs: []
+  hostnames: []
+  path: /
+  pathType: PathPrefix
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret for Gitea admin credentials.
+  # Requires admin.existingSecret to be set to prevent drift between
+  # the chart-managed admin credentials and the ExternalSecret.
+  enabled: false
+  apiVersion: external-secrets.io/v1
+  refreshInterval: 1h
+  secretStoreRef:
+    name: ""
+    kind: SecretStore
+  target:
+    creationPolicy: Owner
+  # -- Data entries mapping remote keys to admin credentials.
+  data: []
+  #   - secretKey: admin-username
+  #     remoteRef:
+  #       key: gitea/admin
+  #       property: username
+  #   - secretKey: admin-password
+  #     remoteRef:
+  #       key: gitea/admin
+  #       property: password
