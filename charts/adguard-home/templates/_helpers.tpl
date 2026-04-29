@@ -31,7 +31,7 @@ app.kubernetes.io/name: {{ include "adguard-home.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
-{{/* Image helper — tag prefixed with "v" */}}
+{{/* Image helper - tag prefixed with "v" */}}
 {{- define "adguard-home.image" -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}

@@ -34,21 +34,21 @@ To skip the wizard and deploy a pre-configured instance, provide `config.adGuard
 
 ## Features
 
-- **Network-Wide Ad Blocking** — DNS-level filtering for all devices on the network
-- **Two Deployment Modes** — wizard mode for initial setup or pre-configured mode for automated deployments
-- **DNS over HTTPS / TLS** — configurable encrypted upstream DNS
-- **AdGuardHome Sync** — optional multi-instance synchronization via [adguardhome-sync](https://github.com/bakito/adguardhome-sync)
-- **S3 Backup** — automated CronJob-based backup to any S3-compatible storage
-- **Separate DNS Service** — dedicated LoadBalancer for DNS traffic independent of the web UI
-- **Ingress Support** — configurable ingress with TLS for the web admin interface
-- **Config Seeding** — initial configuration is preserved across upgrades (only seeded on first run)
+- **Network-Wide Ad Blocking** - DNS-level filtering for all devices on the network
+- **Two Deployment Modes** - wizard mode for initial setup or pre-configured mode for automated deployments
+- **DNS over HTTPS / TLS** - configurable encrypted upstream DNS
+- **AdGuardHome Sync** - optional multi-instance synchronization via [adguardhome-sync](https://github.com/bakito/adguardhome-sync)
+- **S3 Backup** - automated CronJob-based backup to any S3-compatible storage
+- **Separate DNS Service** - dedicated LoadBalancer for DNS traffic independent of the web UI
+- **Ingress Support** - configurable ingress with TLS for the web admin interface
+- **Config Seeding** - initial configuration is preserved across upgrades (only seeded on first run)
 
 ## Configuration
 
 ### Wizard Mode (Default)
 
 ```yaml
-# No config.adGuardHome — wizard runs on first access at port 3000
+# No config.adGuardHome - wizard runs on first access at port 3000
 service:
   dns:
     type: LoadBalancer
@@ -64,7 +64,7 @@ config:
       address: 0.0.0.0:80
     users:
       - name: admin
-        # bcrypt hash — generate with: htpasswd -bnBC 10 "" 'PASSWORD' | cut -d: -f2
+        # bcrypt hash - generate with: htpasswd -bnBC 10 "" 'PASSWORD' | cut -d: -f2
         password: "$2y$10$..."
     dns:
       bind_hosts:
@@ -280,14 +280,14 @@ backup:
 
 ## Examples
 
-- [Simple](examples/simple.yaml) — wizard mode with DNS LoadBalancer
-- [Pre-configured](examples/preconfigured.yaml) — skip wizard, ingress, filter lists
-- [Production](examples/production.yaml) — sync, backup, ingress, resource limits
+- [Simple](examples/simple.yaml) - wizard mode with DNS LoadBalancer
+- [Pre-configured](examples/preconfigured.yaml) - skip wizard, ingress, filter lists
+- [Production](examples/production.yaml) - sync, backup, ingress, resource limits
 
 ## Architecture Guides
 
-- [AdGuardHome Sync](docs/sync.md) — multi-instance configuration synchronization
-- [Backup](docs/backup.md) — automated S3 backup and restore
+- [AdGuardHome Sync](docs/sync.md) - multi-instance configuration synchronization
+- [Backup](docs/backup.md) - automated S3 backup and restore
 
 ## Connection
 
@@ -310,9 +310,9 @@ kubectl port-forward svc/<release>-adguard-home-web 8080:80
 
 This chart intentionally does not support:
 
-- **Multi-replica DNS** — AdGuard Home is designed as a single instance; use sync for multi-site setups
-- **Built-in DNS-over-HTTPS proxy** — use a dedicated reverse proxy or ingress controller for TLS termination
-- **Automatic filter list management** — filter lists are managed through the AdGuard Home web UI or config
+- **Multi-replica DNS** - AdGuard Home is designed as a single instance; use sync for multi-site setups
+- **Built-in DNS-over-HTTPS proxy** - use a dedicated reverse proxy or ingress controller for TLS termination
+- **Automatic filter list management** - filter lists are managed through the AdGuard Home web UI or config
 
 <!-- @AI-METADATA
 type: chart-readme
