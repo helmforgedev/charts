@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
 # MySQL Helm Chart - Default Values
 # =============================================================================
@@ -27,7 +28,7 @@ image:
   # -- MySQL image repository
   repository: docker.io/library/mysql
   # -- MySQL image tag
-  tag: "8.4"
+  tag: "9.7.0"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -189,14 +190,10 @@ service:
   port: 3306
   # -- Metrics port exposed when metrics.enabled=true
   metricsPort: 9104
-  # -- IP family policy. One of: SingleStack | PreferDualStack | RequireDualStack. Omit for cluster default.
-  # @default -- omitted
-  # ipFamilyPolicy: PreferDualStack
-  # -- Ordered list of IP families for the Service. Each entry: IPv4 | IPv6. Omit for cluster default.
-  # @default -- omitted
-  # ipFamilies:
-  #   - IPv4
-  #   - IPv6
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ""
+  # -- Ordered list of IP families for the Service: IPv4 | IPv6. Empty uses cluster default.
+  ipFamilies: []
 
 # =============================================================================
 # Metrics
@@ -277,7 +274,7 @@ backup:
       pullPolicy: IfNotPresent
     mysql:
       repository: docker.io/library/mysql
-      tag: "8.4"
+      tag: "9.7.0"
       pullPolicy: IfNotPresent
   s3:
     # -- S3-compatible endpoint URL, for example: https://s3.amazonaws.com or https://minio.example.com
@@ -410,3 +407,28 @@ terminationGracePeriodSeconds: 120
 extraEnv: []
 extraVolumes: []
 extraVolumeMounts: []
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret for clusters running External Secrets Operator.
+  enabled: false
+  # -- ExternalSecret apiVersion.
+  apiVersion: external-secrets.io/v1
+  # -- Refresh interval.
+  refreshInterval: 1h
+  secretStoreRef:
+    # -- Existing SecretStore or ClusterSecretStore name.
+    name: ""
+    kind: SecretStore
+  target:
+    creationPolicy: Owner
+  # -- ExternalSecret data entries for MySQL passwords.
+  data: []
+  #   - secretKey: mysql-root-password
+  #     remoteRef:
+  #       key: mysql/credentials
+  #       property: root-password
+
