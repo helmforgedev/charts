@@ -1,28 +1,37 @@
 suite: Service
 templates:
   - service.yaml
+  - service-management.yaml
 release:
   name: test
   namespace: default
 tests:
   - it: should be a Service
+    template: service.yaml
     asserts:
       - isKind:
           of: Service
 
   - it: should have correct name
+    template: service.yaml
     asserts:
       - equal:
           path: metadata.name
           value: test-keycloak
 
   - it: should be ClusterIP by default
+    template: service.yaml
     asserts:
       - equal:
           path: spec.type
           value: ClusterIP
+      - notExists:
+          path: spec.ipFamilyPolicy
+      - notExists:
+          path: spec.ipFamilies
 
   - it: should expose HTTP port 8080
+    template: service.yaml
     asserts:
       - contains:
           path: spec.ports
@@ -30,3 +39,53 @@ tests:
             name: http
             port: 8080
             targetPort: http
+
+  - it: should set application Service dual-stack fields when configured
+    template: service.yaml
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies:
+        - IPv4
+        - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv4
+      - equal:
+          path: spec.ipFamilies[1]
+          value: IPv6
+
+  - it: should set management Service dual-stack fields when configured
+    template: service-management.yaml
+    set:
+      service.managementIpFamilyPolicy: PreferDualStack
+      service.managementIpFamilies:
+        - IPv4
+        - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv4
+      - equal:
+          path: spec.ipFamilies[1]
+          value: IPv6
+
+  - it: should support SingleStack IPv6 on the application Service
+    template: service.yaml
+    set:
+      service.ipFamilyPolicy: SingleStack
+      service.ipFamilies:
+        - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: SingleStack
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv6

@@ -1,3 +1,4 @@
+{{- include "keycloak.validateAll" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -6,6 +7,13 @@ metadata:
     {{- include "keycloak.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: {{ .Values.deployment.strategy.type }}
+    {{- if eq .Values.deployment.strategy.type "RollingUpdate" }}
+    rollingUpdate:
+      maxUnavailable: {{ .Values.deployment.strategy.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.deployment.strategy.rollingUpdate.maxSurge }}
+    {{- end }}
   selector:
     matchLabels:
       {{- include "keycloak.selectorLabels" . | nindent 6 }}
@@ -70,33 +78,33 @@ spec:
             {{- if gt (int .Values.replicaCount) 1 }}
             - name: jgroups
               containerPort: 7800
-            - name: failure-detector
+            - name: jgroups-fd
               containerPort: 57800
             {{- end }}
-          {{- if and .Values.health.enabled .Values.probes.liveness.enabled }}
+          {{- if and .Values.health.enabled .Values.management.healthEnabled .Values.probes.liveness.enabled }}
           livenessProbe:
             httpGet:
-              path: /health/live
+              path: {{ include "keycloak.managementEndpointPath" (dict "root" . "path" "/health/live") }}
               port: management
             initialDelaySeconds: {{ include "keycloak.probeValue" (dict "root" . "probe" "liveness" "field" "initialDelaySeconds") }}
             periodSeconds: {{ include "keycloak.probeValue" (dict "root" . "probe" "liveness" "field" "periodSeconds") }}
             timeoutSeconds: {{ include "keycloak.probeValue" (dict "root" . "probe" "liveness" "field" "timeoutSeconds") }}
             failureThreshold: {{ include "keycloak.probeValue" (dict "root" . "probe" "liveness" "field" "failureThreshold") }}
           {{- end }}
-          {{- if and .Values.health.enabled .Values.probes.readiness.enabled }}
+          {{- if and .Values.health.enabled .Values.management.healthEnabled .Values.probes.readiness.enabled }}
           readinessProbe:
             httpGet:
-              path: /health/ready
+              path: {{ include "keycloak.managementEndpointPath" (dict "root" . "path" "/health/ready") }}
               port: management
             initialDelaySeconds: {{ include "keycloak.probeValue" (dict "root" . "probe" "readiness" "field" "initialDelaySeconds") }}
             periodSeconds: {{ include "keycloak.probeValue" (dict "root" . "probe" "readiness" "field" "periodSeconds") }}
             timeoutSeconds: {{ include "keycloak.probeValue" (dict "root" . "probe" "readiness" "field" "timeoutSeconds") }}
             failureThreshold: {{ include "keycloak.probeValue" (dict "root" . "probe" "readiness" "field" "failureThreshold") }}
           {{- end }}
-          {{- if and .Values.health.enabled .Values.probes.startup.enabled }}
+          {{- if and .Values.health.enabled .Values.management.healthEnabled .Values.probes.startup.enabled }}
           startupProbe:
             httpGet:
-              path: /health/started
+              path: {{ include "keycloak.managementEndpointPath" (dict "root" . "path" "/health/started") }}
               port: management
             initialDelaySeconds: {{ include "keycloak.probeValue" (dict "root" . "probe" "startup" "field" "initialDelaySeconds") }}
             periodSeconds: {{ include "keycloak.probeValue" (dict "root" . "probe" "startup" "field" "periodSeconds") }}
@@ -106,7 +114,7 @@ spec:
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- include "keycloak.resources" . | nindent 12 }}
           volumeMounts:
             {{- if .Values.realmImport.enabled }}
             - name: realm-import
@@ -203,7 +211,11 @@ spec:
               {{- end }}
               {{- if .Values.truststore.existingSecret }}
               - secret:
-                  name: {{ .Values.truststore.existingSecret }}
+                  name: {{ include "keycloak.truststoreSecretName" . }}
+              {{- end }}
+              {{- if and (not .Values.truststore.existingSecret) (include "keycloak.truststoreSecretManagedByExternalSecret" .) }}
+              - secret:
+                  name: {{ include "keycloak.truststoreSecretName" . }}
               {{- end }}
         {{- end }}
         {{- with .Values.extraVolumes }}

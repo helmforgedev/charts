@@ -6,14 +6,34 @@ Read this guide before choosing CPU, memory, and scheduling priority for a produ
 
 ## Current chart model
 
-The chart leaves container sizing entirely under operator control through explicit `resources`.
+The chart leaves container sizing under operator control through either explicit `resources` or an optional `capacity.profile`.
 
 Default behavior:
 
 - if `resources` is not set, the chart renders with `resources: {}`
+- `capacity.profile` defaults to `custom`
 - no CPU or memory requests/limits are imposed by default
 
 This keeps capacity decisions aligned with the real platform and workload instead of hiding them behind presets.
+
+## Capacity profiles
+
+Use `capacity.profile` only as a starting point:
+
+```yaml
+capacity:
+  profile: medium
+```
+
+Profiles are conservative presets:
+
+| Profile | Requests | Limits |
+|---------|----------|--------|
+| `small` | `500m`, `1Gi` | `1`, `2Gi` |
+| `medium` | `1`, `2Gi` | `2`, `4Gi` |
+| `large` | `2`, `3Gi` | `4`, `6Gi` |
+
+Do not combine `capacity.profile` with explicit `resources`. If you need exact values, keep `capacity.profile: custom` and set `resources`.
 
 ## Priority class
 
@@ -32,13 +52,8 @@ Do not set a high-priority class casually. Priority must be aligned with the res
 For a serious production environment, a reasonable starting point is:
 
 ```yaml
-resources:
-  requests:
-    cpu: "1"
-    memory: 2Gi
-  limits:
-    cpu: "2"
-    memory: 4Gi
+capacity:
+  profile: medium
 priorityClassName: platform-critical
 ```
 

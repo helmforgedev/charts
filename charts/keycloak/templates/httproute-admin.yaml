@@ -1,0 +1,36 @@
+{{- if .Values.gateway.admin.enabled }}
+{{- include "keycloak.validateAll" . -}}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "keycloak.fullname" . }}-admin
+  labels:
+    {{- include "keycloak.labels" . | nindent 4 }}
+    app.kubernetes.io/component: admin
+  {{- with .Values.gateway.admin.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- toYaml .Values.gateway.admin.parentRefs | nindent 4 }}
+  {{- if .Values.gateway.admin.hostnames }}
+  hostnames:
+    {{- toYaml .Values.gateway.admin.hostnames | nindent 4 }}
+  {{- else if .Values.hostname.admin }}
+  hostnames:
+    - {{ .Values.hostname.admin | quote }}
+  {{- end }}
+  rules:
+    - matches:
+        - path:
+            type: {{ .Values.gateway.admin.pathType }}
+            value: {{ .Values.gateway.admin.path | quote }}
+      {{- with .Values.gateway.admin.filters }}
+      filters:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      backendRefs:
+        - name: {{ include "keycloak.fullname" . }}
+          port: {{ .Values.http.port }}
+{{- end }}

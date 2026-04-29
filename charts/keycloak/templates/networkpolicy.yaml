@@ -11,6 +11,9 @@ spec:
       {{- include "keycloak.selectorLabels" . | nindent 6 }}
   policyTypes:
     - Ingress
+    {{- if .Values.networkPolicy.egress.enabled }}
+    - Egress
+    {{- end }}
   ingress:
     - from:
         {{- if .Values.networkPolicy.ingress.allowSameNamespace }}
@@ -43,4 +46,31 @@ spec:
         - protocol: TCP
           port: 57800
     {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  egress:
+    {{- if .Values.networkPolicy.egress.allowDns }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.egress.dnsNamespaceSelector | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.egress.dnsPodSelector | nindent 14 }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+    {{- if and .Values.networkPolicy.egress.allowDatabase (include "keycloak.hasDatabase" .) .Values.networkPolicy.egress.databaseTo }}
+    - to:
+        {{- toYaml .Values.networkPolicy.egress.databaseTo | nindent 8 }}
+      ports:
+        - protocol: TCP
+          port: {{ include "keycloak.databasePort" . }}
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
 {{- end }}

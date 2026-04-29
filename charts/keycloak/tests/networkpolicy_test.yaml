@@ -16,3 +16,60 @@ tests:
     asserts:
       - isKind:
           of: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+
+  - it: should render DNS egress when enabled
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53
+      - equal:
+          path: spec.egress[0].to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: kube-system
+
+  - it: should render database egress when destination peers are configured
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      mode: production
+      hostname.hostname: sso.example.com
+      database.external.host: pg-host
+      database.external.password: prodpass
+      networkPolicy.egress.databaseTo:
+        - ipBlock:
+            cidr: 10.10.0.0/16
+    asserts:
+      - equal:
+          path: spec.egress[1].to[0].ipBlock.cidr
+          value: 10.10.0.0/16
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 5432
+
+  - it: should append extra egress rules
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.allowDns: false
+      networkPolicy.egress.extraEgress:
+        - to:
+            - ipBlock:
+                cidr: 0.0.0.0/0
+          ports:
+            - protocol: TCP
+              port: 443
+    asserts:
+      - equal:
+          path: spec.egress[0].to[0].ipBlock.cidr
+          value: 0.0.0.0/0
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 443

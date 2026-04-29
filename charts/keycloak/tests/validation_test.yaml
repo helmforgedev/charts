@@ -1,0 +1,173 @@
+suite: Validations
+templates:
+  - deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should fail when more than one database mode is configured
+    set:
+      postgresql.enabled: true
+      postgresql.auth.password: devpass
+      mysql.enabled: true
+      mysql.auth.password: devpass
+    asserts:
+      - failedTemplate:
+          errorMessage: "keycloak database selection is ambiguous: configure only one of database.external.host, postgresql.enabled, or mysql.enabled"
+
+  - it: should fail production mode without hostname
+    set:
+      mode: production
+      database.external.host: pg-host
+      database.external.password: prodpass
+    asserts:
+      - failedTemplate:
+          errorMessage: "hostname.hostname is required in production mode"
+
+  - it: should fail production mode without a real database
+    set:
+      mode: production
+      hostname.hostname: sso.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: "production mode requires a database: set postgresql.enabled, mysql.enabled, or database.external.host"
+
+  - it: should fail admin ingress in production without admin hostname
+    set:
+      mode: production
+      hostname.hostname: sso.example.com
+      database.external.host: pg-host
+      database.external.password: prodpass
+      ingress.admin.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "hostname.admin is required when ingress.admin.enabled is true in production mode"
+
+  - it: should fail dev mode with multiple replicas
+    set:
+      mode: dev
+      replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: "mode=dev does not support replicaCount > 1; use mode=production with a real database for multi-replica deployments"
+
+  - it: should fail production multi-replica when cache is disabled
+    set:
+      mode: production
+      hostname.hostname: sso.example.com
+      database.external.host: pg-host
+      database.external.password: prodpass
+      replicaCount: 2
+      cache.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "production multi-replica deployments require cache.enabled=true"
+
+  - it: should fail PDB minAvailable equal to replicaCount
+    set:
+      pdb.enabled: true
+      replicaCount: 1
+      pdb.minAvailable: 1
+    asserts:
+      - failedTemplate:
+          errorMessage: "pdb.minAvailable must be lower than replicaCount to avoid blocking voluntary disruptions"
+
+  - it: should fail backup without S3 endpoint
+    set:
+      postgresql.enabled: true
+      postgresql.auth.password: devpass
+      backup.enabled: true
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.endpoint is required when backup.enabled is true"
+
+  - it: should fail backup with embedded H2
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.enabled requires a real database; embedded H2 is not supported for backups"
+
+  - it: should fail backup without S3 bucket
+    set:
+      postgresql.enabled: true
+      postgresql.auth.password: devpass
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.bucket is required when backup.enabled is true"
+
+  - it: should fail backup with incomplete S3 credentials
+    set:
+      postgresql.enabled: true
+      postgresql.auth.password: devpass
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey"
+
+  - it: should fail proxy protocol when proxy headers are enabled
+    set:
+      mode: production
+      hostname.hostname: sso.example.com
+      database.external.host: pg-host
+      database.external.password: prodpass
+      proxy.protocolEnabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "proxy.protocolEnabled cannot be used together with proxy.headers; set proxy.headers to an empty string"
+
+  - it: should fail optimized startup outside production
+    set:
+      optimized.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "optimized.enabled requires mode=production"
+
+  - it: should fail duplicate feature flags
+    set:
+      features.enabled:
+        - preview
+      features.disabled:
+        - preview
+    asserts:
+      - failedTemplate:
+          errorMessage: "feature preview cannot be present in both features.enabled and features.disabled"
+
+  - it: should fail Gateway public without parentRefs
+    set:
+      gateway.public.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.public.parentRefs is required when gateway.public.enabled is true"
+
+  - it: should fail ExternalSecrets without SecretStore reference
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.admin.enabled: true
+      externalSecrets.admin.usernameRemoteRef.key: keycloak/admin
+      externalSecrets.admin.passwordRemoteRef.key: keycloak/admin
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.secretStoreRef.name is required when externalSecrets.enabled is true"
+
+  - it: should fail capacity profile with explicit resources
+    set:
+      capacity.profile: small
+      resources.requests.cpu: 500m
+    asserts:
+      - failedTemplate:
+          errorMessage: "capacity.profile cannot be used together with explicit resources; set capacity.profile=custom or remove resources"
