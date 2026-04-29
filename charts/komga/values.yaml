@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
 # Komga Helm Chart — Default Values
 # =============================================================================
@@ -15,7 +16,7 @@ image:
   # -- Komga image repository
   repository: docker.io/gotson/komga
   # -- Komga image tag
-  tag: "1.24.1"
+  tag: "1.24.4"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -99,6 +100,10 @@ service:
   port: 80
   # -- Annotations for the Service
   annotations: {}
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ""
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
 
 # =============================================================================
 # Ingress
@@ -122,6 +127,50 @@ ingress:
     # - hosts:
     #     - komga.example.com
     #   secretName: komga-tls
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gateway:
+  # -- Create an HTTPRoute for Komga traffic. Requires Gateway API CRDs installed.
+  enabled: false
+  annotations: {}
+  # -- parentRefs list pointing to your Gateway resource.
+  parentRefs: []
+  #   - name: envoy
+  #     namespace: envoy-gateway
+  hostnames: []
+  path: /
+  pathType: PathPrefix
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret for clusters running External Secrets Operator.
+  enabled: false
+  # -- ExternalSecret apiVersion.
+  apiVersion: external-secrets.io/v1
+  # -- Refresh interval.
+  refreshInterval: 1h
+  secretStoreRef:
+    # -- Existing SecretStore or ClusterSecretStore name.
+    name: ""
+    kind: SecretStore
+  target:
+    creationPolicy: Owner
+  # -- ExternalSecret data entries for S3 backup credentials.
+  data: []
+  #   - secretKey: access-key
+  #     remoteRef:
+  #       key: komga/backup
+  #       property: access-key
+  #   - secretKey: secret-key
+  #     remoteRef:
+  #       key: komga/backup
+  #       property: secret-key
 
 # =============================================================================
 # Probes
