@@ -286,11 +286,11 @@ databaseSecretName — name of the secret holding database-url
 {{- end -}}
 
 {{/*
-databaseSecretUrlKey — key within the secret for database-url
+databaseSecretUrlKey — key within the secret for the full DATABASE_URL value
 */}}
 {{- define "hoppscotch.databaseSecretUrlKey" -}}
-{{- if .Values.database.external.existingSecret -}}
-{{- .Values.database.external.existingSecretUrlKey | default "database-url" -}}
+{{- if and .Values.database.external.existingSecret .Values.database.external.existingSecretUrlKey -}}
+{{- .Values.database.external.existingSecretUrlKey -}}
 {{- else -}}
 database-url
 {{- end -}}
@@ -305,4 +305,40 @@ encryptionSecretName — name of the secret holding data-encryption-key
 {{- else -}}
 {{- include "hoppscotch.fullname" . -}}
 {{- end -}}
+{{- end -}}
+
+{{/*
+encryptionSecretKey — key within the secret for data-encryption-key
+*/}}
+{{- define "hoppscotch.encryptionSecretKey" -}}
+{{- if .Values.encryption.existingSecret -}}
+{{- .Values.encryption.existingSecretKey | default "data-encryption-key" -}}
+{{- else -}}
+data-encryption-key
+{{- end -}}
+{{- end -}}
+
+{{/*
+databaseEnv — env entries for DATABASE_URL (and DB_PASSWORD helper for password-only mode).
+Handles three cases:
+  1. existingSecret with full URL key → single secretKeyRef
+  2. existingSecret password-only → K8s env-var substitution using $(DB_PASSWORD)
+  3. chart-managed secret → single secretKeyRef to chart secret
+*/}}
+{{- define "hoppscotch.databaseEnv" -}}
+{{- if and .Values.database.external.enabled .Values.database.external.existingSecret (not .Values.database.external.existingSecretUrlKey) }}
+- name: DB_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.database.external.existingSecret }}
+      key: {{ .Values.database.external.existingSecretPasswordKey }}
+- name: DATABASE_URL
+  value: {{ printf "postgresql://%s:$(DB_PASSWORD)@%s:%s/%s" .Values.database.external.username (include "hoppscotch.databaseHost" .) (include "hoppscotch.databasePort" .) (include "hoppscotch.databaseName" .) | quote }}
+{{- else }}
+- name: DATABASE_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "hoppscotch.databaseSecretName" . }}
+      key: {{ include "hoppscotch.databaseSecretUrlKey" . }}
+{{- end }}
 {{- end -}}

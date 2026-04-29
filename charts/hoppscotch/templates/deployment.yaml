@@ -59,11 +59,7 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: [sh, -c, "pnpm exec prisma migrate deploy"]
           env:
-            - name: DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "hoppscotch.databaseSecretName" . }}
-                  key: {{ include "hoppscotch.databaseSecretUrlKey" . }}
+            {{- include "hoppscotch.databaseEnv" . | nindent 12 }}
           securityContext: {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
         {{- with .Values.initContainers }}
@@ -81,14 +77,70 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "hoppscotch.fullname" . }}
-            - secretRef:
-                name: {{ include "hoppscotch.fullname" . }}
             {{- with .Values.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- with .Values.extraEnv }}
-          env: {{- toYaml . | nindent 12 }}
-          {{- end }}
+          env:
+            {{- include "hoppscotch.databaseEnv" . | nindent 12 }}
+            - name: DATA_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "hoppscotch.encryptionSecretName" . }}
+                  key: {{ include "hoppscotch.encryptionSecretKey" . }}
+            {{- if .Values.auth.github.enabled }}
+            - name: GITHUB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.github.existingSecret | default (include "hoppscotch.fullname" .) }}
+                  key: {{ .Values.auth.github.existingSecretClientIdKey }}
+            - name: GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.github.existingSecret | default (include "hoppscotch.fullname" .) }}
+                  key: {{ .Values.auth.github.existingSecretClientSecretKey }}
+            {{- end }}
+            {{- if .Values.auth.google.enabled }}
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.google.existingSecret | default (include "hoppscotch.fullname" .) }}
+                  key: {{ .Values.auth.google.existingSecretClientIdKey }}
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.google.existingSecret | default (include "hoppscotch.fullname" .) }}
+                  key: {{ .Values.auth.google.existingSecretClientSecretKey }}
+            {{- end }}
+            {{- if .Values.auth.microsoft.enabled }}
+            - name: MICROSOFT_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.microsoft.existingSecret | default (include "hoppscotch.fullname" .) }}
+                  key: {{ .Values.auth.microsoft.existingSecretClientIdKey }}
+            - name: MICROSOFT_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.microsoft.existingSecret | default (include "hoppscotch.fullname" .) }}
+                  key: {{ .Values.auth.microsoft.existingSecretClientSecretKey }}
+            {{- end }}
+            {{- if .Values.mailer.enabled }}
+            {{- if .Values.mailer.useCustomConfigs }}
+            - name: MAILER_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.mailer.existingSecret | default (include "hoppscotch.fullname" .) }}
+                  key: {{ .Values.mailer.existingSecretPasswordKey }}
+            {{- else }}
+            - name: MAILER_SMTP_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.mailer.existingSecret | default (include "hoppscotch.fullname" .) }}
+                  key: {{ .Values.mailer.existingSecretSmtpUrlKey }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /backend/v1
