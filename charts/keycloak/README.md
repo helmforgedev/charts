@@ -47,10 +47,15 @@ helm install keycloak oci://ghcr.io/helmforgedev/helm/keycloak -f values.yaml
 - optional realm import through `/opt/keycloak/data/import`
 - optional provider and theme mounts
 - optional separate ingresses for public and admin traffic
+- optional Gateway API `HTTPRoute` resources for public and admin traffic
 - optional truststore and external database TLS material
+- optional External Secrets Operator `ExternalSecret` resources for clusters that already run the operator
+- optional IPv4/IPv6 dual-stack Service fields
 - optional database-aware S3 backup CronJob for PostgreSQL/MySQL-backed modes
 - controlled extension hooks through `extraEnvFrom`, `initContainers`, and `extraContainers`
 - optional `ServiceMonitor`
+- first-class production options for trusted proxies, management relative path, database pool/schema/timeouts, features, logging, telemetry, and tracing
+- rollout strategy, service account token mounting, capacity profiles, and optional egress NetworkPolicy controls
 
 ## How to choose the mode
 
@@ -71,10 +76,50 @@ Recommended reading before installation:
 
 ## Official product references
 
-- Keycloak production configuration: https://www.keycloak.org/server/configuration-production
-- Keycloak hostname configuration: https://www.keycloak.org/server/hostname
-- Keycloak caching and transport stacks: https://www.keycloak.org/server/caching
-- Keycloak general configuration: https://www.keycloak.org/server/configuration
+- [Keycloak downloads](https://www.keycloak.org/downloads)
+- [Keycloak release notes](https://www.keycloak.org/docs/latest/release_notes/index.html)
+- [Keycloak production configuration](https://www.keycloak.org/server/configuration-production)
+- [Keycloak hostname configuration](https://www.keycloak.org/server/hostname)
+- [Keycloak caching and transport stacks](https://www.keycloak.org/server/caching)
+- [Keycloak general configuration](https://www.keycloak.org/server/configuration)
+- [Keycloak all configuration](https://www.keycloak.org/server/all-config)
+- [Kubernetes Gateway API](https://kubernetes.io/docs/concepts/services-networking/gateway/)
+- [External Secrets Operator](https://external-secrets.io/latest/)
+
+## Keycloak 26.6.x alignment
+
+This chart tracks the official Keycloak server image `quay.io/keycloak/keycloak:26.6.1`.
+
+Relevant 26.6.x operational changes to account for during rollout:
+
+- zero-downtime patch releases are supported within the same minor stream, but still require readiness, proxy, and database validation
+- the HTTP stack supports graceful shutdown, so keep `terminationGracePeriodSeconds` aligned with connection draining at the proxy layer
+- Kubernetes and OpenShift truststore initialization improved upstream; keep custom `truststore` and database CA mounts explicit when the platform uses private CAs
+- database operations and timeout behavior changed in the 26.6 stream; validate startup, migration, and failover logs before widening traffic
+- `KCRAW_` is available upstream for preserving literal environment values; continue using `extraEnv` for advanced options that are not first-class chart values yet
+
+## Phase 3 production controls
+
+This chart exposes common Keycloak production options as first-class values:
+
+- `proxy.trustedAddresses` maps to `KC_PROXY_TRUSTED_ADDRESSES`
+- `proxy.protocolEnabled` maps to `KC_PROXY_PROTOCOL_ENABLED` and cannot be used with `proxy.headers`
+- `management.relativePath` maps to `KC_HTTP_MANAGEMENT_RELATIVE_PATH` and updates probes and ServiceMonitor paths
+- `database.external.schema`, `database.external.pool.*`, `database.external.logSlowQueriesThreshold`, and `database.external.transaction.*` map to Keycloak database runtime settings
+- `features.enabled` and `features.disabled` map to `KC_FEATURES` and `KC_FEATURES_DISABLED`
+- `optimized.enabled` adds `--optimized` for custom pre-built production images
+- `metrics.userEvents`, `metrics.cacheHistograms`, `telemetry.*`, `tracing.*`, and `logging.*` map to Keycloak observability settings
+- `deployment.strategy.*` controls Kubernetes rollout behavior
+- `serviceAccount.automountServiceAccountToken` controls whether Kubernetes mounts the service account token and cluster CA files
+- `truststore.kubernetes.enabled` maps to `KC_TRUSTSTORE_KUBERNETES_ENABLED`
+- `capacity.profile` can render conservative `small`, `medium`, or `large` resource presets when `resources` is not set
+
+Gateway API support is optional and renders only `HTTPRoute` resources. The chart does not create `GatewayClass` or `Gateway` resources.
+
+External Secrets support is optional and intended only for clusters that already have External Secrets Operator and a
+`SecretStore` or `ClusterSecretStore`. The chart renders `ExternalSecret` resources that materialize the Kubernetes
+Secrets consumed by the existing `admin`, `database`, and `truststore` paths; it does not install the operator or create
+provider stores.
 
 ## Operational direction
 
@@ -199,23 +244,34 @@ postgresql:
 |-----------|-------------|---------|
 | `mode` | `dev` or `production` | `dev` |
 | `image.repository` | Keycloak image repository | `quay.io/keycloak/keycloak` |
-| `image.tag` | Keycloak image tag | `26.5.5` |
+| `image.tag` | Keycloak image tag | `26.6.1` |
 | `admin.existingSecret` | Existing secret for bootstrap admin credentials | `""` |
 | `http.port` | Application HTTP port | `8080` |
 | `http.managementPort` | Management port for health and metrics | `9000` |
 | `http.relativePath` | Relative HTTP path | `/` |
+| `management.relativePath` | Optional management relative path | `""` |
+| `deployment.strategy.type` | Deployment strategy | `RollingUpdate` |
+| `deployment.strategy.rollingUpdate.maxUnavailable` | Max unavailable pods during rollout | `0` |
+| `deployment.strategy.rollingUpdate.maxSurge` | Max surge pods during rollout | `1` |
 | `hostname.hostname` | Public hostname or URL | `""` |
 | `hostname.admin` | Dedicated admin hostname or URL | `""` |
 | `proxy.headers` | Proxy headers mode | `xforwarded` |
+| `proxy.trustedAddresses` | Trusted proxy IPs/CIDRs | `""` |
+| `proxy.protocolEnabled` | Enable HAProxy PROXY protocol | `false` |
 | `database.external.vendor` | External database vendor | `postgres` |
 | `database.external.host` | External database host | `""` |
 | `database.external.name` | External database name | `keycloak` |
 | `database.external.username` | External database username | `keycloak` |
 | `database.external.existingSecret` | Existing secret for database password | `""` |
+| `database.external.schema` | Database schema | `""` |
+| `database.external.pool.maxSize` | Maximum database pool size | `""` |
 | `database.tls.enabled` | Enable database TLS settings | `false` |
+| `database.tls.mode` | Keycloak database TLS mode | `""` |
 | `database.tls.sslMode` | PostgreSQL SSL mode | `verify-full` |
 | `database.tls.existingSecret` | Secret with database CA material | `""` |
 | `database.tls.existingConfigMap` | ConfigMap with database CA material | `""` |
+| `features.enabled` | Keycloak features to enable | `[]` |
+| `optimized.enabled` | Add `--optimized` startup arg | `false` |
 | `backup.enabled` | Enable built-in S3 backup CronJob for database-backed modes | `false` |
 | `backup.schedule` | Backup schedule | `"0 3 * * *"` |
 | `backup.s3.endpoint` | S3-compatible endpoint URL | `""` |
@@ -232,11 +288,14 @@ postgresql:
 | `truststore.existingSecret` | Secret with PEM or PKCS12 trust material | `""` |
 | `truststore.existingConfigMap` | ConfigMap with PEM or PKCS12 trust material | `""` |
 | `truststore.tlsHostnameVerifier` | Outbound TLS hostname verification mode | `DEFAULT` |
+| `truststore.kubernetes.enabled` | Trust Kubernetes/OpenShift service account CAs when mounted | `true` |
 | `replicaCount` | Number of Keycloak replicas | `1` |
 | `cache.stack` | Cache stack for multi-replica production | `jdbc-ping` |
 | `cache.multiReplicaDefaults.enabled` | Apply default scheduling hints for multi-replica workloads | `true` |
 | `cache.multiReplicaDefaults.podAntiAffinity` | Generated pod anti-affinity mode | `preferred` |
 | `resources` | Explicit CPU and memory requests/limits for the main container | `{}` |
+| `capacity.profile` | Resource preset: `custom`, `small`, `medium`, `large` | `custom` |
+| `serviceAccount.automountServiceAccountToken` | Mount Kubernetes service account token into the pod | `true` |
 | `probes.liveness.enabled` | Enable liveness probe | `true` |
 | `probes.readiness.enabled` | Enable readiness probe | `true` |
 | `probes.startup.enabled` | Enable startup probe | `true` |
@@ -251,9 +310,17 @@ postgresql:
 | `ingress.public.ingressClassName` | Public ingress class name | `traefik` |
 | `ingress.admin.enabled` | Enable separate admin ingress | `false` |
 | `ingress.admin.ingressClassName` | Admin ingress class name | `traefik` |
+| `gateway.public.enabled` | Enable public Gateway API HTTPRoute | `false` |
+| `gateway.admin.enabled` | Enable admin Gateway API HTTPRoute | `false` |
 | `metrics.enabled` | Enable Keycloak metrics | `false` |
+| `metrics.userEvents` | Enable user event metrics | `false` |
 | `metrics.serviceMonitor.enabled` | Enable ServiceMonitor | `false` |
+| `telemetry.metricsEnabled` | Enable OpenTelemetry metrics export | `false` |
+| `tracing.enabled` | Enable tracing | `false` |
+| `logging.access.enabled` | Enable HTTP access logs | `false` |
+| `externalSecrets.enabled` | Render ExternalSecret resources for existing ESO installs | `false` |
 | `networkPolicy.enabled` | Enable NetworkPolicy | `false` |
+| `networkPolicy.egress.enabled` | Add egress NetworkPolicy rules | `false` |
 
 ## CI scenarios
 
@@ -267,6 +334,12 @@ The `ci/` scenarios validate the main chart behaviors:
 - `multi-replica.yaml`
 - `relative-path.yaml`
 - `database-tls.yaml`
+- `dual-stack-values.yaml`
+- `gateway-api.yaml`
+- `external-secrets.yaml`
+- `production-hardening.yaml`
+- `lifecycle-security.yaml`
+- `networkpolicy-egress.yaml`
 - `multi-replica-observability.yaml`
 - `extensions.yaml`
 - `heavy-startup.yaml`

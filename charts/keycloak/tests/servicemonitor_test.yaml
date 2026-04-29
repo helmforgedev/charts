@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: ServiceMonitor
+templates:
+  - servicemonitor.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render ServiceMonitor by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render extended ServiceMonitor settings
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+      metrics.serviceMonitor.interval: 15s
+      metrics.serviceMonitor.scrapeTimeout: 10s
+      metrics.serviceMonitor.labels:
+        release: prometheus
+      metrics.serviceMonitor.annotations:
+        team: platform
+      metrics.serviceMonitor.relabelings:
+        - action: labeldrop
+          regex: pod_template_hash
+      metrics.serviceMonitor.metricRelabelings:
+        - action: keep
+          regex: keycloak_.*
+          sourceLabels:
+            - __name__
+      management.relativePath: /management
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+      - equal:
+          path: metadata.labels.release
+          value: prometheus
+      - equal:
+          path: metadata.annotations.team
+          value: platform
+      - equal:
+          path: spec.endpoints[0].path
+          value: /management/metrics
+      - equal:
+          path: spec.endpoints[0].scrapeTimeout
+          value: 10s
+      - equal:
+          path: spec.endpoints[0].relabelings[0].action
+          value: labeldrop
+      - equal:
+          path: spec.endpoints[0].metricRelabelings[0].action
+          value: keep
