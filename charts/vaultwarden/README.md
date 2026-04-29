@@ -55,8 +55,8 @@ helm install vaultwarden oci://ghcr.io/helmforgedev/helm/vaultwarden -f values.y
 
 ## Official product references
 
-- Vaultwarden repository: https://github.com/dani-garcia/vaultwarden
-- Vaultwarden configuration template: https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template
+- Vaultwarden repository: <https://github.com/dani-garcia/vaultwarden>
+- Vaultwarden configuration template: <https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template>
 
 ## Best practices
 
@@ -151,7 +151,7 @@ This chart intentionally maps the most important operational settings from the o
 
 For advanced settings that are not first-class values in this chart yet, use `extraEnv` and keep the official template nearby:
 
-- https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template
+- <https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template>
 
 ### Admin token guidance
 
@@ -173,7 +173,7 @@ When using Helm values, quote the PHC string exactly as generated. Unlike `.env`
 
 Official reference:
 
-- https://github.com/dani-garcia/vaultwarden/wiki/Enabling-admin-page#secure-the-admin_token
+- <https://github.com/dani-garcia/vaultwarden/wiki/Enabling-admin-page#secure-the-admin_token>
 
 ## Production notes
 

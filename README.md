@@ -25,12 +25,18 @@
 </p>
 
 <p align="center">
-  <a href="https://helmforge.dev">Website</a> · <a href="https://helmforge.dev/docs">Documentation</a> · <a href="https://repo.helmforge.dev">Helm Repository</a> · <a href="CONTRIBUTING.md">Contributing</a> · <a href="GOVERNANCE.md">Governance</a>
+  <a href="https://helmforge.dev">Website</a> ·
+  <a href="https://helmforge.dev/docs">Documentation</a> ·
+  <a href="https://repo.helmforge.dev">Helm Repository</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a> ·
+  <a href="GOVERNANCE.md">Governance</a>
 </p>
 
 ## Quick Start
 
-HelmForge publishes charts through both a standard HTTPS Helm repository and an OCI registry on GHCR. Use the HTTPS repository when you want classic `helm repo` workflows, and OCI when you prefer registry-native pulls and signatures.
+HelmForge publishes charts through both a standard HTTPS Helm repository and an OCI registry on GHCR.
+Use the HTTPS repository when you want classic `helm repo` workflows,
+and OCI when you prefer registry-native pulls and signatures.
 
 ### HTTPS repository
 
@@ -94,7 +100,9 @@ Common categories include:
 
 ### Generic platform chart
 
-The [`generic`](charts/generic) chart is the reusable platform chart for workloads that need a Kubernetes contract instead of an application-specific chart. It is useful for internal services, workers, batch releases, sidecar-based apps, and platform integration tests where a full bespoke chart would add more maintenance than value.
+The [`generic`](charts/generic) chart is the reusable platform chart for workloads that need a Kubernetes contract
+instead of an application-specific chart. It is useful for internal services, workers, batch releases,
+sidecar-based apps, and platform integration tests where a full bespoke chart would add more maintenance than value.
 
 It supports:
 
@@ -115,7 +123,10 @@ Push main --> publish.yml --> Detect --> Semver --> Package --> Publish to GHCR 
 
 Both workflows dynamically detect which charts changed and run jobs only for those charts using a matrix strategy. Changes to docs (`README.md`, `examples/`, `docs/`) are ignored.
 
-The `Tests` workflow runs for pull requests and pushes to `main` that affect chart templates, chart metadata, tests, or the workflow itself. The `Publish` workflow runs on pushes to `main` and publishes chart releases. Documentation-only changes are intentionally excluded from chart tests and release publishing.
+The `Tests` workflow runs for pull requests and pushes to `main` that affect chart templates,
+chart metadata, tests, or the workflow itself. The `Publish` workflow runs on pushes to `main`
+and publishes chart releases. Documentation-only changes are intentionally excluded
+from chart tests and release publishing.
 
 Quality gates include:
 
@@ -151,7 +162,9 @@ Each release includes install instructions for both OCI and Helm repository.
 
 ### Testing
 
-Each chart can include a `ci/` directory with test values files. The pipeline runs `helm template` and kubeconform against every `ci/*.yaml` file automatically, in addition to default values, lint, Artifact Hub lint, and chart unit tests when present.
+Each chart can include a `ci/` directory with test values files. The pipeline runs `helm template`
+and kubeconform against every `ci/*.yaml` file automatically, in addition to default values, lint,
+Artifact Hub lint, and chart unit tests when present.
 
 For local chart work:
 
@@ -180,7 +193,8 @@ All charts require **Helm 4** (`apiVersion: v2`) and target **Kubernetes 1.26+**
 | 1.34.x | Supported |
 | 1.35.x | Supported |
 
-The Tests workflow validates rendered manifests with [kubeconform](https://github.com/yannh/kubeconform) against the default Kubernetes JSON schemas. Local runtime validation uses [k3d](https://k3d.io/) clusters.
+The Tests workflow validates rendered manifests with [kubeconform](https://github.com/yannh/kubeconform)
+against the default Kubernetes JSON schemas. Local runtime validation uses [k3d](https://k3d.io/) clusters.
 
 Charts use standard stable APIs (`apps/v1`, `batch/v1`, `networking.k8s.io/v1`) and avoid alpha/beta API versions to maximize compatibility.
 

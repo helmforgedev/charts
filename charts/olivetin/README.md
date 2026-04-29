@@ -1,6 +1,8 @@
 # OliveTin Helm Chart
 
-Deploy [OliveTin](https://www.olivetin.app) on Kubernetes using the official [jamesread/olivetin](https://hub.docker.com/r/jamesread/olivetin) container image. OliveTin gives safe and simple access to predefined shell commands from a web interface.
+Deploy [OliveTin](https://www.olivetin.app) on Kubernetes using the official
+[jamesread/olivetin](https://hub.docker.com/r/jamesread/olivetin) container image.
+OliveTin gives safe and simple access to predefined shell commands from a web interface.
 
 ## Features
 

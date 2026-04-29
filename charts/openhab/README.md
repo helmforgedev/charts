@@ -179,7 +179,7 @@ Use feature flags instead to enable optional components.
 
 openHAB exposes Prometheus metrics via the **Metrics addon** at:
 
-```
+```text
 GET /rest/metrics/prometheus   (port 8080, no authentication required)
 ```
 
@@ -269,6 +269,7 @@ Credentials are stored persistently in `/openhab/userdata/jsondb/auth.json`.
 ## Startup Time
 
 openHAB loads OSGi bundles at startup. Expect:
+
 - **First boot**: 60-120 seconds
 - **Subsequent starts**: 30-60 seconds (warm cache)
 
@@ -293,6 +294,7 @@ ingress:
 ## Non-Goals
 
 This chart intentionally does NOT:
+
 - Support multiple replicas (openHAB does not support clustering)
 - Automatically inject admin credentials (not supported by openHAB)
 - Manage openHAB addon installation (use the web UI or Karaf console)

@@ -18,13 +18,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-
-      - uses: DavidAnson/markdownlint-cli2-action@v19
         with:
-          globs: |
-            charts/**/README.md
-            *.md
-            docs/**/*.md
+          fetch-depth: 0
+
+      - name: Detect changed markdown files
+        id: detect
+        run: |
+          FILES=$(git diff --diff-filter=d --name-only origin/${{ github.base_ref }}...HEAD \
+            | grep '\.md$' || true)
+          if [ -z "$FILES" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+            # Write files to a temporary glob file for markdownlint-cli2
+            echo "$FILES" > /tmp/md-files.txt
+          fi
+
+      - name: Run markdownlint on changed files
+        if: steps.detect.outputs.skip != 'true'
+        run: |
+          npx -y markdownlint-cli2 $(cat /tmp/md-files.txt | tr '\n' ' ')
 
   values-quality:
     name: Values Quality

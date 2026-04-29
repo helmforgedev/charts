@@ -1,6 +1,9 @@
 # AI Metadata Standard
 
-Every markdown documentation file in this repository must include an `@AI-METADATA` HTML comment block at the end of the file. This block provides structured, machine-readable metadata that helps AI agents quickly understand each document's purpose, scope, and relationships without reading the full content, without polluting normal Markdown reading on GitHub.
+Every markdown documentation file in this repository must include an `@AI-METADATA` HTML comment block at the end of the file.
+This block provides structured, machine-readable metadata that helps AI agents quickly understand
+each document's purpose, scope, and relationships without reading the full content,
+without polluting normal Markdown reading on GitHub.
 
 ## Why
 
