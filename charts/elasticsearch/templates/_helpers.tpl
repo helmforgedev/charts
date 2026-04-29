@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{/*
 =============================================================================
 Standard naming helpers
@@ -660,14 +661,14 @@ Fails with a clear error message before any resource is created.
 
 {{/*
 Assert cert-manager CRDs are present in the cluster (Camada 2).
-Uses Helm lookup — ONLY effective during helm install/upgrade with live cluster access.
+Uses Helm lookup - ONLY effective during helm install/upgrade with live cluster access.
 
 Offline / unit-test behavior:
-  lookup returns nil → check is silently skipped (cannot distinguish offline from absent)
+  lookup returns nil - check is silently skipped (cannot distinguish offline from absent)
 
 Live cluster behavior:
-  CRD exists → lookup returns full object with metadata → no error
-  CRD absent → lookup returns empty map {} (no metadata key) → fail with instructions
+  CRD exists - lookup returns full object with metadata - no error
+  CRD absent - lookup returns empty map {} (no metadata key) - fail with instructions
 
 To suppress check (use when cert-manager is managed externally):
   security.tls.certManager.skipCRDCheck: true
