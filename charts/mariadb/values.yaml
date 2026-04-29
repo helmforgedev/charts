@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
 # MariaDB Helm Chart - Default Values
 # =============================================================================
@@ -27,7 +28,7 @@ image:
   # -- MariaDB image repository
   repository: docker.io/library/mariadb
   # -- MariaDB image tag
-  tag: "11.4"
+  tag: "12.2.2"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -188,6 +189,10 @@ service:
   port: 3306
   # -- Metrics port exposed when metrics.enabled=true
   metricsPort: 9104
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ""
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
 
 # =============================================================================
 # Metrics
@@ -268,7 +273,7 @@ backup:
       pullPolicy: IfNotPresent
     mariadb:
       repository: docker.io/library/mariadb
-      tag: "11.4"
+      tag: "12.2.2"
       pullPolicy: IfNotPresent
   s3:
     # -- S3-compatible endpoint URL, for example: https://s3.amazonaws.com or https://minio.example.com
@@ -401,3 +406,32 @@ terminationGracePeriodSeconds: 120
 extraEnv: []
 extraVolumes: []
 extraVolumeMounts: []
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret for clusters running External Secrets Operator.
+  # Requires auth.existingSecret to be set to prevent credential drift.
+  enabled: false
+  # -- ExternalSecret apiVersion.
+  apiVersion: external-secrets.io/v1
+  # -- Refresh interval.
+  refreshInterval: 1h
+  secretStoreRef:
+    # -- Existing SecretStore or ClusterSecretStore name.
+    name: ""
+    kind: SecretStore
+  target:
+    creationPolicy: Owner
+  # -- ExternalSecret data entries mapping remote keys to mariadb Secret keys.
+  data: []
+  #   - secretKey: mariadb-root-password
+  #     remoteRef:
+  #       key: mariadb/credentials
+  #       property: root-password
+  #   - secretKey: mariadb-user-password
+  #     remoteRef:
+  #       key: mariadb/credentials
+  #       property: user-password
