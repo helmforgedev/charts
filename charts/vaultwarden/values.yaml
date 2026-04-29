@@ -1,5 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
-# Vaultwarden Helm Chart — Default Values
+# Vaultwarden Helm Chart - Default Values
 # =============================================================================
 # Focus: sqlite + pvc + ingress + smtp
 
@@ -16,7 +17,7 @@ image:
   # -- Vaultwarden image repository
   repository: docker.io/vaultwarden/server
   # -- Vaultwarden image tag
-  tag: "1.35.4"
+  tag: "1.35.8"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -197,6 +198,10 @@ service:
   port: 80
   # -- Container port exposed by Vaultwarden
   targetPort: 80
+  # -- Set the ipFamilyPolicy for dual-stack (GR-058)
+  ipFamilyPolicy: ''
+  # -- Set the ipFamilies for dual-stack
+  ipFamilies: []
   # -- Annotations for the Service
   annotations: {}
 
@@ -434,3 +439,27 @@ mysql:
     username: vaultwarden
     # -- Required when using the MySQL subchart so Vaultwarden can build DATABASE_URL deterministically
     password: ""
+
+
+## Gateway API configuration (GR-060)
+gateway:
+  enabled: false
+  hostnames:
+    - vaultwarden.local
+  parentRefs:
+    - name: envoy-gateway
+      namespace: default
+      kind: Gateway
+
+## ExternalSecrets configuration (GR-061)
+externalSecrets:
+  enabled: false
+  apiVersion: external-secrets.io/v1beta1
+  refreshInterval: 1h
+  secretStoreRef:
+    name: ''
+    kind: ClusterSecretStore
+  target:
+    creationPolicy: Owner
+  data: []
+
