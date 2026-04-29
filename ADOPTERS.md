@@ -12,8 +12,8 @@ If you use HelmForge and are willing to be listed, open a pull request adding yo
 
 | Name | Website | Usage | Environment | Contact |
 |------|---------|-------|-------------|---------|
-| Deskbee | https://deskbee.co/ | PostgreSQL, Redis, and Generic charts for provisioning applications and APIs | production | N/A |
-| Bancorbras | https://grupobancorbras.com.br/ | PostgreSQL, Redis, Generic, Velero, MySQL, and Keycloak charts | production | N/A |
+| Deskbee | <https://deskbee.co/> | PostgreSQL, Redis, and Generic charts for provisioning applications and APIs | production | N/A |
+| Bancorbras | <https://grupobancorbras.com.br/> | PostgreSQL, Redis, Generic, Velero, MySQL, and Keycloak charts | production | N/A |
 | _Your organization or project here_ | _Optional_ | _Charts or use case_ | _dev / homelab / staging / production_ | _GitHub handle or email_ |
 
 ## How To Add Your Organization

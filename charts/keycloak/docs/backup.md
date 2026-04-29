@@ -24,6 +24,39 @@ When `backup.enabled=true`, the chart:
 
 The built-in workflow is intentionally focused on backup creation, not restore orchestration.
 
+## Backup scope
+
+Keycloak stores its operational state in the configured database. The built-in backup job is therefore database-only by design.
+
+The chart does not package or back up external inputs such as:
+
+- custom provider JARs mounted from a ConfigMap or Secret
+- custom themes mounted from a ConfigMap or Secret
+- realm import files managed by GitOps or another source-of-truth
+- TLS, truststore, database, S3, or External Secrets backend material
+
+Keep those inputs in their own source-of-truth and backup workflow. A database dump is not enough to reconstruct an environment that depends on external provider, theme, truststore, or secret material.
+
+## On-demand backup
+
+The chart creates a CronJob. To execute the same backup flow immediately, create a Job from the CronJob:
+
+```bash
+kubectl create job keycloak-backup-manual \
+  --from=cronjob/<release-name>-keycloak-backup \
+  -n <namespace>
+
+kubectl wait --for=condition=Complete job/keycloak-backup-manual \
+  -n <namespace> \
+  --timeout=15m
+
+kubectl logs job/keycloak-backup-manual \
+  -n <namespace> \
+  --all-containers
+```
+
+Inspect the S3-compatible target after the Job completes and verify that the compressed SQL archive exists under the configured `backup.s3.prefix`.
+
 ## Operational recommendation
 
 - use PostgreSQL for production whenever possible

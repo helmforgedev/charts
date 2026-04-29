@@ -1,13 +1,125 @@
 Keycloak has been installed.
 
-Useful Services:
+1. Installation summary
+=======================
 
-- Application Service: {{ include "keycloak.fullname" . }}
-- Management Service: {{ include "keycloak.fullname" . }}-management
+- Release: {{ .Release.Name }}
+- Namespace: {{ .Release.Namespace }}
+- Chart: {{ .Chart.Name }} {{ .Chart.Version }}
+- App version: {{ .Chart.AppVersion }}
+- Mode: {{ .Values.mode }}
+- Image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+- Replicas: {{ .Values.replicaCount }}
+- Database mode: {{ include "keycloak.databaseMode" . }}
+- ServiceAccount: {{ include "keycloak.serviceAccountName" . }}
+- ServiceAccount token automount: {{ .Values.serviceAccount.automountServiceAccountToken }}
+- Deployment strategy: {{ .Values.deployment.strategy.type }}
 
-Mode:
+2. Access
+=========
 
-  {{ .Values.mode }}
+Application service:
+- Name: {{ include "keycloak.fullname" . }}
+- Type: {{ .Values.service.type }}
+- Port: {{ .Values.http.port }}
+- Cluster DNS: http://{{ include "keycloak.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.http.port }}
+{{- if .Values.service.ipFamilyPolicy }}
+- IP family policy: {{ .Values.service.ipFamilyPolicy }}
+{{- end }}
+{{- if .Values.service.ipFamilies }}
+- IP families: {{ join ", " .Values.service.ipFamilies }}
+{{- end }}
+
+Management service:
+- Name: {{ include "keycloak.fullname" . }}-management
+- Type: ClusterIP
+- Port: {{ .Values.http.managementPort }}
+- Cluster DNS: http://{{ include "keycloak.fullname" . }}-management.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.http.managementPort }}
+- Keep this service private; Keycloak management endpoints are not meant for public ingress.
+{{- if .Values.service.managementIpFamilyPolicy }}
+- IP family policy: {{ .Values.service.managementIpFamilyPolicy }}
+{{- end }}
+{{- if .Values.service.managementIpFamilies }}
+- IP families: {{ join ", " .Values.service.managementIpFamilies }}
+{{- end }}
+
+Port-forward commands:
+
+  kubectl port-forward svc/{{ include "keycloak.fullname" . }} {{ .Values.http.port }}:{{ .Values.http.port }} -n {{ .Release.Namespace }}
+  kubectl port-forward svc/{{ include "keycloak.fullname" . }}-management {{ .Values.http.managementPort }}:{{ .Values.http.managementPort }} -n {{ .Release.Namespace }}
+
+Local URLs after port-forward:
+
+  http://127.0.0.1:{{ .Values.http.port }}{{ include "keycloak.relativePath" . }}
+  http://127.0.0.1:{{ .Values.http.managementPort }}{{ include "keycloak.managementEndpointPath" (dict "root" . "path" "/health/ready") }}
+  http://127.0.0.1:{{ .Values.http.managementPort }}{{ include "keycloak.managementEndpointPath" (dict "root" . "path" "/health/live") }}
+{{- if .Values.metrics.enabled }}
+  http://127.0.0.1:{{ .Values.http.managementPort }}{{ include "keycloak.managementEndpointPath" (dict "root" . "path" "/metrics") }}
+{{- end }}
+
+{{- if .Values.ingress.public.enabled }}
+Public ingress is enabled.
+{{- range .Values.ingress.public.hosts }}
+- Host: {{ .host }}
+{{- range .paths }}
+  Path: {{ .path }} ({{ .pathType }})
+{{- end }}
+{{- end }}
+{{- else }}
+Public ingress is disabled.
+{{- end }}
+
+{{- if .Values.ingress.admin.enabled }}
+Admin ingress is enabled.
+{{- range .Values.ingress.admin.hosts }}
+- Host: {{ .host }}
+{{- range .paths }}
+  Path: {{ .path }} ({{ .pathType }})
+{{- end }}
+{{- end }}
+{{- else }}
+Admin ingress is disabled.
+{{- end }}
+
+{{- if .Values.gateway.public.enabled }}
+Public Gateway API HTTPRoute is enabled.
+{{- range .Values.gateway.public.hostnames }}
+- Hostname: {{ . }}
+{{- end }}
+{{- else }}
+Public Gateway API HTTPRoute is disabled.
+{{- end }}
+
+{{- if .Values.gateway.admin.enabled }}
+Admin Gateway API HTTPRoute is enabled.
+{{- range .Values.gateway.admin.hostnames }}
+- Hostname: {{ . }}
+{{- end }}
+{{- else }}
+Admin Gateway API HTTPRoute is disabled.
+{{- end }}
+
+3. Getting started
+==================
+
+1. Wait for the Keycloak pod to become ready:
+
+   kubectl wait --for=condition=Ready pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ include "keycloak.name" . }} --timeout=10m
+
+2. Read the bootstrap admin credentials from the Kubernetes Secret.
+
+3. Port-forward the application service:
+
+   kubectl port-forward svc/{{ include "keycloak.fullname" . }} {{ .Values.http.port }}:{{ .Values.http.port }} -n {{ .Release.Namespace }}
+
+4. Open the Keycloak UI:
+
+   http://127.0.0.1:{{ .Values.http.port }}{{ include "keycloak.relativePath" . }}
+
+5. For production, verify hostname, database, proxy headers, ingress or Gateway routing, health, metrics, backup, and NetworkPolicy before exposing traffic.
+
+4. Credentials
+==============
 
 Bootstrap admin username:
 
@@ -17,16 +129,151 @@ Bootstrap admin password:
 
   kubectl get secret {{ include "keycloak.adminSecretName" . }} -n {{ .Release.Namespace }} -o jsonpath="{.data.{{ .Values.admin.existingSecretPasswordKey }}}" | base64 -d
 
-Application URL:
+{{- if include "keycloak.hasDatabase" . }}
+Database password secret:
 
-  http://{{ include "keycloak.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.http.port }}
+  kubectl get secret {{ include "keycloak.databaseSecretName" . }} -n {{ .Release.Namespace }} -o jsonpath="{.data.{{ include "keycloak.databaseSecretPasswordKey" . }}}" | base64 -d
+{{- end }}
 
-Management URL:
+5. Configuration summary
+========================
 
-  http://{{ include "keycloak.fullname" . }}-management.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.http.managementPort }}
+HTTP:
+- HTTP enabled: {{ .Values.http.enabled }}
+- HTTP port: {{ .Values.http.port }}
+- Management port: {{ .Values.http.managementPort }}
+- Relative path: {{ include "keycloak.relativePath" . }}
 
-Important:
+Hostname and proxy:
+- Public hostname: {{ default "(not configured)" .Values.hostname.hostname }}
+- Admin hostname: {{ default "(not configured)" .Values.hostname.admin }}
+- Strict hostname: {{ .Values.hostname.strict }}
+- Backchannel dynamic: {{ .Values.hostname.backchannelDynamic }}
+- Proxy headers: {{ default "(not configured)" .Values.proxy.headers }}
+- Trusted proxies: {{ default "(not configured)" .Values.proxy.trustedAddresses }}
+- PROXY protocol: {{ .Values.proxy.protocolEnabled }}
 
-- production mode expects a trusted reverse proxy or ingress in front of Keycloak
-- the management interface is not meant to be published through ingress
-- realm import is a startup-oriented workflow, not a full reconciliation control plane
+Database:
+- Mode: {{ include "keycloak.databaseMode" . }}
+{{- if include "keycloak.hasDatabase" . }}
+- Vendor: {{ include "keycloak.databaseVendor" . }}
+- Host: {{ include "keycloak.databaseHost" . }}
+- Port: {{ include "keycloak.databasePort" . }}
+- Name: {{ include "keycloak.databaseName" . }}
+- Username: {{ include "keycloak.databaseUsername" . }}
+{{- else }}
+- Embedded H2 is active. Use only for dev mode.
+{{- end }}
+
+Clustering:
+- Cache enabled: {{ .Values.cache.enabled }}
+- Cache stack: {{ .Values.cache.stack }}
+- Multi-replica scheduling defaults: {{ .Values.cache.multiReplicaDefaults.enabled }}
+{{- if gt (int .Values.replicaCount) 1 }}
+- Cluster transport ports are exposed on the pod: 7800 and 57800.
+{{- end }}
+
+Observability:
+- Health enabled: {{ .Values.health.enabled }}
+- Management health enabled: {{ .Values.management.healthEnabled }}
+- Metrics enabled: {{ .Values.metrics.enabled }}
+- ServiceMonitor enabled: {{ and .Values.metrics.enabled .Values.metrics.serviceMonitor.enabled }}
+- Tracing enabled: {{ .Values.tracing.enabled }}
+- Telemetry metrics enabled: {{ .Values.telemetry.metricsEnabled }}
+
+Optional features:
+- Realm import: {{ .Values.realmImport.enabled }}
+- Providers ConfigMap: {{ default "(not configured)" .Values.extensions.providers.existingConfigMap }}
+- Providers Secret: {{ default "(not configured)" .Values.extensions.providers.existingSecret }}
+- Themes ConfigMap: {{ default "(not configured)" .Values.extensions.themes.existingConfigMap }}
+- Themes Secret: {{ default "(not configured)" .Values.extensions.themes.existingSecret }}
+- Truststore enabled: {{ .Values.truststore.enabled }}
+- Kubernetes truststore auto-discovery: {{ .Values.truststore.kubernetes.enabled }}
+- Database TLS enabled: {{ .Values.database.tls.enabled }}
+- Backup enabled: {{ .Values.backup.enabled }}
+- NetworkPolicy enabled: {{ .Values.networkPolicy.enabled }}
+- NetworkPolicy egress enabled: {{ .Values.networkPolicy.egress.enabled }}
+- PodDisruptionBudget enabled: {{ .Values.pdb.enabled }}
+- External Secrets enabled: {{ .Values.externalSecrets.enabled }}
+
+6. Validation commands
+======================
+
+Check release status:
+
+  helm status {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Check rendered resources:
+
+  kubectl get deploy,svc,secret,cm,pdb,networkpolicy -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Wait for Keycloak pods:
+
+  kubectl wait --for=condition=Ready pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ include "keycloak.name" . }} --timeout=10m
+
+Check endpoints:
+
+  kubectl get endpoints {{ include "keycloak.fullname" . }} -n {{ .Release.Namespace }}
+  kubectl get endpoints {{ include "keycloak.fullname" . }}-management -n {{ .Release.Namespace }}
+
+Check health through the management service:
+
+  kubectl run {{ include "keycloak.fullname" . }}-health-check -n {{ .Release.Namespace }} --rm -i --restart=Never --image=docker.io/library/busybox:1.37 -- wget -qO- http://{{ include "keycloak.fullname" . }}-management:{{ .Values.http.managementPort }}{{ include "keycloak.managementEndpointPath" (dict "root" . "path" "/health/ready") }}
+
+Check OIDC discovery through the application service:
+
+  kubectl run {{ include "keycloak.fullname" . }}-oidc-check -n {{ .Release.Namespace }} --rm -i --restart=Never --image=docker.io/library/busybox:1.37 -- wget -qO- http://{{ include "keycloak.fullname" . }}:{{ .Values.http.port }}{{ include "keycloak.relativePath" . }}{{ if ne (include "keycloak.relativePath" .) "/" }}/{{ end }}realms/master/.well-known/openid-configuration
+
+{{- if and .Values.metrics.enabled }}
+Check metrics:
+
+  kubectl run {{ include "keycloak.fullname" . }}-metrics-check -n {{ .Release.Namespace }} --rm -i --restart=Never --image=docker.io/library/busybox:1.37 -- wget -qO- http://{{ include "keycloak.fullname" . }}-management:{{ .Values.http.managementPort }}{{ include "keycloak.managementEndpointPath" (dict "root" . "path" "/metrics") }}
+{{- end }}
+
+{{- if .Values.backup.enabled }}
+Check backup CronJob:
+
+  kubectl get cronjob {{ include "keycloak.fullname" . }}-backup -n {{ .Release.Namespace }}
+  kubectl create job {{ include "keycloak.fullname" . }}-backup-manual --from=cronjob/{{ include "keycloak.fullname" . }}-backup -n {{ .Release.Namespace }}
+  kubectl logs job/{{ include "keycloak.fullname" . }}-backup-manual -n {{ .Release.Namespace }} --all-containers
+{{- end }}
+
+7. Troubleshooting
+==================
+
+Inspect pods and events:
+
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -o wide
+  kubectl describe pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ include "keycloak.name" . }}
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+
+Inspect Keycloak logs:
+
+  kubectl logs deploy/{{ include "keycloak.fullname" . }} -n {{ .Release.Namespace }} -c keycloak --tail=200
+  kubectl logs deploy/{{ include "keycloak.fullname" . }} -n {{ .Release.Namespace }} -c keycloak --previous --tail=200
+
+Inspect init container logs when a database is configured:
+
+  kubectl logs deploy/{{ include "keycloak.fullname" . }} -n {{ .Release.Namespace }} -c wait-for-db --tail=200
+
+Common checks:
+
+- If pods wait for the database, verify host, port, credentials, NetworkPolicy, and database service readiness.
+- If production mode fails early, verify `hostname.hostname` and database configuration.
+- If the admin console is unreachable, verify public/admin ingress hosts, proxy headers, DNS, and TLS.
+- If health checks fail, inspect the management service and confirm port {{ .Values.http.managementPort }} is not blocked.
+- If multi-replica clustering is unstable, verify the database, cache stack, NetworkPolicy, and pod-to-pod connectivity on ports 7800 and 57800.
+- If realm import did not apply, inspect startup logs and confirm the mounted files under `/opt/keycloak/data/import`.
+- If provider or theme changes do not roll out, update the corresponding rollout token value.
+
+8. Resources
+============
+
+- HelmForge chart docs: https://helmforge.dev/docs/charts/keycloak
+- Keycloak docs: https://www.keycloak.org/documentation
+- Keycloak production guide: https://www.keycloak.org/server/configuration-production
+- Keycloak reverse proxy guide: https://www.keycloak.org/server/reverseproxy
+- Keycloak health and metrics: https://www.keycloak.org/observability/health
+- HelmForge chart issues: https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)

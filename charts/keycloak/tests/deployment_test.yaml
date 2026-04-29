@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 suite: Deployment
 templates:
   - deployment.yaml
@@ -25,7 +26,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "quay.io/keycloak/keycloak:26.5.5"
+          value: "quay.io/keycloak/keycloak:26.6.1"
 
   - it: should have 1 replica by default
     template: deployment.yaml
@@ -33,6 +34,26 @@ tests:
       - equal:
           path: spec.replicas
           value: 1
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+      - equal:
+          path: spec.strategy.rollingUpdate.maxUnavailable
+          value: 0
+      - equal:
+          path: spec.strategy.rollingUpdate.maxSurge
+          value: 1
+
+  - it: should render Recreate deployment strategy
+    template: deployment.yaml
+    set:
+      deployment.strategy.type: Recreate
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - notExists:
+          path: spec.strategy.rollingUpdate
 
   - it: should use start-dev in dev mode
     template: deployment.yaml
@@ -53,6 +74,19 @@ tests:
           path: spec.template.spec.containers[0].args
           content: start
 
+  - it: should add optimized startup arg in production mode
+    template: deployment.yaml
+    set:
+      mode: production
+      optimized.enabled: true
+      hostname.hostname: sso.example.com
+      database.external.host: pg-host
+      database.external.password: testpass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --optimized
+
   - it: should set pod security context
     template: deployment.yaml
     asserts:
@@ -62,6 +96,18 @@ tests:
       - equal:
           path: spec.template.spec.securityContext.fsGroupChangePolicy
           value: OnRootMismatch
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: true
+
+  - it: should allow disabling service account token automount
+    template: deployment.yaml
+    set:
+      serviceAccount.automountServiceAccountToken: false
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
 
   - it: should have probes by default
     template: deployment.yaml
@@ -72,6 +118,21 @@ tests:
           path: spec.template.spec.containers[0].readinessProbe
       - isNotNull:
           path: spec.template.spec.containers[0].startupProbe
+
+  - it: should prefix probe paths with management relative path
+    template: deployment.yaml
+    set:
+      management.relativePath: /management
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /management/health/live
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /management/health/ready
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /management/health/started
 
   - it: should reference admin secret
     template: deployment.yaml
@@ -109,6 +170,22 @@ tests:
           content:
             name: KC_DB
           any: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_TRUSTSTORE_KUBERNETES_ENABLED
+            value: "true"
+
+  - it: should disable Kubernetes truststore auto-discovery when configured
+    template: deployment.yaml
+    set:
+      truststore.kubernetes.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_TRUSTSTORE_KUBERNETES_ENABLED
+            value: "false"
 
   - it: should inject database env with postgresql subchart in dev mode
     template: deployment.yaml
@@ -177,6 +254,88 @@ tests:
             name: KC_DB_URL
             value: "jdbc:postgresql://pg-host:5432/keycloak"
 
+  - it: should render production hardening env vars
+    template: deployment.yaml
+    set:
+      mode: production
+      hostname.hostname: sso.example.com
+      database.external.host: pg-host
+      database.external.password: prodpass
+      proxy.trustedAddresses: 10.0.0.0/8
+      database.external.schema: keycloak_schema
+      database.external.pool.initialSize: 2
+      database.external.pool.minSize: 1
+      database.external.pool.maxSize: 10
+      database.external.pool.maxLifetime: 30m
+      database.external.logSlowQueriesThreshold: 500ms
+      database.external.transaction.xaEnabled: "false"
+      database.external.transaction.timeout: 60s
+      database.tls.mode: verify-server
+      database.tls.trustStoreFile: /opt/keycloak/conf/db-truststore.p12
+      database.tls.trustStorePasswordSecret: db-tls-secret
+      database.tls.trustStoreType: PKCS12
+      features.enabled:
+        - opentelemetry-metrics
+      metrics.enabled: true
+      metrics.userEvents: true
+      metrics.cacheHistograms: true
+      telemetry.metricsEnabled: true
+      telemetry.endpoint: http://otel:4317
+      tracing.enabled: true
+      tracing.endpoint: http://tempo:4317
+      logging.console.output: json
+      logging.console.jsonFormat: ecs
+      logging.access.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_PROXY_TRUSTED_ADDRESSES
+            value: 10.0.0.0/8
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_DB_SCHEMA
+            value: keycloak_schema
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_DB_POOL_MAX_SIZE
+            value: "10"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_DB_TLS_TRUST_STORE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: db-tls-secret
+                key: password
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_EVENT_METRICS_USER_ENABLED
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_TELEMETRY_ENDPOINT
+            value: http://otel:4317
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_TRACING_ENDPOINT
+            value: http://tempo:4317
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_LOG_CONSOLE_JSON_FORMAT
+            value: ecs
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KC_HTTP_ACCESS_LOG_ENABLED
+            value: "true"
+
   - it: should reference db secret with subchart postgresql
     template: deployment.yaml
     set:
@@ -209,3 +368,78 @@ tests:
               secretKeyRef:
                 name: my-db-secret
                 key: custom-key
+
+  - it: should use valid multi-replica cache transport port names
+    template: deployment.yaml
+    set:
+      mode: production
+      hostname.hostname: sso.example.com
+      database.external.host: pg-host
+      database.external.password: prodpass
+      replicaCount: 3
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: jgroups
+            containerPort: 7800
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: jgroups-fd
+            containerPort: 57800
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: failure-detector
+          any: true
+
+  - it: should render overridden security contexts
+    template: deployment.yaml
+    set:
+      podSecurityContext.fsGroup: 2000
+      podSecurityContext.fsGroupChangePolicy: Always
+      podSecurityContext.seccompProfile.type: RuntimeDefault
+      securityContext.runAsUser: 2000
+      securityContext.runAsGroup: 2000
+      securityContext.runAsNonRoot: true
+      securityContext.allowPrivilegeEscalation: false
+      securityContext.readOnlyRootFilesystem: true
+      securityContext.capabilities.drop[0]: ALL
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 2000
+      - equal:
+          path: spec.template.spec.securityContext.fsGroupChangePolicy
+          value: Always
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 2000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsGroup
+          value: 2000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+
+  - it: should render capacity profile resources
+    template: deployment.yaml
+    set:
+      capacity.profile: medium
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: "1"
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 2Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: "2"
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 4Gi

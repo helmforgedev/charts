@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Gateway API
+templates:
+  - httproute-public.yaml
+  - httproute-admin.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render public HTTPRoute by default
+    template: httproute-public.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render public HTTPRoute when enabled
+    template: httproute-public.yaml
+    set:
+      gateway.public.enabled: true
+      gateway.public.parentRefs:
+        - name: public-gateway
+          namespace: gateway-system
+      gateway.public.hostnames:
+        - sso.example.com
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: apiVersion
+          value: gateway.networking.k8s.io/v1
+      - equal:
+          path: spec.parentRefs[0].name
+          value: public-gateway
+      - equal:
+          path: spec.hostnames[0]
+          value: sso.example.com
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: test-keycloak
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 8080
+
+  - it: should render admin HTTPRoute with admin hostname fallback
+    template: httproute-admin.yaml
+    set:
+      mode: production
+      hostname.hostname: sso.example.com
+      hostname.admin: admin-sso.example.com
+      database.external.host: pg-host
+      database.external.password: prodpass
+      gateway.admin.enabled: true
+      gateway.admin.parentRefs:
+        - name: internal-gateway
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.hostnames[0]
+          value: admin-sso.example.com
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: test-keycloak
+
+  - it: should render HTTPRoute filters
+    template: httproute-public.yaml
+    set:
+      gateway.public.enabled: true
+      gateway.public.parentRefs:
+        - name: public-gateway
+      gateway.public.filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: X-Forwarded-Proto
+                value: https
+    asserts:
+      - equal:
+          path: spec.rules[0].filters[0].type
+          value: RequestHeaderModifier

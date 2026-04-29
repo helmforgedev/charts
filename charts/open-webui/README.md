@@ -1,6 +1,7 @@
 # Open WebUI Helm Chart
 
-Self-hosted AI chat platform with Ollama and OpenAI support, RAG pipelines, multi-model conversations, and an extensible plugin system. This chart deploys Open WebUI on Kubernetes with optional PostgreSQL and Redis subcharts.
+Self-hosted AI chat platform with Ollama and OpenAI support, RAG pipelines, multi-model conversations,
+and an extensible plugin system. This chart deploys Open WebUI on Kubernetes with optional PostgreSQL and Redis subcharts.
 
 ## Features
 

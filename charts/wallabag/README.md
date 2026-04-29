@@ -1,6 +1,9 @@
 # Wallabag Helm Chart
 
-Deploy [Wallabag](https://wallabag.org) on Kubernetes using the official [wallabag/wallabag](https://hub.docker.com/r/wallabag/wallabag) Docker image. Self-hosted read-it-later application — save articles from the web, strip distractions, read offline with mobile apps and browser extensions.
+Deploy [Wallabag](https://wallabag.org) on Kubernetes using the official
+[wallabag/wallabag](https://hub.docker.com/r/wallabag/wallabag) Docker image.
+Self-hosted read-it-later application — save articles from the web, strip distractions,
+read offline with mobile apps and browser extensions.
 
 ## Features
 

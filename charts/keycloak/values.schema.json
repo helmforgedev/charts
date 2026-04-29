@@ -98,6 +98,39 @@
         }
       }
     },
+    "management": {
+      "type": "object",
+      "description": "Keycloak management interface configuration",
+      "properties": {
+        "healthEnabled": {
+          "type": "boolean",
+          "description": "Serve health endpoints from the management interface"
+        },
+        "relativePath": {
+          "type": "string",
+          "description": "Optional management interface relative path"
+        }
+      }
+    },
+    "deployment": {
+      "type": "object",
+      "description": "Deployment lifecycle settings",
+      "properties": {
+        "strategy": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["RollingUpdate", "Recreate"] },
+            "rollingUpdate": {
+              "type": "object",
+              "properties": {
+                "maxUnavailable": { "type": ["string", "integer"] },
+                "maxSurge": { "type": ["string", "integer"] }
+              }
+            }
+          }
+        }
+      }
+    },
     "hostname": {
       "type": "object",
       "description": "Hostname and reverse proxy configuration",
@@ -127,7 +160,15 @@
         "headers": {
           "type": "string",
           "description": "Proxy headers mode passed to Keycloak, for example xforwarded or forwarded",
-          "enum": ["xforwarded", "forwarded"]
+          "enum": ["", "xforwarded", "forwarded"]
+        },
+        "trustedAddresses": {
+          "type": "string",
+          "description": "Comma-separated trusted proxy IPs/CIDRs used by Keycloak when proxy.headers is set"
+        },
+        "protocolEnabled": {
+          "type": "boolean",
+          "description": "Enable HAProxy PROXY protocol support"
         }
       }
     },
@@ -175,6 +216,32 @@
             "jdbcParameters": {
               "type": "string",
               "description": "Additional JDBC properties appended to the generated JDBC URL"
+            },
+            "schema": {
+              "type": "string",
+              "description": "Optional database schema passed to KC_DB_SCHEMA"
+            },
+            "pool": {
+              "type": "object",
+              "description": "Database connection pool settings",
+              "properties": {
+                "initialSize": { "type": ["string", "integer"], "description": "Initial database connection pool size" },
+                "minSize": { "type": ["string", "integer"], "description": "Minimum database connection pool size" },
+                "maxSize": { "type": ["string", "integer"], "description": "Maximum database connection pool size" },
+                "maxLifetime": { "type": "string", "description": "Maximum database connection lifetime" }
+              }
+            },
+            "logSlowQueriesThreshold": {
+              "type": "string",
+              "description": "Slow query threshold passed to Keycloak"
+            },
+            "transaction": {
+              "type": "object",
+              "description": "Database transaction settings",
+              "properties": {
+                "xaEnabled": { "type": ["string", "boolean"], "description": "Enable or disable XA transactions" },
+                "timeout": { "type": "string", "description": "Transaction timeout" }
+              }
             }
           }
         },
@@ -185,6 +252,11 @@
             "enabled": {
               "type": "boolean",
               "description": "Enable database TLS settings"
+            },
+            "mode": {
+              "type": "string",
+              "description": "Keycloak database TLS mode",
+              "enum": ["", "disabled", "verify-server"]
             },
             "sslMode": {
               "type": "string",
@@ -205,6 +277,22 @@
             "existingConfigMap": {
               "type": "string",
               "description": "Existing ConfigMap holding database CA material"
+            },
+            "trustStoreFile": {
+              "type": "string",
+              "description": "Database TLS truststore file path passed to Keycloak"
+            },
+            "trustStorePasswordSecret": {
+              "type": "string",
+              "description": "Existing Secret containing the database TLS truststore password"
+            },
+            "trustStorePasswordKey": {
+              "type": "string",
+              "description": "Secret key for database TLS truststore password"
+            },
+            "trustStoreType": {
+              "type": "string",
+              "description": "Database TLS truststore type"
             }
           }
         }
@@ -330,6 +418,16 @@
           "type": "string",
           "description": "TLS hostname verification mode for outbound HTTPS and SMTP traffic",
           "enum": ["DEFAULT", "ANY", "WILDCARD", "STRICT"]
+        },
+        "kubernetes": {
+          "type": "object",
+          "description": "Kubernetes/OpenShift service account CA truststore handling",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Let Keycloak trust Kubernetes/OpenShift service account CA files when mounted"
+            }
+          }
         }
       }
     },
@@ -381,6 +479,32 @@
               }
             }
           }
+        }
+      }
+    },
+    "features": {
+      "type": "object",
+      "description": "Keycloak feature flags",
+      "properties": {
+        "enabled": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Keycloak features to enable"
+        },
+        "disabled": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Keycloak features to disable"
+        }
+      }
+    },
+    "optimized": {
+      "type": "object",
+      "description": "Optimized startup settings",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Add --optimized to Keycloak startup args"
         }
       }
     },
@@ -440,6 +564,58 @@
         "managementAnnotations": {
           "type": "object",
           "description": "Annotations for the management service"
+        },
+        "ipFamilyPolicy": {
+          "type": "string",
+          "description": "Application Service IP family policy",
+          "enum": ["", "SingleStack", "PreferDualStack", "RequireDualStack"]
+        },
+        "ipFamilies": {
+          "type": "array",
+          "description": "Application Service IP families",
+          "maxItems": 2,
+          "items": { "type": "string", "enum": ["IPv4", "IPv6"] }
+        },
+        "managementIpFamilyPolicy": {
+          "type": "string",
+          "description": "Management Service IP family policy",
+          "enum": ["", "SingleStack", "PreferDualStack", "RequireDualStack"]
+        },
+        "managementIpFamilies": {
+          "type": "array",
+          "description": "Management Service IP families",
+          "maxItems": 2,
+          "items": { "type": "string", "enum": ["IPv4", "IPv6"] }
+        }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "description": "Gateway API HTTPRoute configuration",
+      "properties": {
+        "public": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "annotations": { "type": "object" },
+            "parentRefs": { "type": "array", "items": { "type": "object" } },
+            "hostnames": { "type": "array", "items": { "type": "string" } },
+            "path": { "type": "string" },
+            "pathType": { "type": "string", "enum": ["Exact", "PathPrefix", "RegularExpression"] },
+            "filters": { "type": "array", "items": { "type": "object" } }
+          }
+        },
+        "admin": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "annotations": { "type": "object" },
+            "parentRefs": { "type": "array", "items": { "type": "object" } },
+            "hostnames": { "type": "array", "items": { "type": "string" } },
+            "path": { "type": "string" },
+            "pathType": { "type": "string", "enum": ["Exact", "PathPrefix", "RegularExpression"] },
+            "filters": { "type": "array", "items": { "type": "object" } }
+          }
         }
       }
     },
@@ -588,12 +764,69 @@
           "type": "boolean",
           "description": "Enable Keycloak metrics endpoint"
         },
+        "userEvents": {
+          "type": "boolean",
+          "description": "Create metrics based on user events"
+        },
+        "cacheHistograms": {
+          "type": "boolean",
+          "description": "Enable cache metrics histograms"
+        },
         "serviceMonitor": {
           "type": "object",
           "properties": {
             "enabled": { "type": "boolean", "description": "Create a ServiceMonitor targeting the management service" },
             "interval": { "type": "string", "description": "Scrape interval" },
-            "labels": { "type": "object", "description": "Additional labels for the ServiceMonitor" }
+            "scrapeTimeout": { "type": "string", "description": "Scrape timeout" },
+            "labels": { "type": "object", "description": "Additional labels for the ServiceMonitor" },
+            "annotations": { "type": "object", "description": "Additional annotations for the ServiceMonitor" },
+            "relabelings": { "type": "array", "items": { "type": "object" } },
+            "metricRelabelings": { "type": "array", "items": { "type": "object" } }
+          }
+        }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "description": "OpenTelemetry metrics export settings",
+      "properties": {
+        "metricsEnabled": { "type": "boolean" },
+        "endpoint": { "type": "string" },
+        "metricsEndpoint": { "type": "string" }
+      }
+    },
+    "tracing": {
+      "type": "object",
+      "description": "OpenTelemetry tracing settings",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "endpoint": { "type": "string" },
+        "samplerType": { "type": "string" },
+        "samplerRatio": { "type": ["string", "number"] },
+        "resourceAttributes": { "type": "string" },
+        "jdbcEnabled": { "type": "boolean" },
+        "infinispanEnabled": { "type": "boolean" }
+      }
+    },
+    "logging": {
+      "type": "object",
+      "description": "Keycloak logging settings",
+      "properties": {
+        "level": { "type": "string" },
+        "console": {
+          "type": "object",
+          "properties": {
+            "output": { "type": "string", "enum": ["default", "json"] },
+            "level": { "type": "string" },
+            "jsonFormat": { "type": "string", "enum": ["default", "ecs"] }
+          }
+        },
+        "access": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "pattern": { "type": "string" },
+            "exclude": { "type": "string" }
           }
         }
       }
@@ -643,6 +876,19 @@
           "properties": {
             "enabled": { "type": "boolean", "description": "Allow intra-cluster cache transport traffic between Keycloak pods when replicaCount > 1" }
           }
+        },
+        "egress": {
+          "type": "object",
+          "description": "Optional egress NetworkPolicy rules",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "allowDns": { "type": "boolean" },
+            "dnsNamespaceSelector": { "type": "object" },
+            "dnsPodSelector": { "type": "object" },
+            "allowDatabase": { "type": "boolean" },
+            "databaseTo": { "type": "array", "items": { "type": "object" } },
+            "extraEgress": { "type": "array", "items": { "type": "object" } }
+          }
         }
       }
     },
@@ -652,20 +898,105 @@
       "properties": {
         "create": { "type": "boolean", "description": "Create a ServiceAccount" },
         "name": { "type": "string" },
-        "annotations": { "type": "object" }
+        "annotations": { "type": "object" },
+        "automountServiceAccountToken": { "type": "boolean" }
       }
     },
     "resources": {
       "type": "object",
       "description": "CPU and memory requests/limits for the Keycloak container"
     },
+    "capacity": {
+      "type": "object",
+      "description": "Optional resource profiles",
+      "properties": {
+        "profile": { "type": "string", "enum": ["custom", "small", "medium", "large"] },
+        "profiles": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          }
+        }
+      }
+    },
     "podSecurityContext": {
       "type": "object",
-      "description": "Pod-level security context"
+      "description": "Pod-level security context",
+      "properties": {
+        "fsGroup": {
+          "type": "integer",
+          "description": "File system group ID applied to mounted volumes",
+          "minimum": 0
+        },
+        "fsGroupChangePolicy": {
+          "type": "string",
+          "description": "Policy for changing ownership and permissions of mounted volumes",
+          "enum": ["Always", "OnRootMismatch"]
+        },
+        "seccompProfile": {
+          "type": "object",
+          "description": "Pod seccomp profile",
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "Seccomp profile type",
+              "enum": ["RuntimeDefault", "Localhost", "Unconfined"]
+            },
+            "localhostProfile": {
+              "type": "string",
+              "description": "Localhost seccomp profile path when type is Localhost"
+            }
+          }
+        }
+      }
     },
     "securityContext": {
       "type": "object",
-      "description": "Container-level security context"
+      "description": "Container-level security context",
+      "properties": {
+        "runAsUser": {
+          "type": "integer",
+          "description": "User ID used to run the Keycloak container",
+          "minimum": 0
+        },
+        "runAsGroup": {
+          "type": "integer",
+          "description": "Group ID used to run the Keycloak container",
+          "minimum": 0
+        },
+        "runAsNonRoot": {
+          "type": "boolean",
+          "description": "Require the container to run as a non-root user"
+        },
+        "allowPrivilegeEscalation": {
+          "type": "boolean",
+          "description": "Allow privilege escalation in the Keycloak container"
+        },
+        "readOnlyRootFilesystem": {
+          "type": "boolean",
+          "description": "Mount the container root filesystem as read-only"
+        },
+        "capabilities": {
+          "type": "object",
+          "description": "Linux capabilities configuration",
+          "properties": {
+            "drop": {
+              "type": "array",
+              "description": "Linux capabilities dropped from the container",
+              "items": {
+                "type": "string"
+              }
+            },
+            "add": {
+              "type": "array",
+              "description": "Linux capabilities added to the container",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
     },
     "nodeSelector": {
       "type": "object",
@@ -734,6 +1065,53 @@
       "type": "array",
       "description": "Additional volume mounts for the Keycloak container",
       "items": { "type": "object" }
+    },
+    "externalSecrets": {
+      "type": "object",
+      "description": "External Secrets Operator integration for clusters that already run ESO",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiVersion": { "type": "string", "enum": ["external-secrets.io/v1"] },
+        "refreshInterval": { "type": "string" },
+        "secretStoreRef": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "kind": { "type": "string", "enum": ["SecretStore", "ClusterSecretStore"] }
+          }
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "creationPolicy": { "type": "string", "enum": ["Owner", "Merge", "None"] }
+          }
+        },
+        "admin": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "targetName": { "type": "string" },
+            "usernameRemoteRef": { "type": "object" },
+            "passwordRemoteRef": { "type": "object" }
+          }
+        },
+        "database": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "targetName": { "type": "string" },
+            "passwordRemoteRef": { "type": "object" }
+          }
+        },
+        "truststore": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "targetName": { "type": "string" },
+            "data": { "type": "array", "items": { "type": "object" } }
+          }
+        }
+      }
     },
     "postgresql": {
       "type": "object",

@@ -1,6 +1,8 @@
 # Statistics for Strava Helm Chart
 
-Deploy [Statistics for Strava](https://github.com/robiningelbrecht/strava-statistics) on Kubernetes using the official [robiningelbrecht/strava-statistics](https://hub.docker.com/r/robiningelbrecht/strava-statistics) container image. Self-hosted fitness dashboard that visualizes your Strava activities with beautiful statistics, powered by SQLite.
+Deploy [Statistics for Strava](https://github.com/robiningelbrecht/strava-statistics) on Kubernetes using the official
+[robiningelbrecht/strava-statistics](https://hub.docker.com/r/robiningelbrecht/strava-statistics) container image.
+Self-hosted fitness dashboard that visualizes your Strava activities with beautiful statistics, powered by SQLite.
 
 ## Features
 

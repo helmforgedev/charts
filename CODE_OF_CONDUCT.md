@@ -33,9 +33,9 @@ This Code of Conduct applies to all HelmForge project spaces, including:
 
 If you experience or witness unacceptable behavior, report it to the project maintainers:
 
-- email: berlofa@helmforge.dev
-- alternate email: maicon.berloffa@gmail.com
-- private vulnerability or sensitive project report: https://github.com/helmforgedev/charts/security/advisories/new
+- email: <berlofa@helmforge.dev>
+- alternate email: <maicon.berloffa@gmail.com>
+- private vulnerability or sensitive project report: <https://github.com/helmforgedev/charts/security/advisories/new>
 
 Reports should include as much context as you are comfortable sharing, such as links, screenshots, timestamps, involved accounts, and a description of the impact.
 
@@ -58,7 +58,7 @@ Maintainers who are personally involved in a report should recuse themselves fro
 
 HelmForge uses the CNCF Code of Conduct as a reference for community expectations and intends to align with CNCF community standards as part of its Sandbox application process.
 
-Reference: https://www.cncf.io/conduct/
+Reference: <https://www.cncf.io/conduct/>
 
 <!-- @AI-METADATA
 type: guide

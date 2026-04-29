@@ -1,6 +1,9 @@
 # ntfy Helm Chart
 
-Deploy [ntfy](https://ntfy.sh) on Kubernetes using the official [binwiederhier/ntfy](https://hub.docker.com/r/binwiederhier/ntfy) container image. A simple HTTP-based pub-sub notification service that lets you send push notifications to phones and desktops via scripts — no signup, no fees.
+Deploy [ntfy](https://ntfy.sh) on Kubernetes using the official
+[binwiederhier/ntfy](https://hub.docker.com/r/binwiederhier/ntfy) container image.
+A simple HTTP-based pub-sub notification service that lets you send push notifications
+to phones and desktops via scripts — no signup, no fees.
 
 ## Features
 

@@ -1,6 +1,8 @@
 # Apache Superset
 
-Apache Superset is a modern, enterprise-ready business intelligence web application for data exploration and visualization. It supports 60+ database connectors, interactive dashboards, SQL Lab, and a rich set of visualizations.
+Apache Superset is a modern, enterprise-ready business intelligence web application
+for data exploration and visualization. It supports 60+ database connectors,
+interactive dashboards, SQL Lab, and a rich set of visualizations.
 
 ## Features
 
@@ -31,7 +33,7 @@ helm install superset oci://ghcr.io/helmforgedev/helm/superset --version <versio
 
 ## Architecture
 
-```
+```text
 Deployment: superset-web (Gunicorn, port 8088)
 Deployment: superset-worker (Celery workers)
 Deployment: superset-beat (Celery beat scheduler)
