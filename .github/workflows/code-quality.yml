@@ -1,0 +1,165 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Code Quality
+
+on:
+  pull_request:
+    paths:
+      - 'charts/**'
+      - '**.md'
+      - 'scripts/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  markdown-lint:
+    name: Markdown Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: DavidAnson/markdownlint-cli2-action@v19
+        with:
+          globs: |
+            charts/**/README.md
+            *.md
+            docs/**/*.md
+
+  values-quality:
+    name: Values Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed values files
+        id: detect
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep 'values\.yaml$' || true)
+          else
+            FILES=""
+          fi
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          echo "$FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: ASCII check
+        if: steps.detect.outputs.files != ''
+        run: |
+          FAIL=0
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            [ -f "$f" ] || continue
+            if LC_ALL=C grep -Pn '[^\x00-\x7F]' "$f"; then
+              echo "::error file=$f::Non-ASCII characters found in $f"
+              FAIL=1
+            fi
+          done <<< "${{ steps.detect.outputs.files }}"
+          exit $FAIL
+
+      - name: Floating tag check
+        if: steps.detect.outputs.files != ''
+        run: |
+          FAIL=0
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            [ -f "$f" ] || continue
+            # Skip commented lines; also match tags followed by inline comments
+            if grep -nE '^[^#]*tag:\s*["'"'"']?(latest|main|master|dev|nightly|edge|stable)["'"'"']?\s*(#.*)?$' "$f"; then
+              echo "::error file=$f::Floating image tag detected — pinned tags required (GR-004/GR-040)"
+              FAIL=1
+            fi
+          done <<< "${{ steps.detect.outputs.files }}"
+          exit $FAIL
+
+      - name: Schema presence check
+        if: steps.detect.outputs.files != ''
+        run: |
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            [ -f "$f" ] || continue
+            # Resolve to chart root (charts/<name>/) not ci/ or examples/ subdirectories
+            CHART_DIR=$(echo "$f" | sed -n 's|^\(charts/[^/]*\)/.*|\1|p')
+            [ -z "$CHART_DIR" ] && continue
+            if [ ! -f "$CHART_DIR/values.schema.json" ]; then
+              echo "::warning file=$f::Missing values.schema.json for $(basename $CHART_DIR)"
+            fi
+          done <<< "${{ steps.detect.outputs.files }}"
+
+  license-headers:
+    name: License Headers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check SPDX headers on changed files
+        id: check
+        run: |
+          FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD \
+            | grep -E '\.(yaml|tpl|sh)$' \
+            | grep -v 'node_modules' \
+            | grep -v '.github/' \
+            || true)
+
+          MISSING=""
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            [ -f "$f" ] || continue
+            if ! head -5 "$f" | grep -q "SPDX-License-Identifier"; then
+              MISSING="$MISSING- \`$f\`\n"
+            fi
+          done <<< "$FILES"
+
+          if [ -n "$MISSING" ]; then
+            echo "missing<<EOF" >> $GITHUB_OUTPUT
+            printf '%b' "$MISSING" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "has_missing=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment on PR
+        if: ${{ steps.check.outputs.has_missing == 'true' && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const missing = `${{ steps.check.outputs.missing }}`;
+            const body = `### ℹ️ Missing License Headers
+
+            The following changed files are missing SPDX license headers:
+
+            ${missing}
+
+            Consider adding the following to the top of each file:
+            \`\`\`yaml
+            # SPDX-License-Identifier: Apache-2.0
+            \`\`\`
+
+            > This is informational only and does not block merge.`.replace(/^            /gm, '');
+
+            // Check for existing comment to avoid duplicates
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number
+            });
+            const existing = comments.find(c => c.body.includes('Missing License Headers'));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: body
+              });
+            }
