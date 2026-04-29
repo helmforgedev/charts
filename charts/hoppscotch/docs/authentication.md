@@ -21,7 +21,7 @@ Always available. Users enter their email and receive a magic link. Requires SMT
 
 ## GitHub OAuth
 
-1. Create a GitHub OAuth App at https://github.com/settings/applications/new
+1. Create a GitHub OAuth App at <https://github.com/settings/applications/new>
 2. Set Authorization callback URL to `<backendApiUrl>/auth/github/callback`
 
 ```yaml
@@ -49,7 +49,7 @@ auth:
 
 ## Google OAuth
 
-1. Create credentials at https://console.developers.google.com/
+1. Create credentials at <https://console.developers.google.com/>
 2. Add callback URL: `<backendApiUrl>/auth/google/callback`
 
 ```yaml
@@ -64,7 +64,7 @@ auth:
 
 ## Microsoft OAuth
 
-1. Register app at https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps
+1. Register app at <https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps>
 2. Add redirect URI: `<backendApiUrl>/auth/microsoft/callback`
 
 ```yaml
@@ -80,12 +80,14 @@ auth:
 ## Callback URL Pattern
 
 All OAuth callback URLs follow:
-```
+
+```text
 <VITE_BACKEND_API_URL>/auth/<provider>/callback
 ```
 
 When `ingress.host` is set and TLS is configured, this resolves to:
-```
+
+```text
 https://<ingress.host>/backend/v1/auth/<provider>/callback
 ```
 
@@ -96,6 +98,7 @@ The **first user to log in** via the Admin Dashboard becomes the administrator a
 Admin Dashboard URL: `<ingress.host>/admin` (subpath mode)
 
 After becoming admin:
+
 - Configure allowed auth providers via Admin Dashboard > Settings
 - Generate InfraTokens for API/CI access: Admin > InfraTokens
 - Manage user invitations: Admin > User Invitations

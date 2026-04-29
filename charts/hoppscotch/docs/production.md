@@ -5,9 +5,10 @@
 The `DATA_ENCRYPTION_KEY` encrypts sensitive data (OAuth tokens, etc.) stored in PostgreSQL.
 
 **Critical rules:**
+
 - Must be exactly 32 characters
 - Auto-generated on first install if not provided
-- **Never change after first install** — it will corrupt all encrypted data
+- **Never change after first install** - it will corrupt all encrypted data
 - Back up this key alongside your database backup
 
 ### Generating a Secure Key
@@ -103,6 +104,7 @@ networkPolicy:
 ```
 
 The default policy allows:
+
 - Ingress: from any pod in the same namespace on port 80
 - Egress: DNS (port 53) + database port
 

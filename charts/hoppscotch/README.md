@@ -114,6 +114,7 @@ First-time setup: the **first user to log in** via `/admin` becomes the administ
 ## Non-Goals
 
 This chart does not:
+
 - Deploy the three-container split architecture (use the AIO image instead)
 - Manage OAuth provider registration (do this in the provider's developer console)
 - Provide built-in backup for PostgreSQL (use the HelmForge PostgreSQL chart with backup enabled)

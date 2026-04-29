@@ -20,7 +20,8 @@ postgresql:
 ```
 
 The `DATABASE_URL` is constructed automatically as:
-```
+
+```text
 postgresql://<username>:<password>@<release-name>-postgresql:5432/<database>
 ```
 
@@ -76,7 +77,7 @@ database:
 
 Prisma migrations run automatically on every deploy via the `migrate` init container:
 
-```
+```bash
 pnpm exec prisma migrate deploy
 ```
 
