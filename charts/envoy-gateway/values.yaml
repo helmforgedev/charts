@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # Default values for envoy-gateway
 # This is a YAML-formatted file.
 
@@ -17,7 +18,7 @@ controller:
     # -- Controller image pull policy
     pullPolicy: IfNotPresent
     # -- Controller image tag (defaults to chart appVersion)
-    tag: "v1.7.1"
+    tag: "v1.7.2"
 
   # -- Resources for controller (overridden by profile)
   resources:
@@ -59,7 +60,7 @@ certgen:
     # -- Certgen image pull policy
     pullPolicy: IfNotPresent
     # -- Certgen image tag (defaults to chart appVersion)
-    tag: "v1.7.1"
+    tag: "v1.7.2"
 
 ## Proxy configuration via EnvoyProxy CRD (EG manages the actual proxy pods)
 proxy:
@@ -90,6 +91,10 @@ proxy:
     type: LoadBalancer
     # -- Annotations for proxy service
     annotations: {}
+    # -- Set the ipFamilyPolicy for dual-stack
+    ipFamilyPolicy: ''
+    # -- Set the ipFamilies for dual-stack
+    ipFamilies: []
 
   # -- Horizontal Pod Autoscaler (only for Deployment kind)
   autoscaling:
@@ -134,7 +139,7 @@ gateway:
           name: ""
           namespace: ""
 
-## SecurityPolicy — EG-native auth (JWT, OIDC, API Key, CORS)
+## SecurityPolicy - EG-native auth (JWT, OIDC, API Key, CORS)
 securityPolicy:
   # -- Create a SecurityPolicy resource
   create: false
@@ -188,7 +193,7 @@ securityPolicy:
       - Content-Type
     maxAge: 86400
 
-## BackendTrafficPolicy — retries, timeouts, circuit breaking, health checks
+## BackendTrafficPolicy - retries, timeouts, circuit breaking, health checks
 backendTrafficPolicy:
   # -- Create a BackendTrafficPolicy resource
   create: false
@@ -234,7 +239,7 @@ backendTrafficPolicy:
         expectedStatuses:
           - 200
 
-## ClientTrafficPolicy — listener-level settings
+## ClientTrafficPolicy - listener-level settings
 clientTrafficPolicy:
   # -- Create a ClientTrafficPolicy resource
   create: false
@@ -271,7 +276,7 @@ clientTrafficPolicy:
 rateLimiting:
   # -- Enable global rate limiting
   enabled: false
-  # -- Rate limit service (envoyproxy/ratelimit) — deployed by EG when enabled
+  # -- Rate limit service (envoyproxy/ratelimit) - deployed by EG when enabled
   service:
     image:
       repository: docker.io/envoyproxy/ratelimit
@@ -293,7 +298,7 @@ rateLimiting:
     strict: false
 
 # =============================================================================
-# Redis subchart (helmforge/redis) — used for global rate limiting state
+# Redis subchart (helmforge/redis) - used for global rate limiting state
 # Set rateLimiting.enabled=true together with redis.enabled=true to activate.
 # All keys here are forwarded to the helmforge/redis chart.
 # See: https://helmforge.dev/docs/charts/redis
@@ -388,3 +393,17 @@ podAnnotations: {}
 podLabels: {}
 
 kubernetesClusterDomain: cluster.local
+
+
+## ExternalSecrets configuration (GR-061)
+externalSecrets:
+  enabled: false
+  apiVersion: external-secrets.io/v1beta1
+  refreshInterval: 1h
+  secretStoreRef:
+    name: ''
+    kind: ClusterSecretStore
+  target:
+    creationPolicy: Owner
+  data: []
+
