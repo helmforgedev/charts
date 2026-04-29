@@ -55,8 +55,8 @@ Emeritus maintainers are welcome to return through the normal maintainer process
 
 General project contact:
 
-- berlofa@helmforge.dev
-- maicon.berloffa@gmail.com
+- <berlofa@helmforge.dev>
+- <maicon.berloffa@gmail.com>
 
 Security-sensitive reports should follow [SECURITY.md](SECURITY.md).
 

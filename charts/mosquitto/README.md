@@ -1,6 +1,8 @@
 # Mosquitto
 
-A Helm chart for deploying [Eclipse Mosquitto](https://mosquitto.org/) on Kubernetes with standalone or federated broker topologies, WebSocket support, and an optional [MQTTX Web](https://hub.docker.com/r/emqx/mqttx-web) companion UI.
+A Helm chart for deploying [Eclipse Mosquitto](https://mosquitto.org/) on Kubernetes
+with standalone or federated broker topologies, WebSocket support,
+and an optional [MQTTX Web](https://hub.docker.com/r/emqx/mqttx-web) companion UI.
 
 ## Installation
 
@@ -39,7 +41,8 @@ helm install mosquitto oci://ghcr.io/helmforgedev/helm/mosquitto
 - federated mode is based on Mosquitto bridges, not on native shared-state clustering
 - federated brokers still do **not** share sessions or retained state like a true clustered MQTT platform
 - the default Service routing uses `sessionAffinity=None` for broader compatibility; enable `ClientIP` only when sticky routing is explicitly needed
-- set `service.mqttNodePort`, `service.websocketNodePort`, and `service.mqttsNodePort` to a non-zero port (typically `30000`–`32767`) to pin static NodePorts; keep them at `0` to let the cluster assign ports automatically
+- set `service.mqttNodePort`, `service.websocketNodePort`, and `service.mqttsNodePort` to a non-zero port
+  (typically `30000`–`32767`) to pin static NodePorts; keep them at `0` to let the cluster assign ports automatically
 - `service.externalIPs` maps to `spec.externalIPs` on the broker Service for clusters that route traffic to those addresses
 - federated multi-replica installs automatically prefer spreading broker pods across nodes unless you provide custom `affinity` or `topologySpreadConstraints`
 - when `broker.tls.enabled=true`, set `broker.tls.certSecretName` to an existing Secret containing `tls.crt` and `tls.key` (and optionally `ca.crt` for mTLS)

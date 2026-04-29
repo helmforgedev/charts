@@ -98,9 +98,9 @@ Maintainers do not manually create chart release tags or edit chart versions for
 
 Published charts are distributed through:
 
-- HTTPS Helm repository: https://repo.helmforge.dev
+- HTTPS Helm repository: <https://repo.helmforge.dev>
 - OCI registry: `ghcr.io/helmforgedev/helm`
-- Artifact Hub: https://artifacthub.io/packages/search?repo=helmforge
+- Artifact Hub: <https://artifacthub.io/packages/search?repo=helmforge>
 
 Release integrity is part of project governance. Signing, provenance, and publishing workflows should be treated as protected project infrastructure.
 

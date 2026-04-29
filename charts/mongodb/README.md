@@ -146,7 +146,7 @@ sharded:
 | `replicaSet.name` | Replica set name | `rs0` |
 | `replicaSet.members` | Number of data-bearing members | `3` |
 
-### Sharded Cluster
+### Sharded Cluster Parameters
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
@@ -269,7 +269,9 @@ Key differences from the Bitnami MongoDB chart:
 | Dependencies | None | `bitnami/common` library |
 | User ID | 999 (mongodb) | 1001 (bitnami) |
 
-When migrating, you'll need to handle the data directory path change. For existing PVCs, use an init container to move data from `/bitnami/mongodb` to `/data/db`, or create new volumes and restore from backup.
+When migrating, you'll need to handle the data directory path change. For existing PVCs,
+use an init container to move data from `/bitnami/mongodb` to `/data/db`,
+or create new volumes and restore from backup.
 
 <!-- @AI-METADATA
 type: chart-readme

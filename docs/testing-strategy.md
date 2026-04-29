@@ -38,7 +38,7 @@ helm unittest charts/*
 
 Test files live under `charts/<chart-name>/tests/` with the naming convention `<template-name>_test.yaml`.
 
-```
+```text
 charts/<chart-name>/
   templates/
     deployment.yaml
@@ -72,7 +72,9 @@ tests:
 
 #### Multi-template dependencies
 
-When a template uses `include` to reference another template (e.g., for checksum annotations), both templates must be listed in the suite's `templates` array. Use the `template` field at the test level to target assertions at the correct template:
+When a template uses `include` to reference another template (e.g., for checksum annotations),
+both templates must be listed in the suite's `templates` array.
+Use the `template` field at the test level to target assertions at the correct template:
 
 ```yaml
 templates:
@@ -165,11 +167,14 @@ Some PDBs require multiple conditions (e.g., `pdb.enabled` AND `replicaCount > 1
 
 ### Pitfalls
 
-1. **`protocol: TCP`** — Kubernetes adds `protocol: TCP` by default when the template does not specify it. If the rendered output includes `protocol: TCP`, the `contains` assertion must include it too, or it will fail.
+1. **`protocol: TCP`** — Kubernetes adds `protocol: TCP` by default when the template does not specify it.
+   If the rendered output includes `protocol: TCP`, the `contains` assertion must include it too, or it will fail.
 
-2. **`documentIndex` scope** — `documentIndex` is scoped per-template, not across all rendered templates. When using suite-level `documentIndex`, it only works reliably if the suite targets a single template file.
+2. **`documentIndex` scope** — `documentIndex` is scoped per-template, not across all rendered templates.
+   When using suite-level `documentIndex`, it only works reliably if the suite targets a single template file.
 
-3. **`template` filter** — When multiple templates are listed in the suite, always use `template: <file>.yaml` at the test level to avoid assertions running against all rendered templates.
+3. **`template` filter** — When multiple templates are listed in the suite, always use `template: <file>.yaml`
+   at the test level to avoid assertions running against all rendered templates.
 
 4. **`stringData` vs `data`** — Some secrets use `stringData` (plain text) instead of `data` (base64). Check the actual template output before writing assertions.
 
@@ -179,7 +184,7 @@ Some PDBs require multiple conditions (e.g., `pdb.enabled` AND `replicaCount > 1
 
 The CI workflow (`.github/workflows/ci.yml`) runs these jobs for every PR:
 
-```
+```text
 detect → lint (parallel)
        → template (parallel)
        → unittest (parallel)
