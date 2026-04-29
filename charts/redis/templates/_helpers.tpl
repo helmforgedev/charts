@@ -116,6 +116,18 @@ Common names.
 {{- printf "%s-metrics" (include "redis.fullname" .) -}}
 {{- end -}}
 
+{{- define "redis.activeServiceName" -}}
+{{- if include "redis.isStandalone" . -}}
+{{- include "redis.clientServiceName" . -}}
+{{- else if include "redis.isReplication" . -}}
+{{- include "redis.primaryServiceName" . -}}
+{{- else if include "redis.isSentinel" . -}}
+{{- include "redis.sentinelServiceName" . -}}
+{{- else if include "redis.isCluster" . -}}
+{{- include "redis.clientServiceName" . -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "redis.primaryStatefulSetName" -}}
 {{- printf "%s-primary" (include "redis.fullname" .) -}}
 {{- end -}}
