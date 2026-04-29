@@ -1,5 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
-# Keycloak Helm Chart — Default Values
+# Keycloak Helm Chart - Default Values
 # =============================================================================
 # Supported modes:
 # - dev
@@ -27,7 +28,7 @@ image:
   # -- Keycloak image repository
   repository: quay.io/keycloak/keycloak
   # -- Keycloak image tag
-  tag: "26.5.5"
+  tag: "26.6.1"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -62,6 +63,22 @@ http:
   # -- HTTP relative path, for example `/auth`
   relativePath: /
 
+management:
+  # -- Serve health endpoints from the management interface.
+  healthEnabled: true
+  # -- Optional management interface relative path. Leave empty to use Keycloak defaults.
+  relativePath: ""
+
+deployment:
+  strategy:
+    # -- Deployment rollout strategy type.
+    type: RollingUpdate
+    rollingUpdate:
+      # -- Maximum unavailable pods during RollingUpdate.
+      maxUnavailable: 0
+      # -- Maximum surge pods during RollingUpdate.
+      maxSurge: 1
+
 # =============================================================================
 # Hostname and Reverse Proxy
 # =============================================================================
@@ -79,6 +96,10 @@ hostname:
 proxy:
   # -- Proxy headers mode passed to Keycloak, for example `xforwarded` or `forwarded`
   headers: xforwarded
+  # -- Comma-separated trusted proxy IPs/CIDRs used by Keycloak when proxy.headers is set.
+  trustedAddresses: ""
+  # -- Enable HAProxy PROXY protocol support. Cannot be used together with proxy.headers.
+  protocolEnabled: false
 
 # =============================================================================
 # Database
@@ -112,9 +133,29 @@ database:
     existingSecretPasswordKey: db-password
     # -- Additional JDBC properties appended to the generated JDBC URL
     jdbcParameters: ""
+    # -- Optional database schema passed to KC_DB_SCHEMA
+    schema: ""
+    pool:
+      # -- Initial database connection pool size
+      initialSize: ""
+      # -- Minimum database connection pool size
+      minSize: ""
+      # -- Maximum database connection pool size
+      maxSize: ""
+      # -- Maximum database connection lifetime
+      maxLifetime: ""
+    # -- Slow query threshold passed to Keycloak
+    logSlowQueriesThreshold: ""
+    transaction:
+      # -- Enable or disable XA transactions
+      xaEnabled: ""
+      # -- Transaction timeout
+      timeout: ""
   tls:
     # -- Enable database TLS settings. Automatic JDBC parameter wiring is production-ready for PostgreSQL and can be extended manually through database.external.jdbcParameters for other vendors.
     enabled: false
+    # -- Keycloak database TLS mode. Empty omits KC_DB_TLS_MODE.
+    mode: ""
     # -- PostgreSQL SSL mode used when database.tls.enabled is true
     sslMode: verify-full
     # -- Mount path for database TLS material
@@ -125,6 +166,14 @@ database:
     existingSecret: ""
     # -- Existing ConfigMap holding database CA material
     existingConfigMap: ""
+    # -- Database TLS truststore file path passed to Keycloak.
+    trustStoreFile: ""
+    # -- Existing Secret containing the database TLS truststore password.
+    trustStorePasswordSecret: ""
+    # -- Secret key for database TLS truststore password.
+    trustStorePasswordKey: password
+    # -- Database TLS truststore type.
+    trustStoreType: ""
 
 # =============================================================================
 # Backup
@@ -202,6 +251,9 @@ truststore:
   existingConfigMap: ""
   # -- TLS hostname verification mode for outbound HTTPS and SMTP traffic
   tlsHostnameVerifier: DEFAULT
+  kubernetes:
+    # -- Let Keycloak trust Kubernetes/OpenShift service account CA files when mounted.
+    enabled: true
 
 # =============================================================================
 # Runtime and Clustering
@@ -227,6 +279,16 @@ cache:
       topologyKey: kubernetes.io/hostname
       # -- whenUnsatisfiable policy used by the generated spread constraint
       whenUnsatisfiable: ScheduleAnyway
+
+features:
+  # -- Keycloak features to enable, rendered as KC_FEATURES.
+  enabled: []
+  # -- Keycloak features to disable, rendered as KC_FEATURES_DISABLED.
+  disabled: []
+
+optimized:
+  # -- Add --optimized to Keycloak startup args. Use only with pre-built/custom optimized images.
+  enabled: false
 
 # =============================================================================
 # Realm Import
@@ -272,6 +334,38 @@ service:
   # -- Annotations for the application service
   annotations: {}
   managementAnnotations: {}
+  # -- Application Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ""
+  # -- Application Service IP families. Empty uses cluster default.
+  ipFamilies: []
+  # -- Management Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  managementIpFamilyPolicy: ""
+  # -- Management Service IP families. Empty uses cluster default.
+  managementIpFamilies: []
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gateway:
+  public:
+    # -- Create an HTTPRoute for public Keycloak traffic. Requires Gateway API CRDs/controller installed.
+    enabled: false
+    annotations: {}
+    parentRefs: []
+    hostnames: []
+    path: /
+    pathType: PathPrefix
+    filters: []
+  admin:
+    # -- Create an HTTPRoute for admin Keycloak traffic. Requires Gateway API CRDs/controller installed.
+    enabled: false
+    annotations: {}
+    parentRefs: []
+    hostnames: []
+    path: /
+    pathType: PathPrefix
+    filters: []
 
 # =============================================================================
 # Ingress
@@ -351,11 +445,59 @@ probes:
 metrics:
   # -- Enable Keycloak metrics endpoint
   enabled: false
+  # -- Create metrics based on user events. Requires the Keycloak user-event-metrics feature.
+  userEvents: false
+  # -- Enable cache metrics histograms.
+  cacheHistograms: false
   serviceMonitor:
     # -- Create a ServiceMonitor targeting the management service
     enabled: false
     interval: 30s
+    scrapeTimeout: ""
     labels: {}
+    annotations: {}
+    relabelings: []
+    metricRelabelings: []
+
+telemetry:
+  # -- Enable OpenTelemetry metrics export.
+  metricsEnabled: false
+  # -- General OpenTelemetry endpoint inherited by enabled telemetry components.
+  endpoint: ""
+  # -- Metrics-specific OpenTelemetry endpoint.
+  metricsEndpoint: ""
+
+tracing:
+  # -- Enable Keycloak OpenTelemetry tracing.
+  enabled: false
+  endpoint: ""
+  samplerType: ""
+  samplerRatio: ""
+  resourceAttributes: ""
+  jdbcEnabled: true
+  infinispanEnabled: true
+
+# =============================================================================
+# Logging
+# =============================================================================
+
+logging:
+  # -- Global Keycloak log level.
+  level: info
+  console:
+    # -- Console log output: default | json.
+    output: default
+    # -- Console handler log level.
+    level: all
+    # -- JSON log format: default | ecs.
+    jsonFormat: default
+  access:
+    # -- Enable HTTP access logs.
+    enabled: false
+    # -- Optional access log pattern.
+    pattern: ""
+    # -- Optional regex for paths excluded from access logs.
+    exclude: ""
 
 # =============================================================================
 # Pod Disruption Budget
@@ -389,6 +531,23 @@ networkPolicy:
   clustering:
     # -- Allow intra-cluster cache transport traffic between Keycloak pods when replicaCount > 1
     enabled: true
+  egress:
+    # -- Add egress rules. Disabled by default to avoid blocking unknown DB/S3/OTel endpoints.
+    enabled: false
+    # -- Allow DNS egress on TCP/UDP 53.
+    allowDns: true
+    # -- Namespace selector for DNS pods.
+    dnsNamespaceSelector:
+      kubernetes.io/metadata.name: kube-system
+    # -- Pod selector for DNS pods.
+    dnsPodSelector:
+      k8s-app: kube-dns
+    # -- Allow egress to the configured database host port by IP/CIDR rules listed in databaseTo.
+    allowDatabase: true
+    # -- Destination peers for database egress. Use ipBlock/namespaceSelector/podSelector entries.
+    databaseTo: []
+    # -- Additional egress rules appended verbatim.
+    extraEgress: []
 
 # =============================================================================
 # Service Account
@@ -399,12 +558,40 @@ serviceAccount:
   create: false
   name: ""
   annotations: {}
+  # -- Mount the Kubernetes service account token into the Keycloak pod.
+  automountServiceAccountToken: true
 
 # =============================================================================
 # Resources and Security
 # =============================================================================
 
 resources: {}
+
+capacity:
+  # -- Optional resource profile: custom | small | medium | large. `custom` uses resources as-is.
+  profile: custom
+  profiles:
+    small:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+    medium:
+      requests:
+        cpu: "1"
+        memory: 2Gi
+      limits:
+        cpu: "2"
+        memory: 4Gi
+    large:
+      requests:
+        cpu: "2"
+        memory: 3Gi
+      limits:
+        cpu: "4"
+        memory: 6Gi
 
 podSecurityContext:
   fsGroup: 1000
@@ -447,6 +634,46 @@ initContainers: []
 extraContainers: []
 extraVolumes: []
 extraVolumeMounts: []
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret resources for clusters that already run External Secrets Operator.
+  enabled: false
+  # -- ExternalSecret apiVersion.
+  apiVersion: external-secrets.io/v1
+  # -- Refresh interval used by rendered ExternalSecrets.
+  refreshInterval: 1h
+  secretStoreRef:
+    # -- Existing SecretStore or ClusterSecretStore name. The chart does not create it.
+    name: ""
+    # -- SecretStore kind: SecretStore | ClusterSecretStore.
+    kind: SecretStore
+  target:
+    # -- ExternalSecret target creationPolicy.
+    creationPolicy: Owner
+  admin:
+    # -- Materialize the bootstrap admin Secret with External Secrets Operator.
+    enabled: false
+    # -- Target Kubernetes Secret name. Defaults to the chart-generated admin Secret name.
+    targetName: ""
+    usernameRemoteRef: {}
+    passwordRemoteRef: {}
+  database:
+    # -- Materialize the database password Secret with External Secrets Operator.
+    enabled: false
+    # -- Target Kubernetes Secret name. Defaults to the chart-generated database Secret name.
+    targetName: ""
+    passwordRemoteRef: {}
+  truststore:
+    # -- Materialize a truststore Secret with External Secrets Operator.
+    enabled: false
+    # -- Target Kubernetes Secret name. Defaults to truststore.existingSecret when set.
+    targetName: ""
+    # -- ExternalSecret data entries for truststore material.
+    data: []
 
 # =============================================================================
 # Optional subcharts

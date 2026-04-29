@@ -56,9 +56,9 @@ Recommended reading before installation:
 
 ## Official product references
 
-- PostgreSQL streaming replication: https://www.postgresql.org/docs/current/warm-standby.html
-- PostgreSQL `pg_isready`: https://www.postgresql.org/docs/current/app-pg-isready.html
-- PostgreSQL official image: https://hub.docker.com/_/postgres
+- PostgreSQL streaming replication: <https://www.postgresql.org/docs/current/warm-standby.html>
+- PostgreSQL `pg_isready`: <https://www.postgresql.org/docs/current/app-pg-isready.html>
+- PostgreSQL official image: <https://hub.docker.com/_/postgres>
 
 ## Operational direction
 
@@ -90,7 +90,9 @@ This chart intentionally stays on the Helm-chart side of the boundary:
 - it does not attempt to behave like a cluster manager
 - it does not implement automatic failover, leader election, fencing, or reconciliation loops
 
-If you need automated failover, self-healing topology management, switchover workflows, or lifecycle orchestration across primary and replicas, use a PostgreSQL operator instead of extending this chart into that territory.
+If you need automated failover, self-healing topology management, switchover workflows,
+or lifecycle orchestration across primary and replicas,
+use a PostgreSQL operator instead of extending this chart into that territory.
 
 ## Quick start
 

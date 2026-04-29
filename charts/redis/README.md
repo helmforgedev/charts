@@ -53,8 +53,8 @@ Recommended reading before installation:
 
 ## Official product references
 
-- Redis Sentinel: https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/
-- Redis Cluster: https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/
+- Redis Sentinel: <https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/>
+- Redis Cluster: <https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/>
 
 ## Features
 

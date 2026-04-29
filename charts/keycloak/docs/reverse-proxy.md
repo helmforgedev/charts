@@ -26,6 +26,19 @@ This separation is useful when:
 
 Both ingresses still route only to the application service. They do not expose the management interface.
 
+Gateway API can be used instead of Ingress when the cluster already provides Gateway API CRDs and a controller. The chart creates optional `HTTPRoute` resources and expects the platform to provide the referenced `Gateway`.
+
+```yaml
+gateway:
+  public:
+    enabled: true
+    parentRefs:
+      - name: public-gateway
+        namespace: gateway-system
+    hostnames:
+      - sso.example.com
+```
+
 ## Hostname model
 
 Use these values together:
@@ -46,7 +59,12 @@ hostname:
 
 proxy:
   headers: xforwarded
+  trustedAddresses: 10.0.0.0/8
 ```
+
+Set `proxy.trustedAddresses` whenever the ingress or gateway source ranges are known. Keycloak ignores proxy headers from other addresses when this value is set.
+
+`proxy.protocolEnabled=true` is available for platforms that use the HAProxy PROXY protocol. It cannot be combined with `proxy.headers`; set `proxy.headers: ""` when enabling PROXY protocol.
 
 ## Ingress guidance
 
@@ -137,6 +155,8 @@ Do not change the relative path in production without validating discovery docum
 
 - Keycloak production configuration: https://www.keycloak.org/server/configuration-production
 - Keycloak hostname configuration: https://www.keycloak.org/server/hostname
+- Keycloak reverse proxy configuration: https://www.keycloak.org/server/reverseproxy
+- Kubernetes Gateway API: https://kubernetes.io/docs/concepts/services-networking/gateway/
 
 <!-- @AI-METADATA
 type: chart-docs

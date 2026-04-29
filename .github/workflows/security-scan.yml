@@ -1,0 +1,130 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Security Scan
+
+on:
+  pull_request:
+    paths:
+      - 'charts/**/templates/**'
+      - 'charts/**/values.yaml'
+      - 'charts/**/Chart.yaml'
+      - 'charts/**/Chart.lock'
+
+permissions:
+  contents: read
+  packages: read
+  pull-requests: write
+
+jobs:
+  detect:
+    name: Detect changed charts
+    runs-on: ubuntu-latest
+    outputs:
+      charts: ${{ steps.changed.outputs.charts }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed charts
+        id: changed
+        run: |
+          CHANGED_DIRS=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- charts/ \
+            | cut -d'/' -f2 | sort -u \
+            | while read -r dir; do
+                [ -d "charts/$dir/templates" ] && echo "$dir"
+              done \
+            | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "charts=$CHANGED_DIRS" >> "$GITHUB_OUTPUT"
+          echo "Charts to scan: $CHANGED_DIRS"
+
+  kubescape:
+    name: Kubescape - ${{ matrix.chart }}
+    needs: detect
+    if: needs.detect.outputs.charts != '[]' && needs.detect.outputs.charts != ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJson(needs.detect.outputs.charts) }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Helm
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 | bash
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build Helm dependencies
+        run: helm dependency build charts/${{ matrix.chart }}
+
+      - name: Install Kubescape
+        run: curl -s https://raw.githubusercontent.com/kubescape/kubescape/master/install.sh | bash
+
+      - name: Run security scan
+        id: scan
+        run: |
+          export PATH="$PATH:$HOME/.kubescape/bin"
+          REPORT="/tmp/${{ matrix.chart }}-scan.json"
+
+          kubescape scan framework "MITRE,NSA,SOC2" "charts/${{ matrix.chart }}" \
+            --format json -o "$REPORT" || true
+
+          SCORE=$(jq '.summaryDetails.complianceScore // 0' "$REPORT" 2>/dev/null || echo "0")
+          # Use floor truncation (not round) so 49.6 doesn't pass a 50-minimum gate
+          SCORE_INT=$(echo "$SCORE" | awk '{print int($1)}')
+
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
+          echo "score_int=$SCORE_INT" >> $GITHUB_OUTPUT
+          echo "chart=${{ matrix.chart }}" >> $GITHUB_OUTPUT
+          echo "Security score for ${{ matrix.chart }}: $SCORE"
+
+      - name: Post scan results
+        if: ${{ !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const chart = '${{ matrix.chart }}';
+            const score = '${{ steps.scan.outputs.score }}';
+            const scoreInt = parseInt('${{ steps.scan.outputs.score_int }}');
+
+            let emoji = '🟢';
+            if (scoreInt < 50) emoji = '🔴';
+            else if (scoreInt < 70) emoji = '🟡';
+
+            const body = `### ${emoji} Security Scan: \`${chart}\`
+
+            | Framework | Score |
+            |---|---|
+            | MITRE + NSA + SOC2 | **${score}%** |
+
+            ${scoreInt < 50 ? '> ⚠️ Score below 50% — review security posture before merge.' : '> ✅ Security posture acceptable.'}`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number
+            });
+            const existing = comments.find(c => c.body.includes(`Security Scan: \`${chart}\``));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: body
+              });
+            }
+
+      - name: Fail if score too low
+        if: steps.scan.outputs.score_int < 50
+        run: |
+          echo "::error::Security score for ${{ matrix.chart }} is ${{ steps.scan.outputs.score }}% (minimum: 50%)"
+          exit 1

@@ -1,0 +1,34 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.gateway.public.enabled }}
+{{- include "keycloak.validateAll" . -}}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "keycloak.fullname" . }}-public
+  labels:
+    {{- include "keycloak.labels" . | nindent 4 }}
+    app.kubernetes.io/component: public
+  {{- with .Values.gateway.public.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- toYaml .Values.gateway.public.parentRefs | nindent 4 }}
+  {{- with .Values.gateway.public.hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - matches:
+        - path:
+            type: {{ .Values.gateway.public.pathType }}
+            value: {{ .Values.gateway.public.path | quote }}
+      {{- with .Values.gateway.public.filters }}
+      filters:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      backendRefs:
+        - name: {{ include "keycloak.fullname" . }}
+          port: {{ .Values.http.port }}
+{{- end }}

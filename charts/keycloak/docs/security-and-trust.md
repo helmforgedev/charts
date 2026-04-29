@@ -26,16 +26,21 @@ Example:
 
 ```yaml
 database:
-  vendor: postgres
-  host: postgresql-rw.default.svc
-  name: keycloak
-  username: keycloak
-  existingSecret: keycloak-db
+  external:
+    vendor: postgres
+    host: postgresql-rw.default.svc
+    name: keycloak
+    username: keycloak
+    existingSecret: keycloak-db
   tls:
     enabled: true
     sslMode: verify-full
     existingConfigMap: keycloak-db-ca
     rootCertFilename: ca.crt
+    mode: verify-server
+    trustStoreFile: /opt/keycloak/conf/db-truststore.p12
+    trustStorePasswordSecret: keycloak-db-truststore
+    trustStoreType: PKCS12
 ```
 
 What the chart does in this case:
@@ -60,6 +65,20 @@ truststore:
 ```
 
 This chart mounts the referenced files and exposes them through `KC_TRUSTSTORE_PATHS`.
+
+Keycloak 26.6.x includes upstream improvements around automatic truststore initialization on Kubernetes and OpenShift. Keep chart-managed `truststore` values explicit when the deployment needs deterministic private CA material, database CA bundles, or provider/theme integration trust paths.
+
+The upstream Kubernetes/OpenShift CA auto-discovery is controlled by:
+
+```yaml
+truststore:
+  kubernetes:
+    enabled: true
+```
+
+This renders `KC_TRUSTSTORE_KUBERNETES_ENABLED`. If `serviceAccount.automountServiceAccountToken=false`, Kubernetes service account CA files are not mounted, so Keycloak cannot discover them even if the truststore option remains enabled.
+
+Disable service account token automount only after confirming the deployment does not need the implicit Kubernetes CA files, Kubernetes service account identity provider behavior, external Infinispan integrations, or custom provider code that talks to the Kubernetes API.
 
 Accepted formats follow the official Keycloak guidance:
 
@@ -87,6 +106,33 @@ Examples:
 - the database CA bundle is replaced
 - internal CA certificates are updated in the truststore
 
+## External Secrets Operator
+
+The chart can render `ExternalSecret` resources for clusters that already run External Secrets Operator. This is optional and does not install the operator or create a `SecretStore`.
+
+```yaml
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: platform-secrets
+    kind: ClusterSecretStore
+  admin:
+    enabled: true
+    usernameRemoteRef:
+      key: keycloak/admin
+      property: username
+    passwordRemoteRef:
+      key: keycloak/admin
+      property: password
+  database:
+    enabled: true
+    passwordRemoteRef:
+      key: keycloak/database
+      property: password
+```
+
+Use this only when the platform team already operates https://github.com/external-secrets/external-secrets and the referenced store exists before the Helm release is installed.
+
 ## Rollout checklist for trust changes
 
 - confirm the new certificate chain is present in the referenced Secret or ConfigMap
@@ -99,6 +145,8 @@ Examples:
 
 - Keycloak trusted certificates: https://www.keycloak.org/server/keycloak-truststore
 - Keycloak production configuration: https://www.keycloak.org/server/configuration-production
+- Keycloak release notes: https://www.keycloak.org/docs/latest/release_notes/index.html
+- External Secrets Operator: https://external-secrets.io/latest/
 
 <!-- @AI-METADATA
 type: chart-docs
