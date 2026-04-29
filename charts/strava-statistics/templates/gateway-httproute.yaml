@@ -5,7 +5,7 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: {{ printf "%s-%s" (include "strava-statistics.fullname" $) .name }}
+  name: {{ trunc 63 (printf "%s-%s" (include "strava-statistics.fullname" $) (.name | default "")) | trimSuffix "-" }}
   labels:
     {{- include "strava-statistics.labels" $ | nindent 4 }}
     {{- with .labels }}
@@ -16,25 +16,34 @@ metadata:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
+  {{- if .parentRefs }}
   parentRefs:
     {{- toYaml .parentRefs | nindent 4 }}
+  {{- end }}
   {{- with .hostnames }}
   hostnames:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+  {{- if .rules }}
   rules:
     {{- range .rules }}
     - {{- with .matches }}
       matches:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .filters }}
+      filters:
+        {{- toYaml .filters | nindent 8 }}
+      {{- end }}
+      {{- if .backendRefs }}
       backendRefs:
-        {{- if .backendRefs }}
         {{- toYaml .backendRefs | nindent 8 }}
-        {{- else }}
+      {{- else if not .filters }}
+      backendRefs:
         - name: {{ include "strava-statistics.fullname" $ }}
           port: {{ $.Values.service.port }}
-        {{- end }}
+      {{- end }}
     {{- end }}
+  {{- end }}
 {{- end }}
 {{- end }}
