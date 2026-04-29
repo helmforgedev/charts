@@ -1,0 +1,65 @@
+suite: Service headless dual-stack
+templates:
+  - service-headless.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should omit ipFamilyPolicy and ipFamilies on source headless by default
+    asserts:
+      - notExists:
+          path: spec.ipFamilyPolicy
+      - notExists:
+          path: spec.ipFamilies
+
+  - it: should preserve clusterIP=None when dual-stack is configured
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies:
+        - IPv4
+        - IPv6
+    asserts:
+      - equal:
+          path: spec.clusterIP
+          value: None
+      - equal:
+          path: spec.publishNotReadyAddresses
+          value: true
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+
+  - it: should set ipFamilyPolicy on both headless services in replication mode
+    set:
+      architecture: replication
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies:
+        - IPv4
+        - IPv6
+    asserts:
+      # Document 0: source headless
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+        documentIndex: 0
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv4
+        documentIndex: 0
+      - equal:
+          path: spec.clusterIP
+          value: None
+        documentIndex: 0
+      # Document 1: replicas headless
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+        documentIndex: 1
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv4
+        documentIndex: 1
+      - equal:
+          path: spec.clusterIP
+          value: None
+        documentIndex: 1

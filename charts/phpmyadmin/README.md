@@ -104,7 +104,7 @@ config:
 
 ## Parameters
 
-### phpMyAdmin
+### Application Settings
 
 | Key | Default | Description |
 |-----|---------|-------------|

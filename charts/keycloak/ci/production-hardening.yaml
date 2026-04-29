@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: Apache-2.0
+mode: production
+
+hostname:
+  hostname: https://sso.example.com
+
+proxy:
+  trustedAddresses: 10.0.0.0/8,192.168.0.0/16
+
+management:
+  relativePath: /management
+
+database:
+  external:
+    host: postgresql.example.com
+    password: change-me
+    schema: keycloak
+    pool:
+      initialSize: 2
+      minSize: 1
+      maxSize: 20
+      maxLifetime: 30m
+    logSlowQueriesThreshold: 500ms
+    transaction:
+      xaEnabled: "false"
+      timeout: 60s
+
+features:
+  enabled:
+    - opentelemetry-metrics
+    - user-event-metrics
+
+metrics:
+  enabled: true
+  userEvents: true
+  cacheHistograms: true
+  serviceMonitor:
+    enabled: true
+    scrapeTimeout: 10s
+    annotations:
+      monitoring.helmforge.dev/profile: keycloak
+    relabelings:
+      - action: labeldrop
+        regex: pod_template_hash
+    metricRelabelings:
+      - action: keep
+        sourceLabels:
+          - __name__
+        regex: keycloak_.*
+
+telemetry:
+  metricsEnabled: true
+  endpoint: http://otel-collector.observability.svc:4317
+
+tracing:
+  enabled: true
+  endpoint: http://tempo.observability.svc:4317
+  samplerType: parentbased_traceidratio
+  samplerRatio: "0.1"
+  resourceAttributes: service.namespace=identity
+
+logging:
+  console:
+    output: json
+    jsonFormat: ecs
+  access:
+    enabled: true

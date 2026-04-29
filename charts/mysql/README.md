@@ -56,10 +56,10 @@ Recommended reading before installation:
 
 ## Official product references
 
-- MySQL replication: https://dev.mysql.com/doc/refman/8.4/en/replication.html
-- MySQL encrypted connections: https://dev.mysql.com/doc/refman/8.4/en/using-encrypted-connections.html
-- MySQL group replication: https://dev.mysql.com/doc/refman/8.4/en/group-replication.html
-- MySQL official image: https://hub.docker.com/_/mysql
+- MySQL replication: <https://dev.mysql.com/doc/refman/8.4/en/replication.html>
+- MySQL encrypted connections: <https://dev.mysql.com/doc/refman/8.4/en/using-encrypted-connections.html>
+- MySQL group replication: <https://dev.mysql.com/doc/refman/8.4/en/group-replication.html>
+- MySQL official image: <https://hub.docker.com/_/mysql>
 
 ## Operational direction
 

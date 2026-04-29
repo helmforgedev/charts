@@ -1,6 +1,8 @@
 # Uptime Kuma Helm Chart
 
-Deploy [Uptime Kuma](https://uptime.kuma.pet) on Kubernetes using the official [louislam/uptime-kuma](https://hub.docker.com/r/louislam/uptime-kuma) Docker image. Self-hosted monitoring with HTTP/TCP/DNS/Ping checks, 90+ notification services, and customizable status pages.
+Deploy [Uptime Kuma](https://uptime.kuma.pet) on Kubernetes using the official
+[louislam/uptime-kuma](https://hub.docker.com/r/louislam/uptime-kuma) Docker image.
+Self-hosted monitoring with HTTP/TCP/DNS/Ping checks, 90+ notification services, and customizable status pages.
 
 ## Features
 

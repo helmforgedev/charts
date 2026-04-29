@@ -135,7 +135,7 @@ database:
 
 ## Parameters
 
-### WordPress
+### Core Settings
 
 | Key | Default | Description |
 |-----|---------|-------------|

@@ -91,10 +91,12 @@ That profile keeps the same probe structure but gives the pod more time to becom
 For production rollouts:
 
 - update one Keycloak version at a time
+- for patch releases in the same 26.6 minor stream, use rolling updates but still validate readiness, proxy behavior, and database logs before widening traffic
 - validate readiness on the management service
 - validate public login and admin console access before widening traffic
 - confirm the database schema migration path is understood before rollout
 - keep a rollback plan for image, chart values, ingress, and proxy behavior together
+- keep `terminationGracePeriodSeconds` high enough for graceful HTTP shutdown and proxy connection draining
 
 If providers or themes are mounted:
 
@@ -130,6 +132,7 @@ pdb:
 
 - Keycloak caching and transport stacks: https://www.keycloak.org/server/caching
 - Keycloak production configuration: https://www.keycloak.org/server/configuration-production
+- Keycloak release notes: https://www.keycloak.org/docs/latest/release_notes/index.html
 
 <!-- @AI-METADATA
 type: chart-docs

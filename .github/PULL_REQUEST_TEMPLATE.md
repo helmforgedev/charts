@@ -1,6 +1,6 @@
 ## Summary
 
-- 
+-
 
 ## Type Of Change
 
@@ -23,13 +23,19 @@
 - [ ] I updated the root `README.md` if a new chart was added or public chart metadata changed
 - [ ] I updated `values.schema.json` for any values changes
 - [ ] I updated chart docs for behavior or default changes
-- [ ] I updated the `site/` repository if this change affects public chart docs, listing, or maturity
 
-## Version Validation
+## Upstream Verification
 
-- [ ] I verified the application version against official GitHub Releases
-- [ ] I verified the image tag against official Docker Hub tags
-- [ ] I only pinned a version after confirming both sources matched
+- [ ] I verified `appVersion` in `Chart.yaml` matches the real upstream release
+- [ ] I confirmed the image tag in `values.yaml` corresponds to a published, stable tag
+- [ ] I cross-referenced [upstream GitHub Releases](https://github.com) and [Docker Hub tags](https://hub.docker.com)
+
+## Site Sync (GR-007)
+
+> If this change affects chart defaults, install path, architecture, backup, or maturity:
+
+- [ ] I updated the corresponding page in `site/` repository
+- [ ] N/A — this change does not affect public documentation
 
 ## Local Validation
 
@@ -44,4 +50,8 @@
 
 ## Notes
 
-- 
+-
+
+---
+
+> 📚 See [CONTRIBUTING.md](../CONTRIBUTING.md) for full contribution guidelines.
