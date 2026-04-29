@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
 # Dolibarr Helm Chart
 # =============================================================================
@@ -12,7 +13,7 @@ commonLabels: {}
 
 image:
   repository: docker.io/dolibarr/dolibarr
-  tag: "23.0.0"
+  tag: "23.0.2"
   pullPolicy: IfNotPresent
   # Keep tag empty to default to Chart.appVersion.
 
@@ -125,6 +126,10 @@ service:
   type: ClusterIP
   port: 80
   annotations: {}
+  # -- Set the ipFamilyPolicy for dual-stack (GR-058)
+  ipFamilyPolicy: ''
+  # -- Set the ipFamilies for dual-stack
+  ipFamilies: []
 
 ingress:
   enabled: false
@@ -202,3 +207,27 @@ backup:
     accessKey: ""
     # -- S3 secret key (ignored when existingSecret is set).
     secretKey: ""
+
+
+## Gateway API configuration (GR-060)
+gateway:
+  enabled: false
+  hostnames:
+    - dolibarr.local
+  parentRefs:
+    - name: envoy-gateway
+      namespace: default
+      kind: Gateway
+
+## ExternalSecrets configuration (GR-061)
+externalSecrets:
+  enabled: false
+  apiVersion: external-secrets.io/v1beta1
+  refreshInterval: 1h
+  secretStoreRef:
+    name: ''
+    kind: ClusterSecretStore
+  target:
+    creationPolicy: Owner
+  data: []
+
