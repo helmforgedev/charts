@@ -11,6 +11,15 @@
 <p align="center">
   <a href="https://github.com/helmforgedev/charts/actions/workflows/ci.yml"><img src="https://github.com/helmforgedev/charts/actions/workflows/ci.yml/badge.svg" alt="Tests" /></a>
   <a href="https://github.com/helmforgedev/charts/actions/workflows/publish.yml"><img src="https://github.com/helmforgedev/charts/actions/workflows/publish.yml/badge.svg" alt="Publish" /></a>
+  <a href="https://github.com/helmforgedev/charts/actions/workflows/code-quality.yml">
+    <img src="https://github.com/helmforgedev/charts/actions/workflows/code-quality.yml/badge.svg" alt="Quality" />
+  </a>
+  <a href="https://github.com/helmforgedev/charts/actions/workflows/security-scan.yml">
+    <img src="https://github.com/helmforgedev/charts/actions/workflows/security-scan.yml/badge.svg" alt="Security" />
+  </a>
+  <a href="https://github.com/helmforgedev/charts/actions/workflows/upstream-watch.yml">
+    <img src="https://github.com/helmforgedev/charts/actions/workflows/upstream-watch.yml/badge.svg" alt="Upstream" />
+  </a>
   <a href="https://github.com/helmforgedev/charts/stargazers"><img src="https://img.shields.io/github/stars/helmforgedev/charts?style=flat&label=Stars&logo=github" alt="GitHub stars" /></a>
   <a href="https://www.apache.org/licenses/LICENSE-2.0"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0" /></a>
   <a href="https://artifacthub.io/packages/search?repo=helmforge"><img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/helmforge" alt="Artifact Hub" /></a>
@@ -87,7 +96,7 @@ HelmForge is built on a simple principle: **use what upstream ships, make the Ku
 
 ## Charts
 
-60+ production-ready charts covering databases, authentication, CMS, analytics, automation, AI tooling, observability, and platform infrastructure. The repository currently contains 62 chart packages.
+60+ production-ready charts covering databases, authentication, CMS, analytics, automation, AI tooling, observability, and platform infrastructure.
 
 Browse the full catalog with descriptions, install commands, and playground configs at **[helmforge.dev/docs/charts](https://helmforge.dev/docs/charts)**.
 
@@ -112,16 +121,38 @@ It supports:
 - RBAC, NetworkPolicy, ServiceMonitor, PodMonitor, PrometheusRule, VPA, HPA, and KEDA.
 - Safer validation for disabled-Service routing and KEDA ScaledObject targets.
 
+## Automation and Governance
+
+The repository is governed by a comprehensive suite of GitHub Actions workflows that enforce quality, security, and operational intelligence automatically.
+
+| Workflow | Trigger | Purpose |
+|----------|---------|----------|
+| **[ci.yml](../../actions/workflows/ci.yml)** | PR | Lint, template, unit test, kubeconform, ArtifactHub lint |
+| **[publish.yml](../../actions/workflows/publish.yml)** | Push to main | Semver bump, package, sign, publish to GHCR + Pages |
+| **[code-quality.yml](../../actions/workflows/code-quality.yml)** | PR | Markdown lint, values quality checks, SPDX license headers |
+| **[security-scan.yml](../../actions/workflows/security-scan.yml)** | PR | Kubescape MITRE + NSA + SOC2 compliance scanning |
+| **[pr-governance.yml](../../actions/workflows/pr-governance.yml)** | PR | Conventional commit enforcement, auto-labeling |
+| **[upstream-watch.yml](../../actions/workflows/upstream-watch.yml)** | Weekly (Mon 8AM UTC) | Monitors upstream image tags across Docker Hub, GHCR, and Quay.io |
+| **[community.yml](../../actions/workflows/community.yml)** | Daily | Stale issue/PR management |
+| **[repo-health.yml](../../actions/workflows/repo-health.yml)** | Daily | Helm index, OCI registry, and badge endpoint monitoring |
+
 ## Tests and Publishing
 
 Charts are automatically tested and published via GitHub Actions.
 
 ```text
-PR/main   --> ci.yml      --> [Lint] [Template] [Unit Test] [Kubeconform] [ArtifactHub Lint]
-Push main --> publish.yml --> Detect --> Semver --> Package --> Publish to GHCR + Pages --> Git tag
+PR        --> ci.yml           --> [Lint] [Template] [Unit Test] [Kubeconform] [ArtifactHub Lint]
+          --> code-quality.yml --> [Markdown Lint] [Values Quality] [License Headers]
+          --> security-scan.yml --> [Kubescape MITRE+NSA+SOC2]
+          --> pr-governance.yml --> [Conventional Commits] [Auto Labels]
+Push main --> publish.yml      --> Detect --> Semver --> Package --> Sign --> Publish --> Git tag
+Weekly    --> upstream-watch.yml --> Scan all charts --> Create issues for outdated images
 ```
 
-Both workflows dynamically detect which charts changed and run jobs only for those charts using a matrix strategy. Changes to docs (`README.md`, `examples/`, `docs/`) are ignored.
+PR workflows (`ci.yml`, `code-quality.yml`, `security-scan.yml`) dynamically detect which charts changed
+and run jobs only for affected charts using a matrix strategy.
+Changes to docs (`README.md`, `examples/`, `docs/`) are ignored.
+Scheduled workflows run against the full repository.
 
 The `Tests` workflow runs for pull requests and pushes to `main` that affect chart templates,
 chart metadata, tests, or the workflow itself. The `Publish` workflow runs on pushes to `main`
@@ -134,6 +165,8 @@ Quality gates include:
 - `helm template` with default values and every `ci/*.yaml` scenario.
 - `helm unittest` when a chart has a test suite.
 - `kubeconform` against Kubernetes schemas and CRD schemas from the Datree CRDs catalog.
+- Kubescape security compliance scanning (MITRE, NSA, SOC2 frameworks).
+- Markdown linting and SPDX license header enforcement on changed files.
 - Artifact Hub package lint before release metadata is published.
 - Signed package publishing to GHCR and the HTTPS Helm repository.
 
@@ -240,7 +273,7 @@ relations:
   - ADOPTERS.md
   - SECURITY.md
 path: README.md
-version: 1.1
+version: 1.2
 date: 2026-04-01
-updated: 2026-04-27
+updated: 2026-04-29
 -->
