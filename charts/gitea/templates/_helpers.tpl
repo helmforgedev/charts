@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{/*
 Expand the name of the chart.
 */}}
@@ -72,7 +73,7 @@ Image reference with tag defaulting to appVersion-rootless
 
 {{/*
 Resolve the effective database mode.
-Auto-detection priority: external → postgresql → mysql → sqlite
+Auto-detection priority: external - postgresql - mysql - sqlite
 */}}
 {{- define "gitea.databaseMode" -}}
 {{- $mode := .Values.database.mode | default "auto" -}}
