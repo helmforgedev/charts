@@ -42,6 +42,7 @@ helm install authelia oci://ghcr.io/helmforgedev/helm/authelia -f values.yaml
 A placeholder `admin` user (password: `authelia`) is shipped by default. **Change this before exposing Authelia publicly.**
 
 Generate a new password hash with:
+
 ```bash
 docker run authelia/authelia:latest authelia crypto hash generate argon2
 ```
@@ -163,7 +164,7 @@ spec:
 
 Use the `auth_request` directive:
 
-```
+```nginx
 auth_request /authelia;
 auth_request_set $user $upstream_http_remote_user;
 ```
