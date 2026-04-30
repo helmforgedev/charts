@@ -189,15 +189,15 @@
               "description": "Annotations for the web service"
             },
             "ipFamilyPolicy": {
-              "type": "string",
-              "description": "Service IP family policy",
-              "enum": ["", "SingleStack", "PreferDualStack", "RequireDualStack"],
-              "default": ""
+              "type": ["string", "null"],
+              "description": "Dual-stack ipFamilyPolicy (GR-058)",
+              "enum": [null, "SingleStack", "PreferDualStack", "RequireDualStack"]
             },
             "ipFamilies": {
               "type": "array",
-              "description": "Service IP families",
-              "items": { "type": "string", "enum": ["IPv4", "IPv6"] }
+              "description": "Dual-stack ipFamilies (GR-058)",
+              "items": { "type": "string", "enum": ["IPv4", "IPv6"] },
+              "maxItems": 2
             }
           }
         },
@@ -227,15 +227,15 @@
               "default": ""
             },
             "ipFamilyPolicy": {
-              "type": "string",
-              "description": "Service IP family policy",
-              "enum": ["", "SingleStack", "PreferDualStack", "RequireDualStack"],
-              "default": ""
+              "type": ["string", "null"],
+              "description": "Dual-stack ipFamilyPolicy (GR-058)",
+              "enum": [null, "SingleStack", "PreferDualStack", "RequireDualStack"]
             },
             "ipFamilies": {
               "type": "array",
-              "description": "Service IP families",
-              "items": { "type": "string", "enum": ["IPv4", "IPv6"] }
+              "description": "Dual-stack ipFamilies (GR-058)",
+              "items": { "type": "string", "enum": ["IPv4", "IPv6"] },
+              "maxItems": 2
             }
           }
         }
@@ -753,6 +753,57 @@
         }
       }
     },
+    "gateway": {
+      "type": "object",
+      "description": "Gateway API HTTPRoute configuration (GR-060)",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable HTTPRoute", "default": false },
+        "annotations": { "type": "object", "description": "HTTPRoute annotations" },
+        "parentRefs": {
+          "type": "array",
+          "description": "parentRefs pointing to your Gateway resource",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string" },
+              "namespace": { "type": "string" },
+              "sectionName": { "type": "string" }
+            }
+          }
+        },
+        "hostnames": { "type": "array", "items": { "type": "string" } },
+        "path": { "type": "string", "default": "/" },
+        "pathType": { "type": "string", "default": "PathPrefix" }
+      }
+    },
+    "externalSecrets": {
+      "type": "object",
+      "description": "External Secrets Operator configuration (GR-061)",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Render ExternalSecret", "default": false },
+        "apiVersion": { "type": "string", "default": "external-secrets.io/v1" },
+        "refreshInterval": { "type": "string", "default": "0" },
+        "secretStoreRef": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string", "default": "" },
+            "kind": { "type": "string", "default": "SecretStore" }
+          }
+        },
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "creationPolicy": { "type": "string", "default": "Owner" }
+          }
+        },
+        "data": { "type": "array", "items": { "type": "object" } }
+      }
+    },
     "extraEnv": {
       "type": "array",
       "description": "Extra environment variables for the container",
@@ -779,41 +830,6 @@
       "description": "Extra Kubernetes manifests to deploy alongside the chart",
       "items": {
         "type": "object"
-      }
-    },
-    "gateway": {
-      "type": "object",
-      "description": "Gateway API HTTPRoute configuration for the web UI",
-      "properties": {
-        "enabled": { "type": "boolean", "default": false },
-        "annotations": { "type": "object" },
-        "parentRefs": { "type": "array", "items": { "type": "object" } },
-        "hostnames": { "type": "array", "items": { "type": "string" } },
-        "path": { "type": "string", "default": "/" },
-        "pathType": { "type": "string", "enum": ["PathPrefix", "Exact", "RegularExpression"], "default": "PathPrefix" }
-      }
-    },
-    "externalSecrets": {
-      "type": "object",
-      "description": "External Secrets Operator configuration",
-      "properties": {
-        "enabled": { "type": "boolean", "default": false },
-        "apiVersion": { "type": "string", "default": "external-secrets.io/v1" },
-        "refreshInterval": { "type": "string", "default": "1h" },
-        "secretStoreRef": {
-          "type": "object",
-          "properties": {
-            "name": { "type": "string" },
-            "kind": { "type": "string" }
-          }
-        },
-        "target": {
-          "type": "object",
-          "properties": {
-            "creationPolicy": { "type": "string" }
-          }
-        },
-        "data": { "type": "array", "items": { "type": "object" } }
       }
     }
   }
