@@ -1,0 +1,118 @@
+1. Hoppscotch has been installed
+================================
+  Release:        {{ .Release.Name }}
+  Namespace:      {{ .Release.Namespace }}
+  Mode:           {{ .Values.mode }}
+  Version:        {{ .Chart.AppVersion }}
+  Auth Providers: {{ include "hoppscotch.authProviders" . }}
+
+2. Access
+=========
+[ClusterIP] Port-forward:
+  kubectl port-forward svc/{{ include "hoppscotch.fullname" . }} 8080:80 -n {{ .Release.Namespace }}
+  Open: http://localhost:8080
+
+{{- if .Values.ingress.enabled }}
+[Ingress]
+  App:     {{ include "hoppscotch.baseUrl" . }}
+  Backend: {{ include "hoppscotch.backendApiUrl" . }}
+  Admin:   {{ include "hoppscotch.adminUrl" . }}
+{{- end }}
+
+NOTE: WebSocket requires your ingress controller to support connection upgrade.
+For nginx-ingress, add these annotations to your ingress:
+  nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+  nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  nginx.ingress.kubernetes.io/configuration-snippet: |
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+
+3. First-time Setup
+===================
+  - The FIRST user to log in via the Admin Dashboard becomes the administrator.
+  - Admin URL: {{ include "hoppscotch.adminUrl" . }}
+  - No seed required — just navigate to /admin and log in.
+  - After setup, generate an InfraToken for API access: Admin > InfraTokens
+
+4. Configuration Summary
+========================
+  Database:         {{- if .Values.postgresql.enabled }} PostgreSQL subchart{{- else if .Values.database.external.enabled }} External PostgreSQL{{- else }} Not configured{{- end }}
+  SMTP:             {{- if .Values.mailer.enabled }} enabled{{- else }} disabled{{- end }}
+  Gateway API:      {{- if .Values.gatewayAPI.enabled }} enabled{{- else }} disabled{{- end }}
+  External Secrets: {{- if .Values.externalSecrets.enabled }} enabled{{- else }} disabled{{- end }}
+  Network Policy:   {{- if .Values.networkPolicy.enabled }} enabled{{- else }} disabled{{- end }}
+  PDB:              {{- if .Values.podDisruptionBudget.enabled }} enabled (minAvailable={{ .Values.podDisruptionBudget.minAvailable }}){{- else }} disabled{{- end }}
+
+5. Getting Started
+==================
+  Step 1: Access the Admin Dashboard at {{ include "hoppscotch.adminUrl" . }}
+  Step 2: Log in with your auth provider to become the first admin
+  Step 3: Configure Server Settings (auth providers, SMTP) via the UI
+  Step 4: Invite users via Admin > User Invitations
+
+6. Validation Commands
+======================
+  # Check pods are ready
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name=hoppscotch
+
+  # Check all container logs (including init containers)
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/name=hoppscotch -c wait-for-db
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/name=hoppscotch -c migrate
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/name=hoppscotch -c hoppscotch
+
+  # Test backend health
+  kubectl exec -n {{ .Release.Namespace }} deploy/{{ include "hoppscotch.fullname" . }} -- \
+    sh -c "wget -qO- http://localhost/backend/v1" 2>/dev/null || echo "backend not ready"
+
+7. Troubleshooting
+==================
+  Migration error (prisma migrate deploy failed):
+    -> Check DATABASE_URL is correct
+    -> Ensure PostgreSQL is running: kubectl get pods -n {{ .Release.Namespace }}
+    -> Check migrate init container logs
+
+  CORS error (WHITELISTED_ORIGINS mismatch):
+    -> Ensure ingress.host matches the URL you are accessing from
+    -> Or set baseUrl/adminUrl/backendApiUrl explicitly
+
+  WebSocket not connecting:
+    -> Your ingress controller must support WebSocket upgrade
+    -> Add proxy-read-timeout and upgrade annotations (see section 2)
+
+  DATA_ENCRYPTION_KEY warning:
+    -> Never change this key after first install — it will corrupt encrypted data
+    -> Use encryption.existingSecret in production to manage the key externally
+
+  Database connection refused:
+    -> wait-for-db init container will keep retrying — check PostgreSQL pod status
+    -> If using external DB: verify host, port, credentials
+
+  Admin dashboard shows 403:
+    -> Clear cookies and retry — first login always succeeds
+    -> Check VITE_ADMIN_URL matches actual admin URL
+
+  PostgreSQL subchart "database does not exist":
+    -> Ensure postgresql.auth.database is set (default: hoppscotch)
+    -> If PVC already existed from a prior install with different DB name,
+       delete the PVC and reinstall: kubectl delete pvc -n {{ .Release.Namespace }} -l app.kubernetes.io/name=postgresql
+
+8. Telemetry
+============
+  Hoppscotch collects anonymous usage data (no API content, no personal data).
+  Frequency: once per week. Payload: instance UUID, user count, workspace count, version.
+  To disable: Admin Dashboard > Settings > Data Sharing (UI only — no env var available).
+
+9. Upgrading
+============
+  Minor version upgrades: migrations run automatically via init container on each deploy.
+  Major version upgrades: run migrations manually if needed:
+    kubectl exec -n {{ .Release.Namespace }} deploy/{{ include "hoppscotch.fullname" . }} -- \
+      sh -c "pnpm exec prisma migrate deploy"
+
+10. Documentation
+=================
+  HelmForge docs: https://helmforge.dev/docs/charts/hoppscotch
+  Upstream docs:  https://docs.hoppscotch.io
+  GitHub source:  https://github.com/helmforgedev/charts/tree/main/charts/hoppscotch
+
+Happy Helmforging :)
