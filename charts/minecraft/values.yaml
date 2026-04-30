@@ -1,7 +1,8 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
 # Minecraft Server Helm Chart
 # =============================================================================
-# Uses itzg/minecraft-server — the de facto standard Minecraft container image.
+# Uses itzg/minecraft-server - the de facto standard Minecraft container image.
 # Supports Vanilla, Paper, Spigot, Forge, Fabric, Quilt, and more.
 # https://docker-minecraft-server.readthedocs.io/
 # =============================================================================
@@ -23,7 +24,7 @@ image:
   # -- Container image repository
   repository: docker.io/itzg/minecraft-server
   # -- Container image tag
-  tag: "java25"
+  tag: "2026.4.2"
   # -- Image pull policy
   pullPolicy: IfNotPresent
 
@@ -294,6 +295,11 @@ service:
   # -- External traffic policy (set to Local for source IP preservation)
   # externalTrafficPolicy: Local
 
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ~
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
+
 # =============================================================================
 # Service Account
 # =============================================================================
@@ -376,7 +382,7 @@ backup:
   images:
     # -- Image used for RCON commands and tar archiving
     # -- Image used for RCON commands and tar archiving (must have sh, tar, and rcon-cli)
-    worker: docker.io/itzg/minecraft-server:java25
+    worker: docker.io/itzg/minecraft-server:2026.4.2
     # -- Image used for S3 upload (MinIO client)
     uploader: docker.io/helmforge/mc:1.0.0
 
@@ -492,3 +498,28 @@ extraVolumes: []
 
 # -- Extra Kubernetes manifests to deploy alongside the chart
 extraManifests: []
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret for clusters running External Secrets Operator.
+  # Requires rcon.existingSecret to be set to prevent credential drift.
+  enabled: false
+  # -- ExternalSecret apiVersion.
+  apiVersion: external-secrets.io/v1
+  # -- Refresh interval.
+  refreshInterval: "0"
+  secretStoreRef:
+    # -- Existing SecretStore or ClusterSecretStore name.
+    name: ""
+    kind: SecretStore
+  target:
+    creationPolicy: Owner
+  # -- ExternalSecret data entries mapping remote keys to the RCON Secret keys.
+  data: []
+  #   - secretKey: rcon-password
+  #     remoteRef:
+  #       key: minecraft/credentials
+  #       property: rcon-password
