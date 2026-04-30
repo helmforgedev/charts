@@ -155,6 +155,45 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "authelia.jwtSecret" -}}
+{{- if .Values.secrets.jwtSecret -}}
+  {{- .Values.secrets.jwtSecret -}}
+{{- else -}}
+  {{- $secret := lookup "v1" "Secret" .Release.Namespace (printf "%s-secrets" (include "authelia.fullname" .)) -}}
+  {{- if and $secret $secret.data (hasKey $secret.data "jwt-secret") -}}
+    {{- index $secret.data "jwt-secret" | b64dec -}}
+  {{- else -}}
+    {{- randAlphaNum 64 -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "authelia.sessionSecret" -}}
+{{- if .Values.secrets.sessionSecret -}}
+  {{- .Values.secrets.sessionSecret -}}
+{{- else -}}
+  {{- $secret := lookup "v1" "Secret" .Release.Namespace (printf "%s-secrets" (include "authelia.fullname" .)) -}}
+  {{- if and $secret $secret.data (hasKey $secret.data "session-secret") -}}
+    {{- index $secret.data "session-secret" | b64dec -}}
+  {{- else -}}
+    {{- randAlphaNum 64 -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "authelia.storageEncryptionKey" -}}
+{{- if .Values.secrets.storageEncryptionKey -}}
+  {{- .Values.secrets.storageEncryptionKey -}}
+{{- else -}}
+  {{- $secret := lookup "v1" "Secret" .Release.Namespace (printf "%s-secrets" (include "authelia.fullname" .)) -}}
+  {{- if and $secret $secret.data (hasKey $secret.data "storage-encryption-key") -}}
+    {{- index $secret.data "storage-encryption-key" | b64dec -}}
+  {{- else -}}
+    {{- randAlphaNum 64 -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "authelia.secretJwtKey" -}}
 {{- if .Values.secrets.existingSecret -}}
   {{- .Values.secrets.existingSecretJwtKey -}}
