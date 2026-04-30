@@ -15,6 +15,9 @@ Deploy [Authelia](https://www.authelia.com) on Kubernetes — an authentication 
 - **Prometheus metrics** with optional ServiceMonitor
 - **S3 backup** — SQLite tar, pg_dump, or mysqldump with S3 upload
 - **Ingress support** with TLS via cert-manager
+- **Gateway API** — HTTPRoute via `gateway.enabled=true` (GR-060)
+- **External Secrets Operator** — opt-in ExternalSecret via `externalSecrets.enabled=true` (GR-061)
+- **Dual-stack** — `service.ipFamilyPolicy` / `service.ipFamilies` (GR-058)
 
 ## Installation
 
@@ -34,13 +37,17 @@ helm install authelia oci://ghcr.io/helmforgedev/helm/authelia -f values.yaml
 
 ## Quick Start (SQLite)
 
-```yaml
-# values.yaml
-secrets:
-  jwtSecret: "your-64-char-random-string"
-  sessionSecret: "your-64-char-random-string"
-  storageEncryptionKey: "your-20-plus-char-string"
+`jwtSecret`, `sessionSecret`, and `storageEncryptionKey` are **auto-generated** on first install and persisted across upgrades — no manual configuration required.
 
+A placeholder `admin` user (password: `authelia`) is shipped by default. **Change this before exposing Authelia publicly.**
+
+Generate a new password hash with:
+```bash
+docker run authelia/authelia:latest authelia crypto hash generate argon2
+```
+
+```yaml
+# values.yaml — minimal production example
 config:
   session:
     cookies:
@@ -54,7 +61,7 @@ usersDatabase:
     admin:
       displayname: "Admin"
       email: "admin@example.com"
-      password: "$argon2id$v=19$m=65536,t=3,p=4$..."
+      password: "$argon2id$v=19$m=65536,t=3,p=4$..."  # replace with your hash
       groups:
         - admins
 ```
@@ -110,15 +117,20 @@ postgresql:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `config` | (see values.yaml) | Full Authelia configuration rendered as YAML |
-| `secrets.jwtSecret` | `""` | JWT secret for identity validation (64+ chars) |
-| `secrets.sessionSecret` | `""` | Session encryption secret (64+ chars) |
-| `secrets.storageEncryptionKey` | `""` | Storage encryption key (20+ chars) |
+| `secrets.jwtSecret` | `""` | JWT secret — **auto-generated** on first install if empty |
+| `secrets.sessionSecret` | `""` | Session secret — **auto-generated** on first install if empty |
+| `secrets.storageEncryptionKey` | `""` | Storage key — **auto-generated** on first install if empty |
 | `secrets.existingSecret` | `""` | Use existing secret for credentials |
 | `database.type` | `sqlite` | Storage backend: sqlite, postgres, mysql |
 | `usersDatabase.enabled` | `true` | Mount file-based users database |
+| `usersDatabase.users` | admin/authelia placeholder | Inline user definitions — **change in production** |
 | `persistence.enabled` | `true` | Enable PVC for /data |
 | `persistence.size` | `1Gi` | PVC size |
 | `ingress.enabled` | `false` | Enable ingress |
+| `gateway.enabled` | `false` | Enable Gateway API HTTPRoute (requires Gateway API CRDs) |
+| `externalSecrets.enabled` | `false` | Render ExternalSecret for credentials (requires ESO) |
+| `service.ipFamilyPolicy` | `~` | Dual-stack policy: SingleStack, PreferDualStack, RequireDualStack |
+| `service.ipFamilies` | `[]` | Dual-stack IP families: IPv4, IPv6 |
 | `metrics.enabled` | `false` | Enable metrics service |
 | `backup.enabled` | `false` | Enable S3 backups |
 | `postgresql.enabled` | `false` | Deploy PostgreSQL subchart |
