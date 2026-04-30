@@ -208,6 +208,8 @@ redis://:$(REDIS_PASS)@{{ include "appwrite.redisHost" . }}:{{ include "appwrite
 {{- .Values.appwrite.domain -}}
 {{- else if and .Values.ingress.enabled (gt (len .Values.ingress.hosts) 0) -}}
 {{- (index .Values.ingress.hosts 0).host -}}
+{{- else if and .Values.gateway.enabled (gt (len .Values.gateway.hostnames) 0) -}}
+{{- (index .Values.gateway.hostnames 0) -}}
 {{- else -}}
 localhost
 {{- end -}}
