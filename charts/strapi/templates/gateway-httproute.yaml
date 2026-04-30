@@ -1,6 +1,9 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- if .Values.gatewayApi.enabled }}
 {{- range .Values.gatewayApi.httpRoutes | default list }}
+{{- if not .rules }}
+  {{- fail "Each gatewayApi.httpRoutes entry must define at least one rule (Gateway API v1 requires spec.rules)" }}
+{{- end }}
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -34,6 +37,10 @@ spec:
       {{- if .backendRefs }}
       backendRefs:
         {{- toYaml .backendRefs | nindent 8 }}
+      {{- end }}
+      {{- with .filters }}
+      filters:
+        {{- toYaml . | nindent 8 }}
       {{- end }}
     {{- end }}
   {{- end }}
