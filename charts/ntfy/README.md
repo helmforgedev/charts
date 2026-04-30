@@ -14,6 +14,8 @@ to phones and desktops via scripts — no signup, no fees.
 - **Behind proxy** — trusts X-Forwarded-For headers by default
 - **Attachment support** — configurable file size and expiry limits
 - **Ingress support** — TLS with cert-manager
+- **Dual-stack** — `ipFamilyPolicy`/`ipFamilies` on the Service for IPv4/IPv6 clusters
+- **Gateway API** — opt-in `HTTPRoute` (alternative to Ingress; requires Gateway API CRDs)
 
 ## Installation
 
@@ -62,8 +64,14 @@ curl -s http://localhost:8080/test/json
 | `ntfy.enableMetrics` | `false` | Enable Prometheus `/metrics` endpoint |
 | `persistence.enabled` | `true` | Enable persistence for cache and auth |
 | `persistence.size` | `2Gi` | PVC size |
-| `ingress.enabled` | `false` | Enable ingress |
+| `service.type` | `ClusterIP` | Service type |
 | `service.port` | `80` | Service port |
+| `service.ipFamilyPolicy` | `~` | Dual-stack policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
+| `service.ipFamilies` | `[]` | IP families (`IPv4`, `IPv6`) |
+| `ingress.enabled` | `false` | Enable ingress |
+| `gateway.enabled` | `false` | Render an `HTTPRoute` (requires Gateway API CRDs) |
+| `gateway.parentRefs` | `[]` | Gateway parent refs — **required** when `gateway.enabled=true`; each entry must have `name` |
+| `gateway.hostnames` | `[]` | Hostnames the `HTTPRoute` matches |
 
 ## Authentication
 
@@ -91,6 +99,30 @@ ntfy:
 metrics:
   serviceMonitor:
     enabled: true
+```
+
+## Gateway API
+
+```yaml
+gateway:
+  enabled: true
+  parentRefs:
+    - name: envoy
+      namespace: envoy-gateway
+  hostnames:
+    - ntfy.example.com
+  path: /
+  pathType: PathPrefix
+```
+
+## Dual-Stack
+
+```yaml
+service:
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+    - IPv4
+    - IPv6
 ```
 
 ## Limitations
