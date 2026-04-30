@@ -1,6 +1,8 @@
 # Metabase Helm Chart
 
-Deploy [Metabase](https://www.metabase.com) on Kubernetes using the official [metabase/metabase](https://hub.docker.com/r/metabase/metabase) Docker image. Open-source BI platform with visual data exploration, SQL editor, and shareable dashboards connecting to 60+ databases.
+Deploy [Metabase](https://www.metabase.com) on Kubernetes using the official
+[metabase/metabase](https://hub.docker.com/r/metabase/metabase) Docker image.
+Open-source BI platform with visual data exploration, SQL editor, and shareable dashboards connecting to 60+ databases.
 
 ## Features
 
@@ -11,6 +13,9 @@ Deploy [Metabase](https://www.metabase.com) on Kubernetes using the official [me
 - **Auto-generated encryption key** — protects saved database credentials
 - **JVM tuning** — configurable JAVA_OPTS for memory optimization
 - **Ingress support** — TLS with cert-manager
+- **Gateway API** — HTTPRoute for clusters running Envoy Gateway or similar
+- **Dual-stack networking** — IPv4/IPv6 service support
+- **External Secrets Operator** — ExternalSecret for Vault, AWS Secrets Manager, and more
 
 ## Installation
 
@@ -69,6 +74,52 @@ resources:
     memory: 3Gi
 ```
 
+## Dual-Stack Service
+
+```yaml
+service:
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+    - IPv4
+    - IPv6
+```
+
+## Gateway API (HTTPRoute)
+
+Requires Gateway API CRDs and a compatible controller (e.g. Envoy Gateway).
+
+```yaml
+gateway:
+  enabled: true
+  gatewayName: envoy-gateway
+  gatewayNamespace: envoy-gateway-system
+  hostnames:
+    - metabase.example.com
+```
+
+> **Note:** `gateway.gatewayName` is required when `gateway.enabled=true`.
+
+## External Secrets Operator (ESO)
+
+Requires ESO installed. Set `metabase.existingSecret` so the chart-managed Secret is suppressed and the ExternalSecret is the single source of truth.
+
+```yaml
+metabase:
+  existingSecret: metabase-eso-secret
+  existingSecretKey: encryption-secret-key
+
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  data:
+    - secretKey: encryption-secret-key
+      remoteRef:
+        key: metabase/credentials
+        property: encryption-secret-key
+```
+
 ## Key Values
 
 | Key | Default | Description |
@@ -81,6 +132,18 @@ resources:
 | `postgresql.enabled` | `true` | Deploy PostgreSQL subchart |
 | `ingress.enabled` | `false` | Enable ingress |
 | `service.port` | `80` | Service port |
+| `service.ipFamilyPolicy` | `~` | IP family policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
+| `service.ipFamilies` | `[]` | IP families override (`IPv4`, `IPv6`) |
+| `gateway.enabled` | `false` | Enable Gateway API HTTPRoute |
+| `gateway.gatewayName` | `""` | Gateway name (required when `gateway.enabled=true`) |
+| `gateway.gatewayNamespace` | `""` | Gateway namespace |
+| `gateway.hostnames` | `[]` | HTTPRoute hostnames |
+| `externalSecrets.enabled` | `false` | Render ExternalSecret resource |
+| `externalSecrets.apiVersion` | `external-secrets.io/v1` | ExternalSecret API version |
+| `externalSecrets.refreshInterval` | `"0"` | Refresh interval (`"0"` = one-time sync) |
+| `externalSecrets.secretStoreRef.name` | `""` | SecretStore name (required when enabled) |
+| `externalSecrets.secretStoreRef.kind` | `SecretStore` | SecretStore kind |
+| `externalSecrets.data` | `[]` | Remote key mappings (must include encryption key entry) |
 
 ## More Information
 
@@ -92,7 +155,7 @@ type: chart-readme
 title: Metabase Helm Chart
 description: README for the Metabase open-source BI platform Helm chart
 
-keywords: metabase, bi, analytics, dashboard, visualization, postgresql
+keywords: metabase, bi, analytics, dashboard, visualization, postgresql, gateway-api, external-secrets, dual-stack
 
 purpose: Chart installation, configuration, and usage documentation
 scope: Chart
@@ -100,6 +163,6 @@ scope: Chart
 relations:
   - charts/metabase/values.yaml
 path: charts/metabase/README.md
-version: 1.0
-date: 2026-04-01
+version: 1.1
+date: 2026-04-30
 -->

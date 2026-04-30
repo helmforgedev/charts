@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Metabase has been successfully deployed!
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -53,9 +54,24 @@ Check backup CronJob: kubectl get cronjob -n {{ .Release.Namespace }}
   WARNINGS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-{{- if not .Values.ingress.enabled }}
+{{- if .Values.gateway.enabled }}
+
+NOTE: Gateway API HTTPRoute {{ include "metabase.fullname" . }} is active.
+  Gateway: {{ .Values.gateway.gatewayName }}{{ with .Values.gateway.gatewayNamespace }}.{{ . }}{{ end }}
+  {{- with .Values.gateway.hostnames }}
+  Hostnames: {{ join ", " . }}
+  {{- end }}
+{{- else if not .Values.ingress.enabled }}
 
 NOTE: Ingress is not enabled. Access via port-forward (see above).
+{{- end }}
+
+{{- if .Values.externalSecrets.enabled }}
+
+NOTE: ExternalSecrets enabled.
+  SecretStore: {{ .Values.externalSecrets.secretStoreRef.name }} ({{ .Values.externalSecrets.secretStoreRef.kind }})
+  Target Secret: {{ .Values.metabase.existingSecret }}
+  Refresh: {{ .Values.externalSecrets.refreshInterval }}
 {{- end }}
 
 NOTE: Metabase can take 2-3 minutes to fully initialize on first start.

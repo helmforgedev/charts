@@ -1,5 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
-# Metabase Helm Chart — Default Values
+# Metabase Helm Chart - Default Values
 # =============================================================================
 # Focus: open-source BI platform with PostgreSQL metadata store
 
@@ -15,7 +16,7 @@ image:
   # -- Metabase container image
   repository: docker.io/metabase/metabase
   # -- Image tag
-  tag: "v0.54.5"
+  tag: "v0.60.3"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -85,6 +86,10 @@ service:
   port: 80
   # -- Annotations for the Service
   annotations: {}
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ~
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
 
 # =============================================================================
 # Ingress
@@ -108,6 +113,25 @@ ingress:
     # - hosts:
     #     - metabase.example.com
     #   secretName: metabase-tls
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gateway:
+  # -- Enable Gateway API HTTPRoute (alternative to Ingress; requires Gateway API CRDs)
+  enabled: false
+  # -- Gateway name to attach the HTTPRoute to
+  gatewayName: ""
+  # -- Namespace of the gateway
+  gatewayNamespace: ""
+  # -- Hostnames the HTTPRoute matches
+  hostnames: []
+    # - metabase.example.com
+  # -- Path prefix for the HTTPRoute
+  path: /
+  # -- Path match type
+  pathType: PathPrefix
 
 # =============================================================================
 # Probes
@@ -227,6 +251,31 @@ extraVolumeMounts: []
 
 # -- Extra manifests to deploy alongside the chart
 extraManifests: []
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret for clusters running External Secrets Operator.
+  # Requires metabase.existingSecret to be set to prevent credential drift.
+  enabled: false
+  # -- ExternalSecret apiVersion.
+  apiVersion: external-secrets.io/v1
+  # -- Refresh interval.
+  refreshInterval: "0"
+  secretStoreRef:
+    # -- Existing SecretStore or ClusterSecretStore name.
+    name: ""
+    kind: SecretStore
+  target:
+    creationPolicy: Owner
+  # -- ExternalSecret data entries mapping remote keys to the app Secret keys.
+  data: []
+  #   - secretKey: encryption-secret-key
+  #     remoteRef:
+  #       key: metabase/credentials
+  #       property: encryption-secret-key
 
 # =============================================================================
 # Subcharts
