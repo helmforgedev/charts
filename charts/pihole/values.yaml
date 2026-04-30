@@ -1,7 +1,8 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
 # Pi-hole DNS Sinkhole Helm Chart
 # =============================================================================
-# Uses pihole/pihole — the official Pi-hole container image.
+# Uses pihole/pihole - the official Pi-hole container image.
 # Provides network-wide ad blocking via DNS filtering.
 # https://docs.pi-hole.net/
 # =============================================================================
@@ -389,6 +390,11 @@ serviceDns:
   # -- Load balancer IP (set a fixed IP for DNS stability)
   # loadBalancerIP: "192.168.1.53"
 
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ~
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
+
 # =============================================================================
 # Web Service
 # =============================================================================
@@ -402,6 +408,11 @@ serviceWeb:
 
   # -- Annotations for the web service
   annotations: {}
+
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ~
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
 
 # =============================================================================
 # Ingress
@@ -567,6 +578,47 @@ extraVolumes: []
 
 # -- Extra Kubernetes manifests to deploy alongside the chart
 extraManifests: []
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gateway:
+  # -- Enable Gateway API HTTPRoute (alternative to Ingress; requires Gateway API CRDs)
+  enabled: false
+  # -- Annotations for the HTTPRoute
+  annotations: {}
+  # -- parentRefs pointing to your Gateway resource
+  parentRefs: []
+  # -- Hostnames the HTTPRoute matches
+  hostnames: []
+  # -- Path prefix
+  path: /
+  # -- Path match type
+  pathType: PathPrefix
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret for the Pi-hole admin password secret.
+  # Requires admin.existingSecret to be set to prevent drift between
+  # the chart-managed admin Secret and the ExternalSecret.
+  enabled: false
+  apiVersion: external-secrets.io/v1
+  refreshInterval: "0"
+  secretStoreRef:
+    name: ""
+    kind: SecretStore
+  target:
+    creationPolicy: Owner
+  # -- Data entries mapping remote keys to the Pi-hole admin password.
+  data: []
+  #   - secretKey: password
+  #     remoteRef:
+  #       key: pihole/admin
+  #       property: password
 
 # =============================================================================
 # Configuration Examples
