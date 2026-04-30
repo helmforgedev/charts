@@ -37,11 +37,11 @@ helm install authelia oci://ghcr.io/helmforgedev/helm/authelia -f values.yaml
 
 ## Quick Start (SQLite)
 
-`jwtSecret`, `sessionSecret`, and `storageEncryptionKey` are **auto-generated** on first install and persisted across upgrades — no manual configuration required.
+`jwtSecret`, `sessionSecret`, and `storageEncryptionKey` are **auto-generated** on first `helm install` and persisted across upgrades via cluster lookup. No manual configuration required for direct installs.
 
-A placeholder `admin` user (password: `authelia`) is shipped by default. **Change this before exposing Authelia publicly.**
+> **GitOps users (Argo CD, Flux):** set `secrets.jwtSecret`, `secrets.sessionSecret`, and `secrets.storageEncryptionKey` explicitly. Client-side rendering cannot perform cluster lookups, so leaving these empty will rotate credentials on every sync.
 
-Generate a new password hash with:
+A **disabled** placeholder `admin` account is shipped. Enable it only after setting a strong password hash. Generate one with:
 
 ```bash
 docker run authelia/authelia:latest authelia crypto hash generate argon2
@@ -60,6 +60,7 @@ config:
 usersDatabase:
   users:
     admin:
+      disabled: false
       displayname: "Admin"
       email: "admin@example.com"
       password: "$argon2id$v=19$m=65536,t=3,p=4$..."  # replace with your hash
@@ -124,7 +125,7 @@ postgresql:
 | `secrets.existingSecret` | `""` | Use existing secret for credentials |
 | `database.type` | `sqlite` | Storage backend: sqlite, postgres, mysql |
 | `usersDatabase.enabled` | `true` | Mount file-based users database |
-| `usersDatabase.users` | admin/authelia placeholder | Inline user definitions — **change in production** |
+| `usersDatabase.users` | disabled admin placeholder | Inline user definitions — enable and set a strong password before use |
 | `persistence.enabled` | `true` | Enable PVC for /data |
 | `persistence.size` | `1Gi` | PVC size |
 | `ingress.enabled` | `false` | Enable ingress |
