@@ -242,7 +242,7 @@ database-password
 {{- if .Values.queue.external.host -}}
 {{- .Values.queue.external.host -}}
 {{- else if .Values.redis.enabled -}}
-{{- printf "%s-redis" .Release.Name -}}
+{{- printf "%s-redis-client" .Release.Name -}}
 {{- else -}}
 {{- "" -}}
 {{- end -}}
