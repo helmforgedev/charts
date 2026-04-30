@@ -281,6 +281,18 @@
           "description": "Service type",
           "enum": ["ClusterIP", "NodePort", "LoadBalancer"]
         },
+        "ipFamilyPolicy": {
+          "type": "string",
+          "description": "Service IP family policy (GR-058)",
+          "enum": ["", "SingleStack", "PreferDualStack", "RequireDualStack"]
+        },
+        "ipFamilies": {
+          "type": "array",
+          "description": "Service IP families (GR-058)",
+          "items": { "type": "string", "enum": ["IPv4", "IPv6"] },
+          "maxItems": 2,
+          "uniqueItems": true
+        },
         "annotations": {
           "type": "object",
           "description": "Annotations for the client service"
@@ -478,6 +490,92 @@
       "type": "array",
       "description": "Extra manifests rendered with tpl",
       "items": { "type": "object" }
+    },
+    "gateway": {
+      "type": "object",
+      "description": "Gateway API HTTPRoute configuration (GR-060)",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Create an HTTPRoute for the management UI"
+        },
+        "hostnames": {
+          "type": "array",
+          "description": "Allowed hostnames for the HTTPRoute (empty = match all)",
+          "items": { "type": "string" }
+        },
+        "parentRefs": {
+          "type": "array",
+          "description": "Gateway parentRefs — required when gateway.enabled=true",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string" },
+              "namespace": { "type": "string" },
+              "group": { "type": "string" },
+              "kind": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "externalSecrets": {
+      "type": "object",
+      "description": "ExternalSecrets Operator integration (GR-061)",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Create an ExternalSecret for RabbitMQ credentials"
+        },
+        "apiVersion": {
+          "type": "string",
+          "description": "ExternalSecret CRD apiVersion",
+          "enum": ["external-secrets.io/v1", "external-secrets.io/v1beta1"]
+        },
+        "refreshInterval": {
+          "type": "string",
+          "description": "How often the ExternalSecret syncs (0 = once, e.g. 1h)"
+        },
+        "secretStoreRef": {
+          "type": "object",
+          "description": "Reference to a SecretStore or ClusterSecretStore",
+          "properties": {
+            "name": { "type": "string", "description": "SecretStore name" },
+            "kind": {
+              "type": "string",
+              "enum": ["SecretStore", "ClusterSecretStore"]
+            }
+          }
+        },
+        "target": {
+          "type": "object",
+          "description": "ExternalSecret target Secret configuration",
+          "properties": {
+            "creationPolicy": {
+              "type": "string",
+              "enum": ["Owner", "Orphan", "Merge", "None"]
+            }
+          }
+        },
+        "data": {
+          "type": "array",
+          "description": "Key mappings from the external store to the target Secret",
+          "items": {
+            "type": "object",
+            "properties": {
+              "secretKey": { "type": "string" },
+              "remoteRef": {
+                "type": "object",
+                "properties": {
+                  "key": { "type": "string" },
+                  "property": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
