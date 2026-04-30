@@ -100,6 +100,9 @@ true
 {{- if .Values.backup.database.uri -}}
 {{- .Values.backup.database.uri -}}
 {{- else if .Values.externalMongodb.enabled -}}
+{{- if and .Values.externalMongodb.existingSecret (not .Values.externalMongodb.uri) -}}
+  {{- fail "backup requires backup.database.uri when externalMongodb.existingSecret is set and externalMongodb.uri is empty (the URI is in the secret and cannot be injected into mongodump)" -}}
+{{- end -}}
 {{- .Values.externalMongodb.uri -}}
 {{- else -}}
 {{- printf "mongodb://root:$(MONGODB_ROOT_PASSWORD)@%s-mongodb:27017/countly?authSource=admin" .Release.Name -}}
