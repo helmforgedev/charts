@@ -701,7 +701,8 @@ To suppress: externalSecrets.skipCRDCheck: true
 {{- if .Values.externalSecrets.enabled -}}
   {{- if not .Values.externalSecrets.skipCRDCheck -}}
     {{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "externalsecrets.external-secrets.io" -}}
-    {{- if and $crd (not (hasKey $crd "metadata")) -}}
+    {{- /* kindIs "invalid" distinguishes nil (offline/unit-test → skip) from {} (absent → fail) */ -}}
+    {{- if and (not (kindIs "invalid" $crd)) (not (hasKey $crd "metadata")) -}}
       {{- fail "ERROR: External Secrets Operator CRDs not found in cluster.\n\nESO is required for externalSecrets.enabled=true.\n\nOptions:\n  1. Install ESO:\n     https://external-secrets.io/latest/introduction/getting-started/\n\n  2. Skip this check (if CRDs are managed externally):\n     --set externalSecrets.skipCRDCheck=true" -}}
     {{- end -}}
   {{- end -}}
@@ -721,7 +722,8 @@ To suppress: gateway.skipCRDCheck: true
 {{- if .Values.gateway.enabled -}}
   {{- if not .Values.gateway.skipCRDCheck -}}
     {{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "httproutes.gateway.networking.k8s.io" -}}
-    {{- if and $crd (not (hasKey $crd "metadata")) -}}
+    {{- /* kindIs "invalid" distinguishes nil (offline/unit-test → skip) from {} (absent → fail) */ -}}
+    {{- if and (not (kindIs "invalid" $crd)) (not (hasKey $crd "metadata")) -}}
       {{- fail "ERROR: Gateway API CRDs not found in cluster.\n\nGateway API is required for gateway.enabled=true.\n\nOptions:\n  1. Install Gateway API CRDs:\n     kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml\n\n  2. Skip this check (if CRDs are managed externally):\n     --set gateway.skipCRDCheck=true" -}}
     {{- end -}}
   {{- end -}}
