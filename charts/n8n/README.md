@@ -13,6 +13,9 @@ Deploy [n8n](https://n8n.io/) on Kubernetes — a workflow automation platform f
 - **Scheduled backups** — database-aware CronJob with S3 upload
 - **Ingress support** — TLS with cert-manager, auto-detected webhook URL
 - **Encryption key** — auto-generated and persisted across upgrades
+- **Gateway API** — HTTPRoute for clusters running Envoy Gateway or similar
+- **Dual-stack networking** — IPv4/IPv6 service support
+- **External Secrets Operator** — ExternalSecret for Vault, AWS Secrets Manager, and more
 
 ## Installation
 
@@ -84,6 +87,53 @@ database:
     existingSecret: n8n-db-credentials
 ```
 
+## Dual-Stack Service
+
+```yaml
+service:
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+    - IPv4
+    - IPv6
+```
+
+## Gateway API (HTTPRoute)
+
+Requires Gateway API CRDs and a compatible controller (e.g. Envoy Gateway).
+
+```yaml
+gateway:
+  enabled: true
+  gatewayName: envoy-gateway
+  gatewayNamespace: envoy-gateway-system
+  hostnames:
+    - n8n.example.com
+```
+
+> **Note:** `gateway.gatewayName` is required when `gateway.enabled=true`.
+
+## External Secrets Operator (ESO)
+
+Set `encryptionKey.existingSecret` so the chart-managed encryption key Secret is suppressed
+and the ExternalSecret is the single source of truth.
+
+```yaml
+encryptionKey:
+  existingSecret: n8n-eso-secret
+  existingSecretKey: encryption-key
+
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  data:
+    - secretKey: encryption-key
+      remoteRef:
+        key: n8n/credentials
+        property: encryption-key
+```
+
 ## Key Values
 
 | Key | Default | Description |
@@ -102,6 +152,18 @@ database:
 | `persistence.size` | `5Gi` | PVC size |
 | `ingress.enabled` | `false` | Enable ingress |
 | `backup.enabled` | `false` | Enable S3 backups |
+| `service.ipFamilyPolicy` | `~` | IP family policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
+| `service.ipFamilies` | `[]` | IP families override (`IPv4`, `IPv6`) |
+| `gateway.enabled` | `false` | Enable Gateway API HTTPRoute |
+| `gateway.gatewayName` | `""` | Gateway name (required when `gateway.enabled=true`) |
+| `gateway.gatewayNamespace` | `""` | Gateway namespace |
+| `gateway.hostnames` | `[]` | HTTPRoute hostnames |
+| `externalSecrets.enabled` | `false` | Render ExternalSecret resource |
+| `externalSecrets.apiVersion` | `external-secrets.io/v1` | ExternalSecret API version |
+| `externalSecrets.refreshInterval` | `"0"` | Refresh interval (`"0"` = one-time sync) |
+| `externalSecrets.secretStoreRef.name` | `""` | SecretStore name (required when enabled) |
+| `externalSecrets.secretStoreRef.kind` | `SecretStore` | SecretStore kind |
+| `externalSecrets.data` | `[]` | Remote key mappings (must include `encryption-key` entry) |
 
 ## Resources Generated
 
@@ -116,6 +178,8 @@ database:
 | Secret (backup) | `backup.enabled` and no `backup.s3.existingSecret` |
 | PVC | `persistence.enabled` and no `persistence.existingClaim` |
 | Ingress | `ingress.enabled` |
+| HTTPRoute | `gateway.enabled` |
+| ExternalSecret | `externalSecrets.enabled` |
 | ServiceAccount | `serviceAccount.create` |
 | CronJob (backup) | `backup.enabled` |
 | ConfigMap (backup scripts) | `backup.enabled` |
@@ -132,7 +196,7 @@ type: chart-readme
 title: n8n Helm Chart
 description: Helm chart for deploying n8n workflow automation platform on Kubernetes
 
-keywords: n8n, workflow, automation, integration, helm, kubernetes, queue, redis
+keywords: n8n, workflow, automation, integration, helm, kubernetes, queue, redis, gateway-api, external-secrets, dual-stack
 
 purpose: User-facing chart documentation with install, features, examples, and values reference
 scope: Chart
@@ -143,6 +207,6 @@ relations:
   - charts/n8n/docs/queue-mode.md
   - charts/n8n/docs/backup.md
 path: charts/n8n/README.md
-version: 1.0
-date: 2026-03-23
+version: 1.1
+date: 2026-04-30
 -->

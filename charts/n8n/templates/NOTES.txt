@@ -1,7 +1,15 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 n8n has been deployed!
 
-{{- if .Values.ingress.enabled }}
+{{- if .Values.gateway.enabled }}
+{{- with .Values.gateway.hostnames }}
+
+  Access n8n at: https://{{ index . 0 }}
+{{- else }}
+
+  Gateway API HTTPRoute: {{ include "n8n.fullname" . }} (no hostnames configured)
+{{- end }}
+{{- else if .Values.ingress.enabled }}
 {{- range .Values.ingress.hosts }}
 
   Access n8n at: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
@@ -18,4 +26,11 @@ n8n has been deployed!
 Database mode: {{ include "n8n.databaseMode" . }}
 {{- if .Values.queue.enabled }}
 Queue mode: enabled ({{ .Values.queue.workers }} worker{{ if gt (int .Values.queue.workers) 1 }}s{{ end }})
+{{- end }}
+{{- if .Values.externalSecrets.enabled }}
+
+ExternalSecrets:
+  SecretStore: {{ .Values.externalSecrets.secretStoreRef.name }} ({{ .Values.externalSecrets.secretStoreRef.kind }})
+  Target Secret: {{ .Values.encryptionKey.existingSecret }}
+  Refresh: {{ .Values.externalSecrets.refreshInterval }}
 {{- end }}
