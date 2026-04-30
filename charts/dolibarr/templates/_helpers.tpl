@@ -153,7 +153,7 @@ Database mode detection (auto | external | mysql).
 {{- else if eq (include "dolibarr.databaseMode" .) "mysql" -}}
 {{- printf "%s-mysql-auth" .Release.Name -}}
 {{- else -}}
-{{- printf "%s-database" (include "dolibarr.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s-database" (include "dolibarr.fullname" .) -}}
 {{- end -}}
 {{- end -}}
 
@@ -179,7 +179,7 @@ database-password
 {{- if .Values.admin.existingSecret -}}
 {{- .Values.admin.existingSecret -}}
 {{- else -}}
-{{- printf "%s-admin" (include "dolibarr.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s-admin" (include "dolibarr.fullname" .) -}}
 {{- end -}}
 {{- end -}}
 
@@ -195,7 +195,7 @@ admin-password
 {{- if .Values.runtime.existingSecret -}}
 {{- .Values.runtime.existingSecret -}}
 {{- else -}}
-{{- printf "%s-runtime" (include "dolibarr.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s-runtime" (include "dolibarr.fullname" .) -}}
 {{- end -}}
 {{- end -}}
 
@@ -220,11 +220,11 @@ instance-unique-id
 {{- end -}}
 
 {{- define "dolibarr.documentsPvcName" -}}
-{{- default (printf "%s-documents" (include "dolibarr.fullname" .) | trunc 63 | trimSuffix "-") .Values.persistence.documents.existingClaim -}}
+{{- default (printf "%s-documents" (include "dolibarr.fullname" .)) .Values.persistence.documents.existingClaim -}}
 {{- end -}}
 
 {{- define "dolibarr.customPvcName" -}}
-{{- default (printf "%s-custom" (include "dolibarr.fullname" .) | trunc 63 | trimSuffix "-") .Values.persistence.custom.existingClaim -}}
+{{- default (printf "%s-custom" (include "dolibarr.fullname" .)) .Values.persistence.custom.existingClaim -}}
 {{- end -}}
 
 {{/*
@@ -235,7 +235,7 @@ Uses backup.s3.existingSecret when set, otherwise <fullname>-backup.
 {{- if .Values.backup.s3.existingSecret -}}
 {{- .Values.backup.s3.existingSecret -}}
 {{- else -}}
-{{- printf "%s-backup" (include "dolibarr.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s-backup" (include "dolibarr.fullname" .) -}}
 {{- end -}}
 {{- end -}}
 
