@@ -12,18 +12,30 @@ metadata:
 spec:
   parentRefs:
     {{- toYaml .Values.gateway.parentRefs | nindent 4 }}
+  {{- with .Values.gateway.hostnames }}
   hostnames:
-    {{- if .Values.gateway.hostnames }}
-    {{- toYaml .Values.gateway.hostnames | nindent 4 }}
-    {{- else }}
-    - {{ .Values.appwrite.domain | quote }}
-    {{- end }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   rules:
     - matches:
         - path:
-            type: {{ .Values.gateway.pathType | default "PathPrefix" }}
-            value: {{ .Values.gateway.path | default "/" | quote }}
+            type: PathPrefix
+            value: /v1/realtime
+      backendRefs:
+        - name: {{ include "appwrite.fullname" . }}-realtime
+          port: {{ .Values.service.port }}
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1
       backendRefs:
         - name: {{ include "appwrite.fullname" . }}-api
+          port: {{ .Values.service.port }}
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: {{ include "appwrite.fullname" . }}-console
           port: {{ .Values.service.port }}
 {{- end }}
