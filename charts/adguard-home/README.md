@@ -330,7 +330,7 @@ service:
       - IPv6
 ```
 
-### Gateway API
+### Gateway API (HTTPRoute)
 
 ```yaml
 gateway:
@@ -344,7 +344,7 @@ gateway:
   pathType: PathPrefix
 ```
 
-### External Secrets Operator
+### External Secrets (ESO)
 
 ```yaml
 config:
