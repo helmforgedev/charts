@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "title": "AdGuard Home Helm Chart Values",
-  "description": "Values for the AdGuard Home Helm chart — network-wide DNS ad/tracker blocking with optional sync and backup",
+  "description": "Values for the AdGuard Home Helm chart - network-wide DNS ad/tracker blocking with optional sync and backup",
   "type": "object",
   "additionalProperties": true,
   "properties": {
@@ -72,7 +72,7 @@
       "properties": {
         "conf": {
           "type": "object",
-          "description": "Configuration volume (/opt/adguardhome/conf — AdGuardHome.yaml, TLS certs)",
+          "description": "Configuration volume (/opt/adguardhome/conf - AdGuardHome.yaml, TLS certs)",
           "additionalProperties": false,
           "properties": {
             "enabled": {
@@ -107,7 +107,7 @@
         },
         "work": {
           "type": "object",
-          "description": "Working data volume (/opt/adguardhome/work — query log, stats, filters)",
+          "description": "Working data volume (/opt/adguardhome/work - query log, stats, filters)",
           "additionalProperties": false,
           "properties": {
             "enabled": {
@@ -187,6 +187,17 @@
             "annotations": {
               "type": "object",
               "description": "Annotations for the web service"
+            },
+            "ipFamilyPolicy": {
+              "type": ["string", "null"],
+              "description": "Dual-stack ipFamilyPolicy (GR-058)",
+              "enum": [null, "SingleStack", "PreferDualStack", "RequireDualStack"]
+            },
+            "ipFamilies": {
+              "type": "array",
+              "description": "Dual-stack ipFamilies (GR-058)",
+              "items": { "type": "string", "enum": ["IPv4", "IPv6"] },
+              "maxItems": 2
             }
           }
         },
@@ -197,7 +208,7 @@
           "properties": {
             "type": {
               "type": "string",
-              "description": "Service type — use LoadBalancer for external DNS access",
+              "description": "Service type - use LoadBalancer for external DNS access",
               "enum": ["ClusterIP", "NodePort", "LoadBalancer"],
               "default": "LoadBalancer"
             },
@@ -214,6 +225,17 @@
               "type": "string",
               "description": "Load balancer IP (optional, for static IP assignment)",
               "default": ""
+            },
+            "ipFamilyPolicy": {
+              "type": ["string", "null"],
+              "description": "Dual-stack ipFamilyPolicy (GR-058)",
+              "enum": [null, "SingleStack", "PreferDualStack", "RequireDualStack"]
+            },
+            "ipFamilies": {
+              "type": "array",
+              "description": "Dual-stack ipFamilies (GR-058)",
+              "items": { "type": "string", "enum": ["IPv4", "IPv6"] },
+              "maxItems": 2
             }
           }
         }
@@ -729,6 +751,57 @@
             }
           }
         }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "description": "Gateway API HTTPRoute configuration (GR-060)",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable HTTPRoute", "default": false },
+        "annotations": { "type": "object", "description": "HTTPRoute annotations" },
+        "parentRefs": {
+          "type": "array",
+          "description": "parentRefs pointing to your Gateway resource",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string" },
+              "namespace": { "type": "string" },
+              "sectionName": { "type": "string" }
+            }
+          }
+        },
+        "hostnames": { "type": "array", "items": { "type": "string" } },
+        "path": { "type": "string", "default": "/" },
+        "pathType": { "type": "string", "default": "PathPrefix" }
+      }
+    },
+    "externalSecrets": {
+      "type": "object",
+      "description": "External Secrets Operator configuration (GR-061)",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Render ExternalSecret", "default": false },
+        "apiVersion": { "type": "string", "default": "external-secrets.io/v1" },
+        "refreshInterval": { "type": "string", "default": "0" },
+        "secretStoreRef": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string", "default": "" },
+            "kind": { "type": "string", "default": "SecretStore" }
+          }
+        },
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "creationPolicy": { "type": "string", "default": "Owner" }
+          }
+        },
+        "data": { "type": "array", "items": { "type": "object" } }
       }
     },
     "extraEnv": {
