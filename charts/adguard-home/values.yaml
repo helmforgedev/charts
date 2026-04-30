@@ -1,5 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
-# AdGuard Home Helm Chart — Default Values
+# AdGuard Home Helm Chart - Default Values
 # =============================================================================
 # Focus: network-wide DNS ad/tracker blocking with optional sync and backup
 
@@ -15,7 +16,7 @@ image:
   # -- AdGuard Home container image
   repository: docker.io/adguard/adguardhome
   # -- Image tag
-  tag: "v0.107.73"
+  tag: "v0.107.74"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -30,7 +31,7 @@ imagePullSecrets: []
 config:
   # -- Pre-seed AdGuard Home configuration (rendered as AdGuardHome.yaml)
   # -- When set, the setup wizard is skipped entirely.
-  # -- @default -- `{}` (empty — wizard mode)
+  # -- @default -- `{}` (empty - wizard mode)
   adGuardHome: {}
     # http:
     #   pprof:
@@ -85,7 +86,7 @@ config:
 # =============================================================================
 
 persistence:
-  # -- Configuration volume (/opt/adguardhome/conf — AdGuardHome.yaml, TLS certs)
+  # -- Configuration volume (/opt/adguardhome/conf - AdGuardHome.yaml, TLS certs)
   conf:
     enabled: true
     size: 256Mi
@@ -93,7 +94,7 @@ persistence:
     accessModes:
       - ReadWriteOnce
     existingClaim: ""
-  # -- Working data volume (/opt/adguardhome/work — query log, stats, filters)
+  # -- Working data volume (/opt/adguardhome/work - query log, stats, filters)
   work:
     enabled: true
     size: 2Gi
@@ -124,14 +125,22 @@ service:
     type: ClusterIP
     port: 80
     annotations: {}
+    # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+    ipFamilyPolicy: ~
+    # -- Service IP families override. Empty uses cluster default.
+    ipFamilies: []
   # -- DNS service (separate for LoadBalancer/NodePort use)
   dns:
-    # -- Service type — use LoadBalancer for external DNS access
+    # -- Service type - use LoadBalancer for external DNS access
     type: LoadBalancer
     port: 53
     annotations: {}
     # -- Load balancer IP (optional, for static IP assignment)
     loadBalancerIP: ""
+    # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+    ipFamilyPolicy: ~
+    # -- Service IP families override. Empty uses cluster default.
+    ipFamilies: []
 
 # =============================================================================
 # Ingress
@@ -329,3 +338,45 @@ extraVolumeMounts: []
 
 # -- Extra manifests to deploy alongside the chart
 extraManifests: []
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gateway:
+  # -- Enable Gateway API HTTPRoute for the web UI (alternative to Ingress; requires Gateway API CRDs)
+  enabled: false
+  # -- Annotations for the HTTPRoute
+  annotations: {}
+  # -- parentRefs pointing to your Gateway resource
+  parentRefs: []
+  #   - name: envoy
+  #     namespace: envoy-gateway
+  # -- Hostnames the HTTPRoute matches
+  hostnames: []
+  # -- Path prefix
+  path: /
+  # -- Path match type
+  pathType: PathPrefix
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret for the config secret.
+  # Requires config.existingSecret to be set to prevent drift with the chart-managed ConfigMap Secret.
+  enabled: false
+  apiVersion: external-secrets.io/v1
+  refreshInterval: "0"
+  secretStoreRef:
+    name: ""
+    kind: SecretStore
+  target:
+    creationPolicy: Owner
+  # -- Data entries mapping remote keys to the AdGuardHome config secret.
+  data: []
+  #   - secretKey: AdGuardHome.yaml
+  #     remoteRef:
+  #       key: adguard-home/config
+  #       property: AdGuardHome.yaml

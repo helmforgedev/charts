@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- if eq (include "elasticsearch.backupEnabled" .) "true" -}}
 apiVersion: v1
 kind: ConfigMap
@@ -7,7 +8,7 @@ metadata:
   labels:
     {{- include "elasticsearch.labels" . | nindent 4 }}
 data:
-  # Executed by initContainer (helmforge/mc) — ensures S3 bucket exists
+  # Executed by initContainer (helmforge/mc) - ensures S3 bucket exists
   mc-init.sh: |
     #!/bin/sh
     set -e
@@ -17,8 +18,8 @@ data:
     mc mb --ignore-existing "minio/${S3_BUCKET}"
     echo "=== Bucket ready ==="
 
-  # Executed by main container (curlimages/curl) — calls ES Snapshot API
-  # repository-s3 is a built-in module in Elasticsearch 8.x — no plugin install needed
+  # Executed by main container (curlimages/curl) - calls ES Snapshot API
+  # repository-s3 is a built-in module in Elasticsearch 8.x - no plugin install needed
   backup.sh: |
     #!/bin/sh
     set -e
@@ -80,7 +81,7 @@ spec:
             - name: ensure-bucket
               image: {{ printf "%s:%s" .Values.backup.image.repository .Values.backup.image.tag }}
               imagePullPolicy: {{ .Values.backup.image.pullPolicy }}
-              # tr strips Windows CRLF (\r) — sed is unavailable in the helmforge/mc image
+              # tr strips Windows CRLF (\r) - sed is unavailable in the helmforge/mc image
               command: ["/bin/sh", "-c", "tr -d '\\r' < /scripts/mc-init.sh > /tmp/init.sh && /bin/sh /tmp/init.sh"]
               env:
                 - name: S3_BUCKET

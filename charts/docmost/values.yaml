@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
 # Docmost Helm Chart
 # =============================================================================
@@ -22,7 +23,7 @@ image:
   # -- Docmost container image repository
   repository: docker.io/docmost/docmost
   # -- Docmost image tag. Defaults to appVersion validated on GitHub Releases and Docker Hub.
-  tag: "0.70.3"
+  tag: "0.80.1"
   # -- Image pull policy
   pullPolicy: IfNotPresent
 
@@ -203,6 +204,10 @@ service:
   port: 80
   # -- Annotations for the Docmost service
   annotations: {}
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ""
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
 
 ingress:
   # -- Enable ingress for Docmost
@@ -296,3 +301,39 @@ extraVolumes: []
 
 # -- Extra Kubernetes manifests to deploy alongside the chart
 extraManifests: []
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gateway:
+  # -- Enable Gateway API HTTPRoute for Docmost HTTP (requires Gateway API CRDs)
+  enabled: false
+  annotations: {}
+  parentRefs: []
+  hostnames: []
+  path: /
+  pathType: PathPrefix
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # Render ExternalSecret for Docmost authentication.
+  # Requires database.external.existingSecret to be set to prevent drift between
+  # the chart-managed Secret and the ExternalSecret.
+  enabled: false
+  apiVersion: external-secrets.io/v1
+  refreshInterval: "0"
+  secretStoreRef:
+    name: ""
+    kind: SecretStore
+  target:
+    creationPolicy: Owner
+  # -- Data entries mapping remote keys to auth credentials.
+  data: []
+  #   - secretKey: database-password
+  #     remoteRef:
+  #       key: docmost/database
+  #       property: password

@@ -1,0 +1,99 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: deployment tests
+templates:
+  - deployment.yaml
+  - secret.yaml
+  - configmap.yaml
+tests:
+  - it: should create a Deployment
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: deployment.yaml
+      - isKind:
+          of: Deployment
+        template: deployment.yaml
+
+  - it: should use correct replicaCount
+    set:
+      replicaCount: 2
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+        template: deployment.yaml
+
+  - it: should use pinned image tag
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "docker.io/hoppscotch/hoppscotch:2026.3.1"
+        template: deployment.yaml
+
+  - it: should have wait-for-db init container
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: docker.io/library/busybox:1.37
+        template: deployment.yaml
+
+  - it: should have migrate init container
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: migrate
+        template: deployment.yaml
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].image
+          pattern: "docker.io/hoppscotch/hoppscotch:2026.3.1"
+        template: deployment.yaml
+
+  - it: should run as non-root
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+        template: deployment.yaml
+
+  - it: should have resources defined
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+        template: deployment.yaml
+      - isNotNull:
+          path: spec.template.spec.containers[0].resources.requests.memory
+        template: deployment.yaml
+
+  - it: should have checksum annotations
+    asserts:
+      - isNotNull:
+          path: spec.template.metadata.annotations["checksum/config"]
+        template: deployment.yaml
+      - isNotNull:
+          path: spec.template.metadata.annotations["checksum/secret"]
+        template: deployment.yaml
+
+  - it: should use RollingUpdate strategy by default
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+        template: deployment.yaml
+
+  - it: should expose port 80
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 80
+            protocol: TCP
+        template: deployment.yaml

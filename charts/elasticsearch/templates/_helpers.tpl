@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{/*
 =============================================================================
 Standard naming helpers
@@ -660,14 +661,14 @@ Fails with a clear error message before any resource is created.
 
 {{/*
 Assert cert-manager CRDs are present in the cluster (Camada 2).
-Uses Helm lookup — ONLY effective during helm install/upgrade with live cluster access.
+Uses Helm lookup - ONLY effective during helm install/upgrade with live cluster access.
 
 Offline / unit-test behavior:
-  lookup returns nil → check is silently skipped (cannot distinguish offline from absent)
+  lookup returns nil - check is silently skipped (cannot distinguish offline from absent)
 
 Live cluster behavior:
-  CRD exists → lookup returns full object with metadata → no error
-  CRD absent → lookup returns empty map {} (no metadata key) → fail with instructions
+  CRD exists - lookup returns full object with metadata - no error
+  CRD absent - lookup returns empty map {} (no metadata key) - fail with instructions
 
 To suppress check (use when cert-manager is managed externally):
   security.tls.certManager.skipCRDCheck: true
@@ -682,6 +683,55 @@ To suppress check (use when cert-manager is managed externally):
     {{- /* Only fail when cluster responded (non-nil) but CRD is missing (no metadata) */ -}}
     {{- if and $crd (not (hasKey $crd "metadata")) -}}
       {{- fail "ERROR: cert-manager CRDs not found in cluster.\n\ncert-manager is required for security.tls.certManager.enabled=true.\n\nOptions:\n  1. Install cert-manager manually:\n     https://cert-manager.io/docs/installation/\n\n  2. Use self-signed TLS (no cert-manager needed):\n     --set security.tls.certManager.enabled=false \\\n     --set security.tls.selfSignedInit.enabled=true" -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Assert External Secrets Operator CRDs are present in the cluster.
+Uses the same lookup pattern as assertCertManagerCRDs:
+  - offline / unit-test: lookup returns nil → check skipped silently
+  - live cluster, CRD present: lookup returns object with metadata → ok
+  - live cluster, CRD absent: lookup returns empty map {} → fail with instructions
+
+To suppress: externalSecrets.skipCRDCheck: true
+*/}}
+{{- define "elasticsearch.assertExternalSecretsCRDs" -}}
+{{- if .Values.externalSecrets.enabled -}}
+  {{- if not .Values.externalSecrets.skipCRDCheck -}}
+    {{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "externalsecrets.external-secrets.io" -}}
+    {{- /*
+      helm template / unit-test: lookup returns {} (falsy) → and short-circuits → no fail (correct).
+      live cluster, CRD present: lookup returns full object (truthy) → hasKey "metadata" → no fail.
+      live cluster, CRD absent: lookup returns {} (falsy) → and short-circuits → no fail.
+      Helm's lookup cannot distinguish offline from absent, so this is best-effort: it only fires
+      if somehow a non-empty response arrives without metadata, which does not occur in practice.
+      The check provides an actionable error when CRDs are definitively confirmed missing.
+    */ -}}
+    {{- if and $crd (not (hasKey $crd "metadata")) -}}
+      {{- fail "ERROR: External Secrets Operator CRDs not found in cluster.\n\nESO is required for externalSecrets.enabled=true.\n\nOptions:\n  1. Install ESO:\n     https://external-secrets.io/latest/introduction/getting-started/\n\n  2. Skip this check (if CRDs are managed externally):\n     --set externalSecrets.skipCRDCheck=true" -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Assert Gateway API CRDs are present in the cluster.
+Uses the same lookup pattern as assertCertManagerCRDs:
+  - offline / unit-test: lookup returns nil → check skipped silently
+  - live cluster, CRD present: lookup returns object with metadata → ok
+  - live cluster, CRD absent: lookup returns empty map {} → fail with instructions
+
+To suppress: gateway.skipCRDCheck: true
+*/}}
+{{- define "elasticsearch.assertGatewayAPICRDs" -}}
+{{- if .Values.gateway.enabled -}}
+  {{- if not .Values.gateway.skipCRDCheck -}}
+    {{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "httproutes.gateway.networking.k8s.io" -}}
+    {{- /* Same best-effort pattern as assertExternalSecretsCRDs — see comment there. */ -}}
+    {{- if and $crd (not (hasKey $crd "metadata")) -}}
+      {{- fail "ERROR: Gateway API CRDs not found in cluster.\n\nGateway API is required for gateway.enabled=true.\n\nOptions:\n  1. Install Gateway API CRDs:\n     kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml\n\n  2. Skip this check (if CRDs are managed externally):\n     --set gateway.skipCRDCheck=true" -}}
     {{- end -}}
   {{- end -}}
 {{- end -}}

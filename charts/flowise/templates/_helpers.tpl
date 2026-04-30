@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- define "flowise.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -266,7 +267,7 @@ sleep 3; flowise worker
 {{- if .Values.backup.enabled -}}
   {{- $dbMode := include "flowise.databaseMode" . -}}
   {{- if eq $dbMode "sqlite" -}}
-    {{- fail "backup.enabled requires PostgreSQL — backup is not supported when database mode is sqlite" -}}
+    {{- fail "backup.enabled requires PostgreSQL - backup is not supported when database mode is sqlite" -}}
   {{- end -}}
   {{- if not .Values.backup.s3.endpoint -}}
     {{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}

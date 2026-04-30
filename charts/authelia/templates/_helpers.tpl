@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- define "authelia.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -151,6 +152,45 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- .Values.secrets.existingSecret -}}
 {{- else -}}
   {{- printf "%s-secrets" (include "authelia.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "authelia.jwtSecret" -}}
+{{- if .Values.secrets.jwtSecret -}}
+  {{- .Values.secrets.jwtSecret -}}
+{{- else -}}
+  {{- $secret := lookup "v1" "Secret" .Release.Namespace (printf "%s-secrets" (include "authelia.fullname" .)) -}}
+  {{- if and $secret $secret.data (hasKey $secret.data "jwt-secret") -}}
+    {{- index $secret.data "jwt-secret" | b64dec -}}
+  {{- else -}}
+    {{- randAlphaNum 64 -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "authelia.sessionSecret" -}}
+{{- if .Values.secrets.sessionSecret -}}
+  {{- .Values.secrets.sessionSecret -}}
+{{- else -}}
+  {{- $secret := lookup "v1" "Secret" .Release.Namespace (printf "%s-secrets" (include "authelia.fullname" .)) -}}
+  {{- if and $secret $secret.data (hasKey $secret.data "session-secret") -}}
+    {{- index $secret.data "session-secret" | b64dec -}}
+  {{- else -}}
+    {{- randAlphaNum 64 -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "authelia.storageEncryptionKey" -}}
+{{- if .Values.secrets.storageEncryptionKey -}}
+  {{- .Values.secrets.storageEncryptionKey -}}
+{{- else -}}
+  {{- $secret := lookup "v1" "Secret" .Release.Namespace (printf "%s-secrets" (include "authelia.fullname" .)) -}}
+  {{- if and $secret $secret.data (hasKey $secret.data "storage-encryption-key") -}}
+    {{- index $secret.data "storage-encryption-key" | b64dec -}}
+  {{- else -}}
+    {{- randAlphaNum 64 -}}
+  {{- end -}}
 {{- end -}}
 {{- end -}}
 

@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,6 +16,7 @@ spec:
     metadata:
       annotations:
         checksum/config: {{ include "authelia.configuration" . | sha256sum }}
+        checksum/users: {{ .Values.usersDatabase.users | toYaml | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -122,10 +124,18 @@ spec:
             {{- $dbType := include "authelia.dbType" . }}
             {{- if eq $dbType "postgres" }}
             - name: AUTHELIA_STORAGE_POSTGRES_PASSWORD_FILE
+              {{- if .Values.database.external.existingSecret }}
+              value: /db-secret/{{ .Values.database.external.existingSecretPasswordKey }}
+              {{- else }}
               value: /secrets/db-password
+              {{- end }}
             {{- else if eq $dbType "mysql" }}
             - name: AUTHELIA_STORAGE_MYSQL_PASSWORD_FILE
+              {{- if .Values.database.external.existingSecret }}
+              value: /db-secret/{{ .Values.database.external.existingSecretPasswordKey }}
+              {{- else }}
               value: /secrets/db-password
+              {{- end }}
             {{- end }}
             {{- if .Values.redis.enabled }}
             {{- if .Values.redis.auth.password }}
@@ -195,6 +205,11 @@ spec:
             {{- end }}
             - name: data
               mountPath: /data
+            {{- if and (ne (include "authelia.dbType" .) "sqlite") .Values.database.external.existingSecret }}
+            - name: db-secret
+              mountPath: /db-secret
+              readOnly: true
+            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -217,6 +232,11 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        {{- if and (ne (include "authelia.dbType" .) "sqlite") .Values.database.external.existingSecret }}
+        - name: db-secret
+          secret:
+            secretName: {{ .Values.database.external.existingSecret }}
+        {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
