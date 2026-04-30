@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- if .Values.gatewayApi.enabled }}
 {{- range .Values.gatewayApi.httpRoutes | default list }}
 ---
@@ -15,25 +16,34 @@ metadata:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
+  {{- if .parentRefs }}
   parentRefs:
     {{- toYaml .parentRefs | nindent 4 }}
+  {{- end }}
   {{- with .hostnames }}
   hostnames:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+  {{- if .rules }}
   rules:
     {{- range .rules }}
     - {{- with .matches }}
       matches:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .filters }}
+      filters:
+        {{- toYaml .filters | nindent 8 }}
+      {{- end }}
+      {{- if .backendRefs }}
       backendRefs:
-        {{- if .backendRefs }}
         {{- toYaml .backendRefs | nindent 8 }}
-        {{- else }}
+      {{- else }}
+      backendRefs:
         - name: {{ include "chart.serviceName" $ }}
           port: {{ $.Values.service.port }}
-        {{- end }}
+      {{- end }}
     {{- end }}
+  {{- end }}
 {{- end }}
 {{- end }}
