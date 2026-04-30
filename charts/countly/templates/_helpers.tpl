@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- define "countly.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -69,7 +70,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
-{{/* Backup — S3 secret name */}}
+{{/* Backup - S3 secret name */}}
 {{- define "countly.backupSecretName" -}}
 {{- if .Values.backup.s3.existingSecret -}}
 {{- .Values.backup.s3.existingSecret -}}
@@ -78,7 +79,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
-{{/* Backup — validate required fields */}}
+{{/* Backup - validate required fields */}}
 {{- define "countly.backupEnabled" -}}
 {{- if .Values.backup.enabled -}}
   {{- if not .Values.backup.s3.endpoint -}}
@@ -94,11 +95,14 @@ true
 {{- end -}}
 {{- end -}}
 
-{{/* Backup — MongoDB URI (hardcoded password for non-interactive dump) */}}
+{{/* Backup - MongoDB URI (hardcoded password for non-interactive dump) */}}
 {{- define "countly.backupMongodbUri" -}}
 {{- if .Values.backup.database.uri -}}
 {{- .Values.backup.database.uri -}}
 {{- else if .Values.externalMongodb.enabled -}}
+{{- if and .Values.externalMongodb.existingSecret (not .Values.externalMongodb.uri) -}}
+  {{- fail "backup requires backup.database.uri when externalMongodb.existingSecret is set and externalMongodb.uri is empty (the URI is in the secret and cannot be injected into mongodump)" -}}
+{{- end -}}
 {{- .Values.externalMongodb.uri -}}
 {{- else -}}
 {{- printf "mongodb://root:$(MONGODB_ROOT_PASSWORD)@%s-mongodb:27017/countly?authSource=admin" .Release.Name -}}

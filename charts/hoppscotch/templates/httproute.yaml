@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+{{- if .Values.gatewayAPI.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "hoppscotch.fullname" . }}
+  labels: {{ include "hoppscotch.labels" . | nindent 4 }}
+  {{- with .Values.gatewayAPI.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs: {{- toYaml (required "gatewayAPI.parentRefs is required when gatewayAPI.enabled=true" .Values.gatewayAPI.parentRefs) | nindent 4 }}
+  {{- with .Values.gatewayAPI.hostnames }}
+  hostnames: {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range .Values.gatewayAPI.paths }}
+    - matches:
+        - path:
+            type: {{ .type }}
+            value: {{ .value }}
+      backendRefs:
+        - name: {{ include "hoppscotch.fullname" $ }}
+          port: {{ $.Values.service.port }}
+    {{- end }}
+{{- end }}
