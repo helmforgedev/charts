@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{/*
 Expand the name of the chart.
 */}}
@@ -62,7 +63,7 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
-Validate replicaCount — openHAB does not support clustering.
+Validate replicaCount - openHAB does not support clustering.
 */}}
 {{- define "openhab.validateReplicaCount" -}}
 {{- if gt (int .Values.replicaCount) 1 }}
