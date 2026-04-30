@@ -41,6 +41,9 @@ To skip the wizard and deploy a pre-configured instance, provide `config.adGuard
 - **AdGuardHome Sync** - optional multi-instance synchronization via [adguardhome-sync](https://github.com/bakito/adguardhome-sync)
 - **S3 Backup** - automated CronJob-based backup to any S3-compatible storage
 - **Separate DNS Service** - dedicated LoadBalancer for DNS traffic independent of the web UI
+- **Dual-Stack** - `ipFamilyPolicy`/`ipFamilies` on both web and DNS services for IPv4/IPv6 clusters
+- **Gateway API** - opt-in `HTTPRoute` for the web UI (alternative to Ingress; requires Gateway API CRDs)
+- **ExternalSecrets** - opt-in `ExternalSecret` to source `AdGuardHome.yaml` from an external secrets store
 - **Ingress Support** - configurable ingress with TLS for the web admin interface
 - **Config Seeding** - initial configuration is preserved across upgrades (only seeded on first run)
 
@@ -202,9 +205,13 @@ backup:
 |-----|---------|-------------|
 | `service.web.type` | `ClusterIP` | Web UI service type |
 | `service.web.port` | `80` | Web UI port |
+| `service.web.ipFamilyPolicy` | `~` | Dual-stack policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
+| `service.web.ipFamilies` | `[]` | IP families (`IPv4`, `IPv6`) |
 | `service.dns.type` | `LoadBalancer` | DNS service type |
 | `service.dns.port` | `53` | DNS port |
 | `service.dns.loadBalancerIP` | `""` | Fixed IP for DNS stability |
+| `service.dns.ipFamilyPolicy` | `~` | Dual-stack policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
+| `service.dns.ipFamilies` | `[]` | IP families (`IPv4`, `IPv6`) |
 
 ### Ingress
 
@@ -250,6 +257,31 @@ backup:
 | `backup.s3.secretKey` | `""` | Inline secret key |
 | `backup.s3.existingSecret` | `""` | Pre-created Secret for S3 credentials |
 
+### Gateway API
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `gateway.enabled` | `false` | Render an `HTTPRoute` for the web UI (requires Gateway API CRDs) |
+| `gateway.annotations` | `{}` | Annotations for the `HTTPRoute` |
+| `gateway.parentRefs` | `[]` | Gateway parent refs — **required** when `gateway.enabled=true`; each entry must have `name` |
+| `gateway.hostnames` | `[]` | Hostnames the `HTTPRoute` matches |
+| `gateway.path` | `/` | Path prefix |
+| `gateway.pathType` | `PathPrefix` | Path match type |
+
+### External Secrets Operator
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `externalSecrets.enabled` | `false` | Render an `ExternalSecret` for the config secret |
+| `externalSecrets.apiVersion` | `external-secrets.io/v1` | ExternalSecrets API version |
+| `externalSecrets.refreshInterval` | `"0"` | Refresh interval (`"0"` = create-once bootstrap) |
+| `externalSecrets.secretStoreRef.name` | `""` | SecretStore / ClusterSecretStore name — **required** |
+| `externalSecrets.secretStoreRef.kind` | `ClusterSecretStore` | Store kind |
+| `externalSecrets.target.creationPolicy` | `Owner` | Secret creation policy |
+| `externalSecrets.data` | `[]` | Data mappings — **must** include an entry with `secretKey: AdGuardHome.yaml` |
+
+> `externalSecrets.enabled=true` requires `config.existingSecret` to be set. The rendered `ExternalSecret` targets that same Secret name to avoid credential drift.
+
 ### Scheduling
 
 | Key | Default | Description |
@@ -272,12 +304,63 @@ backup:
 | PersistentVolumeClaim (work) | `persistence.work.enabled` | Working data volume |
 | Secret | `config.adGuardHome` set | AdGuardHome.yaml config |
 | Ingress | `ingress.enabled` | Web admin ingress |
+| HTTPRoute | `gateway.enabled` | Gateway API route for the web UI |
+| ExternalSecret | `externalSecrets.enabled` | Fetches AdGuardHome.yaml from external secrets store |
 | ServiceAccount | `serviceAccount.create` | Dedicated SA |
 | Deployment (sync) | `sync.enabled` | adguardhome-sync |
 | Secret (sync) | `sync.enabled`, no `existingSecret` | Sync credentials |
 | CronJob (backup) | `backup.enabled` | Automated S3 backup |
 | ConfigMap (backup) | `backup.enabled` | Backup scripts |
 | Secret (backup) | `backup.enabled`, no S3 `existingSecret` | S3 credentials |
+
+### Dual-Stack DNS Service
+
+```yaml
+service:
+  web:
+    ipFamilyPolicy: PreferDualStack
+    ipFamilies:
+      - IPv4
+      - IPv6
+  dns:
+    type: LoadBalancer
+    ipFamilyPolicy: PreferDualStack
+    ipFamilies:
+      - IPv4
+      - IPv6
+```
+
+### Gateway API
+
+```yaml
+gateway:
+  enabled: true
+  parentRefs:
+    - name: envoy
+      namespace: envoy-gateway
+  hostnames:
+    - adguard.example.com
+  path: /
+  pathType: PathPrefix
+```
+
+### External Secrets Operator
+
+```yaml
+config:
+  existingSecret: my-adguard-config-secret
+
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: my-store
+    kind: ClusterSecretStore
+  data:
+    - secretKey: AdGuardHome.yaml
+      remoteRef:
+        key: adguard-home/config
+        property: AdGuardHome.yaml
+```
 
 ## Examples
 
