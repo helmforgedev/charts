@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: service tests
+templates:
+  - service.yaml
+  - secret.yaml
+  - configmap.yaml
+tests:
+  - it: should create a ClusterIP Service
+    asserts:
+      - isKind:
+          of: Service
+        template: service.yaml
+      - equal:
+          path: spec.type
+          value: ClusterIP
+        template: service.yaml
+
+  - it: should expose port 80
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: http
+            port: 80
+            targetPort: http
+            protocol: TCP
+        template: service.yaml
+
+  - it: should have correct selector labels
+    asserts:
+      - equal:
+          path: spec.selector["app.kubernetes.io/name"]
+          value: hoppscotch
+        template: service.yaml
+
+  - it: should not set ipFamilyPolicy by default
+    asserts:
+      - notExists:
+          path: spec.ipFamilyPolicy
+        template: service.yaml
+
+  - it: should set ipFamilyPolicy when configured
+    set:
+      service:
+        ipFamilyPolicy: PreferDualStack
+        ipFamilies:
+          - IPv4
+          - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+        template: service.yaml
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv4
+        template: service.yaml

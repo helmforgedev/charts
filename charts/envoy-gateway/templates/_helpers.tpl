@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{/*
 Expand the name of the chart.
 */}}
@@ -197,7 +198,7 @@ SecurityPolicy target name - returns targetName or gateway name
 {{- end }}
 
 {{/*
-Rate limit Redis URL — returns subchart or external Redis URL.
+Rate limit Redis URL - returns subchart or external Redis URL.
 Subchart (redis.enabled=true): redis service is named "<release>-redis" by the helmforge/redis chart.
 External (rateLimiting.externalRedis.host set): use the provided host/port.
 */}}

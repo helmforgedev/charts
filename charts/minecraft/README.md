@@ -41,6 +41,8 @@ helm install minecraft oci://ghcr.io/helmforgedev/helm/minecraft \
 - **Mod/Plugin Management** — Modrinth, CurseForge, Spiget, and direct URL downloads
 - **Optimized JVM** — Aikar's GC flags for production workloads
 - **Server Resource Pack** — URL-based with SHA-1 verification and enforcement
+- **Dual-stack** — `ipFamilyPolicy`/`ipFamilies` on the game and RCON Services for IPv4/IPv6 clusters
+- **ExternalSecrets** — opt-in `ExternalSecret` to source the RCON password from an external secrets store
 
 ## Supported Server Types
 
@@ -262,6 +264,28 @@ mods:
 | `resourcePack.sha1` | `""` | SHA-1 hash for verification |
 | `resourcePack.enforce` | `false` | Force clients to accept |
 
+### Services (Dual-Stack)
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `service.type` | `LoadBalancer` | Game service type |
+| `service.port` | `25565` | Game port |
+| `service.ipFamilyPolicy` | `~` | Dual-stack policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
+| `service.ipFamilies` | `[]` | IP families (`IPv4`, `IPv6`) |
+
+### External Secrets Operator
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `externalSecrets.enabled` | `false` | Render an `ExternalSecret` for the RCON password |
+| `externalSecrets.apiVersion` | `external-secrets.io/v1` | ESO API version |
+| `externalSecrets.refreshInterval` | `"0"` | Refresh interval (`"0"` = create-once bootstrap) |
+| `externalSecrets.secretStoreRef.name` | `""` | SecretStore / ClusterSecretStore name — **required** |
+| `externalSecrets.secretStoreRef.kind` | `ClusterSecretStore` | Store kind |
+| `externalSecrets.data` | `[]` | Data mappings — **must** include entry with `secretKey` matching `rcon.existingSecretKey` |
+
+> `externalSecrets.enabled=true` with `rcon.enabled=true` requires `rcon.existingSecret` to prevent credential drift.
+
 ### Scheduling
 
 | Key | Default | Description |
@@ -287,6 +311,37 @@ mods:
 | ServiceMonitor | `metrics.serviceMonitor.enabled` | Prometheus scrape config |
 | CronJob | `backup.enabled` | Scheduled S3 backup |
 | ConfigMap (backup) | `backup.enabled` | Backup shell scripts |
+| ExternalSecret | `externalSecrets.enabled` | Fetches RCON password from external secrets store |
+
+### Dual-Stack Game Service
+
+```yaml
+service:
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+    - IPv4
+    - IPv6
+```
+
+### External Secrets Operator (RCON password)
+
+```yaml
+rcon:
+  enabled: true
+  existingSecret: my-minecraft-rcon-secret
+  existingSecretKey: rcon-password
+
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: my-store
+    kind: ClusterSecretStore
+  data:
+    - secretKey: rcon-password
+      remoteRef:
+        key: minecraft/rcon
+        property: password
+```
 
 ## Examples
 

@@ -25,6 +25,8 @@ Helm chart for deploying [MariaDB](https://mariadb.org/) on Kubernetes using the
 - **NetworkPolicy** for ingress traffic control
 - **PodDisruptionBudget** for availability during maintenance
 - **Password management** auto-generated or from existing Secret
+- **Dual-stack networking** — IPv4/IPv6 service support across all 6 Service objects
+- **External Secrets Operator** — ExternalSecret for Vault, AWS Secrets Manager, and more
 
 ## Installation
 
@@ -83,6 +85,52 @@ replication:
 | `backup.schedule` | `"0 3 * * *"` | Backup cron schedule |
 | `networkPolicy.enabled` | `false` | Enable NetworkPolicy |
 | `pdb.enabled` | `false` | Enable PodDisruptionBudget |
+| `service.ipFamilyPolicy` | `~` | IP family policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
+| `service.ipFamilies` | `[]` | IP families override (`IPv4`, `IPv6`) |
+| `externalSecrets.enabled` | `false` | Render ExternalSecret resource |
+| `externalSecrets.apiVersion` | `external-secrets.io/v1` | ExternalSecret API version |
+| `externalSecrets.refreshInterval` | `1h` | Refresh interval |
+| `externalSecrets.secretStoreRef.name` | `""` | SecretStore name (required when enabled) |
+| `externalSecrets.secretStoreRef.kind` | `SecretStore` | SecretStore kind |
+| `externalSecrets.data` | `[]` | Remote key mappings |
+
+## Dual-Stack Services
+
+All 6 Service objects (client, metrics, source, source-metrics, replicas, replicas-metrics)
+carry the same `ipFamilyPolicy` and `ipFamilies` settings.
+
+```yaml
+service:
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+    - IPv4
+    - IPv6
+```
+
+## External Secrets Operator (ESO)
+
+`auth.existingSecret` is required alongside `externalSecrets.enabled=true` to prevent
+credential drift between the chart-managed Secret and the ExternalSecret.
+
+```yaml
+auth:
+  existingSecret: mariadb-credentials
+
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  data:
+    - secretKey: mariadb-root-password
+      remoteRef:
+        key: mariadb/credentials
+        property: root-password
+    - secretKey: mariadb-user-password
+      remoteRef:
+        key: mariadb/credentials
+        property: user-password
+```
 
 ## Differences from MySQL Chart
 
@@ -109,6 +157,8 @@ This chart uses MariaDB-native features:
 | `tls.yaml` | TLS with existingSecret |
 | `tls-networkpolicy.yaml` | TLS + replication + NetworkPolicy |
 | `backup.yaml` | Backup with S3 |
+| `dual-stack.yaml` | Dual-stack IPv4/IPv6 services |
+| `external-secrets.yaml` | External Secrets Operator integration |
 
 ## More Information
 
@@ -120,7 +170,7 @@ type: chart-readme
 title: MariaDB Helm Chart
 description: MariaDB with standalone and GTID-based replication modes, TLS, metrics, backup, and configuration presets
 
-keywords: mariadb, database, replication, gtid, backup
+keywords: mariadb, database, replication, gtid, backup, dual-stack, external-secrets
 
 purpose: Chart README with install, config, architecture, and values reference
 scope: Chart
@@ -130,5 +180,5 @@ relations:
   - charts/mysql/README.md
 path: charts/mariadb/README.md
 version: 1.0
-date: 2026-03-31
+date: 2026-04-30
 -->

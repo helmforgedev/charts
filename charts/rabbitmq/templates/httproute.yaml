@@ -1,0 +1,27 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and .Values.gateway.enabled .Values.management.enabled }}
+{{- if not .Values.gateway.parentRefs }}
+  {{- fail "gateway.parentRefs is required when gateway.enabled=true" }}
+{{- end }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "rabbitmq.fullname" . }}
+  labels:
+    {{- include "rabbitmq.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    {{- toYaml .Values.gateway.parentRefs | nindent 4 }}
+  {{- with .Values.gateway.hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: {{ include "rabbitmq.fullname" . }}
+          port: {{ if and .Values.tls.enabled .Values.tls.disableNonTLSListeners }}{{ .Values.service.managementTlsPort }}{{ else }}{{ .Values.service.managementPort }}{{ end }}
+{{- end }}

@@ -8,8 +8,8 @@ The sync sidecar runs as a separate Deployment alongside your main AdGuard Home 
 
 This is useful for:
 
-- **High availability** — multiple AdGuard Home instances with synchronized filter lists and settings
-- **Multi-site deployments** — keeping DNS configurations consistent across locations
+- **High availability** - multiple AdGuard Home instances with synchronized filter lists and settings
+- **Multi-site deployments** - keeping DNS configurations consistent across locations
 
 ## Enabling Sync
 

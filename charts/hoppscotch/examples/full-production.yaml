@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+# Full production hardened deployment
+# Use case: enterprise with ExternalSecrets, OAuth, SMTP, Gateway API
+mode: production
+replicaCount: 2
+
+encryption:
+  existingSecret: hoppscotch-secrets
+  existingSecretKey: data-encryption-key
+
+postgresql:
+  enabled: false
+database:
+  external:
+    enabled: true
+    host: postgres.internal.svc
+    existingSecret: hoppscotch-db
+    existingSecretUrlKey: database-url
+
+auth:
+  providers: "GOOGLE,GITHUB,EMAIL"
+  github:
+    enabled: true
+    existingSecret: hoppscotch-oauth
+    existingSecretClientIdKey: github-client-id
+    existingSecretClientSecretKey: github-client-secret
+  google:
+    enabled: true
+    existingSecret: hoppscotch-oauth
+    existingSecretClientIdKey: google-client-id
+    existingSecretClientSecretKey: google-client-secret
+
+mailer:
+  enabled: true
+  from: noreply@example.com
+  existingSecret: hoppscotch-smtp
+
+gatewayAPI:
+  enabled: true
+  hostnames:
+    - hoppscotch.example.com
+  parentRefs:
+    - name: prod-gateway
+      namespace: gateway-system
+
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 2000m
+    memory: 1Gi
