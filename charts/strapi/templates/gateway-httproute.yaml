@@ -1,0 +1,52 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.gatewayApi.enabled }}
+{{- range .Values.gatewayApi.httpRoutes | default list }}
+{{- if not .rules }}
+  {{- fail "Each gatewayApi.httpRoutes entry must define at least one rule (Gateway API v1 requires spec.rules)" }}
+{{- end }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ if .name }}{{ printf "%s-%s" (include "strapi.fullname" $) .name | trunc 63 | trimSuffix "-" }}{{ else }}{{ include "strapi.fullname" $ | trunc 63 | trimSuffix "-" }}{{ end }}
+  labels:
+    {{- include "strapi.labels" $ | nindent 4 }}
+    {{- with .labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .parentRefs }}
+  parentRefs:
+    {{- toYaml .parentRefs | nindent 4 }}
+  {{- end }}
+  {{- with .hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if .rules }}
+  rules:
+    {{- range .rules }}
+    - {{- with .matches }}
+      matches:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .filters }}
+      filters:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .backendRefs }}
+      backendRefs:
+        {{- toYaml .backendRefs | nindent 8 }}
+      {{- else }}
+      backendRefs:
+        - name: {{ include "strapi.fullname" $ }}
+          port: {{ $.Values.service.port }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}
