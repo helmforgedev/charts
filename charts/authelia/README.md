@@ -37,9 +37,11 @@ helm install authelia oci://ghcr.io/helmforgedev/helm/authelia -f values.yaml
 
 ## Quick Start (SQLite)
 
-`jwtSecret`, `sessionSecret`, and `storageEncryptionKey` are **auto-generated** on first `helm install` and persisted across upgrades via cluster lookup. No manual configuration required for direct installs.
+`jwtSecret`, `sessionSecret`, and `storageEncryptionKey` are **auto-generated** on first `helm install` and persisted across upgrades via cluster lookup.
+No manual configuration required for direct installs.
 
-> **GitOps users (Argo CD, Flux):** set `secrets.jwtSecret`, `secrets.sessionSecret`, and `secrets.storageEncryptionKey` explicitly. Client-side rendering cannot perform cluster lookups, so leaving these empty will rotate credentials on every sync.
+> **GitOps users (Argo CD, Flux):** set `secrets.jwtSecret`, `secrets.sessionSecret`, and `secrets.storageEncryptionKey` explicitly.
+> Client-side rendering cannot perform cluster lookups, so leaving these empty will rotate credentials on every sync.
 
 A **disabled** placeholder `admin` account is shipped. Enable it only after setting a strong password hash. Generate one with:
 
