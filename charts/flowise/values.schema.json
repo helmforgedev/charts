@@ -65,7 +65,17 @@
       }
     },
     "persistence": { "type": "object", "description": "Persistent storage settings for local Flowise data" },
-    "service": { "type": "object", "description": "Service configuration for the Flowise web application" },
+    "service": {
+      "type": "object",
+      "description": "Service configuration for the Flowise web application",
+      "properties": {
+        "type": { "type": "string", "description": "Service type", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+        "port": { "type": "integer", "description": "Service port" },
+        "ipFamilyPolicy": { "type": ["string", "null"], "description": "Dual-stack ipFamilyPolicy (GR-058)", "enum": [null, "SingleStack", "PreferDualStack", "RequireDualStack"] },
+        "ipFamilies": { "type": "array", "description": "Dual-stack ipFamilies (GR-058)", "items": { "type": "string", "enum": ["IPv4", "IPv6"] }, "maxItems": 2 },
+        "annotations": { "type": "object", "description": "Annotations for the service" }
+      }
+    },
     "ingress": { "type": "object", "description": "Ingress configuration for Flowise" },
     "startupProbe": { "type": "object", "description": "Startup probe for the main Flowise server" },
     "livenessProbe": { "type": "object", "description": "Liveness probe for the main Flowise server" },
@@ -154,6 +164,41 @@
             "secretKey": { "type": "string", "description": "Inline S3 secret key (ignored when existingSecret is set)" }
           }
         }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "description": "Gateway API HTTPRoute configuration.",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "annotations": { "type": "object" },
+        "parentRefs": { "type": "array", "items": { "type": "object" } },
+        "hostnames": { "type": "array", "items": { "type": "string" } },
+        "path": { "type": "string", "default": "/" },
+        "pathType": { "type": "string", "enum": ["PathPrefix", "Exact", "RegularExpression"], "default": "PathPrefix" }
+      }
+    },
+    "externalSecrets": {
+      "type": "object",
+      "description": "External Secrets Operator configuration.",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "apiVersion": { "type": "string", "default": "external-secrets.io/v1" },
+        "refreshInterval": { "type": "string", "default": "1h" },
+        "secretStoreRef": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "kind": { "type": "string" }
+          }
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "creationPolicy": { "type": "string" }
+          }
+        },
+        "data": { "type": "array", "items": { "type": "object" } }
       }
     }
   }
