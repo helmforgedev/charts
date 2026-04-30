@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{/*
 Chart name, truncated to 63 characters.
 */}}
@@ -67,7 +68,7 @@ ServiceAccount name.
 Image string with tag fallback to appVersion.
 */}}
 {{- define "dolibarr.image" -}}
-{{- printf "%s:%s" .Values.image.repository .Values.image.tag }}
+{{- printf "%s:%s" .Values.image.repository (.Values.image.tag | default .Chart.AppVersion) }}
 {{- end }}
 
 {{/*

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # -- Container image configuration
 image:
   # -- Image repository
@@ -5,7 +6,7 @@ image:
   # -- Image pull policy
   pullPolicy: IfNotPresent
   # -- Image tag (defaults to chart appVersion). Never use 'latest'.
-  tag: "4.2.2"
+  tag: "5.1.4"
 
 # -- Image pull secrets
 imagePullSecrets: []
@@ -51,7 +52,7 @@ podSecurityContext:
 # allowPrivilegeEscalation and capabilities restrictions are intentionally
 # omitted: the entrypoint requires CAP_SETUID, CAP_SETGID, and CAP_CHOWN
 # during initialization before dropping to the openhab user.
-# readOnlyRootFilesystem must remain false — openHAB writes to internal dirs at runtime.
+# readOnlyRootFilesystem must remain false - openHAB writes to internal dirs at runtime.
 securityContext:
   readOnlyRootFilesystem: false
 
@@ -61,6 +62,10 @@ service:
   type: ClusterIP
   # -- HTTP port
   port: 8080
+  # -- Set the ipFamilyPolicy for dual-stack (GR-058)
+  ipFamilyPolicy: ''
+  # -- Set the ipFamilies for dual-stack
+  ipFamilies: []
 
 # -- Ingress configuration
 ingress:
@@ -137,7 +142,7 @@ admin:
   secretEnabled: false
   # -- Admin username (stored in Secret for reference only)
   username: admin
-  # -- Admin password (stored in Secret for reference only — NOT injected automatically)
+  # -- Admin password (stored in Secret for reference only - NOT injected automatically)
   password: ""
   # -- Use an existing Secret (must contain keys: username, password)
   existingSecret: ""
@@ -213,11 +218,11 @@ resources:
     cpu: 2000m
     memory: 2Gi
 
-# -- Startup probe — allows openHAB time to load all OSGi bundles.
+# -- Startup probe - allows openHAB time to load all OSGi bundles.
 # Uses /rest/uuid which returns 200 (no auth) as soon as the REST API is ready.
-# NOTE: /rest/alive does NOT exist in openHAB 4.x — use /rest/uuid instead.
+# NOTE: /rest/alive does NOT exist in openHAB 4.x - use /rest/uuid instead.
 # On first boot this can take 2-5 minutes; on slow hardware up to 10 minutes.
-# The probe window = failureThreshold × periodSeconds.
+# The probe window = failureThreshold - periodSeconds.
 startupProbe:
   httpGet:
     path: /rest/uuid
@@ -281,13 +286,13 @@ metrics:
 # an S3-compatible bucket using the MinIO client (mc).
 #
 # Directories backed up:
-#   - /openhab/userdata (always) — JSONDB, persistence data, rules state
-#   - /openhab/conf    (optional) — items, things, sitemaps, rules files
+#   - /openhab/userdata (always) - JSONDB, persistence data, rules state
+#   - /openhab/conf    (optional) - items, things, sitemaps, rules files
 #
 # Excluded from userdata backup (not needed for restore):
-#   - userdata/logs   — log files
-#   - userdata/tmp    — temporary files
-#   - userdata/cache  — OSGi bundle cache (rebuilt automatically on startup)
+#   - userdata/logs   - log files
+#   - userdata/tmp    - temporary files
+#   - userdata/cache  - OSGi bundle cache (rebuilt automatically on startup)
 backup:
   # -- Enable automated backup CronJob
   enabled: false
@@ -315,7 +320,7 @@ backup:
 
   # -- What to include in the backup
   include:
-    # -- Backup /openhab/userdata (JSONDB, persistence, rules state) — STRONGLY recommended
+    # -- Backup /openhab/userdata (JSONDB, persistence, rules state) - STRONGLY recommended
     userdata: true
     # -- Backup /openhab/conf (items, things, sitemaps, rules files)
     # Set to false if you manage conf entirely via ConfigMaps (GitOps)
@@ -375,3 +380,26 @@ extraVolumeMounts: []
 extraEnv: []
 # - name: MY_VAR
 #   value: "my-value"
+
+
+## Gateway API configuration (GR-060)
+gateway:
+  enabled: false
+  hostnames:
+    - openhab.local
+  parentRefs: []
+  #   - name: my-gateway
+  #     namespace: default
+
+## ExternalSecrets configuration (GR-061)
+externalSecrets:
+  enabled: false
+  apiVersion: external-secrets.io/v1
+  refreshInterval: 1h
+  secretStoreRef:
+    name: ''
+    kind: ClusterSecretStore
+  target:
+    creationPolicy: Owner
+  data: []
+
