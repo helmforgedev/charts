@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- define "n8n.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -241,7 +242,7 @@ database-password
 {{- if .Values.queue.external.host -}}
 {{- .Values.queue.external.host -}}
 {{- else if .Values.redis.enabled -}}
-{{- printf "%s-redis" .Release.Name -}}
+{{- printf "%s-redis-client" .Release.Name -}}
 {{- else -}}
 {{- "" -}}
 {{- end -}}
