@@ -1,36 +1,225 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-n8n has been deployed!
+n8n has been installed.
+
+1. Installation summary
+=======================
+
+- Release: {{ .Release.Name }}
+- Namespace: {{ .Release.Namespace }}
+- Chart: {{ .Chart.Name }} {{ .Chart.Version }}
+- App version: {{ .Chart.AppVersion }}
+- Image: {{ include "n8n.image" . }}
+- Database mode: {{ include "n8n.databaseMode" . }}
+- Queue mode: {{ if .Values.queue.enabled }}enabled ({{ .Values.queue.workers }} worker{{ if gt (int .Values.queue.workers) 1 }}s{{ end }}, concurrency {{ .Values.queue.concurrency }}){{ else }}disabled{{ end }}
+- Persistence: {{ if .Values.persistence.enabled }}enabled ({{ .Values.persistence.size }}){{ else }}disabled (emptyDir){{ end }}
+- ServiceAccount: {{ include "n8n.serviceAccountName" . }}
+
+2. Access
+=========
+
+Application service:
+- Name: {{ include "n8n.fullname" . }}
+- Type: {{ .Values.service.type }}
+- Port: {{ .Values.service.port }}
+- Cluster DNS: http://{{ include "n8n.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+{{- if .Values.service.ipFamilyPolicy }}
+- IP family policy: {{ .Values.service.ipFamilyPolicy }}
+{{- end }}
+{{- if .Values.service.ipFamilies }}
+- IP families: {{ join ", " .Values.service.ipFamilies }}
+{{- end }}
+
+Port-forward command:
+
+  kubectl port-forward svc/{{ include "n8n.fullname" . }} 5678:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+
+Local URL after port-forward:
+
+  http://127.0.0.1:5678
+
+{{- if .Values.ingress.enabled }}
+Ingress is enabled.
+{{- range .Values.ingress.hosts }}
+- Host: {{ .host }}
+{{- range .paths }}
+  Path: {{ .path }} ({{ .pathType }})
+{{- end }}
+{{- end }}
+{{- else }}
+Ingress is disabled.
+{{- end }}
 
 {{- if .Values.gateway.enabled }}
-{{- with .Values.gateway.hostnames }}
-
-  Access n8n at: https://{{ index . 0 }}
-{{- else }}
-
-  Gateway API HTTPRoute: {{ include "n8n.fullname" . }} (no hostnames configured)
-{{- end }}
-{{- else if .Values.ingress.enabled }}
-{{- range .Values.ingress.hosts }}
-
-  Access n8n at: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+Gateway API HTTPRoute is enabled.
+  Gateway: {{ .Values.gateway.gatewayName }}{{ with .Values.gateway.gatewayNamespace }}.{{ . }}{{ end }}
+{{- range .Values.gateway.hostnames }}
+- Hostname: {{ . }}
 {{- end }}
 {{- else }}
-
-  Access n8n via port-forward:
-
-    kubectl port-forward svc/{{ include "n8n.fullname" . }} 5678:{{ .Values.service.port }} -n {{ .Release.Namespace }}
-
-  Then open: http://localhost:5678
+Gateway API HTTPRoute is disabled.
 {{- end }}
 
-Database mode: {{ include "n8n.databaseMode" . }}
+3. Getting started
+==================
+
+1. Wait for the n8n pod to become ready:
+
+   kubectl wait --for=condition=Ready pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ include "n8n.name" . }} --timeout=10m
+
+2. Port-forward the application service:
+
+   kubectl port-forward svc/{{ include "n8n.fullname" . }} 5678:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+
+3. Open the n8n UI and complete the setup wizard:
+
+   http://127.0.0.1:5678
+
+4. For production, verify database, encryption key, webhook URL, ingress or Gateway routing, and backup before exposing traffic.
+
+4. Credentials
+==============
+
+Encryption key secret:
+
+  kubectl get secret {{ include "n8n.encryptionKeySecretName" . }} -n {{ .Release.Namespace }} -o jsonpath="{.data.{{ include "n8n.encryptionKeySecretKey" . }}}" | base64 -d
+
+{{- $dbMode := include "n8n.databaseMode" . }}
+{{- if ne $dbMode "sqlite" }}
+
+Database password secret:
+
+  kubectl get secret {{ include "n8n.databaseSecretName" . }} -n {{ .Release.Namespace }} -o jsonpath="{.data.{{ include "n8n.databaseSecretKey" . }}}" | base64 -d
+{{- end }}
+
+5. Configuration summary
+========================
+
+Database:
+- Mode: {{ include "n8n.databaseMode" . }}
+{{- $mode := include "n8n.databaseMode" . }}
+{{- if ne $mode "sqlite" }}
+- Vendor: {{ include "n8n.databaseVendor" . }}
+- Host: {{ include "n8n.databaseHost" . }}
+- Port: {{ include "n8n.databasePort" . }}
+- Name: {{ include "n8n.databaseName" . }}
+- Username: {{ include "n8n.databaseUsername" . }}
+{{- else }}
+- SQLite file: {{ .Values.database.sqlite.file }}
+{{- end }}
+
+Queue:
+- Enabled: {{ .Values.queue.enabled }}
 {{- if .Values.queue.enabled }}
-Queue mode: enabled ({{ .Values.queue.workers }} worker{{ if gt (int .Values.queue.workers) 1 }}s{{ end }})
+- Workers: {{ .Values.queue.workers }}
+- Concurrency: {{ .Values.queue.concurrency }}
+- Redis host: {{ include "n8n.redisHost" . }}
+- Redis port: {{ include "n8n.redisPort" . }}
 {{- end }}
-{{- if .Values.externalSecrets.enabled }}
 
-ExternalSecrets:
-  SecretStore: {{ .Values.externalSecrets.secretStoreRef.name }} ({{ .Values.externalSecrets.secretStoreRef.kind }})
-  Target Secret: {{ .Values.encryptionKey.existingSecret }}
-  Refresh: {{ .Values.externalSecrets.refreshInterval }}
+Persistence:
+- Enabled: {{ .Values.persistence.enabled }}
+{{- if .Values.persistence.enabled }}
+- Size: {{ .Values.persistence.size }}
+- Access mode: {{ .Values.persistence.accessMode }}
+{{- if .Values.persistence.storageClass }}
+- Storage class: {{ .Values.persistence.storageClass }}
 {{- end }}
+{{- if .Values.persistence.existingClaim }}
+- Existing claim: {{ .Values.persistence.existingClaim }}
+{{- end }}
+{{- end }}
+
+Optional features:
+- Backup enabled: {{ .Values.backup.enabled }}
+{{- if .Values.backup.enabled }}
+- Backup schedule: {{ .Values.backup.schedule }}
+- Backup S3 endpoint: {{ .Values.backup.s3.endpoint }}
+- Backup S3 bucket: {{ .Values.backup.s3.bucket }}
+{{- end }}
+- External Secrets enabled: {{ .Values.externalSecrets.enabled }}
+{{- if .Values.externalSecrets.enabled }}
+- SecretStore: {{ .Values.externalSecrets.secretStoreRef.name }} ({{ .Values.externalSecrets.secretStoreRef.kind }})
+- Target secret: {{ .Values.encryptionKey.existingSecret }}
+- Refresh interval: {{ .Values.externalSecrets.refreshInterval }}
+{{- end }}
+
+6. Validation commands
+======================
+
+Check release status:
+
+  helm status {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Check rendered resources:
+
+  kubectl get deploy,svc,secret,pvc,cronjob -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Wait for n8n pods:
+
+  kubectl wait --for=condition=Ready pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ include "n8n.name" . }} --timeout=10m
+
+Check endpoints:
+
+  kubectl get endpoints {{ include "n8n.fullname" . }} -n {{ .Release.Namespace }}
+
+Check n8n health:
+
+  kubectl run {{ include "n8n.fullname" . }}-health-check -n {{ .Release.Namespace }} --rm -i --restart=Never --image=docker.io/library/busybox:1.37 -- wget -qO- http://{{ include "n8n.fullname" . }}:{{ .Values.service.port }}/healthz
+
+{{- if .Values.backup.enabled }}
+
+Check backup CronJob:
+
+  kubectl get cronjob {{ include "n8n.fullname" . }}-backup -n {{ .Release.Namespace }}
+  kubectl create job {{ include "n8n.fullname" . }}-backup-manual --from=cronjob/{{ include "n8n.fullname" . }}-backup -n {{ .Release.Namespace }}
+  kubectl logs job/{{ include "n8n.fullname" . }}-backup-manual -n {{ .Release.Namespace }} --all-containers
+{{- end }}
+
+7. Troubleshooting
+==================
+
+Inspect pods and events:
+
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -o wide
+  kubectl describe pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ include "n8n.name" . }}
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+
+Inspect n8n logs:
+
+  kubectl logs deploy/{{ include "n8n.fullname" . }} -n {{ .Release.Namespace }} -c n8n --tail=200
+  kubectl logs deploy/{{ include "n8n.fullname" . }} -n {{ .Release.Namespace }} -c n8n --previous --tail=200
+
+{{- if .Values.queue.enabled }}
+
+Inspect worker logs:
+
+  kubectl logs deploy/{{ include "n8n.fullname" . }}-worker -n {{ .Release.Namespace }} -c n8n --tail=200
+{{- end }}
+
+{{- $dbModeTs := include "n8n.databaseMode" . }}
+{{- if ne $dbModeTs "sqlite" }}
+
+Inspect init container logs when a database is configured:
+
+  kubectl logs deploy/{{ include "n8n.fullname" . }} -n {{ .Release.Namespace }} -c wait-for-db --tail=200
+{{- end }}
+
+Common checks:
+
+- If the pod is stuck in Init, inspect init container logs for database or Redis connectivity issues.
+- If workflows fail to execute, verify the encryption key secret is present and not rotated.
+- If webhook triggers do not fire, verify WEBHOOK_URL is set to the public-facing URL with the correct scheme.
+- If queue workers are not picking up jobs, verify Redis connectivity and that EXECUTIONS_MODE=queue is set on both main and workers.
+- If the SQLite database is lost on restart, verify persistence is enabled and the PVC is bound.
+- If backup jobs fail, inspect the backup pod logs and verify S3 credentials and bucket configuration.
+
+8. Resources
+============
+
+- HelmForge chart docs: https://helmforge.dev/docs/charts/n8n
+- n8n docs: https://docs.n8n.io
+- n8n self-hosting guide: https://docs.n8n.io/hosting
+- n8n environment variables: https://docs.n8n.io/hosting/configuration/environment-variables
+- HelmForge chart issues: https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)
