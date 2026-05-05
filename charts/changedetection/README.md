@@ -186,8 +186,7 @@ probes:
 | `probes.*.enabled` | `true` | Enable startup, readiness, and liveness probes |
 | `resources.requests.cpu` | `100m` | Main container CPU request |
 | `resources.requests.memory` | `256Mi` | Main container memory request |
-| `resources.limits.cpu` | `500m` | Main container CPU limit |
-| `resources.limits.memory` | `512Mi` | Main container memory limit |
+| `resources.limits` | unset | Optional main container resource limits |
 | `securityContext.allowPrivilegeEscalation` | `false` | Prevent privilege escalation |
 | `securityContext.capabilities.drop` | `[ALL]` | Drop Linux capabilities by default |
 | `extraManifests` | `[]` | Additional manifests rendered with the release |
