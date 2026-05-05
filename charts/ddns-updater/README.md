@@ -1,6 +1,10 @@
 # DDNS Updater Helm Chart
 
-Deploy [ddns-updater](https://github.com/qdm12/ddns-updater) on Kubernetes using the official [qmcgaw/ddns-updater](https://hub.docker.com/r/qmcgaw/ddns-updater) Docker image. Keep DNS A/AAAA records updated across 50+ providers with a responsive web UI.
+Deploy [ddns-updater](https://github.com/qdm12/ddns-updater) on Kubernetes using the official
+[qmcgaw/ddns-updater](https://hub.docker.com/r/qmcgaw/ddns-updater) Docker image. Keep DNS A/AAAA records updated
+across 50+ providers with a responsive web UI.
+
+This chart currently deploys `qmcgaw/ddns-updater:2.10.0`.
 
 ## Features
 
@@ -89,11 +93,14 @@ config:
 
 | Key | Default | Description |
 |-----|---------|-------------|
+| `image.repository` | `docker.io/qmcgaw/ddns-updater` | ddns-updater container image repository |
+| `image.tag` | `2.10.0` | ddns-updater container image tag |
 | `config.settings` | `[]` | DNS records to update (provider-specific) |
 | `config.existingSecret` | `""` | Existing secret with config.json |
 | `ddns.period` | `5m` | Check interval |
 | `ddns.httpTimeout` | `10s` | HTTP timeout |
 | `ddns.publicIpFetchers` | `all` | IP detection method (all, http, dns) |
+| `ddns.updateCooldownPeriod` | `5m` | Minimum interval between updates for the same record |
 | `ddns.logLevel` | `info` | Log level |
 | `ddns.port` | `8000` | Web UI container port |
 | `ddns.rootUrl` | `/` | Web UI root URL path |
@@ -101,6 +108,15 @@ config:
 | `persistence.size` | `256Mi` | PVC size |
 | `service.port` | `80` | Web UI service port |
 | `ingress.enabled` | `false` | Enable ingress |
+
+## Operations
+
+Use `config.existingSecret` for production credentials so DNS provider tokens are not stored in values files.
+Before upgrading, confirm the provider-specific configuration format against the upstream documentation and inspect pod logs after rollout:
+
+```bash
+kubectl logs -l app.kubernetes.io/name=ddns-updater --all-containers --tail=100
+```
 
 ## More Information
 
@@ -113,7 +129,7 @@ config:
 @type: chart-readme
 @chart: ddns-updater
 @path: charts/ddns-updater/README.md
-@date: 2026-03-23
+@date: 2026-05-05
 @relations:
   - charts/ddns-updater/values.yaml
   - charts/ddns-updater/docs/providers.md

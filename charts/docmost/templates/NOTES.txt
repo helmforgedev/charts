@@ -1,12 +1,48 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Docmost has been deployed.
+Docmost {{ .Chart.AppVersion }} has been deployed.
 
-Service:
+Access:
   HTTP: {{ include "docmost.fullname" . }}:{{ .Values.service.port }}
 
 {{- if include "docmost.appUrl" . }}
 Configured application URL:
   {{ include "docmost.appUrl" . }}
 {{- else }}
-Set docmost.appUrl or enable ingress for a stable external URL.
+No external application URL is configured. Set docmost.appUrl or enable ingress for a stable URL.
 {{- end }}
+
+Runtime:
+  Database mode: {{ include "docmost.databaseMode" . }}
+  PostgreSQL subchart: {{ ternary "enabled" "disabled" .Values.postgresql.enabled }}
+  Redis subchart: {{ ternary "enabled" "disabled" .Values.redis.enabled }}
+  Storage mode: {{ .Values.storage.mode }}
+  Backup CronJob: {{ ternary "enabled" "disabled" .Values.backup.enabled }}
+
+Getting started:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "docmost.fullname" . }} 8080:{{ .Values.service.port }}
+  http://127.0.0.1:8080
+
+Configuration:
+  Image: {{ include "docmost.image" . }}
+  App URL: {{ default "not configured" (include "docmost.appUrl" .) }}
+  Service type: {{ .Values.service.type }}
+
+Resources:
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl -n {{ .Release.Namespace }} get svc,pvc -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Troubleshooting:
+  kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "docmost.fullname" . }} --tail=100
+{{- if .Values.postgresql.enabled }}
+  kubectl -n {{ .Release.Namespace }} logs statefulset/{{ .Release.Name }}-postgresql --tail=100
+{{- end }}
+{{- if .Values.redis.enabled }}
+  kubectl -n {{ .Release.Namespace }} logs statefulset/{{ .Release.Name }}-redis --tail=100
+{{- end }}
+  kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
+
+Upgrade notes:
+  Confirm PostgreSQL and Redis backups before upgrading production releases.
+  If using external services, validate database.external.* and redis.external.* secret references before rollout.
+
+Happy Helmforging :)
