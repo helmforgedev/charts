@@ -160,7 +160,7 @@ The admin page should not use a plain-text `ADMIN_TOKEN` in real environments. P
 Simple generation options:
 
 ```bash
-docker run --rm -it vaultwarden/server:1.35.4 /vaultwarden hash
+docker run --rm -it vaultwarden/server:1.36.0 /vaultwarden hash
 ```
 
 ```bash
@@ -195,8 +195,8 @@ Official reference:
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `image.repository` | Vaultwarden image repository | `vaultwarden/server` |
-| `image.tag` | Vaultwarden image tag | `1.35.4` |
+| `image.repository` | Vaultwarden image repository | `docker.io/vaultwarden/server` |
+| `image.tag` | Vaultwarden image tag | `1.36.0` |
 | `domain` | Public Vaultwarden domain | `""` |
 | `database.mode` | `auto`, `sqlite`, `external`, `postgresql`, or `mysql` | `auto` |
 | `database.external.vendor` | External database vendor | `postgres` |

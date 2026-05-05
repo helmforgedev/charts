@@ -21,7 +21,7 @@ In this chart:
 Using the Vaultwarden image:
 
 ```bash
-docker run --rm -it vaultwarden/server:1.35.4 /vaultwarden hash
+docker run --rm -it vaultwarden/server:1.36.0 /vaultwarden hash
 ```
 
 Using the `argon2` CLI:
@@ -70,8 +70,8 @@ If your cluster requires strict east-west traffic controls, enable `networkPolic
 
 ## References
 
-- Vaultwarden configuration template: https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template
-- Admin token guidance: https://github.com/dani-garcia/vaultwarden/wiki/Enabling-admin-page#secure-the-admin_token
+- Vaultwarden configuration template: [`.env.template`](https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template)
+- Admin token guidance: [Vaultwarden admin page guide](https://github.com/dani-garcia/vaultwarden/wiki/Enabling-admin-page#secure-the-admin_token)
 
 <!-- @AI-METADATA
 type: chart-docs
