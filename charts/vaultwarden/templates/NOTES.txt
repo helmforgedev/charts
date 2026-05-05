@@ -15,6 +15,17 @@ Service:
 Operational notes:
 - Vaultwarden v1 in this repository is designed for a single replica with persistent `/data`
 - database mode selected for this release: {{ include "vaultwarden.databaseMode" . }}
+{{- if .Values.postgresql.enabled }}
+- local PostgreSQL subchart is enabled; keep `postgresql.auth.password` set explicitly and validate migrations before moving live data
+{{- else if .Values.mysql.enabled }}
+- local MySQL subchart is enabled; keep `mysql.auth.password` set explicitly and validate migrations before moving live data
+{{- else if .Values.database.external.existingSecret }}
+- external database mode uses an existing secret; confirm the configured key contains a complete `DATABASE_URL`
+{{- else if .Values.database.external.host }}
+- external database mode is enabled; confirm connectivity, TLS requirements, and backup credentials outside this release
+{{- else }}
+- SQLite is selected; treat the full `/data` directory as the backup and restore boundary
+{{- end }}
 - if you enable SMTP, verify mail delivery from the admin settings and invitation flows
 - if you use the admin panel, prefer an Argon2-based `ADMIN_TOKEN`
 - if backup is enabled, validate that the S3 endpoint, bucket, and storage mode match the generated backup behavior for this release

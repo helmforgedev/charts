@@ -81,6 +81,7 @@ helm install vaultwarden oci://ghcr.io/helmforgedev/helm/vaultwarden -f values.y
 ### Database selection
 
 - for production, prefer `database.external` or one of the optional subcharts
+- optional local database subcharts are vendored from HelmForge dependencies: PostgreSQL chart `1.10.0` and MySQL chart `1.9.1`
 - `database.mode=auto` uses this precedence:
 - `database.external.host` or `database.external.existingSecret`
 - `postgresql.enabled=true`
@@ -88,6 +89,7 @@ helm install vaultwarden oci://ghcr.io/helmforgedev/helm/vaultwarden -f values.y
 - fallback to SQLite
 - if you use `database.external.existingSecret`, store a complete `DATABASE_URL` value in that secret
 - if you use `postgresql.enabled=true` or `mysql.enabled=true`, define the application password explicitly so Vaultwarden can build the connection URL
+- enable only one database source at a time; the chart fails rendering when external database, PostgreSQL subchart, and MySQL subchart settings are ambiguous
 - review [Database Modes and Migrations](docs/database-modes-and-migrations.md) before changing storage mode in a live environment
 
 ### Ingress and domain
@@ -160,7 +162,7 @@ The admin page should not use a plain-text `ADMIN_TOKEN` in real environments. P
 Simple generation options:
 
 ```bash
-docker run --rm -it vaultwarden/server:1.35.4 /vaultwarden hash
+docker run --rm -it vaultwarden/server:1.36.0 /vaultwarden hash
 ```
 
 ```bash
@@ -195,8 +197,8 @@ Official reference:
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `image.repository` | Vaultwarden image repository | `vaultwarden/server` |
-| `image.tag` | Vaultwarden image tag | `1.35.4` |
+| `image.repository` | Vaultwarden image repository | `docker.io/vaultwarden/server` |
+| `image.tag` | Vaultwarden image tag | `1.36.0` |
 | `domain` | Public Vaultwarden domain | `""` |
 | `database.mode` | `auto`, `sqlite`, `external`, `postgresql`, or `mysql` | `auto` |
 | `database.external.vendor` | External database vendor | `postgres` |
@@ -205,8 +207,8 @@ Official reference:
 | `database.external.username` | External database username | `vaultwarden` |
 | `database.external.existingSecret` | Existing secret containing a complete `DATABASE_URL` | `""` |
 | `database.external.existingSecretUrlKey` | Secret key containing the `DATABASE_URL` value | `database-url` |
-| `postgresql.enabled` | Enable the local PostgreSQL subchart | `false` |
-| `mysql.enabled` | Enable the local MySQL subchart | `false` |
+| `postgresql.enabled` | Enable the local PostgreSQL subchart (`helmforge/postgresql` `1.10.0`) | `false` |
+| `mysql.enabled` | Enable the local MySQL subchart (`helmforge/mysql` `1.9.1`) | `false` |
 | `vaultwarden.signupsAllowed` | Allow new user signups | `false` |
 | `vaultwarden.signupsVerify` | Require email verification for new signups | `false` |
 | `vaultwarden.signupsVerifyResendTime` | Seconds before another verification email can be sent | `3600` |
