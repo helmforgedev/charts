@@ -1,265 +1,286 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Redis Chart Design
 
-Status: draft-approved for implementation start
+Status: implemented and maintained
 
-Date: 2026-03-19
+Date: 2026-05-05
 
 ## Goal
 
-Build a Redis chart that is explicit about topology and honest about operational tradeoffs.
-
-This chart must not behave like a generic stateful workload wrapper. It must model Redis-specific runtime concerns:
-
-- standalone
-- replication
-- sentinel
-- Redis Cluster
-
-## References
-
-- Internal quality reference: [`charts/mongodb`](../mongodb/)
-- Bitnami Redis chart values: https://raw.githubusercontent.com/bitnami/charts/main/bitnami/redis/values.yaml
-- Redis Sentinel docs: https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/
-- Redis Cluster docs: https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/
-
-## Product Positioning
-
-This chart will support both HA families that operators actually choose:
-
-1. `replication` + `sentinel`
-This is the right answer when the application expects a single writable primary and operator-managed failover.
-
-2. `cluster`
-This is the right answer when the application is cluster-aware and needs sharding/scaling at the Redis protocol level.
-
-`standalone` remains useful for development, small environments and simple single-node production cases.
-
-## Supported Topologies In v1
+The Redis chart provides explicit, production-oriented Redis topologies without hiding operational tradeoffs behind generic StatefulSet defaults. The chart supports four runtime contracts:
 
 - `standalone`
 - `replication`
 - `sentinel`
 - `cluster`
 
-Decision:
+Each mode renders a different Kubernetes resource model because each mode has different client behavior, failover expectations, persistence patterns, and operational risk.
 
-- `replication` and `sentinel` are separate modes in values and templates.
-- `sentinel` is not hidden inside replication because it changes the operational contract.
-- `cluster` is modeled separately because it is not just HA; it is a different client and topology model.
+## Design Principles
 
-## Explicit Non-Goals In v1
+- Make topology the first decision through `architecture`.
+- Keep Redis data-plane resources separate from optional observability and extension resources.
+- Prefer stable DNS names for internal Redis discovery instead of pod IPs.
+- Support custom Kubernetes cluster domains through `clusterDomain`.
+- Keep services dual-stack capable through `service.ipFamilyPolicy` and `service.ipFamilies`.
+- Keep authentication explicit and reusable through generated Secrets, `existingSecret`, or External Secrets Operator integration.
+- Use StatefulSets for Redis data nodes to preserve stable identities and storage.
+- Use startup checks where Redis role discovery depends on another component becoming reachable.
+- Make generated names predictable through shared helpers.
+- Keep chart validation representative by covering every supported topology in CI values and unit tests.
 
-- Redis Enterprise or active-active
-- arbitrary Redis modules as first-class chart features
-- operator-grade rebalancing or node replacement automation
-- complete zero-downtime cluster reshaping
-
-## High-Level Values Model
-
-Top-level decision:
+## Topology Selection
 
 ```yaml
 architecture: standalone | replication | sentinel | cluster
 ```
 
-Core sections planned:
+Use `standalone` for development, small environments, caches where downtime is acceptable, or single-node production scenarios with external recovery procedures.
 
-- `image`
-- `auth`
-- `tls`
-- `standalone`
-- `replication`
-- `sentinel`
-- `cluster`
-- `persistence`
-- `service`
-- `metrics`
-- `podSecurityContext`
-- `securityContext`
-- `resources`
-- `nodeSelector`
-- `affinity`
-- `tolerations`
-- `topologySpreadConstraints`
-- `serviceMonitor`
-- `existingSecret`
+Use `replication` when applications can read from replicas or when operators want a primary/replica layout without Sentinel-managed failover.
+
+Use `sentinel` when applications expect a single writable primary and can integrate with Sentinel discovery/failover.
+
+Use `cluster` when applications are Redis Cluster aware and need sharding at the Redis protocol level.
+
+## Architecture Diagrams
+
+### Standalone
+
+```mermaid
+flowchart LR
+  Client[Client] --> Service[Redis Service]
+  Service --> Pod[redis-standalone-0]
+  Pod --> PVC[(Redis PVC)]
+  Pod --> Config[ConfigMap]
+  Pod --> Secret[Secret or existingSecret]
+```
+
+Standalone keeps the resource graph intentionally small. It is easy to operate, but it has no in-chart failover target.
+
+### Replication
+
+```mermaid
+flowchart LR
+  Client[Client] --> ClientSvc[Client Service]
+  ClientSvc --> Primary[redis-primary-0]
+  ReplicaSvc[Replica Headless Service] --> Replica0[redis-replica-0]
+  ReplicaSvc --> Replica1[redis-replica-1]
+  Replica0 --> Primary
+  Replica1 --> Primary
+  Primary --> PrimaryPVC[(Primary PVC)]
+  Replica0 --> ReplicaPVC0[(Replica PVC)]
+  Replica1 --> ReplicaPVC1[(Replica PVC)]
+```
+
+Replication separates primary and replica StatefulSets. This keeps role-specific configuration and persistence clear, and lets operators tune scheduling, resources, and storage per role.
+
+### Sentinel
+
+```mermaid
+flowchart LR
+  Client[Sentinel-aware Client] --> SentinelSvc[Sentinel Service]
+  SentinelSvc --> Sentinel0[sentinel-0]
+  SentinelSvc --> Sentinel1[sentinel-1]
+  SentinelSvc --> Sentinel2[sentinel-2]
+  Sentinel0 --> Primary[redis-primary-0]
+  Sentinel1 --> Primary
+  Sentinel2 --> Primary
+  Replica[redis-replica-0] --> Primary
+  Primary --> PrimaryPVC[(Primary PVC)]
+  Replica --> ReplicaPVC[(Replica PVC)]
+```
+
+Sentinel is a distinct architecture because it changes the client contract. Sentinel pods wait for the primary before startup and use hostname resolution so custom cluster domains work consistently.
+
+### Redis Cluster
+
+```mermaid
+flowchart LR
+  Client[Cluster-aware Client] --> ClusterSvc[Cluster Client Service]
+  ClusterSvc --> Node0[redis-cluster-0]
+  ClusterSvc --> Node1[redis-cluster-1]
+  ClusterSvc --> Node2[redis-cluster-2]
+  Headless[Headless Service] --> Node0
+  Headless --> Node1
+  Headless --> Node2
+  Init[Cluster Init Job] --> Headless
+  Node0 --> PVC0[(PVC 0)]
+  Node1 --> PVC1[(PVC 1)]
+  Node2 --> PVC2[(PVC 2)]
+```
+
+Cluster mode uses stable pod FQDNs for `cluster-announce-hostname` and a bootstrap Job for initial cluster creation.
+It does not try to replace dedicated Redis Cluster operational tooling for resharding or complex node replacement.
+
+## Kubernetes Resource Model
+
+### Shared Resources
+
+- `Secret` or references to `existingSecret`
+- optional `ExternalSecret`
+- `ConfigMap`
+- client and headless `Service` resources
+- optional `ServiceMonitor`
+- optional `PodDisruptionBudget`
+- optional `extraManifests`
+
+### Standalone Resources
+
+- one Redis StatefulSet
+- one PVC per pod when persistence is enabled
+- one client Service
+
+### Replication Resources
+
+- primary StatefulSet
+- replica StatefulSet
+- primary and replica DNS helpers
+- role-specific persistence
+
+### Sentinel Resources
+
+- primary and replica Redis resources
+- Sentinel StatefulSet
+- Sentinel service
+- Sentinel configuration with hostname resolution
+- startup wait loop for primary reachability
+
+### Cluster Resources
+
+- Redis Cluster StatefulSet
+- headless service for stable pod DNS
+- client service for cluster-aware clients
+- bootstrap Job
+- per-node persistence
+
+## DNS And Cluster Domain
+
+Redis internals must not hardcode `svc.cluster.local`. The chart centralizes FQDN generation in helper templates and uses:
+
+```yaml
+clusterDomain: cluster.local
+```
+
+Operators running clusters with a non-default domain can set `clusterDomain` once and have replication, Sentinel, Cluster announce names, bootstrap jobs, and NOTES output use the same domain.
+
+## Service Networking
+
+Services support single-stack and dual-stack clusters through Kubernetes service family fields:
+
+```yaml
+service:
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+    - IPv4
+    - IPv6
+```
+
+Best practices:
+
+- Leave the defaults empty unless the cluster supports the requested families.
+- Use `PreferDualStack` for portable dual-stack behavior.
+- Use `RequireDualStack` only when both families are guaranteed.
+- Keep headless and client services aligned so DNS behavior is predictable.
+
+## Security Model
+
+- Authentication is enabled by default for production-oriented usage.
+- `existingSecret` avoids chart-owned credential rotation when an external secret manager is authoritative.
+- External Secrets Operator integration lets the chart reference externally managed credentials while still rendering Kubernetes-native Secret consumers.
+- Pods run with restricted security contexts by default where Redis compatibility allows it.
+- The chart avoids privileged containers and host namespace access.
+- Sensitive values should not be embedded in examples, CI values, or NOTES.
+
+## Persistence
+
+Stateful Redis nodes use PVCs because identity and data continuity matter for Redis operations.
+
+Best practices:
+
+- Use persistence for production data-bearing nodes.
+- Keep storage class and size explicit in production values.
+- Disable persistence only for tests, ephemeral caches, or local k3d validation.
+- Treat backup/restore as an application-level operational procedure, not as an implicit chart side effect.
+
+## Scheduling And Availability
+
+HA topologies should spread pods across nodes and failure domains where the cluster has enough capacity.
+
+Recommended production controls:
+
+- pod anti-affinity for Redis replicas and Sentinel pods
+- topology spread constraints across zones or hosts
+- PodDisruptionBudgets for HA modes
+- explicit resource requests and limits
+- node selectors or tolerations only when they reflect real platform policy
+
+## Observability
+
+Metrics are optional and should be enabled only when the Prometheus Operator or a compatible scraper is present.
+
+When enabled, exporter resources should follow the selected architecture and expose a stable ServiceMonitor target. The chart should not render CRDs owned by observability operators.
+
+## Extension Points
+
+The chart exposes extension points for advanced operators without making them required:
+
 - `extraEnv`
 - `extraVolumes`
 - `extraVolumeMounts`
 - `extraManifests`
+- pod annotations and labels
+- service annotations
+- topology-specific resource overrides
 
-## Redis-Specific Runtime Decisions
+Extension points are escape hatches. Common operational paths should remain first-class values with schema validation.
 
-### Auth
+## Validation Strategy
 
-- password auth supported in every mode
-- `existingSecret` supported
-- ACL support should be designed in values, but can stay limited in v1 if needed
+Every change to the chart should keep the following checks passing:
 
-### TLS
+- `helm dependency build charts/redis`
+- `helm lint charts/redis --strict`
+- `helm unittest charts/redis`
+- `helm template redis charts/redis`
+- `helm template redis charts/redis -f charts/redis/ci/*.yaml`
+- strict Kubernetes schema validation for default and CI renders
+- documentation linting for changed Markdown files
+- runtime k3d validation for behavior-changing chart changes
 
-- optional in v1
-- must be explicit in docs if only server-side TLS is supported initially
+The CI values must cover standalone, replication, sentinel, cluster, metrics, existing secrets, and networking variants that affect rendered resources.
 
-### Persistence
+## Non-Goals
 
-- `standalone`, `replication`, `sentinel` data nodes use PVCs
-- sentinel pods may be stateless or lightly stateful depending on final design
-- `cluster` nodes use PVCs per node
+- Redis Enterprise or active-active Redis
+- arbitrary Redis modules as first-class chart features
+- operator-grade resharding or node replacement automation
+- hiding Redis Cluster complexity from non-cluster-aware clients
+- rendering third-party CRDs owned by other operators
 
-### Metrics
+## Related Documents
 
-- optional Redis exporter
-- optional `ServiceMonitor`
-- exporter wiring must match each topology cleanly
-
-### Scheduling
-
-- `replication`, `sentinel` and `cluster` must support anti-affinity and topology spread
-- HA modes should offer `PDB`
-
-## Kubernetes Resource Model
-
-### Standalone
-
-- `Secret`
-- `ConfigMap`
-- `Service`
-- `StatefulSet`
-- optional `ServiceMonitor`
-
-### Replication
-
-- `Secret`
-- `ConfigMap`
-- headless `Service`
-- client `Service`
-- primary `StatefulSet`
-- replica `StatefulSet`
-- optional `PDB`
-- optional `ServiceMonitor`
-
-### Sentinel
-
-- `Secret`
-- `ConfigMap`
-- headless `Service`
-- client `Service`
-- primary/replica data resources
-- `StatefulSet` for sentinel pods, or a tightly justified alternative
-- optional `PDB`
-- optional `ServiceMonitor`
-
-### Cluster
-
-- `Secret`
-- `ConfigMap`
-- headless `Service`
-- client `Service`
-- cluster `StatefulSet`
-- cluster bootstrap `Job`
-- optional `PDB`
-- optional `ServiceMonitor`
-
-## Template Plan
-
-Required:
-
-- `_helpers.tpl`
-- `secret.yaml`
-- `configmap.yaml`
-- `service.yaml`
-- `service-headless.yaml`
-- `pdb.yaml`
-- `servicemonitor.yaml`
-- `extra-manifests.yaml`
-
-Topology-specific:
-
-- `standalone-statefulset.yaml`
-- `replication-primary-statefulset.yaml`
-- `replication-replica-statefulset.yaml`
-- `sentinel-statefulset.yaml`
-- `cluster-statefulset.yaml`
-- `cluster-init-job.yaml`
-
-## CI Plan
-
-`ci/standalone.yaml`
-
-- 1 Redis node
-- auth enabled
-- persistence enabled
-- no sentinel
-- no cluster
-
-`ci/replication.yaml`
-
-- primary + replicas
-- headless and client services
-- auth enabled
-- anti-affinity enabled
-
-`ci/sentinel.yaml`
-
-- replication plus sentinel resources
-- sentinel service exposure
-- failover configuration rendered
-
-`ci/cluster.yaml`
-
-- cluster node count set
-- bootstrap job rendered
-- cluster service model rendered
-
-`ci/existing-secret.yaml`
-
-- no generated auth secret
-- all secret refs point to external secret
-
-`ci/metrics.yaml`
-
-- exporter rendered
-- `ServiceMonitor` rendered when enabled
-
-## Main Differentials Versus References
-
-- smaller values surface than Bitnami
-- topology is the first concept in values, not hidden in nested switches
-- separate operational contracts for sentinel and cluster
-- CI explicitly validates every supported topology
-- README will explain when to use each mode, not only how to enable it
-
-## Implementation Order
-
-1. `Chart.yaml`
-2. `values.yaml`
-3. `_helpers.tpl`
-4. standalone templates
-5. replication templates
-6. sentinel templates
-7. cluster templates
-8. `ci/*.yaml`
-9. `examples/*.yaml`
-10. `README.md`
-
-## Ready To Implement
-
-Yes.
+- [`README.md`](README.md)
+- [`values.yaml`](values.yaml)
+- [`values.schema.json`](values.schema.json)
+- [`templates/NOTES.txt`](templates/NOTES.txt)
 
 <!-- @AI-METADATA
 type: design
 title: Redis Chart Design
-description: Design document for Redis Helm chart with explicit topology and operational tradeoffs
+description: Architecture and operational design document for the Redis Helm chart
 
-keywords: redis, design, architecture, standalone, replication, sentinel, cluster
+keywords: redis, design, architecture, standalone, replication, sentinel, cluster, dual-stack, clusterDomain
 
-purpose: Document design decisions and non-goals for the Redis chart
+purpose: Document Redis chart architecture, resource model, diagrams, best practices, and validation expectations
 scope: Chart Design
 
 relations:
   - charts/redis/README.md
+  - charts/redis/values.yaml
+  - charts/redis/templates/NOTES.txt
 path: charts/redis/DESIGN.md
-version: 1.0
-date: 2026-03-20
+version: 2.0
+date: 2026-05-05
 -->
