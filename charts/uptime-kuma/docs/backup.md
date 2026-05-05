@@ -8,6 +8,7 @@ The chart includes an optional CronJob that creates database backups and uploads
 - **MariaDB mode**: runs `mysqldump` and compresses the output
 
 The backup runs as a two-step process:
+
 1. **Init container**: creates the database dump/archive
 2. **Main container**: uploads to S3 using MinIO client (`mc`)
 
