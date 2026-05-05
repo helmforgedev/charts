@@ -1,0 +1,54 @@
+suite: postgresql upgrade job
+templates:
+  - templates/postgresql-upgrade-job.yaml
+tests:
+  - it: should render a pre-upgrade PostgreSQL grants job when bundled PostgreSQL is enabled
+    set:
+      postgresql:
+        enabled: true
+        auth:
+          database: homarr
+          username: homarr
+          password: test
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-upgrade
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation,hook-succeeded
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: postgresql-upgrade
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: APP_DATABASE
+            value: homarr
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: APP_USERNAME
+            value: homarr
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "GRANT CREATE ON DATABASE"
+
+  - it: should not render when bundled PostgreSQL is disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render when the upgrade job is disabled
+    set:
+      postgresql:
+        enabled: true
+      postgresqlUpgradeJob:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

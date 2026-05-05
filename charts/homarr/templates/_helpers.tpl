@@ -265,6 +265,16 @@ Database URL for Homarr (postgres://user:pass@host:port/db or mysql://...)
 {{- end -}}
 {{- end -}}
 
+{{- define "homarr.postgresqlSecretName" -}}
+{{- if .Values.postgresql.auth.existingSecret -}}
+{{- .Values.postgresql.auth.existingSecret -}}
+{{- else if .Values.postgresql.fullnameOverride -}}
+{{- printf "%s-auth" .Values.postgresql.fullnameOverride -}}
+{{- else -}}
+{{- printf "%s-%s-auth" .Release.Name (.Values.postgresql.nameOverride | default "postgresql") -}}
+{{- end -}}
+{{- end -}}
+
 {{/* ======================================================================== */}}
 {{/* Backup helpers                                                            */}}
 {{/* ======================================================================== */}}

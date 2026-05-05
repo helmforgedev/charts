@@ -148,6 +148,7 @@ backup:
 | `postgresql.auth.database` | `homarr` | PostgreSQL database name |
 | `postgresql.auth.username` | `homarr` | PostgreSQL username |
 | `postgresql.initdb.scripts` | Homarr grants | PostgreSQL bootstrap grants required for Homarr migrations |
+| `postgresqlUpgradeJob.enabled` | `true` | Run a pre-upgrade hook that reapplies PostgreSQL grants on existing bundled PostgreSQL PVCs |
 | `postgresql.primary.persistence.enabled` | `true` | Enable PostgreSQL persistence |
 | `mysql.enabled` | `false` | Deploy MySQL subchart |
 | `mysql.auth.database` | `homarr` | MySQL database name |
@@ -171,10 +172,10 @@ backup:
 
 When `database.mode` is `auto` (default), the chart detects which database to use:
 
-1. If `database.external.host` is set → **external** database
-2. If `postgresql.enabled` is `true` → **PostgreSQL subchart**
-3. If `mysql.enabled` is `true` → **MySQL subchart**
-4. Otherwise → **SQLite3** (zero configuration)
+1. If `database.external.host` is set -> **external** database
+2. If `postgresql.enabled` is `true` -> **PostgreSQL subchart**
+3. If `mysql.enabled` is `true` -> **MySQL subchart**
+4. Otherwise -> **SQLite3** (zero configuration)
 
 ## Encryption Key
 
@@ -196,8 +197,9 @@ For PostgreSQL and MySQL, the chart sets `DB_DIALECT`, `DB_DRIVER`, `DB_URL`, an
 so Homarr runs the correct database migrations during startup.
 
 For bundled PostgreSQL, the default `postgresql.initdb.scripts` grants the `homarr` user ownership and `CREATE` permission on
-the `homarr` database. Existing external PostgreSQL databases must provide equivalent permissions before the first Homarr
-startup because Homarr creates the `drizzle` schema during migration.
+the `homarr` database for fresh data directories. The `postgresqlUpgradeJob` pre-upgrade hook reapplies those grants before
+Homarr starts when an existing bundled PostgreSQL PVC is reused. Existing external PostgreSQL databases must provide equivalent
+permissions before the first Homarr startup because Homarr creates the `drizzle` schema during migration.
 
 After changing database mode or credentials, verify the application pod and selected database backend:
 

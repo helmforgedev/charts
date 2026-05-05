@@ -58,7 +58,7 @@ encryption:
 # Use `database.mode` to select explicitly, or leave as `auto` to auto-detect
 # based on which database section is configured.
 #
-# Auto-detection priority: external → postgresql → mysql → sqlite
+# Auto-detection priority: external -> postgresql -> mysql -> sqlite
 # =============================================================================
 
 database:
@@ -118,6 +118,45 @@ postgresql:
       enabled: true
       # -- PVC size for PostgreSQL
       size: 8Gi
+
+postgresqlUpgradeJob:
+  # -- Run a pre-upgrade hook that reapplies Homarr PostgreSQL grants on existing bundled PostgreSQL PVCs.
+  enabled: true
+  image:
+    # -- PostgreSQL client image used by the upgrade hook
+    repository: docker.io/library/postgres
+    # -- PostgreSQL client image tag
+    tag: "18.3-trixie"
+    pullPolicy: IfNotPresent
+  # -- Job retry limit
+  backoffLimit: 6
+  # -- Maximum seconds for the hook job
+  activeDeadlineSeconds: 300
+  # -- Pod annotations for the hook job
+  podAnnotations: {}
+  # -- Pod security context for the hook job
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    fsGroup: 999
+    seccompProfile:
+      type: RuntimeDefault
+  # -- Container security context for the hook job
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 999
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
 
 # -- Deploy MySQL as a subchart
 mysql:
