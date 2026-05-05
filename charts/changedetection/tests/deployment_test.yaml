@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 suite: Deployment
 templates:
   - templates/deployment.yaml
@@ -23,7 +24,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "ghcr.io/dgtlmoon/changedetection.io:0.54.7"
+          value: "ghcr.io/dgtlmoon/changedetection.io:0.55.3"
 
   - it: should expose port 5000
     asserts:
@@ -41,6 +42,26 @@ tests:
           content:
             name: data
             mountPath: /datastore
+
+  - it: should set default resource requests without hard limits
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 256Mi
+      - isNull:
+          path: spec.template.spec.containers[0].resources.limits
+
+  - it: should drop Linux capabilities by default
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
 
   - it: should use PVC for data when persistence enabled
     asserts:

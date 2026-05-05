@@ -1,6 +1,8 @@
 # Elasticsearch Helm Chart
 
-Production-ready Elasticsearch cluster chart using the **official Elastic image**. Deploys multi-role clusters (master, data, coordinating) from a single `clusterProfile` setting, with automated S3 backups, ILM lifecycle policies, cert-manager TLS, data tiers, and Grafana dashboards included out of the box.
+Production-ready Elasticsearch cluster chart using the **official Elastic image**. Deploys multi-role clusters from a single
+`clusterProfile` setting, with automated S3 backups, ILM lifecycle policies, cert-manager TLS, data tiers, and Grafana
+dashboards included out of the box.
 
 ## Install
 
@@ -158,7 +160,7 @@ dataTiers:
 | `clusterProfile` | Cluster preset: `dev`, `staging`, `production-ha` | `dev` |
 | `clusterName` | Elasticsearch cluster name | `helmforge-cluster` |
 | `image.repository` | Elasticsearch image | `docker.io/library/elasticsearch` |
-| `image.tag` | Image tag | `8.17.4` |
+| `image.tag` | Image tag | `9.3.4` |
 | `nameOverride` | Override chart name | `""` |
 | `fullnameOverride` | Override full release name | `""` |
 
@@ -259,7 +261,7 @@ dataTiers:
 | Parameter | Description | Default |
 |---|---|---|
 | `kibana.enabled` | Deploy Kibana alongside Elasticsearch | `false` |
-| `kibana.image.tag` | Kibana version (must match ES version) | `8.17.4` |
+| `kibana.image.tag` | Kibana version (must match ES version) | `9.3.4` |
 | `kibana.replicaCount` | Kibana replica count | `1` |
 | `kibana.ingress.enabled` | Expose Kibana via Ingress | `false` |
 | `kibana.ingress.hosts` | Ingress hostnames | `[kibana.example.com]` |
