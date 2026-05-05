@@ -72,11 +72,12 @@ All traffic goes through a single Ingress/Service on port 80.
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `mode` | Chart mode: `dev` or `production` | `dev` |
-| `image.tag` | Hoppscotch image tag | `2026.3.1` |
+| `image.tag` | Hoppscotch image tag | `2026.4.0` |
 | `replicaCount` | Number of replicas | `1` |
 | `ingress.enabled` | Enable Ingress | `false` |
 | `ingress.host` | Primary hostname (auto-derives all URLs) | `""` |
-| `postgresql.enabled` | Enable PostgreSQL subchart | `true` |
+| `postgresql.enabled` | Enable PostgreSQL subchart (`helmforge/postgresql` `1.10.0`) | `true` |
+| `postgresql.initdb.scripts` | Bootstrap Hoppscotch PostgreSQL extensions | `pg_trgm` |
 | `database.external.enabled` | Use external PostgreSQL | `false` |
 | `encryption.key` | 32-char encryption key (auto-generated) | `""` |
 | `auth.providers` | Enabled auth providers | `EMAIL` |
@@ -85,6 +86,17 @@ All traffic goes through a single Ingress/Service on port 80.
 | `externalSecrets.enabled` | Enable ExternalSecret | `false` |
 | `networkPolicy.enabled` | Enable NetworkPolicy | `false` |
 | `podDisruptionBudget.enabled` | Enable PDB | `false` |
+
+## Upgrade Notes
+
+Hoppscotch `2026.4.0` adds collection-level pre-request and test scripts,
+API documentation publishing refinements, self-hosted SMTP OAuth2 support,
+desktop settings improvements, security patches, and bug fixes. Back up the
+PostgreSQL database and keep `DATA_ENCRYPTION_KEY` stable before upgrading.
+The bundled PostgreSQL path now derives `DATABASE_URL` from the PostgreSQL
+user password Secret and bootstraps `pg_trgm` before Prisma migrations run.
+The chart also persists `WEBAPP_SERVER_SIGNING_KEY` in the chart Secret so
+signed web bundles remain valid across pod restarts.
 
 ## Examples
 
