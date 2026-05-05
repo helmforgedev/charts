@@ -54,8 +54,9 @@ Upgrade reminder:
   Hoppscotch {{ .Chart.AppVersion }} includes upstream feature, security, and
   bug-fix changes. Back up PostgreSQL and keep DATA_ENCRYPTION_KEY stable
   before upgrading production.
-  The bundled PostgreSQL subchart bootstraps pg_trgm for Hoppscotch search
-  migrations on fresh data directories.
+  The bundled PostgreSQL subchart bootstraps pg_trgm for fresh data directories,
+  and the pre-upgrade hook applies pg_trgm to existing bundled PostgreSQL PVCs
+  before Prisma migrations run.
   WEBAPP_SERVER_SIGNING_KEY is persisted in the chart Secret to keep web
   bundle signatures stable across pod restarts.
 
@@ -78,6 +79,8 @@ Upgrade reminder:
   Migration error (prisma migrate deploy failed):
     -> Check DATABASE_URL is correct
     -> Ensure PostgreSQL is running: kubectl get pods -n {{ .Release.Namespace }}
+    -> On bundled PostgreSQL upgrades, inspect the pg_trgm hook:
+       kubectl logs -n {{ .Release.Namespace }} job/{{ include "hoppscotch.fullname" . }}-postgresql-extensions
     -> Check migrate init container logs
 
   CORS error (WHITELISTED_ORIGINS mismatch):

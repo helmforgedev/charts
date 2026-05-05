@@ -109,6 +109,45 @@ postgresql:
         psql --username "${POSTGRES_USER}" --dbname "${APP_DATABASE}" \
           -c 'CREATE EXTENSION IF NOT EXISTS pg_trgm;'
 
+postgresqlExtensionsJob:
+  # -- Run a pre-upgrade hook that ensures pg_trgm exists on bundled PostgreSQL databases with existing PVCs.
+  enabled: true
+  image:
+    # -- PostgreSQL client image used by the extension hook
+    repository: docker.io/library/postgres
+    # -- PostgreSQL client image tag
+    tag: "18.3-trixie"
+    pullPolicy: IfNotPresent
+  # -- Job retry limit
+  backoffLimit: 6
+  # -- Maximum seconds for the hook job
+  activeDeadlineSeconds: 300
+  # -- Pod annotations for the hook job
+  podAnnotations: {}
+  # -- Pod security context for the hook job
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    fsGroup: 999
+    seccompProfile:
+      type: RuntimeDefault
+  # -- Container security context for the hook job
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 999
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
 database:
   # -- Use an external PostgreSQL instance instead of the bundled subchart.
   external:
