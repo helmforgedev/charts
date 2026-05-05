@@ -23,7 +23,7 @@ image:
   # -- Docmost container image repository
   repository: docker.io/docmost/docmost
   # -- Docmost image tag. Defaults to appVersion validated on GitHub Releases and Docker Hub.
-  tag: "0.80.1"
+  tag: "0.80.2"
   # -- Image pull policy
   pullPolicy: IfNotPresent
 
@@ -75,11 +75,22 @@ postgresql:
   initdb:
     scripts:
       # -- Bootstrap Docmost database privileges and extensions on first PostgreSQL initialization.
-      10-docmost-bootstrap.sql: |
-        GRANT CREATE ON DATABASE docmost TO docmost;
-        \connect docmost
+      10-docmost-bootstrap.sh: |
+        #!/bin/sh
+        set -e
+
+        if [ -n "${APP_DATABASE}" ] && [ -n "${APP_USERNAME}" ]; then
+          psql --username "${POSTGRES_USER}" --dbname postgres \
+            --set=app_database="${APP_DATABASE}" \
+            --set=app_username="${APP_USERNAME}" <<'SQL'
+        SELECT format('GRANT CREATE ON DATABASE %I TO %I', :'app_database', :'app_username') \gexec
+        SQL
+
+          psql --username "${POSTGRES_USER}" --dbname "${APP_DATABASE}" <<'SQL'
         CREATE EXTENSION IF NOT EXISTS unaccent;
         CREATE EXTENSION IF NOT EXISTS pg_trgm;
+        SQL
+        fi
   standalone:
     persistence:
       # -- Enable persistence for PostgreSQL data
