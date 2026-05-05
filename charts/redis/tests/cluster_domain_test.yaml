@@ -1,0 +1,77 @@
+suite: Cluster Domain
+templates:
+  - configmap.yaml
+  - replication-replica-statefulset.yaml
+  - sentinel-statefulset.yaml
+  - cluster-statefulset.yaml
+  - cluster-init-job.yaml
+release:
+  name: test
+  namespace: custom-ns
+tests:
+  - it: should use custom cluster domain in sentinel configuration
+    template: configmap.yaml
+    set:
+      architecture: sentinel
+      clusterDomain: corp.internal
+    asserts:
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "sentinel monitor mymaster test-redis-primary-0\\.test-redis-headless\\.custom-ns\\.svc\\.corp\\.internal 6379 2"
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "sentinel resolve-hostnames yes"
+      - notMatchRegex:
+          path: data["sentinel.conf"]
+          pattern: "svc\\.cluster\\.local"
+
+  - it: should use custom cluster domain in replication replica args
+    template: replication-replica-statefulset.yaml
+    set:
+      architecture: replication
+      clusterDomain: corp.internal
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "--replicaof test-redis-primary-0\\.test-redis-headless\\.custom-ns\\.svc\\.corp\\.internal 6379"
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "svc\\.cluster\\.local"
+
+  - it: should wait for custom primary FQDN before starting sentinel
+    template: sentinel-statefulset.yaml
+    set:
+      architecture: sentinel
+      clusterDomain: corp.internal
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PRIMARY_HOST
+            value: test-redis-primary-0.test-redis-headless.custom-ns.svc.corp.internal
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "until redis-cli -h \"\\$REDIS_PRIMARY_HOST\""
+
+  - it: should use custom cluster domain in cluster announce hostname
+    template: cluster-statefulset.yaml
+    set:
+      architecture: cluster
+      clusterDomain: corp.internal
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: "$(POD_NAME).test-redis-headless.custom-ns.svc.corp.internal"
+
+  - it: should use custom cluster domain in cluster init job
+    template: cluster-init-job.yaml
+    set:
+      architecture: cluster
+      clusterDomain: corp.internal
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "test-redis-cluster-\\$\\{i\\}\\.test-redis-headless\\.custom-ns\\.svc\\.corp\\.internal"
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "svc\\.cluster\\.local"

@@ -136,6 +136,46 @@ Common names.
 {{- printf "%s-config" (include "redis.fullname" .) -}}
 {{- end -}}
 
+{{- define "redis.clusterDomain" -}}
+{{- default "cluster.local" .Values.clusterDomain -}}
+{{- end -}}
+
+{{- define "redis.serviceFqdn" -}}
+{{- printf "%s.%s.svc.%s" .name .root.Release.Namespace (include "redis.clusterDomain" .root) -}}
+{{- end -}}
+
+{{- define "redis.headlessServiceFqdn" -}}
+{{- include "redis.serviceFqdn" (dict "root" . "name" (include "redis.headlessServiceName" .)) -}}
+{{- end -}}
+
+{{- define "redis.fullnameFqdn" -}}
+{{- include "redis.serviceFqdn" (dict "root" . "name" (include "redis.fullname" .)) -}}
+{{- end -}}
+
+{{- define "redis.clientServiceFqdn" -}}
+{{- include "redis.serviceFqdn" (dict "root" . "name" (include "redis.clientServiceName" .)) -}}
+{{- end -}}
+
+{{- define "redis.primaryServiceFqdn" -}}
+{{- include "redis.serviceFqdn" (dict "root" . "name" (include "redis.primaryServiceName" .)) -}}
+{{- end -}}
+
+{{- define "redis.replicaServiceFqdn" -}}
+{{- include "redis.serviceFqdn" (dict "root" . "name" (include "redis.replicaServiceName" .)) -}}
+{{- end -}}
+
+{{- define "redis.sentinelServiceFqdn" -}}
+{{- include "redis.serviceFqdn" (dict "root" . "name" (include "redis.sentinelServiceName" .)) -}}
+{{- end -}}
+
+{{- define "redis.primaryPodFqdn" -}}
+{{- printf "%s-0.%s" (include "redis.primaryStatefulSetName" .) (include "redis.headlessServiceFqdn" .) -}}
+{{- end -}}
+
+{{- define "redis.clusterPodFqdn" -}}
+{{- printf "%s.%s" .podName (include "redis.headlessServiceFqdn" .root) -}}
+{{- end -}}
+
 {{/*
 Secret value helpers.
 */}}

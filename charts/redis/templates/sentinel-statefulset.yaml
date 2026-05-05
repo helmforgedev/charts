@@ -34,6 +34,10 @@ spec:
           command: ["sh", "-ec"]
           args:
             - |
+              until redis-cli -h "$REDIS_PRIMARY_HOST" -p "$REDIS_PRIMARY_PORT" {{- if .Values.auth.enabled }} -a "$REDIS_PASSWORD" --no-auth-warning {{- end }} ping >/dev/null 2>&1; do
+                echo "waiting for primary $REDIS_PRIMARY_HOST:$REDIS_PRIMARY_PORT"
+                sleep 5
+              done
               cp /etc/redis-base/sentinel.conf /tmp/sentinel.conf
               {{- if .Values.auth.enabled }}
               echo "sentinel auth-pass mymaster ${REDIS_PASSWORD}" >> /tmp/sentinel.conf
@@ -44,11 +48,21 @@ spec:
               containerPort: {{ .Values.service.ports.sentinel }}
           {{- if .Values.auth.enabled }}
           env:
+            - name: REDIS_PRIMARY_HOST
+              value: {{ include "redis.primaryPodFqdn" . | quote }}
+            - name: REDIS_PRIMARY_PORT
+              value: {{ .Values.service.ports.redis | quote }}
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "redis.secretName" . }}
                   key: {{ .Values.auth.existingSecretPasswordKey }}
+          {{- else }}
+          env:
+            - name: REDIS_PRIMARY_HOST
+              value: {{ include "redis.primaryPodFqdn" . | quote }}
+            - name: REDIS_PRIMARY_PORT
+              value: {{ .Values.service.ports.redis | quote }}
           {{- end }}
           {{- with .Values.sentinel.resources }}
           resources:
