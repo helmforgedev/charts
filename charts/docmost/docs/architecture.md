@@ -1,6 +1,7 @@
 # Docmost Architecture Notes
 
-This chart packages Docmost as a single application Deployment backed by PostgreSQL and Redis. It is designed as an alpha chart with clear defaults, simple local validation, and explicit external-service support.
+This chart packages Docmost as a single application Deployment backed by PostgreSQL and Redis. It is designed as an alpha chart
+with clear defaults, local validation, explicit external-service support, and optional S3-compatible object storage.
 
 ## Supported Model
 
@@ -8,6 +9,9 @@ This chart packages Docmost as a single application Deployment backed by Postgre
 - PostgreSQL provided by the bundled subchart or an external PostgreSQL service
 - Redis provided by the bundled subchart or an external Redis service
 - uploaded files stored on a local PVC or an S3-compatible object store
+- HTTP exposed through a ClusterIP Service, optional Ingress, or optional Gateway API HTTPRoute
+- optional External Secrets Operator integration for credentials managed outside Helm
+- optional PostgreSQL backup CronJob that uploads dumps to S3-compatible storage
 
 ## Why Single Replica
 
@@ -40,16 +44,30 @@ You can disable the bundled `postgresql` and `redis` subcharts and point Docmost
 - set `redis.enabled=false`
 - configure `redis.external.*`
 
+## Network Exposure
+
+The chart always renders an internal HTTP Service. Operators can add one of the supported north-south routing options:
+
+- `ingress.enabled=true` for standard Kubernetes Ingress controllers
+- `gateway.enabled=true` for Gateway API HTTPRoute
+- `service.ipFamilyPolicy` and `service.ipFamilies` for explicit single-stack or dual-stack Service behavior
+
+## Database Bootstrap
+
+The bundled PostgreSQL configuration initializes the Docmost database with required privileges and extensions on first boot.
+The bootstrap script uses the configured `postgresql.auth.database` and `postgresql.auth.username` values, so renamed databases
+and users are supported without editing SQL manually.
+
 ## Version Pinning Note
 
-At the time this chart was created, Docker Hub exposed `0.71.0` while the official GitHub releases page showed `v0.70.3` as the latest release. Following repository rules, the chart pins `0.70.3`, the latest version confirmed on both sources used for release validation.
+The chart pins the upstream application image through `image.tag` and `appVersion`. For this release, `docmost/docmost:0.80.2` was verified as available on Docker Hub before updating the chart.
 
 <!-- @AI-METADATA
 type: chart-docs
 title: Docmost - Architecture Notes
 description: Architecture and deployment notes for the Docmost Helm chart
 
-keywords: docmost, architecture, postgresql, redis, s3, local-storage
+keywords: docmost, architecture, postgresql, redis, s3, local-storage, gateway-api, external-secrets, dual-stack, backup
 
 purpose: Explain the supported Docmost deployment model and key architectural constraints
 scope: Chart
@@ -58,5 +76,5 @@ relations:
   - charts/docmost/README.md
 path: charts/docmost/docs/architecture.md
 version: 1.0
-date: 2026-04-01
+date: 2026-05-05
 -->
