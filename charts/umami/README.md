@@ -32,7 +32,7 @@ helm install umami oci://ghcr.io/helmforgedev/helm/umami -f values.yaml
 ## Basic Example
 
 ```yaml
-# values.yaml — default values deploy with bundled PostgreSQL
+# values.yaml - default values deploy with bundled PostgreSQL
 # No configuration needed for a basic setup
 ```
 
@@ -62,13 +62,23 @@ database:
 
 | Key | Default | Description |
 |-----|---------|-------------|
+| `image.repository` | `ghcr.io/umami-software/umami` | Umami container image repository |
+| `image.tag` | `3.1.0` | Umami container image tag |
 | `umami.port` | `3000` | Application port |
 | `umami.appSecret` | `""` | Hash secret (auto-generated) |
 | `umami.disableTelemetry` | `true` | Disable telemetry |
 | `umami.trackerScriptName` | `""` | Custom tracker script name |
-| `postgresql.enabled` | `true` | Deploy PostgreSQL subchart |
+| `postgresql.enabled` | `true` | Deploy PostgreSQL subchart (`helmforge/postgresql` `1.10.0`) |
 | `ingress.enabled` | `false` | Enable ingress |
 | `service.port` | `80` | Service port |
+
+## Upgrade Notes
+
+Umami `3.1.0` is a major upstream release that adds Boards, Session Replay,
+Web Vitals tracking, share page improvements, and security fixes. It includes
+database schema migrations for Boards, Shares, Session Replay, and duplicate
+board keys. Back up PostgreSQL before upgrading live deployments and review the
+upstream v3 release notes if migrating from an older Umami v2 installation.
 
 ## More Information
 
