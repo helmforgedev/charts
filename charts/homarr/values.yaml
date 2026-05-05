@@ -5,7 +5,7 @@
 # -- Homarr image
 image:
   repository: ghcr.io/homarr-labs/homarr
-  tag: "v1.57.1"
+  tag: "v1.60.0"
   pullPolicy: IfNotPresent
 
 # -- Image pull secrets
@@ -99,6 +99,19 @@ postgresql:
     username: homarr
     # -- Database password (auto-generated if empty)
     password: ""
+  initdb:
+    scripts:
+      10-homarr-privileges.sh: |
+        #!/bin/sh
+        set -e
+        if [ -n "${APP_DATABASE}" ] && [ -n "${APP_USERNAME}" ]; then
+          psql --username "${POSTGRES_USER}" --dbname postgres \
+            --set=app_database="${APP_DATABASE}" \
+            --set=app_username="${APP_USERNAME}" <<'SQL'
+        SELECT format('ALTER DATABASE %I OWNER TO %I', :'app_database', :'app_username') \gexec
+        SELECT format('GRANT CREATE ON DATABASE %I TO %I', :'app_database', :'app_username') \gexec
+        SQL
+        fi
   primary:
     persistence:
       # -- Enable persistence for PostgreSQL data

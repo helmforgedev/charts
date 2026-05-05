@@ -144,6 +144,17 @@ Homarr DB_DRIVER value: better-sqlite3, node-postgres, mysql2
 {{- end -}}
 {{- end -}}
 
+{{/*
+Homarr DB_DIALECT value: sqlite, mysql, postgresql
+*/}}
+{{- define "homarr.dbDialect" -}}
+{{- $vendor := include "homarr.databaseVendor" . -}}
+{{- if eq $vendor "sqlite3" -}}sqlite
+{{- else if eq $vendor "mysql" -}}mysql
+{{- else -}}postgresql
+{{- end -}}
+{{- end -}}
+
 {{- define "homarr.databaseHost" -}}
 {{- $mode := include "homarr.databaseMode" . -}}
 {{- if eq $mode "external" -}}
