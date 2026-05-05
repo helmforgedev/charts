@@ -228,23 +228,15 @@ Homarr DB_DIALECT value: sqlite, mysql, postgresql
 {{- end -}}
 
 {{/*
-Database URL for Homarr (postgres://user:pass@host:port/db or mysql://...)
+Database URL for SQLite. PostgreSQL/MySQL use discrete env vars so passwords
+do not need URL encoding inside a rendered connection string.
 */}}
 {{- define "homarr.dbUrl" -}}
 {{- $mode := include "homarr.databaseMode" . -}}
 {{- if eq $mode "sqlite" -}}
 {{- .Values.database.sqlite.path -}}
 {{- else -}}
-{{- $vendor := include "homarr.databaseVendor" . -}}
-{{- $host := include "homarr.databaseHost" . -}}
-{{- $port := include "homarr.databasePort" . -}}
-{{- $name := include "homarr.databaseName" . -}}
-{{- $user := include "homarr.databaseUsername" . -}}
-{{- if eq $vendor "mysql" -}}
-{{- printf "mysql://%s:$(DB_PASSWORD)@%s:%s/%s" $user $host $port $name -}}
-{{- else -}}
-{{- printf "postgres://%s:$(DB_PASSWORD)@%s:%s/%s" $user $host $port $name -}}
-{{- end -}}
+{{- "" -}}
 {{- end -}}
 {{- end -}}
 
@@ -273,6 +265,18 @@ Database URL for Homarr (postgres://user:pass@host:port/db or mysql://...)
 {{- printf "%s-auth" .Values.postgresql.fullnameOverride -}}
 {{- else -}}
 {{- printf "%s-%s-auth" .Release.Name (.Values.postgresql.nameOverride | default "postgresql") -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "homarr.shouldRunPostgresqlUpgradeJob" -}}
+{{- if and .Values.postgresql.enabled .Values.postgresqlUpgradeJob.enabled -}}
+  {{- if not .Values.postgresqlUpgradeJob.requireExistingResources -}}
+true
+  {{- else -}}
+    {{- $secret := lookup "v1" "Secret" .Release.Namespace (include "homarr.postgresqlSecretName" .) -}}
+    {{- $service := lookup "v1" "Service" .Release.Namespace (include "homarr.databaseHost" .) -}}
+    {{- if and $secret $service -}}true{{- end -}}
+  {{- end -}}
 {{- end -}}
 {{- end -}}
 

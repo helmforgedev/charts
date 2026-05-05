@@ -149,6 +149,7 @@ backup:
 | `postgresql.auth.username` | `homarr` | PostgreSQL username |
 | `postgresql.initdb.scripts` | Homarr grants | PostgreSQL bootstrap grants required for Homarr migrations |
 | `postgresqlUpgradeJob.enabled` | `true` | Run a pre-upgrade hook that reapplies PostgreSQL grants on existing bundled PostgreSQL PVCs |
+| `postgresqlUpgradeJob.requireExistingResources` | `true` | Require an existing bundled PostgreSQL Secret and Service before rendering the pre-upgrade hook |
 | `postgresql.primary.persistence.enabled` | `true` | Enable PostgreSQL persistence |
 | `mysql.enabled` | `false` | Deploy MySQL subchart |
 | `mysql.auth.database` | `homarr` | MySQL database name |
@@ -193,13 +194,15 @@ This update moves the default image from `v1.57.1` to `v1.60.0`. Review upstream
 environments. Homarr `v1.60.0` includes scheduler, OpenAPI documentation and icon updater fixes, with no breaking changes
 identified in the upstream release metadata.
 
-For PostgreSQL and MySQL, the chart sets `DB_DIALECT`, `DB_DRIVER`, `DB_URL`, and the discrete database environment variables
-so Homarr runs the correct database migrations during startup.
+For PostgreSQL and MySQL, the chart sets `DB_DIALECT`, `DB_DRIVER`, and discrete database environment variables instead of
+rendering a full `DB_URL`; this avoids requiring URL-encoded passwords in Kubernetes Secrets.
 
 For bundled PostgreSQL, the default `postgresql.initdb.scripts` grants the `homarr` user ownership and `CREATE` permission on
 the `homarr` database for fresh data directories. The `postgresqlUpgradeJob` pre-upgrade hook reapplies those grants before
-Homarr starts when an existing bundled PostgreSQL PVC is reused. Existing external PostgreSQL databases must provide equivalent
-permissions before the first Homarr startup because Homarr creates the `drizzle` schema during migration.
+Homarr starts when an existing bundled PostgreSQL Secret and Service are present. Set
+`postgresqlUpgradeJob.requireExistingResources=false` only for controlled migrations where those bundled PostgreSQL resources
+are created before the upgrade hook runs. Existing external PostgreSQL databases must provide equivalent permissions before the
+first Homarr startup because Homarr creates the `drizzle` schema during migration.
 
 After changing database mode or credentials, verify the application pod and selected database backend:
 

@@ -3,7 +3,7 @@ suite: postgresql upgrade job
 templates:
   - templates/postgresql-upgrade-job.yaml
 tests:
-  - it: should render a pre-upgrade PostgreSQL grants job when bundled PostgreSQL is enabled
+  - it: should render a pre-upgrade PostgreSQL grants job when explicitly allowed without existing-resource lookup
     set:
       postgresql:
         enabled: true
@@ -11,6 +11,8 @@ tests:
           database: homarr
           username: homarr
           password: test
+      postgresqlUpgradeJob:
+        requireExistingResources: false
     asserts:
       - hasDocuments:
           count: 1
@@ -40,6 +42,14 @@ tests:
           pattern: "GRANT CREATE ON DATABASE"
 
   - it: should not render when bundled PostgreSQL is disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render by default without existing bundled PostgreSQL resources
+    set:
+      postgresql:
+        enabled: true
     asserts:
       - hasDocuments:
           count: 0
