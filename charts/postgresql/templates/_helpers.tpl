@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- define "postgresql.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -434,6 +435,15 @@ maintenance_work_mem = '256MB'
 
 {{- define "postgresql.tlsVolumePermissionsInitContainer" -}}
 {{- if and .Values.tls.enabled .Values.tls.volumePermissions.enabled }}
+{{- $postgresSecurityContext := .Values.securityContext | default dict -}}
+{{- $tlsRunAsUser := 999 -}}
+{{- if hasKey $postgresSecurityContext "runAsUser" -}}
+{{- $tlsRunAsUser = get $postgresSecurityContext "runAsUser" -}}
+{{- end -}}
+{{- $tlsRunAsGroup := $tlsRunAsUser -}}
+{{- if hasKey $postgresSecurityContext "runAsGroup" -}}
+{{- $tlsRunAsGroup = get $postgresSecurityContext "runAsGroup" -}}
+{{- end -}}
 - name: tls-volume-permissions
   image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
   imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -445,7 +455,7 @@ maintenance_work_mem = '256MB'
       cp "/tls-source/{{ .Values.tls.certFilename }}" "/tls-fixed/{{ .Values.tls.certFilename }}"
       cp "/tls-source/{{ .Values.tls.keyFilename }}" "/tls-fixed/{{ .Values.tls.keyFilename }}"
       cp "/tls-source/{{ .Values.tls.caFilename }}" "/tls-fixed/{{ .Values.tls.caFilename }}"
-      chown 999:999 "/tls-fixed/{{ .Values.tls.certFilename }}" "/tls-fixed/{{ .Values.tls.keyFilename }}" "/tls-fixed/{{ .Values.tls.caFilename }}"
+      chown {{ $tlsRunAsUser }}:{{ $tlsRunAsGroup }} "/tls-fixed/{{ .Values.tls.certFilename }}" "/tls-fixed/{{ .Values.tls.keyFilename }}" "/tls-fixed/{{ .Values.tls.caFilename }}"
       chmod 0644 "/tls-fixed/{{ .Values.tls.certFilename }}" "/tls-fixed/{{ .Values.tls.caFilename }}"
       chmod 0600 "/tls-fixed/{{ .Values.tls.keyFilename }}"
   securityContext:
