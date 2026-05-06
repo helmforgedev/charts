@@ -255,8 +255,8 @@ Backup enabled (with validation).
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
-    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+  {{- if and (ne (include "wordpress.externalSecretBackupEnabled" .) "true") (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- fail "backup requires backup.s3.existingSecret, externalSecrets.backup.enabled, or both backup.s3.accessKey and backup.s3.secretKey" -}}
   {{- end -}}
 true
 {{- end -}}
@@ -382,17 +382,29 @@ Redis object cache helpers.
 {{- end -}}
 
 {{- define "wordpress.redisSecretName" -}}
+{{- $redisValues := default dict .Values.redis -}}
+{{- $redisAuth := default dict (get $redisValues "auth") -}}
 {{- if .Values.objectCache.redis.auth.existingSecret -}}
 {{- .Values.objectCache.redis.auth.existingSecret -}}
 {{- else if eq .Values.objectCache.redis.mode "external" -}}
 {{- printf "%s-redis-auth" (include "wordpress.fullname" .) -}}
+{{- else if get $redisAuth "existingSecret" -}}
+{{- get $redisAuth "existingSecret" -}}
 {{- else -}}
 {{- printf "%s-auth" (include "wordpress.redisSubchartFullname" .) -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "wordpress.redisSecretKey" -}}
+{{- $redisValues := default dict .Values.redis -}}
+{{- $redisAuth := default dict (get $redisValues "auth") -}}
+{{- if .Values.objectCache.redis.auth.existingSecret -}}
 {{- .Values.objectCache.redis.auth.existingSecretPasswordKey -}}
+{{- else if and (eq .Values.objectCache.redis.mode "subchart") (get $redisAuth "existingSecret") -}}
+{{- default "redis-password" (get $redisAuth "existingSecretPasswordKey") -}}
+{{- else -}}
+{{- .Values.objectCache.redis.auth.existingSecretPasswordKey -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "wordpress.redisPasswordEnabled" -}}

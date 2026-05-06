@@ -174,6 +174,25 @@ tests:
           path: spec.template.spec.containers[0].env[6].value
           pattern: "test-redis-client"
 
+  - it: should use Redis subchart existingSecret for object cache password
+    template: templates/deployment.yaml
+    set:
+      plugins.enabled: true
+      plugins.installer.enabled: true
+      objectCache.enabled: true
+      objectCache.redis.subchart.enabled: true
+      redis.auth.existingSecret: wordpress-redis-auth
+      redis.auth.existingSecretPasswordKey: redis-password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WP_REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: wordpress-redis-auth
+                key: redis-password
+
   - it: should include extra env vars
     template: templates/deployment.yaml
     set:
