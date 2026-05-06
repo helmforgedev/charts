@@ -312,6 +312,9 @@ true
 {{- end -}}
 
 {{- define "mysql.externalSecretDataItem" -}}
+{{- if or (not .remoteRef) (eq (len .remoteRef) 0) -}}
+{{- fail (printf "%s is required and must contain at least one remoteRef field" .remoteRefName) -}}
+{{- end -}}
 - secretKey: {{ .secretKey }}
   remoteRef:
     {{- toYaml .remoteRef | nindent 4 }}
