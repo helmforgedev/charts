@@ -1,4 +1,4 @@
-CKAN has been installed.
+CKAN {{ .Chart.AppVersion }} has been installed.
 
 {{- if .Values.ingress.enabled }}
 {{- range .Values.ingress.hosts }}
@@ -10,3 +10,27 @@ CKAN has been installed.
 {{- end }}
 
 Default credentials: {{ .Values.ckan.sysadminName }} / (check secret {{ include "ckan.secretName" . }})
+
+Runtime:
+  Image: {{ include "ckan.image" . }}
+  PostgreSQL subchart: {{ ternary "enabled" "disabled" .Values.postgresql.enabled }}
+  Redis subchart: {{ ternary "enabled" "disabled" .Values.redis.enabled }}
+  Solr: {{ ternary "enabled" "external" .Values.solr.enabled }}
+  DataPusher: {{ ternary "enabled" "disabled" .Values.datapusher.enabled }}
+  Backup CronJob: {{ ternary "enabled" "disabled" .Values.backup.enabled }}
+
+Checks:
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "ckan.fullname" . }} --tail=100
+  kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
+{{- if .Values.postgresql.enabled }}
+  kubectl -n {{ .Release.Namespace }} logs statefulset/{{ .Release.Name }}-postgresql --tail=80
+{{- end }}
+{{- if .Values.redis.enabled }}
+  kubectl -n {{ .Release.Namespace }} logs statefulset/{{ .Release.Name }}-redis --tail=80
+{{- end }}
+
+Upgrade reminder:
+  Take a PostgreSQL backup and confirm CKAN plugins before production upgrades.
+
+Happy Helmforging :)

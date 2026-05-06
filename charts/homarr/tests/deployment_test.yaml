@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 suite: deployment
 templates:
   - templates/deployment.yaml
@@ -14,7 +15,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "ghcr.io/homarr-labs/homarr:v1.57.1"
+          value: "ghcr.io/homarr-labs/homarr:v1.60.0"
 
   - it: should use Recreate strategy for SQLite
     asserts:
@@ -60,6 +61,14 @@ tests:
             name: DB_DRIVER
             value: "better-sqlite3"
 
+  - it: should set DB_DIALECT to sqlite by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_DIALECT
+            value: "sqlite"
+
   - it: should set DB_DRIVER to node-postgres for PostgreSQL
     set:
       postgresql:
@@ -75,6 +84,30 @@ tests:
             name: DB_DRIVER
             value: "node-postgres"
 
+  - it: should set discrete database env vars without DB_URL for PostgreSQL
+    set:
+      postgresql:
+        enabled: true
+        auth:
+          database: homarr
+          username: homarr
+          password: test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_DIALECT
+            value: "postgresql"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_HOST
+            value: "RELEASE-NAME-postgresql"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_URL
+
   - it: should set DB_DRIVER to mysql2 for MySQL
     set:
       mysql:
@@ -89,6 +122,30 @@ tests:
           content:
             name: DB_DRIVER
             value: "mysql2"
+
+  - it: should set discrete database env vars without DB_URL for MySQL
+    set:
+      mysql:
+        enabled: true
+        auth:
+          database: homarr
+          username: homarr
+          password: test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_DIALECT
+            value: "mysql"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_HOST
+            value: "RELEASE-NAME-mysql"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_URL
 
   - it: should set DB_URL for SQLite
     asserts:
