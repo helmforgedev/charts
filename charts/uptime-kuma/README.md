@@ -47,6 +47,9 @@ kubectl port-forward svc/<release>-uptime-kuma 3001:80
 
 ## MariaDB Mode
 
+The optional local database path uses the HelmForge MySQL subchart `1.9.1`
+as a MariaDB-compatible backend.
+
 ```yaml
 database:
   type: mariadb
@@ -76,14 +79,24 @@ mysql:
 
 | Key | Default | Description |
 |-----|---------|-------------|
+| `image.repository` | `docker.io/louislam/uptime-kuma` | Uptime Kuma container image |
+| `image.tag` | `2.3.2` | Uptime Kuma image tag |
 | `uptimeKuma.port` | `3001` | Application port |
 | `database.type` | `sqlite` | Database type (sqlite, mariadb) |
-| `mysql.enabled` | `false` | Deploy MySQL subchart |
+| `mysql.enabled` | `false` | Deploy MySQL subchart (`helmforge/mysql` `1.9.1`) |
 | `persistence.enabled` | `true` | Enable persistence for /app/data |
 | `persistence.size` | `2Gi` | PVC size |
 | `ingress.enabled` | `false` | Enable ingress |
 | `backup.enabled` | `false` | Enable S3 backups |
 | `service.port` | `80` | Service port |
+
+## Upgrade Notes
+
+Uptime Kuma `2.3.2` is an upstream bugfix release. The release reverts SQLite
+to single-connection behavior by default, so the default `database.type=sqlite`
+path remains aligned with upstream behavior. Keep persistence enabled for
+production SQLite deployments and back up `/app/data` before upgrading live
+instances.
 
 ## More Information
 

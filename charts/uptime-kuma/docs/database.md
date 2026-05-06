@@ -18,7 +18,7 @@ persistence:
 
 ## MariaDB via MySQL Subchart
 
-Use the bundled MySQL subchart as a MariaDB-compatible backend:
+Use the HelmForge MySQL subchart `1.9.1` as a MariaDB-compatible backend:
 
 ```yaml
 database:
@@ -31,6 +31,9 @@ mysql:
     username: uptime_kuma
     password: "strong-password"
 ```
+
+The subchart creates an auth Secret named `<release>-mysql-auth`. Uptime Kuma
+reads the application user password from the `mysql-user-password` key.
 
 ## External MariaDB
 

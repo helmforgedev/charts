@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- define "uptime-kuma.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -86,7 +87,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/* Database secret name */}}
 {{- define "uptime-kuma.dbSecretName" -}}
 {{- if .Values.mysql.enabled -}}
-{{- printf "%s-mysql" .Release.Name -}}
+{{- printf "%s-mysql-auth" .Release.Name -}}
 {{- else if .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecret -}}
 {{- else -}}
@@ -97,7 +98,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/* Database secret password key */}}
 {{- define "uptime-kuma.dbSecretPasswordKey" -}}
 {{- if .Values.mysql.enabled -}}
-{{- "mysql-password" -}}
+{{- "mysql-user-password" -}}
 {{- else if .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecretPasswordKey | default "password" -}}
 {{- else -}}
