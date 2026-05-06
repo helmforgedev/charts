@@ -1,29 +1,75 @@
-# Production deployment with ingress and auto-login via existing secret
+# SPDX-License-Identifier: Apache-2.0
+# Production-oriented example for an internal phpMyAdmin portal.
+# Keep phpMyAdmin behind VPN, SSO/reverse proxy auth, or strict IP allowlists.
+
 phpmyadmin:
   host: mysql-primary.production.svc.cluster.local
   port: 3306
   uploadLimit: "256M"
   absoluteUri: "https://pma.example.com/"
+  authType: cookie
+  hidePhpVersion: true
 
 auth:
-  existingSecret: mysql-admin-credentials
+  existingSecret: phpmyadmin-auth
   existingSecretUsernameKey: username
   existingSecretPasswordKey: password
+  existingSecretBlowfishKey: blowfish-secret
 
 replicaCount: 2
 
+sessions:
+  enabled: true
+  type: persistentVolumeClaim
+  accessModes:
+    - ReadWriteMany
+  size: 1Gi
+
 resources:
   requests:
-    cpu: 50m
+    cpu: 100m
     memory: 128Mi
   limits:
-    memory: 256Mi
+    memory: 512Mi
+
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+networkPolicy:
+  enabled: true
+  ingress:
+    allowSameNamespace: false
+    extraFrom:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+  egress:
+    enabled: true
+    allowDNS: true
+    allowSameNamespaceDatabase: true
+    databasePort: 3306
 
 ingress:
   enabled: true
-  ingressClassName: traefik
+  ingressClassName: nginx
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "256m"
   hosts:
     - host: pma.example.com
       paths:

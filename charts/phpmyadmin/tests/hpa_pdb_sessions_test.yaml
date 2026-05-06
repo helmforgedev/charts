@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: hpa pdb sessions
+templates:
+  - templates/hpa.yaml
+  - templates/pdb.yaml
+  - templates/sessions-pvc.yaml
+tests:
+  - it: should render HPA when autoscaling is enabled
+    template: templates/hpa.yaml
+    set:
+      autoscaling.enabled: true
+    asserts:
+      - isKind:
+          of: HorizontalPodAutoscaler
+      - equal:
+          path: spec.minReplicas
+          value: 1
+      - equal:
+          path: spec.maxReplicas
+          value: 3
+
+  - it: should render PDB when enabled
+    template: templates/pdb.yaml
+    set:
+      pdb.enabled: true
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.minAvailable
+          value: 1
+
+  - it: should render sessions PVC when persistent sessions are enabled
+    template: templates/sessions-pvc.yaml
+    set:
+      sessions.enabled: true
+      sessions.type: persistentVolumeClaim
+      sessions.size: 2Gi
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: spec.resources.requests.storage
+          value: 2Gi

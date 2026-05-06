@@ -1,8 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
 # phpMyAdmin Helm Chart
 # =============================================================================
 # Uses the official phpmyadmin/phpmyadmin Docker image.
-# Stateless — no persistent storage required.
+# Stateless - no persistent storage required.
 # Connects to any MySQL/MariaDB server via PMA_HOST.
 # =============================================================================
 
@@ -36,12 +37,39 @@ phpmyadmin:
   host: ""
   # -- Comma-separated list of MySQL hosts for multi-server mode
   hosts: ""
+  # -- Comma-separated display names for PMA_HOSTS entries
+  verboses: ""
   # -- MySQL port
   port: 3306
+  # -- Comma-separated ports for PMA_HOSTS entries. Empty uses phpmyadmin.port.
+  ports: ""
+  # -- Allow users to enter an arbitrary database host on the login screen
+  arbitrary: false
   # -- Max upload size for SQL imports (e.g., "64M", "128M")
   uploadLimit: "64M"
   # -- Absolute URI when behind a reverse proxy (e.g., https://pma.example.com/)
   absoluteUri: ""
+  # -- Hide the PHP version from the web server response headers
+  hidePhpVersion: true
+  # -- Base64-encoded phpMyAdmin configuration passed through PMA_CONFIG_BASE64
+  configBase64: ""
+  # -- Authentication type used by phpMyAdmin: cookie | config | http | signon
+  authType: cookie
+  # -- Optional control host for phpMyAdmin configuration storage
+  controlHost: ""
+  # -- Optional control port for phpMyAdmin configuration storage
+  controlPort: 3306
+  # -- Optional control user for phpMyAdmin configuration storage
+  controlUser: ""
+  # -- Optional control user password. Prefer auth.existingSecret or externalSecrets.auth for production.
+  controlPassword: ""
+  # -- Enable MySQL client TLS variables for phpMyAdmin
+  ssl:
+    enabled: false
+    verify: true
+    caPath: ""
+    certPath: ""
+    keyPath: ""
   # -- Extra environment variables
   extraEnv: []
   # - name: PMA_VERBOSE
@@ -56,12 +84,18 @@ auth:
   username: ""
   # -- MySQL password for auto-login
   password: ""
+  # -- Blowfish secret used by cookie authentication. Prefer existingSecret or externalSecrets.auth in production.
+  blowfishSecret: ""
   # -- Existing secret containing auto-login credentials
   existingSecret: ""
   # -- Key in existing secret for the username
   existingSecretUsernameKey: username
   # -- Key in existing secret for the password
   existingSecretPasswordKey: password
+  # -- Key in existing secret for the blowfish secret
+  existingSecretBlowfishKey: blowfish-secret
+  # -- Key in existing secret for the control user password
+  existingSecretControlPasswordKey: control-password
 
 # =============================================================================
 # Custom Configuration
@@ -129,6 +163,10 @@ service:
   port: 80
   # -- Annotations for the service
   annotations: {}
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ""
+  # -- Ordered Service IP families: IPv4 | IPv6. Empty uses cluster default.
+  ipFamilies: []
 
 # =============================================================================
 # Ingress
@@ -155,6 +193,31 @@ ingress:
     #     - pma.example.com
 
 # =============================================================================
+# Gateway API
+# =============================================================================
+
+gatewayAPI:
+  # -- Create an HTTPRoute. Requires Gateway API CRDs and an existing Gateway.
+  enabled: false
+  # -- API version for HTTPRoute
+  apiVersion: gateway.networking.k8s.io/v1
+  # -- HTTPRoute annotations
+  annotations: {}
+  # -- Parent Gateway references
+  parentRefs: []
+    # - name: public
+    #   namespace: gateway-system
+    #   sectionName: https
+  # -- Optional HTTPRoute hostnames
+  hostnames: []
+    # - pma.example.com
+  # -- Path matches routed to phpMyAdmin
+  matches:
+    - path:
+        type: PathPrefix
+        value: /
+
+# =============================================================================
 # Service Account
 # =============================================================================
 
@@ -165,6 +228,46 @@ serviceAccount:
   name: ""
   # -- Annotations for the service account
   annotations: {}
+  # -- Mount the ServiceAccount token into workload pods. Keep false unless an extension needs Kubernetes API access.
+  automountServiceAccountToken: false
+
+# =============================================================================
+# Autoscaling and Availability
+# =============================================================================
+
+autoscaling:
+  # -- Enable HorizontalPodAutoscaler
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: ""
+
+pdb:
+  # -- Enable PodDisruptionBudget
+  enabled: false
+  minAvailable: 1
+  maxUnavailable: ""
+
+# =============================================================================
+# Sessions and Themes
+# =============================================================================
+
+sessions:
+  # -- Mount /sessions. Recommended for multi-replica deployments using cookie/session based auth.
+  enabled: false
+  # -- Session storage type: emptyDir | persistentVolumeClaim
+  type: emptyDir
+  existingClaim: ""
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 1Gi
+
+themes:
+  # -- Mount custom themes into /www/themes from an existing volume
+  enabled: false
+  volume: {}
 
 # =============================================================================
 # Scheduling
@@ -176,6 +279,67 @@ affinity: {}
 topologySpreadConstraints: []
 priorityClassName: ""
 terminationGracePeriodSeconds: 30
+
+# =============================================================================
+# NetworkPolicy
+# =============================================================================
+
+networkPolicy:
+  # -- Create a NetworkPolicy for phpMyAdmin pods
+  enabled: false
+  ingress:
+    # -- Allow ingress from pods in the same namespace
+    allowSameNamespace: true
+    # -- Additional ingress "from" rules
+    extraFrom: []
+  egress:
+    # -- Add egress rules. Disabled keeps CNI default egress behavior.
+    enabled: false
+    # -- Allow DNS egress to kube-dns/CoreDNS
+    allowDNS: true
+    # -- Allow TCP egress to database pods in the same namespace
+    allowSameNamespaceDatabase: true
+    # -- Database port allowed when allowSameNamespaceDatabase=true
+    databasePort: 3306
+    # -- Allow HTTPS egress for external dependencies such as identity providers
+    allowHTTPS: false
+    # -- Additional egress "to" rules
+    extraTo: []
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret resources for clusters running External Secrets Operator.
+  enabled: false
+  # -- ExternalSecret apiVersion. Use external-secrets.io/v1 for current ESO releases.
+  apiVersion: external-secrets.io/v1
+  # -- Refresh interval for ExternalSecret resources.
+  refreshInterval: 1h
+  secretStoreRef:
+    # -- Existing SecretStore or ClusterSecretStore name.
+    name: ""
+    kind: SecretStore
+  target:
+    creationPolicy: Owner
+  auth:
+    # -- Manage the phpMyAdmin auth Secret with External Secrets Operator.
+    enabled: false
+    # -- Target Kubernetes Secret name. Empty defaults to <release>-phpmyadmin-auth.
+    targetName: ""
+    usernameRemoteRef: {}
+      # key: prod/phpmyadmin
+      # property: username
+    passwordRemoteRef: {}
+      # key: prod/phpmyadmin
+      # property: password
+    blowfishSecretRemoteRef: {}
+      # key: prod/phpmyadmin
+      # property: blowfish-secret
+    controlPasswordRemoteRef: {}
+      # key: prod/phpmyadmin
+      # property: control-password
 
 # =============================================================================
 # Extra

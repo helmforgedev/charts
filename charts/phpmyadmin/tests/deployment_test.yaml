@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 suite: deployment
 templates:
   - templates/deployment.yaml
@@ -25,12 +26,29 @@ tests:
   - it: should set PMA_HOSTS when hosts is configured
     set:
       phpmyadmin.hosts: "mysql-1.svc,mysql-2.svc"
+      phpmyadmin.ports: "3306,3307"
+      phpmyadmin.verboses: "Primary,Replica"
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: PMA_HOSTS
             value: "mysql-1.svc,mysql-2.svc"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_PORTS
+            value: "3306,3307"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_PORT
+          any: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_VERBOSES
+            value: "Primary,Replica"
 
   - it: should prefer PMA_HOSTS over PMA_HOST when both are set
     set:
@@ -70,6 +88,16 @@ tests:
             name: UPLOAD_LIMIT
             value: "128M"
 
+  - it: should enable arbitrary server mode
+    set:
+      phpmyadmin.arbitrary: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_ARBITRARY
+            value: "1"
+
   - it: should set PMA_ABSOLUTE_URI
     set:
       phpmyadmin.host: mysql.default.svc
@@ -80,6 +108,37 @@ tests:
           content:
             name: PMA_ABSOLUTE_URI
             value: "https://pma.example.com/"
+
+  - it: should omit HIDE_PHP_VERSION when disabled
+    set:
+      phpmyadmin.hidePhpVersion: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HIDE_PHP_VERSION
+          any: true
+
+  - it: should not render unsupported PMA_AUTH_TYPE env
+    set:
+      phpmyadmin.authType: http
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_AUTH_TYPE
+          any: true
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: custom-config
+            mountPath: /etc/phpmyadmin/config.user.inc.php
+            subPath: config.user.inc.php
+            readOnly: true
+      - exists:
+          path: spec.template.spec.containers[0].startupProbe.tcpSocket
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe.httpGet
 
   - it: should set auto-login env vars when auth is configured
     set:
@@ -122,6 +181,62 @@ tests:
               secretKeyRef:
                 name: my-auth-secret
                 key: password
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HELMFORGE_BLOWFISH_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: my-auth-secret
+                key: blowfish-secret
+                optional: true
+
+  - it: should use external secret target for auto-login
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: platform-secrets
+      externalSecrets.auth.enabled: true
+      externalSecrets.auth.usernameRemoteRef.key: prod/phpmyadmin
+      externalSecrets.auth.passwordRemoteRef.key: prod/phpmyadmin
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_USER
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-phpmyadmin-auth
+                key: username
+
+  - it: should use multi-host SSL env vars with PMA_HOSTS
+    set:
+      phpmyadmin.hosts: "mysql-1.svc,mysql-2.svc"
+      phpmyadmin.ssl.enabled: true
+      phpmyadmin.ssl.verify: false
+      phpmyadmin.ssl.caPath: /etc/phpmyadmin/ssl/ca.crt
+      phpmyadmin.ssl.certPath: /etc/phpmyadmin/ssl/client.crt
+      phpmyadmin.ssl.keyPath: /etc/phpmyadmin/ssl/client.key
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_SSLS
+            value: "1,1"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_SSL_VERIFIES
+            value: "0,0"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_SSL_CAS
+            value: "/etc/phpmyadmin/ssl/ca.crt,/etc/phpmyadmin/ssl/ca.crt"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_SSL
+          any: true
 
   - it: should not set auto-login env vars when auth is empty
     set:
@@ -152,6 +267,21 @@ tests:
             name: custom-config
             configMap:
               name: RELEASE-NAME-phpmyadmin-config
+
+  - it: should mount sessions when enabled
+    set:
+      sessions.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: sessions
+            mountPath: /sessions
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: sessions
+            emptyDir: {}
 
   - it: should not mount config volume when not configured
     set:

@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: networkpolicy
+templates:
+  - templates/networkpolicy.yaml
+tests:
+  - it: should not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render ingress and egress policy
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 80
+      - equal:
+          path: spec.ingress[0].from[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: NAMESPACE
+
+  - it: should deny ingress when no ingress peers are configured
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.ingress.allowSameNamespace: false
+    asserts:
+      - equal:
+          path: spec.ingress
+          value: []
