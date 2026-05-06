@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
+{{- include "phpmyadmin.validateExternalSecrets" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -105,7 +106,7 @@ spec:
             - name: PMA_CONTROLUSER
               value: {{ .Values.phpmyadmin.controlUser | quote }}
             - name: PMA_CONTROLPASS
-              {{- if or .Values.auth.existingSecret .Values.externalSecrets.auth.enabled }}
+              {{- if or .Values.auth.existingSecret (and .Values.externalSecrets.enabled .Values.externalSecrets.auth.enabled) }}
               valueFrom:
                 secretKeyRef:
                   name: {{ include "phpmyadmin.authSecretName" . }}
@@ -132,9 +133,9 @@ spec:
               value: {{ . | quote }}
             {{- end }}
             {{- end }}
-            {{- if or .Values.auth.username .Values.auth.existingSecret .Values.externalSecrets.auth.enabled }}
+            {{- if or .Values.auth.username .Values.auth.existingSecret (and .Values.externalSecrets.enabled .Values.externalSecrets.auth.enabled) }}
             - name: PMA_USER
-              {{- if or .Values.auth.existingSecret .Values.externalSecrets.auth.enabled }}
+              {{- if or .Values.auth.existingSecret (and .Values.externalSecrets.enabled .Values.externalSecrets.auth.enabled) }}
               valueFrom:
                 secretKeyRef:
                   name: {{ include "phpmyadmin.authSecretName" . }}
@@ -143,7 +144,7 @@ spec:
               value: {{ .Values.auth.username | quote }}
               {{- end }}
             - name: PMA_PASSWORD
-              {{- if or .Values.auth.existingSecret .Values.externalSecrets.auth.enabled }}
+              {{- if or .Values.auth.existingSecret (and .Values.externalSecrets.enabled .Values.externalSecrets.auth.enabled) }}
               valueFrom:
                 secretKeyRef:
                   name: {{ include "phpmyadmin.authSecretName" . }}
@@ -155,9 +156,9 @@ spec:
                   key: {{ .Values.auth.existingSecretPasswordKey }}
               {{- end }}
             {{- end }}
-            {{- if or .Values.auth.blowfishSecret .Values.auth.existingSecret .Values.externalSecrets.auth.enabled }}
+            {{- if or .Values.auth.blowfishSecret .Values.auth.existingSecret (and .Values.externalSecrets.enabled .Values.externalSecrets.auth.enabled) }}
             - name: PMA_BLOWFISH_SECRET
-              {{- if or .Values.auth.existingSecret .Values.externalSecrets.auth.enabled }}
+              {{- if or .Values.auth.existingSecret (and .Values.externalSecrets.enabled .Values.externalSecrets.auth.enabled) }}
               valueFrom:
                 secretKeyRef:
                   name: {{ include "phpmyadmin.authSecretName" . }}

@@ -45,7 +45,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/* Auth secret name */}}
 {{- define "phpmyadmin.authSecretName" -}}
-{{- if .Values.externalSecrets.auth.targetName -}}
+{{- if and .Values.externalSecrets.enabled .Values.externalSecrets.auth.enabled .Values.externalSecrets.auth.targetName -}}
 {{- .Values.externalSecrets.auth.targetName -}}
 {{- else if .Values.auth.existingSecret -}}
 {{- .Values.auth.existingSecret -}}
@@ -87,6 +87,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/* Validate ExternalSecret settings */}}
 {{- define "phpmyadmin.validateExternalSecrets" -}}
+{{- if and .Values.externalSecrets.auth.enabled (not .Values.externalSecrets.enabled) -}}
+{{- fail "externalSecrets.enabled must be true when externalSecrets.auth.enabled=true" -}}
+{{- end -}}
 {{- if and .Values.externalSecrets.enabled .Values.auth.existingSecret .Values.externalSecrets.auth.enabled -}}
 {{- fail "auth.existingSecret and externalSecrets.auth.enabled are mutually exclusive" -}}
 {{- end -}}
