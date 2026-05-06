@@ -201,6 +201,7 @@ plugins:
 The installer uses a `post-install,post-upgrade` Helm hook and pod affinity to run on the same node as the WordPress pod
 when persistence is enabled. This improves compatibility with `ReadWriteOnce` PVCs.
 The default installer deadline is 60 seconds with one retry, so failed official plugin downloads fail quickly during Helm installs.
+Because the Job writes plugin files to the WordPress volume, `plugins.installer.enabled` requires `persistence.enabled=true`.
 
 Only official WordPress.org plugin slugs are supported. When WordPress core is not installed yet,
 the Job downloads the official plugin archive from `downloads.wordpress.org`, extracts it into `wp-content/plugins`,

@@ -6,6 +6,7 @@ For immutable production, prefer a custom WordPress image with plugins already p
 
 The installer defaults to a 60 second active deadline and one retry.
 Slow official plugin downloads or network blocks fail quickly instead of leaving a Helm install pending for several minutes.
+The installer requires `persistence.enabled=true` because it writes plugin files and drop-ins to the shared WordPress volume.
 
 ## Custom Plugins
 

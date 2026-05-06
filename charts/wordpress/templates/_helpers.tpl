@@ -522,6 +522,9 @@ define('WP_REDIS_MAXTTL', {{ int . }});
 
 {{/* Validate object cache and plugin settings */}}
 {{- define "wordpress.validatePlugins" -}}
+{{- if and (eq (include "wordpress.pluginsJobEnabled" .) "true") (not .Values.persistence.enabled) -}}
+  {{- fail "plugins.installer.enabled requires persistence.enabled=true so installed plugins are written to the WordPress volume" -}}
+{{- end -}}
 {{- if .Values.objectCache.enabled -}}
   {{- if not .Values.plugins.enabled -}}
     {{- fail "plugins.enabled must be true when objectCache.enabled is true" -}}
