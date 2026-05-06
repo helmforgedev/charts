@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: Apache-2.0
+{{- if include "hoppscotch.shouldRunPostgresqlExtensionsJob" . }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "hoppscotch.fullname" . }}-postgresql-extensions
+  labels: {{ include "hoppscotch.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.postgresqlExtensionsJob.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.postgresqlExtensionsJob.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels: {{ include "hoppscotch.selectorLabels" . | nindent 8 }}
+      {{- with .Values.postgresqlExtensionsJob.podAnnotations }}
+      annotations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "hoppscotch.serviceAccountName" . }}
+      securityContext: {{- toYaml .Values.postgresqlExtensionsJob.podSecurityContext | nindent 8 }}
+      containers:
+        - name: postgresql-extensions
+          image: "{{ .Values.postgresqlExtensionsJob.image.repository }}:{{ .Values.postgresqlExtensionsJob.image.tag }}"
+          imagePullPolicy: {{ .Values.postgresqlExtensionsJob.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              until pg_isready --host="${PGHOST}" --port="${PGPORT}" --username="${PGUSER}" --dbname="${PGDATABASE}"; do
+                echo "waiting for postgresql..."; sleep 2;
+              done
+              psql --set=ON_ERROR_STOP=1 -c 'CREATE EXTENSION IF NOT EXISTS pg_trgm;'
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "hoppscotch.postgresqlSecretName" . }}
+                  key: {{ .Values.postgresql.auth.existingSecretUserPasswordKey | default "user-password" }}
+            - name: PGHOST
+              value: {{ include "hoppscotch.databaseHost" . | quote }}
+            - name: PGPORT
+              value: {{ include "hoppscotch.databasePort" . | quote }}
+            - name: PGDATABASE
+              value: {{ include "hoppscotch.databaseName" . | quote }}
+            - name: PGUSER
+              value: {{ .Values.postgresql.auth.username | quote }}
+            - name: PGPASSWORD
+              value: "$(DB_PASSWORD)"
+          securityContext: {{- toYaml .Values.postgresqlExtensionsJob.securityContext | nindent 12 }}
+          resources: {{- toYaml .Values.postgresqlExtensionsJob.resources | nindent 12 }}
+{{- end }}

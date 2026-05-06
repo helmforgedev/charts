@@ -72,19 +72,40 @@ All traffic goes through a single Ingress/Service on port 80.
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `mode` | Chart mode: `dev` or `production` | `dev` |
-| `image.tag` | Hoppscotch image tag | `2026.3.1` |
+| `image.tag` | Hoppscotch image tag | `2026.4.0` |
 | `replicaCount` | Number of replicas | `1` |
 | `ingress.enabled` | Enable Ingress | `false` |
 | `ingress.host` | Primary hostname (auto-derives all URLs) | `""` |
-| `postgresql.enabled` | Enable PostgreSQL subchart | `true` |
+| `postgresql.enabled` | Enable PostgreSQL subchart (`helmforge/postgresql` `1.10.0`) | `true` |
+| `postgresql.initdb.scripts` | Bootstrap Hoppscotch PostgreSQL extensions | `pg_trgm` |
+| `postgresqlExtensionsJob.enabled` | Run the pre-upgrade hook that ensures `pg_trgm` exists on bundled PostgreSQL PVCs before Prisma migrations | `true` |
+| `postgresqlExtensionsJob.requireExistingResources` | Only render the `pg_trgm` pre-upgrade hook when bundled PostgreSQL resources already exist | `true` |
 | `database.external.enabled` | Use external PostgreSQL | `false` |
 | `encryption.key` | 32-char encryption key (auto-generated) | `""` |
+| `signingKey.existingSecret` | Existing Secret that contains `WEBAPP_SERVER_SIGNING_KEY` | `""` |
+| `signingKey.existingSecretKey` | Secret key used for `WEBAPP_SERVER_SIGNING_KEY` | `webapp-server-signing-key` |
 | `auth.providers` | Enabled auth providers | `EMAIL` |
 | `mailer.enabled` | Enable SMTP | `false` |
 | `gatewayAPI.enabled` | Enable HTTPRoute | `false` |
 | `externalSecrets.enabled` | Enable ExternalSecret | `false` |
 | `networkPolicy.enabled` | Enable NetworkPolicy | `false` |
 | `podDisruptionBudget.enabled` | Enable PDB | `false` |
+
+## Upgrade Notes
+
+Hoppscotch `2026.4.0` adds collection-level pre-request and test scripts,
+API documentation publishing refinements, self-hosted SMTP OAuth2 support,
+desktop settings improvements, security patches, and bug fixes. Back up the
+PostgreSQL database and keep `DATA_ENCRYPTION_KEY` stable before upgrading.
+The bundled PostgreSQL path now derives `DATABASE_URL` from the PostgreSQL
+user password Secret, bootstraps `pg_trgm` on fresh data directories, and runs
+a pre-upgrade hook to apply `pg_trgm` to existing bundled PostgreSQL PVCs before
+Prisma migrations run.
+The chart also persists `WEBAPP_SERVER_SIGNING_KEY` in the chart Secret so
+signed web bundles remain valid across pod restarts. When using External
+Secrets, include `webapp-server-signing-key` in `externalSecrets.data`, or set
+`signingKey.existingSecret` and `signingKey.existingSecretKey` to reference a
+separately managed Secret.
 
 ## Examples
 

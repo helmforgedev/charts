@@ -125,7 +125,7 @@ metrics:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/pihole/pihole` | Pi-hole container image repository |
-| `image.tag` | `2026.04.0` | Pi-hole container image tag (Core v6.4.1, FTL v6.6) |
+| `image.tag` | `2026.04.1` | Pi-hole container image tag (Core v6.4.2, Web v6.5, FTL v6.6.1) |
 | `image.pullPolicy` | `IfNotPresent` | Pi-hole image pull policy |
 | `pihole.timezone` | `UTC` | Timezone for logs and scheduled tasks |
 | `pihole.upstreamDns` | `8.8.8.8;8.8.4.4` | Upstream DNS servers (semicolon-delimited) |
@@ -256,6 +256,12 @@ metrics:
 ## Architecture Guides
 
 - [Unbound Recursive DNS](docs/unbound.md) — privacy-focused recursive DNS resolution
+
+## Upgrade Notes
+
+Pi-hole `2026.04.1` includes FTL `v6.6.1` and Core `v6.4.2` fixes,
+including security advisories and concurrency fixes for API access. Back up
+`/etc/pihole` and `/etc/dnsmasq.d` before upgrading live deployments.
 
 ## Connection
 

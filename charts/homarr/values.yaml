@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
 # Homarr Configuration
 # =============================================================================
@@ -5,7 +6,7 @@
 # -- Homarr image
 image:
   repository: ghcr.io/homarr-labs/homarr
-  tag: "v1.57.1"
+  tag: "v1.60.0"
   pullPolicy: IfNotPresent
 
 # -- Image pull secrets
@@ -58,7 +59,7 @@ encryption:
 # Use `database.mode` to select explicitly, or leave as `auto` to auto-detect
 # based on which database section is configured.
 #
-# Auto-detection priority: external → postgresql → mysql → sqlite
+# Auto-detection priority: external -> postgresql -> mysql -> sqlite
 # =============================================================================
 
 database:
@@ -99,12 +100,67 @@ postgresql:
     username: homarr
     # -- Database password (auto-generated if empty)
     password: ""
+  initdb:
+    scripts:
+      10-homarr-privileges.sh: |
+        #!/bin/sh
+        set -e
+        if [ -n "${APP_DATABASE}" ] && [ -n "${APP_USERNAME}" ]; then
+          export PGPASSWORD="${POSTGRES_PASSWORD}"
+          psql --username "${POSTGRES_USER}" --dbname postgres \
+            --set=app_database="${APP_DATABASE}" \
+            --set=app_username="${APP_USERNAME}" <<'SQL'
+        SELECT format('ALTER DATABASE %I OWNER TO %I', :'app_database', :'app_username') \gexec
+        SELECT format('GRANT CREATE ON DATABASE %I TO %I', :'app_database', :'app_username') \gexec
+        SQL
+        fi
   primary:
     persistence:
       # -- Enable persistence for PostgreSQL data
       enabled: true
       # -- PVC size for PostgreSQL
       size: 8Gi
+
+postgresqlUpgradeJob:
+  # -- Run a pre-upgrade hook that reapplies Homarr PostgreSQL grants on existing bundled PostgreSQL PVCs.
+  enabled: true
+  # -- Only run the hook when the bundled PostgreSQL Secret and Service already exist. Set to false only for controlled migrations where PostgreSQL is created before the upgrade hook runs.
+  requireExistingResources: true
+  image:
+    # -- PostgreSQL client image used by the upgrade hook
+    repository: docker.io/library/postgres
+    # -- PostgreSQL client image tag
+    tag: "18.3-trixie"
+    pullPolicy: IfNotPresent
+  # -- Job retry limit
+  backoffLimit: 6
+  # -- Maximum seconds for the hook job
+  activeDeadlineSeconds: 300
+  # -- Pod annotations for the hook job
+  podAnnotations: {}
+  # -- Pod security context for the hook job
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    fsGroup: 999
+    seccompProfile:
+      type: RuntimeDefault
+  # -- Container security context for the hook job
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 999
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
 
 # -- Deploy MySQL as a subchart
 mysql:
