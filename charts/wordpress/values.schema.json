@@ -17,6 +17,11 @@
       "type": "object",
       "description": "Labels added to every resource created by this chart"
     },
+    "replicaCount": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of WordPress replicas"
+    },
     "image": {
       "type": "object",
       "description": "WordPress container image settings",
@@ -73,6 +78,26 @@
           "type": "boolean",
           "description": "Enable WordPress debug mode (WP_DEBUG)"
         },
+        "forceSSLAdmin": {
+          "type": "boolean",
+          "description": "Force SSL for the WordPress admin area (FORCE_SSL_ADMIN)"
+        },
+        "disallowFileEdit": {
+          "type": "boolean",
+          "description": "Disable the built-in theme/plugin editor from wp-admin (DISALLOW_FILE_EDIT)"
+        },
+        "disableWpCron": {
+          "type": "boolean",
+          "description": "Disable WordPress pseudo-cron (DISABLE_WP_CRON)"
+        },
+        "memoryLimit": {
+          "type": "string",
+          "description": "WordPress frontend memory limit (WP_MEMORY_LIMIT)"
+        },
+        "maxMemoryLimit": {
+          "type": "string",
+          "description": "WordPress admin memory limit (WP_MAX_MEMORY_LIMIT)"
+        },
         "configExtra": {
           "type": "string",
           "description": "Extra PHP code injected into wp-config.php via WORDPRESS_CONFIG_EXTRA"
@@ -80,6 +105,11 @@
         "extraEnv": {
           "type": "array",
           "description": "Additional environment variables for the WordPress container",
+          "items": { "type": "object" }
+        },
+        "extraEnvFrom": {
+          "type": "array",
+          "description": "Additional envFrom sources for the WordPress container",
           "items": { "type": "object" }
         }
       }
@@ -273,6 +303,19 @@
         "annotations": {
           "type": "object",
           "description": "Annotations for the service"
+        },
+        "ipFamilyPolicy": {
+          "type": "string",
+          "description": "Service IP family policy",
+          "enum": ["", "SingleStack", "PreferDualStack", "RequireDualStack"]
+        },
+        "ipFamilies": {
+          "type": "array",
+          "description": "Ordered Service IP families",
+          "items": {
+            "type": "string",
+            "enum": ["IPv4", "IPv6"]
+          }
         }
       }
     },
@@ -325,6 +368,40 @@
         }
       }
     },
+    "gatewayAPI": {
+      "type": "object",
+      "description": "Gateway API HTTPRoute configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Create an HTTPRoute for WordPress"
+        },
+        "apiVersion": {
+          "type": "string",
+          "description": "HTTPRoute API version",
+          "enum": ["gateway.networking.k8s.io/v1"]
+        },
+        "annotations": {
+          "type": "object",
+          "description": "HTTPRoute annotations"
+        },
+        "parentRefs": {
+          "type": "array",
+          "description": "Parent Gateway references",
+          "items": { "type": "object" }
+        },
+        "hostnames": {
+          "type": "array",
+          "description": "HTTPRoute hostnames",
+          "items": { "type": "string" }
+        },
+        "matches": {
+          "type": "array",
+          "description": "HTTPRoute path matches",
+          "items": { "type": "object" }
+        }
+      }
+    },
     "serviceAccount": {
       "type": "object",
       "description": "ServiceAccount configuration",
@@ -340,7 +417,152 @@
         "annotations": {
           "type": "object",
           "description": "Annotations for the ServiceAccount"
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean",
+          "description": "Mount the ServiceAccount token into workload pods"
         }
+      }
+    },
+    "autoscaling": {
+      "type": "object",
+      "description": "HorizontalPodAutoscaler configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Create a HorizontalPodAutoscaler" },
+        "minReplicas": { "type": "integer", "minimum": 1, "description": "Minimum replicas" },
+        "maxReplicas": { "type": "integer", "minimum": 1, "description": "Maximum replicas" },
+        "targetCPUUtilizationPercentage": { "type": ["integer", "string"], "description": "Target average CPU utilization percentage" },
+        "targetMemoryUtilizationPercentage": { "type": ["integer", "string"], "description": "Target average memory utilization percentage" }
+      }
+    },
+    "pdb": {
+      "type": "object",
+      "description": "PodDisruptionBudget configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Create a PodDisruptionBudget" },
+        "minAvailable": { "type": ["integer", "string"], "description": "Minimum available pods" },
+        "maxUnavailable": { "type": ["integer", "string"], "description": "Maximum unavailable pods" }
+      }
+    },
+    "wpCron": {
+      "type": "object",
+      "description": "WordPress cron configuration",
+      "properties": {
+        "cronJob": {
+          "type": "object",
+          "description": "Kubernetes CronJob that calls wp-cron.php",
+          "properties": {
+            "enabled": { "type": "boolean", "description": "Create the wp-cron CronJob" },
+            "schedule": { "type": "string", "description": "Cron schedule" },
+            "suspend": { "type": "boolean", "description": "Suspend the CronJob" },
+            "concurrencyPolicy": { "type": "string", "enum": ["Forbid", "Replace", "Allow"], "description": "CronJob concurrency policy" },
+            "successfulJobsHistoryLimit": { "type": "integer", "description": "Successful job history limit" },
+            "failedJobsHistoryLimit": { "type": "integer", "description": "Failed job history limit" },
+            "backoffLimit": { "type": "integer", "description": "Maximum retries per job" },
+            "image": {
+              "type": "object",
+              "description": "curl image used by wp-cron",
+              "properties": {
+                "repository": { "type": "string", "description": "Image repository" },
+                "tag": { "type": "string", "description": "Image tag" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "description": "Image pull policy" }
+              }
+            },
+            "resources": { "type": "object", "description": "CronJob container resources" }
+          }
+        }
+      }
+    },
+    "plugins": {
+      "type": "object",
+      "description": "WordPress plugin installer configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable plugin installer support" },
+        "installer": {
+          "type": "object",
+          "description": "Post-install/post-upgrade plugin installer Job",
+          "properties": {
+            "enabled": { "type": "boolean", "description": "Create the plugin installer Job" },
+            "useHelmHooks": { "type": "boolean", "description": "Run the Job as a Helm post-install/post-upgrade hook" },
+            "hookWeight": { "type": "string", "description": "Helm hook weight" },
+            "image": {
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string", "description": "Installer image repository" },
+                "tag": { "type": "string", "description": "Installer image tag" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "description": "Installer image pull policy" }
+              }
+            },
+            "backoffLimit": { "type": "integer", "description": "Job backoff limit" },
+            "activeDeadlineSeconds": { "type": "integer", "description": "Job active deadline" },
+            "ttlSecondsAfterFinished": { "type": ["integer", "null"], "description": "Job TTL after finish" },
+            "resources": { "type": "object", "description": "Installer resources" },
+            "securityContext": { "type": "object", "description": "Installer container security context" },
+            "preferWordPressPodNode": { "type": "boolean", "description": "Schedule near WordPress pods for ReadWriteOnce PVCs" }
+          }
+        },
+        "items": {
+          "type": "array",
+          "description": "Plugins to install",
+          "items": {
+            "type": "object",
+            "properties": {
+              "slug": { "type": "string", "description": "Official WordPress.org plugin slug" },
+              "activate": { "type": "boolean", "description": "Activate plugin when WordPress is installed" },
+              "skipIfInstalled": { "type": "boolean", "description": "Skip install when plugin is already present" }
+            }
+          }
+        }
+      }
+    },
+    "objectCache": {
+      "type": "object",
+      "description": "WordPress persistent object cache integration",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable object cache integration" },
+        "provider": { "type": "string", "enum": ["redis-cache"], "description": "Object cache provider" },
+        "installPlugin": { "type": "boolean", "description": "Install the object cache plugin" },
+        "enableDropIn": { "type": "boolean", "description": "Create the object-cache.php drop-in" },
+        "redis": {
+          "type": "object",
+          "description": "Redis object cache settings",
+          "properties": {
+            "mode": { "type": "string", "enum": ["subchart", "external"], "description": "Redis deployment mode" },
+            "subchart": { "type": "object", "description": "HelmForge Redis subchart settings" },
+            "external": { "type": "object", "description": "External Redis settings" },
+            "port": { "type": "integer", "description": "Redis port" },
+            "database": { "type": "integer", "description": "Redis logical database" },
+            "prefix": { "type": "string", "description": "Redis key prefix" },
+            "client": { "type": "string", "description": "Redis client used by the plugin" },
+            "scheme": { "type": "string", "description": "Redis scheme" },
+            "maxTtl": { "type": ["integer", "string"], "description": "Maximum TTL for Redis cache keys" },
+            "auth": { "type": "object", "description": "Redis authentication settings" }
+          }
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "NetworkPolicy configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Create a NetworkPolicy for WordPress pods" },
+        "ingress": { "type": "object", "description": "Ingress policy rules" },
+        "metrics": { "type": "object", "description": "Metrics ingress policy rules" },
+        "egress": { "type": "object", "description": "Egress policy rules" }
+      }
+    },
+    "externalSecrets": {
+      "type": "object",
+      "description": "External Secrets Operator integration",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Render ExternalSecret resources" },
+        "apiVersion": { "type": "string", "enum": ["external-secrets.io/v1"], "description": "ExternalSecret API version" },
+        "refreshInterval": { "type": "string", "description": "Refresh interval" },
+        "secretStoreRef": { "type": "object", "description": "SecretStore or ClusterSecretStore reference" },
+        "target": { "type": "object", "description": "Target Secret options" },
+        "admin": { "type": "object", "description": "Admin password ExternalSecret mapping" },
+        "database": { "type": "object", "description": "Database password ExternalSecret mapping" },
+        "backup": { "type": "object", "description": "Backup S3 credential ExternalSecret mapping" }
       }
     },
     "metrics": {
@@ -507,6 +729,16 @@
     "extraVolumes": {
       "type": "array",
       "description": "Additional volumes for the pod",
+      "items": { "type": "object" }
+    },
+    "extraInitContainers": {
+      "type": "array",
+      "description": "Additional init containers appended after wait-for-db",
+      "items": { "type": "object" }
+    },
+    "extraContainers": {
+      "type": "array",
+      "description": "Additional containers appended after WordPress and metrics containers",
       "items": { "type": "object" }
     },
     "extraManifests": {

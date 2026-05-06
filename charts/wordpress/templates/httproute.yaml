@@ -1,0 +1,27 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "wordpress.validateGatewayAPI" . }}
+{{- if .Values.gatewayAPI.enabled }}
+apiVersion: {{ .Values.gatewayAPI.apiVersion }}
+kind: HTTPRoute
+metadata:
+  name: {{ include "wordpress.fullname" . }}
+  labels:
+    {{- include "wordpress.labels" . | nindent 4 }}
+  {{- with .Values.gatewayAPI.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- toYaml .Values.gatewayAPI.parentRefs | nindent 4 }}
+  {{- with .Values.gatewayAPI.hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - matches:
+        {{- toYaml .Values.gatewayAPI.matches | nindent 8 }}
+      backendRefs:
+        - name: {{ include "wordpress.fullname" . }}
+          port: {{ .Values.service.port }}
+{{- end }}

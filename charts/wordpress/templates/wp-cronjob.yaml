@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+{{- if .Values.wpCron.cronJob.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "wordpress.fullname" . }}-wp-cron
+  labels:
+    {{- include "wordpress.labels" . | nindent 4 }}
+    app.kubernetes.io/component: wp-cron
+spec:
+  schedule: {{ .Values.wpCron.cronJob.schedule | quote }}
+  suspend: {{ .Values.wpCron.cronJob.suspend }}
+  concurrencyPolicy: {{ .Values.wpCron.cronJob.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.wpCron.cronJob.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.wpCron.cronJob.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.wpCron.cronJob.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "wordpress.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: wp-cron
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: {{ include "wordpress.serviceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+          containers:
+            - name: wp-cron
+              image: "{{ .Values.wpCron.cronJob.image.repository }}:{{ .Values.wpCron.cronJob.image.tag }}"
+              imagePullPolicy: {{ .Values.wpCron.cronJob.image.pullPolicy }}
+              args:
+                - --fail
+                - --silent
+                - --show-error
+                - http://{{ include "wordpress.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}/wp-cron.php?doing_wp_cron
+              {{- with .Values.wpCron.cronJob.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+{{- end }}

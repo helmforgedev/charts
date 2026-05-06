@@ -42,6 +42,32 @@ backup:
 
 The secret must contain `access-key` and `secret-key` keys.
 
+With External Secrets Operator:
+
+```yaml
+backup:
+  enabled: true
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: wordpress-backups
+
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: vault
+    kind: ClusterSecretStore
+  backup:
+    enabled: true
+    accessKeyRemoteRef:
+      key: prod/wordpress-backup
+      property: access-key
+    secretKeyRemoteRef:
+      key: prod/wordpress-backup
+      property: secret-key
+```
+
+When `externalSecrets.backup.enabled` is true, the chart renders the S3 credentials through `external-secrets.io/v1` and does not render the native backup Secret.
+
 ## Database Credential Overrides
 
 By default, the backup uses the same database credentials as the application. To use a read-only user for backups:

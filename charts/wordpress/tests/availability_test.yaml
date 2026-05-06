@@ -1,0 +1,50 @@
+suite: Availability
+templates:
+  - templates/hpa.yaml
+  - templates/pdb.yaml
+  - templates/wp-cronjob.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render HPA when enabled
+    template: templates/hpa.yaml
+    set:
+      autoscaling.enabled: true
+    asserts:
+      - isKind:
+          of: HorizontalPodAutoscaler
+      - equal:
+          path: spec.minReplicas
+          value: 2
+      - equal:
+          path: spec.maxReplicas
+          value: 5
+      - equal:
+          path: spec.metrics[0].resource.name
+          value: cpu
+
+  - it: should render PDB when enabled
+    template: templates/pdb.yaml
+    set:
+      pdb.enabled: true
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.minAvailable
+          value: 1
+
+  - it: should render wp-cron CronJob when enabled
+    template: templates/wp-cronjob.yaml
+    set:
+      wpCron.cronJob.enabled: true
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.concurrencyPolicy
+          value: Forbid
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.automountServiceAccountToken
+          value: false

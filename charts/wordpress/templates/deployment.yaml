@@ -6,7 +6,9 @@ metadata:
     {{- include "wordpress.labels" . | nindent 4 }}
     app.kubernetes.io/component: wordpress
 spec:
-  replicas: 1
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
   strategy:
     type: Recreate
   selector:
@@ -36,6 +38,7 @@ spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "wordpress.serviceAccountName" . }}
       {{- end }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -59,6 +62,9 @@ spec:
               value: {{ include "wordpress.databaseHost" . | quote }}
             - name: DB_PORT
               value: {{ include "wordpress.databasePort" . | quote }}
+        {{- with .Values.extraInitContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       containers:
         - name: wordpress
           image: {{ include "wordpress.image" . }}
@@ -85,13 +91,24 @@ spec:
             - name: WORDPRESS_DEBUG
               value: "1"
             {{- end }}
-            {{- if .Values.wordpress.configExtra }}
+            {{- if eq (include "wordpress.redisPasswordEnabled" .) "true" }}
+            - name: WP_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wordpress.redisSecretName" . }}
+                  key: {{ include "wordpress.redisSecretKey" . }}
+            {{- end }}
+            {{- if include "wordpress.generatedConfigExtra" . }}
             - name: WORDPRESS_CONFIG_EXTRA
-              value: {{ .Values.wordpress.configExtra | quote }}
+              value: {{ include "wordpress.generatedConfigExtra" . | quote }}
             {{- end }}
             {{- with .Values.wordpress.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- with .Values.wordpress.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: http
               containerPort: 80
@@ -152,6 +169,9 @@ spec:
             - name: metrics
               containerPort: {{ .Values.metrics.port }}
               protocol: TCP
+        {{- end }}
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
         {{- end }}
       volumes:
         - name: wordpress-data

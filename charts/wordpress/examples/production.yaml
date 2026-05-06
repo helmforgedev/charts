@@ -4,10 +4,13 @@ wordpress:
   siteUrl: "https://blog.example.com"
   siteTitle: "My Production Blog"
   adminEmail: admin@example.com
+  forceSSLAdmin: true
+  disallowFileEdit: true
+  disableWpCron: true
+  memoryLimit: 256M
+  maxMemoryLimit: 512M
   configExtra: |
-    define('WP_MEMORY_LIMIT', '256M');
     define('WP_POST_REVISIONS', 10);
-    define('DISALLOW_FILE_EDIT', true);
 
 admin:
   existingSecret: wordpress-admin
@@ -31,6 +34,8 @@ mysql:
 
 persistence:
   enabled: true
+  accessMode: ReadWriteMany
+  storageClass: nfs-rwx
   size: 10Gi
 
 resources:
@@ -49,7 +54,7 @@ php:
     max_execution_time = 300
 
 ingress:
-  enabled: true
+  enabled: false
   ingressClassName: traefik
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
@@ -62,6 +67,43 @@ ingress:
     - secretName: wordpress-tls
       hosts:
         - blog.example.com
+
+gatewayAPI:
+  enabled: true
+  parentRefs:
+    - name: public
+      namespace: gateway-system
+      sectionName: https
+  hostnames:
+    - blog.example.com
+
+service:
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+    - IPv4
+    - IPv6
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+wpCron:
+  cronJob:
+    enabled: true
+
+networkPolicy:
+  enabled: true
+  metrics:
+    enabled: true
+  egress:
+    enabled: true
+    allowDNS: true
+    allowHTTPS: true
 
 metrics:
   enabled: true

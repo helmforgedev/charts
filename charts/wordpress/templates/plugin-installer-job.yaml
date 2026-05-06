@@ -1,0 +1,182 @@
+# SPDX-License-Identifier: Apache-2.0
+{{- include "wordpress.validatePlugins" . }}
+{{- if eq (include "wordpress.pluginsJobEnabled" .) "true" }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "wordpress.fullname" . }}-plugins
+  labels:
+    {{- include "wordpress.labels" . | nindent 4 }}
+    app.kubernetes.io/component: plugin-installer
+  {{- if .Values.plugins.installer.useHelmHooks }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": {{ .Values.plugins.installer.hookWeight | quote }}
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  {{- end }}
+spec:
+  backoffLimit: {{ .Values.plugins.installer.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.plugins.installer.activeDeadlineSeconds }}
+  {{- with .Values.plugins.installer.ttlSecondsAfterFinished }}
+  ttlSecondsAfterFinished: {{ . }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "wordpress.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: plugin-installer
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- if and .Values.plugins.installer.preferWordPressPodNode .Values.persistence.enabled }}
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  {{- include "wordpress.selectorLabels" . | nindent 18 }}
+                  app.kubernetes.io/component: wordpress
+              topologyKey: kubernetes.io/hostname
+      {{- end }}
+      containers:
+        - name: plugin-installer
+          image: "{{ .Values.plugins.installer.image.repository }}:{{ .Values.plugins.installer.image.tag }}"
+          imagePullPolicy: {{ .Values.plugins.installer.image.pullPolicy }}
+          workingDir: /var/www/html
+          {{- with .Values.plugins.installer.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - sh
+            - -ec
+            - |
+              wait_for_wordpress_files() {
+                for i in $(seq 1 20); do
+                  if [ -f /var/www/html/wp-config.php ] && [ -d /var/www/html/wp-content ]; then
+                    return 0
+                  fi
+                  echo "Waiting for WordPress files on the shared volume..."
+                  sleep 2
+                done
+                echo "WordPress files were not initialized in time." >&2
+                return 1
+              }
+
+              is_installed() {
+                wp core is-installed --path=/var/www/html >/dev/null 2>&1
+              }
+
+              plugin_dir_exists() {
+                [ -n "$1" ] && [ -d "/var/www/html/wp-content/plugins/$1" ]
+              }
+
+              download_plugin() {
+                slug="$1"
+                source="https://downloads.wordpress.org/plugin/${slug}.latest-stable.zip"
+
+                tmp="/tmp/${slug}.zip"
+                mkdir -p /var/www/html/wp-content/plugins
+                echo "Downloading plugin archive from $source"
+                php -r 'copy($argv[1], $argv[2]) || exit(1);' "$source" "$tmp"
+
+                if command -v unzip >/dev/null 2>&1; then
+                  unzip -oq "$tmp" -d /var/www/html/wp-content/plugins
+                else
+                  php -r '$zip = new ZipArchive(); if ($zip->open($argv[1]) !== true) { exit(1); } $zip->extractTo($argv[2]); $zip->close();' "$tmp" /var/www/html/wp-content/plugins
+                fi
+              }
+
+              install_plugin() {
+                slug="$1"
+                activate="$2"
+                skip_if_installed="$3"
+
+                if [ "$skip_if_installed" = "true" ] && { wp plugin is-installed "$slug" --path=/var/www/html --allow-root >/dev/null 2>&1 || plugin_dir_exists "$slug"; }; then
+                  echo "Plugin $slug already installed."
+                else
+                  if is_installed; then
+                    echo "Installing official WordPress.org plugin $slug"
+                    wp plugin install "$slug" --path=/var/www/html --allow-root
+                  else
+                    echo "WordPress is not installed yet; installing plugin files for $slug without activation."
+                    download_plugin "$slug"
+                  fi
+                fi
+
+                if [ "$activate" = "true" ]; then
+                  if is_installed; then
+                    if wp plugin is-active "$slug" --path=/var/www/html --allow-root >/dev/null 2>&1; then
+                      echo "Plugin $slug already active."
+                    else
+                      echo "Activating plugin $slug"
+                      wp plugin activate "$slug" --path=/var/www/html --allow-root
+                    fi
+                  else
+                    echo "WordPress is not installed yet; plugin activation for $slug will be retried on a later upgrade."
+                  fi
+                fi
+              }
+
+              wait_for_wordpress_files
+
+              {{ range .Values.plugins.items }}
+              {{- $activate := true -}}
+              {{- if hasKey . "activate" -}}{{- $activate = .activate -}}{{- end -}}
+              {{- $skipIfInstalled := true -}}
+              {{- if hasKey . "skipIfInstalled" -}}{{- $skipIfInstalled = .skipIfInstalled -}}{{- end -}}
+              install_plugin {{ default "" .slug | quote }} {{ $activate | quote }} {{ $skipIfInstalled | quote }}
+              {{- end }}
+              {{- if and .Values.objectCache.enabled .Values.objectCache.installPlugin }}
+              install_plugin "redis-cache" "true" "true"
+              {{- end }}
+
+              {{- if and .Values.objectCache.enabled .Values.objectCache.enableDropIn }}
+              if [ -f /var/www/html/wp-content/object-cache.php ]; then
+                echo "Redis object-cache.php drop-in already exists."
+              elif [ -f /var/www/html/wp-content/plugins/redis-cache/includes/object-cache.php ]; then
+                echo "Creating Redis object-cache.php drop-in."
+                cp /var/www/html/wp-content/plugins/redis-cache/includes/object-cache.php /var/www/html/wp-content/object-cache.php
+              elif is_installed; then
+                echo "Enabling Redis Object Cache drop-in through WP-CLI."
+                wp redis enable --path=/var/www/html --allow-root || true
+              else
+                echo "Redis plugin files are missing; cannot create object-cache.php." >&2
+                exit 1
+              fi
+              {{- end }}
+          env:
+            - name: WORDPRESS_DB_HOST
+              value: {{ printf "%s:%s" (include "wordpress.databaseHost" .) (include "wordpress.databasePort" .) | quote }}
+            - name: WORDPRESS_DB_NAME
+              value: {{ include "wordpress.databaseName" . | quote }}
+            - name: WORDPRESS_DB_USER
+              value: {{ include "wordpress.databaseUsername" . | quote }}
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wordpress.databaseSecretName" . }}
+                  key: {{ include "wordpress.databaseSecretKey" . }}
+            {{- if eq (include "wordpress.redisPasswordEnabled" .) "true" }}
+            - name: WP_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wordpress.redisSecretName" . }}
+                  key: {{ include "wordpress.redisSecretKey" . }}
+            {{- end }}
+          {{- with .Values.plugins.installer.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: wordpress-data
+              mountPath: /var/www/html
+      volumes:
+        - name: wordpress-data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ default (include "wordpress.fullname" .) .Values.persistence.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}

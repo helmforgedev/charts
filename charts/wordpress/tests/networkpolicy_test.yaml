@@ -1,0 +1,55 @@
+suite: NetworkPolicy
+templates:
+  - templates/networkpolicy.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render ingress-only NetworkPolicy
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: spec.policyTypes
+          value:
+            - Ingress
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 80
+
+  - it: should render egress rules when enabled
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.allowHTTPS: true
+      networkPolicy.egress.allowSMTP: true
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - contains:
+          path: spec.egress[0].ports
+          content:
+            protocol: UDP
+            port: 53
+      - contains:
+          path: spec.egress[2].ports
+          content:
+            protocol: TCP
+            port: 443
+
+  - it: should render empty ingress list for default deny ingress
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.ingress.allowSameNamespace: false
+    asserts:
+      - equal:
+          path: spec.ingress
+          value: []

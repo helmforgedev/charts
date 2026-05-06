@@ -15,6 +15,9 @@ fullnameOverride: ""
 # -- Labels added to every resource created by this chart
 commonLabels: {}
 
+# -- Number of WordPress replicas. Keep 1 unless uploads/themes/plugins are backed by ReadWriteMany storage or an external object-storage strategy.
+replicaCount: 1
+
 # =============================================================================
 # Image
 # =============================================================================
@@ -57,6 +60,21 @@ wordpress:
   # -- Enable WordPress debug mode (WP_DEBUG)
   debug: false
 
+  # -- Force SSL for the WordPress admin area (FORCE_SSL_ADMIN)
+  forceSSLAdmin: false
+
+  # -- Disable the built-in theme/plugin editor from wp-admin (DISALLOW_FILE_EDIT)
+  disallowFileEdit: false
+
+  # -- Disable WordPress pseudo-cron. Pair with wpCron.cronJob.enabled for scheduled execution.
+  disableWpCron: false
+
+  # -- WordPress frontend memory limit (WP_MEMORY_LIMIT)
+  memoryLimit: ""
+
+  # -- WordPress admin memory limit (WP_MAX_MEMORY_LIMIT)
+  maxMemoryLimit: ""
+
   # -- Extra PHP code injected into wp-config.php via WORDPRESS_CONFIG_EXTRA
   # configExtra: |
   #   define('WP_MEMORY_LIMIT', '256M');
@@ -68,6 +86,12 @@ wordpress:
   #   - name: PHP_MEMORY_LIMIT
   #     value: "256M"
   extraEnv: []
+
+  # -- Additional envFrom sources for the WordPress container
+  # extraEnvFrom:
+  #   - secretRef:
+  #       name: wordpress-extra-env
+  extraEnvFrom: []
 
 # =============================================================================
 # Admin Credentials
@@ -240,6 +264,12 @@ service:
   # -- Annotations for the service
   annotations: {}
 
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ""
+
+  # -- Ordered Service IP families: IPv4 | IPv6. Empty uses cluster default.
+  ipFamilies: []
+
 # =============================================================================
 # Ingress
 # =============================================================================
@@ -273,6 +303,31 @@ ingress:
   tls: []
 
 # =============================================================================
+# Gateway API
+# =============================================================================
+
+gatewayAPI:
+  # -- Create an HTTPRoute. Requires Gateway API CRDs and an existing Gateway.
+  enabled: false
+  # -- API version for HTTPRoute
+  apiVersion: gateway.networking.k8s.io/v1
+  # -- HTTPRoute annotations
+  annotations: {}
+  # -- Parent Gateway references
+  parentRefs: []
+    # - name: public
+    #   namespace: gateway-system
+    #   sectionName: https
+  # -- Optional HTTPRoute hostnames
+  hostnames: []
+    # - wordpress.example.com
+  # -- Path matches routed to WordPress
+  matches:
+    - path:
+        type: PathPrefix
+        value: /
+
+# =============================================================================
 # Service Account
 # =============================================================================
 
@@ -285,6 +340,188 @@ serviceAccount:
 
   # -- Annotations for the ServiceAccount
   annotations: {}
+
+  # -- Mount the ServiceAccount token into workload pods. Keep false unless an extension needs Kubernetes API access.
+  automountServiceAccountToken: false
+
+# =============================================================================
+# Autoscaling and Availability
+# =============================================================================
+
+autoscaling:
+  # -- Enable HorizontalPodAutoscaler. Only use with shared uploads/storage or another replicated content strategy.
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: ""
+
+pdb:
+  # -- Enable PodDisruptionBudget
+  enabled: false
+  minAvailable: 1
+  maxUnavailable: ""
+
+# =============================================================================
+# WordPress Cron
+# =============================================================================
+
+wpCron:
+  cronJob:
+    # -- Create a Kubernetes CronJob that calls wp-cron.php through the internal Service.
+    enabled: false
+    schedule: "*/5 * * * *"
+    suspend: false
+    concurrencyPolicy: Forbid
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 3
+    backoffLimit: 1
+    image:
+      repository: docker.io/curlimages/curl
+      tag: "8.17.0"
+      pullPolicy: IfNotPresent
+    resources: {}
+
+# =============================================================================
+# Plugins and Object Cache
+# =============================================================================
+
+plugins:
+  # -- Run an idempotent post-install/post-upgrade Job to install and activate WordPress plugins.
+  enabled: false
+  installer:
+    # -- Create the plugin installer Job.
+    enabled: false
+    # -- Hook annotations make the Job run after install/upgrade and avoid rerunning unless the release changes.
+    useHelmHooks: true
+    hookWeight: "10"
+    # -- WordPress CLI image used by the installer Job.
+    image:
+      repository: docker.io/library/wordpress
+      tag: cli-php8.3
+      pullPolicy: IfNotPresent
+    backoffLimit: 1
+    activeDeadlineSeconds: 60
+    ttlSecondsAfterFinished: 300
+    resources: {}
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      runAsUser: 33
+      runAsGroup: 33
+    # -- Prefer scheduling the Job on nodes already running WordPress pods. Useful with ReadWriteOnce PVCs.
+    preferWordPressPodNode: true
+  # -- Official WordPress.org plugin list. Use the plugin directory slug from wordpress.org/plugins.
+  items: []
+    # - slug: classic-editor
+    #   activate: true
+    #   skipIfInstalled: true
+
+objectCache:
+  # -- Enable WordPress persistent object cache integration.
+  enabled: false
+  provider: redis-cache
+  # -- Install/activate the Redis Object Cache plugin and enable the object-cache.php drop-in.
+  installPlugin: true
+  enableDropIn: true
+  redis:
+    # -- Redis mode: subchart or external.
+    mode: subchart
+    subchart:
+      # -- Deploy HelmForge Redis as a subchart when objectCache.enabled=true.
+      enabled: false
+    external:
+      host: ""
+    port: 6379
+    database: 0
+    prefix: ""
+    client: predis
+    scheme: tcp
+    maxTtl: ""
+    auth:
+      enabled: true
+      password: ""
+      existingSecret: ""
+      existingSecretPasswordKey: redis-password
+
+# =============================================================================
+# NetworkPolicy
+# =============================================================================
+
+networkPolicy:
+  # -- Create a NetworkPolicy for WordPress pods
+  enabled: false
+  ingress:
+    # -- Allow ingress from pods in the same namespace
+    allowSameNamespace: true
+    # -- Additional ingress "from" rules
+    extraFrom: []
+  metrics:
+    # -- Allow metrics scraping through NetworkPolicy when metrics.enabled=true
+    enabled: false
+    allowSameNamespace: true
+    extraFrom: []
+  egress:
+    # -- Add egress rules. Disabled keeps CNI default egress behavior.
+    enabled: false
+    # -- Allow DNS egress to kube-dns/CoreDNS
+    allowDNS: true
+    # -- Allow TCP egress to database pods in the same namespace
+    allowSameNamespaceDatabase: true
+    # -- Database port allowed when allowSameNamespaceDatabase=true
+    databasePort: 3306
+    # -- Allow HTTPS egress for updates, plugin/theme downloads, APIs, and object storage endpoints
+    allowHTTPS: false
+    # -- Allow SMTP egress when a mail plugin or SMTP configuration needs it
+    allowSMTP: false
+    smtpPort: 587
+    # -- Additional egress "to" rules
+    extraTo: []
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret resources for clusters running External Secrets Operator.
+  enabled: false
+  # -- ExternalSecret apiVersion. Use external-secrets.io/v1 for current ESO releases.
+  apiVersion: external-secrets.io/v1
+  # -- Refresh interval for ExternalSecret resources.
+  refreshInterval: 1h
+  secretStoreRef:
+    # -- Existing SecretStore or ClusterSecretStore name.
+    name: ""
+    kind: SecretStore
+  target:
+    creationPolicy: Owner
+  admin:
+    # -- Manage the WordPress admin Secret with External Secrets Operator.
+    enabled: false
+    # -- Target Kubernetes Secret name. Empty defaults to <release>-wordpress-admin.
+    targetName: ""
+    passwordRemoteRef: {}
+      # key: prod/wordpress
+      # property: admin-password
+  database:
+    # -- Manage the WordPress external database Secret with External Secrets Operator.
+    enabled: false
+    # -- Target Kubernetes Secret name. Empty defaults to <release>-wordpress-database.
+    targetName: ""
+    passwordRemoteRef: {}
+      # key: prod/wordpress
+      # property: database-password
+  backup:
+    # -- Manage the WordPress backup S3 Secret with External Secrets Operator.
+    enabled: false
+    # -- Target Kubernetes Secret name. Empty defaults to <release>-wordpress-backup.
+    targetName: ""
+    accessKeyRemoteRef: {}
+      # key: prod/wordpress-backup
+      # property: access-key
+    secretKeyRemoteRef: {}
+      # key: prod/wordpress-backup
+      # property: secret-key
 
 # =============================================================================
 # Metrics (Apache Exporter)
@@ -459,6 +696,12 @@ extraVolumeMounts: []
 
 # -- Additional volumes for the pod
 extraVolumes: []
+
+# -- Additional init containers appended after wait-for-db
+extraInitContainers: []
+
+# -- Additional containers appended after WordPress and metrics containers
+extraContainers: []
 
 # -- Extra Kubernetes manifests to deploy alongside the chart
 extraManifests: []

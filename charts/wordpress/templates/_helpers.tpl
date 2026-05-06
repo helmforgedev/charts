@@ -71,6 +71,21 @@ Image string with tag fallback to appVersion.
 {{- end }}
 
 {{/*
+ExternalSecret feature flags.
+*/}}
+{{- define "wordpress.externalSecretAdminEnabled" -}}
+{{- if and .Values.externalSecrets.enabled .Values.externalSecrets.admin.enabled -}}true{{- end -}}
+{{- end -}}
+
+{{- define "wordpress.externalSecretDatabaseEnabled" -}}
+{{- if and .Values.externalSecrets.enabled .Values.externalSecrets.database.enabled -}}true{{- end -}}
+{{- end -}}
+
+{{- define "wordpress.externalSecretBackupEnabled" -}}
+{{- if and .Values.externalSecrets.enabled .Values.externalSecrets.backup.enabled -}}true{{- end -}}
+{{- end -}}
+
+{{/*
 Database mode detection (auto | external | mysql).
 Auto precedence:
   1. database.external.host or database.external.existingSecret → external
@@ -163,7 +178,11 @@ Database password secret name.
 */}}
 {{- define "wordpress.databaseSecretName" -}}
 {{- $mode := include "wordpress.databaseMode" . -}}
-{{- if and (eq $mode "external") .Values.database.external.existingSecret -}}
+{{- if and (eq (include "wordpress.externalSecretDatabaseEnabled" .) "true") .Values.externalSecrets.database.targetName -}}
+{{- .Values.externalSecrets.database.targetName -}}
+{{- else if eq (include "wordpress.externalSecretDatabaseEnabled" .) "true" -}}
+{{- printf "%s-database" (include "wordpress.fullname" .) -}}
+{{- else if and (eq $mode "external") .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecret -}}
 {{- else if eq $mode "mysql" -}}
 {{- printf "%s-mysql-auth" .Release.Name -}}
@@ -202,7 +221,11 @@ Database password value (for generating secrets).
 Admin secret name.
 */}}
 {{- define "wordpress.adminSecretName" -}}
-{{- if .Values.admin.existingSecret -}}
+{{- if and (eq (include "wordpress.externalSecretAdminEnabled" .) "true") .Values.externalSecrets.admin.targetName -}}
+{{- .Values.externalSecrets.admin.targetName -}}
+{{- else if eq (include "wordpress.externalSecretAdminEnabled" .) "true" -}}
+{{- printf "%s-admin" (include "wordpress.fullname" .) -}}
+{{- else if .Values.admin.existingSecret -}}
 {{- .Values.admin.existingSecret -}}
 {{- else -}}
 {{- printf "%s-admin" (include "wordpress.fullname" .) -}}
@@ -242,7 +265,11 @@ true
 Backup S3 secret name.
 */}}
 {{- define "wordpress.backupSecretName" -}}
-{{- if .Values.backup.s3.existingSecret -}}
+{{- if and (eq (include "wordpress.externalSecretBackupEnabled" .) "true") .Values.externalSecrets.backup.targetName -}}
+{{- .Values.externalSecrets.backup.targetName -}}
+{{- else if eq (include "wordpress.externalSecretBackupEnabled" .) "true" -}}
+{{- printf "%s-backup" (include "wordpress.fullname" .) -}}
+{{- else if .Values.backup.s3.existingSecret -}}
 {{- .Values.backup.s3.existingSecret -}}
 {{- else -}}
 {{- printf "%s-backup" (include "wordpress.fullname" .) -}}
@@ -320,4 +347,211 @@ ConfigMap name.
 */}}
 {{- define "wordpress.configMapName" -}}
 {{- printf "%s-config" (include "wordpress.fullname" .) -}}
+{{- end -}}
+
+{{/*
+Redis object cache helpers.
+*/}}
+{{- define "wordpress.objectCacheRedisEnabled" -}}
+{{- if and .Values.objectCache.enabled (eq .Values.objectCache.provider "redis-cache") -}}true{{- end -}}
+{{- end -}}
+
+{{- define "wordpress.redisSubchartFullname" -}}
+{{- $redisValues := default dict .Values.redis -}}
+{{- $fullnameOverride := default "" (get $redisValues "fullnameOverride") -}}
+{{- $nameOverride := default "" (get $redisValues "nameOverride") -}}
+{{- if $fullnameOverride -}}
+{{- $fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default "redis" $nameOverride -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "wordpress.redisHost" -}}
+{{- if eq .Values.objectCache.redis.mode "external" -}}
+{{- .Values.objectCache.redis.external.host -}}
+{{- else -}}
+{{- printf "%s-client" (include "wordpress.redisSubchartFullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "wordpress.redisSecretName" -}}
+{{- if .Values.objectCache.redis.auth.existingSecret -}}
+{{- .Values.objectCache.redis.auth.existingSecret -}}
+{{- else if eq .Values.objectCache.redis.mode "external" -}}
+{{- printf "%s-redis-auth" (include "wordpress.fullname" .) -}}
+{{- else -}}
+{{- printf "%s-auth" (include "wordpress.redisSubchartFullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "wordpress.redisSecretKey" -}}
+{{- .Values.objectCache.redis.auth.existingSecretPasswordKey -}}
+{{- end -}}
+
+{{- define "wordpress.redisPasswordEnabled" -}}
+{{- if and (eq (include "wordpress.objectCacheRedisEnabled" .) "true") .Values.objectCache.redis.auth.enabled -}}true{{- end -}}
+{{- end -}}
+
+{{- define "wordpress.redisPrefix" -}}
+{{- if .Values.objectCache.redis.prefix -}}
+{{- .Values.objectCache.redis.prefix -}}
+{{- else -}}
+{{- printf "%s:" (include "wordpress.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "wordpress.pluginsJobEnabled" -}}
+{{- if and .Values.plugins.enabled .Values.plugins.installer.enabled -}}true{{- end -}}
+{{- end -}}
+
+{{/*
+Generated wp-config.php additions derived from structured values.
+*/}}
+{{- define "wordpress.generatedConfigExtra" -}}
+{{- if .Values.wordpress.forceSSLAdmin }}
+define('FORCE_SSL_ADMIN', true);
+{{- end }}
+{{- if .Values.wordpress.disallowFileEdit }}
+define('DISALLOW_FILE_EDIT', true);
+{{- end }}
+{{- if or .Values.wordpress.disableWpCron .Values.wpCron.cronJob.enabled }}
+define('DISABLE_WP_CRON', true);
+{{- end }}
+{{- with .Values.wordpress.memoryLimit }}
+define('WP_MEMORY_LIMIT', {{ . | quote }});
+{{- end }}
+{{- with .Values.wordpress.maxMemoryLimit }}
+define('WP_MAX_MEMORY_LIMIT', {{ . | quote }});
+{{- end }}
+{{- if eq (include "wordpress.objectCacheRedisEnabled" .) "true" }}
+define('WP_CACHE', true);
+define('WP_REDIS_CLIENT', {{ .Values.objectCache.redis.client | quote }});
+define('WP_REDIS_SCHEME', {{ .Values.objectCache.redis.scheme | quote }});
+define('WP_REDIS_HOST', {{ include "wordpress.redisHost" . | quote }});
+define('WP_REDIS_PORT', {{ int .Values.objectCache.redis.port }});
+define('WP_REDIS_DATABASE', {{ int .Values.objectCache.redis.database }});
+define('WP_REDIS_PREFIX', {{ include "wordpress.redisPrefix" . | quote }});
+{{- if eq (include "wordpress.redisPasswordEnabled" .) "true" }}
+define('WP_REDIS_PASSWORD', getenv('WP_REDIS_PASSWORD'));
+{{- end }}
+{{- with .Values.objectCache.redis.maxTtl }}
+define('WP_REDIS_MAXTTL', {{ int . }});
+{{- end }}
+{{- end }}
+{{- with .Values.wordpress.configExtra }}
+{{ . }}
+{{- end }}
+{{- end -}}
+
+{{/* ExternalSecret remoteRef item */}}
+{{- define "wordpress.externalSecretDataItem" -}}
+- secretKey: {{ .secretKey | quote }}
+  remoteRef:
+    {{- if not .remoteRef.key }}
+    {{- fail (printf "%s.key is required when %s=true" .remoteRefName .enabledName) }}
+    {{- end }}
+    key: {{ .remoteRef.key | quote }}
+    {{- with .remoteRef.property }}
+    property: {{ . | quote }}
+    {{- end }}
+    {{- with .remoteRef.version }}
+    version: {{ . | quote }}
+    {{- end }}
+    {{- with .remoteRef.decodingStrategy }}
+    decodingStrategy: {{ . | quote }}
+    {{- end }}
+    {{- with .remoteRef.conversionStrategy }}
+    conversionStrategy: {{ . | quote }}
+    {{- end }}
+{{- end -}}
+
+{{/* Validate ExternalSecret settings */}}
+{{- define "wordpress.validateExternalSecrets" -}}
+{{- if .Values.externalSecrets.enabled -}}
+  {{- if ne .Values.externalSecrets.apiVersion "external-secrets.io/v1" -}}
+    {{- fail "externalSecrets.apiVersion must be external-secrets.io/v1" -}}
+  {{- end -}}
+  {{- if not .Values.externalSecrets.secretStoreRef.name -}}
+    {{- fail "externalSecrets.secretStoreRef.name is required when externalSecrets.enabled=true" -}}
+  {{- end -}}
+{{- end -}}
+{{- if and .Values.externalSecrets.admin.enabled (not .Values.externalSecrets.enabled) -}}
+{{- fail "externalSecrets.enabled must be true when externalSecrets.admin.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.externalSecrets.database.enabled (not .Values.externalSecrets.enabled) -}}
+{{- fail "externalSecrets.enabled must be true when externalSecrets.database.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.externalSecrets.backup.enabled (not .Values.externalSecrets.enabled) -}}
+{{- fail "externalSecrets.enabled must be true when externalSecrets.backup.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.admin.existingSecret (eq (include "wordpress.externalSecretAdminEnabled" .) "true") -}}
+{{- fail "admin.existingSecret and externalSecrets.admin.enabled are mutually exclusive" -}}
+{{- end -}}
+{{- if and .Values.database.external.existingSecret (eq (include "wordpress.externalSecretDatabaseEnabled" .) "true") -}}
+{{- fail "database.external.existingSecret and externalSecrets.database.enabled are mutually exclusive" -}}
+{{- end -}}
+{{- if and .Values.backup.s3.existingSecret (eq (include "wordpress.externalSecretBackupEnabled" .) "true") -}}
+{{- fail "backup.s3.existingSecret and externalSecrets.backup.enabled are mutually exclusive" -}}
+{{- end -}}
+{{- if and (eq (include "wordpress.externalSecretDatabaseEnabled" .) "true") (ne (include "wordpress.databaseMode" .) "external") -}}
+{{- fail "externalSecrets.database.enabled requires database.mode=external or database.external.host" -}}
+{{- end -}}
+{{- if and (eq (include "wordpress.externalSecretBackupEnabled" .) "true") (not .Values.backup.enabled) -}}
+{{- fail "externalSecrets.backup.enabled requires backup.enabled=true" -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Validate object cache and plugin settings */}}
+{{- define "wordpress.validatePlugins" -}}
+{{- if .Values.objectCache.enabled -}}
+  {{- if not .Values.plugins.enabled -}}
+    {{- fail "plugins.enabled must be true when objectCache.enabled is true" -}}
+  {{- end -}}
+  {{- if not .Values.plugins.installer.enabled -}}
+    {{- fail "plugins.installer.enabled must be true when objectCache.enabled is true" -}}
+  {{- end -}}
+{{- end -}}
+{{- range .Values.plugins.items -}}
+  {{- if hasKey . "source" -}}
+    {{- fail "plugins.items[].source is not supported; use official WordPress.org plugin slugs only" -}}
+  {{- end -}}
+  {{- if hasKey . "activateSlug" -}}
+    {{- fail "plugins.items[].activateSlug is not supported; use official WordPress.org plugin slugs only" -}}
+  {{- end -}}
+{{- end -}}
+{{- if .Values.objectCache.enabled -}}
+  {{- if ne .Values.objectCache.provider "redis-cache" -}}
+    {{- fail "objectCache.provider currently supports only redis-cache" -}}
+  {{- end -}}
+  {{- if not (has .Values.objectCache.redis.mode (list "subchart" "external")) -}}
+    {{- fail "objectCache.redis.mode must be subchart or external" -}}
+  {{- end -}}
+  {{- if and (eq .Values.objectCache.redis.mode "subchart") (not .Values.objectCache.redis.subchart.enabled) -}}
+    {{- fail "objectCache.redis.subchart.enabled must be true when objectCache.redis.mode=subchart" -}}
+  {{- end -}}
+  {{- if and (eq .Values.objectCache.redis.mode "external") (not .Values.objectCache.redis.external.host) -}}
+    {{- fail "objectCache.redis.external.host is required when objectCache.redis.mode=external" -}}
+  {{- end -}}
+  {{- if and .Values.objectCache.redis.auth.enabled (eq .Values.objectCache.redis.mode "external") (not .Values.objectCache.redis.auth.existingSecret) (not .Values.objectCache.redis.auth.password) -}}
+    {{- fail "objectCache.redis.auth.existingSecret or objectCache.redis.auth.password is required when external Redis auth is enabled" -}}
+  {{- end -}}
+{{- end -}}
+{{- range $i, $plugin := .Values.plugins.items }}
+  {{- if not $plugin.slug -}}
+    {{- fail (printf "plugins.items[%d].slug is required" $i) -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Validate Gateway API settings */}}
+{{- define "wordpress.validateGatewayAPI" -}}
+{{- if and .Values.gatewayAPI.enabled (empty .Values.gatewayAPI.parentRefs) -}}
+{{- fail "gatewayAPI.parentRefs must contain at least one parentRef when gatewayAPI.enabled=true" -}}
+{{- end -}}
 {{- end -}}

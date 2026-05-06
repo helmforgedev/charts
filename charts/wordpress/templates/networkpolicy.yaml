@@ -1,0 +1,105 @@
+# SPDX-License-Identifier: Apache-2.0
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "wordpress.fullname" . }}
+  labels:
+    {{- include "wordpress.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "wordpress.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: wordpress
+  policyTypes:
+    - Ingress
+    {{- if .Values.networkPolicy.egress.enabled }}
+    - Egress
+    {{- end }}
+  {{- $allowAppIngress := or .Values.networkPolicy.ingress.allowSameNamespace .Values.networkPolicy.ingress.extraFrom }}
+  {{- $allowMetricsIngress := and .Values.metrics.enabled .Values.networkPolicy.metrics.enabled }}
+  ingress:
+    {{- if or $allowAppIngress $allowMetricsIngress }}
+    {{- if $allowAppIngress }}
+    - from:
+        {{- if .Values.networkPolicy.ingress.allowSameNamespace }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector: {}
+        {{- end }}
+        {{- with .Values.networkPolicy.ingress.extraFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 80
+    {{- end }}
+    {{- if $allowMetricsIngress }}
+    - from:
+        {{- if .Values.networkPolicy.metrics.allowSameNamespace }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector: {}
+        {{- end }}
+        {{- with .Values.networkPolicy.metrics.extraFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.metrics.port }}
+    {{- end }}
+    {{- else }}
+    []
+    {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  {{- $allowEgress := or .Values.networkPolicy.egress.allowDNS .Values.networkPolicy.egress.allowSameNamespaceDatabase .Values.networkPolicy.egress.allowHTTPS .Values.networkPolicy.egress.allowSMTP .Values.networkPolicy.egress.extraTo }}
+  egress:
+    {{- if $allowEgress }}
+    {{- if .Values.networkPolicy.egress.allowDNS }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.allowSameNamespaceDatabase }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector: {}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.egress.databasePort }}
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.allowHTTPS }}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.allowSMTP }}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.egress.smtpPort }}
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.extraTo }}
+    - to:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- else }}
+    []
+    {{- end }}
+  {{- end }}
+{{- end }}

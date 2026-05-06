@@ -1,7 +1,12 @@
 WordPress has been deployed!
 
 Web Interface:
-{{- if .Values.ingress.enabled }}
+{{- if .Values.gatewayAPI.enabled }}
+  Gateway API HTTPRoute:
+  {{- range .Values.gatewayAPI.hostnames }}
+  http(s)://{{ . }}
+  {{- end }}
+{{- else if .Values.ingress.enabled }}
   {{- range .Values.ingress.hosts }}
   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
   {{- end }}
@@ -21,7 +26,9 @@ Admin Panel:
 
 Admin Credentials:
   Username: {{ .Values.wordpress.adminUser }}
-{{- if .Values.admin.existingSecret }}
+{{- if eq (include "wordpress.externalSecretAdminEnabled" .) "true" }}
+  Password: Managed by ExternalSecret {{ include "wordpress.adminSecretName" . }}
+{{- else if .Values.admin.existingSecret }}
   Password: Using existing secret {{ .Values.admin.existingSecret }}
 {{- else if .Values.wordpress.adminPassword }}
   Password: Using the password from values.
@@ -34,6 +41,46 @@ Database:
   Mode: {{ include "wordpress.databaseMode" . }}
   Host: {{ include "wordpress.databaseHost" . }}:{{ include "wordpress.databasePort" . }}
   Name: {{ include "wordpress.databaseName" . }}
+{{- if eq (include "wordpress.externalSecretDatabaseEnabled" .) "true" }}
+  Password: Managed by ExternalSecret {{ include "wordpress.databaseSecretName" . }}
+{{- end }}
+
+{{- if .Values.service.ipFamilyPolicy }}
+
+Service:
+  IP Family Policy: {{ .Values.service.ipFamilyPolicy }}
+  {{- with .Values.service.ipFamilies }}
+  IP Families: {{ join ", " . }}
+  {{- end }}
+{{- end }}
+
+{{- if .Values.wpCron.cronJob.enabled }}
+
+WordPress Cron:
+  Kubernetes CronJob is enabled.
+  WordPress pseudo-cron is disabled through DISABLE_WP_CRON.
+{{- end }}
+
+{{- if .Values.plugins.installer.enabled }}
+
+Plugins:
+  Installer Job is enabled as a post-install/post-upgrade hook.
+  If WordPress core is not installed yet, activation is deferred until a later upgrade.
+{{- end }}
+
+{{- if .Values.objectCache.enabled }}
+
+Object Cache:
+  Redis Object Cache is enabled.
+  Redis host: {{ include "wordpress.redisHost" . }}:{{ .Values.objectCache.redis.port }}
+  Verify functionality by checking wp-content/object-cache.php and Redis keys after web requests.
+{{- end }}
+
+{{- if .Values.networkPolicy.enabled }}
+
+NetworkPolicy:
+  Enabled. Review egress rules if plugins, SMTP, object storage, or update checks need outbound access.
+{{- end }}
 
 {{- if .Values.backup.enabled }}
 
@@ -41,6 +88,9 @@ Backup:
   Schedule: {{ .Values.backup.schedule }}
   S3 Endpoint: {{ .Values.backup.s3.endpoint }}
   S3 Bucket: {{ .Values.backup.s3.bucket }}/{{ .Values.backup.s3.prefix }}
+  {{- if eq (include "wordpress.externalSecretBackupEnabled" .) "true" }}
+  Credentials: Managed by ExternalSecret {{ include "wordpress.backupSecretName" . }}
+  {{- end }}
 {{- end }}
 
 {{- if .Values.metrics.enabled }}
@@ -51,3 +101,7 @@ Metrics:
   A ServiceMonitor has been created for Prometheus Operator.
   {{- end }}
 {{- end }}
+
+Production reminder:
+  Defaults are suitable for development. For production, set explicit resources,
+  TLS routing, backups, metrics, credentials, and a storage strategy before scaling replicas.

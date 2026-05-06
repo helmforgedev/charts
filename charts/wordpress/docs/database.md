@@ -74,6 +74,33 @@ database:
     existingSecretPasswordKey: password
 ```
 
+With External Secrets Operator:
+
+```yaml
+mysql:
+  enabled: false
+
+database:
+  external:
+    host: db.example.com
+    name: wordpress
+    username: wordpress
+    existingSecretPasswordKey: database-password
+
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: vault
+    kind: ClusterSecretStore
+  database:
+    enabled: true
+    passwordRemoteRef:
+      key: prod/wordpress
+      property: database-password
+```
+
+`externalSecrets.database.enabled` requires an external database. The chart renders an `ExternalSecret` targeting the same Secret name WordPress reads from.
+
 ## Wait-for-DB Init Container
 
 The deployment includes a `wait-for-db` init container that checks database connectivity before starting WordPress. This prevents CrashLoopBackOff when the database takes time to initialize (common with the MySQL subchart on first install).
@@ -91,6 +118,6 @@ relations:
   - charts/wordpress/README.md
   - charts/wordpress/values.yaml
 path: charts/wordpress/docs/database.md
-version: 1.0
-date: 2026-03-23
+version: 1.1
+date: 2026-05-06
 -->

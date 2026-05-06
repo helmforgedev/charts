@@ -29,6 +29,21 @@ tests:
           path: spec.replicas
           value: 1
 
+  - it: should omit replicas when autoscaling is enabled
+    template: templates/deployment.yaml
+    set:
+      autoscaling.enabled: true
+    asserts:
+      - isNull:
+          path: spec.replicas
+
+  - it: should disable service account token automount by default
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
   - it: should use default image tag with appVersion
     template: templates/deployment.yaml
     asserts:
@@ -109,11 +124,54 @@ tests:
     set:
       wordpress.configExtra: "define('WP_MEMORY_LIMIT', '256M');"
     asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[5].name
+          value: WORDPRESS_CONFIG_EXTRA
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[5].value
+          pattern: "WP_MEMORY_LIMIT"
+
+  - it: should generate structured wp-config options
+    template: templates/deployment.yaml
+    set:
+      wordpress.forceSSLAdmin: true
+      wordpress.disallowFileEdit: true
+      wordpress.disableWpCron: true
+      wordpress.memoryLimit: 256M
+      wordpress.maxMemoryLimit: 512M
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[5].value
+          pattern: "FORCE_SSL_ADMIN"
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[5].value
+          pattern: "DISALLOW_FILE_EDIT"
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[5].value
+          pattern: "DISABLE_WP_CRON"
+
+  - it: should configure Redis object cache env and wp-config constants
+    template: templates/deployment.yaml
+    set:
+      plugins.enabled: true
+      plugins.installer.enabled: true
+      objectCache.enabled: true
+      objectCache.redis.subchart.enabled: true
+    asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: WORDPRESS_CONFIG_EXTRA
-            value: "define('WP_MEMORY_LIMIT', '256M');"
+            name: WP_REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-redis-auth
+                key: redis-password
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[6].value
+          pattern: "WP_REDIS_HOST"
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[6].value
+          pattern: "test-redis-client"
 
   - it: should include extra env vars
     template: templates/deployment.yaml
@@ -127,6 +185,41 @@ tests:
           content:
             name: PHP_MEMORY_LIMIT
             value: "256M"
+
+  - it: should include extra envFrom sources
+    template: templates/deployment.yaml
+    set:
+      wordpress.extraEnvFrom:
+        - secretRef:
+            name: wordpress-extra-env
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[0].secretRef.name
+          value: wordpress-extra-env
+
+  - it: should append extra init containers
+    template: templates/deployment.yaml
+    set:
+      extraInitContainers:
+        - name: prepare-content
+          image: busybox:1.37
+          command: ["sh", "-c", "true"]
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: prepare-content
+
+  - it: should append extra containers
+    template: templates/deployment.yaml
+    set:
+      extraContainers:
+        - name: sidecar
+          image: busybox:1.37
+          command: ["sh", "-c", "sleep 3600"]
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: sidecar
 
   - it: should expose HTTP port
     template: templates/deployment.yaml
