@@ -1,6 +1,7 @@
 # MySQL
 
-MySQL for Kubernetes with explicit `standalone` and `replication` modes, documented bootstrap behavior, optional init scripts, and optional metrics.
+MySQL for Kubernetes with explicit `standalone` and `replication` modes, documented bootstrap behavior, optional init scripts,
+optional metrics, TLS hardening, External Secrets Operator integration, and production-oriented controls.
 
 ## Install
 
@@ -39,6 +40,11 @@ helm install mysql oci://ghcr.io/helmforgedev/helm/mysql -f values.yaml
 - built-in S3 backup CronJob using `mysqldump --all-databases`
 - dedicated metrics Services separated from client traffic
 - topology-specific Services for client traffic, source traffic, and read replicas
+- dual-stack Service options through `service.ipFamilyPolicy` and `service.ipFamilies`
+- External Secrets Operator v1 integration for auth, TLS, and backup Secrets
+- optional NetworkPolicy egress rules
+- optional TLS private-key permission normalization before MySQL startup
+- ServiceAccount token automount control
 
 ## How to choose the architecture
 
@@ -53,6 +59,7 @@ Recommended reading before installation:
 - [Backup and Restore](docs/backup-restore.md)
 - [Secret Rotation](docs/secret-rotation.md)
 - [Configuration Profiles](docs/configuration-profiles.md)
+- [Production Hardening](docs/production.md)
 
 ## Official product references
 
@@ -129,10 +136,14 @@ metrics:
 ### Security
 
 - prefer `auth.existingSecret` in production
+- use `externalSecrets.auth.enabled=true` when credentials are sourced from an external secret store
 - keep client access internal unless there is a strong reason to expose MySQL outside the cluster network
 - enable `tls.enabled=true` with an externally-managed certificate secret when clients must use encrypted TCP connections
+- enable `tls.volumePermissions.enabled=true` when projected TLS Secret modes or ownership are not compatible with the non-root MySQL process
 - use `tls.requireSecureTransport=true` only when your clients and replication flows are ready to use TLS
 - use `networkPolicy.enabled=true` or external platform controls when possible
+- use `networkPolicy.egress.enabled=true` when the CNI enforces egress and explicitly allow DNS, same-namespace MySQL traffic, and any required HTTPS destinations
+- keep `serviceAccount.automountServiceAccountToken=false` unless an added sidecar or extension needs Kubernetes API access
 - if metrics are scraped through Prometheus, pair `networkPolicy.enabled=true` with `networkPolicy.metrics.enabled=true`
 - rotate passwords through secret management workflows instead of editing values inline
 
@@ -168,7 +179,10 @@ metrics:
 ## Production notes
 
 - use `auth.existingSecret` instead of inline passwords
+- alternatively use `externalSecrets.auth.enabled=true` with `external-secrets.io/v1` and a preconfigured `SecretStore` or `ClusterSecretStore`
 - use `tls.existingSecret` for server certificates instead of trying to inline PEM material in values
+- use `externalSecrets.tls.enabled=true` when the TLS Secret should be reconciled by External Secrets Operator
+- use `externalSecrets.backup.enabled=true` for S3 credentials when the backup Secret should be reconciled by External Secrets Operator
 - keep persistence enabled for every stateful topology
 - define node placement rules for `replication`, especially when the cluster spans multiple nodes or zones
 - use the `client` or `source` Service only for writes
@@ -178,6 +192,7 @@ metrics:
 - built-in backup dumps all MySQL databases from the writable source endpoint and uploads the compressed archive to S3-compatible storage
 - treat restore validation, retention policy, and failover as operational workflows that still require explicit runbooks
 - review the architecture guides before promoting `replication` to production
+- start from [examples/production.yaml](examples/production.yaml) for a complete production-oriented values file
 
 Operational documents:
 
@@ -185,14 +200,15 @@ Operational documents:
 - [Backup and Restore](docs/backup-restore.md)
 - [Secret Rotation](docs/secret-rotation.md)
 - [Configuration Profiles](docs/configuration-profiles.md)
+- [Production Hardening](docs/production.md)
 
 ## Main values
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `architecture` | `standalone` or `replication` | `standalone` |
-| `image.repository` | MySQL image repository | `mysql` |
-| `image.tag` | MySQL image tag | `8.4` |
+| `image.repository` | MySQL image repository | `docker.io/library/mysql` |
+| `image.tag` | MySQL image tag | `9.7.0` |
 | `auth.database` | App database created at bootstrap | `app` |
 | `auth.username` | App user created at bootstrap | `app` |
 | `auth.existingSecret` | Existing secret for passwords | `""` |
@@ -203,13 +219,25 @@ Operational documents:
 | `replication.readReplicas.resourcesPreset` | Replica resource preset | `none` |
 | `metrics.resourcesPreset` | Exporter resource preset | `none` |
 | `initdb.existingConfigMap` | External ConfigMap for extra init scripts | `""` |
-| `networkPolicy.enabled` | Enable ingress-only NetworkPolicy | `false` |
+| `networkPolicy.enabled` | Enable NetworkPolicy | `false` |
 | `networkPolicy.metrics.enabled` | Allow metrics scraping through NetworkPolicy | `false` |
+| `networkPolicy.egress.enabled` | Add egress policy rules | `false` |
+| `networkPolicy.egress.allowDNS` | Allow DNS egress | `true` |
+| `networkPolicy.egress.allowSameNamespaceMySQL` | Allow same-namespace MySQL egress | `true` |
+| `networkPolicy.egress.allowHTTPS` | Allow TCP/443 egress | `false` |
 | `tls.enabled` | Enable server TLS from an existing secret | `false` |
 | `tls.existingSecret` | Existing secret with CA, certificate, and key | `""` |
 | `tls.requireSecureTransport` | Require TLS for TCP client connections | `false` |
+| `tls.volumePermissions.enabled` | Normalize TLS Secret file ownership and modes before startup | `false` |
 | `tls.client.enabled` | Use TLS for chart-managed TCP clients | `false` |
 | `tls.client.sslMode` | MySQL CLI SSL mode for internal chart-managed clients | `REQUIRED` |
+| `serviceAccount.create` | Create a ServiceAccount | `false` |
+| `serviceAccount.automountServiceAccountToken` | Mount Kubernetes API token into workload pods | `false` |
+| `externalSecrets.enabled` | Render ExternalSecret resources | `false` |
+| `externalSecrets.apiVersion` | ExternalSecret API version | `external-secrets.io/v1` |
+| `externalSecrets.auth.enabled` | Manage the auth Secret through External Secrets Operator | `false` |
+| `externalSecrets.tls.enabled` | Manage the TLS Secret through External Secrets Operator | `false` |
+| `externalSecrets.backup.enabled` | Manage the backup Secret through External Secrets Operator | `false` |
 | `backup.enabled` | Enable built-in S3 backup CronJob | `false` |
 | `backup.schedule` | Backup schedule | `"0 3 * * *"` |
 | `backup.s3.endpoint` | S3-compatible endpoint URL | `""` |
@@ -249,6 +277,8 @@ The `ci/` scenarios validate the main chart behaviors:
 - `resources-preset.yaml`
 - `tls.yaml`
 - `tls-networkpolicy.yaml`
+- `external-secrets.yaml`
+- `production-hardening.yaml`
 
 ## Examples
 
@@ -261,6 +291,8 @@ See `examples/`:
 - `resources-preset.yaml`
 - `tls.yaml`
 - `replication-production.yaml`
+- `production.yaml`
+- `external-secrets.yaml`
 
 ## Important notes
 

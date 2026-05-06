@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: Apache-2.0
+# Production-oriented example. Tune storage classes, sizes, resource presets,
+# NetworkPolicy peers, and backup destinations for your environment.
+
+architecture: replication
+
+auth:
+  existingSecret: mysql-auth
+
+tls:
+  enabled: true
+  existingSecret: mysql-tls
+  requireSecureTransport: true
+  volumePermissions:
+    enabled: true
+  client:
+    enabled: true
+    sslMode: REQUIRED
+
+config:
+  preset: oltp
+
+replication:
+  source:
+    resourcesPreset: medium
+    persistence:
+      enabled: true
+      storageClass: fast-ssd
+      size: 100Gi
+  readReplicas:
+    replicaCount: 2
+    resourcesPreset: medium
+    persistence:
+      enabled: true
+      storageClass: fast-ssd
+      size: 100Gi
+    probes:
+      requireRunningReplication: true
+  binlog:
+    retentionDays: 7
+    syncBinlog: 1
+
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false
+
+networkPolicy:
+  enabled: true
+  ingress:
+    allowSameNamespace: false
+    extraFrom:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: applications
+  egress:
+    enabled: true
+    allowDNS: true
+    allowSameNamespaceMySQL: true
+    allowHTTPS: true
+
+metrics:
+  enabled: true
+  resourcesPreset: small
+  serviceMonitor:
+    enabled: true
+
+backup:
+  enabled: true
+  schedule: "0 3 * * *"
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: my-mysql-backups
+    prefix: mysql/prod
+    existingSecret: mysql-backup

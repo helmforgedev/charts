@@ -22,9 +22,13 @@ Use the built-in S3 backup for regular logical dumps, and add external tooling w
 - physical backup workflows
 - centralized retention enforcement across many database instances
 
+Backup object-storage credentials can come from `backup.s3.existingSecret`, inline values for non-production testing, or
+`externalSecrets.backup.enabled=true` when External Secrets Operator manages the Kubernetes Secret.
+
 ## Minimum production practices
 
 - keep regular full backups
+- keep backup credentials in a Kubernetes Secret or External Secrets Operator source, not inline values
 - keep bucket retention and object lifecycle aligned with recovery goals
 - keep a binary log retention policy aligned with recovery goals
 - test restores periodically

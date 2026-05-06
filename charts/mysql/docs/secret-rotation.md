@@ -2,11 +2,12 @@
 
 ## Scope
 
-This chart supports password and TLS material through existing Kubernetes secrets. Rotation remains an operational workflow outside the chart.
+This chart supports password and TLS material through existing Kubernetes secrets or External Secrets Operator v1. Rotation remains an operational workflow outside the chart.
 
 ## Password rotation
 
 - update the secret referenced by `auth.existingSecret`
+- or rotate the remote values referenced by `externalSecrets.auth` and wait for External Secrets Operator reconciliation
 - restart MySQL workloads in a controlled maintenance window
 - verify application connectivity after the rollout
 - if replication is enabled, rotate replication credentials with care and confirm replicas can reconnect to the source
@@ -14,6 +15,7 @@ This chart supports password and TLS material through existing Kubernetes secret
 ## TLS rotation
 
 - update the secret referenced by `tls.existingSecret`
+- or rotate the remote values referenced by `externalSecrets.tls` and wait for External Secrets Operator reconciliation
 - roll the MySQL pods so the new certificates are mounted and loaded
 - validate client connectivity and replication health after the rollout
 - if `tls.requireSecureTransport=true`, confirm internal clients and application clients are ready before restarting traffic
@@ -24,6 +26,7 @@ This chart supports password and TLS material through existing Kubernetes secret
 - validate one environment at a time
 - document rollback steps before rotation
 - for production, use an external secret manager or an automated secret delivery workflow
+- when `tls.volumePermissions.enabled=true`, the rollout recreates normalized TLS files from the reconciled Secret before mysqld starts
 
 <!-- @AI-METADATA
 type: chart-docs
