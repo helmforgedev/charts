@@ -43,7 +43,8 @@ backup:
 
 ## Storage
 
-With `persistence.accessMode: ReadWriteOnce`, keep a single WordPress pod. Use ReadWriteMany storage or an object-storage media strategy before enabling HPA or replicas greater than one.
+With `persistence.accessMode: ReadWriteOnce`, keep a single WordPress pod.
+Use ReadWriteMany storage or an object-storage media strategy before enabling HPA or replicas greater than one.
 
 ## Database
 
@@ -55,7 +56,8 @@ For production, prefer one of these patterns:
 
 ## Secrets
 
-Use `admin.existingSecret`, `database.external.existingSecret`, and `backup.s3.existingSecret` for simple clusters. Use `externalSecrets` when the cluster runs External Secrets Operator and credentials are managed in an external store.
+Use `admin.existingSecret`, `database.external.existingSecret`, and `backup.s3.existingSecret` for simple clusters.
+Use `externalSecrets` when the cluster runs External Secrets Operator and credentials are managed in an external store.
 
 ## Routing
 
@@ -63,7 +65,9 @@ Use either Ingress or Gateway API. Do not enable both for the same hostname unle
 
 ## NetworkPolicy
 
-Enable `networkPolicy.enabled` to isolate inbound traffic. Enable `networkPolicy.egress.enabled` only after listing required destinations such as DNS, database, HTTPS APIs, object storage, and SMTP.
+Enable `networkPolicy.enabled` to isolate inbound traffic.
+Enable `networkPolicy.egress.enabled` only after listing required destinations such as DNS, database, HTTPS APIs,
+object storage, and SMTP.
 
 <!-- @AI-METADATA
 type: chart-docs

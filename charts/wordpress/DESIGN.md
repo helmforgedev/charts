@@ -1,6 +1,7 @@
 # WordPress Chart Design
 
-This chart packages WordPress for Kubernetes using the official Apache image and HelmForge platform conventions. The default install optimizes for a fast working environment, while production controls are opt-in and explicit.
+This chart packages WordPress for Kubernetes using the official Apache image and HelmForge platform conventions.
+The default install optimizes for a fast working environment, while production controls are opt-in and explicit.
 
 ## Goals
 
@@ -61,7 +62,8 @@ Internet
     +----------------------+                 +----------------------+
 ```
 
-For more than one WordPress replica, the content strategy must be explicit. Use ReadWriteMany storage for shared files, or operate plugins/themes/media through a deployment and object-storage strategy.
+For more than one WordPress replica, the content strategy must be explicit.
+Use ReadWriteMany storage for shared files, or operate plugins/themes/media through a deployment and object-storage strategy.
 
 ## Secrets Architecture
 
@@ -81,7 +83,8 @@ External secret store
                          +----------------------+
 ```
 
-External Secrets is optional. Native Secrets remain available for development and simple clusters. The chart prevents using an existing Secret and an ExternalSecret for the same credential at the same time.
+External Secrets is optional. Native Secrets remain available for development and simple clusters.
+The chart prevents using an existing Secret and an ExternalSecret for the same credential at the same time.
 
 ## Plugin Installer Architecture
 
@@ -103,7 +106,13 @@ Helm post-install/post-upgrade
 +----------------------+
 ```
 
-The installer is idempotent. It checks whether each plugin exists before installing it and activates plugins only after WordPress core has completed installation. Before `wp core install`, it downloads official WordPress.org plugin archives and extracts them without using database-backed WP-CLI plugin operations. It runs as UID/GID 33 (`www-data`) by default to match the official WordPress image file ownership on the shared PVC. When persistence uses `ReadWriteOnce`, the Job uses pod affinity to schedule on the same node as the WordPress pod. The Job is intentionally fail-fast with a 60 second active deadline and one retry by default.
+The installer is idempotent. It checks whether each plugin exists before installing it and activates plugins only after
+WordPress core has completed installation.
+Before `wp core install`, it downloads official WordPress.org plugin archives and extracts them without using
+database-backed WP-CLI plugin operations.
+It runs as UID/GID 33 (`www-data`) by default to match the official WordPress image file ownership on the shared PVC.
+When persistence uses `ReadWriteOnce`, the Job uses pod affinity to schedule on the same node as the WordPress pod.
+The Job is intentionally fail-fast with a 60 second active deadline and one retry by default.
 
 ## Redis Object Cache Architecture
 
@@ -171,8 +180,10 @@ Backup CronJob
   +-- upload both artifacts -> S3-compatible bucket
 ```
 
-The backup CronJob is designed as a practical baseline, not a full disaster recovery program. Production users should test restores, retention, object lock, and database consistency in their own environment.
+The backup CronJob is designed as a practical baseline, not a full disaster recovery program.
+Production users should test restores, retention, object lock, and database consistency in their own environment.
 
 ## Dependency Policy
 
-The chart depends on HelmForge MySQL through `Chart.yaml`. The repository workflow does not commit `Chart.lock` for this chart, so dependency resolution is performed during validation and packaging.
+The chart depends on HelmForge MySQL through `Chart.yaml`.
+The repository workflow does not commit `Chart.lock` for this chart, so dependency resolution is performed during validation and packaging.

@@ -6,9 +6,9 @@ WordPress requires MySQL or MariaDB. This chart supports two database modes with
 
 When `database.mode` is `auto` (default), the chart detects the database source:
 
-1. **External** — if `database.external.host` or `database.external.existingSecret` is set
-2. **MySQL subchart** — if `mysql.enabled: true`
-3. **Fail** — WordPress cannot run without a database
+1. **External** - if `database.external.host` or `database.external.existingSecret` is set
+2. **MySQL subchart** - if `mysql.enabled: true`
+3. **Fail** - WordPress cannot run without a database
 
 You can also set `database.mode` explicitly to `external` or `mysql` to skip auto-detection.
 
@@ -103,7 +103,9 @@ externalSecrets:
 
 ## Wait-for-DB Init Container
 
-The deployment includes a `wait-for-db` init container that checks database connectivity before starting WordPress. This prevents CrashLoopBackOff when the database takes time to initialize (common with the MySQL subchart on first install).
+The deployment includes a `wait-for-db` init container that checks database connectivity before starting WordPress.
+This prevents CrashLoopBackOff when the database takes time to initialize, which is common with the MySQL subchart
+on first install.
 
 The init container uses `busybox nc` to verify TCP connectivity to the database host and port.
 

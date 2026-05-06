@@ -4,11 +4,11 @@ The chart includes a CronJob-based backup system that creates database dumps and
 
 ## How It Works
 
-```
+```text
 CronJob (scheduled)
-├── Init 1: mysqldump → database dump (.sql.gz)
-├── Init 2: tar wp-content → content archive (.tar.gz)
-└── Main: minio/mc upload both to S3
+|-- Init 1: mysqldump -> database dump (.sql.gz)
+|-- Init 2: tar wp-content -> content archive (.tar.gz)
+`-- Main: minio/mc upload both to S3
 ```
 
 1. **dump-database** (init container, `mysql:8.4`): Runs `mysqldump` against the database, compresses with gzip

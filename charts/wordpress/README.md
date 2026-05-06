@@ -1,6 +1,8 @@
 # WordPress
 
-A Helm chart for deploying [WordPress](https://wordpress.org/) on Kubernetes with the official `wordpress` Apache image, HelmForge MySQL, external database support, backups, metrics, Gateway API, dual-stack Services, NetworkPolicy, and External Secrets Operator integration.
+A Helm chart for deploying [WordPress](https://wordpress.org/) on Kubernetes with the official `wordpress` Apache image,
+HelmForge MySQL, external database support, backups, metrics, Gateway API, dual-stack Services, NetworkPolicy,
+and External Secrets Operator integration.
 
 ## Installation
 
@@ -16,7 +18,8 @@ helm install wordpress oci://ghcr.io/helmforgedev/helm/wordpress
 
 ## Quick Start
 
-The default path is intentionally convenient for development and evaluation: one WordPress Deployment, a bundled MySQL subchart, a persistent volume for `/var/www/html`, and generated credentials.
+The default path is intentionally convenient for development and evaluation: one WordPress Deployment,
+a bundled MySQL subchart, a persistent volume for `/var/www/html`, and generated credentials.
 
 ```bash
 helm install wordpress oci://ghcr.io/helmforgedev/helm/wordpress \
@@ -26,7 +29,9 @@ helm install wordpress oci://ghcr.io/helmforgedev/helm/wordpress \
 
 ## Dev vs Production
 
-Defaults are not intended to be a complete production baseline. They provide a fast working install. For production, enable explicit credentials, TLS at the edge, resource requests and limits, backups, metrics, restricted network flow, and a storage/database strategy that matches your availability target.
+Defaults are not intended to be a complete production baseline. They provide a fast working install.
+For production, enable explicit credentials, TLS at the edge, resource requests and limits, backups, metrics,
+restricted network flow, and a storage/database strategy that matches your availability target.
 
 Production-ready options are available through values:
 
@@ -171,11 +176,13 @@ database:
     existingSecretPasswordKey: database-password
 ```
 
-The chart validates that `externalSecrets.apiVersion` is `external-secrets.io/v1`, a SecretStore is configured, and ExternalSecret-managed credentials are not combined with `existingSecret` for the same credential.
+The chart validates that `externalSecrets.apiVersion` is `external-secrets.io/v1`, a SecretStore is configured,
+and ExternalSecret-managed credentials are not combined with `existingSecret` for the same credential.
 
 ## Plugins
 
-The chart can run an idempotent plugin installer Job after install and upgrade. The Job mounts the WordPress PVC and skips plugins that already exist, so upgrades do not reinstall the same plugin repeatedly.
+The chart can run an idempotent plugin installer Job after install and upgrade.
+The Job mounts the WordPress PVC and skips plugins that already exist, so upgrades do not reinstall the same plugin repeatedly.
 
 ```yaml
 plugins:
@@ -191,9 +198,14 @@ plugins:
       skipIfInstalled: true
 ```
 
-The installer uses a `post-install,post-upgrade` Helm hook and pod affinity to run on the same node as the WordPress pod when persistence is enabled. This improves compatibility with `ReadWriteOnce` PVCs. The default installer deadline is 60 seconds with one retry, so failed official plugin downloads fail quickly during Helm installs.
+The installer uses a `post-install,post-upgrade` Helm hook and pod affinity to run on the same node as the WordPress pod
+when persistence is enabled. This improves compatibility with `ReadWriteOnce` PVCs.
+The default installer deadline is 60 seconds with one retry, so failed official plugin downloads fail quickly during Helm installs.
 
-Only official WordPress.org plugin slugs are supported. When WordPress core is not installed yet, the Job downloads the official plugin archive from `downloads.wordpress.org`, extracts it into `wp-content/plugins`, and defers activation until a later upgrade. The installer runs as `www-data` by default so it can write to the same PVC paths initialized by the official WordPress image.
+Only official WordPress.org plugin slugs are supported. When WordPress core is not installed yet,
+the Job downloads the official plugin archive from `downloads.wordpress.org`, extracts it into `wp-content/plugins`,
+and defers activation until a later upgrade.
+The installer runs as `www-data` by default so it can write to the same PVC paths initialized by the official WordPress image.
 
 ## Redis Object Cache
 
@@ -235,9 +247,12 @@ objectCache:
       existingSecretPasswordKey: redis-password
 ```
 
-The chart configures `WP_CACHE`, `WP_REDIS_HOST`, `WP_REDIS_PORT`, `WP_REDIS_DATABASE`, `WP_REDIS_PREFIX`, `WP_REDIS_CLIENT`, and optional `WP_REDIS_PASSWORD`. It also installs `redis-cache` and creates `wp-content/object-cache.php`.
+The chart configures `WP_CACHE`, `WP_REDIS_HOST`, `WP_REDIS_PORT`, `WP_REDIS_DATABASE`, `WP_REDIS_PREFIX`,
+`WP_REDIS_CLIENT`, and optional `WP_REDIS_PASSWORD`.
+It also installs `redis-cache` and creates `wp-content/object-cache.php`.
 
-For immutable production deployments, prefer a custom WordPress image with required plugins and drop-ins already packaged. The installer Job is a practical operational convenience for development, labs, and mutable PVC-based installs.
+For immutable production deployments, prefer a custom WordPress image with required plugins and drop-ins already packaged.
+The installer Job is a practical operational convenience for development, labs, and mutable PVC-based installs.
 
 ## Gateway API
 
@@ -378,9 +393,12 @@ The chart creates an `HTTPRoute` that sends traffic to the WordPress Service.
 
 ## Production Notes
 
-Horizontal scaling requires shared writable storage for uploads/plugins/themes, or an operational model that moves media to object storage and deploys code/plugins immutably. With the default `ReadWriteOnce` PVC, keep `replicaCount: 1` and leave autoscaling disabled.
+Horizontal scaling requires shared writable storage for uploads/plugins/themes, or an operational model that moves media
+to object storage and deploys code/plugins immutably.
+With the default `ReadWriteOnce` PVC, keep `replicaCount: 1` and leave autoscaling disabled.
 
-For high-traffic production, prefer an external managed MySQL/MariaDB service or a separately operated database chart with backup, monitoring, and failover validated for your environment.
+For high-traffic production, prefer an external managed MySQL/MariaDB service or a separately operated database chart
+with backup, monitoring, and failover validated for your environment.
 
 <!-- @AI-METADATA
 type: chart-readme

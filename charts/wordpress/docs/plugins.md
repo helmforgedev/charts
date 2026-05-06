@@ -1,8 +1,11 @@
 # Plugins and Object Cache
 
-The chart can install WordPress plugins through an idempotent post-install/post-upgrade Job. This is useful for mutable PVC-based installs and labs. For immutable production, prefer a custom WordPress image with plugins already packaged.
+The chart can install WordPress plugins through an idempotent post-install/post-upgrade Job.
+This is useful for mutable PVC-based installs and labs.
+For immutable production, prefer a custom WordPress image with plugins already packaged.
 
-The installer defaults to a 60 second active deadline and one retry. Slow official plugin downloads or network blocks fail quickly instead of leaving a Helm install pending for several minutes.
+The installer defaults to a 60 second active deadline and one retry.
+Slow official plugin downloads or network blocks fail quickly instead of leaving a Helm install pending for several minutes.
 
 ## Custom Plugins
 
@@ -36,7 +39,9 @@ objectCache:
       enabled: true
 ```
 
-The chart installs the official `redis-cache` plugin, configures `WP_REDIS_*`, and creates `wp-content/object-cache.php`. If WordPress core is not installed yet, plugin files are downloaded directly from WordPress.org and activation is retried on a future upgrade, but the drop-in can still be created from plugin files.
+The chart installs the official `redis-cache` plugin, configures `WP_REDIS_*`, and creates `wp-content/object-cache.php`.
+If WordPress core is not installed yet, plugin files are downloaded directly from WordPress.org and activation is retried
+on a future upgrade, but the drop-in can still be created from plugin files.
 
 ## Validation
 
