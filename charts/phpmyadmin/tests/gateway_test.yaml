@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: gateway
+templates:
+  - templates/gateway.yaml
+tests:
+  - it: should not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render HTTPRoute
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.parentRefs:
+        - name: public
+          namespace: gateway-system
+      gatewayAPI.hostnames:
+        - pma.example.com
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: apiVersion
+          value: gateway.networking.k8s.io/v1
+      - equal:
+          path: spec.parentRefs[0].name
+          value: public
+      - equal:
+          path: spec.hostnames[0]
+          value: pma.example.com
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 80

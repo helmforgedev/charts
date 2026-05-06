@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- define "phpmyadmin.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -39,12 +40,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "phpmyadmin.image" -}}
-{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
+{{- printf "%s:%s" .Values.image.repository (default .Chart.AppVersion .Values.image.tag) -}}
 {{- end -}}
 
 {{/* Auth secret name */}}
 {{- define "phpmyadmin.authSecretName" -}}
-{{- if .Values.auth.existingSecret -}}
+{{- if .Values.externalSecrets.auth.targetName -}}
+{{- .Values.externalSecrets.auth.targetName -}}
+{{- else if .Values.auth.existingSecret -}}
 {{- .Values.auth.existingSecret -}}
 {{- else -}}
 {{- printf "%s-auth" (include "phpmyadmin.fullname" .) -}}
@@ -57,5 +60,44 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- .Values.config.existingConfigMap -}}
 {{- else -}}
 {{- printf "%s-config" (include "phpmyadmin.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/* ExternalSecret remoteRef item */}}
+{{- define "phpmyadmin.externalSecretDataItem" -}}
+- secretKey: {{ .secretKey | quote }}
+  remoteRef:
+    {{- if not .remoteRef.key }}
+    {{- fail (printf "%s.key is required when externalSecrets.auth.enabled=true" .remoteRefName) }}
+    {{- end }}
+    key: {{ .remoteRef.key | quote }}
+    {{- with .remoteRef.property }}
+    property: {{ . | quote }}
+    {{- end }}
+    {{- with .remoteRef.version }}
+    version: {{ . | quote }}
+    {{- end }}
+    {{- with .remoteRef.decodingStrategy }}
+    decodingStrategy: {{ . | quote }}
+    {{- end }}
+    {{- with .remoteRef.conversionStrategy }}
+    conversionStrategy: {{ . | quote }}
+    {{- end }}
+{{- end -}}
+
+{{/* Validate ExternalSecret settings */}}
+{{- define "phpmyadmin.validateExternalSecrets" -}}
+{{- if and .Values.externalSecrets.enabled .Values.auth.existingSecret .Values.externalSecrets.auth.enabled -}}
+{{- fail "auth.existingSecret and externalSecrets.auth.enabled are mutually exclusive" -}}
+{{- end -}}
+{{- if and .Values.externalSecrets.enabled .Values.externalSecrets.auth.enabled (not .Values.externalSecrets.secretStoreRef.name) -}}
+{{- fail "externalSecrets.secretStoreRef.name is required when externalSecrets.auth.enabled=true" -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Validate Gateway API settings */}}
+{{- define "phpmyadmin.validateGatewayAPI" -}}
+{{- if and .Values.gatewayAPI.enabled (empty .Values.gatewayAPI.parentRefs) -}}
+{{- fail "gatewayAPI.parentRefs must contain at least one parentRef when gatewayAPI.enabled=true" -}}
 {{- end -}}
 {{- end -}}

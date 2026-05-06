@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -5,7 +6,9 @@ metadata:
   labels:
     {{- include "phpmyadmin.labels" . | nindent 4 }}
 spec:
+  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "phpmyadmin.selectorLabels" . | nindent 6 }}
@@ -29,6 +32,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "phpmyadmin.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -53,12 +57,24 @@ spec:
             {{- if .Values.phpmyadmin.hosts }}
             - name: PMA_HOSTS
               value: {{ .Values.phpmyadmin.hosts | quote }}
+            {{- if .Values.phpmyadmin.verboses }}
+            - name: PMA_VERBOSES
+              value: {{ .Values.phpmyadmin.verboses | quote }}
+            {{- end }}
+            {{- if .Values.phpmyadmin.ports }}
+            - name: PMA_PORTS
+              value: {{ .Values.phpmyadmin.ports | quote }}
+            {{- end }}
             {{- else if .Values.phpmyadmin.host }}
             - name: PMA_HOST
               value: {{ .Values.phpmyadmin.host | quote }}
             {{- end }}
             - name: PMA_PORT
               value: {{ .Values.phpmyadmin.port | quote }}
+            {{- if .Values.phpmyadmin.arbitrary }}
+            - name: PMA_ARBITRARY
+              value: "1"
+            {{- end }}
             {{- if .Values.phpmyadmin.uploadLimit }}
             - name: UPLOAD_LIMIT
               value: {{ .Values.phpmyadmin.uploadLimit | quote }}
@@ -67,27 +83,87 @@ spec:
             - name: PMA_ABSOLUTE_URI
               value: {{ .Values.phpmyadmin.absoluteUri | quote }}
             {{- end }}
-            {{- if or .Values.auth.username .Values.auth.existingSecret }}
-            - name: PMA_USER
-              {{- if .Values.auth.existingSecret }}
+            - name: HIDE_PHP_VERSION
+              value: {{ ternary "1" "0" .Values.phpmyadmin.hidePhpVersion | quote }}
+            - name: PMA_AUTH_TYPE
+              value: {{ .Values.phpmyadmin.authType | quote }}
+            {{- if .Values.phpmyadmin.configBase64 }}
+            - name: PMA_CONFIG_BASE64
+              value: {{ .Values.phpmyadmin.configBase64 | quote }}
+            {{- end }}
+            {{- if .Values.phpmyadmin.controlHost }}
+            - name: PMA_CONTROLHOST
+              value: {{ .Values.phpmyadmin.controlHost | quote }}
+            - name: PMA_CONTROLPORT
+              value: {{ .Values.phpmyadmin.controlPort | quote }}
+            {{- end }}
+            {{- if .Values.phpmyadmin.controlUser }}
+            - name: PMA_CONTROLUSER
+              value: {{ .Values.phpmyadmin.controlUser | quote }}
+            - name: PMA_CONTROLPASS
+              {{- if or .Values.auth.existingSecret .Values.externalSecrets.auth.enabled }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.auth.existingSecret }}
+                  name: {{ include "phpmyadmin.authSecretName" . }}
+                  key: {{ .Values.auth.existingSecretControlPasswordKey }}
+              {{- else }}
+              value: {{ .Values.phpmyadmin.controlPassword | quote }}
+              {{- end }}
+            {{- end }}
+            {{- if .Values.phpmyadmin.ssl.enabled }}
+            - name: PMA_SSL
+              value: "1"
+            - name: PMA_SSL_VERIFY
+              value: {{ ternary "1" "0" .Values.phpmyadmin.ssl.verify | quote }}
+            {{- with .Values.phpmyadmin.ssl.caPath }}
+            - name: PMA_SSL_CA
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.phpmyadmin.ssl.certPath }}
+            - name: PMA_SSL_CERT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.phpmyadmin.ssl.keyPath }}
+            - name: PMA_SSL_KEY
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if or .Values.auth.username .Values.auth.existingSecret .Values.externalSecrets.auth.enabled }}
+            - name: PMA_USER
+              {{- if or .Values.auth.existingSecret .Values.externalSecrets.auth.enabled }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "phpmyadmin.authSecretName" . }}
                   key: {{ .Values.auth.existingSecretUsernameKey }}
               {{- else }}
               value: {{ .Values.auth.username | quote }}
               {{- end }}
             - name: PMA_PASSWORD
-              {{- if .Values.auth.existingSecret }}
+              {{- if or .Values.auth.existingSecret .Values.externalSecrets.auth.enabled }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.auth.existingSecret }}
+                  name: {{ include "phpmyadmin.authSecretName" . }}
                   key: {{ .Values.auth.existingSecretPasswordKey }}
               {{- else if .Values.auth.password }}
               valueFrom:
                 secretKeyRef:
                   name: {{ include "phpmyadmin.authSecretName" . }}
-                  key: password
+                  key: {{ .Values.auth.existingSecretPasswordKey }}
+              {{- end }}
+            {{- end }}
+            {{- if or .Values.auth.blowfishSecret .Values.auth.existingSecret .Values.externalSecrets.auth.enabled }}
+            - name: PMA_BLOWFISH_SECRET
+              {{- if or .Values.auth.existingSecret .Values.externalSecrets.auth.enabled }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "phpmyadmin.authSecretName" . }}
+                  key: {{ .Values.auth.existingSecretBlowfishKey }}
+                  optional: true
+              {{- else }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "phpmyadmin.authSecretName" . }}
+                  key: {{ .Values.auth.existingSecretBlowfishKey }}
               {{- end }}
             {{- end }}
             {{- with .Values.phpmyadmin.extraEnv }}
@@ -127,7 +203,7 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if or .Values.config.customConfig .Values.config.existingConfigMap .Values.extraVolumeMounts }}
+          {{- if or .Values.config.customConfig .Values.config.existingConfigMap .Values.sessions.enabled .Values.themes.enabled .Values.extraVolumeMounts }}
           volumeMounts:
             {{- if or .Values.config.customConfig .Values.config.existingConfigMap }}
             - name: custom-config
@@ -135,16 +211,37 @@ spec:
               subPath: config.user.inc.php
               readOnly: true
             {{- end }}
+            {{- if .Values.sessions.enabled }}
+            - name: sessions
+              mountPath: /sessions
+            {{- end }}
+            {{- if .Values.themes.enabled }}
+            - name: themes
+              mountPath: /www/themes
+            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-      {{- if or .Values.config.customConfig .Values.config.existingConfigMap .Values.extraVolumes }}
+      {{- if or .Values.config.customConfig .Values.config.existingConfigMap .Values.sessions.enabled .Values.themes.enabled .Values.extraVolumes }}
       volumes:
         {{- if or .Values.config.customConfig .Values.config.existingConfigMap }}
         - name: custom-config
           configMap:
             name: {{ include "phpmyadmin.configMapName" . }}
+        {{- end }}
+        {{- if .Values.sessions.enabled }}
+        - name: sessions
+          {{- if eq .Values.sessions.type "persistentVolumeClaim" }}
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-sessions" (include "phpmyadmin.fullname" .)) .Values.sessions.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.themes.enabled }}
+        - name: themes
+          {{- toYaml .Values.themes.volume | nindent 10 }}
         {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}

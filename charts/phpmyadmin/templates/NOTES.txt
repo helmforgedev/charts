@@ -1,6 +1,5 @@
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  phpMyAdmin has been successfully deployed!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+phpMyAdmin deployed
 
 Chart:      {{ .Chart.Name }}
 Version:    {{ .Chart.Version }}
@@ -8,62 +7,59 @@ AppVersion: {{ .Chart.AppVersion }}
 Release:    {{ .Release.Name }}
 Namespace:  {{ .Release.Namespace }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ACCESS INFORMATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-{{- if .Values.ingress.enabled }}
+Access
+{{- if .Values.gatewayAPI.enabled }}
+Gateway API HTTPRoute is enabled.
+{{- range .Values.gatewayAPI.hostnames }}
+  URL: http(s)://{{ . }}/
+{{- end }}
+{{- else if .Values.ingress.enabled }}
+Ingress is enabled.
 {{- range $host := .Values.ingress.hosts }}
-WEB UI:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+  URL: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
 {{- end }}
 {{- else }}
-Port-forward to access phpMyAdmin locally:
-
+Use port-forward for local access:
   kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "phpmyadmin.fullname" . }} 8080:{{ .Values.service.port }}
-
-  WEB UI:   http://localhost:8080/
+  URL: http://localhost:8080/
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  CONFIGURATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Database Host:  {{ .Values.phpmyadmin.dbHost | default "Configure via phpmyadmin.dbHost" }}
-Database Port:  {{ .Values.phpmyadmin.dbPort | default 3306 }}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  GETTING STARTED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=phpmyadmin -n {{ .Release.Namespace }} --timeout=300s
-2. kubectl get pods -l app.kubernetes.io/name=phpmyadmin -n {{ .Release.Namespace }}
-3. kubectl logs -l app.kubernetes.io/name=phpmyadmin -n {{ .Release.Namespace }} --all-containers --tail=50 -f
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  TROUBLESHOOTING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  kubectl describe pod -l app.kubernetes.io/name=phpmyadmin -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/name=phpmyadmin -n {{ .Release.Namespace }} --all-containers --tail=100
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  WARNINGS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-SECURITY WARNING: Do NOT expose phpMyAdmin to the public internet without
-authentication (IP restriction, VPN, or reverse proxy auth).
-
-{{- if not .Values.ingress.enabled }}
-
-NOTE: Ingress is not enabled. Access via port-forward (see above).
+Database target
+{{- if .Values.phpmyadmin.hosts }}
+  Hosts: {{ .Values.phpmyadmin.hosts }}
+  Ports: {{ default (printf "%v" .Values.phpmyadmin.port) .Values.phpmyadmin.ports }}
+{{- else if .Values.phpmyadmin.host }}
+  Host:  {{ .Values.phpmyadmin.host }}
+  Port:  {{ .Values.phpmyadmin.port }}
+{{- else if .Values.phpmyadmin.arbitrary }}
+  Arbitrary server mode is enabled. Users choose the database host at login.
+{{- else }}
+  No database host is configured. Set phpmyadmin.host, phpmyadmin.hosts, or phpmyadmin.arbitrary=true.
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ADDITIONAL RESOURCES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Operational checks
+  kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name=phpmyadmin -n {{ .Release.Namespace }} --timeout=300s
+  kubectl get deploy,po,svc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+  kubectl logs -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name=phpmyadmin -n {{ .Release.Namespace }} --all-containers --tail=100
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
 
-Documentation:  https://helmforge.dev/docs/charts/phpmyadmin
-phpMyAdmin:     https://www.phpmyadmin.net | https://github.com/phpmyadmin/phpmyadmin
+Production notes
+{{- if .Values.externalSecrets.auth.enabled }}
+  External Secrets Operator manages the auth Secret: {{ include "phpmyadmin.authSecretName" . }}
+{{- else if .Values.auth.existingSecret }}
+  Existing Secret used for auth: {{ .Values.auth.existingSecret }}
+{{- else if .Values.auth.password }}
+  Inline auth.password rendered a Kubernetes Secret. Prefer existingSecret or externalSecrets.auth in production.
+{{- end }}
+{{- if and (gt (int .Values.replicaCount) 1) (not .Values.sessions.enabled) (not .Values.autoscaling.enabled) }}
+  Multiple replicas are enabled without sessions.enabled. Enable shared sessions when using cookie/session-heavy workflows.
+{{- end }}
+{{- if not .Values.networkPolicy.enabled }}
+  NetworkPolicy is disabled. Production deployments should restrict ingress and database egress.
+{{- end }}
 
-Happy Helmforging :)
+Security warning
+  Do not expose phpMyAdmin directly to the public internet without strong controls such as VPN, SSO/reverse proxy authentication, IP allowlists, TLS, and least-privilege database accounts.
+
+Documentation:
+  https://helmforge.dev/docs/charts/phpmyadmin

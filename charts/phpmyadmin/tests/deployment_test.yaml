@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 suite: deployment
 templates:
   - templates/deployment.yaml
@@ -25,12 +26,24 @@ tests:
   - it: should set PMA_HOSTS when hosts is configured
     set:
       phpmyadmin.hosts: "mysql-1.svc,mysql-2.svc"
+      phpmyadmin.ports: "3306,3307"
+      phpmyadmin.verboses: "Primary,Replica"
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: PMA_HOSTS
             value: "mysql-1.svc,mysql-2.svc"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_PORTS
+            value: "3306,3307"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_VERBOSES
+            value: "Primary,Replica"
 
   - it: should prefer PMA_HOSTS over PMA_HOST when both are set
     set:
@@ -69,6 +82,16 @@ tests:
           content:
             name: UPLOAD_LIMIT
             value: "128M"
+
+  - it: should enable arbitrary server mode
+    set:
+      phpmyadmin.arbitrary: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_ARBITRARY
+            value: "1"
 
   - it: should set PMA_ABSOLUTE_URI
     set:
@@ -123,6 +146,23 @@ tests:
                 name: my-auth-secret
                 key: password
 
+  - it: should use external secret target for auto-login
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: platform-secrets
+      externalSecrets.auth.enabled: true
+      externalSecrets.auth.usernameRemoteRef.key: prod/phpmyadmin
+      externalSecrets.auth.passwordRemoteRef.key: prod/phpmyadmin
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_USER
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-phpmyadmin-auth
+                key: username
+
   - it: should not set auto-login env vars when auth is empty
     set:
       phpmyadmin.host: mysql.default.svc
@@ -152,6 +192,21 @@ tests:
             name: custom-config
             configMap:
               name: RELEASE-NAME-phpmyadmin-config
+
+  - it: should mount sessions when enabled
+    set:
+      sessions.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: sessions
+            mountPath: /sessions
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: sessions
+            emptyDir: {}
 
   - it: should not mount config volume when not configured
     set:
