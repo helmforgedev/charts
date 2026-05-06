@@ -37,6 +37,8 @@ Typical use cases:
 - use `auth.existingSecret` in production
 - keep persistence enabled except for ephemeral test environments
 - use resource requests and limits appropriate to your workload
+- restrict `config.allowedClientCIDRs` and enable `networkPolicy.enabled=true` for production
+- keep `serviceAccount.automountServiceAccountToken=false` unless a specific integration needs it
 - monitor disk growth and autovacuum behavior early
 
 ## Example

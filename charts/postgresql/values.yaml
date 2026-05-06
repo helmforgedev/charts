@@ -69,6 +69,16 @@ config:
   # -- Authentication method for local Unix-socket connections in pg_hba.conf.
   # Use scram-sha-256 for production. Set to trust only for tightly controlled bootstrap/debug workflows.
   localAuthMethod: scram-sha-256
+  # -- CIDRs allowed to connect to regular PostgreSQL databases in generated pg_hba.conf.
+  # Defaults preserve chart compatibility. Restrict this list to pod/client CIDRs in production.
+  allowedClientCIDRs:
+    - 0.0.0.0/0
+    - ::/0
+  # -- CIDRs allowed to connect to the replication pseudo-database in generated pg_hba.conf.
+  # Used only when architecture=replication. Restrict this list to replica pod CIDRs in production.
+  allowedReplicationCIDRs:
+    - 0.0.0.0/0
+    - ::/0
   # -- Optional configuration preset: none | small | medium | large
   preset: none
   # -- Extra postgresql.conf content appended to the generated configuration
@@ -103,6 +113,21 @@ tls:
   sslMode: require
   # -- Minimum TLS protocol version accepted by PostgreSQL
   minProtocolVersion: TLSv1.2
+  volumePermissions:
+    # -- Copy TLS secret material into an owned emptyDir and restrict the private key to 0600.
+    # Enable when PostgreSQL rejects mounted Secret key permissions.
+    enabled: false
+    # -- Security context for the TLS permission init container.
+    securityContext:
+      runAsUser: 0
+      runAsNonRoot: false
+      allowPrivilegeEscalation: false
+      capabilities:
+        add:
+          - CHOWN
+          - FOWNER
+        drop:
+          - ALL
 
 # =============================================================================
 # Initialization
@@ -186,6 +211,17 @@ replication:
     maxSenders: 10
     # -- Maximum replication slots
     maxReplicationSlots: 10
+    # -- Maximum WAL retained by replication slots before PostgreSQL can invalidate lagging slots. Empty uses PostgreSQL default.
+    maxSlotWalKeepSize: ""
+    # -- Timeout for inactive replication slots before invalidation. Empty uses PostgreSQL default.
+    idleReplicationSlotTimeout: ""
+    # -- Timeout for WAL sender responses from standby servers. Empty uses PostgreSQL default.
+    walSenderTimeout: ""
+  slots:
+    # -- Use physical replication slots for read replicas. Disabled by default to preserve compatibility.
+    enabled: false
+    # -- Prefix used to build deterministic per-replica slot names.
+    namePrefix: replica
   pdb:
     # -- Enable a PodDisruptionBudget by default in replication mode
     enabled: true
@@ -313,6 +349,17 @@ networkPolicy:
     allowSameNamespace: true
     # -- Additional ingress "from" rules appended to the generated policy
     extraFrom: []
+  egress:
+    # -- Add explicit egress rules to the NetworkPolicy.
+    enabled: false
+    # -- Additional egress rules appended to the generated policy.
+    extraTo: []
+    # -- Allow DNS egress on TCP/UDP 53.
+    allowDNS: true
+    # -- Allow PostgreSQL egress to same-namespace pods for replication and internal checks.
+    allowSameNamespacePostgreSQL: true
+    # -- Allow HTTPS egress for S3-compatible backup endpoints.
+    allowHTTPS: true
 
 # =============================================================================
 # Pod Disruption Budget
@@ -335,6 +382,8 @@ serviceAccount:
   create: false
   name: ""
   annotations: {}
+  # -- Mount Kubernetes API credentials into PostgreSQL and backup pods.
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Probes

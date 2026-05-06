@@ -134,6 +134,22 @@
           "description": "Authentication method for local Unix-socket connections in pg_hba.conf.",
           "default": "scram-sha-256"
         },
+        "allowedClientCIDRs": {
+          "type": "array",
+          "description": "CIDRs allowed to connect to regular PostgreSQL databases in generated pg_hba.conf.",
+          "items": {
+            "type": "string"
+          },
+          "default": ["0.0.0.0/0", "::/0"]
+        },
+        "allowedReplicationCIDRs": {
+          "type": "array",
+          "description": "CIDRs allowed to connect to the replication pseudo-database in generated pg_hba.conf.",
+          "items": {
+            "type": "string"
+          },
+          "default": ["0.0.0.0/0", "::/0"]
+        },
         "preset": {
           "type": "string",
           "description": "Optional configuration preset: none | small | medium | large",
@@ -219,6 +235,22 @@
           "type": "string",
           "description": "Minimum TLS protocol version accepted by PostgreSQL",
           "default": "TLSv1.2"
+        },
+        "volumePermissions": {
+          "type": "object",
+          "description": "TLS secret permission normalization init container settings",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Copy TLS secret material into an owned emptyDir and restrict the private key to 0600.",
+              "default": false
+            },
+            "securityContext": {
+              "type": "object",
+              "description": "Security context for the TLS permission init container"
+            }
+          }
         }
       }
     },
@@ -434,6 +466,39 @@
               "type": "integer",
               "description": "Maximum replication slots",
               "default": 10
+            },
+            "maxSlotWalKeepSize": {
+              "type": "string",
+              "description": "Maximum WAL retained by replication slots before PostgreSQL can invalidate lagging slots. Empty uses PostgreSQL default.",
+              "default": ""
+            },
+            "idleReplicationSlotTimeout": {
+              "type": "string",
+              "description": "Timeout for inactive replication slots before invalidation. Empty uses PostgreSQL default.",
+              "default": ""
+            },
+            "walSenderTimeout": {
+              "type": "string",
+              "description": "Timeout for WAL sender responses from standby servers. Empty uses PostgreSQL default.",
+              "default": ""
+            }
+          }
+        },
+        "slots": {
+          "type": "object",
+          "description": "Physical replication slot configuration for read replicas",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Use physical replication slots for read replicas.",
+              "default": false
+            },
+            "namePrefix": {
+              "type": "string",
+              "description": "Prefix used to build deterministic per-replica slot names.",
+              "default": "replica",
+              "pattern": "^[a-z0-9_]+$"
             }
           }
         },
@@ -674,14 +739,14 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "repository": {
-                  "type": "string",
-                  "default": "docker.io/minio/mc"
-                },
-                "tag": {
-                  "type": "string",
-                  "default": "RELEASE.2025-08-13T08-35-41Z"
-                },
+            "repository": {
+              "type": "string",
+              "default": "docker.io/helmforge/mc"
+            },
+            "tag": {
+              "type": "string",
+              "default": "1.0.0"
+            },
                 "pullPolicy": {
                   "type": "string",
                   "enum": ["Always", "IfNotPresent", "Never"],
@@ -805,6 +870,41 @@
               "default": []
             }
           }
+        },
+        "egress": {
+          "type": "object",
+          "description": "Egress rules for the NetworkPolicy",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Add explicit egress rules to the NetworkPolicy.",
+              "default": false
+            },
+            "extraTo": {
+              "type": "array",
+              "description": "Additional egress rules appended to the generated policy.",
+              "items": {
+                "type": "object"
+              },
+              "default": []
+            },
+            "allowDNS": {
+              "type": "boolean",
+              "description": "Allow DNS egress on TCP/UDP 53.",
+              "default": true
+            },
+            "allowSameNamespacePostgreSQL": {
+              "type": "boolean",
+              "description": "Allow PostgreSQL egress to same-namespace pods for replication and internal checks.",
+              "default": true
+            },
+            "allowHTTPS": {
+              "type": "boolean",
+              "description": "Allow HTTPS egress for S3-compatible backup endpoints.",
+              "default": true
+            }
+          }
         }
       }
     },
@@ -849,6 +949,11 @@
           "type": "object",
           "description": "Annotations on the ServiceAccount",
           "default": {}
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean",
+          "description": "Mount Kubernetes API credentials into PostgreSQL and backup pods.",
+          "default": false
         }
       }
     },

@@ -24,6 +24,8 @@ Because `pg_dumpall` is used, the generated archive includes all logical databas
 - use the built-in S3 backup for regular full logical dumps when that matches your recovery model
 - keep WAL, data retention, and storage sizing aligned with the backup design
 - if replication is enabled, do not assume replicas replace backups
+- when `networkPolicy.egress.enabled=true`, allow HTTPS egress or the S3-compatible endpoint your backup target requires
+- use `backup.s3.existingSecret` in production instead of inline S3 credentials
 
 ## Restore workflow
 

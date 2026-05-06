@@ -27,6 +27,7 @@ spec:
     spec:
       {{- include "postgresql.podSpecCommon" . | nindent 6 }}
       initContainers:
+        {{- include "postgresql.tlsVolumePermissionsInitContainer" . | nindent 8 }}
         - name: clone-primary
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -43,6 +44,25 @@ spec:
               until pg_isready -h {{ include "postgresql.primaryServiceName" . }} -p {{ .Values.service.port }} -U {{ .Values.auth.replicationUsername }} -d {{ include "postgresql.maintenanceDatabase" . }}; do
                 sleep 5
               done
+              {{- if .Values.replication.slots.enabled }}
+              slot_name="{{ .Values.replication.slots.namePrefix }}_$(hostname | sed 's/.*-//')"
+              if ! psql \
+                -h {{ include "postgresql.primaryServiceName" . }} \
+                -p {{ .Values.service.port }} \
+                -U {{ .Values.auth.replicationUsername }} \
+                -d {{ include "postgresql.maintenanceDatabase" . }} \
+                -tAc "SELECT 1 FROM pg_replication_slots WHERE slot_name = '${slot_name}'" | grep -qx 1; then
+                psql \
+                  -h {{ include "postgresql.primaryServiceName" . }} \
+                  -p {{ .Values.service.port }} \
+                  -U {{ .Values.auth.replicationUsername }} \
+                  -d {{ include "postgresql.maintenanceDatabase" . }} \
+                  -c "SELECT pg_create_physical_replication_slot('${slot_name}')"
+              fi
+              slot_args="-S ${slot_name}"
+              {{- else }}
+              slot_args=""
+              {{- end }}
               rm -rf "${DATA_DIR:?}"/*
               {{- if .Values.tls.enabled }}
               export PGSSLMODE={{ .Values.tls.sslMode | quote }}
@@ -56,6 +76,7 @@ spec:
                 -Fp \
                 -Xs \
                 -P \
+                ${slot_args} \
                 -R
           env:
             - name: PGDATA
@@ -71,7 +92,7 @@ spec:
             - name: data
               mountPath: /var/lib/postgresql/data
             {{- if .Values.tls.enabled }}
-            - name: tls
+            - name: {{ include "postgresql.tlsVolumeMountName" . }}
               mountPath: /tls
               readOnly: true
             {{- end }}
@@ -156,7 +177,7 @@ spec:
             - name: config
               mountPath: /etc/postgresql/generated
             {{- if .Values.tls.enabled }}
-            - name: tls
+            - name: {{ include "postgresql.tlsVolumeMountName" . }}
               mountPath: /tls
               readOnly: true
             {{- end }}
@@ -187,7 +208,7 @@ spec:
               mountPath: /etc/postgres-exporter
               readOnly: true
             {{- if .Values.tls.enabled }}
-            - name: tls
+            - name: {{ include "postgresql.tlsVolumeMountName" . }}
               mountPath: /tls
               readOnly: true
             {{- end }}
@@ -196,11 +217,7 @@ spec:
         - name: config
           configMap:
             name: {{ include "postgresql.configMapName" . }}
-        {{- if .Values.tls.enabled }}
-        - name: tls
-          secret:
-            secretName: {{ include "postgresql.tlsSecretName" . }}
-        {{- end }}
+        {{- include "postgresql.tlsVolume" . | nindent 8 }}
         {{- if not .Values.replication.readReplicas.persistence.enabled }}
         - name: data
           emptyDir: {}

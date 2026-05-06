@@ -2,6 +2,10 @@
 
 PostgreSQL for Kubernetes with explicit `standalone` and `replication` modes, documented bootstrap behavior, optional init scripts, and optional metrics.
 
+Defaults are intentionally lightweight for development and simple internal environments.
+Production deployments should layer explicit values for Secrets, persistence, resources,
+network boundaries, backup, observability, scheduling, and security hardening.
+
 ## Install
 
 ### HTTPS repository
@@ -49,6 +53,7 @@ Recommended reading before installation:
 
 - [Standalone](docs/standalone.md)
 - [Replication](docs/replication.md)
+- [Production](docs/production.md)
 - [Replication Operations](docs/replication-operations.md)
 - [HA and Scope Boundaries](docs/ha-and-scope-boundaries.md)
 - [Backup and Restore](docs/backup-restore.md)
@@ -135,6 +140,52 @@ metrics:
     enabled: true
 ```
 
+Production hardening example:
+
+```yaml
+architecture: replication
+
+auth:
+  existingSecret: postgresql-auth
+
+config:
+  allowedClientCIDRs:
+    - 10.42.0.0/16
+  allowedReplicationCIDRs:
+    - 10.42.0.0/16
+
+tls:
+  enabled: true
+  existingSecret: postgresql-tls
+  volumePermissions:
+    enabled: true
+
+replication:
+  wal:
+    keepSize: 2GB
+    maxSlotWalKeepSize: 8GB
+    idleReplicationSlotTimeout: 24h
+    walSenderTimeout: 60s
+  slots:
+    enabled: true
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+
+networkPolicy:
+  enabled: true
+  egress:
+    enabled: true
+
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false
+```
+
+See [examples/production.yaml](examples/production.yaml) for a fuller production-oriented values file.
+
 ## Best practices
 
 ### Security
@@ -143,8 +194,12 @@ metrics:
 - keep the password Secret aligned with the password stored in any existing PVC; PostgreSQL does not rewrite `pg_authid` just because a Kubernetes Secret changed
 - keep client access internal unless there is a strong reason to expose PostgreSQL outside the cluster network
 - use `networkPolicy.enabled=true` or external platform controls when possible
+- use `networkPolicy.egress.enabled=true` when the cluster enforces egress isolation
+- keep `serviceAccount.automountServiceAccountToken=false` unless an integration requires Kubernetes API access from the pod
 - rotate passwords through secret management workflows instead of editing values inline
 - use `tls.enabled=true` with certificate material from a managed secret when PostgreSQL traffic must be encrypted
+- enable `tls.volumePermissions.enabled=true` when PostgreSQL rejects mounted Secret key permissions
+- restrict `config.allowedClientCIDRs` and `config.allowedReplicationCIDRs` to pod/client networks that should reach PostgreSQL
 
 ### Replication and availability
 
@@ -153,6 +208,8 @@ metrics:
 - use `pdb.enabled=true` when running multiple replicas and planning maintenance windows
 - review the default replication PDB and placement behavior before overriding them globally
 - keep `startupProbe` conservative for PostgreSQL, especially on larger volumes and recovery paths
+- enable `replication.slots.enabled=true` only when WAL retention limits and disk monitoring are also in place
+- use `replication.wal.maxSlotWalKeepSize`, `replication.wal.idleReplicationSlotTimeout`, and `replication.wal.walSenderTimeout` to bound replication slot risk
 
 ### Initialization
 
@@ -172,6 +229,7 @@ metrics:
 ### Configuration UX
 
 - use `config.preset` for a small set of opinionated PostgreSQL defaults
+- use `config.allowedClientCIDRs` and `config.allowedReplicationCIDRs` for structured `pg_hba.conf` network access
 - use `config.pgHbaEntries` when you need structured host-based access rules
 - keep `config.localAuthMethod=scram-sha-256` for production so local socket clients do not bypass password auth
 - use `*.resourcesPreset` for small and predictable environment sizing before reaching for fully custom resources
@@ -183,6 +241,9 @@ metrics:
 - use `auth.existingSecret` instead of inline passwords
 - keep persistence enabled for every stateful topology
 - define node placement rules for `replication`, especially when the cluster spans multiple nodes or zones
+- define explicit CPU and memory resources
+- restrict generated `pg_hba.conf` CIDRs and enable NetworkPolicy for defense in depth
+- enable ServiceMonitor or equivalent scraping for PostgreSQL and replication health
 - use the `client` or `primary` Service only for writes
 - use the `replicas` Service only for read traffic
 - use the `replicas` Service when you need horizontal scale for read-only workloads
@@ -210,6 +271,8 @@ Operational documents:
 | `auth.existingSecret` | Existing secret for passwords | `""` |
 | `auth.replicationUsername` | Replication username | `replicator` |
 | `config.preset` | Optional PostgreSQL config preset | `none` |
+| `config.allowedClientCIDRs` | CIDRs allowed for regular PostgreSQL client connections in generated `pg_hba.conf` | `["0.0.0.0/0", "::/0"]` |
+| `config.allowedReplicationCIDRs` | CIDRs allowed for replication connections in generated `pg_hba.conf` | `["0.0.0.0/0", "::/0"]` |
 | `config.pgHbaEntries` | Structured pg_hba entries | `[]` |
 | `standalone.resourcesPreset` | Resource preset for standalone mode | `none` |
 | `replication.primary.resourcesPreset` | Resource preset for the primary pod | `none` |
@@ -218,18 +281,28 @@ Operational documents:
 | `tls.enabled` | Enable PostgreSQL TLS | `false` |
 | `tls.existingSecret` | Existing secret with TLS material | `""` |
 | `tls.sslMode` | Internal libpq sslmode | `require` |
+| `tls.volumePermissions.enabled` | Copy TLS material into an owned `emptyDir` and set private key mode `0600` | `false` |
 | `backup.enabled` | Enable built-in S3 backup CronJob | `false` |
 | `backup.schedule` | Backup schedule | `"0 3 * * *"` |
 | `backup.s3.endpoint` | S3-compatible endpoint URL | `""` |
 | `backup.s3.bucket` | Target bucket name | `""` |
 | `backup.database.pgDumpAllArgs` | Extra `pg_dumpall` flags | `"--clean --if-exists"` |
 | `networkPolicy.enabled` | Enable ingress-only NetworkPolicy | `false` |
+| `networkPolicy.egress.enabled` | Add egress rules to the NetworkPolicy | `false` |
+| `networkPolicy.egress.allowDNS` | Allow TCP/UDP DNS egress | `true` |
+| `networkPolicy.egress.allowHTTPS` | Allow HTTPS egress for S3-compatible backups | `true` |
+| `networkPolicy.egress.allowSameNamespacePostgreSQL` | Allow same-namespace PostgreSQL egress for internal traffic | `true` |
 | `livenessProbe.enabled` | Enable livenessProbe | `true` |
 | `readinessProbe.enabled` | Enable readinessProbe | `true` |
 | `startupProbe.enabled` | Enable startupProbe | `true` |
 | `replication.primary.probes.requireWritable` | Require primary readiness to confirm writable state | `true` |
 | `replication.readReplicas.probes.requireRecoveryMode` | Require replica readiness to confirm recovery mode | `true` |
 | `replication.wal.keepSize` | Local WAL retention target | `512MB` |
+| `replication.wal.maxSlotWalKeepSize` | Maximum WAL retained by replication slots | `""` |
+| `replication.wal.idleReplicationSlotTimeout` | Inactive replication slot timeout | `""` |
+| `replication.wal.walSenderTimeout` | WAL sender timeout | `""` |
+| `replication.slots.enabled` | Use physical replication slots for read replicas | `false` |
+| `replication.slots.namePrefix` | Prefix for deterministic replica slot names | `replica` |
 | `replication.pdb.enabled` | Enable replication PDB by default | `true` |
 | `replication.scheduling.enableDefaultPodAntiAffinity` | Enable default anti-affinity in replication mode | `true` |
 | `replication.scheduling.enableDefaultTopologySpread` | Enable default topology spread in replication mode | `true` |
@@ -239,6 +312,7 @@ Operational documents:
 | `metrics.resourcesPreset` | Resource preset for `postgres_exporter` | `none` |
 | `metrics.serviceMonitor.enabled` | Enable ServiceMonitor | `false` |
 | `pdb.enabled` | Enable PodDisruptionBudget | `false` |
+| `serviceAccount.automountServiceAccountToken` | Mount Kubernetes API credentials into PostgreSQL and backup pods | `false` |
 
 ## CI scenarios
 
@@ -259,6 +333,7 @@ The `ci/` scenarios validate the main chart behaviors:
 - `resources-preset.yaml`
 - `replication-recovery-check.yaml`
 - `replication-wal-tuning.yaml`
+- `production-hardening.yaml`
 
 ## Examples
 
@@ -271,6 +346,7 @@ See `examples/`:
 - `structured-config.yaml`
 - `resources-preset.yaml`
 - `replication-production.yaml`
+- `production.yaml`
 
 ## Important notes
 

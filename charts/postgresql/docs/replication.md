@@ -19,6 +19,7 @@ Typical use cases:
 - optional `postgres_exporter`
 - optional `ServiceMonitor`
 - a stable read-only replicas endpoint for horizontal read scaling
+- optional physical replication slots with bounded WAL retention settings
 
 ## What it does not deliver
 
@@ -33,6 +34,7 @@ Typical use cases:
 - a storage class suitable for stateful workloads
 - anti-affinity or topology spread when possible
 - monitoring for replica health and lag
+- monitoring for WAL directory growth when replication slots are enabled
 - a documented failover or restore runbook
 
 ## Best practices
@@ -44,6 +46,7 @@ Typical use cases:
 - use the replicas Service for read-only workloads that benefit from horizontal scale
 - do not expect the replicas Service to make lag-aware or query-aware routing decisions
 - treat this mode as read scaling plus recovery help, not full HA
+- enable `replication.slots.enabled=true` only with `replication.wal.maxSlotWalKeepSize` and disk alerts
 - if automated failover is a hard requirement, use an operator instead of extending this chart
 
 ## Read scaling notes
@@ -72,6 +75,11 @@ auth:
   existingSecret: postgresql-auth
 
 replication:
+  wal:
+    maxSlotWalKeepSize: 8GB
+    idleReplicationSlotTimeout: 24h
+  slots:
+    enabled: true
   primary:
     persistence:
       enabled: true

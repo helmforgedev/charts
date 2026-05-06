@@ -313,6 +313,67 @@ maintenance_work_mem = '256MB'
 {{- end -}}
 {{- end -}}
 
+{{- define "postgresql.pgHbaClientCIDRRules" -}}
+{{- $type := ternary "hostssl" "host" .Values.tls.enabled -}}
+{{- range .Values.config.allowedClientCIDRs }}
+{{ $type }} all             all             {{ . }}            scram-sha-256
+{{- end -}}
+{{- end -}}
+
+{{- define "postgresql.pgHbaReplicationCIDRRules" -}}
+{{- $type := ternary "hostssl" "host" .Values.tls.enabled -}}
+{{- range .Values.config.allowedReplicationCIDRs }}
+{{ $type }} replication     {{ $.Values.auth.replicationUsername }}  {{ . }}    scram-sha-256
+{{- end -}}
+{{- end -}}
+
+{{- define "postgresql.tlsVolumeMountName" -}}
+{{- if and .Values.tls.enabled .Values.tls.volumePermissions.enabled -}}tls-fixed{{- else -}}tls{{- end -}}
+{{- end -}}
+
+{{- define "postgresql.tlsVolume" -}}
+{{- if .Values.tls.enabled }}
+{{- if .Values.tls.volumePermissions.enabled }}
+- name: tls-source
+  secret:
+    secretName: {{ include "postgresql.tlsSecretName" . }}
+- name: tls-fixed
+  emptyDir: {}
+{{- else }}
+- name: tls
+  secret:
+    secretName: {{ include "postgresql.tlsSecretName" . }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{- define "postgresql.tlsVolumePermissionsInitContainer" -}}
+{{- if and .Values.tls.enabled .Values.tls.volumePermissions.enabled }}
+- name: tls-volume-permissions
+  image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+  imagePullPolicy: {{ .Values.image.pullPolicy }}
+  command:
+    - sh
+    - -ec
+    - |
+      set -eu
+      cp "/tls-source/{{ .Values.tls.certFilename }}" "/tls-fixed/{{ .Values.tls.certFilename }}"
+      cp "/tls-source/{{ .Values.tls.keyFilename }}" "/tls-fixed/{{ .Values.tls.keyFilename }}"
+      cp "/tls-source/{{ .Values.tls.caFilename }}" "/tls-fixed/{{ .Values.tls.caFilename }}"
+      chown 999:999 "/tls-fixed/{{ .Values.tls.certFilename }}" "/tls-fixed/{{ .Values.tls.keyFilename }}" "/tls-fixed/{{ .Values.tls.caFilename }}"
+      chmod 0644 "/tls-fixed/{{ .Values.tls.certFilename }}" "/tls-fixed/{{ .Values.tls.caFilename }}"
+      chmod 0600 "/tls-fixed/{{ .Values.tls.keyFilename }}"
+  securityContext:
+    {{- toYaml .Values.tls.volumePermissions.securityContext | nindent 4 }}
+  volumeMounts:
+    - name: tls-source
+      mountPath: /tls-source
+      readOnly: true
+    - name: tls-fixed
+      mountPath: /tls-fixed
+{{- end }}
+{{- end }}
+
 {{- define "postgresql.resourcesPreset" -}}
 {{- $preset := default "none" .preset -}}
 {{- if eq $preset "small" -}}
@@ -380,6 +441,7 @@ imagePullSecrets:
   {{- toYaml . | nindent 2 }}
 {{- end }}
 serviceAccountName: {{ include "postgresql.serviceAccountName" . }}
+automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
 {{- with .Values.priorityClassName }}
 priorityClassName: {{ . }}
 {{- end }}

@@ -24,6 +24,10 @@ spec:
         {{- end }}
     spec:
       {{- include "postgresql.podSpecCommon" . | nindent 6 }}
+      {{- if and .Values.tls.enabled .Values.tls.volumePermissions.enabled }}
+      initContainers:
+        {{- include "postgresql.tlsVolumePermissionsInitContainer" . | nindent 8 }}
+      {{- end }}
       containers:
         - name: postgresql
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -135,7 +139,7 @@ spec:
             - name: initdb
               mountPath: /docker-entrypoint-initdb.d
             {{- if .Values.tls.enabled }}
-            - name: tls
+            - name: {{ include "postgresql.tlsVolumeMountName" . }}
               mountPath: /tls
               readOnly: true
             {{- end }}
@@ -166,7 +170,7 @@ spec:
               mountPath: /etc/postgres-exporter
               readOnly: true
             {{- if .Values.tls.enabled }}
-            - name: tls
+            - name: {{ include "postgresql.tlsVolumeMountName" . }}
               mountPath: /tls
               readOnly: true
             {{- end }}
@@ -185,11 +189,7 @@ spec:
               - configMap:
                   name: {{ .Values.initdb.existingConfigMap }}
               {{- end }}
-        {{- if .Values.tls.enabled }}
-        - name: tls
-          secret:
-            secretName: {{ include "postgresql.tlsSecretName" . }}
-        {{- end }}
+        {{- include "postgresql.tlsVolume" . | nindent 8 }}
         {{- if not (ternary .Values.replication.primary.persistence.enabled .Values.standalone.persistence.enabled (eq .Values.architecture "replication")) }}
         - name: data
           emptyDir: {}

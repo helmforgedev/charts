@@ -12,7 +12,10 @@ This chart supports password and TLS material through existing Kubernetes secret
 - verify application connectivity after the rollout
 - if replication is enabled, rotate replication credentials with care and confirm replicas can reconnect
 
-If a PVC already contains a PostgreSQL data directory and the Secret is missing or was regenerated with a different value, PostgreSQL keeps the old password in `pg_authid` while pods receive the new `POSTGRES_PASSWORD`. The chart refuses unsafe password auto-generation when it detects the primary PVC; recover by restoring the correct Secret, rotating the database password intentionally, or reinitializing the data directory.
+If a PVC already contains a PostgreSQL data directory and the Secret is missing or was regenerated with a different value,
+PostgreSQL keeps the old password in `pg_authid` while pods receive the new `POSTGRES_PASSWORD`.
+The chart refuses unsafe password auto-generation when it detects the primary PVC.
+Recover by restoring the correct Secret, rotating the database password intentionally, or reinitializing the data directory.
 
 ## TLS rotation
 
