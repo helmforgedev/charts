@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 suite: StatefulSet Primary
 templates:
   - statefulset-primary.yaml
@@ -118,6 +119,13 @@ tests:
       - equal:
           path: spec.template.spec.securityContext.fsGroup
           value: 999
+
+  - it: should not automount the service account token by default
+    template: statefulset-primary.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
 
   - it: should have liveness probe by default
     template: statefulset-primary.yaml
@@ -278,6 +286,47 @@ tests:
             name: tls
             mountPath: /tls
             readOnly: true
+
+  - it: should normalize TLS secret permissions when enabled
+    template: statefulset-primary.yaml
+    set:
+      tls.enabled: true
+      tls.existingSecret: pg-tls
+      tls.volumePermissions.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: tls-volume-permissions
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: 'chmod 0600 "/tls-fixed/tls\.key"'
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tls-fixed
+            mountPath: /tls
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls-fixed
+            emptyDir: {}
+
+  - it: should normalize TLS secret ownership for configured PostgreSQL UID and GID
+    template: statefulset-primary.yaml
+    set:
+      tls.enabled: true
+      tls.existingSecret: pg-tls
+      tls.volumePermissions.enabled: true
+      securityContext.runAsUser: 1001
+      securityContext.runAsGroup: 1002
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: 'chown 1001:1002 "/tls-fixed/tls\.crt" "/tls-fixed/tls\.key" "/tls-fixed/ca\.crt"'
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: 'chmod 0600 "/tls-fixed/tls\.key"'
 
   - it: should apply resource preset small
     template: statefulset-primary.yaml

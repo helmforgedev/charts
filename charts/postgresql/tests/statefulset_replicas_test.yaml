@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 suite: StatefulSet Replicas
 templates:
   - statefulset-replicas.yaml
@@ -39,3 +40,20 @@ tests:
       - matchRegex:
           path: spec.template.spec.initContainers[0].command[2]
           pattern: 'pg_isready -h test-postgresql-primary -p 5432 -U replicator -d postgres'
+
+  - it: should create and use deterministic replication slots when enabled
+    template: statefulset-replicas.yaml
+    set:
+      architecture: replication
+      replication.slots.enabled: true
+      replication.slots.namePrefix: pgslot
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: 'slot_name="pgslot_\$\(hostname \| sed'
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "pg_create_physical_replication_slot\\('\\$\\{slot_name\\}'\\)"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: '-S \$\{slot_name\}'

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 suite: Backup
 templates:
   - templates/backup-configmap.yaml
@@ -63,3 +64,22 @@ tests:
     asserts:
       - isKind:
           of: Secret
+
+  - it: should not require inline s3 credentials when backup ExternalSecret is enabled
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: platform-secrets
+      externalSecrets.backup.enabled: true
+      externalSecrets.backup.accessKeyRemoteRef:
+        key: postgresql/backup
+        property: access-key
+      externalSecrets.backup.secretKeyRemoteRef:
+        key: postgresql/backup
+        property: secret-key
+    template: templates/secret.yaml
+    asserts:
+      - hasDocuments:
+          count: 1

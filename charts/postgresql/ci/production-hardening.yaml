@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: Apache-2.0
+architecture: replication
+
+auth:
+  postgresPassword: postgres-pass
+  password: app-pass
+  replicationPassword: repl-pass
+
+config:
+  allowedClientCIDRs:
+    - 10.42.0.0/16
+  allowedReplicationCIDRs:
+    - 10.42.0.0/16
+
+tls:
+  enabled: true
+  existingSecret: postgresql-tls
+  volumePermissions:
+    enabled: true
+
+replication:
+  primary:
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+  readReplicas:
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+  wal:
+    maxSlotWalKeepSize: 2GB
+    idleReplicationSlotTimeout: 1h
+    walSenderTimeout: 60s
+  slots:
+    enabled: true
+    namePrefix: replica
+
+networkPolicy:
+  enabled: true
+  egress:
+    enabled: true
+
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false

@@ -49,8 +49,17 @@ Writable clients should use:
 - `docker-entrypoint-initdb.d` scripts do not run again on reused PVCs.
 {{- if .Values.tls.enabled }}
 - TLS is enabled for server and internal clients with sslmode `{{ .Values.tls.sslMode }}`.
+{{- if .Values.tls.volumePermissions.enabled }}
+- TLS key permission normalization is enabled; certificate material is copied to an owned emptyDir before PostgreSQL starts.
+{{- end }}
 {{- else }}
 - TLS is disabled for internal chart traffic.
+{{- end }}
+{{- if .Values.config.allowedClientCIDRs }}
+- Generated pg_hba.conf client CIDRs: {{ join ", " .Values.config.allowedClientCIDRs }}.
+{{- end }}
+{{- if and (eq .Values.architecture "replication") .Values.config.allowedReplicationCIDRs }}
+- Generated pg_hba.conf replication CIDRs: {{ join ", " .Values.config.allowedReplicationCIDRs }}.
 {{- end }}
 {{- if .Values.metrics.enabled }}
 - Metrics exporter is enabled on port `{{ .Values.service.metricsPort }}`.
@@ -61,6 +70,45 @@ Writable clients should use:
 {{- if .Values.backup.enabled }}
 - Built-in logical backup CronJob is enabled with schedule `{{ .Values.backup.schedule }}`.
 {{- end }}
+{{- $root := . -}}
+{{- with .Values.externalSecrets }}
+{{- if .enabled }}
+- External Secrets Operator resources are enabled. Ensure the operator and `{{ .secretStoreRef.kind }}` `{{ .secretStoreRef.name }}` exist.
+{{- if .auth.enabled }}
+  - Auth Secret target: `{{ include "postgresql.secretName" $root }}`.
+{{- end }}
+{{- if .tls.enabled }}
+  - TLS Secret target: `{{ include "postgresql.tlsSecretName" $root }}`.
+{{- end }}
+{{- if .backup.enabled }}
+  - Backup Secret target: `{{ include "postgresql.backupSecretName" $root }}`.
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if .Values.replication.slots.enabled }}
+- Physical replication slots are enabled for read replicas. Monitor WAL retention and disk growth.
+{{- end }}
+{{- if .Values.networkPolicy.enabled }}
+- NetworkPolicy is enabled{{ if .Values.networkPolicy.egress.enabled }} with explicit egress rules{{ end }}.
+{{- end }}
+- ServiceAccount token automount is set to `{{ .Values.serviceAccount.automountServiceAccountToken }}`.
+
+======================================================================
+ DEPLOYMENT PROFILE
+======================================================================
+
+Defaults are intentionally lightweight for development and simple internal environments.
+For production, use explicit values for:
+  - auth.existingSecret
+  - persistence size and storageClass
+  - CPU and memory resources
+  - metrics and alerting
+  - backup with tested restore
+  - networkPolicy and restricted pg_hba CIDRs
+  - topology spread / affinity when multiple nodes or zones are available
+
+Reference production example:
+  charts/postgresql/examples/production.yaml
 
 ======================================================================
  GETTING STARTED

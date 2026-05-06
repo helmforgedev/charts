@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
 # PostgreSQL Helm Chart - Default Values
 # =============================================================================
@@ -69,6 +70,16 @@ config:
   # -- Authentication method for local Unix-socket connections in pg_hba.conf.
   # Use scram-sha-256 for production. Set to trust only for tightly controlled bootstrap/debug workflows.
   localAuthMethod: scram-sha-256
+  # -- CIDRs allowed to connect to regular PostgreSQL databases in generated pg_hba.conf.
+  # Defaults preserve chart compatibility. Restrict this list to pod/client CIDRs in production.
+  allowedClientCIDRs:
+    - 0.0.0.0/0
+    - ::/0
+  # -- CIDRs allowed to connect to the replication pseudo-database in generated pg_hba.conf.
+  # Used only when architecture=replication. Restrict this list to replica pod CIDRs in production.
+  allowedReplicationCIDRs:
+    - 0.0.0.0/0
+    - ::/0
   # -- Optional configuration preset: none | small | medium | large
   preset: none
   # -- Extra postgresql.conf content appended to the generated configuration
@@ -103,6 +114,80 @@ tls:
   sslMode: require
   # -- Minimum TLS protocol version accepted by PostgreSQL
   minProtocolVersion: TLSv1.2
+  volumePermissions:
+    # -- Copy TLS secret material into an owned emptyDir and restrict the private key to 0600.
+    # Enable when PostgreSQL rejects mounted Secret key permissions.
+    enabled: false
+    # -- Security context for the TLS permission init container.
+    securityContext:
+      runAsUser: 0
+      runAsNonRoot: false
+      allowPrivilegeEscalation: false
+      capabilities:
+        add:
+          - CHOWN
+          - FOWNER
+        drop:
+          - ALL
+
+# =============================================================================
+# External Secrets
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret resources for clusters that already run External Secrets Operator.
+  enabled: false
+  # -- ExternalSecret API version.
+  apiVersion: external-secrets.io/v1
+  # -- Refresh interval used by rendered ExternalSecret resources.
+  refreshInterval: 1h
+  secretStoreRef:
+    # -- SecretStore or ClusterSecretStore name. Required when externalSecrets.enabled=true.
+    name: ""
+    # -- Secret store kind.
+    kind: SecretStore
+  target:
+    # -- ExternalSecret target creation policy.
+    creationPolicy: Owner
+  auth:
+    # -- Manage the PostgreSQL auth Secret with External Secrets Operator.
+    enabled: false
+    # -- Optional target Secret name. Defaults to the chart auth Secret name.
+    targetName: ""
+    postgresPasswordRemoteRef: {}
+      # key: postgresql/auth
+      # property: postgres-password
+    userPasswordRemoteRef: {}
+      # key: postgresql/auth
+      # property: user-password
+    replicationPasswordRemoteRef: {}
+      # key: postgresql/auth
+      # property: replication-password
+  tls:
+    # -- Manage the TLS Secret with External Secrets Operator. Requires tls.enabled=true.
+    enabled: false
+    # -- Optional target Secret name. Defaults to the chart TLS Secret name.
+    targetName: ""
+    certRemoteRef: {}
+      # key: postgresql/tls
+      # property: tls.crt
+    keyRemoteRef: {}
+      # key: postgresql/tls
+      # property: tls.key
+    caRemoteRef: {}
+      # key: postgresql/tls
+      # property: ca.crt
+  backup:
+    # -- Manage the backup S3 credential Secret with External Secrets Operator. Requires backup.enabled=true.
+    enabled: false
+    # -- Optional target Secret name. Defaults to the chart backup Secret name.
+    targetName: ""
+    accessKeyRemoteRef: {}
+      # key: postgresql/backup
+      # property: access-key
+    secretKeyRemoteRef: {}
+      # key: postgresql/backup
+      # property: secret-key
 
 # =============================================================================
 # Initialization
@@ -186,6 +271,17 @@ replication:
     maxSenders: 10
     # -- Maximum replication slots
     maxReplicationSlots: 10
+    # -- Maximum WAL retained by replication slots before PostgreSQL can invalidate lagging slots. Empty uses PostgreSQL default.
+    maxSlotWalKeepSize: ""
+    # -- Timeout for inactive replication slots before invalidation. Empty uses PostgreSQL default.
+    idleReplicationSlotTimeout: ""
+    # -- Timeout for WAL sender responses from standby servers. Empty uses PostgreSQL default.
+    walSenderTimeout: ""
+  slots:
+    # -- Use physical replication slots for read replicas. Disabled by default to preserve compatibility.
+    enabled: false
+    # -- Prefix used to build deterministic per-replica slot names.
+    namePrefix: replica
   pdb:
     # -- Enable a PodDisruptionBudget by default in replication mode
     enabled: true
@@ -313,6 +409,17 @@ networkPolicy:
     allowSameNamespace: true
     # -- Additional ingress "from" rules appended to the generated policy
     extraFrom: []
+  egress:
+    # -- Add explicit egress rules to the NetworkPolicy.
+    enabled: false
+    # -- Additional egress rules appended to the generated policy.
+    extraTo: []
+    # -- Allow DNS egress on TCP/UDP 53.
+    allowDNS: true
+    # -- Allow PostgreSQL egress to same-namespace pods for replication and internal checks.
+    allowSameNamespacePostgreSQL: true
+    # -- Allow HTTPS egress for S3-compatible backup endpoints.
+    allowHTTPS: true
 
 # =============================================================================
 # Pod Disruption Budget
@@ -335,6 +442,8 @@ serviceAccount:
   create: false
   name: ""
   annotations: {}
+  # -- Mount Kubernetes API credentials into PostgreSQL and backup pods.
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Probes

@@ -1,0 +1,106 @@
+# SPDX-License-Identifier: Apache-2.0
+# Production-oriented example.
+#
+# Keep chart defaults lightweight for development, then layer this style of values
+# in production. Adjust storage classes, CIDRs, resources, and topology keys to
+# your own cluster.
+
+architecture: replication
+
+auth:
+  existingSecret: postgresql-auth
+
+config:
+  preset: medium
+  allowedClientCIDRs:
+    - 10.42.0.0/16
+  allowedReplicationCIDRs:
+    - 10.42.0.0/16
+
+tls:
+  enabled: true
+  existingSecret: postgresql-tls
+  sslMode: require
+  minProtocolVersion: TLSv1.2
+  volumePermissions:
+    enabled: true
+
+replication:
+  primary:
+    persistence:
+      enabled: true
+      storageClass: fast-ssd
+      size: 100Gi
+    resources:
+      requests:
+        cpu: "1"
+        memory: 2Gi
+      limits:
+        cpu: "2"
+        memory: 4Gi
+  readReplicas:
+    replicaCount: 2
+    persistence:
+      enabled: true
+      storageClass: fast-ssd
+      size: 100Gi
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+  wal:
+    keepSize: 2GB
+    maxSenders: 10
+    maxReplicationSlots: 10
+    maxSlotWalKeepSize: 8GB
+    idleReplicationSlotTimeout: 24h
+    walSenderTimeout: 60s
+  slots:
+    enabled: true
+    namePrefix: replica
+  pdb:
+    enabled: true
+    minAvailable: 2
+  scheduling:
+    enableDefaultPodAntiAffinity: true
+    enableDefaultTopologySpread: true
+    topologyKey: topology.kubernetes.io/zone
+
+metrics:
+  enabled: true
+  resourcesPreset: small
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+
+backup:
+  enabled: true
+  schedule: "0 3 * * *"
+  s3:
+    endpoint: https://s3.example.com
+    bucket: postgresql-backups
+    prefix: prod/postgresql
+    existingSecret: postgresql-backup-s3
+
+networkPolicy:
+  enabled: true
+  ingress:
+    # Keep same-namespace ingress enabled so read replicas can clone from and
+    # stream WAL from the primary. Add namespace-scoped client access below.
+    allowSameNamespace: true
+    extraFrom:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: app-prod
+  egress:
+    enabled: true
+    allowDNS: true
+    allowSameNamespacePostgreSQL: true
+    allowHTTPS: true
+
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false

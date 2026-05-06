@@ -134,6 +134,22 @@
           "description": "Authentication method for local Unix-socket connections in pg_hba.conf.",
           "default": "scram-sha-256"
         },
+        "allowedClientCIDRs": {
+          "type": "array",
+          "description": "CIDRs allowed to connect to regular PostgreSQL databases in generated pg_hba.conf.",
+          "items": {
+            "type": "string"
+          },
+          "default": ["0.0.0.0/0", "::/0"]
+        },
+        "allowedReplicationCIDRs": {
+          "type": "array",
+          "description": "CIDRs allowed to connect to the replication pseudo-database in generated pg_hba.conf.",
+          "items": {
+            "type": "string"
+          },
+          "default": ["0.0.0.0/0", "::/0"]
+        },
         "preset": {
           "type": "string",
           "description": "Optional configuration preset: none | small | medium | large",
@@ -219,6 +235,214 @@
           "type": "string",
           "description": "Minimum TLS protocol version accepted by PostgreSQL",
           "default": "TLSv1.2"
+        },
+        "volumePermissions": {
+          "type": "object",
+          "description": "TLS secret permission normalization init container settings",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Copy TLS secret material into an owned emptyDir and restrict the private key to 0600.",
+              "default": false
+            },
+            "securityContext": {
+              "type": "object",
+              "description": "Security context for the TLS permission init container"
+            }
+          }
+        }
+      }
+    },
+    "externalSecrets": {
+      "type": "object",
+      "description": "External Secrets Operator integration",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Render ExternalSecret resources for clusters that already run External Secrets Operator.",
+          "default": false
+        },
+        "apiVersion": {
+          "type": "string",
+          "description": "ExternalSecret API version.",
+          "default": "external-secrets.io/v1"
+        },
+        "refreshInterval": {
+          "type": "string",
+          "description": "Refresh interval used by rendered ExternalSecret resources.",
+          "default": "1h"
+        },
+        "secretStoreRef": {
+          "type": "object",
+          "description": "SecretStore reference used by rendered ExternalSecret resources.",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "SecretStore or ClusterSecretStore name. Required when externalSecrets.enabled=true.",
+              "default": ""
+            },
+            "kind": {
+              "type": "string",
+              "description": "Secret store kind.",
+              "enum": ["SecretStore", "ClusterSecretStore"],
+              "default": "SecretStore"
+            }
+          }
+        },
+        "target": {
+          "type": "object",
+          "description": "ExternalSecret target settings.",
+          "additionalProperties": false,
+          "properties": {
+            "creationPolicy": {
+              "type": "string",
+              "description": "ExternalSecret target creation policy.",
+              "enum": ["Owner", "Orphan", "Merge", "None"],
+              "default": "Owner"
+            }
+          }
+        },
+        "auth": {
+          "type": "object",
+          "description": "ExternalSecret settings for PostgreSQL auth credentials.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Manage the PostgreSQL auth Secret with External Secrets Operator.",
+              "default": false
+            },
+            "targetName": {
+              "type": "string",
+              "description": "Optional target Secret name. Defaults to the chart auth Secret name.",
+              "default": ""
+            },
+            "postgresPasswordRemoteRef": {
+              "type": "object",
+              "description": "remoteRef for the PostgreSQL superuser password.",
+              "additionalProperties": true,
+              "properties": {
+                "key": { "type": "string" },
+                "property": { "type": "string" },
+                "version": { "type": "string" }
+              },
+              "default": {}
+            },
+            "userPasswordRemoteRef": {
+              "type": "object",
+              "description": "remoteRef for the application user password.",
+              "additionalProperties": true,
+              "properties": {
+                "key": { "type": "string" },
+                "property": { "type": "string" },
+                "version": { "type": "string" }
+              },
+              "default": {}
+            },
+            "replicationPasswordRemoteRef": {
+              "type": "object",
+              "description": "remoteRef for the replication user password.",
+              "additionalProperties": true,
+              "properties": {
+                "key": { "type": "string" },
+                "property": { "type": "string" },
+                "version": { "type": "string" }
+              },
+              "default": {}
+            }
+          }
+        },
+        "tls": {
+          "type": "object",
+          "description": "ExternalSecret settings for PostgreSQL TLS material.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Manage the TLS Secret with External Secrets Operator. Requires tls.enabled=true.",
+              "default": false
+            },
+            "targetName": {
+              "type": "string",
+              "description": "Optional target Secret name. Defaults to the chart TLS Secret name.",
+              "default": ""
+            },
+            "certRemoteRef": {
+              "type": "object",
+              "description": "remoteRef for the TLS certificate.",
+              "additionalProperties": true,
+              "properties": {
+                "key": { "type": "string" },
+                "property": { "type": "string" },
+                "version": { "type": "string" }
+              },
+              "default": {}
+            },
+            "keyRemoteRef": {
+              "type": "object",
+              "description": "remoteRef for the TLS private key.",
+              "additionalProperties": true,
+              "properties": {
+                "key": { "type": "string" },
+                "property": { "type": "string" },
+                "version": { "type": "string" }
+              },
+              "default": {}
+            },
+            "caRemoteRef": {
+              "type": "object",
+              "description": "remoteRef for the TLS CA certificate.",
+              "additionalProperties": true,
+              "properties": {
+                "key": { "type": "string" },
+                "property": { "type": "string" },
+                "version": { "type": "string" }
+              },
+              "default": {}
+            }
+          }
+        },
+        "backup": {
+          "type": "object",
+          "description": "ExternalSecret settings for backup S3 credentials.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Manage the backup S3 credential Secret with External Secrets Operator. Requires backup.enabled=true.",
+              "default": false
+            },
+            "targetName": {
+              "type": "string",
+              "description": "Optional target Secret name. Defaults to the chart backup Secret name.",
+              "default": ""
+            },
+            "accessKeyRemoteRef": {
+              "type": "object",
+              "description": "remoteRef for the S3 access key.",
+              "additionalProperties": true,
+              "properties": {
+                "key": { "type": "string" },
+                "property": { "type": "string" },
+                "version": { "type": "string" }
+              },
+              "default": {}
+            },
+            "secretKeyRemoteRef": {
+              "type": "object",
+              "description": "remoteRef for the S3 secret key.",
+              "additionalProperties": true,
+              "properties": {
+                "key": { "type": "string" },
+                "property": { "type": "string" },
+                "version": { "type": "string" }
+              },
+              "default": {}
+            }
+          }
         }
       }
     },
@@ -434,6 +658,39 @@
               "type": "integer",
               "description": "Maximum replication slots",
               "default": 10
+            },
+            "maxSlotWalKeepSize": {
+              "type": "string",
+              "description": "Maximum WAL retained by replication slots before PostgreSQL can invalidate lagging slots. Empty uses PostgreSQL default.",
+              "default": ""
+            },
+            "idleReplicationSlotTimeout": {
+              "type": "string",
+              "description": "Timeout for inactive replication slots before invalidation. Empty uses PostgreSQL default.",
+              "default": ""
+            },
+            "walSenderTimeout": {
+              "type": "string",
+              "description": "Timeout for WAL sender responses from standby servers. Empty uses PostgreSQL default.",
+              "default": ""
+            }
+          }
+        },
+        "slots": {
+          "type": "object",
+          "description": "Physical replication slot configuration for read replicas",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Use physical replication slots for read replicas.",
+              "default": false
+            },
+            "namePrefix": {
+              "type": "string",
+              "description": "Prefix used to build deterministic per-replica slot names.",
+              "default": "replica",
+              "pattern": "^[a-z0-9_]+$"
             }
           }
         },
@@ -674,14 +931,14 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "repository": {
-                  "type": "string",
-                  "default": "docker.io/minio/mc"
-                },
-                "tag": {
-                  "type": "string",
-                  "default": "RELEASE.2025-08-13T08-35-41Z"
-                },
+            "repository": {
+              "type": "string",
+              "default": "docker.io/helmforge/mc"
+            },
+            "tag": {
+              "type": "string",
+              "default": "1.0.0"
+            },
                 "pullPolicy": {
                   "type": "string",
                   "enum": ["Always", "IfNotPresent", "Never"],
@@ -805,6 +1062,41 @@
               "default": []
             }
           }
+        },
+        "egress": {
+          "type": "object",
+          "description": "Egress rules for the NetworkPolicy",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Add explicit egress rules to the NetworkPolicy.",
+              "default": false
+            },
+            "extraTo": {
+              "type": "array",
+              "description": "Additional egress rules appended to the generated policy.",
+              "items": {
+                "type": "object"
+              },
+              "default": []
+            },
+            "allowDNS": {
+              "type": "boolean",
+              "description": "Allow DNS egress on TCP/UDP 53.",
+              "default": true
+            },
+            "allowSameNamespacePostgreSQL": {
+              "type": "boolean",
+              "description": "Allow PostgreSQL egress to same-namespace pods for replication and internal checks.",
+              "default": true
+            },
+            "allowHTTPS": {
+              "type": "boolean",
+              "description": "Allow HTTPS egress for S3-compatible backup endpoints.",
+              "default": true
+            }
+          }
         }
       }
     },
@@ -849,6 +1141,11 @@
           "type": "object",
           "description": "Annotations on the ServiceAccount",
           "default": {}
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean",
+          "description": "Mount Kubernetes API credentials into PostgreSQL and backup pods.",
+          "default": false
         }
       }
     },
