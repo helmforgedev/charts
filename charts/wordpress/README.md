@@ -123,6 +123,11 @@ wpCron:
 
 networkPolicy:
   enabled: true
+  ingress:
+    extraFrom:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: gateway-system
   egress:
     enabled: true
     allowDNS: true

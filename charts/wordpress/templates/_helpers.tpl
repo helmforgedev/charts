@@ -408,7 +408,15 @@ Redis object cache helpers.
 {{- end -}}
 
 {{- define "wordpress.redisPasswordEnabled" -}}
-{{- if and (eq (include "wordpress.objectCacheRedisEnabled" .) "true") .Values.objectCache.redis.auth.enabled -}}true{{- end -}}
+{{- $redisValues := default dict .Values.redis -}}
+{{- $redisAuth := default dict (get $redisValues "auth") -}}
+{{- $subchartAuthEnabled := true -}}
+{{- if hasKey $redisAuth "enabled" -}}
+{{- $subchartAuthEnabled = get $redisAuth "enabled" -}}
+{{- end -}}
+{{- if and (eq (include "wordpress.objectCacheRedisEnabled" .) "true") .Values.objectCache.redis.auth.enabled -}}
+{{- if or (eq .Values.objectCache.redis.mode "external") $subchartAuthEnabled -}}true{{- end -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "wordpress.redisPrefix" -}}
