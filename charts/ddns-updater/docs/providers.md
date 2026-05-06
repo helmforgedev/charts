@@ -69,16 +69,18 @@ config:
 
 ## Full Provider List
 
-For all providers and their fields, see the [upstream documentation](https://github.com/qdm12/ddns-updater/tree/master/docs).
+For all providers and their fields, see the
+[upstream documentation](https://github.com/qdm12/ddns-updater/tree/master/docs).
 
-Supported providers include: Cloudflare, AWS Route53, Google, DuckDNS, Namecheap, GoDaddy, DigitalOcean, Hetzner, OVH, Linode, Porkbun, Gandi, Dynu, NoIP, FreeDNS, Infomaniak, IONOS, Strato, Netcup, and many more.
+Supported providers include Cloudflare, AWS Route53, Google, DuckDNS, Namecheap, GoDaddy, DigitalOcean, Hetzner, OVH,
+Linode, Porkbun, Gandi, Dynu, NoIP, FreeDNS, Infomaniak, IONOS, Strato, Netcup, and many more.
 
 <!-- @AI-METADATA
 @description: Supported DNS providers reference for the ddns-updater Helm chart
 @type: chart-docs
 @chart: ddns-updater
 @path: charts/ddns-updater/docs/providers.md
-@date: 2026-03-23
+@date: 2026-05-05
 @relations:
   - charts/ddns-updater/README.md
   - charts/ddns-updater/values.yaml

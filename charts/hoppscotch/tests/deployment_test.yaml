@@ -27,7 +27,7 @@ tests:
     asserts:
       - matchRegex:
           path: spec.template.spec.containers[0].image
-          pattern: "docker.io/hoppscotch/hoppscotch:2026.3.1"
+          pattern: "docker.io/hoppscotch/hoppscotch:2026.4.0"
         template: deployment.yaml
 
   - it: should have wait-for-db init container
@@ -49,7 +49,79 @@ tests:
         template: deployment.yaml
       - matchRegex:
           path: spec.template.spec.initContainers[1].image
-          pattern: "docker.io/hoppscotch/hoppscotch:2026.3.1"
+          pattern: "docker.io/hoppscotch/hoppscotch:2026.4.0"
+        template: deployment.yaml
+
+  - it: should prepare writable runtime files for non-root startup
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[2].name
+          value: prepare-runtime-files
+        template: deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: backend-runtime
+            mountPath: /dist/backend
+        template: deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: site-runtime
+            mountPath: /site
+        template: deployment.yaml
+
+  - it: should build DATABASE_URL from bundled PostgreSQL user password secret
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[1].env
+          content:
+            name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-postgresql-auth
+                key: user-password
+        template: deployment.yaml
+      - contains:
+          path: spec.template.spec.initContainers[1].env
+          content:
+            name: DATABASE_URL
+            value: postgresql://hoppscotch:$(DB_PASSWORD)@RELEASE-NAME-postgresql:5432/hoppscotch
+        template: deployment.yaml
+
+  - it: should expose stable webapp server signing key
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WEBAPP_SERVER_SIGNING_KEY
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-hoppscotch
+                key: webapp-server-signing-key
+        template: deployment.yaml
+
+  - it: should allow the webapp server signing key to come from an external secret
+    set:
+      signingKey:
+        existingSecret: hoppscotch-managed-secret
+        existingSecretKey: signing-key
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WEBAPP_SERVER_SIGNING_KEY
+            valueFrom:
+              secretKeyRef:
+                name: hoppscotch-managed-secret
+                key: signing-key
+        template: deployment.yaml
+
+  - it: should probe the backend health endpoint
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /backend/health
         template: deployment.yaml
 
   - it: should run as non-root
