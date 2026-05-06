@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: postgresql extensions hook tests
+templates:
+  - postgresql-extensions-job.yaml
+tests:
+  - it: should render a pre-upgrade hook job for bundled PostgreSQL
+    set:
+      postgresqlExtensionsJob:
+        requireExistingResources: false
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-upgrade
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation,hook-succeeded
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: postgresql-extensions
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PGPASSWORD
+            value: $(DB_PASSWORD)
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "CREATE EXTENSION IF NOT EXISTS pg_trgm"
+
+  - it: should not render when bundled PostgreSQL is disabled
+    set:
+      postgresql:
+        enabled: false
+      postgresqlExtensionsJob:
+        requireExistingResources: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render by default without existing bundled PostgreSQL resources
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render when the hook is disabled
+    set:
+      postgresqlExtensionsJob:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

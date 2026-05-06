@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: Apache-2.0
+{{- if include "homarr.shouldRunPostgresqlUpgradeJob" . }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "homarr.fullname" . }}-postgresql-upgrade
+  labels:
+    {{- include "homarr.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.postgresqlUpgradeJob.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.postgresqlUpgradeJob.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "homarr.selectorLabels" . | nindent 8 }}
+      {{- with .Values.postgresqlUpgradeJob.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "homarr.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.postgresqlUpgradeJob.podSecurityContext | nindent 8 }}
+      containers:
+        - name: postgresql-upgrade
+          image: "{{ .Values.postgresqlUpgradeJob.image.repository }}:{{ .Values.postgresqlUpgradeJob.image.tag }}"
+          imagePullPolicy: {{ .Values.postgresqlUpgradeJob.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              until pg_isready --host="${PGHOST}" --port="${PGPORT}" --username="${PGUSER}" --dbname=postgres; do
+                echo "waiting for postgresql..."; sleep 2;
+              done
+              psql --set=ON_ERROR_STOP=1 --dbname=postgres \
+                --set=app_database="${APP_DATABASE}" \
+                --set=app_username="${APP_USERNAME}" <<'SQL'
+              SELECT format('ALTER DATABASE %I OWNER TO %I', :'app_database', :'app_username') \gexec
+              SELECT format('GRANT CREATE ON DATABASE %I TO %I', :'app_database', :'app_username') \gexec
+              SQL
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "homarr.postgresqlSecretName" . }}
+                  key: {{ .Values.postgresql.auth.existingSecretPostgresPasswordKey | default "postgres-password" }}
+            - name: PGHOST
+              value: {{ include "homarr.databaseHost" . | quote }}
+            - name: PGPORT
+              value: {{ include "homarr.databasePort" . | quote }}
+            - name: PGUSER
+              value: "postgres"
+            - name: PGPASSWORD
+              value: "$(POSTGRES_PASSWORD)"
+            - name: APP_DATABASE
+              value: {{ .Values.postgresql.auth.database | quote }}
+            - name: APP_USERNAME
+              value: {{ .Values.postgresql.auth.username | quote }}
+          securityContext:
+            {{- toYaml .Values.postgresqlUpgradeJob.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.postgresqlUpgradeJob.resources | nindent 12 }}
+{{- end }}

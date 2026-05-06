@@ -297,6 +297,19 @@ database-url
 {{- end -}}
 
 {{/*
+postgresqlSecretName — secret created by the bundled PostgreSQL subchart.
+*/}}
+{{- define "hoppscotch.postgresqlSecretName" -}}
+{{- if .Values.postgresql.auth.existingSecret -}}
+{{- .Values.postgresql.auth.existingSecret -}}
+{{- else if .Values.postgresql.fullnameOverride -}}
+{{- printf "%s-auth" .Values.postgresql.fullnameOverride -}}
+{{- else -}}
+{{- printf "%s-%s-auth" .Release.Name (.Values.postgresql.nameOverride | default "postgresql") -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 encryptionSecretName — name of the secret holding data-encryption-key
 */}}
 {{- define "hoppscotch.encryptionSecretName" -}}
@@ -319,11 +332,45 @@ data-encryption-key
 {{- end -}}
 
 {{/*
+signingSecretName — name of the secret holding WEBAPP_SERVER_SIGNING_KEY
+*/}}
+{{- define "hoppscotch.signingSecretName" -}}
+{{- if .Values.signingKey.existingSecret -}}
+{{- .Values.signingKey.existingSecret -}}
+{{- else -}}
+{{- include "hoppscotch.fullname" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+signingSecretKey — key within the secret for WEBAPP_SERVER_SIGNING_KEY
+*/}}
+{{- define "hoppscotch.signingSecretKey" -}}
+{{- .Values.signingKey.existingSecretKey | default "webapp-server-signing-key" -}}
+{{- end -}}
+
+{{/*
+shouldRunPostgresqlExtensionsJob — only run upgrade hook against existing bundled PostgreSQL resources by default.
+*/}}
+{{- define "hoppscotch.shouldRunPostgresqlExtensionsJob" -}}
+{{- if and .Values.postgresql.enabled .Values.postgresqlExtensionsJob.enabled -}}
+  {{- if not .Values.postgresqlExtensionsJob.requireExistingResources -}}
+true
+  {{- else -}}
+    {{- $secret := lookup "v1" "Secret" .Release.Namespace (include "hoppscotch.postgresqlSecretName" .) -}}
+    {{- $service := lookup "v1" "Service" .Release.Namespace (include "hoppscotch.databaseHost" .) -}}
+    {{- if and $secret $service -}}true{{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 databaseEnv — env entries for DATABASE_URL (and DB_PASSWORD helper for password-only mode).
 Handles three cases:
   1. existingSecret with full URL key → single secretKeyRef
   2. existingSecret password-only → K8s env-var substitution using $(DB_PASSWORD)
-  3. chart-managed secret → single secretKeyRef to chart secret
+  3. bundled PostgreSQL subchart → K8s env-var substitution from PostgreSQL user-password
+  4. chart-managed external URL secret → single secretKeyRef to chart secret
 */}}
 {{- define "hoppscotch.databaseEnv" -}}
 {{- if and .Values.database.external.enabled .Values.database.external.existingSecret (not .Values.database.external.existingSecretUrlKey) }}
@@ -334,6 +381,14 @@ Handles three cases:
       key: {{ .Values.database.external.existingSecretPasswordKey }}
 - name: DATABASE_URL
   value: {{ printf "postgresql://%s:$(DB_PASSWORD)@%s:%s/%s" .Values.database.external.username (include "hoppscotch.databaseHost" .) (include "hoppscotch.databasePort" .) (include "hoppscotch.databaseName" .) | quote }}
+{{- else if and .Values.postgresql.enabled (not .Values.database.external.enabled) }}
+- name: DB_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "hoppscotch.postgresqlSecretName" . }}
+      key: {{ .Values.postgresql.auth.existingSecretUserPasswordKey | default "user-password" }}
+- name: DATABASE_URL
+  value: {{ printf "postgresql://%s:$(DB_PASSWORD)@%s:%s/%s" .Values.postgresql.auth.username (include "hoppscotch.databaseHost" .) (include "hoppscotch.databasePort" .) (include "hoppscotch.databaseName" .) | quote }}
 {{- else }}
 - name: DATABASE_URL
   valueFrom:

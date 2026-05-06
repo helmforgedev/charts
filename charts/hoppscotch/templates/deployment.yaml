@@ -62,6 +62,35 @@ spec:
             {{- include "hoppscotch.databaseEnv" . | nindent 12 }}
           securityContext: {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
+        - name: prepare-runtime-files
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              cp -R /dist/backend/. /runtime-backend/
+              cp -R /site/. /runtime-site/
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi
+          volumeMounts:
+            - name: backend-runtime
+              mountPath: /runtime-backend
+            - name: site-runtime
+              mountPath: /runtime-site
         {{- with .Values.initContainers }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -87,6 +116,11 @@ spec:
                 secretKeyRef:
                   name: {{ include "hoppscotch.encryptionSecretName" . }}
                   key: {{ include "hoppscotch.encryptionSecretKey" . }}
+            - name: WEBAPP_SERVER_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "hoppscotch.signingSecretName" . }}
+                  key: {{ include "hoppscotch.signingSecretKey" . }}
             {{- if .Values.auth.github.enabled }}
             - name: GITHUB_CLIENT_ID
               valueFrom:
@@ -141,9 +175,14 @@ spec:
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          volumeMounts:
+            - name: backend-runtime
+              mountPath: /dist/backend
+            - name: site-runtime
+              mountPath: /site
           livenessProbe:
             httpGet:
-              path: /backend/v1
+              path: /backend/health
               port: http
             initialDelaySeconds: 30
             periodSeconds: 10
@@ -151,7 +190,7 @@ spec:
             failureThreshold: 6
           readinessProbe:
             httpGet:
-              path: /backend/v1
+              path: /backend/health
               port: http
             initialDelaySeconds: 15
             periodSeconds: 10
@@ -159,11 +198,16 @@ spec:
             failureThreshold: 3
           startupProbe:
             httpGet:
-              path: /backend/v1
+              path: /backend/health
               port: http
             failureThreshold: 30
             periodSeconds: 10
           resources: {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: backend-runtime
+          emptyDir: {}
+        - name: site-runtime
+          emptyDir: {}
       {{- with .Values.nodeSelector }}
       nodeSelector: {{- toYaml . | nindent 8 }}
       {{- end }}

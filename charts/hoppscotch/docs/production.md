@@ -46,9 +46,18 @@ externalSecrets:
       remoteRef:
         key: prod/hoppscotch
         property: data-encryption-key
+    - secretKey: webapp-server-signing-key
+      remoteRef:
+        key: prod/hoppscotch
+        property: webapp-server-signing-key
 ```
 
-When `externalSecrets.enabled=true`, the chart creates an ExternalSecret resource instead of a Secret. The secret.yaml still renders (for checksums), but credentials come from the store.
+When `externalSecrets.enabled=true`, the chart creates an ExternalSecret
+resource instead of a Secret. The secret.yaml still renders (for checksums), but
+credentials come from the store. Include `webapp-server-signing-key` in the
+ExternalSecret data, or set `signingKey.existingSecret` and
+`signingKey.existingSecretKey` to reference a separate Secret that contains
+`WEBAPP_SERVER_SIGNING_KEY`.
 
 ## TLS via cert-manager
 

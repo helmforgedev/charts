@@ -28,7 +28,7 @@ image:
   # -- Hoppscotch AIO image repository
   repository: docker.io/hoppscotch/hoppscotch
   # -- Hoppscotch image tag
-  tag: "2026.3.1"
+  tag: "2026.4.0"
   # -- Image pull policy
   pullPolicy: IfNotPresent
 
@@ -84,6 +84,12 @@ encryption:
   # -- Key within existingSecret that holds the encryption key.
   existingSecretKey: data-encryption-key
 
+signingKey:
+  # -- Existing secret containing WEBAPP_SERVER_SIGNING_KEY. Useful with ExternalSecret-managed secrets.
+  existingSecret: ""
+  # -- Key within existingSecret that holds WEBAPP_SERVER_SIGNING_KEY.
+  existingSecretKey: webapp-server-signing-key
+
 # =============================================================================
 # Database
 # =============================================================================
@@ -101,6 +107,55 @@ postgresql:
     persistence:
       enabled: true
       size: 10Gi
+  initdb:
+    scripts:
+      02-hoppscotch-extensions.sh: |
+        #!/bin/bash
+        set -euo pipefail
+        export PGPASSWORD="${POSTGRES_PASSWORD}"
+        psql --username "${POSTGRES_USER}" --dbname "${APP_DATABASE}" \
+          -c 'CREATE EXTENSION IF NOT EXISTS pg_trgm;'
+
+postgresqlExtensionsJob:
+  # -- Run a pre-upgrade hook that ensures pg_trgm exists on bundled PostgreSQL databases with existing PVCs.
+  enabled: true
+  # -- Only run the hook when the bundled PostgreSQL Secret and Service already exist. Set to false only for controlled migrations where PostgreSQL is created before the upgrade hook runs.
+  requireExistingResources: true
+  image:
+    # -- PostgreSQL client image used by the extension hook
+    repository: docker.io/library/postgres
+    # -- PostgreSQL client image tag
+    tag: "18.3-trixie"
+    pullPolicy: IfNotPresent
+  # -- Job retry limit
+  backoffLimit: 6
+  # -- Maximum seconds for the hook job
+  activeDeadlineSeconds: 300
+  # -- Pod annotations for the hook job
+  podAnnotations: {}
+  # -- Pod security context for the hook job
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    fsGroup: 999
+    seccompProfile:
+      type: RuntimeDefault
+  # -- Container security context for the hook job
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 999
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
 
 database:
   # -- Use an external PostgreSQL instance instead of the bundled subchart.
