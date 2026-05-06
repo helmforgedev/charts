@@ -50,6 +50,8 @@ app.kubernetes.io/role: {{ .role }}
 {{- define "postgresql.secretName" -}}
 {{- if .Values.auth.existingSecret -}}
 {{- .Values.auth.existingSecret -}}
+{{- else if include "postgresql.authSecretManagedByExternalSecret" . -}}
+{{- default (printf "%s-auth" (include "postgresql.fullname" .)) .Values.externalSecrets.auth.targetName -}}
 {{- else -}}
 {{- printf "%s-auth" (include "postgresql.fullname" .) -}}
 {{- end -}}
@@ -65,7 +67,13 @@ app.kubernetes.io/role: {{ .role }}
 
 {{- define "postgresql.tlsSecretName" -}}
 {{- if .Values.tls.enabled -}}
-{{- required "tls.existingSecret is required when tls.enabled=true" .Values.tls.existingSecret -}}
+{{- if .Values.tls.existingSecret -}}
+{{- .Values.tls.existingSecret -}}
+{{- else if include "postgresql.tlsSecretManagedByExternalSecret" . -}}
+{{- default (printf "%s-tls" (include "postgresql.fullname" .)) .Values.externalSecrets.tls.targetName -}}
+{{- else -}}
+{{- required "tls.existingSecret or externalSecrets.tls.enabled is required when tls.enabled=true" .Values.tls.existingSecret -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -261,6 +269,8 @@ fi
 {{- define "postgresql.backupSecretName" -}}
 {{- if .Values.backup.s3.existingSecret -}}
 {{- .Values.backup.s3.existingSecret -}}
+{{- else if include "postgresql.backupSecretManagedByExternalSecret" . -}}
+{{- default (printf "%s-backup" (include "postgresql.fullname" .)) .Values.externalSecrets.backup.targetName -}}
 {{- else -}}
 {{- printf "%s-backup" (include "postgresql.fullname" .) -}}
 {{- end -}}
@@ -274,10 +284,85 @@ fi
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (not (include "postgresql.backupSecretManagedByExternalSecret" .)) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
     {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
   {{- end -}}
 true
+{{- end -}}
+{{- end -}}
+
+{{- define "postgresql.authSecretManagedByExternalSecret" -}}
+{{- $externalSecrets := .Values.externalSecrets | default dict -}}
+{{- $auth := get $externalSecrets "auth" | default dict -}}
+{{- if and (get $externalSecrets "enabled") (get $auth "enabled") -}}true{{- end -}}
+{{- end -}}
+
+{{- define "postgresql.tlsSecretManagedByExternalSecret" -}}
+{{- $externalSecrets := .Values.externalSecrets | default dict -}}
+{{- $tls := get $externalSecrets "tls" | default dict -}}
+{{- if and (get $externalSecrets "enabled") (get $tls "enabled") -}}true{{- end -}}
+{{- end -}}
+
+{{- define "postgresql.backupSecretManagedByExternalSecret" -}}
+{{- $externalSecrets := .Values.externalSecrets | default dict -}}
+{{- $backup := get $externalSecrets "backup" | default dict -}}
+{{- if and (get $externalSecrets "enabled") (get $backup "enabled") -}}true{{- end -}}
+{{- end -}}
+
+{{- define "postgresql.validateExternalSecrets" -}}
+{{- $externalSecrets := .Values.externalSecrets | default dict -}}
+{{- $secretStoreRef := get $externalSecrets "secretStoreRef" | default dict -}}
+{{- $auth := get $externalSecrets "auth" | default dict -}}
+{{- $tls := get $externalSecrets "tls" | default dict -}}
+{{- $backup := get $externalSecrets "backup" | default dict -}}
+{{- if get $externalSecrets "enabled" -}}
+  {{- if not (get $secretStoreRef "name") -}}
+    {{- fail "externalSecrets.secretStoreRef.name is required when externalSecrets.enabled is true" -}}
+  {{- end -}}
+  {{- if get $auth "enabled" -}}
+    {{- $postgresPasswordRemoteRef := get $auth "postgresPasswordRemoteRef" | default dict -}}
+    {{- $userPasswordRemoteRef := get $auth "userPasswordRemoteRef" | default dict -}}
+    {{- $replicationPasswordRemoteRef := get $auth "replicationPasswordRemoteRef" | default dict -}}
+    {{- if not (get $postgresPasswordRemoteRef "key") -}}
+      {{- fail "externalSecrets.auth.postgresPasswordRemoteRef.key is required when externalSecrets.auth.enabled is true" -}}
+    {{- end -}}
+    {{- if not (get $userPasswordRemoteRef "key") -}}
+      {{- fail "externalSecrets.auth.userPasswordRemoteRef.key is required when externalSecrets.auth.enabled is true" -}}
+    {{- end -}}
+    {{- if and (eq .Values.architecture "replication") (not (get $replicationPasswordRemoteRef "key")) -}}
+      {{- fail "externalSecrets.auth.replicationPasswordRemoteRef.key is required in replication mode when externalSecrets.auth.enabled is true" -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if get $tls "enabled" -}}
+    {{- $certRemoteRef := get $tls "certRemoteRef" | default dict -}}
+    {{- $keyRemoteRef := get $tls "keyRemoteRef" | default dict -}}
+    {{- $caRemoteRef := get $tls "caRemoteRef" | default dict -}}
+    {{- if not .Values.tls.enabled -}}
+      {{- fail "externalSecrets.tls.enabled requires tls.enabled=true" -}}
+    {{- end -}}
+    {{- if not (get $certRemoteRef "key") -}}
+      {{- fail "externalSecrets.tls.certRemoteRef.key is required when externalSecrets.tls.enabled is true" -}}
+    {{- end -}}
+    {{- if not (get $keyRemoteRef "key") -}}
+      {{- fail "externalSecrets.tls.keyRemoteRef.key is required when externalSecrets.tls.enabled is true" -}}
+    {{- end -}}
+    {{- if not (get $caRemoteRef "key") -}}
+      {{- fail "externalSecrets.tls.caRemoteRef.key is required when externalSecrets.tls.enabled is true" -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if get $backup "enabled" -}}
+    {{- $accessKeyRemoteRef := get $backup "accessKeyRemoteRef" | default dict -}}
+    {{- $secretKeyRemoteRef := get $backup "secretKeyRemoteRef" | default dict -}}
+    {{- if not .Values.backup.enabled -}}
+      {{- fail "externalSecrets.backup.enabled requires backup.enabled=true" -}}
+    {{- end -}}
+    {{- if not (get $accessKeyRemoteRef "key") -}}
+      {{- fail "externalSecrets.backup.accessKeyRemoteRef.key is required when externalSecrets.backup.enabled is true" -}}
+    {{- end -}}
+    {{- if not (get $secretKeyRemoteRef "key") -}}
+      {{- fail "externalSecrets.backup.secretKeyRemoteRef.key is required when externalSecrets.backup.enabled is true" -}}
+    {{- end -}}
+  {{- end -}}
 {{- end -}}
 {{- end -}}
 

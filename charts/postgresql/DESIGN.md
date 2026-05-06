@@ -20,6 +20,7 @@ flowchart LR
   pg --> pvc[(PVC)]
   pg --> cfg[Generated postgresql.conf / pg_hba.conf]
   pg --> secret[Password Secret]
+  eso[External Secrets Operator optional] -. materializes .-> secret
 ```
 
 Standalone mode is appropriate for development, test, internal tooling, and production workloads where restore-based recovery is acceptable.
@@ -57,6 +58,7 @@ flowchart TB
   pg --> metrics[postgres_exporter sidecar]
   pg --> tls[TLS Secret copied to owned emptyDir]
   pg --> hba[Structured pg_hba CIDRs]
+  eso[External Secrets Operator] -. optional auth/tls/backup Secrets .-> pg
 
   backup[CronJob pg_dumpall] --> s3[S3-compatible storage]
   metrics --> prom[Prometheus / ServiceMonitor]
@@ -65,6 +67,7 @@ flowchart TB
 Production hardening uses opt-in controls:
 
 - `auth.existingSecret`
+- `externalSecrets.auth.enabled`
 - `config.allowedClientCIDRs`
 - `config.allowedReplicationCIDRs`
 - `tls.volumePermissions.enabled`
@@ -81,6 +84,7 @@ Production hardening uses opt-in controls:
 - Bootstrap replicas with `pg_basebackup -R`.
 - Keep replication slots optional because they improve WAL safety for lagging replicas but can retain disk indefinitely without limits and monitoring.
 - Keep PgBouncer/Pgpool out of scope. Pooling belongs in a separate chart or application/platform layer.
+- Render External Secrets Operator resources only when requested. The chart does not install the operator or own provider-side secret stores.
 - Keep HA automation out of scope. Use a PostgreSQL operator for automated failover and lifecycle reconciliation.
 
 ## Explicit Non-Goals

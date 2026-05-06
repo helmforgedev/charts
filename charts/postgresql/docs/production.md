@@ -9,12 +9,41 @@ Use [examples/production.yaml](../examples/production.yaml) as a starting point,
 At minimum, production deployments should set:
 
 - `auth.existingSecret`
+- or `externalSecrets.auth.enabled=true` when External Secrets Operator is the platform standard
 - persistent storage sizes and storage classes
 - CPU and memory resources
 - `metrics.enabled=true`
 - `networkPolicy.enabled=true`
 - backup configuration with restore tests
 - explicit scheduling rules when multiple nodes or zones exist
+
+## External Secrets Operator
+
+The chart can optionally render `ExternalSecret` resources for clusters that
+already run External Secrets Operator. It does not install the operator and does
+not create a `SecretStore` or `ClusterSecretStore`.
+
+Use this path when secret ownership belongs to a platform secret manager:
+
+```yaml
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: platform-secrets
+    kind: ClusterSecretStore
+  auth:
+    enabled: true
+    postgresPasswordRemoteRef:
+      key: postgresql/auth
+      property: postgres-password
+    userPasswordRemoteRef:
+      key: postgresql/auth
+      property: user-password
+```
+
+When an ExternalSecret owns a target Secret, the chart suppresses the matching
+native Secret and PostgreSQL consumes the materialized Kubernetes Secret. The
+same pattern is available for `tls` and `backup` credentials.
 
 ## Network access
 
@@ -52,6 +81,11 @@ tls:
 ```
 
 The init container copies certificate material from the Secret into an `emptyDir`, sets the private key to `0600`, and runs PostgreSQL against the corrected mount.
+
+If TLS material is delivered by External Secrets Operator, set
+`externalSecrets.tls.enabled=true` instead of `tls.existingSecret`. The target
+Secret must contain the keys configured by `tls.certFilename`,
+`tls.keyFilename`, and `tls.caFilename`.
 
 ## Replication slots
 

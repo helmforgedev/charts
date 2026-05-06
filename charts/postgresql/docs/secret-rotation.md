@@ -2,11 +2,15 @@
 
 ## Scope
 
-This chart supports password and TLS material through existing Kubernetes secrets. Rotation remains an operational workflow outside the chart.
+This chart supports password and TLS material through existing Kubernetes
+Secrets, either created manually with `existingSecret` values or materialized by
+External Secrets Operator through optional `externalSecrets.*` values. Rotation
+remains an operational workflow outside the chart.
 
 ## Password rotation
 
 - update the secret referenced by `auth.existingSecret`
+- or update the external provider value referenced by `externalSecrets.auth.*RemoteRef`
 - ensure the secret value matches the password stored in the existing data directory before restarting pods
 - restart PostgreSQL workloads in a controlled maintenance window
 - verify application connectivity after the rollout
@@ -20,6 +24,7 @@ Recover by restoring the correct Secret, rotating the database password intentio
 ## TLS rotation
 
 - update the secret referenced by `tls.existingSecret`
+- or update the external provider value referenced by `externalSecrets.tls.*RemoteRef`
 - roll the PostgreSQL pods so the new certificates are mounted and loaded
 - validate server connectivity and client trust after the rollout
 - if `tls.sslMode` uses `verify-ca` or stronger validation, confirm CA compatibility before restarting traffic
@@ -30,6 +35,7 @@ Recover by restoring the correct Secret, rotating the database password intentio
 - validate one environment at a time
 - document rollback steps before rotation
 - for production, use an external secret manager or an automated secret delivery workflow
+- when External Secrets Operator is enabled, confirm the `ExternalSecret` reaches `Ready=True` before restarting PostgreSQL pods
 - keep `config.localAuthMethod` at `scram-sha-256` unless a tightly controlled bootstrap/debug workflow explicitly requires `trust`
 
 <!-- @AI-METADATA

@@ -33,7 +33,7 @@ helm install postgresql oci://ghcr.io/helmforgedev/helm/postgresql -f values.yam
 
 - explicit architecture selection through `architecture`
 - PostgreSQL on the official `postgres` image
-- generated or externally-managed passwords through `existingSecret`
+- generated passwords, manually managed `existingSecret`, or optional External Secrets Operator resources
 - app user and app database bootstrap on first initialization
 - optional extra init scripts
 - fixed-primary asynchronous replication with `pg_basebackup`
@@ -43,6 +43,8 @@ helm install postgresql oci://ghcr.io/helmforgedev/helm/postgresql -f values.yam
 - built-in S3 backup CronJob using `pg_dumpall`
 - dedicated metrics Services separated from client traffic
 - topology-specific Services for client traffic, primary traffic, and read replicas
+- optional dual-stack Service fields through `service.ipFamilyPolicy` and `service.ipFamilies`
+- optional `ExternalSecret` resources for clusters that already run External Secrets Operator
 
 ## How to choose the architecture
 
@@ -186,17 +188,72 @@ serviceAccount:
 
 See [examples/production.yaml](examples/production.yaml) for a fuller production-oriented values file.
 
+External Secrets Operator example:
+
+```yaml
+auth:
+  database: app
+  username: app
+
+tls:
+  enabled: true
+
+backup:
+  enabled: true
+  s3:
+    endpoint: https://minio.example.com
+    bucket: postgresql-backups
+
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: platform-secrets
+    kind: ClusterSecretStore
+  auth:
+    enabled: true
+    postgresPasswordRemoteRef:
+      key: postgresql/auth
+      property: postgres-password
+    userPasswordRemoteRef:
+      key: postgresql/auth
+      property: user-password
+  tls:
+    enabled: true
+    certRemoteRef:
+      key: postgresql/tls
+      property: tls.crt
+    keyRemoteRef:
+      key: postgresql/tls
+      property: tls.key
+    caRemoteRef:
+      key: postgresql/tls
+      property: ca.crt
+  backup:
+    enabled: true
+    accessKeyRemoteRef:
+      key: postgresql/backup
+      property: access-key
+    secretKeyRemoteRef:
+      key: postgresql/backup
+      property: secret-key
+```
+
+The chart renders only `ExternalSecret` resources. External Secrets Operator and
+the referenced `SecretStore` or `ClusterSecretStore` must already exist.
+
 ## Best practices
 
 ### Security
 
 - prefer `auth.existingSecret` in production
+- use `externalSecrets.enabled=true` only on clusters where External Secrets Operator and the referenced store already exist
 - keep the password Secret aligned with the password stored in any existing PVC; PostgreSQL does not rewrite `pg_authid` just because a Kubernetes Secret changed
 - keep client access internal unless there is a strong reason to expose PostgreSQL outside the cluster network
 - use `networkPolicy.enabled=true` or external platform controls when possible
 - use `networkPolicy.egress.enabled=true` when the cluster enforces egress isolation
 - keep `serviceAccount.automountServiceAccountToken=false` unless an integration requires Kubernetes API access from the pod
 - rotate passwords through secret management workflows instead of editing values inline
+- when `externalSecrets.auth.enabled=true`, the native auth Secret is suppressed and PostgreSQL consumes the materialized target Secret
 - use `tls.enabled=true` with certificate material from a managed secret when PostgreSQL traffic must be encrypted
 - enable `tls.volumePermissions.enabled=true` when PostgreSQL rejects mounted Secret key permissions
 - restrict `config.allowedClientCIDRs` and `config.allowedReplicationCIDRs` to pod/client networks that should reach PostgreSQL
@@ -235,10 +292,12 @@ See [examples/production.yaml](examples/production.yaml) for a fuller production
 - use `*.resourcesPreset` for small and predictable environment sizing before reaching for fully custom resources
 - keep `config.postgresql` and `config.pgHba` for raw overrides when structured values are not enough
 - keep `auth.database`, `auth.username`, and `auth.replicationUsername` as plain values; `existingSecret` is intentionally limited to sensitive runtime data
+- use `service.ipFamilyPolicy` and `service.ipFamilies` only when the target cluster supports the requested IP family behavior
 
 ## Production notes
 
 - use `auth.existingSecret` instead of inline passwords
+- use `externalSecrets.auth.enabled=true` when the platform standard is External Secrets Operator instead of pre-created Secrets
 - keep persistence enabled for every stateful topology
 - define node placement rules for `replication`, especially when the cluster spans multiple nodes or zones
 - define explicit CPU and memory resources
@@ -282,6 +341,11 @@ Operational documents:
 | `tls.existingSecret` | Existing secret with TLS material | `""` |
 | `tls.sslMode` | Internal libpq sslmode | `require` |
 | `tls.volumePermissions.enabled` | Copy TLS material into an owned `emptyDir` and set private key mode `0600` | `false` |
+| `externalSecrets.enabled` | Render optional ExternalSecret resources | `false` |
+| `externalSecrets.secretStoreRef.name` | SecretStore or ClusterSecretStore name | `""` |
+| `externalSecrets.auth.enabled` | Manage the PostgreSQL auth Secret with External Secrets Operator | `false` |
+| `externalSecrets.tls.enabled` | Manage the TLS Secret with External Secrets Operator | `false` |
+| `externalSecrets.backup.enabled` | Manage backup S3 credentials with External Secrets Operator | `false` |
 | `backup.enabled` | Enable built-in S3 backup CronJob | `false` |
 | `backup.schedule` | Backup schedule | `"0 3 * * *"` |
 | `backup.s3.endpoint` | S3-compatible endpoint URL | `""` |
@@ -313,6 +377,8 @@ Operational documents:
 | `metrics.serviceMonitor.enabled` | Enable ServiceMonitor | `false` |
 | `pdb.enabled` | Enable PodDisruptionBudget | `false` |
 | `serviceAccount.automountServiceAccountToken` | Mount Kubernetes API credentials into PostgreSQL and backup pods | `false` |
+| `service.ipFamilyPolicy` | Service IP family policy: `SingleStack`, `PreferDualStack`, or `RequireDualStack` | omitted |
+| `service.ipFamilies` | Ordered Service IP families: `IPv4`, `IPv6` | omitted |
 
 ## CI scenarios
 
@@ -322,6 +388,7 @@ The `ci/` scenarios validate the main chart behaviors:
 - `replication.yaml`
 - `initdb.yaml`
 - `existing-secret.yaml`
+- `external-secrets.yaml`
 - `metrics.yaml`
 - `existing-configmap.yaml`
 - `replication-metrics.yaml`
@@ -345,6 +412,7 @@ See `examples/`:
 - `tls.yaml`
 - `structured-config.yaml`
 - `resources-preset.yaml`
+- `external-secrets.yaml`
 - `replication-production.yaml`
 - `production.yaml`
 
