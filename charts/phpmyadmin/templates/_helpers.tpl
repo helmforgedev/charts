@@ -43,6 +43,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s:%s" .Values.image.repository (default .Chart.AppVersion .Values.image.tag) -}}
 {{- end -}}
 
+{{/* ExternalSecret auth is active only when both flags are enabled */}}
+{{- define "phpmyadmin.externalSecretAuthEnabled" -}}
+{{- if and .Values.externalSecrets.enabled .Values.externalSecrets.auth.enabled -}}true{{- end -}}
+{{- end -}}
+
 {{/* Auth secret name */}}
 {{- define "phpmyadmin.authSecretName" -}}
 {{- if and .Values.externalSecrets.enabled .Values.externalSecrets.auth.enabled .Values.externalSecrets.auth.targetName -}}
@@ -61,6 +66,36 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- else -}}
 {{- printf "%s-config" (include "phpmyadmin.fullname" .) -}}
 {{- end -}}
+{{- end -}}
+
+{{/* phpMyAdmin settings that must be applied through config.user.inc.php */}}
+{{- define "phpmyadmin.needsGeneratedConfig" -}}
+{{- if or (ne .Values.phpmyadmin.authType "cookie") .Values.auth.blowfishSecret .Values.auth.existingSecret (eq (include "phpmyadmin.externalSecretAuthEnabled" .) "true") -}}true{{- end -}}
+{{- end -}}
+
+{{- define "phpmyadmin.needsConfigMount" -}}
+{{- if or .Values.config.customConfig .Values.config.existingConfigMap (eq (include "phpmyadmin.needsGeneratedConfig" .) "true") -}}true{{- end -}}
+{{- end -}}
+
+{{- define "phpmyadmin.csvRepeatForHosts" -}}
+{{- $items := list -}}
+{{- range splitList "," .hosts -}}
+{{- $items = append $items $.value -}}
+{{- end -}}
+{{- join "," $items -}}
+{{- end -}}
+
+{{- define "phpmyadmin.generatedConfig" -}}
+<?php
+{{- if ne .Values.phpmyadmin.authType "cookie" }}
+$cfg['Servers'][$i]['auth_type'] = {{ .Values.phpmyadmin.authType | quote }};
+{{- end }}
+{{- if or .Values.auth.blowfishSecret .Values.auth.existingSecret (eq (include "phpmyadmin.externalSecretAuthEnabled" .) "true") }}
+$helmforgeBlowfishSecret = getenv('HELMFORGE_BLOWFISH_SECRET');
+if ($helmforgeBlowfishSecret !== false && $helmforgeBlowfishSecret !== '') {
+    $cfg['blowfish_secret'] = $helmforgeBlowfishSecret;
+}
+{{- end }}
 {{- end -}}
 
 {{/* ExternalSecret remoteRef item */}}

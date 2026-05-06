@@ -90,8 +90,6 @@ spec:
             - name: HIDE_PHP_VERSION
               value: "1"
             {{- end }}
-            - name: PMA_AUTH_TYPE
-              value: {{ .Values.phpmyadmin.authType | quote }}
             {{- if .Values.phpmyadmin.configBase64 }}
             - name: PMA_CONFIG_BASE64
               value: {{ .Values.phpmyadmin.configBase64 | quote }}
@@ -116,6 +114,24 @@ spec:
               {{- end }}
             {{- end }}
             {{- if .Values.phpmyadmin.ssl.enabled }}
+            {{- if .Values.phpmyadmin.hosts }}
+            - name: PMA_SSLS
+              value: {{ include "phpmyadmin.csvRepeatForHosts" (dict "hosts" .Values.phpmyadmin.hosts "value" "1") | quote }}
+            - name: PMA_SSL_VERIFIES
+              value: {{ include "phpmyadmin.csvRepeatForHosts" (dict "hosts" .Values.phpmyadmin.hosts "value" (ternary "1" "0" .Values.phpmyadmin.ssl.verify)) | quote }}
+            {{- with .Values.phpmyadmin.ssl.caPath }}
+            - name: PMA_SSL_CAS
+              value: {{ include "phpmyadmin.csvRepeatForHosts" (dict "hosts" $.Values.phpmyadmin.hosts "value" .) | quote }}
+            {{- end }}
+            {{- with .Values.phpmyadmin.ssl.certPath }}
+            - name: PMA_SSL_CERTS
+              value: {{ include "phpmyadmin.csvRepeatForHosts" (dict "hosts" $.Values.phpmyadmin.hosts "value" .) | quote }}
+            {{- end }}
+            {{- with .Values.phpmyadmin.ssl.keyPath }}
+            - name: PMA_SSL_KEYS
+              value: {{ include "phpmyadmin.csvRepeatForHosts" (dict "hosts" $.Values.phpmyadmin.hosts "value" .) | quote }}
+            {{- end }}
+            {{- else }}
             - name: PMA_SSL
               value: "1"
             - name: PMA_SSL_VERIFY
@@ -131,6 +147,7 @@ spec:
             {{- with .Values.phpmyadmin.ssl.keyPath }}
             - name: PMA_SSL_KEY
               value: {{ . | quote }}
+            {{- end }}
             {{- end }}
             {{- end }}
             {{- if or .Values.auth.username .Values.auth.existingSecret (and .Values.externalSecrets.enabled .Values.externalSecrets.auth.enabled) }}
@@ -157,7 +174,7 @@ spec:
               {{- end }}
             {{- end }}
             {{- if or .Values.auth.blowfishSecret .Values.auth.existingSecret (and .Values.externalSecrets.enabled .Values.externalSecrets.auth.enabled) }}
-            - name: PMA_BLOWFISH_SECRET
+            - name: HELMFORGE_BLOWFISH_SECRET
               {{- if or .Values.auth.existingSecret (and .Values.externalSecrets.enabled .Values.externalSecrets.auth.enabled) }}
               valueFrom:
                 secretKeyRef:
@@ -176,9 +193,14 @@ spec:
             {{- end }}
           {{- if .Values.startupProbe.enabled }}
           startupProbe:
+            {{- if eq .Values.phpmyadmin.authType "http" }}
+            tcpSocket:
+              port: http
+            {{- else }}
             httpGet:
               path: {{ .Values.startupProbe.path }}
               port: http
+            {{- end }}
             initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.startupProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
@@ -186,9 +208,14 @@ spec:
           {{- end }}
           {{- if .Values.livenessProbe.enabled }}
           livenessProbe:
+            {{- if eq .Values.phpmyadmin.authType "http" }}
+            tcpSocket:
+              port: http
+            {{- else }}
             httpGet:
               path: {{ .Values.livenessProbe.path }}
               port: http
+            {{- end }}
             initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
@@ -196,9 +223,14 @@ spec:
           {{- end }}
           {{- if .Values.readinessProbe.enabled }}
           readinessProbe:
+            {{- if eq .Values.phpmyadmin.authType "http" }}
+            tcpSocket:
+              port: http
+            {{- else }}
             httpGet:
               path: {{ .Values.readinessProbe.path }}
               port: http
+            {{- end }}
             initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
@@ -208,9 +240,9 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if or .Values.config.customConfig .Values.config.existingConfigMap .Values.sessions.enabled .Values.themes.enabled .Values.extraVolumeMounts }}
+          {{- if or (eq (include "phpmyadmin.needsConfigMount" .) "true") .Values.sessions.enabled .Values.themes.enabled .Values.extraVolumeMounts }}
           volumeMounts:
-            {{- if or .Values.config.customConfig .Values.config.existingConfigMap }}
+            {{- if eq (include "phpmyadmin.needsConfigMount" .) "true" }}
             - name: custom-config
               mountPath: /etc/phpmyadmin/config.user.inc.php
               subPath: config.user.inc.php
@@ -228,9 +260,9 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-      {{- if or .Values.config.customConfig .Values.config.existingConfigMap .Values.sessions.enabled .Values.themes.enabled .Values.extraVolumes }}
+      {{- if or (eq (include "phpmyadmin.needsConfigMount" .) "true") .Values.sessions.enabled .Values.themes.enabled .Values.extraVolumes }}
       volumes:
-        {{- if or .Values.config.customConfig .Values.config.existingConfigMap }}
+        {{- if eq (include "phpmyadmin.needsConfigMount" .) "true" }}
         - name: custom-config
           configMap:
             name: {{ include "phpmyadmin.configMapName" . }}

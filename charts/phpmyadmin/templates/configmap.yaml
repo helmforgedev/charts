@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-{{- if and .Values.config.customConfig (not .Values.config.existingConfigMap) }}
+{{- if and (eq (include "phpmyadmin.needsConfigMount" .) "true") (not .Values.config.existingConfigMap) }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -8,5 +8,10 @@ metadata:
     {{- include "phpmyadmin.labels" . | nindent 4 }}
 data:
   config.user.inc.php: |
+    {{- if eq (include "phpmyadmin.needsGeneratedConfig" .) "true" }}
+    {{- include "phpmyadmin.generatedConfig" . | nindent 4 }}
+    {{- end }}
+    {{- if .Values.config.customConfig }}
     {{- .Values.config.customConfig | nindent 4 }}
+    {{- end }}
 {{- end }}

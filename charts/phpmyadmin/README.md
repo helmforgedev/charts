@@ -62,7 +62,7 @@ The default values are intentionally simple for development: one replica, no Ing
 Production deployments should opt into the controls they need:
 
 - Use `auth.existingSecret` or `externalSecrets.auth` instead of inline passwords.
-- Prefer `phpmyadmin.authType: cookie` unless a controlled auto-login workflow is required.
+- Prefer `phpmyadmin.authType: cookie` unless a controlled `config`, `http`, or `signon` workflow is required.
 - Expose phpMyAdmin through private networking, VPN, SSO/reverse proxy auth, or IP allowlists.
 - Enable TLS at the Ingress or Gateway layer.
 - Enable NetworkPolicy and restrict egress to DNS and the target database.
@@ -107,6 +107,16 @@ auth:
   blowfishSecret: "use-a-32-byte-random-secret-here"
 ```
 
+Non-cookie auth modes are rendered into `config.user.inc.php` because the official phpMyAdmin image does not consume an auth-type environment variable:
+
+```yaml
+phpmyadmin:
+  authType: http
+```
+
+When `authType: http` is used, the chart automatically switches the default probes to TCP checks because the application root returns `401`
+until HTTP authentication succeeds.
+
 Auto-login with an existing Secret:
 
 ```yaml
@@ -132,6 +142,8 @@ stringData:
 ```
 
 Auto-login skips the login form and should only be used behind strong network and identity controls.
+When a blowfish secret is provided inline, by existing Secret, or by External Secrets Operator, the chart exposes it to the pod as
+`HELMFORGE_BLOWFISH_SECRET` and writes `$cfg['blowfish_secret']` through `config.user.inc.php`.
 
 ## External Secrets Operator
 
@@ -251,6 +263,10 @@ config:
     $cfg['ShowPhpInfo'] = false;
     $cfg['MaxRows'] = 100;
 ```
+
+The chart also generates `config.user.inc.php` when it needs to apply `phpmyadmin.authType` values other than `cookie` or a configured
+blowfish secret. If `config.customConfig` is set, the custom block is appended after the generated block so advanced users can still override
+phpMyAdmin settings deliberately.
 
 Or pass base64 configuration through the official image variable:
 

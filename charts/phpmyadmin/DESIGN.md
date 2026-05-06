@@ -115,6 +115,9 @@ Kubernetes Secret
    |
    v
 phpMyAdmin environment variables
+   |
+   v
+Generated config.user.inc.php when needed
 ```
 
 The chart supports External Secrets for:
@@ -125,6 +128,9 @@ The chart supports External Secrets for:
 - configuration-storage control password.
 
 Inline values are acceptable for local development only. Production should use `auth.existingSecret` or `externalSecrets.auth`.
+The phpMyAdmin Docker image does not consume every phpMyAdmin setting as an environment variable. For auth modes other than `cookie` and for
+a stable cookie blowfish secret, the chart writes a generated `config.user.inc.php` and reads secret material from a pod environment variable
+populated by Kubernetes Secret references.
 
 ## Multi-Server Architecture
 
@@ -139,6 +145,8 @@ phpMyAdmin
 Use `phpmyadmin.hosts`, `phpmyadmin.ports`, and `phpmyadmin.verboses` to provide a curated server list.
 Use `phpmyadmin.arbitrary=true` only when the user population is trusted to choose valid database
 endpoints.
+When database TLS is enabled with `phpmyadmin.hosts`, the chart renders the multi-host variables
+`PMA_SSLS`, `PMA_SSL_VERIFIES`, `PMA_SSL_CAS`, `PMA_SSL_CERTS`, and `PMA_SSL_KEYS` so TLS settings line up with the `PMA_HOSTS` order.
 
 ## Session Strategy
 

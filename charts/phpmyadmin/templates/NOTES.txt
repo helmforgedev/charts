@@ -44,12 +44,15 @@ Operational checks
   kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
 
 Production notes
-{{- if .Values.externalSecrets.auth.enabled }}
+{{- if and .Values.externalSecrets.enabled .Values.externalSecrets.auth.enabled }}
   External Secrets Operator manages the auth Secret: {{ include "phpmyadmin.authSecretName" . }}
 {{- else if .Values.auth.existingSecret }}
   Existing Secret used for auth: {{ .Values.auth.existingSecret }}
 {{- else if .Values.auth.password }}
   Inline auth.password rendered a Kubernetes Secret. Prefer existingSecret or externalSecrets.auth in production.
+{{- end }}
+{{- if eq (include "phpmyadmin.needsGeneratedConfig" .) "true" }}
+  config.user.inc.php is generated to apply auth type or blowfish-secret settings that are not handled by the official image environment contract.
 {{- end }}
 {{- if and (gt (int .Values.replicaCount) 1) (not .Values.sessions.enabled) (not .Values.autoscaling.enabled) }}
   Multiple replicas are enabled without sessions.enabled. Enable shared sessions when using cookie/session-heavy workflows.

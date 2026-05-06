@@ -119,6 +119,27 @@ tests:
             name: HIDE_PHP_VERSION
           any: true
 
+  - it: should not render unsupported PMA_AUTH_TYPE env
+    set:
+      phpmyadmin.authType: http
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_AUTH_TYPE
+          any: true
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: custom-config
+            mountPath: /etc/phpmyadmin/config.user.inc.php
+            subPath: config.user.inc.php
+            readOnly: true
+      - exists:
+          path: spec.template.spec.containers[0].startupProbe.tcpSocket
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe.httpGet
+
   - it: should set auto-login env vars when auth is configured
     set:
       phpmyadmin.host: mysql.default.svc
@@ -160,6 +181,15 @@ tests:
               secretKeyRef:
                 name: my-auth-secret
                 key: password
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HELMFORGE_BLOWFISH_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: my-auth-secret
+                key: blowfish-secret
+                optional: true
 
   - it: should use external secret target for auto-login
     set:
@@ -177,6 +207,36 @@ tests:
               secretKeyRef:
                 name: RELEASE-NAME-phpmyadmin-auth
                 key: username
+
+  - it: should use multi-host SSL env vars with PMA_HOSTS
+    set:
+      phpmyadmin.hosts: "mysql-1.svc,mysql-2.svc"
+      phpmyadmin.ssl.enabled: true
+      phpmyadmin.ssl.verify: false
+      phpmyadmin.ssl.caPath: /etc/phpmyadmin/ssl/ca.crt
+      phpmyadmin.ssl.certPath: /etc/phpmyadmin/ssl/client.crt
+      phpmyadmin.ssl.keyPath: /etc/phpmyadmin/ssl/client.key
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_SSLS
+            value: "1,1"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_SSL_VERIFIES
+            value: "0,0"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_SSL_CAS
+            value: "/etc/phpmyadmin/ssl/ca.crt,/etc/phpmyadmin/ssl/ca.crt"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMA_SSL
+          any: true
 
   - it: should not set auto-login env vars when auth is empty
     set:
