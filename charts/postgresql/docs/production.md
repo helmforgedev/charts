@@ -57,6 +57,11 @@ config:
     - 10.42.0.0/16
 ```
 
+`config.allowedReplicationCIDRs` covers both the replication pseudo-database and
+the replication user's startup connections to the `postgres` maintenance
+database. Replicas need those maintenance connections for readiness checks and
+optional replication slot creation before `pg_basebackup` starts streaming.
+
 Pair PostgreSQL-level access rules with Kubernetes NetworkPolicy:
 
 ```yaml

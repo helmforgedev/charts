@@ -409,6 +409,7 @@ maintenance_work_mem = '256MB'
 {{- define "postgresql.pgHbaReplicationCIDRRules" -}}
 {{- $type := ternary "hostssl" "host" .Values.tls.enabled -}}
 {{- range .Values.config.allowedReplicationCIDRs }}
+{{ $type }} postgres        {{ $.Values.auth.replicationUsername }}  {{ . }}    scram-sha-256
 {{ $type }} replication     {{ $.Values.auth.replicationUsername }}  {{ . }}    scram-sha-256
 {{- end -}}
 {{- end -}}

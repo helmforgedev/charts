@@ -331,7 +331,7 @@ Operational documents:
 | `auth.replicationUsername` | Replication username | `replicator` |
 | `config.preset` | Optional PostgreSQL config preset | `none` |
 | `config.allowedClientCIDRs` | CIDRs allowed for regular PostgreSQL client connections in generated `pg_hba.conf` | `["0.0.0.0/0", "::/0"]` |
-| `config.allowedReplicationCIDRs` | CIDRs allowed for replication connections in generated `pg_hba.conf` | `["0.0.0.0/0", "::/0"]` |
+| `config.allowedReplicationCIDRs` | CIDRs allowed for replica bootstrap, replication slot checks, and streaming replication in generated `pg_hba.conf` | `["0.0.0.0/0", "::/0"]` |
 | `config.pgHbaEntries` | Structured pg_hba entries | `[]` |
 | `standalone.resourcesPreset` | Resource preset for standalone mode | `none` |
 | `replication.primary.resourcesPreset` | Resource preset for the primary pod | `none` |
