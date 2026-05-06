@@ -69,6 +69,13 @@ tests:
           path: spec.template.spec.securityContext.fsGroup
           value: 999
 
+  - it: should disable service account token automount by default
+    template: statefulset-source.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
   - it: should have probes by default
     template: statefulset-source.yaml
     asserts:
@@ -115,3 +122,36 @@ tests:
       - lengthEqual:
           path: spec.template.spec.containers
           count: 2
+      - contains:
+          path: spec.template.spec.containers[1].args
+          content: --mysqld.username=root
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: MYSQLD_EXPORTER_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-mysql-auth
+                key: mysql-root-password
+
+  - it: should normalize TLS volume permissions when enabled
+    template: statefulset-source.yaml
+    set:
+      tls.enabled: true
+      tls.existingSecret: mysql-tls
+      tls.volumePermissions.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: tls-volume-permissions
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tls-workdir
+            mountPath: /tls
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls-workdir
+            emptyDir: {}

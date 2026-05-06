@@ -51,13 +51,21 @@ app.kubernetes.io/role: {{ .role }}
 {{- define "mysql.secretName" -}}
 {{- if .Values.auth.existingSecret -}}
 {{- .Values.auth.existingSecret -}}
+{{- else if include "mysql.authSecretManagedByExternalSecret" . -}}
+{{- default (printf "%s-auth" (include "mysql.fullname" .)) .Values.externalSecrets.auth.targetName -}}
 {{- else -}}
 {{- printf "%s-auth" (include "mysql.fullname" .) -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "mysql.tlsSecretName" -}}
-{{- required "tls.existingSecret is required when tls.enabled=true" .Values.tls.existingSecret -}}
+{{- if .Values.tls.existingSecret -}}
+{{- .Values.tls.existingSecret -}}
+{{- else if include "mysql.tlsSecretManagedByExternalSecret" . -}}
+{{- default (printf "%s-tls" (include "mysql.fullname" .)) .Values.externalSecrets.tls.targetName -}}
+{{- else -}}
+{{- required "tls.existingSecret or externalSecrets.tls.enabled is required when tls.enabled=true" .Values.tls.existingSecret -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "mysql.configMapName" -}}
@@ -122,7 +130,7 @@ app.kubernetes.io/role: {{ .role }}
 
 {{- define "mysql.rootPassword" -}}
 {{- $secretName := include "mysql.secretName" . -}}
-{{- if .Values.auth.existingSecret -}}
+{{- if or .Values.auth.existingSecret (include "mysql.authSecretManagedByExternalSecret" .) -}}
 {{- "" -}}
 {{- else if .Values.auth.rootPassword -}}
 {{- .Values.auth.rootPassword -}}
@@ -138,7 +146,7 @@ app.kubernetes.io/role: {{ .role }}
 
 {{- define "mysql.userPassword" -}}
 {{- $secretName := include "mysql.secretName" . -}}
-{{- if .Values.auth.existingSecret -}}
+{{- if or .Values.auth.existingSecret (include "mysql.authSecretManagedByExternalSecret" .) -}}
 {{- "" -}}
 {{- else if .Values.auth.password -}}
 {{- .Values.auth.password -}}
@@ -154,7 +162,7 @@ app.kubernetes.io/role: {{ .role }}
 
 {{- define "mysql.replicationPassword" -}}
 {{- $secretName := include "mysql.secretName" . -}}
-{{- if .Values.auth.existingSecret -}}
+{{- if or .Values.auth.existingSecret (include "mysql.authSecretManagedByExternalSecret" .) -}}
 {{- "" -}}
 {{- else if .Values.auth.replicationPassword -}}
 {{- .Values.auth.replicationPassword -}}
@@ -197,13 +205,20 @@ MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysql -h 127.0.0.1 -P {{ .Values.service.port
 {{- end -}}
 
 {{- define "mysql.metricsEnv" -}}
-- name: DATA_SOURCE_NAME
-  value: root:$(MYSQL_ROOT_PASSWORD)@(127.0.0.1:{{ .Values.service.port }})/{{ if or .Values.tls.client.enabled .Values.tls.requireSecureTransport }}?tls=skip-verify{{ end }}
-- name: MYSQL_ROOT_PASSWORD
+- name: MYSQLD_EXPORTER_PASSWORD
   valueFrom:
     secretKeyRef:
       name: {{ include "mysql.secretName" . }}
       key: {{ .Values.auth.existingSecretRootPasswordKey }}
+{{- end -}}
+
+{{- define "mysql.metricsArgs" -}}
+- --web.listen-address=:{{ .Values.service.metricsPort }}
+- --mysqld.address=127.0.0.1:{{ .Values.service.port }}
+- --mysqld.username=root
+{{- if or .Values.tls.client.enabled .Values.tls.requireSecureTransport }}
+- --tls.insecure-skip-verify
+{{- end }}
 {{- end -}}
 
 {{- define "mysql.tlsClientEnabled" -}}
@@ -223,6 +238,8 @@ MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysql -h 127.0.0.1 -P {{ .Values.service.port
 {{- define "mysql.backupSecretName" -}}
 {{- if .Values.backup.s3.existingSecret -}}
 {{- .Values.backup.s3.existingSecret -}}
+{{- else if include "mysql.backupSecretManagedByExternalSecret" . -}}
+{{- default (printf "%s-backup" (include "mysql.fullname" .)) .Values.externalSecrets.backup.targetName -}}
 {{- else -}}
 {{- printf "%s-backup" (include "mysql.fullname" .) -}}
 {{- end -}}
@@ -236,7 +253,7 @@ MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysql -h 127.0.0.1 -P {{ .Values.service.port
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (not (include "mysql.backupSecretManagedByExternalSecret" .)) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
     {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
   {{- end -}}
 true
@@ -249,6 +266,115 @@ true
 
 {{- define "mysql.backupTlsVolumeEnabled" -}}
 {{- if include "mysql.tlsClientEnabled" . -}}true{{- end -}}
+{{- end -}}
+
+{{- define "mysql.externalSecretsEnabled" -}}
+{{- if .Values.externalSecrets.enabled -}}true{{- end -}}
+{{- end -}}
+
+{{- define "mysql.legacyExternalSecretEnabled" -}}
+{{- if and .Values.externalSecrets.enabled .Values.externalSecrets.data (not .Values.externalSecrets.auth.enabled) (not .Values.externalSecrets.tls.enabled) (not .Values.externalSecrets.backup.enabled) -}}true{{- end -}}
+{{- end -}}
+
+{{- define "mysql.authSecretManagedByExternalSecret" -}}
+{{- if and .Values.externalSecrets.enabled (or .Values.externalSecrets.auth.enabled (include "mysql.legacyExternalSecretEnabled" .)) -}}true{{- end -}}
+{{- end -}}
+
+{{- define "mysql.tlsSecretManagedByExternalSecret" -}}
+{{- if and .Values.externalSecrets.enabled .Values.externalSecrets.tls.enabled -}}true{{- end -}}
+{{- end -}}
+
+{{- define "mysql.backupSecretManagedByExternalSecret" -}}
+{{- if and .Values.externalSecrets.enabled .Values.externalSecrets.backup.enabled -}}true{{- end -}}
+{{- end -}}
+
+{{- define "mysql.validateExternalSecrets" -}}
+{{- if .Values.externalSecrets.enabled -}}
+  {{- if ne .Values.externalSecrets.apiVersion "external-secrets.io/v1" -}}
+    {{- fail "externalSecrets.apiVersion must be external-secrets.io/v1" -}}
+  {{- end -}}
+  {{- if not .Values.externalSecrets.secretStoreRef.name -}}
+    {{- fail "externalSecrets.secretStoreRef.name is required when externalSecrets.enabled=true" -}}
+  {{- end -}}
+  {{- if and (include "mysql.legacyExternalSecretEnabled" .) (not .Values.auth.existingSecret) -}}
+    {{- fail "legacy externalSecrets.data requires auth.existingSecret to prevent credential drift; prefer externalSecrets.auth.enabled for chart-owned target names" -}}
+  {{- end -}}
+  {{- if and .Values.externalSecrets.auth.enabled .Values.auth.existingSecret -}}
+    {{- fail "externalSecrets.auth.enabled cannot be combined with auth.existingSecret; set externalSecrets.auth.targetName instead" -}}
+  {{- end -}}
+  {{- if and .Values.externalSecrets.tls.enabled .Values.tls.existingSecret -}}
+    {{- fail "externalSecrets.tls.enabled cannot be combined with tls.existingSecret; set externalSecrets.tls.targetName instead" -}}
+  {{- end -}}
+  {{- if and .Values.externalSecrets.backup.enabled .Values.backup.s3.existingSecret -}}
+    {{- fail "externalSecrets.backup.enabled cannot be combined with backup.s3.existingSecret; set externalSecrets.backup.targetName instead" -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "mysql.externalSecretDataItem" -}}
+{{- if or (not .remoteRef) (eq (len .remoteRef) 0) -}}
+{{- fail (printf "%s is required and must contain at least one remoteRef field" .remoteRefName) -}}
+{{- end -}}
+- secretKey: {{ .secretKey }}
+  remoteRef:
+    {{- toYaml .remoteRef | nindent 4 }}
+{{- end -}}
+
+{{- define "mysql.tlsVolumeMountName" -}}
+{{- if .Values.tls.volumePermissions.enabled -}}tls-workdir{{- else -}}tls{{- end -}}
+{{- end -}}
+
+{{- define "mysql.tlsVolumeMount" -}}
+- name: {{ include "mysql.tlsVolumeMountName" . }}
+  mountPath: /tls
+  readOnly: true
+{{- end -}}
+
+{{- define "mysql.tlsVolumePermissionsInitContainer" -}}
+{{- if and .Values.tls.enabled .Values.tls.volumePermissions.enabled }}
+- name: tls-volume-permissions
+  image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+  imagePullPolicy: {{ .Values.image.pullPolicy }}
+  command:
+    - sh
+    - -ec
+    - |
+      cp "/tls-secret/{{ .Values.tls.caFilename }}" "/tls-workdir/{{ .Values.tls.caFilename }}"
+      cp "/tls-secret/{{ .Values.tls.certFilename }}" "/tls-workdir/{{ .Values.tls.certFilename }}"
+      cp "/tls-secret/{{ .Values.tls.keyFilename }}" "/tls-workdir/{{ .Values.tls.keyFilename }}"
+      chmod 0644 "/tls-workdir/{{ .Values.tls.caFilename }}" "/tls-workdir/{{ .Values.tls.certFilename }}"
+      chmod 0600 "/tls-workdir/{{ .Values.tls.keyFilename }}"
+      chown {{ .Values.securityContext.runAsUser }}:{{ .Values.securityContext.runAsGroup }} /tls-workdir/*
+  securityContext:
+    runAsUser: 0
+    runAsGroup: 0
+    runAsNonRoot: false
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+      add:
+        - CHOWN
+  volumeMounts:
+    - name: tls
+      mountPath: /tls-secret
+      readOnly: true
+    - name: tls-workdir
+      mountPath: /tls-workdir
+{{- end -}}
+{{- end -}}
+
+{{- define "mysql.tlsVolumes" -}}
+{{- if .Values.tls.enabled }}
+- name: tls
+  secret:
+    secretName: {{ include "mysql.tlsSecretName" . }}
+{{- if .Values.tls.volumePermissions.enabled }}
+- name: tls-workdir
+  emptyDir: {}
+{{- end }}
+{{- end -}}
 {{- end -}}
 
 {{- define "mysql.replicationTlsClause" -}}
@@ -364,6 +490,7 @@ imagePullSecrets:
   {{- toYaml . | nindent 2 }}
 {{- end }}
 serviceAccountName: {{ include "mysql.serviceAccountName" . }}
+automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
 {{- with .Values.priorityClassName }}
 priorityClassName: {{ . }}
 {{- end }}

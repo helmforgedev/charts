@@ -17,6 +17,24 @@ Root password:
 TLS secret:
 
   {{ include "mysql.tlsSecretName" . }}
+{{- if .Values.tls.volumePermissions.enabled }}
+
+TLS volume permissions:
+
+  Enabled. The chart copies TLS files to an emptyDir, owns them as {{ .Values.securityContext.runAsUser }}:{{ .Values.securityContext.runAsGroup }}, and sets the private key mode to 0600 before mysqld starts.
+{{- end }}
+{{- end }}
+{{- if include "mysql.externalSecretsEnabled" . }}
+
+External Secrets:
+
+  ExternalSecret resources are enabled. Confirm the External Secrets Operator and {{ .Values.externalSecrets.secretStoreRef.kind }} `{{ .Values.externalSecrets.secretStoreRef.name }}` are ready before expecting reconciled Kubernetes Secrets.
+{{- end }}
+{{- if .Values.networkPolicy.enabled }}
+
+NetworkPolicy:
+
+  Enabled for MySQL pods. Review allowed ingress peers and{{ if .Values.networkPolicy.egress.enabled }} configured egress rules{{ else }} default egress behavior in your CNI{{ end }} before exposing workloads.
 {{- end }}
 
 Connection examples:
@@ -45,6 +63,7 @@ Important:
 
 - replication mode provides one fixed source and asynchronous read replicas
 - the chart does not implement automatic source promotion or operator-style HA
+- default values are suitable for development; production installs should provide external credentials, persistence, TLS, NetworkPolicy, resources, backups, and operational runbooks
 {{- with .Values.service.ipFamilyPolicy }}
 - Service IP family policy: `{{ . }}`{{ with $.Values.service.ipFamilies }} (families: {{ join ", " . }}){{ end }}
 {{- end }}

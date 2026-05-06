@@ -44,7 +44,7 @@
         "tag": {
           "type": "string",
           "description": "MySQL image tag",
-          "default": "8.4"
+          "default": "9.7.0"
         },
         "pullPolicy": {
           "type": "string",
@@ -603,6 +603,18 @@
           "description": "Require TLS for TCP client connections handled by mysqld",
           "default": false
         },
+        "volumePermissions": {
+          "type": "object",
+          "description": "TLS volume permission normalization",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Copy TLS files to an emptyDir and normalize ownership/mode before mysqld starts",
+              "default": false
+            }
+          }
+        },
         "client": {
           "type": "object",
           "description": "Client TLS configuration",
@@ -688,7 +700,7 @@
                 },
                 "tag": {
                   "type": "string",
-                  "default": "RELEASE.2025-08-13T08-35-41Z"
+                  "default": "1.0.0"
                 },
                 "pullPolicy": {
                   "type": "string",
@@ -838,6 +850,41 @@
               "default": []
             }
           }
+        },
+        "egress": {
+          "type": "object",
+          "description": "Egress rules for the NetworkPolicy",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Add egress rules to the NetworkPolicy",
+              "default": false
+            },
+            "allowDNS": {
+              "type": "boolean",
+              "description": "Allow DNS egress to kube-dns/CoreDNS",
+              "default": true
+            },
+            "allowSameNamespaceMySQL": {
+              "type": "boolean",
+              "description": "Allow MySQL egress to pods in the same namespace",
+              "default": true
+            },
+            "allowHTTPS": {
+              "type": "boolean",
+              "description": "Allow TCP/443 egress",
+              "default": false
+            },
+            "extraTo": {
+              "type": "array",
+              "description": "Additional egress rules appended to the generated policy",
+              "items": {
+                "type": "object"
+              },
+              "default": []
+            }
+          }
         }
       }
     },
@@ -882,6 +929,11 @@
           "type": "object",
           "description": "Annotations on the ServiceAccount",
           "default": {}
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean",
+          "description": "Mount the ServiceAccount token into workload pods",
+          "default": false
         }
       }
     },
@@ -1084,7 +1136,36 @@
             "creationPolicy": { "type": "string", "enum": ["Owner", "Merge", "None", "Orphan"], "default": "Owner" }
           }
         },
-        "data": { "type": "array", "items": { "type": "object" } }
+        "data": { "type": "array", "items": { "type": "object" } },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "targetName": { "type": "string", "default": "" },
+            "rootPasswordRemoteRef": { "type": "object" },
+            "userPasswordRemoteRef": { "type": "object" },
+            "replicationPasswordRemoteRef": { "type": "object" }
+          }
+        },
+        "tls": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "targetName": { "type": "string", "default": "" },
+            "caRemoteRef": { "type": "object" },
+            "certRemoteRef": { "type": "object" },
+            "keyRemoteRef": { "type": "object" }
+          }
+        },
+        "backup": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "targetName": { "type": "string", "default": "" },
+            "accessKeyRemoteRef": { "type": "object" },
+            "secretKeyRemoteRef": { "type": "object" }
+          }
+        }
       }
     }
   }

@@ -28,6 +28,7 @@ spec:
     spec:
       {{- include "mysql.podSpecCommon" . | nindent 6 }}
       initContainers:
+        {{- include "mysql.tlsVolumePermissionsInitContainer" . | nindent 8 }}
         - name: clone-source
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -61,7 +62,7 @@ spec:
               done
 
               mysqld --initialize-insecure --user=mysql --datadir="${DATA_DIR}"
-              mysqld --user=mysql --datadir="${DATA_DIR}" --socket=/tmp/mysql.sock --pid-file=/tmp/mysql.pid --skip-networking &
+              mysqld --user=mysql --datadir="${DATA_DIR}" --socket=/tmp/mysql.sock --pid-file=/tmp/mysql.pid --skip-networking --read-only=OFF --super-read-only=OFF &
 
               until mysqladmin --socket=/tmp/mysql.sock ping --silent; do
                 sleep 2
@@ -69,6 +70,8 @@ spec:
 
               mysql --socket=/tmp/mysql.sock -uroot <<EOSQL
               ALTER USER 'root'@'localhost' IDENTIFIED BY '${MYSQL_ROOT_PASSWORD}';
+              CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY '${MYSQL_ROOT_PASSWORD}';
+              GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
               FLUSH PRIVILEGES;
               EOSQL
 
@@ -87,16 +90,13 @@ spec:
 
               MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysql --socket=/tmp/mysql.sock -uroot < /tmp/source.sql
 
-              MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysql --socket=/tmp/mysql.sock -uroot <<EOSQL
-              CHANGE REPLICATION SOURCE TO
-                SOURCE_HOST='{{ include "mysql.sourceServiceName" . }}',
-                SOURCE_PORT={{ .Values.service.port }},
-                SOURCE_USER='{{ .Values.auth.replicationUsername }}',
-                SOURCE_PASSWORD='${REPLICATION_PASSWORD}',
-                {{ include "mysql.replicationTlsClause" . | nindent 16 }}
-                SOURCE_AUTO_POSITION=1,
-                GET_SOURCE_PUBLIC_KEY=1;
-              START REPLICA;
+              mysql --socket=/tmp/mysql.sock -uroot <<EOSQL
+              SET GLOBAL super_read_only = OFF;
+              SET GLOBAL read_only = OFF;
+              ALTER USER 'root'@'localhost' IDENTIFIED BY '${MYSQL_ROOT_PASSWORD}';
+              CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY '${MYSQL_ROOT_PASSWORD}';
+              GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
+              FLUSH PRIVILEGES;
               EOSQL
 
               mysqladmin --socket=/tmp/mysql.sock -uroot -p"${MYSQL_ROOT_PASSWORD}" shutdown
@@ -121,9 +121,7 @@ spec:
             - name: mysql-conf
               mountPath: /etc/mysql/conf.d
             {{- if .Values.tls.enabled }}
-            - name: tls
-              mountPath: /tls
-              readOnly: true
+            {{- include "mysql.tlsVolumeMount" . | nindent 12 }}
             {{- end }}
       containers:
         - name: mysql
@@ -157,6 +155,11 @@ spec:
                 secretKeyRef:
                   name: {{ include "mysql.secretName" . }}
                   key: {{ .Values.auth.existingSecretRootPasswordKey }}
+            - name: REPLICATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mysql.secretName" . }}
+                  key: {{ .Values.auth.existingSecretReplicationPasswordKey }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -198,6 +201,34 @@ spec:
           {{- end }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - sh
+                  - -ec
+                  - |
+                    until MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysqladmin ping -h 127.0.0.1 -P {{ .Values.service.port }} -uroot --silent; do
+                      sleep 2
+                    done
+                    configured="$(MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysql -h 127.0.0.1 -P {{ .Values.service.port }} -uroot -Nse "SELECT COUNT(*) FROM performance_schema.replication_connection_configuration WHERE CHANNEL_NAME = ''")"
+                    if [ "${configured}" = "0" ]; then
+                      MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysql -h 127.0.0.1 -P {{ .Values.service.port }} -uroot <<EOSQL
+                      SET GLOBAL super_read_only = OFF;
+                      SET GLOBAL read_only = OFF;
+                      CHANGE REPLICATION SOURCE TO
+                        SOURCE_HOST='{{ include "mysql.sourceServiceName" . }}',
+                        SOURCE_PORT={{ .Values.service.port }},
+                        SOURCE_USER='{{ .Values.auth.replicationUsername }}',
+                        SOURCE_PASSWORD='${REPLICATION_PASSWORD}',
+                        {{ include "mysql.replicationTlsClause" . | nindent 24 }}
+                        SOURCE_AUTO_POSITION=1,
+                        GET_SOURCE_PUBLIC_KEY=1;
+                      START REPLICA;
+                      SET GLOBAL read_only = ON;
+                      SET GLOBAL super_read_only = ON;
+                    EOSQL
+                    fi
           resources:
             {{- if .Values.replication.readReplicas.resources }}
             {{- toYaml .Values.replication.readReplicas.resources | nindent 12 }}
@@ -212,9 +243,7 @@ spec:
             - name: mysql-conf
               mountPath: /etc/mysql/conf.d
             {{- if .Values.tls.enabled }}
-            - name: tls
-              mountPath: /tls
-              readOnly: true
+            {{- include "mysql.tlsVolumeMount" . | nindent 12 }}
             {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
@@ -224,7 +253,7 @@ spec:
           image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
           imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
           args:
-            - --web.listen-address=:{{ .Values.service.metricsPort }}
+            {{- include "mysql.metricsArgs" . | nindent 12 }}
           ports:
             - name: metrics
               containerPort: {{ .Values.service.metricsPort }}
@@ -246,9 +275,7 @@ spec:
           configMap:
             name: {{ include "mysql.configMapName" . }}
         {{- if .Values.tls.enabled }}
-        - name: tls
-          secret:
-            secretName: {{ include "mysql.tlsSecretName" . }}
+        {{- include "mysql.tlsVolumes" . | nindent 8 }}
         {{- end }}
         {{- if not .Values.replication.readReplicas.persistence.enabled }}
         - name: data

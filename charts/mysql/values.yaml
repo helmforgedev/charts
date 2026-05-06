@@ -238,6 +238,9 @@ tls:
   keyFilename: tls.key
   # -- Require TLS for TCP client connections handled by mysqld
   requireSecureTransport: false
+  volumePermissions:
+    # -- Copy TLS files to an emptyDir and normalize ownership/mode before mysqld starts. This is useful when Secrets are projected with modes that MySQL rejects for private keys.
+    enabled: false
   client:
     # -- Enable TLS for internal chart-managed TCP clients such as replication bootstrap commands
     enabled: false
@@ -304,7 +307,7 @@ backup:
 # =============================================================================
 
 networkPolicy:
-  # -- Create an ingress-only NetworkPolicy for MySQL pods
+  # -- Create a NetworkPolicy for MySQL pods
   enabled: false
   ingress:
     # -- Allow ingress from the same namespace
@@ -318,6 +321,17 @@ networkPolicy:
     allowSameNamespace: true
     # -- Additional ingress "from" rules appended to the generated metrics policy rule
     extraFrom: []
+  egress:
+    # -- Add egress rules to the NetworkPolicy. Disabled keeps Kubernetes/CNI default behavior for egress.
+    enabled: false
+    # -- Allow DNS egress to kube-dns/CoreDNS.
+    allowDNS: true
+    # -- Allow MySQL egress to pods in the same namespace for source/replica and client sidecars.
+    allowSameNamespaceMySQL: true
+    # -- Allow TCP/443 egress for object storage, external secret stores, or monitored endpoints reached by sidecars/jobs.
+    allowHTTPS: false
+    # -- Additional egress "to" rules appended to the generated policy.
+    extraTo: []
 
 # =============================================================================
 # Pod Disruption Budget
@@ -340,6 +354,8 @@ serviceAccount:
   create: false
   name: ""
   annotations: {}
+  # -- Mount the ServiceAccount token into workload pods. Keep false unless a sidecar or extension needs Kubernetes API access.
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Probes
@@ -413,7 +429,7 @@ extraVolumeMounts: []
 # =============================================================================
 
 externalSecrets:
-  # -- Render ExternalSecret for clusters running External Secrets Operator.
+  # -- Render ExternalSecret resources for clusters running External Secrets Operator.
   enabled: false
   # -- ExternalSecret apiVersion.
   apiVersion: external-secrets.io/v1
@@ -425,10 +441,48 @@ externalSecrets:
     kind: SecretStore
   target:
     creationPolicy: Owner
-  # -- ExternalSecret data entries for MySQL passwords.
+  # -- Legacy ExternalSecret data entries for MySQL passwords. Prefer externalSecrets.auth for new installs.
   data: []
   #   - secretKey: mysql-root-password
   #     remoteRef:
   #       key: mysql/credentials
   #       property: root-password
-
+  auth:
+    # -- Manage the MySQL auth Secret with External Secrets Operator.
+    enabled: false
+    # -- Target Kubernetes Secret name. Empty defaults to <release>-mysql-auth.
+    targetName: ""
+    rootPasswordRemoteRef: {}
+      # key: prod/mysql
+      # property: root-password
+    userPasswordRemoteRef: {}
+      # key: prod/mysql
+      # property: user-password
+    replicationPasswordRemoteRef: {}
+      # key: prod/mysql
+      # property: replication-password
+  tls:
+    # -- Manage the MySQL TLS Secret with External Secrets Operator.
+    enabled: false
+    # -- Target Kubernetes Secret name. Empty defaults to <release>-mysql-tls.
+    targetName: ""
+    caRemoteRef: {}
+      # key: prod/mysql-tls
+      # property: ca.crt
+    certRemoteRef: {}
+      # key: prod/mysql-tls
+      # property: tls.crt
+    keyRemoteRef: {}
+      # key: prod/mysql-tls
+      # property: tls.key
+  backup:
+    # -- Manage the backup object-storage Secret with External Secrets Operator.
+    enabled: false
+    # -- Target Kubernetes Secret name. Empty defaults to <release>-mysql-backup.
+    targetName: ""
+    accessKeyRemoteRef: {}
+      # key: prod/mysql-backup
+      # property: access-key
+    secretKeyRemoteRef: {}
+      # key: prod/mysql-backup
+      # property: secret-key

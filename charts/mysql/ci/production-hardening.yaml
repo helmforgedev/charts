@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: Apache-2.0
+# CI scenario: production-oriented hardening without requiring cloud services.
+
+architecture: replication
+
+auth:
+  rootPassword: root-password
+  password: app-password
+  replicationPassword: replication-password
+
+tls:
+  enabled: true
+  existingSecret: mysql-tls
+  requireSecureTransport: true
+  volumePermissions:
+    enabled: true
+  client:
+    enabled: true
+    sslMode: REQUIRED
+
+replication:
+  source:
+    resourcesPreset: small
+    persistence:
+      enabled: false
+  readReplicas:
+    replicaCount: 1
+    resourcesPreset: small
+    persistence:
+      enabled: false
+    probes:
+      requireRunningReplication: true
+
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false
+
+networkPolicy:
+  enabled: true
+  egress:
+    enabled: true
+    allowDNS: true
+    allowSameNamespaceMySQL: true
+    allowHTTPS: true
+
+metrics:
+  enabled: true
+  resourcesPreset: small
+
+backup:
+  enabled: true
+  suspend: true
+  s3:
+    endpoint: https://s3.example.com
+    bucket: mysql-backups
+    existingSecret: mysql-backup

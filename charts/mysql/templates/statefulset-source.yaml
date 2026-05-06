@@ -25,6 +25,10 @@ spec:
         {{- end }}
     spec:
       {{- include "mysql.podSpecCommon" . | nindent 6 }}
+      {{- if and .Values.tls.enabled .Values.tls.volumePermissions.enabled }}
+      initContainers:
+        {{- include "mysql.tlsVolumePermissionsInitContainer" . | nindent 8 }}
+      {{- end }}
       containers:
         - name: mysql
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -142,9 +146,7 @@ spec:
             - name: initdb
               mountPath: /docker-entrypoint-initdb.d
             {{- if .Values.tls.enabled }}
-            - name: tls
-              mountPath: /tls
-              readOnly: true
+            {{- include "mysql.tlsVolumeMount" . | nindent 12 }}
             {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
@@ -154,7 +156,7 @@ spec:
           image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
           imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
           args:
-            - --web.listen-address=:{{ .Values.service.metricsPort }}
+            {{- include "mysql.metricsArgs" . | nindent 12 }}
           ports:
             - name: metrics
               containerPort: {{ .Values.service.metricsPort }}
@@ -186,9 +188,7 @@ spec:
                   name: {{ .Values.initdb.existingConfigMap }}
               {{- end }}
         {{- if .Values.tls.enabled }}
-        - name: tls
-          secret:
-            secretName: {{ include "mysql.tlsSecretName" . }}
+        {{- include "mysql.tlsVolumes" . | nindent 8 }}
         {{- end }}
         {{- if not (ternary .Values.replication.source.persistence.enabled .Values.standalone.persistence.enabled (eq .Values.architecture "replication")) }}
         - name: data

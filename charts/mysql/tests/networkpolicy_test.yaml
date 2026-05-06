@@ -29,3 +29,44 @@ tests:
           content:
             protocol: TCP
             port: 3306
+
+  - it: should add egress policy types and default egress rules when enabled
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - contains:
+          path: spec.egress[0].ports
+          content:
+            protocol: UDP
+            port: 53
+      - contains:
+          path: spec.egress[1].ports
+          content:
+            protocol: TCP
+            port: 3306
+
+  - it: should add HTTPS egress when enabled
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.allowHTTPS: true
+    asserts:
+      - contains:
+          path: spec.egress[2].ports
+          content:
+            protocol: TCP
+            port: 443
+
+  - it: should nest extra egress peers under a to rule
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.extraTo[0].podSelector.matchLabels.app: external-secrets
+    asserts:
+      - equal:
+          path: spec.egress[2].to[0].podSelector.matchLabels.app
+          value: external-secrets
