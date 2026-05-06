@@ -332,6 +332,39 @@ data-encryption-key
 {{- end -}}
 
 {{/*
+signingSecretName — name of the secret holding WEBAPP_SERVER_SIGNING_KEY
+*/}}
+{{- define "hoppscotch.signingSecretName" -}}
+{{- if .Values.signingKey.existingSecret -}}
+{{- .Values.signingKey.existingSecret -}}
+{{- else -}}
+{{- include "hoppscotch.fullname" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+signingSecretKey — key within the secret for WEBAPP_SERVER_SIGNING_KEY
+*/}}
+{{- define "hoppscotch.signingSecretKey" -}}
+{{- .Values.signingKey.existingSecretKey | default "webapp-server-signing-key" -}}
+{{- end -}}
+
+{{/*
+shouldRunPostgresqlExtensionsJob — only run upgrade hook against existing bundled PostgreSQL resources by default.
+*/}}
+{{- define "hoppscotch.shouldRunPostgresqlExtensionsJob" -}}
+{{- if and .Values.postgresql.enabled .Values.postgresqlExtensionsJob.enabled -}}
+  {{- if not .Values.postgresqlExtensionsJob.requireExistingResources -}}
+true
+  {{- else -}}
+    {{- $secret := lookup "v1" "Secret" .Release.Namespace (include "hoppscotch.postgresqlSecretName" .) -}}
+    {{- $service := lookup "v1" "Service" .Release.Namespace (include "hoppscotch.databaseHost" .) -}}
+    {{- if and $secret $service -}}true{{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 databaseEnv — env entries for DATABASE_URL (and DB_PASSWORD helper for password-only mode).
 Handles three cases:
   1. existingSecret with full URL key → single secretKeyRef

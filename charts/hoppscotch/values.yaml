@@ -84,6 +84,12 @@ encryption:
   # -- Key within existingSecret that holds the encryption key.
   existingSecretKey: data-encryption-key
 
+signingKey:
+  # -- Existing secret containing WEBAPP_SERVER_SIGNING_KEY. Useful with ExternalSecret-managed secrets.
+  existingSecret: ""
+  # -- Key within existingSecret that holds WEBAPP_SERVER_SIGNING_KEY.
+  existingSecretKey: webapp-server-signing-key
+
 # =============================================================================
 # Database
 # =============================================================================
@@ -106,12 +112,15 @@ postgresql:
       02-hoppscotch-extensions.sh: |
         #!/bin/bash
         set -euo pipefail
+        export PGPASSWORD="${POSTGRES_PASSWORD}"
         psql --username "${POSTGRES_USER}" --dbname "${APP_DATABASE}" \
           -c 'CREATE EXTENSION IF NOT EXISTS pg_trgm;'
 
 postgresqlExtensionsJob:
   # -- Run a pre-upgrade hook that ensures pg_trgm exists on bundled PostgreSQL databases with existing PVCs.
   enabled: true
+  # -- Only run the hook when the bundled PostgreSQL Secret and Service already exist. Set to false only for controlled migrations where PostgreSQL is created before the upgrade hook runs.
+  requireExistingResources: true
   image:
     # -- PostgreSQL client image used by the extension hook
     repository: docker.io/library/postgres
