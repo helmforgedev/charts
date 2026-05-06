@@ -50,6 +50,19 @@ For nginx-ingress, add these annotations to your ingress:
   Step 3: Configure Server Settings (auth providers, SMTP) via the UI
   Step 4: Invite users via Admin > User Invitations
 
+Upgrade reminder:
+  Hoppscotch {{ .Chart.AppVersion }} includes upstream feature, security, and
+  bug-fix changes. Back up PostgreSQL and keep DATA_ENCRYPTION_KEY stable
+  before upgrading production.
+  The bundled PostgreSQL subchart bootstraps pg_trgm for fresh data directories,
+  and the pre-upgrade hook applies pg_trgm to existing bundled PostgreSQL PVCs
+  before Prisma migrations run. By default, the hook renders only when the
+  bundled PostgreSQL Secret and Service already exist.
+  WEBAPP_SERVER_SIGNING_KEY is persisted in the chart Secret to keep web
+  bundle signatures stable across pod restarts. With External Secrets, provide
+  webapp-server-signing-key in externalSecrets.data or point signingKey.* to a
+  separately managed Secret.
+
 6. Validation Commands
 ======================
   # Check pods are ready
@@ -62,13 +75,15 @@ For nginx-ingress, add these annotations to your ingress:
 
   # Test backend health
   kubectl exec -n {{ .Release.Namespace }} deploy/{{ include "hoppscotch.fullname" . }} -- \
-    sh -c "wget -qO- http://localhost/backend/v1" 2>/dev/null || echo "backend not ready"
+    sh -c "wget -qO- http://localhost/backend/health" 2>/dev/null || echo "backend not ready"
 
 7. Troubleshooting
 ==================
   Migration error (prisma migrate deploy failed):
     -> Check DATABASE_URL is correct
     -> Ensure PostgreSQL is running: kubectl get pods -n {{ .Release.Namespace }}
+    -> On bundled PostgreSQL upgrades, inspect the pg_trgm hook:
+       kubectl logs -n {{ .Release.Namespace }} job/{{ include "hoppscotch.fullname" . }}-postgresql-extensions
     -> Check migrate init container logs
 
   CORS error (WHITELISTED_ORIGINS mismatch):

@@ -1,6 +1,7 @@
 # CKAN
 
-CKAN is the world's leading open-source data management system for powering data hubs and data portals. It is used by national and local governments, research institutions, and other organizations to manage and publish collections of data.
+CKAN is an open-source data management system for powering data hubs and data portals.
+It is used by governments, research institutions, and other organizations to manage and publish collections of data.
 
 ## Features
 
@@ -33,7 +34,7 @@ helm install ckan oci://ghcr.io/helmforgedev/helm/ckan --version <version> -f va
 
 ## Architecture
 
-```
+```text
 Deployment: ckan (uWSGI, port 5000)
 Deployment: datapusher (port 8800)
 StatefulSet: solr (port 8983)
@@ -46,7 +47,7 @@ StatefulSet: solr (port 8983)
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `ckan/ckan-base` | CKAN container image |
-| `image.tag` | `""` (appVersion) | Image tag |
+| `image.tag` | `2.11.5` | Image tag |
 | `ckan.siteUrl` | `http://localhost:5000` | Public site URL |
 | `ckan.sysadminName` | `admin` | Sysadmin username |
 | `ckan.sysadminPassword` | `""` (auto) | Sysadmin password |
@@ -65,6 +66,9 @@ StatefulSet: solr (port 8983)
 | `ingress.ingressClassName` | `traefik` | Ingress class |
 | `postgresql.enabled` | `true` | Enable PostgreSQL subchart |
 | `redis.enabled` | `true` | Enable Redis subchart |
+
+This chart currently deploys CKAN `2.11.5` with HelmForge PostgreSQL `1.10.0` and Redis `1.6.14`.
+It intentionally does not keep `Chart.lock`; dependencies are resolved by the release workflow.
 
 ## External Database
 
@@ -128,7 +132,7 @@ type: chart-readme
 title: CKAN Helm Chart
 description: CKAN open data portal with DataPusher, Solr, PostgreSQL, and Redis
 
-keywords: ckan, data, portal, open-data, catalog, api, solr
+keywords: ckan, data, portal, open-data, catalog, api, solr, postgresql, redis
 
 purpose: Installation, configuration, and operational guide for the CKAN Helm chart
 scope: charts/ckan
@@ -138,5 +142,5 @@ relations:
   - charts/ckan/Chart.yaml
 path: charts/ckan/README.md
 version: 1.0
-date: 2026-04-01
+date: 2026-05-05
 -->

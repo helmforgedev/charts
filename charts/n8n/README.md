@@ -138,16 +138,19 @@ externalSecrets:
 
 | Key | Default | Description |
 |-----|---------|-------------|
+| `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
+| `image.tag` | `2.19.2` | n8n container image tag |
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
 | `database.mode` | `auto` | Database mode (auto, sqlite, external, postgresql, mysql) |
-| `postgresql.enabled` | `false` | Deploy PostgreSQL subchart |
-| `mysql.enabled` | `false` | Deploy MySQL subchart |
+| `postgresql.enabled` | `false` | Deploy PostgreSQL subchart (`helmforge/postgresql` `1.10.0`) |
+| `postgresql.initdb.scripts` | n8n extension bootstrap | Creates PostgreSQL extensions required by n8n migrations |
+| `mysql.enabled` | `false` | Deploy MySQL subchart (`helmforge/mysql` `1.9.1`) |
 | `queue.enabled` | `false` | Enable queue mode (requires Redis) |
 | `queue.workers` | `1` | Number of worker replicas |
 | `queue.concurrency` | `10` | Concurrent workflows per worker |
-| `redis.enabled` | `false` | Deploy Redis subchart |
+| `redis.enabled` | `false` | Deploy Redis subchart (`helmforge/redis` `1.6.14`) |
 | `persistence.enabled` | `true` | Enable persistent storage |
 | `persistence.size` | `5Gi` | PVC size |
 | `ingress.enabled` | `false` | Enable ingress |
@@ -164,6 +167,20 @@ externalSecrets:
 | `externalSecrets.secretStoreRef.name` | `""` | SecretStore name (required when enabled) |
 | `externalSecrets.secretStoreRef.kind` | `SecretStore` | SecretStore kind |
 | `externalSecrets.data` | `[]` | Remote key mappings (must include `encryption-key` entry) |
+
+## Upgrade Notes
+
+n8n `2.19.2` is an upstream bugfix release. It fixes execution context
+persistence before database writes, global admin favorite listing, peer project
+discovery in share dropdowns, and editor focus panel clipping. Back up the
+database and keep the encryption key stable before upgrading live deployments.
+When using the bundled PostgreSQL subchart on a fresh data directory, the chart
+bootstraps the `uuid-ossp` extension before n8n migrations run.
+
+Self-hosted n8n `2.x` starts an internal JavaScript task runner by default. The
+base `n8nio/n8n` image may also log a Python runner warning when Python is not
+present; use n8n external task runners when running Python Code nodes in
+production.
 
 ## Resources Generated
 

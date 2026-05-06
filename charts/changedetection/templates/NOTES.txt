@@ -40,6 +40,34 @@ Port-forward to access changedetection.io locally:
    kubectl logs -l app.kubernetes.io/name=changedetection \
      -n {{ .Release.Namespace }} --all-containers --tail=50 -f
 
+4. Confirm the application responds through the Service:
+   kubectl run {{ .Release.Name }}-curl --rm -i --restart=Never \
+     --image=curlimages/curl:8.11.1 -n {{ .Release.Namespace }} -- \
+     curl -fsS http://{{ include "changedetection.fullname" . }}:{{ .Values.service.port }}/
+
+{{- if .Values.persistence.enabled }}
+
+Persistence:
+  Data is stored in PVC {{ include "changedetection.dataClaimName" . }} mounted at /datastore.
+  Keep regular backups before application upgrades.
+{{- else }}
+
+Persistence:
+  persistence.enabled=false, so /datastore uses emptyDir and data is ephemeral.
+{{- end }}
+
+{{- if .Values.browser.enabled }}
+
+Browser rendering:
+  The Playwright browser sidecar is enabled and exposed to changedetection.io
+  through PLAYWRIGHT_DRIVER_URL=ws://localhost:3000/?stealth=1&--disable-web-security=true.
+{{- else }}
+
+Browser rendering:
+  The Playwright browser sidecar is disabled. Enable browser.enabled=true for
+  JavaScript-heavy pages.
+{{- end }}
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   TROUBLESHOOTING
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -47,6 +75,7 @@ Port-forward to access changedetection.io locally:
   kubectl describe pod -l app.kubernetes.io/name=changedetection -n {{ .Release.Namespace }}
   kubectl logs -l app.kubernetes.io/name=changedetection -n {{ .Release.Namespace }} --all-containers --tail=100
   kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+  kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   ADDITIONAL RESOURCES
@@ -55,5 +84,3 @@ Port-forward to access changedetection.io locally:
 Documentation:     https://helmforge.dev/docs/charts/changedetection
 Chart Repository:  https://github.com/helmforgedev/charts/tree/main/charts/changedetection
 changedetection.io: https://changedetection.io | https://github.com/dgtlmoon/changedetection.io
-
-Happy Helmforging :)
