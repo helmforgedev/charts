@@ -121,7 +121,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "discount-bandit.databaseSecretName" -}}
 {{- $mode := include "discount-bandit.databaseMode" . -}}
 {{- if eq $mode "mysql" -}}
+{{- if .Values.mysql.auth.existingSecret -}}
+{{- .Values.mysql.auth.existingSecret -}}
+{{- else -}}
 {{- printf "%s-mysql-auth" .Release.Name -}}
+{{- end -}}
 {{- else if .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecret -}}
 {{- else if and .Values.externalSecrets.enabled .Values.externalSecrets.database.enabled .Values.externalSecrets.database.targetName -}}
