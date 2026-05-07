@@ -126,6 +126,7 @@ The default values are designed for a disposable development cache. A production
 - Extstore is optional: extstore can improve cache capacity but is not durable storage.
 - No Gateway API: expose Memcached with a Service when an external endpoint is required.
 - Secrets are explicit: production users can supply existing Secrets or External Secrets instead of committing credentials to values.
+- TLS avoids TCP probes: kubelet TCP probes do not perform a TLS handshake and produce noisy Memcached accept logs.
 
 ## Explicit Non-Goals
 

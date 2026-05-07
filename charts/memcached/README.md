@@ -178,6 +178,9 @@ tls:
 `verifyMode` and `minVersion` map to Memcached OpenSSL extended options. `tls.caKey` is optional and should be set only when the Secret contains a CA file.
 For mutual TLS, provide a CA certificate and set the verify mode required by your client policy.
 
+When TLS is enabled, the chart omits TCP liveness/readiness probes because kubelet TCP probes do
+not perform a TLS handshake and cause noisy Memcached accept logs.
+
 ## Extstore
 
 Extstore allows Memcached to keep larger or colder objects on a local file-backed cache path. It is cache storage, not durable application data.
