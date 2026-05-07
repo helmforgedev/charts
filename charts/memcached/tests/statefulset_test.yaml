@@ -127,6 +127,29 @@ tests:
           path: spec.template.spec.initContainers[0].name
           value: tls-permissions
 
+  - it: keeps tls permissions readable when runAsUser is unset
+    template: statefulset.yaml
+    set:
+      tls.enabled: true
+      tls.existingSecret: memcached-tls
+      podSecurityContext.runAsUser: null
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "chgrp -R 11211 /tls"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "chmod 0440 /tls/tls.key"
+      - notMatchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "chown -R :"
+      - notExists:
+          path: spec.template.spec.securityContext.runAsGroup
+      - notExists:
+          path: spec.template.spec.securityContext.runAsNonRoot
+      - exists:
+          path: spec.template.spec.securityContext.fsGroup
+
   - it: keeps direct TLS secret group-readable when volume permissions are disabled
     template: statefulset.yaml
     set:

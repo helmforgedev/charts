@@ -38,7 +38,13 @@ spec:
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
-      {{- with .Values.podSecurityContext }}
+      {{- $podSecurityContext := deepCopy .Values.podSecurityContext }}
+      {{- if not $podSecurityContext.runAsUser }}
+      {{- $_ := unset $podSecurityContext "runAsUser" }}
+      {{- $_ := unset $podSecurityContext "runAsGroup" }}
+      {{- $_ := unset $podSecurityContext "runAsNonRoot" }}
+      {{- end }}
+      {{- with $podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -71,9 +77,16 @@ spec:
           args:
             - |
               cp -L /tls-secret/* /tls/
-              chown -R {{ .Values.podSecurityContext.runAsUser }}:{{ .Values.podSecurityContext.runAsGroup }} /tls
+              {{- $tlsGroup := default .Values.podSecurityContext.runAsGroup .Values.podSecurityContext.fsGroup }}
+              {{- if and .Values.podSecurityContext.runAsUser $tlsGroup }}
+              chown -R {{ .Values.podSecurityContext.runAsUser }}:{{ $tlsGroup }} /tls
+              {{- else if .Values.podSecurityContext.runAsUser }}
+              chown -R {{ .Values.podSecurityContext.runAsUser }} /tls
+              {{- else if $tlsGroup }}
+              chgrp -R {{ $tlsGroup }} /tls
+              {{- end }}
               chmod 0444 /tls/{{ .Values.tls.certKey }}
-              chmod 0400 /tls/{{ .Values.tls.keyKey }}
+              chmod 0440 /tls/{{ .Values.tls.keyKey }}
               {{- if .Values.tls.caKey }}
               chmod 0444 /tls/{{ .Values.tls.caKey }} || true
               {{- end }}
