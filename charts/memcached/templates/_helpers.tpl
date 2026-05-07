@@ -79,6 +79,14 @@ app.kubernetes.io/part-of: helmforge
 {{- printf "%s:%s\n" .Values.auth.username .Values.auth.password -}}
 {{- end -}}
 
+{{- define "memcached.listenAddress" -}}
+{{- if and (has "IPv6" .Values.service.ipFamilies) (eq .Values.memcached.listenAddress "0.0.0.0") -}}
+{{- "0.0.0.0,::" -}}
+{{- else -}}
+{{- .Values.memcached.listenAddress -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "memcached.validate" -}}
 {{- $resourceRequests := default dict .Values.resources.requests -}}
 {{- if not (has .Values.architecture (list "standalone" "distributed")) -}}
@@ -169,7 +177,7 @@ app.kubernetes.io/part-of: helmforge
 - -U
 - {{ .Values.memcached.udpPort | quote }}
 - -l
-- {{ .Values.memcached.listenAddress | quote }}
+- {{ include "memcached.listenAddress" . | quote }}
 - -c
 - {{ .Values.memcached.maxConnections | quote }}
 - -t

@@ -42,6 +42,33 @@ tests:
           path: spec.replicas
           value: 3
 
+  - it: binds IPv4 and IPv6 when Service ipFamilies includes IPv6
+    template: statefulset.yaml
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies:
+        - IPv4
+        - IPv6
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: "0.0.0.0,::"
+
+  - it: preserves explicit listenAddress overrides for dual-stack Services
+    template: statefulset.yaml
+    set:
+      memcached.listenAddress: "::"
+      service.ipFamilyPolicy: SingleStack
+      service.ipFamilies:
+        - IPv6
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: "::"
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: "0.0.0.0,::"
+
   - it: mounts auth secret and args when auth is enabled
     template: statefulset.yaml
     set:

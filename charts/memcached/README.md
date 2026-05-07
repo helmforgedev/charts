@@ -262,6 +262,11 @@ service:
     - IPv6
 ```
 
+When `service.ipFamilies` includes `IPv6` and `memcached.listenAddress` is left at the default
+`0.0.0.0`, the chart starts Memcached with `0.0.0.0,::` so both IPv4 and IPv6 Service paths have
+a listener. Explicit `memcached.listenAddress` overrides are preserved for clusters that require a
+specific bind policy.
+
 NetworkPolicy:
 
 ```yaml
