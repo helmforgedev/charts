@@ -75,8 +75,14 @@ app.kubernetes.io/part-of: helmforge
 {{- if and (eq .Values.architecture "standalone") (gt (int .Values.replicaCount) 1) -}}
 {{- fail "architecture=standalone requires replicaCount=1; use architecture=distributed for multiple independent cache nodes" -}}
 {{- end -}}
+{{- if and (eq .Values.architecture "standalone") .Values.autoscaling.enabled -}}
+{{- fail "autoscaling.enabled requires architecture=distributed because standalone mode must remain a single cache pod" -}}
+{{- end -}}
 {{- if not (has .Values.auth.mode (list "ascii" "sasl")) -}}
 {{- fail "auth.mode must be one of: ascii, sasl" -}}
+{{- end -}}
+{{- if and .Values.auth.enabled (eq .Values.auth.mode "sasl") (ne .Values.memcached.protocol "binary") -}}
+{{- fail "auth.mode=sasl requires memcached.protocol=binary" -}}
 {{- end -}}
 {{- if and .Values.auth.enabled (not .Values.auth.existingSecret) (not .Values.auth.password) -}}
 {{- fail "auth.password or auth.existingSecret is required when auth.enabled=true" -}}
@@ -173,9 +179,10 @@ app.kubernetes.io/part-of: helmforge
 {{- if .Values.auth.enabled }}
 {{- if eq .Values.auth.mode "sasl" }}
 - -S
-{{- end }}
+{{- else }}
 - -Y
 - /auth/{{ .Values.auth.authFileKey }}
+{{- end }}
 {{- end }}
 {{- if .Values.tls.enabled }}
 - -Z
