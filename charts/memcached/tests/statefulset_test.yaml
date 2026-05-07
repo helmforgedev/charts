@@ -1,0 +1,225 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: StatefulSet
+templates:
+  - statefulset.yaml
+  - secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: renders default standalone statefulset
+    template: statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/library/memcached:1.6.41
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: -m
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: modern
+      - exists:
+          path: spec.template.spec.containers[0].livenessProbe
+      - exists:
+          path: spec.template.spec.containers[0].readinessProbe
+
+  - it: supports distributed replicas
+    template: statefulset.yaml
+    set:
+      architecture: distributed
+      replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: binds IPv4 and IPv6 when Service ipFamilies includes IPv6
+    template: statefulset.yaml
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies:
+        - IPv4
+        - IPv6
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: "0.0.0.0,::"
+
+  - it: preserves explicit listenAddress overrides for dual-stack Services
+    template: statefulset.yaml
+    set:
+      memcached.listenAddress: "::"
+      service.ipFamilyPolicy: SingleStack
+      service.ipFamilies:
+        - IPv6
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: "::"
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: "0.0.0.0,::"
+
+  - it: mounts auth secret and args when auth is enabled
+    template: statefulset.yaml
+    set:
+      auth.enabled: true
+      auth.password: test-password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: -Y
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: auth
+            mountPath: /auth
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: auth
+            secret:
+              secretName: test-memcached-auth
+              items:
+                - key: authfile
+                  path: authfile
+
+  - it: renders sasl without ascii auth file flags
+    template: statefulset.yaml
+    set:
+      auth.enabled: true
+      auth.mode: sasl
+      auth.existingSecret: test-sasl
+      memcached.protocol: binary
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: -S
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: -Y
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: /auth/authfile
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SASL_CONF_PATH
+            value: /sasl2
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: auth
+            mountPath: /sasl2
+            readOnly: true
+
+  - it: blocks sasl without binary protocol
+    template: statefulset.yaml
+    set:
+      auth.enabled: true
+      auth.mode: sasl
+      auth.existingSecret: test-sasl
+    asserts:
+      - failedTemplate:
+          errorMessage: "auth.mode=sasl requires memcached.protocol=binary"
+
+  - it: mounts tls secret and args when TLS is enabled
+    template: statefulset.yaml
+    set:
+      tls.enabled: true
+      tls.existingSecret: memcached-tls
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: -Z
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls-secret
+            secret:
+              secretName: memcached-tls
+              defaultMode: 256
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls
+            emptyDir: {}
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: tls-permissions
+      - notExists:
+          path: spec.template.spec.containers[0].livenessProbe
+      - notExists:
+          path: spec.template.spec.containers[0].readinessProbe
+
+  - it: keeps tls permissions readable when runAsUser is unset
+    template: statefulset.yaml
+    set:
+      tls.enabled: true
+      tls.existingSecret: memcached-tls
+      podSecurityContext.runAsUser: null
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "chgrp -R 11211 /tls"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "chmod 0440 /tls/tls.key"
+      - notMatchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "chown -R :"
+      - notExists:
+          path: spec.template.spec.securityContext.runAsGroup
+      - notExists:
+          path: spec.template.spec.securityContext.runAsNonRoot
+      - exists:
+          path: spec.template.spec.securityContext.fsGroup
+
+  - it: keeps direct TLS secret group-readable when volume permissions are disabled
+    template: statefulset.yaml
+    set:
+      tls.enabled: true
+      tls.existingSecret: memcached-tls
+      tls.volumePermissions.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls
+            secret:
+              secretName: memcached-tls
+              defaultMode: 288
+
+  - it: defaults metrics TLS server name to the service DNS name
+    template: statefulset.yaml
+    set:
+      tls.enabled: true
+      tls.existingSecret: memcached-tls
+      metrics.enabled: true
+      metrics.memcachedTLS.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[1].args
+          content: --memcached.tls.server-name=test-memcached.default.svc
+
+  - it: renders extstore volume claim template
+    template: statefulset.yaml
+    set:
+      extstore.enabled: true
+      extstore.persistence.enabled: true
+    asserts:
+      - exists:
+          path: spec.volumeClaimTemplates[0]
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: extstore

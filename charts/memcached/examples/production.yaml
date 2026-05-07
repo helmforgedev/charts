@@ -1,0 +1,78 @@
+# SPDX-License-Identifier: Apache-2.0
+# Production-oriented example. Adjust sizing, storage, and policies for your cluster.
+
+architecture: distributed
+replicaCount: 3
+
+memcached:
+  memoryLimitMB: 512
+  maxConnections: 4096
+  threads: 4
+  maxItemSize: 2m
+  disableFlushAll: true
+  disableDumping: true
+
+tls:
+  enabled: true
+  existingSecret: memcached-tls
+  caKey: ca.crt
+  verifyMode: "0"
+  minVersion: "2"
+
+service:
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+    - IPv4
+    - IPv6
+
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false
+
+networkPolicy:
+  enabled: true
+  ingress:
+    allowSameNamespace: true
+  metrics:
+    enabled: true
+    allowSameNamespace: true
+  egress:
+    enabled: true
+    allowDNS: true
+    allowHTTPS: true
+
+metrics:
+  enabled: true
+  memcachedTLS:
+    enabled: true
+  serviceMonitor:
+    enabled: true
+  prometheusRule:
+    enabled: true
+    rules:
+      - alert: MemcachedDown
+        expr: up{job=~".*memcached.*"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Memcached exporter is down
+
+pdb:
+  enabled: true
+  minAvailable: 2
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 640Mi
+  limits:
+    memory: 640Mi
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: memcached

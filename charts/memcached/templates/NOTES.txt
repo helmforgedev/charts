@@ -1,0 +1,92 @@
+# Getting started
+
+Memcached has been deployed as {{ .Values.architecture }}.
+
+## Access
+
+Client service:
+  {{ include "memcached.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.service.port }}
+
+Headless service for pod-aware client hashing:
+  {{ include "memcached.headlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}
+
+## Configuration
+
+Architecture: {{ .Values.architecture }}
+Replicas: {{ .Values.replicaCount }}
+Memory limit: {{ .Values.memcached.memoryLimitMB }} MiB
+Max connections: {{ .Values.memcached.maxConnections }}
+
+{{- if .Values.auth.enabled }}
+Authentication: enabled ({{ .Values.auth.mode }})
+{{- else }}
+Authentication: disabled
+{{- end }}
+{{- if .Values.tls.enabled }}
+TLS: enabled
+{{- else }}
+TLS: disabled
+{{- end }}
+{{- if .Values.metrics.enabled }}
+Metrics: enabled
+{{- else }}
+Metrics: disabled
+{{- end }}
+
+## Validation
+
+Validate connectivity:
+  kubectl run memcached-client --rm -it --restart=Never \
+    --namespace {{ .Release.Namespace }} \
+    --image=docker.io/library/busybox:1.37.0 -- \
+    sh -ec "printf 'version\r\n' | nc {{ include "memcached.fullname" . }} {{ .Values.service.port }}"
+
+{{- if .Values.auth.enabled }}
+
+Authentication is enabled with mode {{ .Values.auth.mode }}.
+{{- if eq .Values.auth.mode "ascii" }}
+ASCII auth uses a fake set command before regular commands:
+  printf 'set auth 0 0 <bytes>\r\n<username> <password>\r\nversion\r\n' | nc {{ include "memcached.fullname" . }} {{ .Values.service.port }}
+{{- else }}
+SASL mode requires binary protocol clients and the mounted SASL database from Secret {{ include "memcached.authSecretName" . }}.
+The chart sets SASL_CONF_PATH={{ .Values.auth.sasl.mountPath }}.
+{{- end }}
+{{- end }}
+
+{{- if .Values.tls.enabled }}
+
+TLS is enabled. Use a Memcached client that supports TLS and trusts the mounted certificate chain.
+{{- end }}
+
+{{- if .Values.metrics.enabled }}
+
+Metrics endpoint:
+  {{ include "memcached.metricsServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.metrics.port }}/metrics
+{{- end }}
+
+## Troubleshooting
+
+Inspect pods:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Inspect logs:
+  kubectl logs -n {{ .Release.Namespace }} statefulset/{{ include "memcached.fullname" . }} -c memcached --tail=100
+
+Inspect events:
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+
+## Resources
+
+Chart documentation:
+  https://helmforge.dev/docs/charts/memcached
+
+Upstream Memcached:
+  https://memcached.org
+
+Production reminders:
+  - Memcached is a volatile cache, not a database.
+  - Use distributed mode only with client-side hashing or application-aware node lists.
+  - Enable NetworkPolicy with explicit client namespaces before exposing shared cache services.
+  - Test eviction behavior under realistic memory pressure before setting production limits.
+
+Happy Helmforging :)

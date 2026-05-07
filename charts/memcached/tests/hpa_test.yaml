@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: HorizontalPodAutoscaler
+templates:
+  - hpa.yaml
+  - statefulset.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: renders no hpa by default
+    template: hpa.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders hpa for distributed mode
+    template: hpa.yaml
+    set:
+      architecture: distributed
+      autoscaling.enabled: true
+      autoscaling.minReplicas: 2
+      autoscaling.maxReplicas: 6
+      resources:
+        requests:
+          cpu: 100m
+    asserts:
+      - isKind:
+          of: HorizontalPodAutoscaler
+      - equal:
+          path: spec.minReplicas
+          value: 2
+      - equal:
+          path: spec.maxReplicas
+          value: 6

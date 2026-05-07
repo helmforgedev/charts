@@ -1,0 +1,188 @@
+# SPDX-License-Identifier: Apache-2.0
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+clusterDomain: cluster.local
+
+architecture: standalone
+replicaCount: 1
+
+image:
+  repository: docker.io/library/memcached
+  tag: 1.6.41
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+memcached:
+  memoryLimitMB: 64
+  maxConnections: 1024
+  threads: 4
+  maxItemSize: 1m
+  protocol: auto
+  listenAddress: 0.0.0.0
+  udpPort: 0
+  disableFlushAll: false
+  disableEvictions: false
+  disableCas: false
+  disableWatch: false
+  disableDumping: true
+  verbosity: ""
+  extendedOptions:
+    - modern
+  extraArgs: []
+
+auth:
+  enabled: false
+  mode: ascii
+  username: memcached
+  password: ""
+  existingSecret: ""
+  authFileKey: authfile
+  sasl:
+    mountPath: /sasl2
+    configKey: memcached.conf
+    databaseKey: memcachedsasldb
+
+externalSecrets:
+  enabled: false
+  refreshInterval: 1h
+  secretStoreRef:
+    name: ""
+    kind: ClusterSecretStore
+  target:
+    creationPolicy: Owner
+  data: []
+
+tls:
+  enabled: false
+  existingSecret: ""
+  certKey: tls.crt
+  keyKey: tls.key
+  caKey: ""
+  verifyMode: "0"
+  minVersion: "2"
+  volumePermissions:
+    enabled: true
+    image:
+      repository: docker.io/library/busybox
+      tag: 1.37.0
+      pullPolicy: IfNotPresent
+    resources: {}
+
+extstore:
+  enabled: false
+  path: /extstore/cache
+  size: 1G
+  pageSizeMB: 64
+  wbufSizeMB: 4
+  threads: 1
+  itemSizeBytes: 512
+  persistence:
+    enabled: false
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+
+service:
+  type: ClusterIP
+  port: 11211
+  annotations: {}
+  ipFamilyPolicy: ""
+  ipFamilies: []
+
+headlessService:
+  annotations: {}
+
+serviceAccount:
+  create: false
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: false
+
+metrics:
+  enabled: false
+  image:
+    repository: quay.io/prometheus/memcached-exporter
+    tag: v0.15.3
+    pullPolicy: IfNotPresent
+  port: 9150
+  memcachedTLS:
+    enabled: false
+    insecureSkipVerify: false
+    serverName: ""
+  resources: {}
+  service:
+    annotations: {}
+  serviceMonitor:
+    enabled: false
+    namespace: ""
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+  prometheusRule:
+    enabled: false
+    namespace: ""
+    labels: {}
+    rules: []
+
+networkPolicy:
+  enabled: false
+  ingress:
+    allowSameNamespace: true
+    extraFrom: []
+  metrics:
+    enabled: false
+    allowSameNamespace: true
+    extraFrom: []
+  egress:
+    enabled: false
+    allowSameNamespace: true
+    allowDNS: true
+    allowHTTPS: false
+    extraTo: []
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: ""
+
+pdb:
+  enabled: false
+  minAvailable: 1
+  maxUnavailable: ""
+
+resources: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 11211
+  runAsGroup: 11211
+  fsGroup: 11211
+  fsGroupChangePolicy: OnRootMismatch
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+podLabels: {}
+podAnnotations: {}
+priorityClassName: ""
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+terminationGracePeriodSeconds: 30
+
+extraEnv: []
+extraEnvFrom: []
+extraVolumes: []
+extraVolumeMounts: []
+extraInitContainers: []
+extraContainers: []
+extraManifests: []
