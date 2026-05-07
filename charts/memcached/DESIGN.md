@@ -78,7 +78,7 @@ Kubernetes Secret <------------------ cert-manager / platform PKI
                   - no API token by default
 ```
 
-The chart supports externally managed auth material and TLS files. It does not generate secrets or certificates.
+The chart supports externally managed auth material and TLS files. CA material is optional, and the chart does not generate secrets or certificates.
 
 ### Observability Flow
 

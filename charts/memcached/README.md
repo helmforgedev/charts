@@ -164,7 +164,8 @@ tls:
   minVersion: "2"
 ```
 
-`verifyMode` and `minVersion` map to Memcached OpenSSL extended options. For mutual TLS, provide a CA certificate and set the verify mode required by your client policy.
+`verifyMode` and `minVersion` map to Memcached OpenSSL extended options. `tls.caKey` is optional and should be set only when the Secret contains a CA file.
+For mutual TLS, provide a CA certificate and set the verify mode required by your client policy.
 
 ## Extstore
 
