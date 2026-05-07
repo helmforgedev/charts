@@ -96,7 +96,7 @@ Exporter sidecar
 Metrics Service --> ServiceMonitor --> Prometheus
 ```
 
-The exporter is optional and disabled by default. It supports TLS to Memcached, but it does not support Memcached authentication. The chart blocks auth plus metrics to avoid a permanently failing exporter.
+The exporter is optional and disabled by default. It supports TLS to Memcached, but it does not support Memcached authentication. The chart blocks auth plus metrics to avoid a permanently failing exporter. When TLS scraping is enabled, the exporter verifies the Memcached certificate with a Service DNS server name by default while still connecting to the local pod address.
 
 ## Production Controls
 

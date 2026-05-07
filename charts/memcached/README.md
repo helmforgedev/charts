@@ -236,6 +236,8 @@ metrics:
     enabled: true
 ```
 
+When `metrics.memcachedTLS.enabled=true`, the exporter still connects to the local pod address but verifies TLS with `metrics.memcachedTLS.serverName`. If unset, the chart uses `<release>-memcached.<namespace>.svc`; make sure the Memcached certificate includes that Service DNS name or set an explicit server name.
+
 ## Networking
 
 The chart creates:
@@ -285,8 +287,10 @@ networkPolicy:
 | `extstore.enabled` | `false` | Enables Memcached extstore options. |
 | `metrics.enabled` | `false` | Enables Prometheus exporter sidecar and metrics Service. |
 | `metrics.memcachedTLS.enabled` | `false` | Enables TLS when the exporter scrapes Memcached. |
+| `metrics.memcachedTLS.serverName` | computed Service DNS | TLS verification name used by the metrics exporter. |
 | `networkPolicy.enabled` | `false` | Enables NetworkPolicy resources. |
 | `networkPolicy.egress.allowSameNamespace` | `true` | Allows cache and metrics responses to same-namespace clients. |
+| `pdb.maxUnavailable` | `""` | Optional PDB disruption limit. Explicit `0` is honored. |
 | `service.ipFamilyPolicy` | `""` | Optional Kubernetes Service dual-stack policy. |
 | `externalSecrets.enabled` | `false` | Renders External Secrets Operator v1 resource. |
 | `serviceAccount.automountServiceAccountToken` | `false` | Keeps Kubernetes API token disabled by default. |
