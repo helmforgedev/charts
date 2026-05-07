@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: StatefulSet
+templates:
+  - statefulset.yaml
+  - secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: renders default standalone statefulset
+    template: statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/library/memcached:1.6.41-alpine3.23
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: -m
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: modern
+
+  - it: supports distributed replicas
+    template: statefulset.yaml
+    set:
+      architecture: distributed
+      replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: mounts auth secret and args when auth is enabled
+    template: statefulset.yaml
+    set:
+      auth.enabled: true
+      auth.password: test-password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: -Y
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: auth
+            mountPath: /auth
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: auth
+            secret:
+              secretName: test-memcached-auth
+
+  - it: mounts tls secret and args when TLS is enabled
+    template: statefulset.yaml
+    set:
+      tls.enabled: true
+      tls.existingSecret: memcached-tls
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: -Z
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls-secret
+            secret:
+              secretName: memcached-tls
+              defaultMode: 256
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls
+            emptyDir: {}
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: tls-permissions
+
+  - it: renders extstore volume claim template
+    template: statefulset.yaml
+    set:
+      extstore.enabled: true
+      extstore.persistence.enabled: true
+    asserts:
+      - exists:
+          path: spec.volumeClaimTemplates[0]
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: extstore

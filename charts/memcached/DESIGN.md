@@ -1,0 +1,169 @@
+# Memcached Chart Design
+
+## Scope
+
+This chart deploys Memcached on Kubernetes using the official image. It focuses on predictable cache infrastructure, secure-by-option production settings, and integration points commonly required by platform teams.
+
+It does not turn Memcached into a replicated database. Cache distribution remains a client responsibility.
+
+## Architecture
+
+### Standalone
+
+```text
+Applications
+     |
+     v
++---------------------+
+| Service             |
+| <release>-memcached |
++---------------------+
+     |
+     v
++---------------------+
+| StatefulSet         |
+| memcached-0         |
++---------------------+
+     |
+     v
++---------------------+
+| memory cache        |
++---------------------+
+```
+
+Standalone is intentionally small. It is appropriate for development, CI, or production cases where a single cache instance is acceptable.
+
+### Distributed
+
+```text
+                       client-side hashing
+Applications -------------------------------------+
+     |                                            |
+     v                                            v
++---------------------+                 +------------------------+
+| Client Service      |                 | Headless Service       |
+| <release>-memcached |                 | stable pod DNS         |
++---------------------+                 +------------------------+
+     |                                            |
+     +-------------------+------------------------+
+                         |
+       +-----------------+-----------------+
+       v                 v                 v
++-------------+   +-------------+   +-------------+
+| pod-0       |   | pod-1       |   | pod-2       |
+| independent |   | independent |   | independent |
+| cache node  |   | cache node  |   | cache node  |
++-------------+   +-------------+   +-------------+
+```
+
+Memcached does not replicate entries. A production client should use consistent hashing or another distribution strategy and tolerate cache misses during node replacement.
+
+### Secure Integration Flow
+
+```text
+External secret store
+        |
+        | ExternalSecret (optional)
+        v
+Kubernetes Secret <------------------ cert-manager / platform PKI
+  - authfile                         - TLS Secret
+        |                                  |
+        +----------------+-----------------+
+                         v
+                Memcached StatefulSet
+                  - auth file mount
+                  - TLS file mount
+                  - read-only rootfs
+                  - no API token by default
+```
+
+The chart supports externally managed auth material and TLS files. It does not generate secrets or certificates.
+
+### Observability Flow
+
+```text
+Memcached container
+        |
+        | localhost:11211
+        v
+Exporter sidecar
+        |
+        | :9150 /metrics
+        v
+Metrics Service --> ServiceMonitor --> Prometheus
+```
+
+The exporter is optional and disabled by default. It supports TLS to Memcached, but it does not support Memcached authentication. The chart blocks auth plus metrics to avoid a permanently failing exporter.
+
+### Gateway API Flow
+
+```text
+TCP clients
+     |
+     v
+Gateway listener
+     |
+     v
+TCPRoute
+     |
+     v
+Memcached Service
+```
+
+The chart can render a `TCPRoute` for clusters that already run Gateway API CRDs and a compatible controller.
+
+## Production Controls
+
+The default values are designed for a disposable development cache. A production deployment should normally configure:
+
+- `architecture=distributed` and `replicaCount>=3`
+- memory sizing aligned between `memcached.memoryLimitMB` and container memory limits
+- CPU and memory requests
+- `memcached.disableFlushAll=true`
+- explicit topology spread constraints or pod anti-affinity
+- authentication, TLS, or strict NetworkPolicy depending on the trust boundary
+- `networkPolicy.enabled=true` when the CNI enforces policies
+- `metrics.enabled=true` with alert rules
+- `pdb.enabled=true`
+- `serviceAccount.automountServiceAccountToken=false`
+- External Secrets Operator for production credentials
+
+## Design Decisions
+
+- Official image only: no vendor-specific Memcached image or Bitnami dependency.
+- No `latest` tags: image tags are pinned and appVersion tracks the upstream version.
+- StatefulSet over Deployment: stable pod identities and headless DNS help clients that address individual cache nodes.
+- No Chart.lock: the chart has no dependencies.
+- Extstore is optional: extstore can improve cache capacity but is not durable storage.
+- Gateway API is optional: the chart renders `TCPRoute` without installing CRDs.
+- Secrets are explicit: production users can supply existing Secrets or External Secrets instead of committing credentials to values.
+
+## Explicit Non-Goals
+
+- replicated cache data
+- automatic sharding or consistent hashing
+- Memcached operator behavior
+- persistent application data
+- certificate generation
+- installing Prometheus Operator or Gateway API CRDs
+
+## Related Documents
+
+- [README.md](README.md)
+- [examples/production.yaml](examples/production.yaml)
+- [values.yaml](values.yaml)
+
+<!-- @AI-METADATA
+type: design
+title: Memcached Chart Design
+description: Design document for the HelmForge Memcached chart
+keywords: memcached, design, architecture, distributed-cache, tls, extstore, gateway-api, external-secrets
+purpose: Document architecture, trade-offs, production controls, and non-goals
+scope: Chart Design
+relations:
+  - charts/memcached/README.md
+  - charts/memcached/examples/production.yaml
+path: charts/memcached/DESIGN.md
+version: 1.0
+date: 2026-05-06
+-->
