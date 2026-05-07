@@ -5,19 +5,26 @@
 
 {{- define "memcached.fullname" -}}
 {{- if .Values.fullnameOverride -}}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- .Values.fullnameOverride | trunc 52 | trimSuffix "-" -}}
 {{- else -}}
 {{- $name := default .Chart.Name .Values.nameOverride -}}
 {{- if contains $name .Release.Name -}}
-{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- .Release.Name | trunc 52 | trimSuffix "-" -}}
 {{- else -}}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 52 | trimSuffix "-" -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "memcached.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "memcached.suffixedName" -}}
+{{- $base := .base -}}
+{{- $suffix := .suffix -}}
+{{- $baseMaxLength := int (sub 63 (add 1 (len $suffix))) -}}
+{{- printf "%s-%s" ($base | trunc $baseMaxLength | trimSuffix "-") $suffix | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{- define "memcached.selectorLabels" -}}
@@ -45,18 +52,22 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 
 {{- define "memcached.headlessServiceName" -}}
-{{- printf "%s-headless" (include "memcached.fullname" .) -}}
+{{- include "memcached.suffixedName" (dict "base" (include "memcached.fullname" .) "suffix" "headless") -}}
 {{- end -}}
 
 {{- define "memcached.metricsServiceName" -}}
-{{- printf "%s-metrics" (include "memcached.fullname" .) -}}
+{{- include "memcached.suffixedName" (dict "base" (include "memcached.fullname" .) "suffix" "metrics") -}}
+{{- end -}}
+
+{{- define "memcached.testPodName" -}}
+{{- include "memcached.suffixedName" (dict "base" (include "memcached.fullname" .) "suffix" "test-connection") -}}
 {{- end -}}
 
 {{- define "memcached.authSecretName" -}}
 {{- if .Values.auth.existingSecret -}}
 {{- .Values.auth.existingSecret -}}
 {{- else -}}
-{{- printf "%s-auth" (include "memcached.fullname" .) -}}
+{{- include "memcached.suffixedName" (dict "base" (include "memcached.fullname" .) "suffix" "auth") -}}
 {{- end -}}
 {{- end -}}
 

@@ -127,6 +127,7 @@ The default values are designed for a disposable development cache. A production
 - No Gateway API: expose Memcached with a Service when an external endpoint is required.
 - Secrets are explicit: production users can supply existing Secrets or External Secrets instead of committing credentials to values.
 - TLS avoids TCP probes: kubelet TCP probes do not perform a TLS handshake and produce noisy Memcached accept logs.
+- StatefulSet names reserve space for Kubernetes-generated pod and controller labels, so long release names are truncated before suffixed Service names are built.
 
 ## Explicit Non-Goals
 
