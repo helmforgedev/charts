@@ -112,7 +112,9 @@ The Secret key must contain lines in Memcached auth-file format:
 app:change-me
 ```
 
-ASCII auth forces Memcached to start with ASCII protocol because upstream disables binary protocol when `-Y` is active. Clients authenticate by sending a fake `set` command with a `username password` payload before regular cache commands. The payload byte length must match the credentials string.
+ASCII auth forces Memcached to start with ASCII protocol because upstream disables binary protocol when `-Y` is active.
+Clients authenticate by sending a fake `set` command with a `username password` payload before regular cache commands.
+The payload byte length must match the credentials string.
 
 SASL mode starts Memcached with `-S` and should be used only with clients that support binary protocol SASL:
 

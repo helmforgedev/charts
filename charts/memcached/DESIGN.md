@@ -2,7 +2,8 @@
 
 ## Scope
 
-This chart deploys Memcached on Kubernetes using the official image. It focuses on predictable cache infrastructure, secure-by-option production settings, and integration points commonly required by platform teams.
+This chart deploys Memcached on Kubernetes using the official image. It focuses on predictable cache infrastructure, secure-by-option production settings,
+and integration points commonly required by platform teams.
 
 It does not turn Memcached into a replicated database. Cache distribution remains a client responsibility.
 
