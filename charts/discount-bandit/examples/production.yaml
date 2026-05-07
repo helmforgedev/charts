@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: Apache-2.0
+# Production-oriented example using the HelmForge MySQL subchart.
+
+discountBandit:
+  appUrl: https://deals.example.com
+  timezone: America/New_York
+  themeColor: Stone
+  cron: "*/10 * * * *"
+  existingSecret: discount-bandit-app
+
+mysql:
+  enabled: true
+  architecture: standalone
+  auth:
+    database: discount_bandit
+    username: discount_bandit
+    existingSecret: discount-bandit-mysql
+  standalone:
+    persistence:
+      enabled: true
+      size: 20Gi
+
+serviceAccount:
+  automountServiceAccountToken: false
+
+service:
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+    - IPv4
+    - IPv6
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: deals.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: discount-bandit-tls
+      hosts:
+        - deals.example.com
+
+networkPolicy:
+  enabled: true
+  egress:
+    enabled: true
+    allowDNS: true
+    allowHTTPS: true
+    allowHTTP: false
+    allowSameNamespaceDatabase: true
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    memory: 1Gi

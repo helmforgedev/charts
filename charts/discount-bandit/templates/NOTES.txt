@@ -1,6 +1,5 @@
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Discount Bandit has been successfully deployed!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+Discount Bandit has been deployed.
 
 Chart:      {{ .Chart.Name }}
 Version:    {{ .Chart.Version }}
@@ -8,53 +7,63 @@ AppVersion: {{ .Chart.AppVersion }}
 Release:    {{ .Release.Name }}
 Namespace:  {{ .Release.Namespace }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ACCESS INFORMATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Runtime
+  Database mode: {{ include "discount-bandit.databaseMode" . }}
+  ServiceAccount: {{ include "discount-bandit.serviceAccountName" . }}
+  ServiceAccount token automount: {{ .Values.serviceAccount.automountServiceAccountToken }}
+  NetworkPolicy enabled: {{ .Values.networkPolicy.enabled }}
+  Gateway API enabled: {{ .Values.gatewayAPI.enabled }}
+  External Secrets enabled: {{ .Values.externalSecrets.enabled }}
+  Logs persistence enabled: {{ .Values.persistence.logs.enabled }}
+  Supervisor ConfigMap enabled: {{ .Values.supervisor.configMap.enabled }}
 
-{{- if .Values.ingress.enabled }}
+Access
+{{- if .Values.gatewayAPI.enabled }}
+{{- range .Values.gatewayAPI.hostnames }}
+  WEB UI: https://{{ . }}/
+{{- end }}
+{{- else if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
-WEB UI:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+  WEB UI: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
 {{- end }}
 {{- else }}
-Port-forward to access Discount Bandit locally:
+  Port-forward:
+    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "discount-bandit.fullname" . }} 8080:{{ .Values.service.port }}
 
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "discount-bandit.fullname" . }} 3000:{{ .Values.service.port }}
-
-  WEB UI:   http://localhost:3000/
+  WEB UI:
+    http://localhost:8080/
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  GETTING STARTED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Health checks
+  kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=discount-bandit,app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }} --timeout=300s
+  kubectl get pods -l app.kubernetes.io/name=discount-bandit,app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+  kubectl logs -l app.kubernetes.io/name=discount-bandit,app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }} --all-containers --tail=100
 
-1. kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=discount-bandit -n {{ .Release.Namespace }} --timeout=300s
-2. kubectl get pods -l app.kubernetes.io/name=discount-bandit -n {{ .Release.Namespace }}
-3. kubectl logs -l app.kubernetes.io/name=discount-bandit -n {{ .Release.Namespace }} --all-containers --tail=50 -f
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  TROUBLESHOOTING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  kubectl describe pod -l app.kubernetes.io/name=discount-bandit -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/name=discount-bandit -n {{ .Release.Namespace }} --all-containers --tail=100
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-  kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  WARNINGS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-{{- if not .Values.ingress.enabled }}
-
-NOTE: Ingress is not enabled. Access via port-forward (see above).
+Database
+{{- if eq (include "discount-bandit.databaseMode" .) "mysql" }}
+  The HelmForge MySQL subchart is enabled.
+  MySQL Service: {{ .Release.Name }}-mysql
+  Secret: {{ include "discount-bandit.databaseSecretName" . }}
+{{- else if eq (include "discount-bandit.databaseMode" .) "external" }}
+  External database host: {{ include "discount-bandit.databaseHost" . }}:{{ include "discount-bandit.databasePort" . }}
+  Secret: {{ include "discount-bandit.databaseSecretName" . }}
+{{- else }}
+  SQLite is enabled for development/small installs.
+  PVC: {{ include "discount-bandit.dataClaimName" . }}
+  Keep replicaCount=1 with SQLite.
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ADDITIONAL RESOURCES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Troubleshooting
+  kubectl describe pod -l app.kubernetes.io/name=discount-bandit,app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+  kubectl get deploy,svc,secret,pvc,networkpolicy,pdb -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
 
-Documentation:      https://helmforge.dev/docs/charts/discount-bandit
-Discount Bandit GH: https://github.com/PastaBolo/discount-bandit
+Production reminders
+  - Use mysql.enabled=true or database.mode=external for production.
+  - Set discountBandit.appUrl and discountBandit.assetUrl to the public URL.
+  - Store APP_KEY, database passwords, and exchange-rate keys in Kubernetes Secrets or External Secrets.
+  - Enable NetworkPolicy only after confirming crawler and notification egress destinations.
+  - Review crawler logs because some stores rely on Chromium headless.
 
-Happy Helmforging :)
+Documentation:
+  https://helmforge.dev/docs/charts/discount-bandit
