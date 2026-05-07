@@ -122,6 +122,9 @@ app.kubernetes.io/part-of: helmforge
 {{- if and .Values.auth.enabled (not .Values.auth.existingSecret) (not .Values.auth.password) -}}
 {{- fail "auth.password or auth.existingSecret is required when auth.enabled=true" -}}
 {{- end -}}
+{{- if and .Values.externalSecrets.enabled (not .Values.auth.enabled) -}}
+{{- fail "auth.enabled=true is required when externalSecrets.enabled=true" -}}
+{{- end -}}
 {{- if and .Values.externalSecrets.enabled (not .Values.auth.existingSecret) -}}
 {{- fail "auth.existingSecret is required when externalSecrets.enabled=true" -}}
 {{- end -}}

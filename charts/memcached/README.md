@@ -142,6 +142,8 @@ sasldb_path: /sasl2/memcachedsasldb
 ## External Secrets
 
 External Secrets Operator integration is optional and uses `external-secrets.io/v1`.
+It is only valid together with `auth.enabled=true`; otherwise the chart would
+create credentials that Memcached does not consume.
 
 ```yaml
 auth:
