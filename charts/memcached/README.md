@@ -116,16 +116,28 @@ ASCII auth forces Memcached to start with ASCII protocol because upstream disabl
 Clients authenticate by sending a fake `set` command with a `username password` payload before regular cache commands.
 The payload byte length must match the credentials string.
 
-SASL mode starts Memcached with `-S` and should be used only with clients that support binary protocol SASL:
+SASL mode starts Memcached with `-S` and should be used only with clients that support binary protocol SASL.
+The official Memcached image does not build a SASL database from plain username/password values at startup, so
+SASL requires an existing Secret with a `memcached.conf` file and a prepared sasldb file:
 
 ```yaml
 auth:
   enabled: true
   mode: sasl
-  existingSecret: memcached-auth
+  existingSecret: memcached-sasl
+  sasl:
+    configKey: memcached.conf
+    databaseKey: memcachedsasldb
 
 memcached:
   protocol: binary
+```
+
+The `memcached.conf` file should point at the mounted database path, for example:
+
+```text
+mech_list: plain
+sasldb_path: /sasl2/memcachedsasldb
 ```
 
 ## External Secrets
@@ -190,6 +202,12 @@ extstore:
 ```
 
 Do not combine PVC-backed extstore with HPA. The chart blocks that combination because each PVC is pod-local.
+
+## Autoscaling
+
+HPA is available only for `architecture=distributed`. Standalone mode is intentionally fixed to one pod.
+When CPU utilization scaling is enabled, set `resources.requests.cpu`; when memory utilization scaling is
+enabled, set `resources.requests.memory`. Kubernetes needs those requests to compute utilization percentages.
 
 ## Metrics
 
@@ -275,6 +293,8 @@ The chart renders `TCPRoute` only when enabled. It does not install Gateway API 
 | `memcached.maxItemSize` | `1m` | Maximum item size passed to `-I`. |
 | `auth.enabled` | `false` | Enables auth file mounting. |
 | `auth.mode` | `ascii` | `ascii` or `sasl`. |
+| `auth.sasl.configKey` | `memcached.conf` | Secret key containing SASL configuration for SASL mode. |
+| `auth.sasl.databaseKey` | `memcachedsasldb` | Secret key containing a prepared SASL database for SASL mode. |
 | `tls.enabled` | `false` | Enables TLS startup flags. |
 | `extstore.enabled` | `false` | Enables Memcached extstore options. |
 | `metrics.enabled` | `false` | Enables Prometheus exporter sidecar and metrics Service. |

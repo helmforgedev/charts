@@ -67,18 +67,20 @@ External secret store
         | ExternalSecret (optional)
         v
 Kubernetes Secret <------------------ cert-manager / platform PKI
-  - authfile                         - TLS Secret
+  - authfile or SASL files           - TLS Secret
         |                                  |
         +----------------+-----------------+
                          v
                 Memcached StatefulSet
-                  - auth file mount
+                  - auth or SASL mount
                   - TLS file mount
                   - read-only rootfs
                   - no API token by default
 ```
 
-The chart supports externally managed auth material and TLS files. CA material is optional, and the chart does not generate secrets or certificates.
+The chart can generate ASCII auth-file Secrets from values. SASL mode uses the official Memcached `-S`
+startup path and therefore requires an externally prepared Secret with a SASL config file and sasldb file.
+CA material is optional, and the chart does not generate certificates.
 
 ### Observability Flow
 

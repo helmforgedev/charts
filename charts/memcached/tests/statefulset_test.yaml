@@ -59,13 +59,16 @@ tests:
             name: auth
             secret:
               secretName: test-memcached-auth
+              items:
+                - key: authfile
+                  path: authfile
 
   - it: renders sasl without ascii auth file flags
     template: statefulset.yaml
     set:
       auth.enabled: true
       auth.mode: sasl
-      auth.password: test-password
+      auth.existingSecret: test-sasl
       memcached.protocol: binary
     asserts:
       - contains:
@@ -77,13 +80,24 @@ tests:
       - notContains:
           path: spec.template.spec.containers[0].args
           content: /auth/authfile
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SASL_CONF_PATH
+            value: /sasl2
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: auth
+            mountPath: /sasl2
+            readOnly: true
 
   - it: blocks sasl without binary protocol
     template: statefulset.yaml
     set:
       auth.enabled: true
       auth.mode: sasl
-      auth.password: test-password
+      auth.existingSecret: test-sasl
     asserts:
       - failedTemplate:
           errorMessage: "auth.mode=sasl requires memcached.protocol=binary"

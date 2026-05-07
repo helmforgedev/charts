@@ -69,6 +69,7 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 
 {{- define "memcached.validate" -}}
+{{- $resourceRequests := default dict .Values.resources.requests -}}
 {{- if not (has .Values.architecture (list "standalone" "distributed")) -}}
 {{- fail "architecture must be one of: standalone, distributed" -}}
 {{- end -}}
@@ -78,11 +79,26 @@ app.kubernetes.io/part-of: helmforge
 {{- if and (eq .Values.architecture "standalone") .Values.autoscaling.enabled -}}
 {{- fail "autoscaling.enabled requires architecture=distributed because standalone mode must remain a single cache pod" -}}
 {{- end -}}
+{{- if and .Values.autoscaling.enabled .Values.autoscaling.targetCPUUtilizationPercentage (not $resourceRequests.cpu) -}}
+{{- fail "autoscaling.targetCPUUtilizationPercentage requires resources.requests.cpu" -}}
+{{- end -}}
+{{- if and .Values.autoscaling.enabled .Values.autoscaling.targetMemoryUtilizationPercentage (not $resourceRequests.memory) -}}
+{{- fail "autoscaling.targetMemoryUtilizationPercentage requires resources.requests.memory" -}}
+{{- end -}}
 {{- if not (has .Values.auth.mode (list "ascii" "sasl")) -}}
 {{- fail "auth.mode must be one of: ascii, sasl" -}}
 {{- end -}}
 {{- if and .Values.auth.enabled (eq .Values.auth.mode "sasl") (ne .Values.memcached.protocol "binary") -}}
 {{- fail "auth.mode=sasl requires memcached.protocol=binary" -}}
+{{- end -}}
+{{- if and .Values.auth.enabled (eq .Values.auth.mode "sasl") (not .Values.auth.existingSecret) -}}
+{{- fail "auth.mode=sasl requires auth.existingSecret containing SASL configuration and database files" -}}
+{{- end -}}
+{{- if and .Values.auth.enabled (eq .Values.auth.mode "sasl") (not .Values.auth.sasl.configKey) -}}
+{{- fail "auth.sasl.configKey is required when auth.mode=sasl" -}}
+{{- end -}}
+{{- if and .Values.auth.enabled (eq .Values.auth.mode "sasl") (not .Values.auth.sasl.databaseKey) -}}
+{{- fail "auth.sasl.databaseKey is required when auth.mode=sasl" -}}
 {{- end -}}
 {{- if and .Values.auth.enabled (not .Values.auth.existingSecret) (not .Values.auth.password) -}}
 {{- fail "auth.password or auth.existingSecret is required when auth.enabled=true" -}}

@@ -44,8 +44,13 @@ Validate connectivity:
 {{- if .Values.auth.enabled }}
 
 Authentication is enabled with mode {{ .Values.auth.mode }}.
+{{- if eq .Values.auth.mode "ascii" }}
 ASCII auth uses a fake set command before regular commands:
   printf 'set auth 0 0 <bytes>\r\n<username> <password>\r\nversion\r\n' | nc {{ include "memcached.fullname" . }} {{ .Values.service.port }}
+{{- else }}
+SASL mode requires binary protocol clients and the mounted SASL database from Secret {{ include "memcached.authSecretName" . }}.
+The chart sets SASL_CONF_PATH={{ .Values.auth.sasl.mountPath }}.
+{{- end }}
 {{- end }}
 
 {{- if .Values.tls.enabled }}
