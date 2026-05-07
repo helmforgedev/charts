@@ -28,16 +28,16 @@
 {{- end -}}
 
 {{- define "memcached.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "memcached.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/name: {{ include "memcached.name" . | quote }}
+app.kubernetes.io/instance: {{ .Release.Name | quote }}
 {{- end -}}
 
 {{- define "memcached.labels" -}}
-helm.sh/chart: {{ include "memcached.chart" . }}
+helm.sh/chart: {{ include "memcached.chart" . | quote }}
 {{ include "memcached.selectorLabels" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-app.kubernetes.io/part-of: helmforge
+app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+app.kubernetes.io/part-of: "helmforge"
 {{- with .Values.commonLabels }}
 {{ toYaml . }}
 {{- end }}
