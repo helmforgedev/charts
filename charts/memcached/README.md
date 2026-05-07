@@ -236,7 +236,10 @@ metrics:
     enabled: true
 ```
 
-When `metrics.memcachedTLS.enabled=true`, the exporter still connects to the local pod address but verifies TLS with `metrics.memcachedTLS.serverName`. If unset, the chart uses `<release>-memcached.<namespace>.svc`; make sure the Memcached certificate includes that Service DNS name or set an explicit server name.
+When `metrics.memcachedTLS.enabled=true`, the exporter still connects to the local pod address
+but verifies TLS with `metrics.memcachedTLS.serverName`. If unset, the chart uses
+`<release>-memcached.<namespace>.svc`; make sure the Memcached certificate includes that Service
+DNS name or set an explicit server name.
 
 ## Networking
 
