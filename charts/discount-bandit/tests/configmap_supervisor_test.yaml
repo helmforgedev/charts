@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Supervisor ConfigMap
+templates:
+  - templates/configmap-supervisor.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render the Kubernetes-safe Supervisor base config by default
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["base_supervisord.conf"]
+          pattern: "\\[program:octane\\]"
+      - notMatchRegex:
+          path: data["base_supervisord.conf"]
+          pattern: "\\[inet_http_server\\]"
+
+  - it: should not render when disabled
+    set:
+      supervisor.configMap.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+

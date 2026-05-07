@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 suite: Deployment
 templates:
   - templates/deployment.yaml
@@ -34,32 +35,76 @@ tests:
             containerPort: 80
             protocol: TCP
 
-  - it: should mount data volume at /app/database
+  - it: should mount data volume at /app/database/sqlite
+    set:
+      database.mode: sqlite
+      database.sqlite.enabled: true
+      mysql.enabled: false
     asserts:
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
-            name: data
-            mountPath: /app/database
+            name: database
+            mountPath: /app/database/sqlite
 
-  - it: should use PVC for data when persistence enabled
+  - it: should use MySQL by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_CONNECTION
+            value: mysql
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_HOST
+            value: test-mysql
+
+  - it: should use the configured MySQL existingSecret
+    set:
+      mysql.auth.existingSecret: discount-bandit-mysql
+      mysql.auth.existingSecretUserPasswordKey: app-password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: discount-bandit-mysql
+                key: app-password
+
+  - it: should use PVC for SQLite data when persistence enabled
+    set:
+      database.mode: sqlite
+      database.sqlite.enabled: true
+      mysql.enabled: false
     asserts:
       - contains:
           path: spec.template.spec.volumes
           content:
-            name: data
+            name: database
             persistentVolumeClaim:
-              claimName: test-discount-bandit-data
+              claimName: test-discount-bandit-database
 
   - it: should use emptyDir when persistence disabled
     set:
-      persistence.enabled: false
+      database.mode: sqlite
+      database.sqlite.enabled: true
+      mysql.enabled: false
+      persistence.database.enabled: false
     asserts:
       - contains:
           path: spec.template.spec.volumes
           content:
-            name: data
+            name: database
             emptyDir: {}
+
+  - it: should disable service account token automount
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
 
   - it: should use TCP probes
     asserts:

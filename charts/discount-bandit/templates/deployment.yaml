@@ -1,20 +1,25 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "discount-bandit.validateDatabase" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "discount-bandit.fullname" . }}
   labels:
     {{- include "discount-bandit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: discount-bandit
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   strategy:
     type: Recreate
   selector:
     matchLabels:
       {{- include "discount-bandit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: discount-bandit
   template:
     metadata:
       labels:
         {{- include "discount-bandit.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: discount-bandit
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -30,6 +35,7 @@ spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "discount-bandit.serviceAccountName" . }}
       {{- end }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
@@ -38,25 +44,107 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if or (ne (include "discount-bandit.databaseMode" .) "sqlite") .Values.extraInitContainers }}
+      initContainers:
+        {{- if ne (include "discount-bandit.databaseMode" .) "sqlite" }}
+        - name: wait-for-database
+          image: docker.io/library/busybox:1.37.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -ec
+            - |
+              until nc -z "${DB_HOST}" "${DB_PORT}"; do
+                echo "waiting for database ${DB_HOST}:${DB_PORT}"
+                sleep 2
+              done
+          env:
+            - name: DB_HOST
+              value: {{ include "discount-bandit.databaseHost" . | quote }}
+            - name: DB_PORT
+              value: {{ include "discount-bandit.databasePort" . | quote }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault
+        {{- end }}
+        {{- with .Values.extraInitContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
       containers:
         - name: discount-bandit
           image: {{ include "discount-bandit.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.persistence.logs.enabled }}
+          command:
+            - sh
+            - -ec
+          args:
+            - |
+              sed -i 's/\[ ! -f "\/logs" \]/[ ! -e "\/logs" ]/' docker/entrypoint.sh
+              exec docker/entrypoint.sh
+          {{- end }}
           ports:
             - name: http
               containerPort: 80
               protocol: TCP
           env:
             - name: DB_CONNECTION
-              value: sqlite
+              value: {{ include "discount-bandit.databaseConnection" . | quote }}
+            {{- if eq (include "discount-bandit.databaseMode" .) "sqlite" }}
+            - name: DB_DATABASE
+              value: /app/database/sqlite/database.sqlite
+            {{- end }}
+            {{- if ne (include "discount-bandit.databaseMode" .) "sqlite" }}
+            - name: DB_HOST
+              value: {{ include "discount-bandit.databaseHost" . | quote }}
+            - name: DB_PORT
+              value: {{ include "discount-bandit.databasePort" . | quote }}
+            - name: DB_DATABASE
+              value: {{ include "discount-bandit.databaseName" . | quote }}
+            - name: DB_USERNAME
+              value: {{ include "discount-bandit.databaseUsername" . | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "discount-bandit.databaseSecretName" . }}
+                  key: {{ include "discount-bandit.databaseSecretPasswordKey" . }}
+            {{- end }}
             - name: APP_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "discount-bandit.fullname" . }}-app
-                  key: app-key
+                  name: {{ include "discount-bandit.appSecretName" . }}
+                  key: {{ .Values.discountBandit.existingSecretAppKeyKey }}
+            - name: APP_TIMEZONE
+              value: {{ .Values.discountBandit.timezone | quote }}
+            - name: FRANKEN_HOST
+              value: "0.0.0.0"
+            - name: THEME_COLOR
+              value: {{ .Values.discountBandit.themeColor | quote }}
+            - name: CRON
+              value: {{ .Values.discountBandit.cron | quote }}
             {{- with .Values.discountBandit.appUrl }}
             - name: APP_URL
               value: {{ . | quote }}
+            {{- end }}
+            {{- if or .Values.discountBandit.assetUrl .Values.discountBandit.appUrl }}
+            - name: ASSET_URL
+              value: {{ default .Values.discountBandit.appUrl .Values.discountBandit.assetUrl | quote }}
+            {{- end }}
+            {{- if or .Values.discountBandit.exchangeRateApiKey .Values.discountBandit.existingSecret (and .Values.externalSecrets.enabled .Values.externalSecrets.app.enabled .Values.externalSecrets.app.exchangeRateApiKeyRemoteRef.key) }}
+            - name: EXCHANGE_RATE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "discount-bandit.appSecretName" . }}
+                  key: {{ .Values.discountBandit.existingSecretExchangeRateApiKeyKey }}
+                  optional: true
             {{- end }}
             {{- with .Values.discountBandit.extraEnv }}
             {{- toYaml . | nindent 12 }}
@@ -97,19 +185,46 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
-            - name: data
-              mountPath: /app/database
+            {{- if eq (include "discount-bandit.databaseMode" .) "sqlite" }}
+            - name: database
+              mountPath: /app/database/sqlite
+            {{- end }}
+            {{- if .Values.persistence.logs.enabled }}
+            - name: logs
+              mountPath: /logs
+            {{- end }}
+            {{- if .Values.supervisor.configMap.enabled }}
+            - name: supervisor-config
+              mountPath: /app/docker/base_supervisord.conf
+              subPath: base_supervisord.conf
+              readOnly: true
+            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       volumes:
-        - name: data
-          {{- if .Values.persistence.enabled }}
+        {{- if eq (include "discount-bandit.databaseMode" .) "sqlite" }}
+        - name: database
+          {{- if .Values.persistence.database.enabled }}
           persistentVolumeClaim:
             claimName: {{ include "discount-bandit.dataClaimName" . }}
           {{- else }}
           emptyDir: {}
           {{- end }}
+        {{- end }}
+        {{- if .Values.persistence.logs.enabled }}
+        - name: logs
+          persistentVolumeClaim:
+            claimName: {{ include "discount-bandit.logsClaimName" . }}
+        {{- end }}
+        {{- if .Values.supervisor.configMap.enabled }}
+        - name: supervisor-config
+          configMap:
+            name: {{ include "discount-bandit.fullname" . }}-supervisor
+        {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

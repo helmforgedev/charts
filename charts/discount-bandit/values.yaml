@@ -1,11 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
-# Discount Bandit Helm Chart — Default Values
+# Discount Bandit Helm Chart - Default Values
 # =============================================================================
-# Focus: deal aggregator and price tracker for self-hosted deal hunting
+# Primary path: Discount Bandit + HelmForge MySQL subchart.
+# Dev/small path: SQLite with a single replica and ReadWriteOnce persistence.
 
 nameOverride: ""
 fullnameOverride: ""
 commonLabels: {}
+
+replicaCount: 1
 
 # =============================================================================
 # Image
@@ -25,28 +29,113 @@ imagePullSecrets: []
 # =============================================================================
 
 discountBandit:
-  # -- Public URL of the instance (e.g. https://deals.example.com)
+  # -- Public URL of the instance. If empty, derive from ingress or Gateway examples where possible.
   appUrl: ""
+  # -- Public asset URL. Defaults to appUrl when empty.
+  assetUrl: ""
+  # -- Application timezone (APP_TIMEZONE)
+  timezone: UTC
+  # -- UI theme color. Upstream supports Slate, Gray, Zinc, Neutral, Stone, Red, Orange, Amber, Yellow, Lime, Green, Emerald, Teal, Cyan, Sky, Blue, Indigo, Violet, Purple, Fuchsia, Pink, Rose.
+  themeColor: Stone
+  # -- Product crawl schedule used by Discount Bandit (CRON)
+  cron: "*/5 * * * *"
+  # -- ExchangeRate API key used for currency conversion. Prefer existingSecret or External Secrets for production.
+  exchangeRateApiKey: ""
+  # -- Existing secret with application secrets.
+  existingSecret: ""
+  # -- Secret key for APP_KEY.
+  existingSecretAppKeyKey: app-key
+  # -- Secret key for EXCHANGE_RATE_API_KEY.
+  existingSecretExchangeRateApiKeyKey: exchange-rate-api-key
   # -- Extra environment variables for the container
   # -- @default -- `[]`
   extraEnv: []
+
+# =============================================================================
+# Database
+# =============================================================================
+# Mode detection (when mode is auto):
+# 1. database.external.host -> external
+# 2. mysql.enabled -> mysql
+# 3. database.sqlite.enabled -> sqlite
+# 4. fail
+
+database:
+  # -- Database mode: auto | mysql | external | sqlite
+  mode: auto
+
+  sqlite:
+    # -- Enable SQLite fallback mode for development/small installs. MySQL remains the primary default.
+    enabled: false
+
+  external:
+    # -- External database type passed to DB_CONNECTION: mysql | mariadb
+    type: mysql
+    # -- External database hostname
+    host: ""
+    # -- External database port
+    port: 3306
+    # -- External database name
+    name: discount_bandit
+    # -- External database username
+    username: discount_bandit
+    # -- External database password. Prefer existingSecret or External Secrets for production.
+    password: ""
+    # -- Existing secret containing the external database password
+    existingSecret: ""
+    # -- Secret key containing the external database password
+    existingSecretPasswordKey: database-password
+
+# =============================================================================
+# MySQL Subchart
+# =============================================================================
+
+mysql:
+  # -- Deploy HelmForge MySQL as the primary database.
+  enabled: true
+  architecture: standalone
+  auth:
+    database: discount_bandit
+    username: discount_bandit
+    password: ""
+    rootPassword: ""
+  standalone:
+    persistence:
+      enabled: true
+      size: 8Gi
+  serviceAccount:
+    automountServiceAccountToken: false
+  startupProbe:
+    initialDelaySeconds: 30
 
 # =============================================================================
 # Persistence
 # =============================================================================
 
 persistence:
-  # -- Enable persistence for SQLite database
-  enabled: true
-  # -- Storage size
-  size: 5Gi
-  # -- Storage class
-  storageClass: ""
-  # -- Access modes
-  accessModes:
-    - ReadWriteOnce
-  # -- Use an existing PVC
-  existingClaim: ""
+  database:
+    # -- Enable persistence for SQLite database storage. Used only when database mode is sqlite.
+    enabled: true
+    # -- Storage size for SQLite database
+    size: 5Gi
+    # -- Storage class for SQLite database PVC
+    storageClass: ""
+    # -- Access modes for SQLite database PVC
+    accessModes:
+      - ReadWriteOnce
+    # -- Use an existing PVC for SQLite database storage
+    existingClaim: ""
+    annotations: {}
+
+  logs:
+    # -- Persist /logs. EmptyDir is used when disabled.
+    enabled: false
+    size: 2Gi
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    existingClaim: ""
+    annotations: {}
 
 # =============================================================================
 # Service Account
@@ -54,11 +143,13 @@ persistence:
 
 serviceAccount:
   # -- Create a ServiceAccount
-  create: false
+  create: true
   # -- ServiceAccount name
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
+  # -- Mount Kubernetes API credentials into the application pod
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Service
@@ -71,6 +162,10 @@ service:
   port: 80
   # -- Annotations for the Service
   annotations: {}
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ""
+  # -- Ordered list of IP families for the Service: IPv4 | IPv6. Empty uses cluster default.
+  ipFamilies: []
 
 # =============================================================================
 # Ingress
@@ -96,13 +191,72 @@ ingress:
     #   secretName: discount-bandit-tls
 
 # =============================================================================
+# Gateway API
+# =============================================================================
+
+gatewayAPI:
+  # -- Render Gateway API HTTPRoute resources
+  enabled: false
+  # -- HTTPRoute parentRefs
+  parentRefs: []
+    # - name: public-gateway
+    #   namespace: gateway-system
+  # -- Hostnames routed to Discount Bandit
+  hostnames: []
+    # - deals.example.com
+  # -- Additional HTTPRoute annotations
+  annotations: {}
+  # -- Path matches for the HTTPRoute
+  matches:
+    - path:
+        type: PathPrefix
+        value: /
+  # -- Optional filters for the HTTPRoute rule
+  filters: []
+
+# =============================================================================
+# External Secrets
+# =============================================================================
+
+externalSecrets:
+  # -- Enable External Secrets Operator resources (external-secrets.io/v1)
+  enabled: false
+  # -- ExternalSecret API version. Must remain external-secrets.io/v1.
+  apiVersion: external-secrets.io/v1
+  refreshInterval: 1h
+  secretStoreRef:
+    name: ""
+    kind: ClusterSecretStore
+  target:
+    creationPolicy: Owner
+  app:
+    # -- Manage APP_KEY and optional exchange-rate key through External Secrets
+    enabled: false
+    # -- Optional target Secret name. Defaults to the application Secret name.
+    targetName: ""
+    appKeyRemoteRef:
+      key: ""
+      property: ""
+    exchangeRateApiKeyRemoteRef:
+      key: ""
+      property: ""
+  database:
+    # -- Manage external database password through External Secrets. Requires database.mode=external.
+    enabled: false
+    # -- Optional target Secret name. Defaults to the database Secret name.
+    targetName: ""
+    passwordRemoteRef:
+      key: ""
+      property: ""
+
+# =============================================================================
 # Probes
 # =============================================================================
 
 probes:
   startup:
     enabled: true
-    initialDelaySeconds: 5
+    initialDelaySeconds: 40
     periodSeconds: 5
     timeoutSeconds: 3
     failureThreshold: 30
@@ -120,6 +274,15 @@ probes:
     failureThreshold: 3
 
 # =============================================================================
+# Supervisor
+# =============================================================================
+
+supervisor:
+  # -- Mount a Kubernetes-safe Supervisor base config that disables the unauthenticated inet_http_server.
+  configMap:
+    enabled: true
+
+# =============================================================================
 # Resources and Security
 # =============================================================================
 
@@ -128,6 +291,44 @@ resources: {}
 podSecurityContext: {}
 
 securityContext: {}
+
+# =============================================================================
+# NetworkPolicy
+# =============================================================================
+
+networkPolicy:
+  # -- Enable NetworkPolicy resources
+  enabled: false
+  ingress:
+    # -- Allow HTTP ingress from pods in the same namespace
+    allowSameNamespace: true
+    # -- Additional NetworkPolicy ingress peers
+    extraFrom: []
+  egress:
+    # -- Enable egress policy rules
+    enabled: false
+    # -- Allow DNS egress to kube-system
+    allowDNS: true
+    # -- Allow HTTPS egress to public internet for crawling stores, notifications, and exchange-rate API
+    allowHTTPS: true
+    # -- Allow HTTP egress to public internet for stores that do not support HTTPS
+    allowHTTP: false
+    # -- Allow egress to same-namespace database pods
+    allowSameNamespaceDatabase: true
+    # -- Database port allowed when allowSameNamespaceDatabase=true
+    databasePort: 3306
+    # -- Additional NetworkPolicy egress peers
+    extraTo: []
+
+# =============================================================================
+# Disruption Budget
+# =============================================================================
+
+pdb:
+  # -- Create a PodDisruptionBudget. Most useful when using external MySQL and replicaCount > 1.
+  enabled: false
+  minAvailable: 1
+  maxUnavailable: ""
 
 # =============================================================================
 # Scheduling
@@ -149,6 +350,8 @@ podAnnotations: {}
 
 extraVolumes: []
 extraVolumeMounts: []
+extraInitContainers: []
+extraContainers: []
 
 # -- Extra manifests to deploy alongside the chart
 extraManifests: []

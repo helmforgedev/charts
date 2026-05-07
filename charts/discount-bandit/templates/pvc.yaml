@@ -1,17 +1,44 @@
-{{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) }}
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and (eq (include "discount-bandit.databaseMode" .) "sqlite") .Values.persistence.database.enabled (not .Values.persistence.database.existingClaim) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ include "discount-bandit.dataClaimName" . }}
   labels:
     {{- include "discount-bandit.labels" . | nindent 4 }}
+  {{- with .Values.persistence.database.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   accessModes:
-    {{- toYaml .Values.persistence.accessModes | nindent 4 }}
-  {{- with .Values.persistence.storageClass }}
+    {{- toYaml .Values.persistence.database.accessModes | nindent 4 }}
+  {{- with .Values.persistence.database.storageClass }}
   storageClassName: {{ . }}
   {{- end }}
   resources:
     requests:
-      storage: {{ .Values.persistence.size }}
+      storage: {{ .Values.persistence.database.size }}
+{{- end }}
+{{- if and .Values.persistence.logs.enabled (not .Values.persistence.logs.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "discount-bandit.logsClaimName" . }}
+  labels:
+    {{- include "discount-bandit.labels" . | nindent 4 }}
+  {{- with .Values.persistence.logs.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes:
+    {{- toYaml .Values.persistence.logs.accessModes | nindent 4 }}
+  {{- with .Values.persistence.logs.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.logs.size }}
 {{- end }}
