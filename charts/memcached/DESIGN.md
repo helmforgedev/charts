@@ -98,23 +98,6 @@ Metrics Service --> ServiceMonitor --> Prometheus
 
 The exporter is optional and disabled by default. It supports TLS to Memcached, but it does not support Memcached authentication. The chart blocks auth plus metrics to avoid a permanently failing exporter.
 
-### Gateway API Flow
-
-```text
-TCP clients
-     |
-     v
-Gateway listener
-     |
-     v
-TCPRoute
-     |
-     v
-Memcached Service
-```
-
-The chart can render a `TCPRoute` for clusters that already run Gateway API CRDs and a compatible controller.
-
 ## Production Controls
 
 The default values are designed for a disposable development cache. A production deployment should normally configure:
@@ -138,7 +121,7 @@ The default values are designed for a disposable development cache. A production
 - StatefulSet over Deployment: stable pod identities and headless DNS help clients that address individual cache nodes.
 - No Chart.lock: the chart has no dependencies.
 - Extstore is optional: extstore can improve cache capacity but is not durable storage.
-- Gateway API is optional: the chart renders `TCPRoute` without installing CRDs.
+- No Gateway API: expose Memcached with a Service when an external endpoint is required.
 - Secrets are explicit: production users can supply existing Secrets or External Secrets instead of committing credentials to values.
 
 ## Explicit Non-Goals
@@ -148,7 +131,7 @@ The default values are designed for a disposable development cache. A production
 - Memcached operator behavior
 - persistent application data
 - certificate generation
-- installing Prometheus Operator or Gateway API CRDs
+- installing Prometheus Operator CRDs
 
 ## Related Documents
 
@@ -160,7 +143,7 @@ The default values are designed for a disposable development cache. A production
 type: design
 title: Memcached Chart Design
 description: Design document for the HelmForge Memcached chart
-keywords: memcached, design, architecture, distributed-cache, tls, extstore, gateway-api, external-secrets
+keywords: memcached, design, architecture, distributed-cache, tls, extstore, external-secrets
 purpose: Document architecture, trade-offs, production controls, and non-goals
 scope: Chart Design
 relations:

@@ -55,9 +55,16 @@ spec:
     []
     {{- end }}
   {{- if .Values.networkPolicy.egress.enabled }}
-  {{- $allowEgress := or .Values.networkPolicy.egress.allowDNS .Values.networkPolicy.egress.allowHTTPS .Values.networkPolicy.egress.extraTo }}
+  {{- $allowEgress := or .Values.networkPolicy.egress.allowSameNamespace .Values.networkPolicy.egress.allowDNS .Values.networkPolicy.egress.allowHTTPS .Values.networkPolicy.egress.extraTo }}
   egress:
     {{- if $allowEgress }}
+    {{- if .Values.networkPolicy.egress.allowSameNamespace }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector: {}
+    {{- end }}
     {{- if .Values.networkPolicy.egress.allowDNS }}
     - to:
         - namespaceSelector:

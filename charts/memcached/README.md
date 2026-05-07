@@ -34,7 +34,6 @@ helm install memcached oci://ghcr.io/helmforgedev/helm/memcached -f values.yaml
 - optional `NetworkPolicy` ingress, metrics, and egress rules
 - optional `PodDisruptionBudget` and HPA
 - optional External Secrets Operator v1 integration
-- optional Gateway API `TCPRoute`
 - hardened default pod and container security contexts
 - extension points through `extraEnv`, `extraVolumes`, `extraContainers`, and `extraManifests`
 
@@ -262,22 +261,9 @@ networkPolicy:
   enabled: true
   egress:
     enabled: true
+    allowSameNamespace: true
     allowDNS: true
 ```
-
-Gateway API TCPRoute:
-
-```yaml
-gateway:
-  tcpRoute:
-    enabled: true
-    parentRefs:
-      - name: internal-tcp-gateway
-        namespace: gateway-system
-        sectionName: memcached
-```
-
-The chart renders `TCPRoute` only when enabled. It does not install Gateway API CRDs.
 
 ## Important values
 
@@ -286,7 +272,7 @@ The chart renders `TCPRoute` only when enabled. It does not install Gateway API 
 | `architecture` | `standalone` | `standalone` or `distributed`. |
 | `replicaCount` | `1` | Number of Memcached pods. Must be `1` for standalone. |
 | `image.repository` | `docker.io/library/memcached` | Official Memcached image. |
-| `image.tag` | `1.6.41-alpine3.23` | Pinned image tag. |
+| `image.tag` | `1.6.41` | Pinned image tag. |
 | `memcached.memoryLimitMB` | `64` | Memcached item memory limit passed to `-m`. |
 | `memcached.maxConnections` | `1024` | Maximum simultaneous connections. |
 | `memcached.threads` | `4` | Worker threads. |
@@ -300,9 +286,9 @@ The chart renders `TCPRoute` only when enabled. It does not install Gateway API 
 | `metrics.enabled` | `false` | Enables Prometheus exporter sidecar and metrics Service. |
 | `metrics.memcachedTLS.enabled` | `false` | Enables TLS when the exporter scrapes Memcached. |
 | `networkPolicy.enabled` | `false` | Enables NetworkPolicy resources. |
+| `networkPolicy.egress.allowSameNamespace` | `true` | Allows cache and metrics responses to same-namespace clients. |
 | `service.ipFamilyPolicy` | `""` | Optional Kubernetes Service dual-stack policy. |
 | `externalSecrets.enabled` | `false` | Renders External Secrets Operator v1 resource. |
-| `gateway.tcpRoute.enabled` | `false` | Renders Gateway API TCPRoute. |
 | `serviceAccount.automountServiceAccountToken` | `false` | Keeps Kubernetes API token disabled by default. |
 
 ## Operations
@@ -337,7 +323,7 @@ Read [DESIGN.md](DESIGN.md) for architecture diagrams, production trade-offs, an
 type: chart-readme
 title: Memcached Helm Chart
 description: Documentation for the HelmForge Memcached chart
-keywords: memcached, cache, kubernetes, helm, tls, extstore, metrics, gateway-api, external-secrets
+keywords: memcached, cache, kubernetes, helm, tls, extstore, metrics, external-secrets
 purpose: Explain install, configuration, production path, and operations
 scope: Chart Documentation
 relations:

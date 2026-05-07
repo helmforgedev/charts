@@ -121,9 +121,6 @@ app.kubernetes.io/part-of: helmforge
 {{- if and .Values.metrics.memcachedTLS.enabled (not .Values.tls.enabled) -}}
 {{- fail "metrics.memcachedTLS.enabled requires tls.enabled=true" -}}
 {{- end -}}
-{{- if and .Values.gateway.tcpRoute.enabled (empty .Values.gateway.tcpRoute.parentRefs) -}}
-{{- fail "gateway.tcpRoute.parentRefs is required when gateway.tcpRoute.enabled=true" -}}
-{{- end -}}
 {{- if and .Values.extstore.enabled .Values.autoscaling.enabled .Values.extstore.persistence.enabled -}}
 {{- fail "extstore.persistence.enabled cannot be combined with autoscaling.enabled because PVC-backed cache files are pod-local" -}}
 {{- end -}}
