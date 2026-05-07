@@ -21,3 +21,22 @@ tests:
       - matchRegex:
           path: metadata.name
           pattern: "^[a-z0-9-]{1,63}$"
+
+  - it: reads ascii auth credentials from the Secret at runtime
+    set:
+      auth.enabled: true
+      auth.username: app
+      auth.password: app-password
+    asserts:
+      - notMatchRegex:
+          path: spec.containers[0].args[0]
+          pattern: "app-password"
+      - matchRegex:
+          path: spec.containers[0].args[0]
+          pattern: "tr ':' ' ' < /auth/authfile"
+      - equal:
+          path: spec.containers[0].volumeMounts[0].name
+          value: auth
+      - equal:
+          path: spec.volumes[0].secret.secretName
+          value: test-memcached-auth

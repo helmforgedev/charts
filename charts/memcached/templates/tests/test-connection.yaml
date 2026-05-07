@@ -7,6 +7,7 @@ metadata:
     {{- include "memcached.labels" . | nindent 4 }}
   annotations:
     helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:
   restartPolicy: Never
   containers:
@@ -17,14 +18,31 @@ spec:
         - -ec
       args:
         - |
-          {{- if and .Values.auth.enabled .Values.auth.password }}
+          {{- if and .Values.auth.enabled (eq .Values.auth.mode "ascii") }}
           sleep 2
-          timeout 10 sh -ec "printf 'set auth 0 0 {{ len (printf "%s %s" .Values.auth.username .Values.auth.password) }}\r\n{{ .Values.auth.username }} {{ .Values.auth.password }}\r\nversion\r\nquit\r\n' | nc -w 5 {{ include "memcached.fullname" . }} {{ .Values.service.port }} | grep -i '^VERSION'"
+          auth_line="$(tr ':' ' ' < /auth/{{ .Values.auth.authFileKey }})"
+          auth_len="$(printf '%s' "${auth_line}" | wc -c | tr -d ' ')"
+          timeout 10 sh -ec "printf 'set auth 0 0 %s\r\n%s\r\nversion\r\nquit\r\n' \"${auth_len}\" \"${auth_line}\" | nc -w 5 {{ include "memcached.fullname" . }} {{ .Values.service.port }} | grep -i '^VERSION'"
           {{- else if .Values.auth.enabled }}
-          echo "Authentication uses an existing Secret; run a client test with the resolved credentials."
+          echo "SASL authentication is enabled; run a SASL-capable client test with the resolved credentials."
           {{- else if .Values.tls.enabled }}
           echo "TLS is enabled; use a TLS-capable Memcached client for protocol validation."
           {{- else }}
           sleep 2
           timeout 10 sh -ec "printf 'version\r\nquit\r\n' | nc -w 5 {{ include "memcached.fullname" . }} {{ .Values.service.port }} | grep -i '^VERSION'"
           {{- end }}
+      {{- if and .Values.auth.enabled (eq .Values.auth.mode "ascii") }}
+      volumeMounts:
+        - name: auth
+          mountPath: /auth
+          readOnly: true
+      {{- end }}
+  {{- if and .Values.auth.enabled (eq .Values.auth.mode "ascii") }}
+  volumes:
+    - name: auth
+      secret:
+        secretName: {{ include "memcached.authSecretName" . }}
+        items:
+          - key: {{ .Values.auth.authFileKey }}
+            path: {{ .Values.auth.authFileKey }}
+  {{- end }}
