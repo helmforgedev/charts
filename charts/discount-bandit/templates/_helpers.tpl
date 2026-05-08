@@ -43,6 +43,18 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
+{{- define "discount-bandit.mysqlName" -}}
+{{- default "mysql" .Values.mysql.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "discount-bandit.mysqlFullname" -}}
+{{- if .Values.mysql.fullnameOverride -}}
+{{- .Values.mysql.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name (include "discount-bandit.mysqlName" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "discount-bandit.databaseMode" -}}
 {{- $mode := .Values.database.mode | default "auto" -}}
 {{- if not (has $mode (list "auto" "mysql" "external" "sqlite")) -}}
@@ -90,7 +102,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "discount-bandit.databaseHost" -}}
 {{- $mode := include "discount-bandit.databaseMode" . -}}
-{{- if eq $mode "external" -}}{{ .Values.database.external.host }}{{- else -}}{{ printf "%s-mysql" .Release.Name }}{{- end -}}
+{{- if eq $mode "external" -}}{{ .Values.database.external.host }}{{- else -}}{{ include "discount-bandit.mysqlFullname" . }}{{- end -}}
 {{- end -}}
 
 {{- define "discount-bandit.databasePort" -}}
@@ -124,7 +136,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if .Values.mysql.auth.existingSecret -}}
 {{- .Values.mysql.auth.existingSecret -}}
 {{- else -}}
-{{- printf "%s-mysql-auth" .Release.Name -}}
+{{- printf "%s-auth" (include "discount-bandit.mysqlFullname" .) -}}
 {{- end -}}
 {{- else if .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecret -}}
@@ -150,7 +162,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if .Values.persistence.database.existingClaim -}}
 {{- .Values.persistence.database.existingClaim -}}
 {{- else -}}
-{{- printf "%s-database" (include "discount-bandit.fullname" .) -}}
+{{- printf "%s-data" (include "discount-bandit.fullname" .) -}}
 {{- end -}}
 {{- end -}}
 

@@ -74,6 +74,52 @@ tests:
                 name: discount-bandit-mysql
                 key: app-password
 
+  - it: should honor MySQL fullnameOverride
+    set:
+      mysql.fullnameOverride: platform-mysql
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_HOST
+            value: platform-mysql
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: DB_HOST
+            value: platform-mysql
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: platform-mysql-auth
+                key: mysql-user-password
+
+  - it: should honor MySQL nameOverride
+    set:
+      mysql.nameOverride: mysql-primary
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_HOST
+            value: test-mysql-primary
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: DB_HOST
+            value: test-mysql-primary
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-mysql-primary-auth
+                key: mysql-user-password
+
   - it: should use PVC for SQLite data when persistence enabled
     set:
       database.mode: sqlite
@@ -85,7 +131,7 @@ tests:
           content:
             name: database
             persistentVolumeClaim:
-              claimName: test-discount-bandit-database
+              claimName: test-discount-bandit-data
 
   - it: should use emptyDir when persistence disabled
     set:
