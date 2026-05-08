@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 {{- define "umami.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -36,6 +37,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "umami.componentLabels" -}}
+{{ include "umami.selectorLabels" . }}
+app.kubernetes.io/component: umami
 {{- end -}}
 
 {{- define "umami.image" -}}
@@ -81,7 +87,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/* Database secret name for password */}}
 {{- define "umami.dbSecretName" -}}
 {{- if .Values.postgresql.enabled -}}
+{{- if .Values.postgresql.auth.existingSecret -}}
+{{- .Values.postgresql.auth.existingSecret -}}
+{{- else -}}
 {{- printf "%s-postgresql-auth" .Release.Name -}}
+{{- end -}}
+{{- else if and .Values.externalSecrets.enabled .Values.externalSecrets.database.enabled .Values.externalSecrets.database.targetName -}}
+{{- .Values.externalSecrets.database.targetName -}}
 {{- else if .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecret -}}
 {{- else -}}
@@ -92,8 +104,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/* Database secret password key */}}
 {{- define "umami.dbSecretPasswordKey" -}}
 {{- if .Values.postgresql.enabled -}}
-{{- "user-password" -}}
-{{- else if .Values.database.external.existingSecret -}}
+{{- .Values.postgresql.auth.existingSecretUserPasswordKey | default "user-password" -}}
+{{- else if or .Values.database.external.existingSecret (and .Values.externalSecrets.enabled .Values.externalSecrets.database.enabled) -}}
 {{- .Values.database.external.existingSecretPasswordKey | default "password" -}}
 {{- else -}}
 {{- "password" -}}
@@ -107,7 +119,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/* App secret name */}}
 {{- define "umami.appSecretName" -}}
-{{- if .Values.umami.existingSecret -}}
+{{- if and .Values.externalSecrets.enabled .Values.externalSecrets.app.enabled .Values.externalSecrets.app.targetName -}}
+{{- .Values.externalSecrets.app.targetName -}}
+{{- else if .Values.umami.existingSecret -}}
 {{- .Values.umami.existingSecret -}}
 {{- else -}}
 {{- printf "%s-app" (include "umami.fullname" .) -}}
@@ -116,7 +130,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/* App secret key */}}
 {{- define "umami.appSecretKey" -}}
-{{- if .Values.umami.existingSecret -}}
+{{- if or .Values.umami.existingSecret (and .Values.externalSecrets.enabled .Values.externalSecrets.app.enabled) -}}
 {{- .Values.umami.existingSecretKey | default "app-secret" -}}
 {{- else -}}
 {{- "app-secret" -}}
@@ -125,7 +139,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/* Backup — S3 secret name */}}
 {{- define "umami.backupSecretName" -}}
-{{- if .Values.backup.s3.existingSecret -}}
+{{- if and .Values.externalSecrets.enabled .Values.externalSecrets.backup.enabled .Values.externalSecrets.backup.targetName -}}
+{{- .Values.externalSecrets.backup.targetName -}}
+{{- else if .Values.backup.s3.existingSecret -}}
 {{- .Values.backup.s3.existingSecret -}}
 {{- else -}}
 {{- printf "%s-backup" (include "umami.fullname" .) -}}
@@ -141,10 +157,47 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) (not (and .Values.externalSecrets.enabled .Values.externalSecrets.backup.enabled)) -}}
     {{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
   {{- end -}}
 true
+{{- end -}}
+{{- end -}}
+
+{{/* ExternalSecret data entry helper */}}
+{{- define "umami.externalSecretDataItem" -}}
+{{- if not .remoteRef.key -}}
+{{- fail (printf "%s.key is required when the related ExternalSecret is enabled" .remoteRefName) -}}
+{{- end -}}
+- secretKey: {{ .secretKey | quote }}
+  remoteRef:
+    key: {{ .remoteRef.key | quote }}
+    {{- with .remoteRef.property }}
+    property: {{ . | quote }}
+    {{- end }}
+{{- end -}}
+
+{{/* Validate External Secrets Operator values */}}
+{{- define "umami.validateExternalSecrets" -}}
+{{- if .Values.externalSecrets.enabled -}}
+  {{- if not .Values.externalSecrets.secretStoreRef.name -}}
+    {{- fail "externalSecrets.secretStoreRef.name is required when externalSecrets.enabled=true" -}}
+  {{- end -}}
+  {{- if and .Values.externalSecrets.database.enabled .Values.postgresql.enabled -}}
+    {{- fail "externalSecrets.database.enabled requires postgresql.enabled=false" -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Validate external database preparation values */}}
+{{- define "umami.validateExternalDbInit" -}}
+{{- if .Values.database.external.init.enabled -}}
+  {{- if .Values.postgresql.enabled -}}
+    {{- fail "database.external.init.enabled requires postgresql.enabled=false" -}}
+  {{- end -}}
+  {{- if not .Values.database.external.init.adminExistingSecret -}}
+    {{- fail "database.external.init.adminExistingSecret is required when database.external.init.enabled=true" -}}
+  {{- end -}}
 {{- end -}}
 {{- end -}}
 

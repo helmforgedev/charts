@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: NetworkPolicy
+templates:
+  - templates/networkpolicy.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render when disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render ingress-only policy by default when enabled
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: spec.policyTypes[0]
+          value: Ingress
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 3000
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/name"]
+          value: umami
+      - isNull:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/component"]
+      - equal:
+          path: spec.ingress[0].from[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: default
+
+  - it: should render egress rules
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 5432
+      - equal:
+          path: spec.egress[1].to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: default
+      - equal:
+          path: spec.egress[2].to[1].ipBlock.cidr
+          value: "::/0"
+      - equal:
+          path: spec.egress[2].ports[0].port
+          value: 443
+
+  - it: should include extra ingress peers
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.ingress.extraFrom:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: gateway-system
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[1].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: gateway-system

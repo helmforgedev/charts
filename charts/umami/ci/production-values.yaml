@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: Apache-2.0
+replicaCount: 2
+
+umami:
+  existingSecret: umami-app
+  clientIpHeader: X-Forwarded-For
+  collectApiEndpoint: /collect
+  trackerScriptName: metrics.js
+  forceSSL: true
+
+postgresql:
+  enabled: false
+
+database:
+  external:
+    host: postgres-primary.database.svc.cluster.local
+    name: umami
+    username: umami
+    existingSecret: umami-db
+    existingSecretPasswordKey: database-password
+    init:
+      enabled: true
+      adminExistingSecret: postgres-admin
+
+gatewayAPI:
+  enabled: true
+  parentRefs:
+    - name: public-gateway
+      namespace: gateway-system
+  hostnames:
+    - analytics.example.com
+
+networkPolicy:
+  enabled: true
+  ingress:
+    extraFrom:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: gateway-system
+  egress:
+    enabled: true
+    allowDNS: true
+    allowSameNamespaceDatabase: false
+    allowHTTPS: true
+    extraTo:
+      - ipBlock:
+          cidr: 10.42.0.0/16
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    memory: 1Gi

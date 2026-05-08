@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: Apache-2.0
+# Production-oriented Umami example with external PostgreSQL, Gateway API, NetworkPolicy, and PDB.
+# Create the referenced Secrets before installing:
+# kubectl create secret generic umami-app --from-literal=app-secret="$(openssl rand -hex 32)"
+# kubectl create secret generic umami-db --from-literal=database-password="..."
+
+replicaCount: 2
+
+umami:
+  existingSecret: umami-app
+  clientIpHeader: X-Forwarded-For
+  collectApiEndpoint: /collect
+  trackerScriptName: metrics.js
+  forceSSL: true
+  disableTelemetry: true
+  disableUpdates: true
+
+postgresql:
+  enabled: false
+
+database:
+  external:
+    host: postgres-primary.database.svc.cluster.local
+    port: 5432
+    name: umami
+    username: umami
+    existingSecret: umami-db
+    existingSecretPasswordKey: database-password
+    init:
+      enabled: true
+      adminUsername: postgres
+      adminExistingSecret: postgres-admin
+      adminExistingSecretPasswordKey: postgres-password
+      sql: |
+        CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+gatewayAPI:
+  enabled: true
+  parentRefs:
+    - name: public-gateway
+      namespace: gateway-system
+  hostnames:
+    - analytics.example.com
+
+networkPolicy:
+  enabled: true
+  ingress:
+    extraFrom:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: gateway-system
+  egress:
+    enabled: true
+    allowDNS: true
+    allowSameNamespaceDatabase: false
+    allowHTTPS: true
+    extraTo:
+      - ipBlock:
+          cidr: 10.42.0.0/16
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    memory: 1Gi

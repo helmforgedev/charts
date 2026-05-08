@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+{{- include "umami.validateExternalDbInit" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -5,7 +7,7 @@ metadata:
   labels:
     {{- include "umami.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   strategy:
     type: RollingUpdate
   selector:
@@ -14,7 +16,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "umami.selectorLabels" . | nindent 8 }}
+        {{- include "umami.componentLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -30,6 +32,7 @@ spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "umami.serviceAccountName" . }}
       {{- end }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
@@ -39,6 +42,37 @@ spec:
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       initContainers:
+        {{- if .Values.database.external.init.enabled }}
+        - name: prepare-external-db
+          image: {{ .Values.database.external.init.image | quote }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DATABASE_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.external.init.adminExistingSecret }}
+                  key: {{ .Values.database.external.init.adminExistingSecretPasswordKey }}
+            - name: DATABASE_INIT_SQL
+              value: |
+{{ .Values.database.external.init.sql | indent 16 }}
+          command:
+            - sh
+            - -ec
+          args:
+            - |
+              echo "Preparing external PostgreSQL database {{ include "umami.dbName" . }} at {{ include "umami.dbHost" . }}:{{ include "umami.dbPort" . }}..."
+              printf '%s\n' "${DATABASE_INIT_SQL}" | PGPASSWORD="${DATABASE_ADMIN_PASSWORD}" psql \
+                -h {{ include "umami.dbHost" . | quote }} \
+                -p {{ include "umami.dbPort" . | quote }} \
+                -U {{ .Values.database.external.init.adminUsername | quote }} \
+                -d {{ include "umami.dbName" . | quote }} \
+                -v ON_ERROR_STOP=1
+              echo "External PostgreSQL database is prepared."
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
         - name: wait-for-db
           image: docker.io/library/busybox:1.37
           command:
@@ -51,6 +85,10 @@ spec:
                 sleep 2
               done
               echo "Database is ready."
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
       containers:
         - name: umami
           image: {{ include "umami.image" . | quote }}
@@ -77,6 +115,42 @@ spec:
             {{- if .Values.umami.disableTelemetry }}
             - name: DISABLE_TELEMETRY
               value: "1"
+            {{- end }}
+            {{- if .Values.umami.disableUpdates }}
+            - name: DISABLE_UPDATES
+              value: "1"
+            {{- end }}
+            {{- if .Values.umami.disableBotCheck }}
+            - name: DISABLE_BOT_CHECK
+              value: "1"
+            {{- end }}
+            {{- if .Values.umami.cloudMode }}
+            - name: CLOUD_MODE
+              value: "1"
+            {{- end }}
+            {{- if .Values.umami.forceSSL }}
+            - name: FORCE_SSL
+              value: "1"
+            {{- end }}
+            {{- with .Values.umami.clientIpHeader }}
+            - name: CLIENT_IP_HEADER
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.umami.collectApiEndpoint }}
+            - name: COLLECT_API_ENDPOINT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.umami.corsMaxAge }}
+            - name: CORS_MAX_AGE
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.umami.allowedFrameUrls }}
+            - name: ALLOWED_FRAME_URLS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.umami.debug }}
+            - name: DEBUG
+              value: {{ . | quote }}
             {{- end }}
             {{- with .Values.umami.trackerScriptName }}
             - name: TRACKER_SCRIPT_NAME

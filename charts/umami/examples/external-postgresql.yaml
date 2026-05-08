@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+# Create the password Secret before installing:
+# kubectl create secret generic umami-db --from-literal=database-password="..."
+
+postgresql:
+  enabled: false
+
+database:
+  external:
+    host: postgres-primary.database.svc.cluster.local
+    port: 5432
+    name: umami
+    username: umami
+    existingSecret: umami-db
+    existingSecretPasswordKey: database-password
+    # Enable when the external database user cannot create extensions.
+    # The admin secret should contain a temporary/admin password that can run CREATE EXTENSION.
+    init:
+      enabled: true
+      adminUsername: postgres
+      adminExistingSecret: postgres-admin
+      adminExistingSecretPasswordKey: postgres-password
+      sql: |
+        CREATE EXTENSION IF NOT EXISTS pgcrypto;

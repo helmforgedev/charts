@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: PodDisruptionBudget
+templates:
+  - templates/pdb.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render when disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render with minAvailable
+    set:
+      pdb.enabled: true
+      pdb.minAvailable: 1
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.minAvailable
+          value: 1
+
+  - it: should prefer maxUnavailable when set
+    set:
+      pdb.enabled: true
+      pdb.maxUnavailable: 1
+    asserts:
+      - equal:
+          path: spec.maxUnavailable
+          value: 1

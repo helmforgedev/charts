@@ -19,6 +19,12 @@
       "type": "object",
       "description": "Labels added to every resource created by this chart"
     },
+    "replicaCount": {
+      "type": "integer",
+      "description": "Number of Umami application replicas",
+      "minimum": 1,
+      "default": 1
+    },
     "image": {
       "type": "object",
       "description": "Container image configuration",
@@ -79,6 +85,51 @@
           "description": "Disable telemetry",
           "default": true
         },
+        "disableUpdates": {
+          "type": "boolean",
+          "description": "Disable upstream update checks",
+          "default": true
+        },
+        "disableBotCheck": {
+          "type": "boolean",
+          "description": "Disable bot detection",
+          "default": false
+        },
+        "cloudMode": {
+          "type": "boolean",
+          "description": "Disable users, teams, and websites settings pages",
+          "default": false
+        },
+        "forceSSL": {
+          "type": "boolean",
+          "description": "Enable Umami FORCE_SSL",
+          "default": false
+        },
+        "clientIpHeader": {
+          "type": "string",
+          "description": "HTTP header used to determine client IP behind reverse proxies",
+          "default": ""
+        },
+        "collectApiEndpoint": {
+          "type": "string",
+          "description": "Custom collection endpoint",
+          "default": ""
+        },
+        "corsMaxAge": {
+          "type": ["string", "integer"],
+          "description": "CORS preflight max age in seconds",
+          "default": ""
+        },
+        "allowedFrameUrls": {
+          "type": "string",
+          "description": "Space-delimited URLs allowed to frame Umami",
+          "default": ""
+        },
+        "debug": {
+          "type": "string",
+          "description": "Debug namespaces",
+          "default": ""
+        },
         "trackerScriptName": {
           "type": "string",
           "description": "Custom tracker script name (for ad-blocker bypass)",
@@ -136,6 +187,43 @@
               "type": "string",
               "description": "Key in the existing secret containing the password",
               "default": "password"
+            },
+            "init": {
+              "type": "object",
+              "description": "Optional external PostgreSQL preparation before Umami starts",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Prepare an external PostgreSQL database before Umami starts",
+                  "default": false
+                },
+                "image": {
+                  "type": "string",
+                  "description": "PostgreSQL client image used by the init container",
+                  "default": "docker.io/library/postgres:18-alpine"
+                },
+                "adminUsername": {
+                  "type": "string",
+                  "description": "Administrative database user used by the init container",
+                  "default": "postgres"
+                },
+                "adminExistingSecret": {
+                  "type": "string",
+                  "description": "Existing secret containing the administrative database password",
+                  "default": ""
+                },
+                "adminExistingSecretPasswordKey": {
+                  "type": "string",
+                  "description": "Key in the admin secret containing the administrative database password",
+                  "default": "postgres-password"
+                },
+                "sql": {
+                  "type": "string",
+                  "description": "SQL executed before Umami starts",
+                  "default": "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+                }
+              }
             }
           }
         }
@@ -159,6 +247,11 @@
         "annotations": {
           "type": "object",
           "description": "Annotations for the ServiceAccount"
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean",
+          "description": "Mount Kubernetes API credentials into pods",
+          "default": false
         }
       }
     },
@@ -181,6 +274,16 @@
         "annotations": {
           "type": "object",
           "description": "Annotations for the Service"
+        },
+        "ipFamilyPolicy": {
+          "type": "string",
+          "description": "Service IP family policy",
+          "default": ""
+        },
+        "ipFamilies": {
+          "type": "array",
+          "description": "Ordered Service IP families",
+          "items": { "type": "string" }
         }
       }
     },
@@ -236,6 +339,34 @@
         }
       }
     },
+    "gatewayAPI": {
+      "type": "object",
+      "description": "Gateway API HTTPRoute configuration",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "parentRefs": { "type": "array", "items": { "type": "object" } },
+        "hostnames": { "type": "array", "items": { "type": "string" } },
+        "annotations": { "type": "object" },
+        "matches": { "type": "array", "items": { "type": "object" } },
+        "filters": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "externalSecrets": {
+      "type": "object",
+      "description": "External Secrets Operator resources",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "apiVersion": { "type": "string", "default": "external-secrets.io/v1" },
+        "refreshInterval": { "type": "string", "default": "1h" },
+        "secretStoreRef": { "type": "object", "additionalProperties": true },
+        "target": { "type": "object", "additionalProperties": true },
+        "app": { "type": "object", "additionalProperties": true },
+        "database": { "type": "object", "additionalProperties": true },
+        "backup": { "type": "object", "additionalProperties": true }
+      }
+    },
     "probes": {
       "type": "object",
       "description": "Health probe configuration",
@@ -247,7 +378,7 @@
           "properties": {
             "enabled": { "type": "boolean", "default": true },
             "path": { "type": "string", "default": "/api/heartbeat" },
-            "initialDelaySeconds": { "type": "integer" },
+            "initialDelaySeconds": { "type": "integer", "default": 30 },
             "periodSeconds": { "type": "integer" },
             "timeoutSeconds": { "type": "integer" },
             "failureThreshold": { "type": "integer" }
@@ -290,6 +421,26 @@
     "securityContext": {
       "type": "object",
       "description": "Container-level security context"
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "NetworkPolicy configuration",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "ingress": { "type": "object", "additionalProperties": true },
+        "egress": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "pdb": {
+      "type": "object",
+      "description": "PodDisruptionBudget configuration",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "minAvailable": { "type": ["integer", "string"], "default": 1 },
+        "maxUnavailable": { "type": ["integer", "string"], "default": "" }
+      }
     },
     "nodeSelector": {
       "type": "object",

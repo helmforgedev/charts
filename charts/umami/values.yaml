@@ -8,6 +8,9 @@ nameOverride: ""
 fullnameOverride: ""
 commonLabels: {}
 
+# -- Number of Umami application replicas. Use external PostgreSQL before scaling above one.
+replicaCount: 1
+
 # =============================================================================
 # Image
 # =============================================================================
@@ -36,6 +39,24 @@ umami:
   existingSecretKey: app-secret
   # -- Disable telemetry
   disableTelemetry: true
+  # -- Disable upstream update checks
+  disableUpdates: true
+  # -- Disable bot detection. Leave false for normal analytics accuracy.
+  disableBotCheck: false
+  # -- Disable users, teams, and websites settings pages for managed/cloud-style deployments
+  cloudMode: false
+  # -- Force Strict-Transport-Security responses from Umami. Enable only when public access is HTTPS.
+  forceSSL: false
+  # -- HTTP header used to determine client IP behind reverse proxies
+  clientIpHeader: ""
+  # -- Custom collection endpoint to avoid ad blockers. Defaults to Umami upstream behavior when empty.
+  collectApiEndpoint: ""
+  # -- CORS preflight max age in seconds. Empty uses upstream default.
+  corsMaxAge: ""
+  # -- Space-delimited URLs allowed to frame Umami. Prefer explicit origins.
+  allowedFrameUrls: ""
+  # -- Debug namespaces, for example umami:prisma or umami:middleware
+  debug: ""
   # -- Custom tracker script name (for ad-blocker bypass)
   trackerScriptName: ""
   # -- Extra environment variables for the container
@@ -60,6 +81,20 @@ database:
     existingSecret: ""
     # -- Key in the existing secret containing the password
     existingSecretPasswordKey: password
+    init:
+      # -- Prepare an external PostgreSQL database before Umami starts. Useful when the app user cannot create extensions.
+      enabled: false
+      # -- PostgreSQL client image used by the init container.
+      image: docker.io/library/postgres:18-alpine
+      # -- Administrative database user used only by the init container.
+      adminUsername: postgres
+      # -- Existing secret containing the administrative database password.
+      adminExistingSecret: ""
+      # -- Key in adminExistingSecret containing the administrative database password.
+      adminExistingSecretPasswordKey: postgres-password
+      # -- SQL executed against database.external.name before Umami starts.
+      sql: |
+        CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 # =============================================================================
 # Service Account
@@ -72,6 +107,8 @@ serviceAccount:
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
+  # -- Mount Kubernetes API credentials into Umami and backup pods
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Service
@@ -84,6 +121,10 @@ service:
   port: 80
   # -- Annotations for the Service
   annotations: {}
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ""
+  # -- Ordered Service IP families: IPv4 | IPv6. Empty uses cluster default.
+  ipFamilies: []
 
 # =============================================================================
 # Ingress
@@ -109,6 +150,77 @@ ingress:
     #   secretName: umami-tls
 
 # =============================================================================
+# Gateway API
+# =============================================================================
+
+gatewayAPI:
+  # -- Render Gateway API HTTPRoute resources
+  enabled: false
+  # -- HTTPRoute parentRefs
+  parentRefs: []
+    # - name: public-gateway
+    #   namespace: gateway-system
+  # -- Hostnames routed to Umami
+  hostnames: []
+    # - analytics.example.com
+  # -- Additional HTTPRoute annotations
+  annotations: {}
+  # -- Path matches for the HTTPRoute
+  matches:
+    - path:
+        type: PathPrefix
+        value: /
+  # -- Optional HTTPRoute filters
+  filters: []
+
+# =============================================================================
+# External Secrets
+# =============================================================================
+
+externalSecrets:
+  # -- Enable External Secrets Operator resources (external-secrets.io/v1)
+  enabled: false
+  # -- ExternalSecret API version. Must remain external-secrets.io/v1.
+  apiVersion: external-secrets.io/v1
+  # -- Refresh interval used by rendered ExternalSecrets
+  refreshInterval: 1h
+  secretStoreRef:
+    # -- SecretStore or ClusterSecretStore name
+    name: ""
+    # -- SecretStore kind: SecretStore | ClusterSecretStore
+    kind: SecretStore
+  target:
+    # -- ExternalSecret target creation policy
+    creationPolicy: Owner
+  app:
+    # -- Manage APP_SECRET through External Secrets
+    enabled: false
+    # -- Optional target Secret name. Defaults to the application Secret name.
+    targetName: ""
+    appSecretRemoteRef:
+      key: ""
+      property: ""
+  database:
+    # -- Manage external database password through External Secrets. Requires postgresql.enabled=false.
+    enabled: false
+    # -- Optional target Secret name. Defaults to the database Secret name.
+    targetName: ""
+    passwordRemoteRef:
+      key: ""
+      property: ""
+  backup:
+    # -- Manage S3 backup credentials through External Secrets
+    enabled: false
+    # -- Optional target Secret name. Defaults to the backup Secret name.
+    targetName: ""
+    accessKeyRemoteRef:
+      key: ""
+      property: ""
+    secretKeyRemoteRef:
+      key: ""
+      property: ""
+
+# =============================================================================
 # Probes
 # =============================================================================
 
@@ -116,7 +228,7 @@ probes:
   startup:
     enabled: true
     path: /api/heartbeat
-    initialDelaySeconds: 10
+    initialDelaySeconds: 30
     periodSeconds: 5
     timeoutSeconds: 3
     failureThreshold: 30
@@ -144,6 +256,44 @@ resources: {}
 podSecurityContext: {}
 
 securityContext: {}
+
+# =============================================================================
+# NetworkPolicy
+# =============================================================================
+
+networkPolicy:
+  # -- Enable NetworkPolicy resources
+  enabled: false
+  ingress:
+    # -- Allow HTTP ingress from pods in the same namespace
+    allowSameNamespace: true
+    # -- Additional NetworkPolicy ingress peers for HTTP traffic, for example Gateway controller namespaces
+    extraFrom: []
+  egress:
+    # -- Enable egress policy rules. Disabled by default to avoid blocking unknown database, OIDC, or backup endpoints.
+    enabled: false
+    # -- Allow DNS egress to kube-system
+    allowDNS: true
+    # -- Allow egress to same-namespace PostgreSQL pods
+    allowSameNamespaceDatabase: true
+    # -- Database port allowed when allowSameNamespaceDatabase=true
+    databasePort: 5432
+    # -- Allow HTTPS egress to public internet for integrations, update checks when enabled, and S3 HTTPS endpoints
+    allowHTTPS: true
+    # -- Allow HTTP egress to public internet for non-TLS S3 endpoints or internal integrations
+    allowHTTP: false
+    # -- Additional NetworkPolicy egress peers
+    extraTo: []
+
+# =============================================================================
+# Disruption Budget
+# =============================================================================
+
+pdb:
+  # -- Create a PodDisruptionBudget. Useful when replicaCount is increased with an external PostgreSQL backend.
+  enabled: false
+  minAvailable: 1
+  maxUnavailable: ""
 
 # =============================================================================
 # S3 Backup
@@ -259,6 +409,8 @@ postgresql:
     username: umami
     # -- PostgreSQL password (auto-generated if empty)
     password: ""
+  serviceAccount:
+    automountServiceAccountToken: false
   initdb:
     scripts:
       02-extensions.sql: |
