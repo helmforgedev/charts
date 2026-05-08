@@ -26,6 +26,14 @@ tests:
           path: spec.replicas
           value: 1
 
+  - it: should set custom replica count
+    set:
+      replicaCount: 2
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+
   - it: should set the correct image
     asserts:
       - equal:
@@ -51,6 +59,11 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: DISABLE_TELEMETRY
+            value: "1"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DISABLE_UPDATES
             value: "1"
 
   - it: should set DATABASE_URL with subchart host
@@ -89,6 +102,31 @@ tests:
           path: spec.template.spec.initContainers[0].name
           value: wait-for-db
 
+  - it: should prepare external database when enabled
+    set:
+      postgresql.enabled: false
+      database.external.host: db.example.com
+      database.external.init.enabled: true
+      database.external.init.adminExistingSecret: postgres-admin
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: prepare-external-db
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: docker.io/library/postgres:18-alpine
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: DATABASE_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: postgres-admin
+                key: postgres-password
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: wait-for-db
+
   - it: should set external database host when subchart is disabled
     set:
       postgresql.enabled: false
@@ -118,6 +156,20 @@ tests:
               secretKeyRef:
                 name: my-db-secret
                 key: db-pass
+
+  - it: should use configured PostgreSQL existingSecret
+    set:
+      postgresql.auth.existingSecret: umami-postgres
+      postgresql.auth.existingSecretUserPasswordKey: app-password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: umami-postgres
+                key: app-password
 
   - it: should set probes on heartbeat path
     asserts:
@@ -153,6 +205,58 @@ tests:
             name: TRACKER_SCRIPT_NAME
             value: "custom.js"
 
+  - it: should set structured Umami runtime options
+    set:
+      umami.clientIpHeader: X-Forwarded-For
+      umami.collectApiEndpoint: /collect
+      umami.corsMaxAge: "3600"
+      umami.allowedFrameUrls: "https://portal.example.com"
+      umami.debug: "umami:prisma"
+      umami.forceSSL: true
+      umami.disableBotCheck: true
+      umami.cloudMode: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CLIENT_IP_HEADER
+            value: X-Forwarded-For
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: COLLECT_API_ENDPOINT
+            value: /collect
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CORS_MAX_AGE
+            value: "3600"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ALLOWED_FRAME_URLS
+            value: "https://portal.example.com"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DEBUG
+            value: "umami:prisma"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FORCE_SSL
+            value: "1"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DISABLE_BOT_CHECK
+            value: "1"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CLOUD_MODE
+            value: "1"
+
   - it: should not set telemetry env when disabled
     set:
       umami.disableTelemetry: false
@@ -173,3 +277,9 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].resources.requests.cpu
           value: 100m
+
+  - it: should disable service account token automount by default
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false

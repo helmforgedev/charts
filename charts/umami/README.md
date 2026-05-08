@@ -1,50 +1,95 @@
 # Umami Helm Chart
 
-Deploy [Umami](https://umami.is) on Kubernetes using the official
-[ghcr.io/umami-software/umami](https://github.com/umami-software/umami/pkgs/container/umami) container image.
-Privacy-first web analytics — no cookies, GDPR-compliant, lightweight alternative to Google Analytics.
+Deploy [Umami](https://umami.is), a privacy-first web analytics platform, on Kubernetes using the official
+`ghcr.io/umami-software/umami` image and HelmForge production patterns.
+
+The chart supports a fast development install with bundled PostgreSQL and a production path with external
+PostgreSQL, managed secrets, ingress or Gateway API, NetworkPolicy, PodDisruptionBudget, S3-compatible database
+backups, and explicit Umami runtime options.
 
 ## Features
 
-- **Privacy-first** — no cookies, no personal data collection, GDPR/CCPA compliant
-- **Lightweight** — single Node.js container, minimal resource usage
-- **PostgreSQL backend** — bundled subchart or external database
-- **Auto-generated secrets** — APP_SECRET created automatically
-- **Custom tracker** — configurable tracker script name for ad-blocker bypass
-- **Ingress support** — TLS with cert-manager
+- Privacy-first analytics with no cookies by default.
+- Official Umami image and configurable image pull policy.
+- Bundled `helmforge/postgresql` subchart for quick starts.
+- External PostgreSQL support for managed or operator-owned databases.
+- Structured Umami settings for telemetry, updates, bot checks, SSL forwarding, base paths, tracker names, CORS, and frame allowlists.
+- Optional `external-secrets.io/v1` resources for APP_SECRET, database password, and S3 backup credentials.
+- Ingress and Kubernetes Gateway API `HTTPRoute` exposure options.
+- Dual-stack service controls through `ipFamilyPolicy` and `ipFamilies`.
+- Optional NetworkPolicy with ingress and egress controls.
+- Optional PodDisruptionBudget for multi-replica deployments.
+- S3-compatible PostgreSQL backup CronJob.
+- Focused Helm unit tests and CI values for default, external DB, backup, ingress, Gateway API, dual-stack, External Secrets, NetworkPolicy, and production examples.
 
-## Installation
-
-**HTTPS repository:**
+## Install
 
 ```bash
 helm repo add helmforge https://repo.helmforge.dev
 helm repo update
-helm install umami helmforge/umami -f values.yaml
+helm install umami helmforge/umami --namespace umami --create-namespace
 ```
 
-**OCI registry:**
+OCI registry:
 
 ```bash
-helm install umami oci://ghcr.io/helmforgedev/helm/umami -f values.yaml
+helm install umami oci://ghcr.io/helmforgedev/helm/umami --namespace umami --create-namespace
 ```
 
-## Basic Example
-
-```yaml
-# values.yaml - default values deploy with bundled PostgreSQL
-# No configuration needed for a basic setup
-```
-
-After deploying, access Umami:
+Access a default install:
 
 ```bash
-kubectl port-forward svc/<release>-umami 3000:80
-# Open http://localhost:3000
-# Default login: admin / umami
+kubectl port-forward -n umami svc/umami-umami 3000:80
 ```
 
-## External Database
+Open `http://localhost:3000` and sign in with Umami's initial credentials:
+
+- Username: `admin`
+- Password: `umami`
+
+Change the password immediately after first login.
+
+## Development Defaults
+
+The default values are intentionally simple:
+
+- `postgresql.enabled=true`
+- one Umami replica
+- generated APP_SECRET and database password
+- ClusterIP service
+- no public ingress
+- no NetworkPolicy
+- no PDB
+- telemetry and update checks disabled
+
+This is useful for local clusters, demos, and CI smoke tests. It is not a production-ready posture by itself.
+
+## Production Path
+
+For production, prefer:
+
+- external or operator-managed PostgreSQL
+- a stable APP_SECRET stored in Kubernetes Secret or External Secrets Operator
+- TLS termination through Gateway API or ingress
+- `FORCE_SSL=true` when the proxy terminates HTTPS
+- `CLIENT_IP_HEADER` aligned with your ingress controller or gateway
+- multiple replicas with PDB
+- explicit resource requests and memory limits
+- NetworkPolicy ingress and egress controls
+- backup CronJob or a database-native backup solution
+
+Start from:
+
+```bash
+helm install umami helmforge/umami \
+  --namespace umami \
+  --create-namespace \
+  -f charts/umami/examples/production.yaml
+```
+
+## External PostgreSQL
+
+Disable the bundled database and point Umami at a managed PostgreSQL endpoint:
 
 ```yaml
 postgresql:
@@ -52,52 +97,208 @@ postgresql:
 
 database:
   external:
-    host: postgres.example.com
+    host: postgres-primary.database.svc.cluster.local
+    port: 5432
     name: umami
     username: umami
-    existingSecret: umami-db-credentials
+    existingSecret: umami-db
+    existingSecretPasswordKey: database-password
+    init:
+      enabled: true
+      adminUsername: postgres
+      adminExistingSecret: postgres-admin
 ```
+
+Create the secret:
+
+```bash
+kubectl create secret generic umami-db \
+  --from-literal=database-password='replace-me'
+```
+
+Umami creates the `pgcrypto` extension during its first migration. Many managed databases require an owner or
+administrative account to create extensions. When the application user cannot do that, enable
+`database.external.init.enabled` and provide an admin Secret. The init container runs before Umami starts and only
+executes the SQL configured in `database.external.init.sql`.
+
+## External Secrets
+
+Use External Secrets Operator when credentials are stored in Vault, AWS Secrets Manager, GCP Secret Manager, Azure Key Vault, or another supported backend.
+
+```yaml
+postgresql:
+  enabled: false
+
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: platform-secrets
+    kind: ClusterSecretStore
+  app:
+    enabled: true
+    targetName: umami-app
+    appSecretRemoteRef:
+      key: prod/umami/app
+      property: appSecret
+  database:
+    enabled: true
+    targetName: umami-db
+    passwordRemoteRef:
+      key: prod/umami/database
+      property: password
+```
+
+The chart renders `external-secrets.io/v1` resources and consumes the generated Kubernetes Secrets.
+
+## Gateway API
+
+Gateway API is available through `gatewayAPI.enabled=true`:
+
+```yaml
+gatewayAPI:
+  enabled: true
+  parentRefs:
+    - name: public-gateway
+      namespace: gateway-system
+  hostnames:
+    - analytics.example.com
+```
+
+Use ingress instead when your cluster standardizes on `networking.k8s.io/v1` Ingress.
+
+## Service Dual Stack
+
+```yaml
+service:
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+    - IPv4
+    - IPv6
+```
+
+Dual-stack requires a cluster and CNI configured for IPv4/IPv6.
+
+## NetworkPolicy
+
+NetworkPolicy is opt-in:
+
+```yaml
+networkPolicy:
+  enabled: true
+  ingress:
+    allowSameNamespace: true
+  egress:
+    enabled: true
+    allowDNS: true
+    allowSameNamespaceDatabase: true
+    allowHTTPS: true
+```
+
+Some local CNIs enforce traffic through pod CIDRs differently when testing through Services. In those clusters, add an
+explicit ingress peer:
+
+```yaml
+networkPolicy:
+  ingress:
+    allowSameNamespace: false
+    extraFrom:
+      - ipBlock:
+          cidr: 10.42.0.0/16
+```
+
+## Umami Runtime Settings
+
+Common structured settings:
+
+| Value | Umami env var | Default | Purpose |
+| --- | --- | --- | --- |
+| `umami.disableTelemetry` | `DISABLE_TELEMETRY` | `true` | Disable Umami telemetry. |
+| `umami.disableUpdates` | `DISABLE_UPDATES` | `true` | Disable update checks. |
+| `umami.disableBotCheck` | `DISABLE_BOT_CHECK` | `false` | Disable built-in bot filtering when needed. |
+| `umami.forceSSL` | `FORCE_SSL` | `false` | Trust proxy HTTPS and generate secure URLs. |
+| `umami.clientIpHeader` | `CLIENT_IP_HEADER` | `""` | Header used to detect client IP behind a proxy. |
+| `umami.collectApiEndpoint` | `COLLECT_API_ENDPOINT` | `""` | Custom collect endpoint. |
+| `umami.trackerScriptName` | `TRACKER_SCRIPT_NAME` | `""` | Custom tracker script file name. |
+| `umami.allowedFrameUrls` | `ALLOWED_FRAME_URLS` | `""` | Allow specific frame embed URLs. |
+| `umami.corsMaxAge` | `CORS_MAX_AGE` | `""` | CORS preflight cache duration. |
+
+Use `extraEnv` for Umami settings not yet modeled by the chart.
+
+Sub-path hosting requires a custom Umami image built with the upstream `BASE_PATH` build-time variable.
+The chart does not set `BASE_PATH` as a runtime environment variable for the stock image.
+
+## Backup
+
+The chart can create a PostgreSQL dump CronJob and upload it to S3-compatible storage:
+
+```yaml
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  s3:
+    endpoint: https://s3.example.com
+    bucket: umami-backups
+    existingSecret: umami-backup
+```
+
+The referenced secret must contain the keys configured by `backup.s3.existingSecretAccessKeyKey` and
+`backup.s3.existingSecretSecretKeyKey`.
+
+For production, test restore procedures outside Helm. Backups without restore validation are only partial protection.
 
 ## Key Values
 
 | Key | Default | Description |
-|-----|---------|-------------|
-| `image.repository` | `ghcr.io/umami-software/umami` | Umami container image repository |
-| `image.tag` | `3.1.0` | Umami container image tag |
-| `umami.port` | `3000` | Application port |
-| `umami.appSecret` | `""` | Hash secret (auto-generated) |
-| `umami.disableTelemetry` | `true` | Disable telemetry |
-| `umami.trackerScriptName` | `""` | Custom tracker script name |
-| `postgresql.enabled` | `true` | Deploy PostgreSQL subchart (`helmforge/postgresql` `1.10.0`) |
-| `ingress.enabled` | `false` | Enable ingress |
-| `service.port` | `80` | Service port |
+| --- | --- | --- |
+| `replicaCount` | `1` | Number of Umami pods. |
+| `image.repository` | `ghcr.io/umami-software/umami` | Umami image repository. |
+| `image.tag` | `3.1.0` | Umami image tag. |
+| `service.type` | `ClusterIP` | Kubernetes service type. |
+| `service.ipFamilyPolicy` | `""` | Optional service IP family policy. |
+| `service.ipFamilies` | `[]` | Optional service IP families. |
+| `ingress.enabled` | `false` | Enable Ingress. |
+| `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute. |
+| `postgresql.enabled` | `true` | Deploy bundled HelmForge PostgreSQL. |
+| `database.external.host` | `""` | External PostgreSQL host when bundled PostgreSQL is disabled. |
+| `database.external.init.enabled` | `false` | Run optional external database preparation SQL before Umami starts. |
+| `externalSecrets.enabled` | `false` | Render ExternalSecret resources. |
+| `networkPolicy.enabled` | `false` | Render NetworkPolicy. |
+| `pdb.enabled` | `false` | Render PodDisruptionBudget. |
+| `backup.enabled` | `false` | Enable S3-compatible backup CronJob. |
+| `serviceAccount.automountServiceAccountToken` | `false` | Control service account token mounting. |
+
+## Examples
+
+- `examples/production.yaml` - production-oriented values with external PostgreSQL, Gateway API, NetworkPolicy, and PDB.
+- `examples/external-postgresql.yaml` - managed database setup.
+- `examples/external-secrets.yaml` - External Secrets Operator integration.
+- `examples/gateway-api.yaml` - Gateway API HTTPRoute exposure.
 
 ## Upgrade Notes
 
-Umami `3.1.0` is a major upstream release that adds Boards, Session Replay,
-Web Vitals tracking, share page improvements, and security fixes. It includes
-database schema migrations for Boards, Shares, Session Replay, and duplicate
-board keys. Back up PostgreSQL before upgrading live deployments and review the
-upstream v3 release notes if migrating from an older Umami v2 installation.
+Umami 3.x includes database migrations for newer analytics features such as Boards, Shares, Session Replay, and Web Vitals.
+Back up PostgreSQL before upgrading live deployments, especially when migrating from Umami 2.x.
 
 ## More Information
 
 - [Umami documentation](https://umami.is/docs)
-- [Source code](https://github.com/helmforgedev/charts/tree/main/charts/umami)
+- [Umami environment variables](https://umami.is/docs/environment-variables)
+- [HelmForge chart source](https://github.com/helmforgedev/charts/tree/main/charts/umami)
 
 <!-- @AI-METADATA
 type: chart-readme
 title: Umami Helm Chart
 description: README for the Umami privacy-first web analytics Helm chart
 
-keywords: umami, analytics, privacy, web-analytics, postgresql
+keywords: umami, analytics, privacy, web-analytics, postgresql, gateway-api, external-secrets
 
 purpose: Chart installation, configuration, and usage documentation
 scope: Chart
 
 relations:
   - charts/umami/values.yaml
+  - charts/umami/DESIGN.md
 path: charts/umami/README.md
-version: 1.0
-date: 2026-04-01
+version: 2.0
+date: 2026-05-07
 -->

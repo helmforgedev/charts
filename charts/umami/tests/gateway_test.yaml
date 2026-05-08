@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Gateway API
+templates:
+  - templates/gateway-httproute.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render when disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render HTTPRoute when enabled
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.parentRefs:
+        - name: public-gateway
+          namespace: gateway-system
+      gatewayAPI.hostnames:
+        - analytics.example.com
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: apiVersion
+          value: gateway.networking.k8s.io/v1
+      - equal:
+          path: spec.parentRefs[0].name
+          value: public-gateway
+      - equal:
+          path: spec.hostnames[0]
+          value: analytics.example.com
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: test-umami
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 80
+
+  - it: should fail when parentRefs are missing
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.parentRefs: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "gatewayAPI.parentRefs is required when gatewayAPI.enabled=true"

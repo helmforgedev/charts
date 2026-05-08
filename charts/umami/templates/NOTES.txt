@@ -1,79 +1,77 @@
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Umami has been successfully deployed!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Umami {{ .Chart.AppVersion }} was deployed.
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
+Release:   {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Chart:     {{ .Chart.Name }} {{ .Chart.Version }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ACCESS INFORMATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-{{- if .Values.ingress.enabled }}
+Access:
+{{- if .Values.gatewayAPI.enabled }}
+  Gateway API HTTPRoute is enabled.
+  Hosts:
+{{- range .Values.gatewayAPI.hostnames }}
+    - https://{{ . }}/
+{{- else }}
+    - Check the attached Gateway listener hostnames.
+{{- end }}
+{{- else if .Values.ingress.enabled }}
+  Ingress is enabled.
 {{- range $host := .Values.ingress.hosts }}
-DASHBOARD:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
-TRACKER:     http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/script.js
+    - http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
 {{- end }}
 {{- else }}
-Port-forward to access Umami locally:
+  Port-forward locally:
+    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "umami.fullname" . }} 3000:{{ .Values.service.port }}
 
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "umami.fullname" . }} 3000:{{ .Values.service.port | default 3000 }}
-
-  DASHBOARD:  http://localhost:3000/
+  Open:
+    http://localhost:3000/
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  CREDENTIALS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Default admin credentials (change after first login!):
+Initial Umami credentials:
   Username: admin
   Password: umami
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  GETTING STARTED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Change the password after first login.
 
-1. kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=umami -n {{ .Release.Namespace }} --timeout=300s
-2. kubectl get pods -l app.kubernetes.io/name=umami -n {{ .Release.Namespace }}
-3. kubectl logs -l app.kubernetes.io/name=umami -n {{ .Release.Namespace }} --all-containers --tail=50 -f
-4. Log in and add your first website to track
+Runtime:
+  Service:     {{ include "umami.fullname" . }}:{{ .Values.service.port }}
+  Database:    {{ include "umami.dbHost" . }}:{{ include "umami.dbPort" . }}/{{ include "umami.dbName" . }}
+  PostgreSQL:  {{ ternary "bundled HelmForge subchart" "external database" .Values.postgresql.enabled }}
+  APP_SECRET:  {{ include "umami.appSecretName" . }}/{{ include "umami.appSecretKey" . }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  TROUBLESHOOTING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  kubectl describe pod -l app.kubernetes.io/name=umami -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/name=umami -n {{ .Release.Namespace }} --all-containers --tail=100
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-
-{{- if .Values.postgresql.enabled }}
-View PostgreSQL logs:
-  kubectl logs -l app.kubernetes.io/name=postgresql -n {{ .Release.Namespace }} --all-containers --tail=50
+{{- if .Values.database.external.init.enabled }}
+External database preparation:
+  The prepare-external-db init container ran before Umami startup.
+  It uses {{ .Values.database.external.init.adminExistingSecret }}/{{ .Values.database.external.init.adminExistingSecretPasswordKey }} only during pod initialization.
 {{- end }}
 
-Upgrade reminder:
-  Umami {{ .Chart.AppVersion }} can run database schema migrations on startup.
-  Back up PostgreSQL before upgrading production releases.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  WARNINGS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-{{- if not .Values.ingress.enabled }}
-
-NOTE: Ingress is not enabled. Access via port-forward (see above).
-The tracking script requires a public URL to collect analytics data.
+{{- if .Values.externalSecrets.enabled }}
+External Secrets:
+  external-secrets.io/v1 resources were rendered.
+  Confirm reconciliation before troubleshooting application startup:
+    kubectl get externalsecret -n {{ .Release.Namespace }}
+    kubectl describe externalsecret -n {{ .Release.Namespace }}
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ADDITIONAL RESOURCES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{{- if .Values.networkPolicy.enabled }}
+NetworkPolicy:
+  NetworkPolicy is enabled. If Umami cannot reach PostgreSQL or external endpoints,
+  inspect egress rules and CNI enforcement.
+{{- end }}
 
-Documentation:  https://helmforge.dev/docs/charts/umami
-Umami:          https://umami.is | https://github.com/umami-software/umami
+{{- if .Values.backup.enabled }}
+Backup:
+  S3-compatible backup CronJob is enabled.
+  Check jobs:
+    kubectl get cronjob,job -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+{{- end }}
 
-Happy Helmforging :)
+Health checks:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "umami.name" . }}
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "umami.name" . }} --all-containers --tail=100
+  kubectl get events -n {{ .Release.Namespace }} --sort-by='.lastTimestamp'
+
+Upgrade note:
+  Umami can run database migrations on startup. Back up PostgreSQL before upgrading production releases.
+
+Documentation:
+  https://helmforge.dev/docs/charts/umami
