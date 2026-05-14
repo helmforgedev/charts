@@ -112,6 +112,68 @@ ConfigMap name for custom DNS and dnsmasq config.
 {{- end }}
 
 {{/*
+ConfigMap name holding the Unbound sidecar configuration.
+*/}}
+{{- define "pihole.unboundConfigMapName" -}}
+{{- printf "%s-unbound" (include "pihole.fullname" .) }}
+{{- end }}
+
+{{/*
+Rendered content of /opt/unbound/etc/unbound/unbound.conf for the
+Unbound sidecar.
+
+The upstream mvance/unbound image hardcodes interface 0.0.0.0@53 in its
+shipped unbound.conf, which collides with pihole-FTL in the shared pod
+network namespace. This default config binds Unbound to loopback at
+unbound.port instead, enables DNSSEC validation, and protects rebinding
+of RFC1918 ranges. Set unbound.config to fully replace it, or
+unbound.extraConfig to append directives inside the server: section.
+*/}}
+{{- define "pihole.unboundConfig" -}}
+{{- if .Values.unbound.config -}}
+{{ .Values.unbound.config }}
+{{- else -}}
+server:
+    verbosity: 0
+    interface: 127.0.0.1
+    port: {{ .Values.unbound.port }}
+    do-ip4: yes
+    do-udp: yes
+    do-tcp: yes
+    do-ip6: no
+    prefer-ip6: no
+
+    auto-trust-anchor-file: "/opt/unbound/etc/unbound/root.key"
+    root-hints: "/opt/unbound/etc/unbound/root.hints"
+
+    harden-glue: yes
+    harden-dnssec-stripped: yes
+    harden-algo-downgrade: yes
+    use-caps-for-id: no
+    edns-buffer-size: 1232
+    prefetch: yes
+    prefetch-key: yes
+    num-threads: 1
+    so-rcvbuf: 1m
+
+    access-control: 127.0.0.1/32 allow
+
+    private-address: 10.0.0.0/8
+    private-address: 172.16.0.0/12
+    private-address: 192.168.0.0/16
+    private-address: 169.254.0.0/16
+    private-address: fd00::/8
+    private-address: fe80::/10
+
+    hide-identity: yes
+    hide-version: yes
+{{- with .Values.unbound.extraConfig }}
+{{ . | indent 4 | trimSuffix "\n" }}
+{{- end }}
+{{- end -}}
+{{- end }}
+
+{{/*
 Generate adlist URLs based on preset and custom lists.
 Returns list.
 */}}
