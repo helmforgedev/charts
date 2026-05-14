@@ -1,10 +1,13 @@
 # Unbound Recursive DNS
 
-When Unbound is enabled, Pi-hole uses a local Unbound sidecar for recursive DNS resolution instead of forwarding queries to third-party DNS providers like Google or Cloudflare. This eliminates the need to trust external resolvers with your DNS queries.
+When Unbound is enabled, Pi-hole uses a local Unbound sidecar for recursive DNS
+resolution instead of forwarding queries to third-party DNS providers like Google
+or Cloudflare. This eliminates the need to trust external resolvers with your DNS
+queries.
 
 ## How It Works
 
-```
+```text
 Client -> Pi-hole (ad filtering) -> Unbound (recursive) -> Root Nameservers
 ```
 
@@ -55,7 +58,12 @@ unbound:
 
 The chart uses [mvance/unbound](https://hub.docker.com/r/mvance/unbound) with a pinned version tag. The default port is `5335` to avoid conflicts with Pi-hole's DNS on port `53`.
 
-The image ships with `interface: 0.0.0.0@53` hardcoded in `/opt/unbound/etc/unbound/unbound.conf`, which would collide with `pihole-FTL` in the shared pod network namespace. The chart mounts a generated `unbound.conf` over that file at runtime; the rendered config binds Unbound to `127.0.0.1` at `unbound.port`, enables DNSSEC validation against `root.key`, and blocks DNS rebinding of RFC1918 ranges.
+The image ships with `interface: 0.0.0.0@53` hardcoded in
+`/opt/unbound/etc/unbound/unbound.conf`, which would collide with `pihole-FTL`
+in the shared pod network namespace. The chart mounts a generated `unbound.conf`
+over that file at runtime; the rendered config binds Unbound to `127.0.0.1` at
+`unbound.port`, enables DNSSEC validation against `root.key`, and blocks DNS
+rebinding of RFC1918 ranges.
 
 ## Customizing the Unbound Config
 
