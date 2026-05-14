@@ -207,6 +207,19 @@ mongosh --quiet --eval "db.adminCommand('ping')"
 {{- end -}}
 {{- end -}}
 
+
+{{/*
+MongoDB exporter command.
+*/}}
+{{- define "mongodb.exporter.mongoUrl" -}}
+{{- if eq .Values.auth.enabled true -}}
+- "--mongodb.uri=mongodb://$(MONGO_INITDB_ROOT_USERNAME):$(MONGO_INITDB_ROOT_PASSWORD)@localhost:{{ .Values.port }}/admin"
+{{- else -}}
+- "--mongodb.uri=mongodb://localhost:{{ .Values.port }}/admin"
+{{- end -}}
+{{- end -}}
+
+
 {{/*
 Common mongod args.
 */}}
@@ -370,7 +383,7 @@ spec:
       image: "{{ .root.Values.metrics.image.repository }}:{{ .root.Values.metrics.image.tag }}"
       imagePullPolicy: {{ .root.Values.metrics.image.pullPolicy }}
       args:
-        - "--mongodb.uri=mongodb://$(MONGO_INITDB_ROOT_USERNAME):$(MONGO_INITDB_ROOT_PASSWORD)@localhost:{{ .root.Values.port }}/admin"
+        {{ include "mongodb.exporter.mongoUrl" .root  }}
         - "--web.listen-address=:{{ .root.Values.metrics.port }}"
         - "--collect-all"
         {{- with .root.Values.metrics.extraArgs }}
