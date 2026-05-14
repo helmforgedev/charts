@@ -3,6 +3,7 @@ suite: Deployment
 templates:
   - templates/deployment.yaml
   - templates/configmap.yaml
+  - templates/unbound-configmap.yaml
 release:
   name: test
   namespace: default
@@ -393,6 +394,42 @@ tests:
       - equal:
           path: spec.template.spec.containers[1].image
           value: "docker.io/mvance/unbound:1.22.0"
+
+  - it: should mount the unbound.conf override over the image default
+    template: templates/deployment.yaml
+    set:
+      unbound.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[1].volumeMounts
+          content:
+            name: unbound-config
+            mountPath: /opt/unbound/etc/unbound/unbound.conf
+            subPath: unbound.conf
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: unbound-config
+            configMap:
+              name: test-pihole-unbound
+              items:
+                - key: unbound.conf
+                  path: unbound.conf
+
+  - it: should set checksum annotation for unbound config when enabled
+    template: templates/deployment.yaml
+    set:
+      unbound.enabled: true
+    asserts:
+      - isNotNull:
+          path: spec.template.metadata.annotations["checksum/unbound-config"]
+
+  - it: should not set unbound checksum annotation when disabled
+    template: templates/deployment.yaml
+    asserts:
+      - isNull:
+          path: spec.template.metadata.annotations["checksum/unbound-config"]
 
   - it: should run gravity update init container by default
     template: templates/deployment.yaml

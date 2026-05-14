@@ -18,6 +18,9 @@ spec:
     metadata:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.unbound.enabled }}
+        checksum/unbound-config: {{ include (print $.Template.BasePath "/unbound-configmap.yaml") . | sha256sum }}
+        {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -306,6 +309,11 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          volumeMounts:
+            - name: unbound-config
+              mountPath: /opt/unbound/etc/unbound/unbound.conf
+              subPath: unbound.conf
+              readOnly: true
         {{- end }}
       volumes:
         - name: pihole-data
@@ -354,6 +362,14 @@ spec:
             items:
               - key: 06-custom.conf
                 path: 06-custom.conf
+        {{- end }}
+        {{- if .Values.unbound.enabled }}
+        - name: unbound-config
+          configMap:
+            name: {{ include "pihole.unboundConfigMapName" . }}
+            items:
+              - key: unbound.conf
+                path: unbound.conf
         {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
