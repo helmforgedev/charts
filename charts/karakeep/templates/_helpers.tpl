@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- define "karakeep.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -53,7 +54,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/* Secret name */}}
 {{- define "karakeep.secretName" -}}
+{{- if .Values.karakeep.existingSecret -}}
+{{- .Values.karakeep.existingSecret -}}
+{{- else -}}
 {{- printf "%s-secret" (include "karakeep.fullname" .) -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
@@ -61,9 +66,10 @@ Generate NEXTAUTH_SECRET: lookup existing secret or generate a new one.
 This ensures the value is preserved across upgrades.
 */}}
 {{- define "karakeep.nextAuthSecret" -}}
+{{- $key := .Values.karakeep.existingSecretNextAuthKey | default "nextauth-secret" -}}
 {{- $existing := lookup "v1" "Secret" .Release.Namespace (include "karakeep.secretName" .) -}}
-{{- if and $existing $existing.data (index $existing.data "nextauth-secret") -}}
-{{- index $existing.data "nextauth-secret" | b64dec -}}
+{{- if and $existing $existing.data (index $existing.data $key) -}}
+{{- index $existing.data $key | b64dec -}}
 {{- else -}}
 {{- randAlphaNum 32 -}}
 {{- end -}}
@@ -73,9 +79,10 @@ This ensures the value is preserved across upgrades.
 Generate MEILI_MASTER_KEY: lookup existing secret or generate a new one.
 */}}
 {{- define "karakeep.meiliMasterKey" -}}
+{{- $key := .Values.karakeep.existingSecretMeiliMasterKey | default "meili-master-key" -}}
 {{- $existing := lookup "v1" "Secret" .Release.Namespace (include "karakeep.secretName" .) -}}
-{{- if and $existing $existing.data (index $existing.data "meili-master-key") -}}
-{{- index $existing.data "meili-master-key" | b64dec -}}
+{{- if and $existing $existing.data (index $existing.data $key) -}}
+{{- index $existing.data $key | b64dec -}}
 {{- else -}}
 {{- randAlphaNum 32 -}}
 {{- end -}}

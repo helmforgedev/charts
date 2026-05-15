@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 suite: Deployment
 templates:
   - templates/deployment.yaml
@@ -26,7 +27,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "ghcr.io/karakeep-app/karakeep:0.31.0"
+          value: "ghcr.io/karakeep-app/karakeep:0.32.0"
 
   - it: should set DATA_DIR env
     template: templates/deployment.yaml
@@ -82,6 +83,16 @@ tests:
           content:
             name: BROWSER_WEB_URL
             value: "http://localhost:9222"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BROWSER_CONNECT_ONDEMAND
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[2].env
+          content:
+            name: PORT
+            value: "9222"
 
   - it: should not set BROWSER_WEB_URL when chromium disabled
     template: templates/deployment.yaml
@@ -154,3 +165,30 @@ tests:
           content:
             name: NEXTAUTH_URL
             value: "https://karakeep.example.com"
+
+  - it: should use existing secret keys when configured
+    template: templates/deployment.yaml
+    set:
+      karakeep:
+        existingSecret: karakeep-app-secret
+        existingSecretNextAuthKey: nextauth
+        existingSecretMeiliMasterKey: meili
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[1].valueFrom.secretKeyRef.name
+          value: karakeep-app-secret
+      - equal:
+          path: spec.template.spec.containers[0].env[1].valueFrom.secretKeyRef.key
+          value: nextauth
+      - equal:
+          path: spec.template.spec.containers[0].env[3].valueFrom.secretKeyRef.name
+          value: karakeep-app-secret
+      - equal:
+          path: spec.template.spec.containers[0].env[3].valueFrom.secretKeyRef.key
+          value: meili
+      - equal:
+          path: spec.template.spec.containers[1].env[0].valueFrom.secretKeyRef.name
+          value: karakeep-app-secret
+      - equal:
+          path: spec.template.spec.containers[1].env[0].valueFrom.secretKeyRef.key
+          value: meili
