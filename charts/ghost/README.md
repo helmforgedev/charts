@@ -1,6 +1,8 @@
 # Ghost Helm Chart
 
-Deploy [Ghost](https://ghost.org) on Kubernetes using the official [ghost](https://hub.docker.com/_/ghost) container image. A modern publishing platform for building blogs, newsletters, and membership-based content with built-in monetization.
+Deploy [Ghost](https://ghost.org) on Kubernetes using the official
+[ghost](https://hub.docker.com/_/ghost) container image. A modern publishing platform
+for building blogs, newsletters, and membership-based content with built-in monetization.
 
 ## Features
 
