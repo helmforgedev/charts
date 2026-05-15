@@ -14,7 +14,7 @@ Enable scheduled backups of your Minecraft server data to S3-compatible object s
 
 ## How It Works
 
-```
+```text
 CronJob triggers at schedule
   │
   ├─ Init: pre-backup
@@ -96,24 +96,50 @@ Customize exclusions with `backup.excludes`.
 Restore is a manual operational task:
 
 1. **Scale down the server**
+
    ```bash
    kubectl scale deployment <release>-minecraft --replicas=0
    ```
 
 2. **Download the backup**
+
    ```bash
    mc cp backup/<bucket>/<prefix>/minecraft-<timestamp>.tar.gz ./backup.tar.gz
    ```
 
 3. **Restore to the PVC** (via a temporary pod or `kubectl cp`)
+
    ```bash
+   RESTORE_POD="$(cat <<'JSON'
+   {
+     "spec": {
+       "containers": [
+         {
+           "name": "restore",
+           "image": "alpine:3",
+           "command": ["sh"],
+           "volumeMounts": [{"name": "data", "mountPath": "/data"}]
+         }
+       ],
+       "volumes": [
+         {
+           "name": "data",
+           "persistentVolumeClaim": {"claimName": "<release>-minecraft"}
+         }
+       ]
+     }
+   }
+   JSON
+   )"
+
    kubectl run restore --rm -it --restart=Never \
      --image=alpine:3 \
-     --overrides='{"spec":{"containers":[{"name":"restore","image":"alpine:3","command":["sh"],"volumeMounts":[{"name":"data","mountPath":"/data"}]}],"volumes":[{"name":"data","persistentVolumeClaim":{"claimName":"<release>-minecraft"}}]}}' \
+     --overrides="$RESTORE_POD" \
      -- sh -c "cd /data && rm -rf * && tar xzf /dev/stdin" < backup.tar.gz
    ```
 
 4. **Scale up the server**
+
    ```bash
    kubectl scale deployment <release>-minecraft --replicas=1
    ```

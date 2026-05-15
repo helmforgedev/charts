@@ -225,7 +225,7 @@ mods:
 |-----|---------|-------------|
 | `metrics.enabled` | `false` | Enable mc-monitor sidecar |
 | `metrics.image.repository` | `itzg/mc-monitor` | mc-monitor image |
-| `metrics.image.tag` | `latest` | mc-monitor tag |
+| `metrics.image.tag` | `0.16.1` | mc-monitor tag |
 | `metrics.port` | `8080` | Metrics port |
 | `metrics.serviceMonitor.enabled` | `false` | Create ServiceMonitor |
 | `metrics.serviceMonitor.interval` | `30s` | Scrape interval |
@@ -245,6 +245,13 @@ mods:
 | `backup.s3.existingSecret` | `""` | Existing secret for S3 credentials |
 | `backup.s3.accessKey` | `""` | Inline access key |
 | `backup.s3.secretKey` | `""` | Inline secret key |
+
+## Upgrade Notes
+
+`docker.io/itzg/minecraft-server:2026.5.2` is an upstream image update from
+`2026.4.2`. Review the upstream release notes before upgrading production
+servers, take a world backup, and verify plugins, mods, datapacks, and pinned
+`server.version` values in a staging environment before reusing existing PVCs.
 
 ### Mods & Plugins
 
