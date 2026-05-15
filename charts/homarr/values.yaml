@@ -6,7 +6,7 @@
 # -- Homarr image
 image:
   repository: ghcr.io/homarr-labs/homarr
-  tag: "v1.60.0"
+  tag: "v1.61.0"
   pullPolicy: IfNotPresent
 
 # -- Image pull secrets
@@ -301,6 +301,12 @@ service:
   # -- Annotations for the service
   annotations: {}
 
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ~
+
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
+
 # =============================================================================
 # Ingress
 # =============================================================================
@@ -332,6 +338,32 @@ ingress:
   #     hosts:
   #       - dash.example.com
   tls: []
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gatewayAPI:
+  # -- Enable Gateway API HTTPRoute for Homarr HTTP (requires Gateway API CRDs)
+  enabled: false
+
+  # -- Parent Gateway references. Leave empty to attach through controller defaults.
+  parentRefs: []
+  #   - name: shared-gateway
+  #     namespace: gateway-system
+  #     sectionName: https
+
+  # -- HTTPRoute hostnames
+  hostnames: []
+  #   - dash.example.com
+
+  # -- HTTPRoute path matches
+  paths:
+    - type: PathPrefix
+      value: /
+
+  # -- HTTPRoute annotations
+  annotations: {}
 
 # =============================================================================
 # Service Account
@@ -440,6 +472,46 @@ backup:
     postgresDumpArgs: ""
     # -- Extra arguments for mysqldump
     mysqlDumpArgs: "--single-transaction --quick --skip-lock-tables --no-tablespaces"
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret for the Homarr encryption/auth secret.
+  # Requires encryption.existingSecret to be set to prevent credential drift
+  # between the chart-managed Secret and the ExternalSecret.
+  enabled: false
+
+  # -- ExternalSecret apiVersion
+  apiVersion: external-secrets.io/v1
+
+  # -- Refresh interval
+  refreshInterval: "0"
+
+  secretStoreRef:
+    # -- Existing SecretStore or ClusterSecretStore name
+    name: ""
+    # -- SecretStore or ClusterSecretStore
+    kind: SecretStore
+
+  target:
+    # -- ExternalSecret target Secret creation policy
+    creationPolicy: Owner
+
+  # -- ExternalSecret data entries mapping remote keys to Homarr encryption Secret keys.
+  data: []
+  #   - secretKey: secret-encryption-key
+  #     remoteRef:
+  #       key: homarr/credentials
+  #       property: secret-encryption-key
+  #   - secretKey: auth-secret
+  #     remoteRef:
+  #       key: homarr/credentials
+  #       property: auth-secret
+
+  # -- ExternalSecret annotations
+  annotations: {}
 
 # =============================================================================
 # Scheduling
