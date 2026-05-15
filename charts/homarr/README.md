@@ -5,7 +5,7 @@
 Helm chart for deploying [Homarr](https://homarr.dev/) modern application dashboard on Kubernetes using the official
 [`ghcr.io/homarr-labs/homarr`](https://github.com/homarr-labs/homarr/pkgs/container/homarr) container image.
 
-Current application version: `v1.60.0`.
+Current application version: `v1.61.0`.
 
 ## Features
 
@@ -18,6 +18,9 @@ Current application version: `v1.60.0`.
 - **Persistent storage** application data in `/appdata`
 - **S3-compatible backup** database-aware CronJob (SQLite tar, pg_dump, mysqldump)
 - **Ingress support** configurable ingress with TLS
+- **Gateway API support** optional HTTPRoute for modern Kubernetes ingress controllers
+- **Dual-stack ready Service** optional `ipFamilyPolicy` and `ipFamilies`
+- **External Secrets Operator** optional projection for the Homarr encryption/auth Secret
 - **Chart lock policy** source chart does not commit `Chart.lock`; dependencies are resolved during packaging/validation
 
 ## Installation
@@ -63,6 +66,45 @@ ingress:
     - secretName: homarr-tls
       hosts:
         - dash.example.com
+```
+
+### Gateway API HTTPRoute
+
+```yaml
+gatewayAPI:
+  enabled: true
+  parentRefs:
+    - name: shared-gateway
+      namespace: gateway-system
+      sectionName: https
+  hostnames:
+    - dash.example.com
+  paths:
+    - type: PathPrefix
+      value: /
+```
+
+### External Secrets Operator
+
+```yaml
+encryption:
+  existingSecret: homarr-encryption
+  existingSecretKey: secret-encryption-key
+
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: platform-secrets
+    kind: ClusterSecretStore
+  data:
+    - secretKey: secret-encryption-key
+      remoteRef:
+        key: homarr/credentials
+        property: secret-encryption-key
+    - secretKey: auth-secret
+      remoteRef:
+        key: homarr/credentials
+        property: auth-secret
 ```
 
 ### PostgreSQL with Kubernetes Integration
@@ -132,7 +174,7 @@ backup:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `ghcr.io/homarr-labs/homarr` | Container image repository |
-| `image.tag` | `"v1.60.0"` | Homarr image tag |
+| `image.tag` | `"v1.61.0"` | Homarr image tag |
 | `replicaCount` | `1` | Number of replicas |
 | `homarr.logLevel` | `info` | Log level |
 | `homarr.authProviders` | `credentials` | Auth providers (credentials, ldap, oidc) |
@@ -162,8 +204,15 @@ backup:
 | `persistence.size` | `1Gi` | Volume size |
 | `service.type` | `ClusterIP` | Service type |
 | `service.port` | `7575` | Service port |
+| `service.ipFamilyPolicy` | `null` | Service IP family policy |
+| `service.ipFamilies` | `[]` | Ordered service IP families |
 | `ingress.enabled` | `false` | Enable ingress |
 | `ingress.ingressClassName` | `""` | Ingress class |
+| `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute |
+| `gatewayAPI.parentRefs` | `[]` | Parent Gateway references |
+| `gatewayAPI.hostnames` | `[]` | HTTPRoute hostnames |
+| `externalSecrets.enabled` | `false` | Render ExternalSecret for the Homarr encryption/auth Secret |
+| `externalSecrets.secretStoreRef.name` | `""` | SecretStore or ClusterSecretStore name |
 | `backup.enabled` | `false` | Enable S3 backup CronJob |
 | `backup.schedule` | `"0 3 * * *"` | Backup cron schedule |
 | `backup.s3.endpoint` | `""` | S3-compatible endpoint URL |
@@ -188,10 +237,29 @@ openssl rand -hex 32
 
 Then pass it via `encryption.key` or an existing secret.
 
+## Gateway API
+
+The chart can render a native Kubernetes Gateway API `HTTPRoute` alongside or instead of Ingress. Set
+`gatewayAPI.enabled=true` and reference an existing shared Gateway with `gatewayAPI.parentRefs`. Gateway API CRDs and a
+controller such as Envoy Gateway, Cilium, Istio, Traefik, or NGINX Gateway Fabric must be installed separately.
+
+## Dual-Stack Networking
+
+The Service supports Kubernetes dual-stack networking through `service.ipFamilyPolicy` and `service.ipFamilies`. Defaults
+omit both fields so existing installs keep the cluster default behavior. Set `service.ipFamilyPolicy=PreferDualStack` for a
+portable dual-stack opt-in, or include explicit `ipFamilies` only on clusters that advertise those families.
+
+## External Secrets
+
+Set `externalSecrets.enabled=true` with `encryption.existingSecret` to let External Secrets Operator populate Homarr's
+`SECRET_ENCRYPTION_KEY` and `AUTH_SECRET`. The `externalSecrets.data` entries must include `secret-encryption-key` (or the
+configured `encryption.existingSecretKey`) and `auth-secret`. The External Secrets Operator and SecretStore are managed
+outside this chart.
+
 ## Upgrade Notes
 
-This update moves the default image from `v1.57.1` to `v1.60.0`. Review upstream release notes before upgrading production
-environments. Homarr `v1.60.0` includes scheduler, OpenAPI documentation and icon updater fixes, with no breaking changes
+This update moves the default image from `v1.60.0` to `v1.61.0`. Review upstream release notes before upgrading production
+environments. Homarr `v1.61.0` includes feature, bug fix and revert updates, with no breaking changes
 identified in the upstream release metadata.
 
 For PostgreSQL and MySQL, the chart sets `DB_DIALECT`, `DB_DRIVER`, and discrete database environment variables instead of
