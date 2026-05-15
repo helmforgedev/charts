@@ -139,7 +139,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
-| `image.tag` | `2.19.2` | n8n container image tag |
+| `image.tag` | `2.20.6` | n8n container image tag |
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
@@ -170,12 +170,11 @@ externalSecrets:
 
 ## Upgrade Notes
 
-n8n `2.19.2` is an upstream bugfix release. It fixes execution context
-persistence before database writes, global admin favorite listing, peer project
-discovery in share dropdowns, and editor focus panel clipping. Back up the
-database and keep the encryption key stable before upgrading live deployments.
-When using the bundled PostgreSQL subchart on a fresh data directory, the chart
-bootstraps the `uuid-ossp` extension before n8n migrations run.
+n8n `2.20.6` is an upstream stable bugfix release. Review the upstream release
+notes before upgrading, back up the database, and keep the encryption key
+stable before upgrading live deployments. When using the bundled PostgreSQL
+subchart on a fresh data directory, the chart bootstraps the `uuid-ossp`
+extension before n8n migrations run.
 
 Self-hosted n8n `2.x` starts an internal JavaScript task runner by default. The
 base `n8nio/n8n` image may also log a Python runner warning when Python is not
