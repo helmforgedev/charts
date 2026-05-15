@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Gateway API
+templates:
+  - templates/httproute.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render HTTPRoute with gatewayAPI values
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.gatewayName: shared-gateway
+      gatewayAPI.gatewayNamespace: gateway-system
+      gatewayAPI.hostnames:
+        - metabase.example.com
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.parentRefs[0].name
+          value: shared-gateway
+      - equal:
+          path: spec.parentRefs[0].namespace
+          value: gateway-system
+      - equal:
+          path: spec.hostnames[0]
+          value: metabase.example.com
+
+  - it: should keep legacy gateway values working
+    set:
+      gateway.enabled: true
+      gateway.gatewayName: legacy-gateway
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.parentRefs[0].name
+          value: legacy-gateway

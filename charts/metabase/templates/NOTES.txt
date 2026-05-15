@@ -35,6 +35,18 @@ Port-forward to access Metabase locally:
 4. Open the UI and complete the initial setup wizard
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  CONFIGURATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Metabase AI features are disabled by default to avoid background AI jobs
+without a configured provider:
+
+  metabase.aiFeaturesEnabled={{ .Values.metabase.aiFeaturesEnabled }}
+
+To use Gateway API, prefer gatewayAPI.* values. The legacy gateway.* block
+is still accepted as a compatibility alias.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   TROUBLESHOOTING
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -54,11 +66,15 @@ Check backup CronJob: kubectl get cronjob -n {{ .Release.Namespace }}
   WARNINGS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-{{- if .Values.gateway.enabled }}
+{{- $gateway := .Values.gatewayAPI }}
+{{- if and (not .Values.gatewayAPI.enabled) .Values.gateway.enabled }}
+  {{- $gateway = .Values.gateway }}
+{{- end }}
+{{- if or .Values.gatewayAPI.enabled .Values.gateway.enabled }}
 
 NOTE: Gateway API HTTPRoute {{ include "metabase.fullname" . }} is active.
-  Gateway: {{ .Values.gateway.gatewayName }}{{ with .Values.gateway.gatewayNamespace }}.{{ . }}{{ end }}
-  {{- with .Values.gateway.hostnames }}
+  Gateway: {{ $gateway.gatewayName }}{{ with $gateway.gatewayNamespace }}.{{ . }}{{ end }}
+  {{- with $gateway.hostnames }}
   Hostnames: {{ join ", " . }}
   {{- end }}
 {{- else if not .Values.ingress.enabled }}

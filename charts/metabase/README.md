@@ -89,7 +89,7 @@ service:
 Requires Gateway API CRDs and a compatible controller (e.g. Envoy Gateway).
 
 ```yaml
-gateway:
+gatewayAPI:
   enabled: true
   gatewayName: envoy-gateway
   gatewayNamespace: envoy-gateway-system
@@ -97,7 +97,8 @@ gateway:
     - metabase.example.com
 ```
 
-> **Note:** `gateway.gatewayName` is required when `gateway.enabled=true`.
+> **Note:** `gatewayAPI.gatewayName` is required when `gatewayAPI.enabled=true`. The older `gateway` block remains
+> supported as a compatibility alias.
 
 ## External Secrets Operator (ESO)
 
@@ -127,6 +128,7 @@ externalSecrets:
 | `metabase.port` | `3000` | Application port |
 | `metabase.encryptionSecretKey` | `""` | Encryption key (auto-generated) |
 | `metabase.siteUrl` | `""` | Public site URL |
+| `metabase.aiFeaturesEnabled` | `false` | Enable Metabase AI features after configuring a supported provider |
 | `metabase.javaTimezone` | `UTC` | Java timezone |
 | `metabase.javaOpts` | `""` | JVM memory options |
 | `postgresql.enabled` | `true` | Deploy PostgreSQL subchart |
@@ -134,10 +136,12 @@ externalSecrets:
 | `service.port` | `80` | Service port |
 | `service.ipFamilyPolicy` | `~` | IP family policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
 | `service.ipFamilies` | `[]` | IP families override (`IPv4`, `IPv6`) |
-| `gateway.enabled` | `false` | Enable Gateway API HTTPRoute |
-| `gateway.gatewayName` | `""` | Gateway name (required when `gateway.enabled=true`) |
-| `gateway.gatewayNamespace` | `""` | Gateway namespace |
-| `gateway.hostnames` | `[]` | HTTPRoute hostnames |
+| `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute |
+| `gatewayAPI.gatewayName` | `""` | Gateway name (required when `gatewayAPI.enabled=true`) |
+| `gatewayAPI.gatewayNamespace` | `""` | Gateway namespace |
+| `gatewayAPI.hostnames` | `[]` | HTTPRoute hostnames |
+| `gatewayAPI.path` | `/` | HTTPRoute path match value |
+| `gatewayAPI.pathType` | `PathPrefix` | HTTPRoute path match type |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret resource |
 | `externalSecrets.apiVersion` | `external-secrets.io/v1` | ExternalSecret API version |
 | `externalSecrets.refreshInterval` | `"0"` | Refresh interval (`"0"` = one-time sync) |
