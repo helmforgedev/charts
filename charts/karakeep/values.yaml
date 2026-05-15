@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
 # Karakeep Helm Chart — Default Values
 # =============================================================================
@@ -15,7 +16,7 @@ image:
   # -- Karakeep container image
   repository: ghcr.io/karakeep-app/karakeep
   # -- Image tag
-  tag: "0.31.0"
+  tag: "0.32.0"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -27,6 +28,14 @@ imagePullSecrets: []
 karakeep:
   # -- Public URL of the Karakeep instance (e.g. https://karakeep.example.com)
   nextAuthUrl: ""
+  # -- Connect to the browser service only when crawling needs it
+  browserConnectOnDemand: true
+  # -- Existing secret containing nextauth-secret and meili-master-key
+  existingSecret: ""
+  # -- Key in the existing secret for NEXTAUTH_SECRET
+  existingSecretNextAuthKey: nextauth-secret
+  # -- Key in the existing secret for MEILI_MASTER_KEY
+  existingSecretMeiliMasterKey: meili-master-key
   # -- Extra environment variables for the main container
   # -- @default -- `[]`
   extraEnv: []
@@ -54,6 +63,8 @@ meilisearch:
 chromium:
   # -- Enable Chromium sidecar for web page screenshots
   enabled: true
+  # -- Internal Chromium sidecar HTTP port
+  port: 9222
   image:
     # -- Chromium container image
     repository: ghcr.io/browserless/chromium
@@ -103,6 +114,10 @@ service:
   port: 80
   # -- Annotations for the Service
   annotations: {}
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ~
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
 
 # =============================================================================
 # Ingress
@@ -126,6 +141,28 @@ ingress:
     # - hosts:
     #     - karakeep.example.com
     #   secretName: karakeep-tls
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gatewayAPI:
+  # -- Enable Gateway API HTTPRoute for Karakeep HTTP (requires Gateway API CRDs)
+  enabled: false
+  # -- Parent Gateway references. Leave empty to attach through controller defaults.
+  parentRefs: []
+  #   - name: shared-gateway
+  #     namespace: gateway-system
+  #     sectionName: https
+  # -- HTTPRoute hostnames
+  hostnames: []
+  #   - karakeep.example.com
+  # -- HTTPRoute path matches
+  paths:
+    - type: PathPrefix
+      value: /
+  # -- HTTPRoute annotations
+  annotations: {}
 
 # =============================================================================
 # Probes
@@ -184,3 +221,37 @@ extraVolumeMounts: []
 
 # -- Extra manifests to deploy alongside the chart
 extraManifests: []
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret for the Karakeep auth/search secret.
+  # Requires karakeep.existingSecret to be set to prevent credential drift
+  # between the chart-managed Secret and the ExternalSecret.
+  enabled: false
+  # -- ExternalSecret apiVersion
+  apiVersion: external-secrets.io/v1
+  # -- Refresh interval
+  refreshInterval: "0"
+  secretStoreRef:
+    # -- Existing SecretStore or ClusterSecretStore name
+    name: ""
+    # -- SecretStore or ClusterSecretStore
+    kind: SecretStore
+  target:
+    # -- ExternalSecret target Secret creation policy
+    creationPolicy: Owner
+  # -- ExternalSecret data entries mapping remote keys to Karakeep Secret keys.
+  data: []
+  #   - secretKey: nextauth-secret
+  #     remoteRef:
+  #       key: karakeep/credentials
+  #       property: nextauth-secret
+  #   - secretKey: meili-master-key
+  #     remoteRef:
+  #       key: karakeep/credentials
+  #       property: meili-master-key
+  # -- ExternalSecret annotations
+  annotations: {}

@@ -22,6 +22,10 @@
       "description": "Karakeep application configuration",
       "properties": {
         "nextAuthUrl": { "type": "string", "description": "Public URL of the Karakeep instance", "default": "" },
+        "browserConnectOnDemand": { "type": "boolean", "default": true },
+        "existingSecret": { "type": "string", "description": "Existing secret containing nextauth-secret and meili-master-key", "default": "" },
+        "existingSecretNextAuthKey": { "type": "string", "default": "nextauth-secret" },
+        "existingSecretMeiliMasterKey": { "type": "string", "default": "meili-master-key" },
         "extraEnv": { "type": "array", "items": { "type": "object" } }
       }
     },
@@ -34,7 +38,7 @@
           "type": "object",
           "properties": {
             "repository": { "type": "string", "default": "docker.io/getmeili/meilisearch" },
-            "tag": { "type": "string", "default": "v1.13.3" },
+            "tag": { "type": "string", "default": "v1.41.0" },
             "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "default": "IfNotPresent" }
           }
         },
@@ -46,11 +50,12 @@
       "description": "Chromium sidecar for web page screenshots",
       "properties": {
         "enabled": { "type": "boolean", "default": true },
+        "port": { "type": "integer", "default": 9222, "minimum": 1, "maximum": 65535 },
         "image": {
           "type": "object",
           "properties": {
             "repository": { "type": "string", "default": "ghcr.io/browserless/chromium" },
-            "tag": { "type": "string", "default": "v2.18.0" },
+            "tag": { "type": "string", "default": "v2.46.0" },
             "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "default": "IfNotPresent" }
           }
         },
@@ -81,7 +86,17 @@
       "properties": {
         "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"], "default": "ClusterIP" },
         "port": { "type": "integer", "default": 80 },
-        "annotations": { "type": "object" }
+        "annotations": { "type": "object" },
+        "ipFamilyPolicy": {
+          "type": ["string", "null"],
+          "enum": ["SingleStack", "PreferDualStack", "RequireDualStack", null]
+        },
+        "ipFamilies": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["IPv4", "IPv6"] },
+          "maxItems": 2,
+          "uniqueItems": true
+        }
       }
     },
     "ingress": {
@@ -92,6 +107,26 @@
         "annotations": { "type": "object" },
         "hosts": { "type": "array", "items": { "type": "object" } },
         "tls": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "gatewayAPI": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "parentRefs": { "type": "array", "items": { "type": "object" } },
+        "hostnames": { "type": "array", "items": { "type": "string" } },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "enum": ["PathPrefix", "Exact", "RegularExpression"] },
+              "value": { "type": "string" }
+            },
+            "required": ["type", "value"]
+          }
+        },
+        "annotations": { "type": "object" }
       }
     },
     "probes": { "type": "object" },
@@ -108,6 +143,29 @@
     "podAnnotations": { "type": "object" },
     "extraVolumes": { "type": "array", "items": { "type": "object" } },
     "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
-    "extraManifests": { "type": "array", "items": { "type": "object" } }
+    "extraManifests": { "type": "array", "items": { "type": "object" } },
+    "externalSecrets": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "apiVersion": { "type": "string", "default": "external-secrets.io/v1" },
+        "refreshInterval": { "type": "string", "default": "0" },
+        "secretStoreRef": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "default": "" },
+            "kind": { "type": "string", "enum": ["SecretStore", "ClusterSecretStore"], "default": "SecretStore" }
+          }
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "creationPolicy": { "type": "string", "default": "Owner" }
+          }
+        },
+        "data": { "type": "array", "items": { "type": "object" } },
+        "annotations": { "type": "object" }
+      }
+    }
   }
 }

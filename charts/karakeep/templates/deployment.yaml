@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -54,7 +55,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ include "karakeep.secretName" . }}
-                  key: nextauth-secret
+                  key: {{ .Values.karakeep.existingSecretNextAuthKey }}
             {{- with .Values.karakeep.nextAuthUrl }}
             - name: NEXTAUTH_URL
               value: {{ . | quote }}
@@ -66,11 +67,13 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ include "karakeep.secretName" . }}
-                  key: meili-master-key
+                  key: {{ .Values.karakeep.existingSecretMeiliMasterKey }}
             {{- end }}
             {{- if .Values.chromium.enabled }}
             - name: BROWSER_WEB_URL
-              value: "http://localhost:9222"
+              value: "http://localhost:{{ .Values.chromium.port }}"
+            - name: BROWSER_CONNECT_ONDEMAND
+              value: {{ .Values.karakeep.browserConnectOnDemand | quote }}
             {{- end }}
             {{- with .Values.karakeep.extraEnv }}
             {{- toYaml . | nindent 12 }}
@@ -129,7 +132,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ include "karakeep.secretName" . }}
-                  key: meili-master-key
+                  key: {{ .Values.karakeep.existingSecretMeiliMasterKey }}
             - name: MEILI_NO_ANALYTICS
               value: "true"
           {{- with .Values.meilisearch.resources }}
@@ -147,8 +150,11 @@ spec:
           imagePullPolicy: {{ .Values.chromium.image.pullPolicy }}
           ports:
             - name: chrome
-              containerPort: 9222
+              containerPort: {{ .Values.chromium.port }}
               protocol: TCP
+          env:
+            - name: PORT
+              value: {{ .Values.chromium.port | quote }}
           {{- with .Values.chromium.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

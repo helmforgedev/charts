@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 suite: Service
 templates:
   - templates/service.yaml
@@ -12,6 +13,10 @@ tests:
       - equal:
           path: metadata.name
           value: test-karakeep
+      - notExists:
+          path: spec.ipFamilyPolicy
+      - notExists:
+          path: spec.ipFamilies
 
   - it: should use port 80
     asserts:
@@ -34,3 +39,36 @@ tests:
             port: 8080
             targetPort: http
             protocol: TCP
+
+  - it: should render dual-stack settings when configured
+    set:
+      service:
+        ipFamilyPolicy: PreferDualStack
+        ipFamilies:
+          - IPv6
+          - IPv4
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+      - equal:
+          path: spec.ipFamilies
+          value:
+            - IPv6
+            - IPv4
+
+  - it: should render SingleStack policy when configured
+    set:
+      service.ipFamilyPolicy: SingleStack
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: SingleStack
+
+  - it: should render RequireDualStack policy when configured
+    set:
+      service.ipFamilyPolicy: RequireDualStack
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: RequireDualStack
