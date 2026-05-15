@@ -215,7 +215,7 @@ Use the generic extension values when platform-specific integration is needed:
 | `architecture` | Redis topology: `standalone`, `replication`, `sentinel`, or `cluster` | `standalone` |
 | `clusterDomain` | Kubernetes cluster DNS domain used for internal service FQDNs | `cluster.local` |
 | `image.repository` | Redis image repository | `docker.io/library/redis` |
-| `image.tag` | Redis image tag | `8.6.2` |
+| `image.tag` | Redis image tag | `8.6.3` |
 | `auth.enabled` | Enable password authentication | `true` |
 | `auth.password` | Inline Redis password | `""` |
 | `auth.existingSecret` | Existing Secret containing the Redis password | `""` |
