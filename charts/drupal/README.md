@@ -6,7 +6,7 @@ Important runtime note:
 
 - This chart uses `docker.io/library/drupal`.
 - Drupal upstream does not currently publish its own upstream-maintained runtime container image.
-- HelmForge pins the Docker Official image explicitly to `11.3.8-php8.5-apache-bookworm`, which includes PHP 8.5 and the Drupal-required database extensions.
+- HelmForge pins the Docker Official image explicitly to `11.3.9-php8.5-apache-bookworm`, which includes PHP 8.5 and the Drupal-required database extensions.
 - The chart prepares runtime, persistence, ingress, backup automation, and database connectivity, then guides the final site installation through Drupal's web installer.
 
 ## Install
@@ -44,7 +44,7 @@ Then:
 
 ## Why This Chart Is Different
 
-- **Pinned production image** — uses `drupal:11.3.8-php8.5-apache-bookworm`, which matches current Drupal 11.3 support for PHP 8.5 and keeps the Debian base explicit
+- **Pinned production image** — uses `drupal:11.3.9-php8.5-apache-bookworm`, which matches current Drupal 11.3 support for PHP 8.5 and keeps the Debian base explicit
 - **Seeded `sites/` persistence** — preserves installer output and uploads without masking Drupal core files from the image
 - **Built-in backup automation** — archives `sites/` and backs up either MySQL or SQLite to S3-compatible storage
 - **Safe scaling model** — single replica by default, with fail-fast guardrails for multi-replica or HPA use
@@ -137,7 +137,7 @@ mysql:
 |-----|---------|-------------|
 | `replicaCount` | `1` | Number of Drupal replicas. |
 | `image.repository` | `docker.io/library/drupal` | Drupal image repository. |
-| `image.tag` | `11.3.8-php8.5-apache-bookworm` | Drupal image tag. |
+| `image.tag` | `11.3.9-php8.5-apache-bookworm` | Drupal image tag. |
 | `database.mode` | `auto` | Database mode: `auto`, `external`, `mysql`, or `sqlite`. |
 | `mysql.enabled` | `true` | Deploy bundled MySQL. |
 | `mysql.auth.database` | `drupal` | Database name created by the MySQL subchart. |
