@@ -74,6 +74,14 @@ app.kubernetes.io/role: {{ .role }}
 {{- if or (include "postgresql.generatedInitdbEnabled" .) .Values.initdb.existingConfigMap -}}true{{- end -}}
 {{- end -}}
 
+{{- define "postgresql.postgresDbEnv" -}}
+{{- if .Values.initdb.runDefaultScript -}}
+{{- .Values.auth.database -}}
+{{- else -}}
+{{- include "postgresql.maintenanceDatabase" . -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "postgresql.tlsSecretName" -}}
 {{- if .Values.tls.enabled -}}
 {{- if .Values.tls.existingSecret -}}

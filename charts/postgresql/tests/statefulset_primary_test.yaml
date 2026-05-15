@@ -160,6 +160,31 @@ tests:
             name: PGDATA
             value: /var/lib/postgresql/data/pgdata
 
+  - it: should let the image create the app database when default init script is enabled
+    template: statefulset-primary.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_DB
+            value: app
+
+  - it: should stop the image from creating the app database when default init script is disabled
+    template: statefulset-primary.yaml
+    set:
+      initdb.runDefaultScript: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_DB
+            value: postgres
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: APP_DATABASE
+            value: app
+
   - it: should use default port 5432
     template: statefulset-primary.yaml
     asserts:
