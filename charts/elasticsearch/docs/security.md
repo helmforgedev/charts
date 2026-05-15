@@ -42,6 +42,7 @@ security:
 ```
 
 This creates:
+
 - `Issuer` — self-signed, in the same namespace
 - `Certificate` — multi-SAN covering all headless service DNS entries
 
@@ -105,7 +106,9 @@ curl --cacert /path/to/ca.crt \
 
 ## Internode transport TLS
 
-Transport TLS (port 9300) is always configured when `security.enabled=true`. Nodes authenticate each other using the same certificate that covers all headless service names. This prevents rogue nodes from joining the cluster.
+Transport TLS (port 9300) is always configured when `security.enabled=true`.
+Nodes authenticate each other using the same certificate that covers all
+headless service names. This prevents rogue nodes from joining the cluster.
 
 <!-- @AI-METADATA
 type: chart-docs

@@ -36,7 +36,10 @@ Common cases:
 
 ## Operational guidance
 
-The dev profile is the simplest configuration. It is appropriate when data loss is acceptable and speed of startup is more important than durability. If the workload becomes operationally important, migrate to `staging` or `production-ha` and take an Elasticsearch snapshot before switching.
+The dev profile is the simplest configuration. It is appropriate when data loss
+is acceptable and speed of startup is more important than durability. If the
+workload becomes operationally important, migrate to `staging` or
+`production-ha` and take an Elasticsearch snapshot before switching.
 
 ## Common risks
 

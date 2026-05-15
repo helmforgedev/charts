@@ -47,6 +47,29 @@ tests:
             name: node.roles
             value: "master,data,ingest"
 
+  - it: dev profile master should use the default upstream image tag
+    set:
+      clusterProfile: dev
+    template: templates/statefulset-master.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/library/elasticsearch:9.4.0
+
+  - it: sysctl init should explicitly opt out of pod-level non-root policy
+    set:
+      clusterProfile: dev
+      sysctlInit:
+        enabled: true
+    template: templates/statefulset-master.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsUser
+          value: 0
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+          value: false
+
   - it: production-ha master should have node.roles=master (dedicated master)
     set:
       clusterProfile: production-ha
