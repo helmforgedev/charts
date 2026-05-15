@@ -1,0 +1,32 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.gatewayAPI.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "liwan.fullname" . }}
+  labels:
+    {{- include "liwan.labels" . | nindent 4 }}
+  {{- with .Values.gatewayAPI.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.gatewayAPI.parentRefs }}
+  parentRefs:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.gatewayAPI.hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - matches:
+        {{- range .Values.gatewayAPI.paths }}
+        - path:
+            type: {{ .type }}
+            value: {{ .value | quote }}
+        {{- end }}
+      backendRefs:
+        - name: {{ include "liwan.fullname" . }}
+          port: {{ .Values.service.port }}
+{{- end }}
