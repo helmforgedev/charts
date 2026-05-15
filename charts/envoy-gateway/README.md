@@ -192,7 +192,7 @@ highAvailability:
 | `proxy.kind` | `Deployment` | Proxy workload kind: `Deployment` or `DaemonSet` |
 | `proxy.replicaCount` | `1` | Number of proxy replicas (Deployment mode only, overridden by profile) |
 | `proxy.image.repository` | `docker.io/envoyproxy/envoy` | Proxy image repository |
-| `proxy.image.tag` | `distroless-v1.33.0` | Proxy image tag |
+| `proxy.image.tag` | `distroless-v1.37.0` | Proxy image tag |
 | `proxy.image.pullPolicy` | `IfNotPresent` | Image pull policy |
 | `proxy.resources.requests.cpu` | `100m` | CPU request (overridden by profile) |
 | `proxy.resources.requests.memory` | `128Mi` | Memory request (overridden by profile) |
