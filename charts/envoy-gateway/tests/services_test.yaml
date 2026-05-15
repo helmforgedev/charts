@@ -58,6 +58,39 @@ tests:
         template: service-controller.yaml
         documentIndex: 1
 
+  - it: should apply dual-stack settings to controller services
+    set:
+      service:
+        ipFamilyPolicy: PreferDualStack
+        ipFamilies:
+          - IPv4
+          - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+        template: service-controller.yaml
+        documentIndex: 0
+      - equal:
+          path: spec.ipFamilies
+          value:
+            - IPv4
+            - IPv6
+        template: service-controller.yaml
+        documentIndex: 0
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+        template: service-controller.yaml
+        documentIndex: 1
+      - equal:
+          path: spec.ipFamilies
+          value:
+            - IPv4
+            - IPv6
+        template: service-controller.yaml
+        documentIndex: 1
+
   - it: should configure proxy service type LoadBalancer by default in EnvoyProxy CRD
     asserts:
       - equal:
@@ -86,6 +119,16 @@ tests:
       - equal:
           path: spec.provider.kubernetes.envoyService.annotations["service.beta.kubernetes.io/aws-load-balancer-type"]
           value: nlb
+        template: envoyproxy-config.yaml
+
+  - it: should configure proxy EnvoyProxy ipFamily for dual-stack
+    set:
+      proxy:
+        ipFamily: DualStack
+    asserts:
+      - equal:
+          path: spec.ipFamily
+          value: DualStack
         template: envoyproxy-config.yaml
 
   - it: should configure HPA in EnvoyProxy CRD when autoscaling enabled

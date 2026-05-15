@@ -1,12 +1,14 @@
 # TLS Certificates
 
-This chart handles two distinct certificate concerns: internal TLS for the controller (managed automatically by a certgen job) and application TLS for HTTPS Gateway listeners (managed externally by the user).
+This chart handles two distinct certificate concerns: internal TLS for the
+controller (managed automatically by a certgen job) and application TLS for
+HTTPS Gateway listeners (managed externally by the user).
 
 ## Internal Certificates (Certgen Job)
 
 ### Architecture
 
-```
+```text
 Helm install/upgrade
       │
       ▼
@@ -19,7 +21,9 @@ Secret: <release>-certs
       └→ xDS server TLS (controller ↔ proxy communication)
 ```
 
-The chart runs a `certgen` Kubernetes Job as a Helm pre-install and pre-upgrade hook. This job generates self-signed TLS certificates for:
+The chart runs a `certgen` Kubernetes Job as a Helm pre-install and pre-upgrade
+hook. This job generates self-signed TLS certificates for:
+
 - The EG controller webhook (required by the Kubernetes API server)
 - The xDS gRPC server used for controller-to-proxy communication
 
@@ -30,7 +34,7 @@ certgen:
   enabled: true          # Enable the certgen job (required for EG to function)
   image:
     repository: docker.io/envoyproxy/gateway
-    tag: v1.7.1
+    tag: v1.7.3
   resources:
     requests:
       cpu: 10m
@@ -57,7 +61,9 @@ kubectl get secret <release>-certs
 
 ## Application TLS (HTTPS Gateway Listeners)
 
-For HTTPS listeners on your Gateway, you must supply a TLS Secret separately. This chart does **not** create Certificate resources or integrate with cert-manager directly — you manage application certificates externally.
+For HTTPS listeners on your Gateway, you must supply a TLS Secret separately.
+This chart does **not** create Certificate resources or integrate with
+cert-manager directly — you manage application certificates externally.
 
 ### Using cert-manager (External, Not Chart-Integrated)
 
@@ -195,7 +201,10 @@ openssl s_client -connect app.example.com:443 -servername app.example.com
 
 ## Monitoring Certificate Expiration
 
-Since application certificates are managed externally, set up your own monitoring. If using cert-manager, it exposes the `certmanager_certificate_expiration_timestamp_seconds` metric that Prometheus can scrape:
+Since application certificates are managed externally, set up your own
+monitoring. If using cert-manager, it exposes the
+`certmanager_certificate_expiration_timestamp_seconds` metric that Prometheus can
+scrape:
 
 ```yaml
 # Example manual PrometheusRule for cert-manager certificates
