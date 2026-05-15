@@ -1,0 +1,216 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and .Values.zookeeper.enabled (eq .Values.zookeeperConfig.mode "subchart") }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-zookeeper
+  labels:
+    app.kubernetes.io/name: zookeeper
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: zookeeper
+    app.kubernetes.io/part-of: helmforge
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+data:
+  zoo.cfg: |
+    tickTime={{ .Values.zookeeper.tickTime }}
+    dataDir=/data
+    dataLogDir=/datalog
+    clientPort={{ .Values.zookeeper.clientPort }}
+    initLimit={{ .Values.zookeeper.initLimit }}
+    syncLimit={{ .Values.zookeeper.syncLimit }}
+    4lw.commands.whitelist={{ .Values.zookeeper.fourLetterWordWhitelist }}
+    {{- if gt (int .Values.zookeeper.replicaCount) 1 }}
+    {{- range $i := until (int .Values.zookeeper.replicaCount) }}
+    server.{{ add1 $i }}={{ $.Release.Name }}-zookeeper-{{ $i }}.{{ $.Release.Name }}-zookeeper-headless:{{ $.Values.zookeeper.peerPort }}:{{ $.Values.zookeeper.electionPort }};{{ $.Values.zookeeper.clientPort }}
+    {{- end }}
+    {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-zookeeper
+  labels:
+    app.kubernetes.io/name: zookeeper
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: zookeeper
+    app.kubernetes.io/part-of: helmforge
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: client
+      port: {{ .Values.zookeeper.clientPort }}
+      targetPort: client
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: zookeeper
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: zookeeper
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-zookeeper-headless
+  labels:
+    app.kubernetes.io/name: zookeeper
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: zookeeper
+    app.kubernetes.io/part-of: helmforge
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: client
+      port: {{ .Values.zookeeper.clientPort }}
+      targetPort: client
+      protocol: TCP
+    - name: peer
+      port: {{ .Values.zookeeper.peerPort }}
+      targetPort: peer
+      protocol: TCP
+    - name: election
+      port: {{ .Values.zookeeper.electionPort }}
+      targetPort: election
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: zookeeper
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: zookeeper
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-zookeeper
+  labels:
+    app.kubernetes.io/name: zookeeper
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: zookeeper
+    app.kubernetes.io/part-of: helmforge
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  serviceName: {{ .Release.Name }}-zookeeper-headless
+  replicas: {{ .Values.zookeeper.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zookeeper
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: zookeeper
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zookeeper
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: zookeeper
+        app.kubernetes.io/part-of: helmforge
+        {{- with .Values.zookeeper.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.zookeeper.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.zookeeper.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: zookeeper
+          image: {{ .Values.zookeeper.image.repository }}:{{ .Values.zookeeper.image.tag }}
+          imagePullPolicy: {{ .Values.zookeeper.image.pullPolicy }}
+          {{- with .Values.zookeeper.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - sh
+            - -c
+          args:
+            - |
+              ordinal="${HOSTNAME##*-}"
+              echo "$((ordinal + 1))" > /data/myid
+              exec zkServer.sh start-foreground /conf/zoo.cfg
+          env:
+            - name: ZOO_TICK_TIME
+              value: {{ .Values.zookeeper.tickTime | quote }}
+            - name: ZOO_INIT_LIMIT
+              value: {{ .Values.zookeeper.initLimit | quote }}
+            - name: ZOO_SYNC_LIMIT
+              value: {{ .Values.zookeeper.syncLimit | quote }}
+            - name: ZOO_4LW_COMMANDS_WHITELIST
+              value: {{ .Values.zookeeper.fourLetterWordWhitelist | quote }}
+            {{- if gt (int .Values.zookeeper.replicaCount) 1 }}
+            - name: ZOO_SERVERS
+              value: {{ include "druid.zookeeperServers" . | quote }}
+            {{- end }}
+          ports:
+            - name: client
+              containerPort: {{ .Values.zookeeper.clientPort }}
+              protocol: TCP
+            - name: peer
+              containerPort: {{ .Values.zookeeper.peerPort }}
+              protocol: TCP
+            - name: election
+              containerPort: {{ .Values.zookeeper.electionPort }}
+              protocol: TCP
+          livenessProbe:
+            tcpSocket:
+              port: client
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: client
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          {{- with .Values.zookeeper.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: zookeeper-config
+              mountPath: /conf/zoo.cfg
+              subPath: zoo.cfg
+              readOnly: true
+            - name: data
+              mountPath: /data
+            - name: datalog
+              mountPath: /datalog
+      volumes:
+        - name: zookeeper-config
+          configMap:
+            name: {{ .Release.Name }}-zookeeper
+        {{- if not .Values.zookeeper.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        - name: datalog
+          emptyDir: {}
+        {{- end }}
+  {{- if .Values.zookeeper.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          {{- toYaml .Values.zookeeper.persistence.accessModes | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ .Values.zookeeper.persistence.size }}
+        {{- with .Values.zookeeper.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+    - metadata:
+        name: datalog
+      spec:
+        accessModes:
+          {{- toYaml .Values.zookeeper.persistence.accessModes | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ .Values.zookeeper.persistence.size }}
+        {{- with .Values.zookeeper.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,89 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "druid.fullname" . }}
+  labels:
+    {{- include "druid.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "druid.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if .Values.networkPolicy.egress.enabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    {{- if or .Values.networkPolicy.ingress.allowSameNamespace .Values.networkPolicy.ingress.extraFrom }}
+    - from:
+        {{- if .Values.networkPolicy.ingress.allowSameNamespace }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace | quote }}
+          podSelector: {}
+        {{- end }}
+        {{- with .Values.networkPolicy.ingress.extraFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      ports:
+        {{- $ports := list .Values.coordinator.port .Values.overlord.port .Values.broker.port .Values.router.port .Values.historical.port .Values.middleManager.port }}
+        {{- range $ports | uniq | sortAlpha }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+    {{- else }}
+    []
+    {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  {{- $allowEgress := or .Values.networkPolicy.egress.allowDNS .Values.networkPolicy.egress.allowSameNamespace .Values.networkPolicy.egress.allowHTTPS .Values.networkPolicy.egress.allowHTTP .Values.networkPolicy.egress.extraTo }}
+  egress:
+    {{- if $allowEgress }}
+    {{- if .Values.networkPolicy.egress.allowDNS }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "kube-system"
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.allowSameNamespace }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace | quote }}
+          podSelector: {}
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.allowHTTPS }}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+        - ipBlock:
+            cidr: ::/0
+      ports:
+        - protocol: TCP
+          port: 443
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.allowHTTP }}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+        - ipBlock:
+            cidr: ::/0
+      ports:
+        - protocol: TCP
+          port: 80
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.extraTo }}
+    - to:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- else }}
+    []
+    {{- end }}
+  {{- end }}
+{{- end }}

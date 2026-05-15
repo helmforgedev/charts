@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: networkpolicy
+templates:
+  - templates/networkpolicy.yaml
+release:
+  name: druid-test
+  namespace: druid
+tests:
+  - it: does not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders ingress-only NetworkPolicy
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: spec.policyTypes
+          value:
+            - Ingress
+      - equal:
+          path: spec.ingress[0].from[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: druid
+
+  - it: renders egress controls
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.allowHTTP: true
+    asserts:
+      - equal:
+          path: spec.policyTypes
+          value:
+            - Ingress
+            - Egress
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53
+      - equal:
+          path: spec.egress[2].to[0].ipBlock.cidr
+          value: 0.0.0.0/0
+      - equal:
+          path: spec.egress[3].ports[0].port
+          value: 80
+
+  - it: renders extra ingress peers
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.ingress.extraFrom:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: gateway-system
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[1].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: gateway-system

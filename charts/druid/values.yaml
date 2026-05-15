@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
 # Apache Druid Configuration
 # =============================================================================
@@ -15,7 +16,7 @@ image:
   # -- Druid container image repository
   repository: docker.io/apache/druid
   # -- Druid image tag. Defaults to appVersion.
-  tag: "36.0.0"
+  tag: "37.0.0"
   # -- Image pull policy
   pullPolicy: IfNotPresent
 
@@ -254,6 +255,14 @@ service:
   port: 80
   # -- Service annotations
   annotations: {}
+  # -- IP family policy. One of: SingleStack | PreferDualStack | RequireDualStack. Omit for cluster default.
+  # @default -- omitted
+  # ipFamilyPolicy: PreferDualStack
+  # -- Ordered list of IP families for the Service. Each entry: IPv4 | IPv6. Omit for cluster default.
+  # @default -- omitted
+  # ipFamilies:
+  #   - IPv4
+  #   - IPv6
 
 # =============================================================================
 # Ingress
@@ -275,6 +284,101 @@ ingress:
   tls: []
 
 # =============================================================================
+# Gateway API
+# =============================================================================
+
+gatewayAPI:
+  # -- Enable Gateway API HTTPRoute for the router/web console
+  enabled: false
+  # -- Parent Gateway references. Gateways are managed outside this chart.
+  parentRefs: []
+    # - name: shared-gateway
+    #   namespace: gateway-system
+    #   sectionName: https
+  # -- Hostnames attached to the HTTPRoute
+  hostnames: []
+  # -- Path matches attached to the HTTPRoute
+  paths:
+    - type: PathPrefix
+      value: /
+  # -- HTTPRoute annotations
+  annotations: {}
+
+# =============================================================================
+# External Secrets
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret resources for clusters that already run External Secrets Operator
+  enabled: false
+  # -- ExternalSecret API version
+  apiVersion: external-secrets.io/v1
+  # -- Refresh interval used by rendered ExternalSecret resources
+  refreshInterval: 1h
+  secretStoreRef:
+    # -- SecretStore or ClusterSecretStore name. Required when externalSecrets.enabled=true.
+    name: ""
+    # -- Secret store kind
+    kind: SecretStore
+  target:
+    # -- ExternalSecret target creation policy
+    creationPolicy: Owner
+  metadata:
+    # -- Manage the external metadata database password Secret with External Secrets Operator.
+    # Requires metadata.mode=external and metadata.external.existingSecret to point at the target Secret.
+    enabled: false
+    # -- Remote mappings for metadata password keys
+    data: []
+      # - secretKey: password
+      #   remoteRef:
+      #     key: druid/metadata
+      #     property: password
+    # -- Optional dataFrom rules for metadata Secret projection
+    dataFrom: []
+  deepStorage:
+    # -- Manage the S3 deep storage credential Secret with External Secrets Operator.
+    # Requires deepStorage.type=s3 and deepStorage.s3.existingSecret to point at the target Secret.
+    enabled: false
+    # -- Remote mappings for S3 credential keys
+    data: []
+      # - secretKey: access-key
+      #   remoteRef:
+      #     key: druid/s3
+      #     property: access-key
+      # - secretKey: secret-key
+      #   remoteRef:
+      #     key: druid/s3
+      #     property: secret-key
+    # -- Optional dataFrom rules for S3 Secret projection
+    dataFrom: []
+
+# =============================================================================
+# NetworkPolicy
+# =============================================================================
+
+networkPolicy:
+  # -- Enable NetworkPolicy resources
+  enabled: false
+  ingress:
+    # -- Allow ingress from pods in the same namespace to Druid component ports
+    allowSameNamespace: true
+    # -- Additional ingress peers, for example Gateway controller namespaces
+    extraFrom: []
+  egress:
+    # -- Enable egress policy rules. Disabled by default to avoid blocking unknown metadata, ZooKeeper, or S3 endpoints.
+    enabled: false
+    # -- Allow DNS egress to kube-system
+    allowDNS: true
+    # -- Allow egress to pods in the same namespace for Druid components, PostgreSQL, and ZooKeeper
+    allowSameNamespace: true
+    # -- Allow HTTPS egress to public internet for S3-compatible endpoints and integrations
+    allowHTTPS: true
+    # -- Allow HTTP egress to public internet for non-TLS S3-compatible endpoints
+    allowHTTP: false
+    # -- Additional egress peers
+    extraTo: []
+
+# =============================================================================
 # ServiceAccount
 # =============================================================================
 
@@ -293,9 +397,19 @@ serviceAccount:
 # -- Pod-level security context (fsGroup matches the druid image UID)
 podSecurityContext:
   fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
 
 # -- Container-level security context
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsGroup: 1000
+  runAsNonRoot: true
+  runAsUser: 1000
+  seccompProfile:
+    type: RuntimeDefault
 
 # -- Node selector
 nodeSelector: {}
@@ -337,16 +451,63 @@ postgresql:
     password: ""
 
 # =============================================================================
-# ZooKeeper Subchart (Bitnami)
+# Bundled ZooKeeper
 # =============================================================================
 
 zookeeper:
-  # -- Enable ZooKeeper subchart
+  # -- Enable bundled ZooKeeper
   enabled: true
+  image:
+    # -- ZooKeeper container image repository
+    repository: docker.io/library/zookeeper
+    # -- ZooKeeper container image tag
+    tag: "3.9.4"
+    # -- ZooKeeper image pull policy
+    pullPolicy: IfNotPresent
   # -- Number of ZooKeeper replicas
   replicaCount: 1
+  # -- ZooKeeper client port
+  clientPort: 2181
+  # -- ZooKeeper peer port
+  peerPort: 2888
+  # -- ZooKeeper leader election port
+  electionPort: 3888
+  # -- ZooKeeper tick time in milliseconds
+  tickTime: 2000
+  # -- ZooKeeper init limit
+  initLimit: 10
+  # -- ZooKeeper sync limit
+  syncLimit: 5
+  # -- ZooKeeper 4-letter commands exposed for probes and diagnostics
+  fourLetterWordWhitelist: ruok,mntr,conf
+  # -- ZooKeeper resources
+  resources: {}
+  # -- ZooKeeper pod security context
+  podSecurityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+  # -- ZooKeeper container security context
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsGroup: 1000
+    runAsNonRoot: true
+    runAsUser: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  # -- ZooKeeper pod annotations
+  podAnnotations: {}
+  # -- ZooKeeper pod labels
+  podLabels: {}
   persistence:
     # -- Enable ZooKeeper persistence
     enabled: true
     # -- ZooKeeper data volume size
     size: 2Gi
+    # -- ZooKeeper storage class
+    storageClass: ""
+    # -- ZooKeeper access modes
+    accessModes:
+      - ReadWriteOnce

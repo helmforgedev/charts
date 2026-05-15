@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: zookeeper
+templates:
+  - templates/zookeeper.yaml
+release:
+  name: druid-test
+  namespace: druid
+tests:
+  - it: renders bundled ZooKeeper by default
+    asserts:
+      - hasDocuments:
+          count: 4
+      - isKind:
+          of: ConfigMap
+        documentIndex: 0
+      - isKind:
+          of: Service
+        documentIndex: 1
+      - isKind:
+          of: Service
+        documentIndex: 2
+      - isKind:
+          of: StatefulSet
+        documentIndex: 3
+      - equal:
+          path: metadata.name
+          value: druid-test-zookeeper
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/library/zookeeper:3.9.4
+        documentIndex: 3
+      - notMatchRegex:
+          path: data["zoo.cfg"]
+          pattern: server\.1
+        documentIndex: 0
+
+  - it: does not render when external ZooKeeper is configured
+    set:
+      zookeeper.enabled: false
+      zookeeperConfig.mode: external
+      zookeeperConfig.external.hosts: zk.example.com:2181
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: configures clustered server list
+    set:
+      zookeeper.replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+        documentIndex: 3
+      - matchRegex:
+          path: data["zoo.cfg"]
+          pattern: server\.1=druid-test-zookeeper-0\.druid-test-zookeeper-headless:2888:3888;2181
+        documentIndex: 0
+      - matchRegex:
+          path: data["zoo.cfg"]
+          pattern: server\.3=druid-test-zookeeper-2\.druid-test-zookeeper-headless:2888:3888;2181
+        documentIndex: 0
+
+  - it: configures custom client port consistently
+    set:
+      zookeeper.clientPort: 12181
+    asserts:
+      - matchRegex:
+          path: data["zoo.cfg"]
+          pattern: clientPort=12181
+        documentIndex: 0
+      - equal:
+          path: spec.ports[0].port
+          value: 12181
+        documentIndex: 1
+      - equal:
+          path: spec.ports[0].port
+          value: 12181
+        documentIndex: 2
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 12181
+        documentIndex: 3
