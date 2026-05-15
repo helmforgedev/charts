@@ -1,22 +1,24 @@
 # Apache Druid
 
-Apache Druid is a high-performance, real-time analytics database designed for fast slice-and-dice analytics on large datasets. It is commonly used for powering user-facing analytic applications, BI dashboards, and real-time data exploration.
+Apache Druid is a high-performance, real-time analytics database designed for fast
+slice-and-dice analytics on large datasets. It is commonly used for user-facing
+analytic applications, BI dashboards, and real-time data exploration.
 
 ## Features
 
-- **6-component architecture** — coordinator, overlord, broker, router, historical, and middlemanager
-- **Web console** — router component serves the Druid web console
-- **PostgreSQL subchart** — bundled metadata store with option for external database
-- **Bundled ZooKeeper** — native ZooKeeper StatefulSet with option for external cluster
-- **Deep storage** — local or S3-compatible (MinIO, AWS S3)
-- **Persistent volumes** — segment cache (historical) and task storage (middlemanager)
-- **Health probes** — liveness on `/status/health`, readiness on `/status/selfDiscovered`
-- **Ingress support** — configurable with `ingressClassName` (traefik, nginx, etc.)
-- **Gateway API support** — optional HTTPRoute for the router/web console
-- **Dual-stack Services** — optional `ipFamilyPolicy` / `ipFamilies` on every Druid Service
-- **External Secrets Operator** — optional ExternalSecret projection for metadata and S3 credentials
-- **NetworkPolicy** — optional ingress and egress controls for compatible CNIs
-- **Per-component scaling** — independent replica counts and JVM tuning
+- **6-component architecture** - coordinator, overlord, broker, router, historical, and middlemanager
+- **Web console** - router component serves the Druid web console
+- **PostgreSQL subchart** - bundled metadata store with option for external database
+- **Bundled ZooKeeper** - native ZooKeeper StatefulSet with option for external cluster
+- **Deep storage** - local or S3-compatible (MinIO, AWS S3)
+- **Persistent volumes** - segment cache (historical) and task storage (middlemanager)
+- **Health probes** - liveness on `/status/health`, readiness on `/status/selfDiscovered`
+- **Ingress support** - configurable with `ingressClassName` (traefik, nginx, etc.)
+- **Gateway API support** - optional HTTPRoute for the router/web console
+- **Dual-stack Services** - optional `ipFamilyPolicy` / `ipFamilies` on every Druid Service
+- **External Secrets Operator** - optional ExternalSecret projection for metadata and S3 credentials
+- **NetworkPolicy** - optional ingress and egress controls for compatible CNIs
+- **Per-component scaling** - independent replica counts and JVM tuning
 
 ## Install
 
@@ -36,15 +38,15 @@ helm install druid oci://ghcr.io/helmforgedev/helm/druid --version <version> -f 
 
 ## Architecture
 
-```
+```text
 StatefulSet: coordinator (port 8081)
 StatefulSet: overlord (port 8090)
 Deployment:  broker (port 8082)
-Deployment:  router (port 8888) ← web console
+Deployment:  router (port 8888) <- web console
 StatefulSet: historical (port 8083, PVC: segment-cache)
 StatefulSet: middlemanager (port 8091, PVC: task-storage)
-  ├─ PostgreSQL (subchart, metadata storage)
-  └─ ZooKeeper (bundled StatefulSet, coordination)
+  +-- PostgreSQL (subchart, metadata storage)
+  +-- ZooKeeper (bundled StatefulSet, coordination)
 ```
 
 ## Default Values
@@ -98,7 +100,8 @@ Important upstream changes include:
 
 - Hadoop-based ingestion has been removed.
 - Druid moved S3 integrations to AWS SDK v2.
-- Broker segment metadata cache is enabled by default, improving `sys.segments` queries while increasing Broker memory usage.
+- Broker segment metadata cache is enabled by default, improving
+  `sys.segments` queries while increasing Broker memory usage.
 
 ## External Metadata Storage
 

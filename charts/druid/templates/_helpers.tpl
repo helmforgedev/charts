@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- define "druid.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -123,7 +124,7 @@ jdbc:postgresql://{{ include "druid.metadataHost" . }}:{{ include "druid.metadat
 {{- if eq .Values.zookeeperConfig.mode "external" -}}
 {{- .Values.zookeeperConfig.external.hosts -}}
 {{- else -}}
-{{- printf "%s-zookeeper:2181" .Release.Name -}}
+{{- printf "%s-zookeeper:%v" .Release.Name .Values.zookeeper.clientPort -}}
 {{- end -}}
 {{- end -}}
 
@@ -270,8 +271,8 @@ jdbc:postgresql://{{ include "druid.metadataHost" . }}:{{ include "druid.metadat
     - sh
     - -c
     - |
-      echo "Waiting for {{ printf "%s-zookeeper" .Release.Name }}:2181 ..."
-      until nc -z -w2 {{ printf "%s-zookeeper" .Release.Name }} 2181; do
+      echo "Waiting for {{ printf "%s-zookeeper" .Release.Name }}:{{ .Values.zookeeper.clientPort }} ..."
+      until nc -z -w2 {{ printf "%s-zookeeper" .Release.Name }} {{ .Values.zookeeper.clientPort }}; do
         sleep 2
       done
       echo "ZooKeeper is reachable."
