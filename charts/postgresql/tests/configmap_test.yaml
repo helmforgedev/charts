@@ -14,6 +14,29 @@ tests:
           path: data["01-init-users.sh"]
           pattern: 'psql --username "\$\{POSTGRES_USER\}" --dbname postgres'
 
+  - it: should skip generated init script when disabled and no custom scripts are set
+    template: configmap.yaml
+    set:
+      initdb.runDefaultScript: false
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: should render only custom init scripts when default init script is disabled
+    template: configmap.yaml
+    documentIndex: 1
+    set:
+      initdb.runDefaultScript: false
+      initdb.scripts:
+        10-custom.sql: |
+          CREATE EXTENSION IF NOT EXISTS pgcrypto;
+    asserts:
+      - notExists:
+          path: data["01-init-users.sh"]
+      - matchRegex:
+          path: data["10-custom.sql"]
+          pattern: 'CREATE EXTENSION IF NOT EXISTS pgcrypto;'
+
   - it: should require SCRAM for local socket connections by default
     template: configmap.yaml
     documentIndex: 0

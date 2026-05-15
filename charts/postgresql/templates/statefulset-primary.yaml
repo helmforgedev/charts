@@ -137,8 +137,10 @@ spec:
               mountPath: /var/lib/postgresql/data
             - name: config
               mountPath: /etc/postgresql/generated
+            {{- if include "postgresql.initdbVolumeEnabled" . }}
             - name: initdb
               mountPath: /docker-entrypoint-initdb.d
+            {{- end }}
             {{- if .Values.tls.enabled }}
             - name: {{ include "postgresql.tlsVolumeMountName" . }}
               mountPath: /tls
@@ -180,16 +182,20 @@ spec:
         - name: config
           configMap:
             name: {{ include "postgresql.configMapName" . }}
+        {{- if include "postgresql.initdbVolumeEnabled" . }}
         - name: initdb
           projected:
             defaultMode: 0755
             sources:
+              {{- if include "postgresql.generatedInitdbEnabled" . }}
               - configMap:
                   name: {{ include "postgresql.initdbConfigMapName" . }}
+              {{- end }}
               {{- if .Values.initdb.existingConfigMap }}
               - configMap:
                   name: {{ .Values.initdb.existingConfigMap }}
               {{- end }}
+        {{- end }}
         {{- include "postgresql.tlsVolume" . | nindent 8 }}
         {{- if not (ternary .Values.replication.primary.persistence.enabled .Values.standalone.persistence.enabled (eq .Values.architecture "replication")) }}
         - name: data

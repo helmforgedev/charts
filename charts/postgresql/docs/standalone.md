@@ -15,7 +15,7 @@ Typical use cases:
 - one PostgreSQL pod
 - one persistent volume when persistence is enabled
 - one client Service
-- bootstrap of the app database and app user on first initialization
+- bootstrap of the app database and app user on first initialization, unless `initdb.runDefaultScript=false`
 - optional custom init scripts
 - optional `postgres_exporter`
 

@@ -66,6 +66,14 @@ app.kubernetes.io/role: {{ .role }}
 {{- printf "%s-initdb" (include "postgresql.fullname" .) -}}
 {{- end -}}
 
+{{- define "postgresql.generatedInitdbEnabled" -}}
+{{- if or .Values.initdb.runDefaultScript .Values.initdb.scripts -}}true{{- end -}}
+{{- end -}}
+
+{{- define "postgresql.initdbVolumeEnabled" -}}
+{{- if or (include "postgresql.generatedInitdbEnabled" .) .Values.initdb.existingConfigMap -}}true{{- end -}}
+{{- end -}}
+
 {{- define "postgresql.tlsSecretName" -}}
 {{- if .Values.tls.enabled -}}
 {{- if .Values.tls.existingSecret -}}

@@ -10,7 +10,11 @@ Primary Service:    {{ include "postgresql.primaryServiceName" . }}
 Port:               {{ .Values.service.port }}
 Maintenance DB:     postgres
 Application DB:     {{ .Values.auth.database }}
+{{- if .Values.initdb.runDefaultScript }}
 Application User:   {{ .Values.auth.username }}
+{{- else }}
+Application User:   not created by chart (initdb.runDefaultScript=false)
+{{- end }}
 {{- if eq .Values.architecture "replication" }}
 Replicas Service:   {{ include "postgresql.replicasServiceName" . }}
 Replica Count:      {{ .Values.replication.readReplicas.replicaCount }}
@@ -27,9 +31,13 @@ Connect with psql to the default PostgreSQL maintenance database:
   PGPASSWORD="$(kubectl get secret {{ include "postgresql.secretName" . }} -n {{ .Release.Namespace }} -o jsonpath="{.data.{{ .Values.auth.existingSecretPostgresPasswordKey }}}" | base64 -d)" \
   psql -h 127.0.0.1 -p 5432 -U postgres -d postgres
 
+{{ if .Values.initdb.runDefaultScript }}
 Connect to the application database:
   PGPASSWORD="$(kubectl get secret {{ include "postgresql.secretName" . }} -n {{ .Release.Namespace }} -o jsonpath="{.data.{{ .Values.auth.existingSecretUserPasswordKey }}}" | base64 -d)" \
   psql -h 127.0.0.1 -p 5432 -U {{ .Values.auth.username }} -d {{ .Values.auth.database }}
+{{- else }}
+The chart-generated application user bootstrap is disabled. Connect with users created by your custom init scripts or external provisioning.
+{{- end }}
 
 {{- if eq .Values.architecture "replication" }}
 Read-only clients should use:
@@ -45,7 +53,11 @@ Writable clients should use:
 
 - The chart keeps internal probes, metrics, and backup workflows on the standard `postgres` database.
 - If a reused data directory is missing `postgres`, the primary pod repairs it automatically during startup before normal readiness checks rely on it.
+{{- if .Values.initdb.runDefaultScript }}
 - The application bootstrap database remains `{{ .Values.auth.database }}` and is created only on first initialization of a fresh data directory.
+{{- else }}
+- The chart-generated application and replication user bootstrap script is disabled; only custom or externally managed init scripts are mounted.
+{{- end }}
 - `docker-entrypoint-initdb.d` scripts do not run again on reused PVCs.
 {{- if .Values.tls.enabled }}
 - TLS is enabled for server and internal clients with sslmode `{{ .Values.tls.sslMode }}`.

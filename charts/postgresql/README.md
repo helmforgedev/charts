@@ -272,6 +272,7 @@ the referenced `SecretStore` or `ClusterSecretStore` must already exist.
 
 - use `initdb.scripts` for deterministic first-boot SQL or shell customization
 - use `initdb.existingConfigMap` when scripts are already managed elsewhere
+- set `initdb.runDefaultScript=false` when you want only custom or externally managed first-boot scripts
 - remember that `docker-entrypoint-initdb.d` runs only during first initialization of a fresh data directory
 - the chart keeps internal maintenance traffic on PostgreSQL's standard `postgres` database
 - when an older reused PVC is missing `postgres`, the primary pod repairs that database during startup before probes and internal clients depend on it
@@ -336,6 +337,7 @@ Operational documents:
 | `standalone.resourcesPreset` | Resource preset for standalone mode | `none` |
 | `replication.primary.resourcesPreset` | Resource preset for the primary pod | `none` |
 | `replication.readReplicas.resourcesPreset` | Resource preset for replica pods | `none` |
+| `initdb.runDefaultScript` | Run the chart-generated first-boot app/replication user script | `true` |
 | `initdb.existingConfigMap` | External ConfigMap for extra init scripts | `""` |
 | `tls.enabled` | Enable PostgreSQL TLS | `false` |
 | `tls.existingSecret` | Existing secret with TLS material | `""` |
@@ -387,6 +389,7 @@ The `ci/` scenarios validate the main chart behaviors:
 - `standalone.yaml`
 - `replication.yaml`
 - `initdb.yaml`
+- `initdb-custom-only.yaml`
 - `existing-secret.yaml`
 - `external-secrets.yaml`
 - `metrics.yaml`

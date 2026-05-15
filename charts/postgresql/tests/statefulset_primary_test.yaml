@@ -85,6 +85,72 @@ tests:
             name: data
             mountPath: /var/lib/postgresql/data
 
+  - it: should mount generated initdb volume by default
+    template: statefulset-primary.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: initdb
+            mountPath: /docker-entrypoint-initdb.d
+      - contains:
+          path: spec.template.spec.volumes[1].projected.sources
+          content:
+            configMap:
+              name: test-postgresql-initdb
+
+  - it: should not mount initdb volume when default init script is disabled without custom scripts
+    template: statefulset-primary.yaml
+    set:
+      initdb.runDefaultScript: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: initdb
+            mountPath: /docker-entrypoint-initdb.d
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: initdb
+
+  - it: should mount custom initdb scripts without generated default script
+    template: statefulset-primary.yaml
+    set:
+      initdb.runDefaultScript: false
+      initdb.scripts:
+        10-custom.sql: |
+          CREATE EXTENSION IF NOT EXISTS pgcrypto;
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: initdb
+            mountPath: /docker-entrypoint-initdb.d
+      - contains:
+          path: spec.template.spec.volumes[1].projected.sources
+          content:
+            configMap:
+              name: test-postgresql-initdb
+
+  - it: should mount only external initdb ConfigMap when default script is disabled
+    template: statefulset-primary.yaml
+    set:
+      initdb.runDefaultScript: false
+      initdb.existingConfigMap: external-initdb
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: initdb
+            mountPath: /docker-entrypoint-initdb.d
+      - equal:
+          path: spec.template.spec.volumes[1].projected.sources[0].configMap.name
+          value: external-initdb
+      - lengthEqual:
+          path: spec.template.spec.volumes[1].projected.sources
+          count: 1
+
   - it: should set PGDATA env var
     template: statefulset-primary.yaml
     asserts:
