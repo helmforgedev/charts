@@ -7,11 +7,15 @@ Apache Druid is a high-performance, real-time analytics database designed for fa
 - **6-component architecture** — coordinator, overlord, broker, router, historical, and middlemanager
 - **Web console** — router component serves the Druid web console
 - **PostgreSQL subchart** — bundled metadata store with option for external database
-- **ZooKeeper subchart** — bundled Bitnami ZooKeeper with option for external cluster
+- **Bundled ZooKeeper** — native ZooKeeper StatefulSet with option for external cluster
 - **Deep storage** — local or S3-compatible (MinIO, AWS S3)
 - **Persistent volumes** — segment cache (historical) and task storage (middlemanager)
 - **Health probes** — liveness on `/status/health`, readiness on `/status/selfDiscovered`
 - **Ingress support** — configurable with `ingressClassName` (traefik, nginx, etc.)
+- **Gateway API support** — optional HTTPRoute for the router/web console
+- **Dual-stack Services** — optional `ipFamilyPolicy` / `ipFamilies` on every Druid Service
+- **External Secrets Operator** — optional ExternalSecret projection for metadata and S3 credentials
+- **NetworkPolicy** — optional ingress and egress controls for compatible CNIs
 - **Per-component scaling** — independent replica counts and JVM tuning
 
 ## Install
@@ -40,7 +44,7 @@ Deployment:  router (port 8888) ← web console
 StatefulSet: historical (port 8083, PVC: segment-cache)
 StatefulSet: middlemanager (port 8091, PVC: task-storage)
   ├─ PostgreSQL (subchart, metadata storage)
-  └─ ZooKeeper (subchart, coordination)
+  └─ ZooKeeper (bundled StatefulSet, coordination)
 ```
 
 ## Default Values
@@ -48,7 +52,7 @@ StatefulSet: middlemanager (port 8091, PVC: task-storage)
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `apache/druid` | Druid container image |
-| `image.tag` | `""` (appVersion) | Image tag |
+| `image.tag` | `"37.0.0"` | Image tag |
 | `coordinator.enabled` | `true` | Enable coordinator |
 | `coordinator.replicaCount` | `1` | Coordinator replicas |
 | `coordinator.port` | `8081` | Coordinator port |
@@ -72,10 +76,29 @@ StatefulSet: middlemanager (port 8091, PVC: task-storage)
 | `deepStorage.type` | `local` | Deep storage: local or s3 |
 | `service.type` | `ClusterIP` | Router service type |
 | `service.port` | `80` | Router service port |
+| `service.ipFamilyPolicy` | omitted | Optional Kubernetes Service IP family policy |
+| `service.ipFamilies` | omitted | Optional ordered Service IP families |
 | `ingress.enabled` | `false` | Enable ingress |
 | `ingress.ingressClassName` | `traefik` | Ingress class |
+| `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute for the router |
+| `externalSecrets.enabled` | `false` | Render ExternalSecret resources for secret material |
+| `networkPolicy.enabled` | `false` | Render NetworkPolicy resources |
+| `podSecurityContext.fsGroup` | `1000` | Shared filesystem group for Druid volumes |
+| `securityContext.runAsNonRoot` | `true` | Run Druid containers as a non-root user |
 | `postgresql.enabled` | `true` | Enable PostgreSQL subchart |
-| `zookeeper.enabled` | `true` | Enable ZooKeeper subchart |
+| `zookeeper.enabled` | `true` | Enable bundled ZooKeeper |
+
+## Druid 37.0.0 upgrade notes
+
+This chart tracks Apache Druid `37.0.0`. Before upgrading persistent clusters,
+review the upstream [release notes](https://druid.apache.org/docs/latest/release-info/release-notes/)
+and [upgrade notes](https://druid.apache.org/docs/latest/release-info/upgrade-notes/).
+
+Important upstream changes include:
+
+- Hadoop-based ingestion has been removed.
+- Druid moved S3 integrations to AWS SDK v2.
+- Broker segment metadata cache is enabled by default, improving `sys.segments` queries while increasing Broker memory usage.
 
 ## External Metadata Storage
 
@@ -150,6 +173,106 @@ ingress:
     - secretName: druid-tls
       hosts:
         - druid.example.com
+```
+
+## Gateway API
+
+Gateway API support is opt-in and renders an `HTTPRoute` to the router Service.
+The chart does not create a `Gateway`; reference a shared Gateway managed by
+your platform team.
+
+```yaml
+gatewayAPI:
+  enabled: true
+  parentRefs:
+    - name: shared-gateway
+      namespace: gateway-system
+      sectionName: https
+  hostnames:
+    - druid.example.com
+  paths:
+    - type: PathPrefix
+      value: /
+```
+
+## Dual-stack Services
+
+Dual-stack fields are omitted by default so Kubernetes inherits the cluster
+defaults. Set `service.ipFamilyPolicy` when running in IPv6 or dual-stack
+clusters:
+
+```yaml
+service:
+  ipFamilyPolicy: PreferDualStack
+```
+
+## External Secrets Operator
+
+ExternalSecret rendering is opt-in. Set the chart's `existingSecret` field to
+the same Secret that External Secrets Operator will create, preventing drift
+between chart-managed and externally managed credentials.
+
+```yaml
+metadata:
+  mode: external
+  external:
+    existingSecret: druid-metadata
+
+deepStorage:
+  type: s3
+  s3:
+    bucket: druid-segments
+    existingSecret: druid-s3
+
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: platform-secrets
+    kind: ClusterSecretStore
+  metadata:
+    enabled: true
+    data:
+      - secretKey: password
+        remoteRef:
+          key: druid/metadata
+          property: password
+  deepStorage:
+    enabled: true
+    data:
+      - secretKey: access-key
+        remoteRef:
+          key: druid/s3
+          property: access-key
+      - secretKey: secret-key
+        remoteRef:
+          key: druid/s3
+          property: secret-key
+```
+
+## Security context
+
+Druid workload containers run as UID/GID `1000` by default with privilege
+escalation disabled, all Linux capabilities dropped, and the runtime default
+seccomp profile. The `prepare-dirs` init container runs as root only to create
+and chown writable Druid directories.
+
+## NetworkPolicy
+
+NetworkPolicy is opt-in because enforcement depends on the cluster CNI. When
+enabled, ingress defaults to same-namespace traffic on Druid component ports.
+Egress rules are optional and can allow DNS, same-namespace dependencies, HTTP,
+HTTPS, and extra peers:
+
+```yaml
+networkPolicy:
+  enabled: true
+  ingress:
+    allowSameNamespace: true
+  egress:
+    enabled: true
+    allowDNS: true
+    allowSameNamespace: true
+    allowHTTPS: true
 ```
 
 ## Extra Runtime Properties

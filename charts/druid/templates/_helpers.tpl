@@ -127,6 +127,17 @@ jdbc:postgresql://{{ include "druid.metadataHost" . }}:{{ include "druid.metadat
 {{- end -}}
 {{- end -}}
 
+{{- define "druid.zookeeperServers" -}}
+{{- $servers := list -}}
+{{- $replicas := int .Values.zookeeper.replicaCount -}}
+{{- range $i := until $replicas -}}
+{{- $id := add1 $i -}}
+{{- $host := printf "%s-zookeeper-%d.%s-zookeeper-headless:%v:%v;%v" $.Release.Name $i $.Release.Name $.Values.zookeeper.peerPort $.Values.zookeeper.electionPort $.Values.zookeeper.clientPort -}}
+{{- $servers = append $servers (printf "server.%d=%s" $id $host) -}}
+{{- end -}}
+{{- join " " $servers -}}
+{{- end -}}
+
 # =============================================================================
 # Deep Storage
 # =============================================================================
@@ -136,6 +147,32 @@ jdbc:postgresql://{{ include "druid.metadataHost" . }}:{{ include "druid.metadat
 {{- .Values.deepStorage.s3.existingSecret -}}
 {{- else -}}
 {{- printf "%s-deep-storage" (include "druid.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "druid.validateExternalSecrets" -}}
+{{- if .Values.externalSecrets.enabled -}}
+  {{- if not .Values.externalSecrets.secretStoreRef.name -}}
+    {{- fail "externalSecrets.secretStoreRef.name is required when externalSecrets.enabled=true" -}}
+  {{- end -}}
+  {{- if and .Values.externalSecrets.metadata.enabled (ne .Values.metadata.mode "external") -}}
+    {{- fail "externalSecrets.metadata.enabled requires metadata.mode=external" -}}
+  {{- end -}}
+  {{- if and .Values.externalSecrets.metadata.enabled (not .Values.metadata.external.existingSecret) -}}
+    {{- fail "externalSecrets.metadata.enabled requires metadata.external.existingSecret to prevent credential drift" -}}
+  {{- end -}}
+  {{- if and .Values.externalSecrets.metadata.enabled (not (or .Values.externalSecrets.metadata.data .Values.externalSecrets.metadata.dataFrom)) -}}
+    {{- fail "externalSecrets.metadata.enabled requires externalSecrets.metadata.data or externalSecrets.metadata.dataFrom" -}}
+  {{- end -}}
+  {{- if and .Values.externalSecrets.deepStorage.enabled (ne .Values.deepStorage.type "s3") -}}
+    {{- fail "externalSecrets.deepStorage.enabled requires deepStorage.type=s3" -}}
+  {{- end -}}
+  {{- if and .Values.externalSecrets.deepStorage.enabled (not .Values.deepStorage.s3.existingSecret) -}}
+    {{- fail "externalSecrets.deepStorage.enabled requires deepStorage.s3.existingSecret to prevent credential drift" -}}
+  {{- end -}}
+  {{- if and .Values.externalSecrets.deepStorage.enabled (not (or .Values.externalSecrets.deepStorage.data .Values.externalSecrets.deepStorage.dataFrom)) -}}
+    {{- fail "externalSecrets.deepStorage.enabled requires externalSecrets.deepStorage.data or externalSecrets.deepStorage.dataFrom" -}}
+  {{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -174,7 +211,18 @@ jdbc:postgresql://{{ include "druid.metadataHost" . }}:{{ include "druid.metadat
 - name: prepare-dirs
   image: docker.io/library/busybox:1.37
   securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+      add:
+        - CHOWN
+        - DAC_OVERRIDE
+        - FOWNER
+    runAsNonRoot: false
     runAsUser: 0
+    seccompProfile:
+      type: RuntimeDefault
   command:
     - sh
     - -c
@@ -186,6 +234,16 @@ jdbc:postgresql://{{ include "druid.metadataHost" . }}:{{ include "druid.metadat
       mountPath: /opt/druid/var
 - name: wait-for-postgresql
   image: docker.io/library/busybox:1.37
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsGroup: 1000
+    runAsNonRoot: true
+    runAsUser: 1000
+    seccompProfile:
+      type: RuntimeDefault
   command:
     - sh
     - -c
@@ -198,6 +256,16 @@ jdbc:postgresql://{{ include "druid.metadataHost" . }}:{{ include "druid.metadat
 {{- if eq .Values.zookeeperConfig.mode "subchart" }}
 - name: wait-for-zookeeper
   image: docker.io/library/busybox:1.37
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsGroup: 1000
+    runAsNonRoot: true
+    runAsUser: 1000
+    seccompProfile:
+      type: RuntimeDefault
   command:
     - sh
     - -c

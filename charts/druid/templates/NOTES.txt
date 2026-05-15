@@ -1,5 +1,8 @@
 Apache Druid has been deployed!
 
+Getting started:
+  Review the component list below, wait for Pods to become Ready, then access the router/web console.
+
 Components:
 {{- if .Values.coordinator.enabled }}
   - Coordinator: {{ include "druid.fullname" . }}-coordinator:{{ .Values.coordinator.port }}
@@ -22,10 +25,23 @@ Components:
 
 {{- if .Values.router.enabled }}
 
-Web Console:
+Access:
   kubectl port-forward svc/{{ include "druid.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
   Then open http://localhost:{{ .Values.service.port }}
 {{- end }}
+
+Configuration:
+  Image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+  Metadata mode: {{ .Values.metadata.mode }}
+  ZooKeeper mode: {{ .Values.zookeeperConfig.mode }}
+  Deep storage: {{ .Values.deepStorage.type }}
+
+Validation:
+  kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance={{ .Release.Name }} --timeout=900s
+  kubectl get pods,svc -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Troubleshooting:
+  kubectl logs -l app.kubernetes.io/instance={{ .Release.Name }} --all-containers --tail=200
 
 {{- if .Values.ingress.enabled }}
 {{- range .Values.ingress.hosts }}
@@ -33,3 +49,36 @@ Web Console:
 Ingress: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
 {{- end }}
 {{- end }}
+
+{{- if .Values.gatewayAPI.enabled }}
+Gateway API:
+  HTTPRoute: {{ include "druid.fullname" . }}
+  Backend:   {{ include "druid.fullname" . }}:{{ .Values.service.port }}
+{{- with .Values.gatewayAPI.hostnames }}
+  Hostnames: {{ join ", " . }}
+{{- end }}
+{{- end }}
+
+{{- with .Values.service.ipFamilyPolicy }}
+Networking:
+  Service IP family policy: {{ . }}{{ with $.Values.service.ipFamilies }} (families: {{ join ", " . }}){{ end }}
+{{- end }}
+
+{{- if .Values.externalSecrets.enabled }}
+External Secrets:
+  ExternalSecret resources are enabled. Ensure External Secrets Operator and the configured {{ .Values.externalSecrets.secretStoreRef.kind }} {{ .Values.externalSecrets.secretStoreRef.name }} exist before install.
+{{- end }}
+
+{{- if .Values.networkPolicy.enabled }}
+NetworkPolicy:
+  NetworkPolicy is enabled. If Druid cannot reach PostgreSQL, ZooKeeper, DNS, or S3 endpoints, review networkPolicy.egress settings and extraTo peers.
+{{- end }}
+
+Upgrade notes:
+  This chart deploys Apache Druid {{ .Chart.AppVersion }}. Review upstream release notes and upgrade notes before upgrading persistent clusters, especially Hadoop-based ingestion removal, AWS SDK v2 migration, and Broker segment metadata cache changes.
+
+Resources:
+  Chart documentation: https://helmforge.dev/docs/charts/druid
+  Upstream documentation: https://druid.apache.org/docs/latest/
+
+Happy Helmforging :)

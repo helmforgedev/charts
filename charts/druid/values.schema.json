@@ -289,7 +289,19 @@
       "properties": {
         "type": { "type": "string", "description": "Service type" },
         "port": { "type": "integer", "description": "Service port" },
-        "annotations": { "type": "object", "description": "Service annotations" }
+        "annotations": { "type": "object", "description": "Service annotations" },
+        "ipFamilyPolicy": {
+          "type": ["string", "null"],
+          "description": "Service IP family policy. One of SingleStack, PreferDualStack, RequireDualStack. Omit for cluster default.",
+          "enum": ["SingleStack", "PreferDualStack", "RequireDualStack", null]
+        },
+        "ipFamilies": {
+          "type": "array",
+          "description": "Ordered list of IP families for the Service. Each entry is IPv4 or IPv6. Omit for cluster default.",
+          "items": { "type": "string", "enum": ["IPv4", "IPv6"] },
+          "maxItems": 2,
+          "uniqueItems": true
+        }
       }
     },
     "ingress": {
@@ -301,6 +313,116 @@
         "annotations": { "type": "object", "description": "Ingress annotations" },
         "hosts": { "type": "array", "description": "Ingress hosts" },
         "tls": { "type": "array", "description": "Ingress TLS" }
+      }
+    },
+    "gatewayAPI": {
+      "type": "object",
+      "description": "Gateway API HTTPRoute configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable Gateway API HTTPRoute" },
+        "parentRefs": {
+          "type": "array",
+          "description": "Parent Gateway references",
+          "items": { "type": "object" }
+        },
+        "hostnames": {
+          "type": "array",
+          "description": "HTTPRoute hostnames",
+          "items": { "type": "string" }
+        },
+        "paths": {
+          "type": "array",
+          "description": "HTTPRoute path matches",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "description": "Gateway API path match type",
+                "enum": ["PathPrefix", "Exact", "RegularExpression"]
+              },
+              "value": { "type": "string", "description": "Path match value" }
+            }
+          }
+        },
+        "annotations": { "type": "object", "description": "HTTPRoute annotations" }
+      }
+    },
+    "externalSecrets": {
+      "type": "object",
+      "description": "External Secrets Operator integration",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Render ExternalSecret resources" },
+        "apiVersion": { "type": "string", "description": "ExternalSecret API version" },
+        "refreshInterval": { "type": "string", "description": "ExternalSecret refresh interval" },
+        "secretStoreRef": {
+          "type": "object",
+          "description": "SecretStore reference",
+          "properties": {
+            "name": { "type": "string", "description": "SecretStore or ClusterSecretStore name" },
+            "kind": {
+              "type": "string",
+              "description": "Secret store kind",
+              "enum": ["SecretStore", "ClusterSecretStore"]
+            }
+          }
+        },
+        "target": {
+          "type": "object",
+          "description": "ExternalSecret target settings",
+          "properties": {
+            "creationPolicy": {
+              "type": "string",
+              "description": "ExternalSecret target creation policy",
+              "enum": ["Owner", "Orphan", "Merge", "None"]
+            }
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "description": "ExternalSecret settings for external metadata database credentials",
+          "properties": {
+            "enabled": { "type": "boolean", "description": "Manage metadata database password Secret" },
+            "data": { "type": "array", "description": "ExternalSecret data entries", "items": { "type": "object" } },
+            "dataFrom": { "type": "array", "description": "ExternalSecret dataFrom entries", "items": { "type": "object" } }
+          }
+        },
+        "deepStorage": {
+          "type": "object",
+          "description": "ExternalSecret settings for S3 deep storage credentials",
+          "properties": {
+            "enabled": { "type": "boolean", "description": "Manage S3 credential Secret" },
+            "data": { "type": "array", "description": "ExternalSecret data entries", "items": { "type": "object" } },
+            "dataFrom": { "type": "array", "description": "ExternalSecret dataFrom entries", "items": { "type": "object" } }
+          }
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "NetworkPolicy configuration",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable NetworkPolicy resources" },
+        "ingress": {
+          "type": "object",
+          "description": "NetworkPolicy ingress settings",
+          "properties": {
+            "allowSameNamespace": { "type": "boolean", "description": "Allow same-namespace ingress" },
+            "extraFrom": { "type": "array", "description": "Additional ingress peers", "items": { "type": "object" } }
+          }
+        },
+        "egress": {
+          "type": "object",
+          "description": "NetworkPolicy egress settings",
+          "properties": {
+            "enabled": { "type": "boolean", "description": "Enable egress policy rules" },
+            "allowDNS": { "type": "boolean", "description": "Allow DNS egress to kube-system" },
+            "allowSameNamespace": { "type": "boolean", "description": "Allow same-namespace egress" },
+            "allowHTTPS": { "type": "boolean", "description": "Allow HTTPS egress" },
+            "allowHTTP": { "type": "boolean", "description": "Allow HTTP egress" },
+            "extraTo": { "type": "array", "description": "Additional egress peers", "items": { "type": "object" } }
+          }
+        }
       }
     },
     "serviceAccount": {
@@ -339,15 +461,42 @@
     },
     "zookeeper": {
       "type": "object",
-      "description": "ZooKeeper subchart configuration",
+      "description": "ZooKeeper configuration",
       "properties": {
-        "enabled": { "type": "boolean", "description": "Enable ZooKeeper subchart" },
+        "enabled": { "type": "boolean", "description": "Enable bundled ZooKeeper" },
+        "image": {
+          "type": "object",
+          "description": "ZooKeeper image configuration",
+          "properties": {
+            "repository": { "type": "string", "description": "ZooKeeper image repository" },
+            "tag": { "type": "string", "description": "ZooKeeper image tag" },
+            "pullPolicy": {
+              "type": "string",
+              "description": "ZooKeeper image pull policy",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            }
+          }
+        },
         "replicaCount": { "type": "integer", "description": "Number of ZooKeeper replicas" },
+        "clientPort": { "type": "integer", "description": "ZooKeeper client port" },
+        "peerPort": { "type": "integer", "description": "ZooKeeper peer port" },
+        "electionPort": { "type": "integer", "description": "ZooKeeper election port" },
+        "tickTime": { "type": "integer", "description": "ZooKeeper tick time in milliseconds" },
+        "initLimit": { "type": "integer", "description": "ZooKeeper init limit" },
+        "syncLimit": { "type": "integer", "description": "ZooKeeper sync limit" },
+        "fourLetterWordWhitelist": { "type": "string", "description": "ZooKeeper 4-letter command whitelist" },
+        "resources": { "type": "object", "description": "ZooKeeper resources" },
+        "podSecurityContext": { "type": "object", "description": "ZooKeeper pod security context" },
+        "securityContext": { "type": "object", "description": "ZooKeeper container security context" },
+        "podAnnotations": { "type": "object", "description": "ZooKeeper pod annotations" },
+        "podLabels": { "type": "object", "description": "ZooKeeper pod labels" },
         "persistence": {
           "type": "object",
           "properties": {
             "enabled": { "type": "boolean", "description": "Enable ZooKeeper persistence" },
-            "size": { "type": "string", "description": "ZooKeeper data volume size" }
+            "size": { "type": "string", "description": "ZooKeeper data volume size" },
+            "storageClass": { "type": "string", "description": "ZooKeeper storage class" },
+            "accessModes": { "type": "array", "description": "ZooKeeper access modes", "items": { "type": "string" } }
           }
         }
       }
