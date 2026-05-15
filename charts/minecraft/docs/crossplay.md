@@ -13,14 +13,15 @@ Allow Bedrock Edition clients (mobile, console, Windows 10/11) to connect to a J
 
 ## How It Works
 
-```
+```text
 Java Client (TCP 25565) ──────────────────┐
                                           ├──> Paper Server
 Bedrock Client (UDP 19132) ──> GeyserMC ──┘
                                (plugin)
 ```
 
-GeyserMC runs as a Paper/Spigot plugin and translates Bedrock protocol packets into Java protocol packets. Floodgate allows Bedrock players to authenticate with their Xbox Live account without needing a separate Java account.
+GeyserMC runs as a Paper/Spigot plugin and translates Bedrock protocol packets into Java protocol packets. Floodgate allows Bedrock
+players to authenticate with their Xbox Live account without needing a separate Java account.
 
 ## Requirements
 
