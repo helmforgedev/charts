@@ -34,7 +34,10 @@ Common cases:
 
 ## Operational guidance
 
-`sharded` is the most capable and the most operationally demanding architecture in this chart. It should be chosen because the workload needs sharding, not because sharding sounds more robust. The right question is whether the workload truly needs data distribution, not only failover.
+`sharded` is the most capable and the most operationally demanding architecture
+in this chart. It should be chosen because the workload needs sharding, not
+because sharding sounds more robust. The right question is whether the workload
+truly needs data distribution, not only failover.
 
 ## Common risks
 

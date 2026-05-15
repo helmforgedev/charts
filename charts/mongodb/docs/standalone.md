@@ -35,7 +35,9 @@ Common cases:
 
 ## Operational guidance
 
-`standalone` is the simplest mode in this chart. It is appropriate when simplicity is more important than high availability. If the workload becomes operationally important, the next step is usually `replicaset`, not `sharded`.
+`standalone` is the simplest mode in this chart. It is appropriate when
+simplicity is more important than high availability. If the workload becomes
+operationally important, the next step is usually `replicaset`, not `sharded`.
 
 ## Common risks
 

@@ -34,7 +34,10 @@ Common cases:
 
 ## Operational guidance
 
-`replicaset` is usually the right default for production MongoDB when you need HA but do not need sharding. This chart bootstraps the replica set automatically, but the operational contract remains MongoDB's standard behavior: one primary, secondaries replicating from it, and elections on failure.
+`replicaset` is usually the right default for production MongoDB when you need HA
+but do not need sharding. This chart bootstraps the replica set automatically,
+but the operational contract remains MongoDB's standard behavior: one primary,
+secondaries replicating from it, and elections on failure.
 
 ## Common risks
 
