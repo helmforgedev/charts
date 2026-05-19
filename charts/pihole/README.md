@@ -125,7 +125,7 @@ metrics:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/pihole/pihole` | Pi-hole container image repository |
-| `image.tag` | `2026.04.1` | Pi-hole container image tag (Core v6.4.2, Web v6.5, FTL v6.6.1) |
+| `image.tag` | `2026.05.0` | Pi-hole container image tag (Core v6.4.2, Web v6.5, FTL v6.6.2) |
 | `image.pullPolicy` | `IfNotPresent` | Pi-hole image pull policy |
 | `pihole.timezone` | `UTC` | Timezone for logs and scheduled tasks |
 | `pihole.upstreamDns` | `8.8.8.8;8.8.4.4` | Upstream DNS servers (semicolon-delimited) |
@@ -201,7 +201,7 @@ metrics:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `metrics.enabled` | `false` | Enable pihole-exporter sidecar |
-| `metrics.image.tag` | `v0.4.0` | pihole-exporter version |
+| `metrics.image.tag` | `v1.2.0` | pihole-exporter version |
 | `metrics.port` | `9617` | Metrics port |
 | `metrics.serviceMonitor.enabled` | `false` | Create ServiceMonitor |
 | `metrics.serviceMonitor.interval` | `30s` | Scrape interval |
@@ -259,9 +259,10 @@ metrics:
 
 ## Upgrade Notes
 
-Pi-hole `2026.04.1` includes FTL `v6.6.1` and Core `v6.4.2` fixes,
-including security advisories and concurrency fixes for API access. Back up
-`/etc/pihole` and `/etc/dnsmasq.d` before upgrading live deployments.
+Pi-hole `2026.05.0` ships FTL `v6.6.2`, which imports six upstream `dnsmasq`
+security fixes covering the publicly disclosed CVEs against the dnsmasq
+2.92/2.93 line. Back up `/etc/pihole` and `/etc/dnsmasq.d` before upgrading
+live deployments.
 
 ## Connection
 
