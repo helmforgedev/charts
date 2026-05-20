@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: ConfigMap
+templates:
+  - templates/configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render application config
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: test-strava-statistics
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "appUrl: \"http://localhost:8080/\""
+
+  - it: should allow overriding application config
+    set:
+      strava.config: |
+        general:
+          appUrl: "https://strava.example.com/"
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "https://strava.example.com/"

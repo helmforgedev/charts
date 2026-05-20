@@ -65,6 +65,7 @@ strava:
 | `strava.refreshToken` | `""` | Strava Refresh Token |
 | `strava.existingSecret` | `""` | Use existing secret for credentials |
 | `strava.timezone` | `UTC` | Timezone |
+| `strava.config` | See `values.yaml` | Application `config.yaml` content mounted at `/var/www/config/app/config.yaml` |
 | `persistence.enabled` | `true` | Enable persistence for /data |
 | `persistence.size` | `2Gi` | PVC size |
 | `ingress.enabled` | `false` | Enable ingress |
