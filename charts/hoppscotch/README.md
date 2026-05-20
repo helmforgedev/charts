@@ -72,7 +72,7 @@ All traffic goes through a single Ingress/Service on port 80.
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `mode` | Chart mode: `dev` or `production` | `dev` |
-| `image.tag` | Hoppscotch image tag | `2026.4.0` |
+| `image.tag` | Hoppscotch image tag | `2026.4.1` |
 | `replicaCount` | Number of replicas | `1` |
 | `ingress.enabled` | Enable Ingress | `false` |
 | `ingress.host` | Primary hostname (auto-derives all URLs) | `""` |
@@ -93,7 +93,8 @@ All traffic goes through a single Ingress/Service on port 80.
 
 ## Upgrade Notes
 
-Hoppscotch `2026.4.0` adds collection-level pre-request and test scripts,
+Hoppscotch `2026.4.1` includes the latest upstream Hoppscotch fixes after
+the `2026.4.0` release, which added collection-level pre-request and test scripts,
 API documentation publishing refinements, self-hosted SMTP OAuth2 support,
 desktop settings improvements, security patches, and bug fixes. Back up the
 PostgreSQL database and keep `DATA_ENCRYPTION_KEY` stable before upgrading.

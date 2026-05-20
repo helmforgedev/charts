@@ -62,6 +62,27 @@ spec:
             {{- include "hoppscotch.databaseEnv" . | nindent 12 }}
           securityContext: {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
+        - name: bootstrap-infra-config
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [sh, -c, "node /dist/backend/dist/src/main.js"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "hoppscotch.fullname" . }}
+          env:
+            {{- include "hoppscotch.databaseEnv" . | nindent 12 }}
+            - name: DATA_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "hoppscotch.encryptionSecretName" . }}
+                  key: {{ include "hoppscotch.encryptionSecretKey" . }}
+            - name: WEBAPP_SERVER_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "hoppscotch.signingSecretName" . }}
+                  key: {{ include "hoppscotch.signingSecretKey" . }}
+          securityContext: {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
         - name: prepare-runtime-files
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -111,6 +132,12 @@ spec:
             {{- end }}
           env:
             {{- include "hoppscotch.databaseEnv" . | nindent 12 }}
+            - name: HOME
+              value: /tmp
+            - name: XDG_DATA_HOME
+              value: /tmp/.local/share
+            - name: XDG_CONFIG_HOME
+              value: /tmp/.config
             - name: DATA_ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:
