@@ -24,7 +24,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/robiningelbrecht/strava-statistics:v4.7.10"
+          value: "docker.io/robiningelbrecht/strava-statistics:v4.7.12"
 
   - it: should allow custom image tag
     set:
@@ -98,13 +98,20 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
+            name: config
+            mountPath: /var/www/config/app/config.yaml
+            subPath: config.yaml
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
             name: data
             mountPath: /data
 
   - it: should use PVC for data when persistence enabled
     asserts:
       - equal:
-          path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          path: spec.template.spec.volumes[1].persistentVolumeClaim.claimName
           value: test-strava-statistics-data
 
   - it: should use emptyDir when persistence disabled
@@ -112,7 +119,7 @@ tests:
       persistence.enabled: false
     asserts:
       - equal:
-          path: spec.template.spec.volumes[0].emptyDir
+          path: spec.template.spec.volumes[1].emptyDir
           value: {}
 
   - it: should use TCP probes
