@@ -43,7 +43,7 @@ spec:
             - sh
             - -c
             - |
-              until nc -z -w2 {{ include "hoppscotch.databaseHost" . }} {{ include "hoppscotch.databasePort" . }}; do
+              until nc -z -w2 {{ include "hoppscotch.databaseHost" . }} {{ include "hoppscotch.databasePort" . }} >/dev/null 2>&1; do
                 echo "waiting for database..."; sleep 2;
               done
           securityContext: {{- toYaml .Values.containerSecurityContext | nindent 12 }}
@@ -60,6 +60,102 @@ spec:
           command: [sh, -c, "pnpm exec prisma migrate deploy"]
           env:
             {{- include "hoppscotch.databaseEnv" . | nindent 12 }}
+          securityContext: {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+        - name: bootstrap-infra-config
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              cd /dist/backend
+              node <<'NODE'
+              const { PrismaService } = require('./dist/src/prisma/prisma.service');
+              const {
+                buildDerivedEnv,
+                disconnectSharedPrismaInstance,
+                getDefaultInfraConfigs,
+                getEncryptionRequiredInfraConfigEntries,
+                getMissingInfraConfigEntries,
+              } = require('./dist/src/infra-config/helper');
+              const { encrypt } = require('./dist/src/utils');
+
+              async function runSettledOrThrow(operations, description) {
+                const results = await Promise.allSettled(operations);
+                const failures = results.filter((result) => result.status === 'rejected');
+
+                if (failures.length > 0) {
+                  const reasons = failures
+                    .map((result) => (result.reason instanceof Error ? result.reason.message : String(result.reason)))
+                    .join('; ');
+                  throw new Error(`${description} failed for ${failures.length} operation(s): ${reasons}`);
+                }
+              }
+
+              async function main() {
+                const prisma = new PrismaService();
+                try {
+                  await prisma.onModuleInit();
+
+                  const defaultInfraConfigs = await getDefaultInfraConfigs();
+                  const propsToInsert = await getMissingInfraConfigEntries(defaultInfraConfigs);
+                  if (propsToInsert.length > 0) {
+                    await prisma.infraConfig.createMany({ data: propsToInsert });
+                  }
+
+                  const encryptionRequiredEntries = await getEncryptionRequiredInfraConfigEntries(defaultInfraConfigs);
+                  await runSettledOrThrow(
+                    encryptionRequiredEntries.map((dbConfig) =>
+                      prisma.infraConfig.update({
+                        where: { name: dbConfig.name },
+                        data: {
+                          value: dbConfig.value === null ? null : encrypt(dbConfig.value),
+                          isEncrypted: true,
+                        },
+                      })
+                    ),
+                    'Encrypting infra config entries'
+                  );
+
+                  const derivedEnv = await buildDerivedEnv();
+                  await runSettledOrThrow(
+                    Object.entries(derivedEnv).map(([name, value]) =>
+                      prisma.infraConfig.update({
+                        where: { name },
+                        data: { value },
+                      })
+                    ),
+                    'Updating derived infra config entries'
+                  );
+
+                  console.log('Hoppscotch infra config bootstrap completed.');
+                } finally {
+                  await disconnectSharedPrismaInstance();
+                  await prisma.onModuleDestroy();
+                }
+              }
+
+              main().catch((error) => {
+                console.error(error);
+                process.exit(1);
+              });
+              NODE
+          envFrom:
+            - configMapRef:
+                name: {{ include "hoppscotch.fullname" . }}
+          env:
+            {{- include "hoppscotch.databaseEnv" . | nindent 12 }}
+            - name: DATA_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "hoppscotch.encryptionSecretName" . }}
+                  key: {{ include "hoppscotch.encryptionSecretKey" . }}
+            - name: WEBAPP_SERVER_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "hoppscotch.signingSecretName" . }}
+                  key: {{ include "hoppscotch.signingSecretKey" . }}
           securityContext: {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
         - name: prepare-runtime-files
@@ -81,11 +177,11 @@ spec:
             runAsUser: 1000
           resources:
             requests:
-              cpu: 10m
-              memory: 16Mi
+              cpu: 50m
+              memory: 128Mi
             limits:
-              cpu: 100m
-              memory: 32Mi
+              cpu: 500m
+              memory: 512Mi
           volumeMounts:
             - name: backend-runtime
               mountPath: /runtime-backend
@@ -111,6 +207,12 @@ spec:
             {{- end }}
           env:
             {{- include "hoppscotch.databaseEnv" . | nindent 12 }}
+            - name: HOME
+              value: /tmp
+            - name: XDG_DATA_HOME
+              value: /tmp/.local/share
+            - name: XDG_CONFIG_HOME
+              value: /tmp/.config
             - name: DATA_ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:
@@ -200,6 +302,7 @@ spec:
             httpGet:
               path: /backend/health
               port: http
+            initialDelaySeconds: 20
             failureThreshold: 30
             periodSeconds: 10
           resources: {{- toYaml .Values.resources | nindent 12 }}
