@@ -29,7 +29,7 @@ data:
       echo "Gravity database found. Ensuring Pi-hole v6 schema compatibility..."
     fi
 
-    sqlite3 "$DB" <<'SQL'
+    pihole-FTL sqlite3 "$DB" <<'SQL'
     PRAGMA foreign_keys=OFF;
     BEGIN TRANSACTION;
     CREATE TABLE IF NOT EXISTS "group" (id INTEGER PRIMARY KEY AUTOINCREMENT, enabled BOOLEAN NOT NULL DEFAULT 1, name TEXT UNIQUE NOT NULL, date_added INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), date_modified INTEGER NOT NULL DEFAULT (cast(strftime('%s', 'now') as int)), description TEXT);
@@ -48,12 +48,12 @@ data:
     COMMIT;
     SQL
 
-    if ! sqlite3 "$DB" "SELECT type FROM adlist LIMIT 1;" >/dev/null 2>&1; then
+    if ! pihole-FTL sqlite3 "$DB" "SELECT type FROM adlist LIMIT 1;" >/dev/null 2>&1; then
       echo "Adding missing Pi-hole v6 adlist.type column..."
-      sqlite3 "$DB" "ALTER TABLE adlist ADD COLUMN type INTEGER NOT NULL DEFAULT 0;"
+      pihole-FTL sqlite3 "$DB" "ALTER TABLE adlist ADD COLUMN type INTEGER NOT NULL DEFAULT 0;"
     fi
 
-    sqlite3 "$DB" <<'SQL'
+    pihole-FTL sqlite3 "$DB" <<'SQL'
     PRAGMA foreign_keys=ON;
     BEGIN TRANSACTION;
     INSERT OR IGNORE INTO adlist_by_group (adlist_id, group_id) SELECT id, 0 FROM adlist;
@@ -102,22 +102,22 @@ data:
 
     # Add adlists
     {{- range (include "pihole.adlists" . | mustFromJson) }}
-    sqlite3 "$DB" "INSERT OR IGNORE INTO adlist (address, type, enabled, comment) VALUES ('{{ . | replace "'" "''" }}', 0, 1, 'Added by Helm chart');"
+    pihole-FTL sqlite3 "$DB" "INSERT OR IGNORE INTO adlist (address, type, enabled, comment) VALUES ('{{ . | replace "'" "''" }}', 0, 1, 'Added by Helm chart');"
     {{- end }}
 
     # Add whitelist domains (type=0)
     {{- range (include "pihole.whitelist" . | mustFromJson) }}
-    sqlite3 "$DB" "INSERT OR IGNORE INTO domainlist (type, domain, enabled, comment) VALUES (0, '{{ . | replace "'" "''" }}', 1, 'Added by Helm chart');"
+    pihole-FTL sqlite3 "$DB" "INSERT OR IGNORE INTO domainlist (type, domain, enabled, comment) VALUES (0, '{{ . | replace "'" "''" }}', 1, 'Added by Helm chart');"
     {{- end }}
 
     # Add blacklist domains (type=1)
     {{- range .Values.dns.blacklist }}
-    sqlite3 "$DB" "INSERT OR IGNORE INTO domainlist (type, domain, enabled, comment) VALUES (1, '{{ . | replace "'" "''" }}', 1, 'Added by Helm chart');"
+    pihole-FTL sqlite3 "$DB" "INSERT OR IGNORE INTO domainlist (type, domain, enabled, comment) VALUES (1, '{{ . | replace "'" "''" }}', 1, 'Added by Helm chart');"
     {{- end }}
 
     # Add regex blacklist (type=3)
     {{- range .Values.dns.regex }}
-    sqlite3 "$DB" "INSERT OR IGNORE INTO domainlist (type, domain, enabled, comment) VALUES (3, '{{ . | replace "'" "''" }}', 1, 'Added by Helm chart');"
+    pihole-FTL sqlite3 "$DB" "INSERT OR IGNORE INTO domainlist (type, domain, enabled, comment) VALUES (3, '{{ . | replace "'" "''" }}', 1, 'Added by Helm chart');"
     {{- end }}
 
     echo "Gravity database populated successfully."
