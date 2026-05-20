@@ -81,6 +81,18 @@ spec:
               } = require('./dist/src/infra-config/helper');
               const { encrypt } = require('./dist/src/utils');
 
+              async function runSettledOrThrow(operations, description) {
+                const results = await Promise.allSettled(operations);
+                const failures = results.filter((result) => result.status === 'rejected');
+
+                if (failures.length > 0) {
+                  const reasons = failures
+                    .map((result) => (result.reason instanceof Error ? result.reason.message : String(result.reason)))
+                    .join('; ');
+                  throw new Error(`${description} failed for ${failures.length} operation(s): ${reasons}`);
+                }
+              }
+
               async function main() {
                 const prisma = new PrismaService();
                 try {
@@ -93,7 +105,7 @@ spec:
                   }
 
                   const encryptionRequiredEntries = await getEncryptionRequiredInfraConfigEntries(defaultInfraConfigs);
-                  await Promise.allSettled(
+                  await runSettledOrThrow(
                     encryptionRequiredEntries.map((dbConfig) =>
                       prisma.infraConfig.update({
                         where: { name: dbConfig.name },
@@ -102,17 +114,19 @@ spec:
                           isEncrypted: true,
                         },
                       })
-                    )
+                    ),
+                    'Encrypting infra config entries'
                   );
 
                   const derivedEnv = await buildDerivedEnv();
-                  await Promise.allSettled(
+                  await runSettledOrThrow(
                     Object.entries(derivedEnv).map(([name, value]) =>
                       prisma.infraConfig.update({
                         where: { name },
                         data: { value },
                       })
-                    )
+                    ),
+                    'Updating derived infra config entries'
                   );
 
                   console.log('Hoppscotch infra config bootstrap completed.');
