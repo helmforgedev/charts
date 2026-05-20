@@ -43,7 +43,7 @@ spec:
             - sh
             - -c
             - |
-              until nc -z -w2 {{ include "hoppscotch.databaseHost" . }} {{ include "hoppscotch.databasePort" . }}; do
+              until nc -z -w2 {{ include "hoppscotch.databaseHost" . }} {{ include "hoppscotch.databasePort" . }} >/dev/null 2>&1; do
                 echo "waiting for database..."; sleep 2;
               done
           securityContext: {{- toYaml .Values.containerSecurityContext | nindent 12 }}
@@ -65,7 +65,68 @@ spec:
         - name: bootstrap-infra-config
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: [sh, -c, "node /dist/backend/dist/src/main.js"]
+          command:
+            - sh
+            - -ec
+            - |
+              cd /dist/backend
+              node <<'NODE'
+              const { PrismaService } = require('./dist/src/prisma/prisma.service');
+              const {
+                buildDerivedEnv,
+                disconnectSharedPrismaInstance,
+                getDefaultInfraConfigs,
+                getEncryptionRequiredInfraConfigEntries,
+                getMissingInfraConfigEntries,
+              } = require('./dist/src/infra-config/helper');
+              const { encrypt } = require('./dist/src/utils');
+
+              async function main() {
+                const prisma = new PrismaService();
+                try {
+                  await prisma.onModuleInit();
+
+                  const defaultInfraConfigs = await getDefaultInfraConfigs();
+                  const propsToInsert = await getMissingInfraConfigEntries(defaultInfraConfigs);
+                  if (propsToInsert.length > 0) {
+                    await prisma.infraConfig.createMany({ data: propsToInsert });
+                  }
+
+                  const encryptionRequiredEntries = await getEncryptionRequiredInfraConfigEntries(defaultInfraConfigs);
+                  await Promise.allSettled(
+                    encryptionRequiredEntries.map((dbConfig) =>
+                      prisma.infraConfig.update({
+                        where: { name: dbConfig.name },
+                        data: {
+                          value: dbConfig.value === null ? null : encrypt(dbConfig.value),
+                          isEncrypted: true,
+                        },
+                      })
+                    )
+                  );
+
+                  const derivedEnv = await buildDerivedEnv();
+                  await Promise.allSettled(
+                    Object.entries(derivedEnv).map(([name, value]) =>
+                      prisma.infraConfig.update({
+                        where: { name },
+                        data: { value },
+                      })
+                    )
+                  );
+
+                  console.log('Hoppscotch infra config bootstrap completed.');
+                } finally {
+                  await disconnectSharedPrismaInstance();
+                  await prisma.onModuleDestroy();
+                }
+              }
+
+              main().catch((error) => {
+                console.error(error);
+                process.exit(1);
+              });
+              NODE
           envFrom:
             - configMapRef:
                 name: {{ include "hoppscotch.fullname" . }}
@@ -102,11 +163,11 @@ spec:
             runAsUser: 1000
           resources:
             requests:
-              cpu: 10m
-              memory: 16Mi
+              cpu: 50m
+              memory: 128Mi
             limits:
-              cpu: 100m
-              memory: 32Mi
+              cpu: 500m
+              memory: 512Mi
           volumeMounts:
             - name: backend-runtime
               mountPath: /runtime-backend
@@ -227,6 +288,7 @@ spec:
             httpGet:
               path: /backend/health
               port: http
+            initialDelaySeconds: 20
             failureThreshold: 30
             periodSeconds: 10
           resources: {{- toYaml .Values.resources | nindent 12 }}

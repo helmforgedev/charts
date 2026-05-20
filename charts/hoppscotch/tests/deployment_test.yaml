@@ -40,6 +40,10 @@ tests:
           path: spec.template.spec.initContainers[0].image
           value: docker.io/library/busybox:1.37
         template: deployment.yaml
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: ">/dev/null 2>&1"
+        template: deployment.yaml
 
   - it: should have migrate init container
     asserts:
@@ -57,6 +61,10 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[3].name
           value: prepare-runtime-files
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.initContainers[3].resources.limits.memory
+          value: 512Mi
         template: deployment.yaml
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
@@ -80,6 +88,22 @@ tests:
       - matchRegex:
           path: spec.template.spec.initContainers[2].image
           pattern: "docker.io/hoppscotch/hoppscotch:2026.4.1"
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.initContainers[2].command[0]
+          value: sh
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.initContainers[2].command[1]
+          value: -ec
+        template: deployment.yaml
+      - matchRegex:
+          path: spec.template.spec.initContainers[2].command[2]
+          pattern: "Hoppscotch infra config bootstrap completed"
+        template: deployment.yaml
+      - notMatchRegex:
+          path: spec.template.spec.initContainers[2].command[2]
+          pattern: "dist/src/main\\.js"
         template: deployment.yaml
       - contains:
           path: spec.template.spec.initContainers[2].env
@@ -157,6 +181,10 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.httpGet.path
           value: /backend/health
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.initialDelaySeconds
+          value: 20
         template: deployment.yaml
 
   - it: should run as non-root
