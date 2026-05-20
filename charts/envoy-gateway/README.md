@@ -1,7 +1,7 @@
 # Envoy Gateway
 
 A Helm chart for deploying [Envoy Gateway](https://gateway.envoyproxy.io/)
-v1.7.3 on Kubernetes. Envoy Gateway is a **Kubernetes operator** — it manages
+v1.8.0 on Kubernetes. Envoy Gateway is a **Kubernetes operator** — it manages
 Envoy proxy pods automatically in response to Gateway API resources.
 
 ## Installation
@@ -158,7 +158,7 @@ highAvailability:
 |-----|---------|-------------|
 | `controller.replicaCount` | `1` | Number of controller replicas (overridden by profile) |
 | `controller.image.repository` | `docker.io/envoyproxy/gateway` | Controller image repository |
-| `controller.image.tag` | `v1.7.3` | Controller image tag |
+| `controller.image.tag` | `v1.8.0` | Controller image tag |
 | `controller.image.pullPolicy` | `IfNotPresent` | Image pull policy |
 | `controller.resources.requests.cpu` | `100m` | CPU request (overridden by profile) |
 | `controller.resources.requests.memory` | `128Mi` | Memory request (overridden by profile) |
@@ -176,7 +176,7 @@ highAvailability:
 |-----|---------|-------------|
 | `certgen.enabled` | `true` | Run certgen pre-install/pre-upgrade job for controller TLS certs |
 | `certgen.image.repository` | `docker.io/envoyproxy/gateway` | Certgen image (same as controller) |
-| `certgen.image.tag` | `v1.7.3` | Certgen image tag |
+| `certgen.image.tag` | `v1.8.0` | Certgen image tag |
 | `certgen.resources.requests.cpu` | `10m` | CPU request |
 | `certgen.resources.requests.memory` | `64Mi` | Memory request |
 | `certgen.resources.limits.cpu` | `100m` | CPU limit |
@@ -386,7 +386,7 @@ helm upgrade envoy-gateway helmforge/envoy-gateway --set profile=production-ha -
 
 ## Migration Guide
 
-### Version 1.3.0 (EG v1.7.3)
+### Version 1.3.0 (EG v1.8.0)
 
 Major architectural redesign to align with the EG operator model.
 
@@ -404,14 +404,14 @@ Major architectural redesign to align with the EG operator model.
 - `SecurityPolicy` CRD: JWT, OIDC, API Key, CORS
 - `BackendTrafficPolicy` CRD: retries, circuit breaking, timeouts
 - `ClientTrafficPolicy` CRD: connection limits, HTTP/2 settings
-- Updated to EG v1.7.3 and Redis 8.0.2-alpine
+- Updated to EG v1.8.0 and Redis 8.0.2-alpine
 
 ## Upgrade Notes
 
-`docker.io/envoyproxy/gateway:v1.7.3` is the upstream patch update from
-`v1.7.2`. The automatically generated issue referenced `1.7.3`, but Docker Hub
+`docker.io/envoyproxy/gateway:v1.8.0` is the upstream minor update from
+`v1.7.3`. The automatically generated issue referenced `1.8.0`, but Docker Hub
 publishes the canonical Envoy Gateway image tag with the `v` prefix. Review the
-upstream Envoy Gateway `v1.7.3` release notes, verify Gateway API/Envoy Gateway
+upstream Envoy Gateway `v1.8.0` release notes, verify Gateway API/Envoy Gateway
 CRDs in staging, and test existing Gateway, HTTPRoute, EnvoyProxy, and policy
 resources before upgrading production controllers.
 
@@ -430,7 +430,7 @@ This chart intentionally does not support:
 <!-- @AI-METADATA
 type: chart-readme
 title: Envoy Gateway Helm Chart
-description: Deploy Envoy Gateway v1.7.3 on Kubernetes with operator architecture, SecurityPolicy, rate limiting, and comprehensive observability
+description: Deploy Envoy Gateway v1.8.0 on Kubernetes with operator architecture, SecurityPolicy, rate limiting, and comprehensive observability
 keywords: envoy, gateway, gateway-api, helm, kubernetes, rate-limiting, prometheus, grafana, redis, networking, securitypolicy, backendtrafficpolicy, clienttrafficpolicy
 purpose: Installation guide, configuration reference, and operational documentation for the Envoy Gateway Helm chart
 scope: Chart
