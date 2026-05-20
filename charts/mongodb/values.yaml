@@ -21,7 +21,7 @@ commonLabels: {}
 
 image:
   repository: docker.io/library/mongo
-  tag: "8.3.1"
+  tag: "8.3.2"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -213,9 +213,14 @@ serviceAccount:
 livenessProbe:
   exec:
     command:
-      - mongosh
-      - --eval
-      - "db.adminCommand('ping')"
+      - sh
+      - -ec
+      - |
+        if [ -n "${MONGO_INITDB_ROOT_USERNAME:-}" ]; then
+          mongosh --quiet --eval "db.adminCommand('ping')" -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin
+        else
+          mongosh --quiet --eval "db.adminCommand('ping')"
+        fi
   initialDelaySeconds: 30
   periodSeconds: 20
   timeoutSeconds: 10
@@ -224,9 +229,14 @@ livenessProbe:
 readinessProbe:
   exec:
     command:
-      - mongosh
-      - --eval
-      - "db.adminCommand('ping')"
+      - sh
+      - -ec
+      - |
+        if [ -n "${MONGO_INITDB_ROOT_USERNAME:-}" ]; then
+          mongosh --quiet --eval "db.adminCommand('ping')" -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin
+        else
+          mongosh --quiet --eval "db.adminCommand('ping')"
+        fi
   initialDelaySeconds: 10
   periodSeconds: 10
   timeoutSeconds: 5
@@ -235,9 +245,14 @@ readinessProbe:
 startupProbe:
   exec:
     command:
-      - mongosh
-      - --eval
-      - "db.adminCommand('ping')"
+      - sh
+      - -ec
+      - |
+        if [ -n "${MONGO_INITDB_ROOT_USERNAME:-}" ]; then
+          mongosh --quiet --eval "db.adminCommand('ping')" -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin
+        else
+          mongosh --quiet --eval "db.adminCommand('ping')"
+        fi
   initialDelaySeconds: 5
   periodSeconds: 10
   timeoutSeconds: 5
@@ -295,7 +310,7 @@ backup:
       pullPolicy: IfNotPresent
     mongodb:
       repository: docker.io/library/mongo
-      tag: "8.3.1"
+      tag: "8.3.2"
       pullPolicy: IfNotPresent
   s3:
     # -- S3-compatible endpoint URL, for example: https://s3.amazonaws.com or https://minio.example.com

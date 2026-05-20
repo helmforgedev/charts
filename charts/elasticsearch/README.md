@@ -160,7 +160,7 @@ dataTiers:
 | `clusterProfile` | Cluster preset: `dev`, `staging`, `production-ha` | `dev` |
 | `clusterName` | Elasticsearch cluster name | `helmforge-cluster` |
 | `image.repository` | Elasticsearch image | `docker.io/library/elasticsearch` |
-| `image.tag` | Image tag | `9.4.0` |
+| `image.tag` | Image tag | `9.4.1` |
 | `nameOverride` | Override chart name | `""` |
 | `fullnameOverride` | Override full release name | `""` |
 
@@ -261,7 +261,7 @@ dataTiers:
 | Parameter | Description | Default |
 |---|---|---|
 | `kibana.enabled` | Deploy Kibana alongside Elasticsearch | `false` |
-| `kibana.image.tag` | Kibana version (must match ES version) | `9.4.0` |
+| `kibana.image.tag` | Kibana version (must match ES version) | `9.4.1` |
 | `kibana.replicaCount` | Kibana replica count | `1` |
 | `kibana.ingress.enabled` | Expose Kibana via Ingress | `false` |
 | `kibana.ingress.hosts` | Ingress hostnames | `[kibana.example.com]` |
@@ -290,8 +290,8 @@ dataTiers:
 
 ## Upgrade Notes
 
-`docker.io/library/elasticsearch:9.4.0` is an upstream image update from
-`9.3.4`. Review the upstream Elasticsearch release notes before upgrading
+`docker.io/library/elasticsearch:9.4.1` is an upstream image update from
+`9.4.0`. Review the upstream Elasticsearch release notes before upgrading
 production clusters, take a snapshot backup, and verify Kibana compatibility,
 plugins, ILM policies, and index templates in a staging environment before
 reusing existing PVCs.

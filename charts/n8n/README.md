@@ -139,7 +139,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
-| `image.tag` | `2.20.6` | n8n container image tag |
+| `image.tag` | `2.21.3` | n8n container image tag |
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
@@ -170,7 +170,7 @@ externalSecrets:
 
 ## Upgrade Notes
 
-n8n `2.20.6` is an upstream stable bugfix release. Review the upstream release
+n8n `2.21.3` is an upstream stable bugfix release. Review the upstream release
 notes before upgrading, back up the database, and keep the encryption key
 stable before upgrading live deployments. When using the bundled PostgreSQL
 subchart on a fresh data directory, the chart bootstraps the `uuid-ossp`

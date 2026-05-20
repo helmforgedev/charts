@@ -124,7 +124,7 @@ sharded:
 |-----------|-------------|---------|
 | `architecture` | `standalone`, `replicaset`, or `sharded` | `standalone` |
 | `image.repository` | MongoDB image | `mongo` |
-| `image.tag` | Image tag | `8.3.1` |
+| `image.tag` | Image tag | `8.3.2` |
 | `nameOverride` | Override chart name | `""` |
 | `fullnameOverride` | Override full release name | `""` |
 
@@ -244,7 +244,7 @@ See the [`examples/`](examples/) directory:
 
 ## Upgrade Notes
 
-MongoDB `8.3.1` is an upstream minor release update from `8.2.7`.
+MongoDB `8.3.2` is an upstream minor release update from `8.2.7`.
 Review the MongoDB 8.3 release notes before upgrading production clusters,
 take a backup, and verify the data files are compatible with the target
 `mongod` version before reusing existing PVCs. Keep replica set keyFiles and

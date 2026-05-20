@@ -325,7 +325,7 @@ Operational documents:
 |-----------|-------------|---------|
 | `architecture` | `standalone` or `replication` | `standalone` |
 | `image.repository` | PostgreSQL image repository | `postgres` |
-| `image.tag` | PostgreSQL image tag | `18.3-trixie` |
+| `image.tag` | PostgreSQL image tag | `18.4-trixie` |
 | `auth.database` | App database created at bootstrap | `app` |
 | `auth.username` | App user created at bootstrap | `app` |
 | `auth.existingSecret` | Existing secret for passwords | `""` |
