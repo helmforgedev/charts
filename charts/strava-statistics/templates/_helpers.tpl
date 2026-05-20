@@ -43,6 +43,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
+{{- define "strava-statistics.configData" -}}
+config.yaml: |
+{{ .Values.strava.config | indent 2 }}
+{{- end -}}
+
 {{/* Strava secret name */}}
 {{- define "strava-statistics.secretName" -}}
 {{- if .Values.strava.existingSecret -}}
