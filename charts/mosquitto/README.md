@@ -156,6 +156,7 @@ broker:
 | `architecture.mode` | `standalone` | Broker topology: standalone or federated |
 | `broker.replicaCount` | `1` | Number of broker replicas |
 | `broker.listeners.mqtt` | `1883` | MQTT TCP listener port |
+| `broker.listeners.websocketEnabled` | bool | `true` | Enable MQTT over WebSocket listener |
 | `broker.listeners.websocket` | `9001` | MQTT over WebSocket listener port |
 | `broker.tls.enabled` | `false` | Enable broker MQTT TLS listener and disable plain MQTT `1883` |
 | `broker.tls.certSecretName` | `""` | Secret containing `tls.crt` and `tls.key` |
