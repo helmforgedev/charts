@@ -6,7 +6,10 @@ metadata:
     {{- include "mosquitto.labels" . | nindent 4 }}
     app.kubernetes.io/component: broker
 spec:
-  {{- $probePort := ternary "websocket" "mqtt" .Values.broker.tls.enabled }}
+  {{- $probePort := "mqtt" -}}
+  {{- if .Values.broker.tls.enabled }}
+    {{- $probePort = ternary "websocket" "mqtts" .Values.broker.listeners.websocketEnabled -}}
+  {{- end }}
   serviceName: {{ include "mosquitto.headlessServiceName" . }}
   replicas: {{ .Values.broker.replicaCount }}
   podManagementPolicy: Parallel
@@ -126,9 +129,11 @@ spec:
               containerPort: {{ .Values.broker.listeners.mqtt }}
               protocol: TCP
             {{- end }}
+            {{- if .Values.broker.listeners.websocketEnabled }}
             - name: websocket
               containerPort: {{ .Values.broker.listeners.websocket }}
               protocol: TCP
+            {{- end }}
             {{- if .Values.broker.tls.enabled }}
             - name: mqtts
               containerPort: {{ .Values.broker.tls.port }}
