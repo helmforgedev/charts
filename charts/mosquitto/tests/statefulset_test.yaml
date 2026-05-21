@@ -151,3 +151,24 @@ tests:
             name: tls
             secret:
               secretName: mosquitto-tls
+
+  - it: should use mqtts for probes when tls is enabled and websocket is disabled
+    template: templates/statefulset.yaml
+    set:
+      broker.tls.enabled: true
+      broker.listeners.websocketEnabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: websocket
+
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.tcpSocket.port
+          value: mqtts
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+          value: mqtts
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.tcpSocket.port
+          value: mqtts
