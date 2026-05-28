@@ -80,6 +80,7 @@ schedules:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/velero/velero` | Velero server image |
+| `image.tag` | `v1.18.1` | Velero server image tag |
 | `plugins.aws.tag` | `v1.14.0` | Default AWS/S3 plugin image tag |
 | `credentials.useSecret` | `true` | Mount credentials from a secret |
 | `credentials.existingSecret` | `""` | Existing credentials secret |
@@ -88,6 +89,7 @@ schedules:
 | `configuration.defaultVolumesToFsBackup` | `false` | Default filesystem backup mode |
 | `nodeAgent.enabled` | `false` | Deploy filesystem backup DaemonSet |
 | `schedules` | `[]` | Schedule resources created by the chart |
+| `service.ipFamilyPolicy` | `""` | Optional metrics Service IP family policy |
 | `metrics.serviceMonitor.enabled` | `false` | Create a ServiceMonitor |
 
 ## Resources Generated
