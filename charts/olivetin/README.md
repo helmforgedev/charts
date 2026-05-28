@@ -11,6 +11,7 @@ OliveTin gives safe and simple access to predefined shell commands from a web in
 - **Configuration via ConfigMap** — YAML config mounted at /config/config.yaml
 - **Prometheus metrics** — optional /metrics endpoint with ServiceMonitor support
 - **Ingress support** — TLS with cert-manager
+- **Gateway API support** — optional HTTPRoute rendering for modern ingress controllers
 - **Lightweight** — minimal resource usage
 
 ## Installation
@@ -52,13 +53,18 @@ kubectl port-forward svc/<release>-olivetin 1337:80
 
 | Key | Default | Description |
 |-----|---------|-------------|
+| `configInit.enabled` | `true` | Prepare writable OliveTin runtime files before startup |
+| `image.tag` | `3000.13.0` | OliveTin image tag |
 | `olivetin.port` | `1337` | Application port |
 | `config` | sample action | OliveTin YAML configuration |
 | `persistence.enabled` | `false` | Enable optional PVC for data |
 | `persistence.size` | `1Gi` | PVC size |
 | `ingress.enabled` | `false` | Enable ingress |
 | `service.port` | `80` | Service port |
+| `service.ipFamilyPolicy` | omitted | Optional Service IP family policy for dual-stack clusters |
+| `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute rendering |
 | `metrics.enabled` | `false` | Enable Prometheus metrics |
+| `metrics.defaultGoMetrics` | `false` | Expose default Go runtime metrics |
 | `metrics.serviceMonitor.enabled` | `false` | Create ServiceMonitor |
 
 ## Prometheus Metrics
@@ -68,6 +74,7 @@ OliveTin exposes metrics at `/metrics`. To enable scraping with Prometheus Opera
 ```yaml
 metrics:
   enabled: true
+  defaultGoMetrics: false
   serviceMonitor:
     enabled: true
     interval: 30s

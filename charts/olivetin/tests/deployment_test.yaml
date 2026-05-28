@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 suite: Deployment
 templates:
   - templates/deployment.yaml
@@ -22,26 +23,54 @@ tests:
           path: spec.strategy.type
           value: Recreate
 
+  - it: should initialize writable config directory by default
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          content:
+            name: init-config-dir
+            image: "docker.io/library/busybox:1.37"
+            imagePullPolicy: IfNotPresent
+            command:
+              - sh
+              - -ec
+              - touch /config/sessions.yaml && mkdir -p /config/custom-webui/themes && chmod -R 0777 /config
+            volumeMounts:
+              - name: config-dir
+                mountPath: /config
+
   - it: should set the correct image
     template: templates/deployment.yaml
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/jamesread/olivetin:3000.11.3"
+          value: "docker.io/jamesread/olivetin:3000.13.0"
 
-  - it: should mount config volume as read-only
+  - it: should mount writable config directory with read-only config file
     template: templates/deployment.yaml
     asserts:
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
-            name: config
+            name: config-dir
             mountPath: /config
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: config
+            mountPath: /config/config.yaml
+            subPath: config.yaml
             readOnly: true
 
   - it: should reference configmap in volumes
     template: templates/deployment.yaml
     asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: config-dir
+            emptyDir: {}
       - contains:
           path: spec.template.spec.volumes
           content:
@@ -107,8 +136,10 @@ tests:
             containerPort: 1337
             protocol: TCP
 
-  - it: should not have init containers
+  - it: should allow disabling config directory init container
     template: templates/deployment.yaml
+    set:
+      configInit.enabled: false
     asserts:
       - notExists:
           path: spec.template.spec.initContainers
