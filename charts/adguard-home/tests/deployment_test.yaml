@@ -156,6 +156,22 @@ tests:
           path: spec.template.spec.initContainers[0].command[2]
           pattern: "chmod 770 /opt/adguardhome/conf /opt/adguardhome/work"
 
+  - it: should assign pod-level user ownership when configured
+    template: templates/deployment.yaml
+    set:
+      podSecurityContext.runAsUser: 1000
+      podSecurityContext.runAsGroup: 1000
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: init-permissions
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chown 1000:1000 /opt/adguardhome/conf /opt/adguardhome/work"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chmod 700 /opt/adguardhome/conf /opt/adguardhome/work"
+
   - it: should allow disabling permission normalization
     template: templates/deployment.yaml
     set:

@@ -249,9 +249,9 @@ backup:
 | `initPermissions.securityContext.capabilities.add` | `[CHOWN]` | Minimal capability required to assign PVC ownership when non-root runtime security contexts are configured |
 | `initPermissions.resources` | `{}` | Init permissions resource requests/limits |
 
-When `securityContext.runAsUser` is configured for a non-root runtime, pre-seed `AdGuardHome.yaml` with `config.adGuardHome` or
-`config.existingSecret`. The interactive setup wizard requires administrator privileges on first launch; pre-seeded mode runs successfully
-with non-root UID and `podSecurityContext.fsGroup`.
+When `securityContext.runAsUser` or `podSecurityContext.runAsUser` is configured for a non-root runtime, pre-seed `AdGuardHome.yaml` with
+`config.adGuardHome` or `config.existingSecret`. The interactive setup wizard requires administrator privileges on first launch;
+pre-seeded mode runs successfully with non-root UID and `podSecurityContext.fsGroup`.
 
 ### Sync (adguardhome-sync)
 
