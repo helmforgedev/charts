@@ -47,6 +47,22 @@ spec:
       {{- if or .Values.initPermissions.enabled (include "adguard-home.hasConfig" .) }}
       initContainers:
         {{- if .Values.initPermissions.enabled }}
+        {{- $volumeMode := "700" }}
+        {{- if hasKey .Values.podSecurityContext "fsGroup" }}
+        {{- $volumeMode = "770" }}
+        {{- end }}
+        {{- $volumeUser := "0" }}
+        {{- if hasKey .Values.securityContext "runAsUser" }}
+        {{- $volumeUser = toString .Values.securityContext.runAsUser }}
+        {{- end }}
+        {{- $volumeGroup := "0" }}
+        {{- if hasKey .Values.podSecurityContext "fsGroup" }}
+        {{- $volumeGroup = toString .Values.podSecurityContext.fsGroup }}
+        {{- end }}
+        {{- if hasKey .Values.securityContext "runAsGroup" }}
+        {{- $volumeGroup = toString .Values.securityContext.runAsGroup }}
+        {{- end }}
+        {{- $needsOwnership := or (hasKey .Values.securityContext "runAsUser") (hasKey .Values.securityContext "runAsGroup") (hasKey .Values.podSecurityContext "fsGroup") }}
         - name: init-permissions
           image: {{ .Values.initPermissions.image.repository }}:{{ .Values.initPermissions.image.tag }}
           imagePullPolicy: {{ .Values.initPermissions.image.pullPolicy }}
@@ -55,7 +71,10 @@ spec:
             - -c
             - |
               mkdir -p /opt/adguardhome/conf /opt/adguardhome/work
-              chmod 700 /opt/adguardhome/conf /opt/adguardhome/work
+              chmod {{ $volumeMode }} /opt/adguardhome/conf /opt/adguardhome/work
+              {{- if $needsOwnership }}
+              chown {{ $volumeUser }}:{{ $volumeGroup }} /opt/adguardhome/conf /opt/adguardhome/work
+              {{- end }}
           {{- with .Values.initPermissions.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
