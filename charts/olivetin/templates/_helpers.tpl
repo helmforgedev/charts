@@ -38,6 +38,19 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "olivetin.httpRouteName" -}}
+{{- $root := index . "root" -}}
+{{- $route := index . "route" -}}
+{{- $fullname := include "olivetin.fullname" $root -}}
+{{- $routeName := $route.name | default "" | trunc 32 | trimSuffix "-" -}}
+{{- if $routeName -}}
+{{- $baseMaxLength := sub 62 (len $routeName) -}}
+{{- printf "%s-%s" ($fullname | trunc (int $baseMaxLength) | trimSuffix "-") $routeName | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $fullname -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "olivetin.image" -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
