@@ -84,7 +84,9 @@ metrics:
 
 ## Configuration
 
-The `config` value is mounted as `/config/config.yaml` inside the container. It is not rendered through Helm `tpl` by default, so OliveTin runtime expressions such as `{{ message }}` remain literal for OliveTin to evaluate. Set `configTpl.enabled=true` only when you intentionally want Helm to render templates inside `config`.
+The `config` value is mounted as `/config/config.yaml` inside the container. It is not rendered through Helm `tpl` by default,
+so OliveTin runtime expressions such as `{{ message }}` remain literal for OliveTin to evaluate. Set `configTpl.enabled=true`
+only when you intentionally want Helm to render templates inside `config`.
 
 See the [OliveTin documentation](https://docs.olivetin.app) for all available options.
 
