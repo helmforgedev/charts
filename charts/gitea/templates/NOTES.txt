@@ -79,6 +79,8 @@ Storage:
   Size:         {{ .Values.persistence.size }}
   Access mode:  {{ .Values.persistence.accessMode }}
   StorageClass: {{ .Values.persistence.storageClass | default "<cluster default>" }}
+  Volume permissions init: {{ .Values.volumePermissions.enabled }}
+  Config path:  {{ ternary "/etc/gitea/app.ini" "/var/lib/gitea/custom/conf/app.ini" .Values.volumePermissions.enabled }}
 {{- end }}
 
 Backup:
@@ -180,6 +182,10 @@ WARNING: Persistence is disabled. Repository data and SQLite state will be lost 
 {{- if not .Values.backup.enabled }}
 
 NOTE: Backups are disabled. Enable backup.enabled and configure S3-compatible storage before production use.
+{{- end }}
+{{- if .Values.volumePermissions.enabled }}
+
+NOTE: volumePermissions.enabled runs a root initContainer with CHOWN/FOWNER. Keep it disabled in namespaces enforcing the Kubernetes restricted Pod Security profile unless your policy explicitly allows it.
 {{- end }}
 
 --------------------------------------------------------------------

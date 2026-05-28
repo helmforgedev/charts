@@ -35,25 +35,39 @@ tests:
       - isNull:
           path: spec.strategy
 
-  - it: should not have initContainers for SQLite
-    set:
-      volumePermissions:
-        enabled: false
+  - it: should not have initContainers for SQLite by default
     asserts:
       - isNull:
           path: spec.template.spec.initContainers
 
-  - it: should prepare rootless PVC permissions by default
+  - it: should avoid the root volume-permissions initContainer by default
     asserts:
-      - equal:
-          path: spec.template.spec.initContainers[0].name
-          value: volume-permissions
+      - isNull:
+          path: spec.template.spec.initContainers
       - equal:
           path: spec.template.spec.securityContext.runAsUser
           value: 1000
       - equal:
           path: spec.template.spec.containers[0].securityContext.runAsUser
           value: 1000
+
+  - it: should prepare rootless PVC permissions when explicitly enabled
+    set:
+      volumePermissions:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: volume-permissions
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsUser
+          value: 0
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /etc/gitea
+            subPath: config
 
   - it: should have wait-for-db initContainer for PostgreSQL
     set:
@@ -65,7 +79,7 @@ tests:
           password: test
     asserts:
       - equal:
-          path: spec.template.spec.initContainers[1].name
+          path: spec.template.spec.initContainers[0].name
           value: wait-for-db
 
   - it: should set DB_TYPE to sqlite3 by default
@@ -75,6 +89,14 @@ tests:
           content:
             name: GITEA__database__DB_TYPE
             value: "sqlite3"
+
+  - it: should store app.ini under the data volume by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA_APP_INI
+            value: /var/lib/gitea/custom/conf/app.ini
 
   - it: should set DB_TYPE to postgres when postgresql is enabled
     set:

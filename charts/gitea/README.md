@@ -148,7 +148,7 @@ gitea:
 | `mysql.enabled` | `false` | Deploy MySQL subchart |
 | `persistence.enabled` | `true` | Enable persistent storage |
 | `persistence.size` | `10Gi` | Volume size |
-| `volumePermissions.enabled` | `true` | Prepare rootless PVC ownership for UID/GID 1000 |
+| `volumePermissions.enabled` | `false` | Opt in to a root initContainer that prepares PVC ownership for UID/GID 1000 |
 | `service.http.type` | `ClusterIP` | HTTP service type |
 | `service.http.port` | `3000` | HTTP service port |
 | `service.ssh.enabled` | `true` | Enable SSH service |
@@ -201,6 +201,16 @@ The backup CronJob is database-aware:
 - **MySQL**: runs `mysqldump` and compresses the output
 
 All backups are uploaded to S3-compatible storage using the MinIO client.
+
+## Pod Security Restricted
+
+The default install avoids root init containers so it can run in namespaces that enforce the Kubernetes `restricted`
+Pod Security profile. With `volumePermissions.enabled=false`, the chart stores `app.ini` under
+`/var/lib/gitea/custom/conf/app.ini` on the main data volume and relies on the rootless image ownership plus `fsGroup`
+for writable storage.
+
+Set `volumePermissions.enabled=true` only when your storage class requires an explicit root `chown` step. That opt-in
+mode restores the legacy `/etc/gitea/app.ini` mount and renders a root initContainer with `CHOWN`/`FOWNER`.
 
 ## More Information
 
