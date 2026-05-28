@@ -1,3 +1,5 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+
 {{- define "olivetin.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
