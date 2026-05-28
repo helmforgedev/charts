@@ -35,10 +35,39 @@ tests:
       - isNull:
           path: spec.strategy
 
-  - it: should not have initContainers for SQLite
+  - it: should not have initContainers for SQLite by default
     asserts:
       - isNull:
           path: spec.template.spec.initContainers
+
+  - it: should avoid the root volume-permissions initContainer by default
+    asserts:
+      - isNull:
+          path: spec.template.spec.initContainers
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 1000
+
+  - it: should prepare rootless PVC permissions when explicitly enabled
+    set:
+      volumePermissions:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: volume-permissions
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsUser
+          value: 0
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /etc/gitea
+            subPath: config
 
   - it: should have wait-for-db initContainer for PostgreSQL
     set:
@@ -60,6 +89,26 @@ tests:
           content:
             name: GITEA__database__DB_TYPE
             value: "sqlite3"
+
+  - it: should store app.ini under the data volume by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA_APP_INI
+            value: /etc/gitea/app.ini
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /etc/gitea
+            subPath: config
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "touch \"\\$\\{GITEA_APP_INI\\}\""
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "docker-entrypoint\\.sh"
 
   - it: should set DB_TYPE to postgres when postgresql is enabled
     set:

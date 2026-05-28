@@ -35,3 +35,19 @@ tests:
               secretKeyRef:
                 name: my-admin-secret
                 key: admin-username
+
+  - it: should use the same app.ini path as the main deployment
+    set:
+      admin:
+        username: gitea_admin
+        password: test123
+        email: admin@test.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA_APP_INI
+            value: /etc/gitea/app.ini
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "--config \"\\$\\{GITEA_APP_INI\\}\""
