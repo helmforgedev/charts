@@ -4,9 +4,16 @@ MariaDB has been installed.
 Useful Services:
 
 - Client Service: {{ include "mariadb.clientServiceName" . }}
+{{- if .Values.metrics.enabled }}
+- Metrics Service: {{ include "mariadb.metricsServiceName" . }}
+{{- end }}
 {{- if eq .Values.architecture "replication" }}
 - Source Service: {{ include "mariadb.sourceServiceName" . }}
 - Replicas Service: {{ include "mariadb.replicasServiceName" . }}
+{{- if .Values.metrics.enabled }}
+- Source Metrics Service: {{ include "mariadb.sourceMetricsServiceName" . }}
+- Replicas Metrics Service: {{ include "mariadb.replicasMetricsServiceName" . }}
+{{- end }}
 {{- end }}
 
 Root password:
@@ -37,8 +44,14 @@ Initial troubleshooting:
 
   kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
   kubectl logs -n {{ .Release.Namespace }} {{ include "mariadb.sourceStatefulSetName" . }}-0
+{{- if .Values.metrics.enabled }}
+  kubectl logs -n {{ .Release.Namespace }} {{ include "mariadb.sourceStatefulSetName" . }}-0 -c mysqld-exporter
+{{- end }}
 {{- if eq .Values.architecture "replication" }}
   kubectl logs -n {{ .Release.Namespace }} {{ include "mariadb.replicaStatefulSetName" . }}-0
+{{- if .Values.metrics.enabled }}
+  kubectl logs -n {{ .Release.Namespace }} {{ include "mariadb.replicaStatefulSetName" . }}-0 -c mysqld-exporter
+{{- end }}
 {{- end }}
 
 {{- if .Values.externalSecrets.enabled }}
@@ -54,3 +67,6 @@ Important:
 
 - replication mode provides one fixed source and asynchronous read replicas
 - the chart does not implement automatic source promotion or operator-style HA
+- default values are suitable for development; production installs should provide external credentials, persistence, TLS, NetworkPolicy, resources, backups, and operational runbooks
+
+Happy Helmforging :)
