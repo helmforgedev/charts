@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -39,6 +40,23 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if .Values.configInit.enabled }}
+      initContainers:
+        - name: init-config-dir
+          image: "{{ .Values.configInit.image.repository }}:{{ .Values.configInit.image.tag }}"
+          imagePullPolicy: {{ .Values.configInit.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - mkdir -p /config/custom-webui/themes && touch /config/sessions.yaml && chmod g+rw /config/sessions.yaml && chmod g+rwx /config/custom-webui /config/custom-webui/themes
+          {{- with .Values.configInit.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: config-dir
+              mountPath: /config
+      {{- end }}
       containers:
         - name: olivetin
           image: {{ include "olivetin.image" . | quote }}
@@ -87,8 +105,11 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
-            - name: config
+            - name: config-dir
               mountPath: /config
+            - name: config
+              mountPath: /config/config.yaml
+              subPath: config.yaml
               readOnly: true
             {{- if .Values.persistence.enabled }}
             - name: data
@@ -98,6 +119,8 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
       volumes:
+        - name: config-dir
+          emptyDir: {}
         - name: config
           configMap:
             name: {{ include "olivetin.fullname" . }}-config

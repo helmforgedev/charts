@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Gateway API
+templates:
+  - templates/httproute.yaml
+tests:
+  - it: should not render HTTPRoute by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render HTTPRoute with the HelmForge-standard gatewayAPI block
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.parentRefs:
+        - name: shared-gateway
+          namespace: gateway-system
+      gatewayAPI.hostnames:
+        - docmost.example.com
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.parentRefs[0].name
+          value: shared-gateway
+      - equal:
+          path: spec.hostnames[0]
+          value: docmost.example.com

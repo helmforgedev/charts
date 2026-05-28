@@ -129,7 +129,8 @@ The chart does not create a `Gateway` and never routes the management service th
 
 ## External Secrets Operator
 
-External Secrets support is opt-in for clusters that already run https://github.com/external-secrets/external-secrets:
+External Secrets support is opt-in for clusters that already run
+[External Secrets Operator](https://github.com/external-secrets/external-secrets):
 
 ```yaml
 externalSecrets:
@@ -156,7 +157,7 @@ When an ExternalSecret owns a target Secret, the native generated Secret for tha
 
 ## Keycloak 26.6.x rollout notes
 
-The default image is `quay.io/keycloak/keycloak:26.6.1`.
+The default image is `quay.io/keycloak/keycloak:26.6.2`.
 
 Before rolling this version into production:
 
@@ -170,9 +171,9 @@ Before rolling this version into production:
 
 Official references:
 
-- Keycloak downloads: https://www.keycloak.org/downloads
-- Keycloak release notes: https://www.keycloak.org/docs/latest/release_notes/index.html
-- Keycloak production configuration: https://www.keycloak.org/server/configuration-production
+- [Keycloak downloads](https://www.keycloak.org/downloads)
+- [Keycloak release notes](https://www.keycloak.org/docs/latest/release_notes/index.html)
+- [Keycloak production configuration](https://www.keycloak.org/server/configuration-production)
 
 <!-- @AI-METADATA
 type: chart-docs

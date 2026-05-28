@@ -102,7 +102,7 @@ service:
 Requires Gateway API CRDs and a compatible controller (e.g. Envoy Gateway).
 
 ```yaml
-gateway:
+gatewayAPI:
   enabled: true
   gatewayName: envoy-gateway
   gatewayNamespace: envoy-gateway-system
@@ -110,7 +110,7 @@ gateway:
     - n8n.example.com
 ```
 
-> **Note:** `gateway.gatewayName` is required when `gateway.enabled=true`.
+> **Note:** `gatewayAPI.gatewayName` is required when `gatewayAPI.enabled=true`.
 
 ## External Secrets Operator (ESO)
 
@@ -139,7 +139,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
-| `image.tag` | `2.21.3` | n8n container image tag |
+| `image.tag` | `2.22.3` | n8n container image tag |
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
@@ -157,10 +157,11 @@ externalSecrets:
 | `backup.enabled` | `false` | Enable S3 backups |
 | `service.ipFamilyPolicy` | `~` | IP family policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
 | `service.ipFamilies` | `[]` | IP families override (`IPv4`, `IPv6`) |
-| `gateway.enabled` | `false` | Enable Gateway API HTTPRoute |
-| `gateway.gatewayName` | `""` | Gateway name (required when `gateway.enabled=true`) |
-| `gateway.gatewayNamespace` | `""` | Gateway namespace |
-| `gateway.hostnames` | `[]` | HTTPRoute hostnames |
+| `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute |
+| `gatewayAPI.gatewayName` | `""` | Gateway name (required when `gatewayAPI.enabled=true`) |
+| `gatewayAPI.gatewayNamespace` | `""` | Gateway namespace |
+| `gatewayAPI.hostnames` | `[]` | HTTPRoute hostnames |
+| `gateway.enabled` | `false` | Deprecated legacy alias for `gatewayAPI.enabled` |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret resource |
 | `externalSecrets.apiVersion` | `external-secrets.io/v1` | ExternalSecret API version |
 | `externalSecrets.refreshInterval` | `"0"` | Refresh interval (`"0"` = one-time sync) |
@@ -170,7 +171,7 @@ externalSecrets:
 
 ## Upgrade Notes
 
-n8n `2.21.3` is an upstream stable bugfix release. Review the upstream release
+n8n `2.22.3` is an upstream bugfix release. Review the upstream release
 notes before upgrading, back up the database, and keep the encryption key
 stable before upgrading live deployments. When using the bundled PostgreSQL
 subchart on a fresh data directory, the chart bootstraps the `uuid-ossp`
@@ -194,7 +195,7 @@ production.
 | Secret (backup) | `backup.enabled` and no `backup.s3.existingSecret` |
 | PVC | `persistence.enabled` and no `persistence.existingClaim` |
 | Ingress | `ingress.enabled` |
-| HTTPRoute | `gateway.enabled` |
+| HTTPRoute | `gatewayAPI.enabled` |
 | ExternalSecret | `externalSecrets.enabled` |
 | ServiceAccount | `serviceAccount.create` |
 | CronJob (backup) | `backup.enabled` |

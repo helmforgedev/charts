@@ -38,7 +38,8 @@ helm install docmost oci://ghcr.io/helmforgedev/helm/docmost
 - Docmost requires PostgreSQL and Redis
 - local storage uses `/app/data/storage`
 - S3 mode uses the official `AWS_S3_*` environment variables documented by Docmost
-- the default image tag is `0.80.2`, validated against the published `docmost/docmost:0.80.2` container image
+- the default image tag is `0.90.0`, validated against the published `docmost/docmost:0.90.0` container image
+- upstream telemetry can be disabled with `docmost.disableTelemetry=true`
 - this chart intentionally does not keep `Chart.lock`; dependencies are resolved by the repository release workflow
 
 ## Quick Start
@@ -152,10 +153,11 @@ backup:
 |-----|---------|-------------|
 | `replicaCount` | `1` | Number of Docmost application pods |
 | `image.repository` | `docker.io/docmost/docmost` | Docmost container image repository |
-| `image.tag` | `0.80.2` | Docmost image tag |
+| `image.tag` | `0.90.0` | Docmost image tag |
 | `docmost.appUrl` | `""` | External Docmost URL |
 | `docmost.appSecret` | `""` | Application secret, auto-generated when empty |
 | `docmost.jwtTokenExpiresIn` | `30d` | JWT expiration |
+| `docmost.disableTelemetry` | `false` | Disable anonymous upstream telemetry collection |
 | `database.mode` | `auto` | Database mode: `auto`, `external`, `postgresql` |
 | `postgresql.enabled` | `true` | Deploy PostgreSQL subchart |
 | `postgresql.auth.database` | `docmost` | PostgreSQL database created by the subchart |
@@ -174,6 +176,7 @@ backup:
 | `ingress.enabled` | `false` | Enable ingress |
 | `ingress.ingressClassName` | `""` | Ingress class (`traefik`, `nginx`, etc.) |
 | `gateway.enabled` | `false` | Render a Gateway API HTTPRoute |
+| `gatewayAPI.enabled` | `false` | HelmForge-standard Gateway API alias |
 | `externalSecrets.enabled` | `false` | Render an ExternalSecret for application credentials |
 
 ## Operations

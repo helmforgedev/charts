@@ -1,3 +1,5 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+
 {{- define "olivetin.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -35,6 +37,19 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- default (include "olivetin.fullname" .) .Values.serviceAccount.name -}}
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "olivetin.httpRouteName" -}}
+{{- $root := index . "root" -}}
+{{- $route := index . "route" -}}
+{{- $fullname := include "olivetin.fullname" $root -}}
+{{- $routeName := $route.name | default "" | trunc 32 | trimSuffix "-" -}}
+{{- if $routeName -}}
+{{- $baseMaxLength := sub 62 (len $routeName) -}}
+{{- printf "%s-%s" ($fullname | trunc (int $baseMaxLength) | trimSuffix "-") $routeName | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $fullname -}}
 {{- end -}}
 {{- end -}}
 

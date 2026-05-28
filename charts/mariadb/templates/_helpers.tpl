@@ -197,13 +197,55 @@ MYSQL_PWD="${MARIADB_ROOT_PASSWORD}" mariadb -h 127.0.0.1 -P {{ .Values.service.
 {{- end -}}
 
 {{- define "mariadb.metricsEnv" -}}
-- name: DATA_SOURCE_NAME
-  value: root:$(MARIADB_ROOT_PASSWORD)@(127.0.0.1:{{ .Values.service.port }})/{{ if or .Values.tls.client.enabled .Values.tls.requireSecureTransport }}?tls=skip-verify{{ end }}
 - name: MARIADB_ROOT_PASSWORD
   valueFrom:
     secretKeyRef:
       name: {{ include "mariadb.secretName" . }}
       key: {{ .Values.auth.existingSecretRootPasswordKey }}
+{{- end -}}
+
+{{- define "mariadb.metricsConfigInitContainer" -}}
+- name: mysqld-exporter-config
+  image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+  imagePullPolicy: {{ .Values.image.pullPolicy }}
+  command:
+    - sh
+    - -ec
+    - |
+      umask 077
+      cat > /metrics/.my.cnf <<EOF
+      [client]
+      user=root
+      password=${MARIADB_ROOT_PASSWORD}
+      host=127.0.0.1
+      port={{ .Values.service.port }}
+      {{- if include "mariadb.tlsClientEnabled" . }}
+      ssl-ca=/tls/{{ .Values.tls.caFilename }}
+      {{- end }}
+      EOF
+  env:
+    {{- include "mariadb.metricsEnv" . | nindent 4 }}
+  securityContext:
+    {{- toYaml .Values.securityContext | nindent 4 }}
+  volumeMounts:
+    - name: mysqld-exporter-config
+      mountPath: /metrics
+    {{- if .Values.tls.enabled }}
+    - name: tls
+      mountPath: /tls
+      readOnly: true
+    {{- end }}
+{{- end -}}
+
+{{- define "mariadb.metricsVolumeMounts" -}}
+- name: mysqld-exporter-config
+  mountPath: /etc/mysqld-exporter
+  readOnly: true
+{{- if .Values.tls.enabled }}
+- name: tls
+  mountPath: /tls
+  readOnly: true
+{{- end }}
 {{- end -}}
 
 {{- define "mariadb.tlsClientEnabled" -}}
