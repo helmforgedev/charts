@@ -2,9 +2,10 @@
 
 ## How Cloudflare Tunnel Works
 
-Cloudflare Tunnel (`cloudflared`) creates secure, outbound-only connections from your Kubernetes cluster to Cloudflare's edge network. No inbound ports need to be opened — the daemon initiates all connections.
+Cloudflare Tunnel (`cloudflared`) creates secure, outbound-only connections from your Kubernetes cluster to Cloudflare's edge network.
+No inbound ports need to be opened because the daemon initiates all connections.
 
-```
+```text
                   ┌──────────────────────────────┐
                   │    Cloudflare Edge Network    │
  Internet ──────▶ │  (TLS, DDoS, WAF, CDN)       │
@@ -27,7 +28,9 @@ Cloudflare Tunnel (`cloudflared`) creates secure, outbound-only connections from
 
 ### Remotely-Managed Tunnel
 
-This chart uses the **remotely-managed** tunnel model. All routing configuration (public hostnames, private networks) is managed through the Cloudflare dashboard, not through local config files. The chart only needs the tunnel token.
+This chart uses the **remotely-managed** tunnel model.
+All routing configuration, including public hostnames and private networks, is managed through the Cloudflare dashboard instead of local config files.
+The chart only needs the tunnel token.
 
 ### High Availability
 
