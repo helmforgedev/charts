@@ -121,6 +121,9 @@ spec:
               mountPath: /tls
               readOnly: true
             {{- end }}
+        {{- if .Values.metrics.enabled }}
+        {{- include "mariadb.metricsConfigInitContainer" . | nindent 8 }}
+        {{- end }}
       containers:
         - name: mariadb
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -218,11 +221,10 @@ spec:
           imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
           args:
             - --web.listen-address=:{{ .Values.service.metricsPort }}
+            - --config.my-cnf=/etc/mysqld-exporter/.my.cnf
           ports:
             - name: metrics
               containerPort: {{ .Values.service.metricsPort }}
-          env:
-            {{- include "mariadb.metricsEnv" . | nindent 12 }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           resources:
@@ -231,10 +233,16 @@ spec:
             {{- else }}
             {{- include "mariadb.metricsResourcesPreset" . | nindent 12 }}
             {{- end }}
+          volumeMounts:
+            {{- include "mariadb.metricsVolumeMounts" . | nindent 12 }}
         {{- end }}
       volumes:
         - name: mariadb-conf
           emptyDir: {}
+        {{- if .Values.metrics.enabled }}
+        - name: mysqld-exporter-config
+          emptyDir: {}
+        {{- end }}
         - name: config
           configMap:
             name: {{ include "mariadb.configMapName" . }}
