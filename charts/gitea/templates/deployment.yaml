@@ -28,8 +28,31 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if ne (include "gitea.databaseMode" .) "sqlite" }}
+      {{- if or (and .Values.persistence.enabled .Values.volumePermissions.enabled) (ne (include "gitea.databaseMode" .) "sqlite") }}
       initContainers:
+        {{- if and .Values.persistence.enabled .Values.volumePermissions.enabled }}
+        - name: volume-permissions
+          image: "{{ .Values.volumePermissions.image.repository }}:{{ .Values.volumePermissions.image.tag }}"
+          imagePullPolicy: {{ .Values.volumePermissions.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              mkdir -p /var/lib/gitea /etc/gitea
+              chown -R 1000:1000 /var/lib/gitea /etc/gitea
+          {{- with .Values.volumePermissions.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/gitea
+              subPath: data
+            - name: data
+              mountPath: /etc/gitea
+              subPath: config
+        {{- end }}
+        {{- if ne (include "gitea.databaseMode" .) "sqlite" }}
         - name: wait-for-db
           image: docker.io/library/busybox:1.37
           command:
@@ -41,6 +64,7 @@ spec:
                 sleep 2
               done
               echo "Database is reachable."
+        {{- end }}
       {{- end }}
       containers:
         - name: gitea

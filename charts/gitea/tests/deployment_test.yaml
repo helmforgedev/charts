@@ -36,9 +36,24 @@ tests:
           path: spec.strategy
 
   - it: should not have initContainers for SQLite
+    set:
+      volumePermissions:
+        enabled: false
     asserts:
       - isNull:
           path: spec.template.spec.initContainers
+
+  - it: should prepare rootless PVC permissions by default
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: volume-permissions
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 1000
 
   - it: should have wait-for-db initContainer for PostgreSQL
     set:
@@ -50,7 +65,7 @@ tests:
           password: test
     asserts:
       - equal:
-          path: spec.template.spec.initContainers[0].name
+          path: spec.template.spec.initContainers[1].name
           value: wait-for-db
 
   - it: should set DB_TYPE to sqlite3 by default
