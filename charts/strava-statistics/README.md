@@ -1,6 +1,6 @@
 # Statistics for Strava Helm Chart
 
-Deploy [Statistics for Strava](https://github.com/robiningelbrecht/strava-statistics) on Kubernetes using the official
+Deploy [Statistics for Strava](https://github.com/robiningelbrecht/statistics-for-strava) on Kubernetes using the official
 [robiningelbrecht/strava-statistics](https://hub.docker.com/r/robiningelbrecht/strava-statistics) container image.
 Self-hosted fitness dashboard that visualizes your Strava activities with beautiful statistics, powered by SQLite.
 
@@ -59,6 +59,7 @@ strava:
 
 | Key | Default | Description |
 |-----|---------|-------------|
+| `image.tag` | `v4.8.1` | Statistics for Strava image tag |
 | `strava.port` | `8080` | Application port |
 | `strava.clientId` | `""` | Strava OAuth Client ID |
 | `strava.clientSecret` | `""` | Strava OAuth Client Secret |
@@ -70,6 +71,9 @@ strava:
 | `persistence.size` | `2Gi` | PVC size |
 | `ingress.enabled` | `false` | Enable ingress |
 | `service.port` | `80` | Service port |
+| `service.ipFamilyPolicy` | omitted | Optional Service IP family policy for dual-stack clusters |
+| `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute rendering |
+| `externalSecrets.enabled` | `false` | Enable ExternalSecret rendering for credential integrations |
 
 ## Limitations
 
@@ -79,7 +83,7 @@ strava:
 
 ## More Information
 
-- [Statistics for Strava documentation](https://github.com/robiningelbrecht/strava-statistics)
+- [Statistics for Strava documentation](https://github.com/robiningelbrecht/statistics-for-strava)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/strava-statistics)
 
 <!-- @AI-METADATA
