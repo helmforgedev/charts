@@ -27,7 +27,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/adguard/adguardhome:v0.107.74"
+          value: "docker.io/adguard/adguardhome:v0.107.76"
 
   - it: should expose setup wizard port 3000 by default (no config)
     template: templates/deployment.yaml
@@ -83,8 +83,105 @@ tests:
             name: work
             mountPath: /opt/adguardhome/work
 
-  - it: should not have init container when no config
+  - it: should normalize volume permissions by default
     template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: init-permissions
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: docker.io/library/busybox:1.37
+      - contains:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.add
+          content: CHOWN
+      - contains:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.add
+          content: DAC_OVERRIDE
+      - contains:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.add
+          content: FOWNER
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: conf
+            mountPath: /opt/adguardhome/conf
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: work
+            mountPath: /opt/adguardhome/work
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chmod 700 /opt/adguardhome/conf /opt/adguardhome/work"
+
+  - it: should preserve group volume access when fsGroup is configured
+    template: templates/deployment.yaml
+    set:
+      podSecurityContext.fsGroup: 2000
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: init-permissions
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chown -R 0:2000 /opt/adguardhome/conf /opt/adguardhome/work"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chmod 770 /opt/adguardhome/conf /opt/adguardhome/work"
+
+  - it: should assign volume ownership when container user and group are configured
+    template: templates/deployment.yaml
+    set:
+      securityContext.runAsUser: 1000
+      securityContext.runAsGroup: 1000
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: init-permissions
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chown -R 1000:1000 /opt/adguardhome/conf /opt/adguardhome/work"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chmod 700 /opt/adguardhome/conf /opt/adguardhome/work"
+
+  - it: should assign user ownership and preserve fsGroup access together
+    template: templates/deployment.yaml
+    set:
+      securityContext.runAsUser: 1000
+      podSecurityContext.fsGroup: 2000
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: init-permissions
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chown -R 1000:2000 /opt/adguardhome/conf /opt/adguardhome/work"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chmod 770 /opt/adguardhome/conf /opt/adguardhome/work"
+
+  - it: should assign pod-level user ownership when configured
+    template: templates/deployment.yaml
+    set:
+      podSecurityContext.runAsUser: 1000
+      podSecurityContext.runAsGroup: 1000
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: init-permissions
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chown -R 1000:1000 /opt/adguardhome/conf /opt/adguardhome/work"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chmod 700 /opt/adguardhome/conf /opt/adguardhome/work"
+
+  - it: should allow disabling permission normalization
+    template: templates/deployment.yaml
+    set:
+      initPermissions.enabled: false
     asserts:
       - isNull:
           path: spec.template.spec.initContainers
@@ -100,7 +197,33 @@ tests:
           path: spec.template.spec.initContainers
       - equal:
           path: spec.template.spec.initContainers[0].name
+          value: init-permissions
+      - equal:
+          path: spec.template.spec.initContainers[1].name
           value: copy-config
+
+  - it: should run copy-config with the configured container security context
+    template: templates/deployment.yaml
+    set:
+      securityContext.runAsUser: 1000
+      securityContext.runAsGroup: 1000
+      securityContext.runAsNonRoot: true
+      config.adGuardHome:
+        http:
+          address: "0.0.0.0:80"
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: copy-config
+      - equal:
+          path: spec.template.spec.initContainers[1].securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.initContainers[1].securityContext.runAsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.initContainers[1].securityContext.runAsNonRoot
+          value: true
 
   - it: should use PVC for conf and work by default
     template: templates/deployment.yaml
