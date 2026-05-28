@@ -116,6 +116,7 @@ changedetection:
   fetchWorkers: 10
   minimumSecondsRecheckTime: "180"
   timezone: "America/Sao_Paulo"
+  locale: C
   extraEnv:
     - name: LOGGER_LEVEL
       value: INFO
@@ -165,13 +166,14 @@ probes:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `ghcr.io/dgtlmoon/changedetection.io` | changedetection.io image repository |
-| `image.tag` | Chart appVersion | changedetection.io image tag |
+| `image.tag` | `0.55.5` | changedetection.io image tag |
 | `image.pullPolicy` | `IfNotPresent` | Image pull policy |
 | `changedetection.port` | `5000` | Application port |
 | `changedetection.baseUrl` | `""` | Public base URL |
 | `changedetection.fetchWorkers` | `10` | Concurrent fetch workers |
 | `changedetection.minimumSecondsRecheckTime` | `""` | Minimum seconds between checks |
 | `changedetection.timezone` | `""` | Container timezone via `TZ` |
+| `changedetection.locale` | `C` | Locale assigned to `LANG` and `LC_ALL` |
 | `changedetection.extraEnv` | `[]` | Extra environment variables |
 | `browser.enabled` | `false` | Enable Playwright browser sidecar |
 | `browser.image.repository` | `ghcr.io/browserless/chromium` | Browser sidecar image repository |
@@ -193,9 +195,12 @@ probes:
 
 ## Upgrade Notes
 
-For this release the application image is updated to `0.55.3`. Review the
-upstream changelog before production rollout and test restores from the
-`/datastore` backup when upgrading long-lived instances.
+For this release the application image is updated to `0.55.5`. The upstream
+`0.55.4` and `0.55.5` releases include API, notification, LLM, localization,
+and security-related fixes, including an SSRF guard for the LLM `api_base`
+setting and a shared diff access fix. Review the upstream changelog before
+production rollout and test restores from the `/datastore` backup when upgrading
+long-lived instances.
 
 ## Limitations
 
