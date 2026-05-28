@@ -205,12 +205,12 @@ All backups are uploaded to S3-compatible storage using the MinIO client.
 ## Pod Security Restricted
 
 The default install avoids root init containers so it can run in namespaces that enforce the Kubernetes `restricted`
-Pod Security profile. With `volumePermissions.enabled=false`, the chart stores `app.ini` under
-`/var/lib/gitea/custom/conf/app.ini` on the main data volume and relies on the rootless image ownership plus `fsGroup`
-for writable storage.
+Pod Security profile. The chart preserves the rootless Gitea config path at `/etc/gitea/app.ini` for upgrade
+compatibility and mounts it from the `config` subPath on the data PVC.
 
 Set `volumePermissions.enabled=true` only when your storage class requires an explicit root `chown` step. That opt-in
-mode restores the legacy `/etc/gitea/app.ini` mount and renders a root initContainer with `CHOWN`/`FOWNER`.
+mode renders a root initContainer with `CHOWN`/`FOWNER`; keep it disabled in restricted namespaces unless your policy
+explicitly allows that init container.
 
 ## More Information
 

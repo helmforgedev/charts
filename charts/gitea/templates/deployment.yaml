@@ -70,6 +70,15 @@ spec:
         - name: gitea
           image: {{ include "gitea.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              mkdir -p "$(dirname "${GITEA_APP_INI}")"
+              if [ ! -f "${GITEA_APP_INI}" ]; then
+                touch "${GITEA_APP_INI}"
+              fi
+              exec /usr/bin/dumb-init -- /usr/local/bin/docker-entrypoint.sh
           ports:
             - name: http
               containerPort: 3000
@@ -82,7 +91,7 @@ spec:
           env:
             # -- Core Gitea settings
             - name: GITEA_APP_INI
-              value: {{ ternary "/etc/gitea/app.ini" "/var/lib/gitea/custom/conf/app.ini" .Values.volumePermissions.enabled | quote }}
+              value: "/etc/gitea/app.ini"
             - name: GITEA__server__APP_DATA_PATH
               value: /var/lib/gitea/data
             - name: GITEA__server__DOMAIN
@@ -175,11 +184,9 @@ spec:
             - name: data
               mountPath: /var/lib/gitea
               subPath: data
-            {{- if .Values.volumePermissions.enabled }}
             - name: data
               mountPath: /etc/gitea
               subPath: config
-            {{- end }}
           {{- end }}
       {{- if .Values.persistence.enabled }}
       volumes:
