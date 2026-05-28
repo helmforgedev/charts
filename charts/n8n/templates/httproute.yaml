@@ -2,12 +2,13 @@
 {{- $gatewayAPI := default dict .Values.gatewayAPI }}
 {{- $legacyGateway := default dict .Values.gateway }}
 {{- if or .Values.gatewayAPI.enabled .Values.gateway.enabled }}
-{{- $gatewayName := default (default "" $legacyGateway.gatewayName) $gatewayAPI.gatewayName }}
-{{- $gatewayNamespace := default (default "" $legacyGateway.gatewayNamespace) $gatewayAPI.gatewayNamespace }}
-{{- $gatewayAnnotations := default (default dict $legacyGateway.annotations) $gatewayAPI.annotations }}
-{{- $gatewayHostnames := default (default list $legacyGateway.hostnames) $gatewayAPI.hostnames }}
-{{- $gatewayPath := default (default "/" $legacyGateway.path) $gatewayAPI.path }}
-{{- $gatewayPathType := default (default "PathPrefix" $legacyGateway.pathType) $gatewayAPI.pathType }}
+{{- $activeGateway := ternary $gatewayAPI $legacyGateway .Values.gatewayAPI.enabled }}
+{{- $gatewayName := default "" $activeGateway.gatewayName }}
+{{- $gatewayNamespace := default "" $activeGateway.gatewayNamespace }}
+{{- $gatewayAnnotations := default dict $activeGateway.annotations }}
+{{- $gatewayHostnames := default list $activeGateway.hostnames }}
+{{- $gatewayPath := default "/" $activeGateway.path }}
+{{- $gatewayPathType := default "PathPrefix" $activeGateway.pathType }}
 {{- if not $gatewayName }}
   {{- fail "gatewayAPI.gatewayName is required when gatewayAPI.enabled=true" }}
 {{- end }}
