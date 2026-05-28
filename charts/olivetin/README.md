@@ -66,6 +66,7 @@ kubectl port-forward svc/<release>-olivetin 1337:80
 | `service.port` | `80` | Service port |
 | `service.ipFamilyPolicy` | omitted | Optional Service IP family policy for dual-stack clusters |
 | `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute rendering |
+| `gatewayAPI.httpRoutes[].rules[].omitDefaultBackend` | `false` | Omit the default Service backend for redirect-only rules |
 | `metrics.enabled` | `false` | Enable Prometheus metrics |
 | `metrics.defaultGoMetrics` | `false` | Expose default Go runtime metrics |
 | `metrics.serviceMonitor.enabled` | `false` | Create ServiceMonitor |
