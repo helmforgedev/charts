@@ -1,6 +1,7 @@
 # Generic Helm Chart
 
-A single chart that handles **Deployments**, **StatefulSets**, **DaemonSets**, **Jobs**, and **CronJobs** with a unified values interface. Designed for teams that deploy many services and want one chart to rule them all.
+A single chart that handles **Deployments**, **StatefulSets**, **DaemonSets**, **Jobs**, and **CronJobs** with a unified values
+interface. Designed for teams that deploy many services and want one chart to rule them all.
 
 ## Install
 
@@ -71,6 +72,7 @@ ingress:
         - app.example.com
       secretName: app-tls
 ```
+
 </details>
 
 ## How to choose the right mode
@@ -80,7 +82,9 @@ ingress:
 - use `DaemonSet` when exactly one pod per node is the intended operating model
 - use Jobs or CronJobs when the release is batch-oriented and should not keep a long-running workload alive
 
-The generic chart is most useful when your team wants one operational contract for many internal services. It is not the right choice when a product has its own topology, bootstrap flow, or domain-specific configuration model that deserves a dedicated chart.
+The generic chart is most useful when your team wants one operational contract for many internal services. It is not the
+right choice when a product has its own topology, bootstrap flow, or domain-specific configuration model that deserves a
+dedicated chart.
 
 <details>
 <summary><b>StatefulSet</b></summary>
@@ -100,6 +104,7 @@ workload:
           requests:
             storage: 10Gi
 ```
+
 </details>
 
 <details>
@@ -117,6 +122,7 @@ workload:
 tolerations:
   - operator: Exists
 ```
+
 </details>
 
 <details>
@@ -136,6 +142,7 @@ cronjobs:
     schedule: "0 2 * * *"
     command: ["npm", "run", "cleanup"]
 ```
+
 </details>
 
 ## Key Features
@@ -247,11 +254,15 @@ rollout:
 
 The chart now includes opt-in primitives for common platform needs:
 
-- `secrets[]`, `externalSecrets`, and `sealedSecrets` for secret integration. ExternalSecret, SealedSecret, ServiceMonitor, PodMonitor, PrometheusRule, KEDA, VPA, and Gateway API resources require their CRDs to exist before enabling them.
+- `secrets[]`, `externalSecrets`, and `sealedSecrets` for secret integration. ExternalSecret, SealedSecret,
+  ServiceMonitor, PodMonitor, PrometheusRule, KEDA, VPA, and Gateway API resources require their CRDs to exist before
+  enabling them.
 - `rbac.create` and `networkPolicy.enabled` for least-privilege identity and traffic policy.
 - `securityPreset: baseline` or `restricted` for opt-in security contexts when explicit contexts are not set.
-- `services[]`, `service.headless`, `service.nameOverride`, per-port `appProtocol`, and custom Ingress backends for richer networking. When `service.enabled=false`, Ingress paths must set `backend` and HTTPRoute rules must set `backendRefs`.
-- `podMonitor`, `prometheusRule`, advanced HPA metrics, and optional KEDA ScaledObject/ScaledJob support. KEDA ScaledObjects target the chart workload and require `workload.enabled=true`; use ScaledJobs for batch-only releases.
+- `services[]`, `service.headless`, `service.nameOverride`, per-port `appProtocol`, and custom Ingress backends for richer
+  networking. When `service.enabled=false`, Ingress paths must set `backend` and HTTPRoute rules must set `backendRefs`.
+- `podMonitor`, `prometheusRule`, advanced HPA metrics, and optional KEDA ScaledObject/ScaledJob support. KEDA
+  ScaledObjects target the chart workload and require `workload.enabled=true`; use ScaledJobs for batch-only releases.
 - `persistence.persistentVolumeClaims[]` and explicit opt-in `persistence.persistentVolumes[]` for clearer storage ownership.
 
 ### Breaking-change migration notes
