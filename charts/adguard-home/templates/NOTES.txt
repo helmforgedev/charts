@@ -61,6 +61,7 @@ DNS Service:
 Deployment:
   Image:              {{ include "adguard-home.image" . }}
   Strategy:           Recreate (single-instance, no rolling update)
+  Init Permissions:   {{ .Values.initPermissions.enabled }}
   Persistence (conf): {{ .Values.persistence.conf.enabled }} ({{ .Values.persistence.conf.size }})
   Persistence (work): {{ .Values.persistence.work.enabled }} ({{ .Values.persistence.work.size }})
 
@@ -139,6 +140,12 @@ Describe pod (events and errors):
 View application logs:
   kubectl logs -l app.kubernetes.io/name=adguard-home \
     -n {{ .Release.Namespace }} --all-containers --tail=100
+
+{{- if .Values.initPermissions.enabled }}
+View init container (volume permissions) logs:
+  kubectl logs -l app.kubernetes.io/name=adguard-home \
+    -n {{ .Release.Namespace }} -c init-permissions
+{{- end }}
 
 {{- if (include "adguard-home.hasConfig" .) }}
 View init container (config seeder) logs:

@@ -33,6 +33,12 @@ kubectl port-forward svc/adguard-home-web 3000:80
 
 To skip the wizard and deploy a pre-configured instance, provide `config.adGuardHome` with your desired configuration. See the [preconfigured example](examples/preconfigured.yaml).
 
+## Upstream Version Notes
+
+AdGuard Home `0.107.76` is an upstream hotfix release for cache behavior after the previous update.
+The release notes also state that YAML duration values now support `d` day units. If you roll back to
+a version below `v0.107.76`, convert any `d` duration values in `config.adGuardHome` back to hours first.
+
 ## Features
 
 - **Network-Wide Ad Blocking** - DNS-level filtering for all devices on the network
@@ -46,6 +52,7 @@ To skip the wizard and deploy a pre-configured instance, provide `config.adGuard
 - **ExternalSecrets** - opt-in `ExternalSecret` to source `AdGuardHome.yaml` from an external secrets store
 - **Ingress Support** - configurable ingress with TLS for the web admin interface
 - **Config Seeding** - initial configuration is preserved across upgrades (only seeded on first run)
+- **Volume Permission Guard** - optional init container normalizes mounted volume permissions before startup
 
 ## Configuration
 
@@ -175,8 +182,8 @@ backup:
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `image.repository` | `adguard/adguardhome` | Container image |
-| `image.tag` | `""` (appVersion) | Image tag (auto-prefixed with `v`) |
+| `image.repository` | `docker.io/adguard/adguardhome` | Container image |
+| `image.tag` | `v0.107.76` | Image tag |
 | `image.pullPolicy` | `IfNotPresent` | Pull policy |
 
 ### General Configuration
@@ -229,6 +236,17 @@ backup:
 | `probes.startup.enabled` | `true` | Enable startup probe |
 | `probes.liveness.enabled` | `true` | Enable liveness probe |
 | `probes.readiness.enabled` | `true` | Enable readiness probe |
+
+### Security
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `podSecurityContext` | `{}` | Pod-level security context |
+| `securityContext` | `{}` | Main container security context |
+| `initPermissions.enabled` | `true` | Normalize `/opt/adguardhome/conf` and `/opt/adguardhome/work` permissions before startup |
+| `initPermissions.image.repository` | `docker.io/library/busybox` | Init permissions container image |
+| `initPermissions.image.tag` | `1.37` | Init permissions image tag |
+| `initPermissions.resources` | `{}` | Init permissions resource requests/limits |
 
 ### Sync (adguardhome-sync)
 

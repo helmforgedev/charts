@@ -27,7 +27,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/adguard/adguardhome:v0.107.74"
+          value: "docker.io/adguard/adguardhome:v0.107.76"
 
   - it: should expose setup wizard port 3000 by default (no config)
     template: templates/deployment.yaml
@@ -83,8 +83,30 @@ tests:
             name: work
             mountPath: /opt/adguardhome/work
 
-  - it: should not have init container when no config
+  - it: should normalize volume permissions by default
     template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: init-permissions
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: docker.io/library/busybox:1.37
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: conf
+            mountPath: /opt/adguardhome/conf
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: work
+            mountPath: /opt/adguardhome/work
+
+  - it: should allow disabling permission normalization
+    template: templates/deployment.yaml
+    set:
+      initPermissions.enabled: false
     asserts:
       - isNull:
           path: spec.template.spec.initContainers
@@ -100,6 +122,9 @@ tests:
           path: spec.template.spec.initContainers
       - equal:
           path: spec.template.spec.initContainers[0].name
+          value: init-permissions
+      - equal:
+          path: spec.template.spec.initContainers[1].name
           value: copy-config
 
   - it: should use PVC for conf and work by default

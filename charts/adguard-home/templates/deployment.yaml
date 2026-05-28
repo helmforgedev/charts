@@ -44,8 +44,33 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
-      {{- if (include "adguard-home.hasConfig" .) }}
+      {{- if or .Values.initPermissions.enabled (include "adguard-home.hasConfig" .) }}
       initContainers:
+        {{- if .Values.initPermissions.enabled }}
+        - name: init-permissions
+          image: {{ .Values.initPermissions.image.repository }}:{{ .Values.initPermissions.image.tag }}
+          imagePullPolicy: {{ .Values.initPermissions.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p /opt/adguardhome/conf /opt/adguardhome/work
+              chmod 700 /opt/adguardhome/conf /opt/adguardhome/work
+          {{- with .Values.initPermissions.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.initPermissions.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: conf
+              mountPath: /opt/adguardhome/conf
+            - name: work
+              mountPath: /opt/adguardhome/work
+        {{- end }}
+        {{- if (include "adguard-home.hasConfig" .) }}
         - name: copy-config
           image: docker.io/library/busybox:1.37
           command:
@@ -64,6 +89,7 @@ spec:
             - name: config-seed
               mountPath: /config-seed
               readOnly: true
+        {{- end }}
       {{- end }}
       containers:
         - name: adguard-home
