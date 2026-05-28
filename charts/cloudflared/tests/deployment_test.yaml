@@ -188,6 +188,48 @@ tests:
           path: spec.template.spec.containers[0].resources.limits.memory
           value: 128Mi
 
+  - it: should set secure default pod and container contexts
+    template: templates/deployment.yaml
+    set:
+      tunnel.token: "test-token"
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 65532
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop[0]
+          value: ALL
+
+  - it: should set default resource requests and limits
+    template: templates/deployment.yaml
+    set:
+      tunnel.token: "test-token"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 50m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 64Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 250m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 128Mi
+
   - it: should set service account when created
     template: templates/deployment.yaml
     set:
@@ -215,6 +257,37 @@ tests:
       - notContains:
           path: spec.template.spec.containers[0].command
           content: "--no-autoupdate"
+
+  - it: should support quick tunnel hello-world mode without tunnel token env
+    template: templates/deployment.yaml
+    set:
+      tunnel.quickTunnel.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "--hello-world"
+      - notContains:
+          path: spec.template.spec.containers[0].command
+          content: "run"
+      - notExists:
+          path: spec.template.spec.containers[0].env
+
+  - it: should support quick tunnel url mode
+    template: templates/deployment.yaml
+    set:
+      tunnel.quickTunnel.enabled: true
+      tunnel.quickTunnel.helloWorld: false
+      tunnel.quickTunnel.url: http://example.default.svc:8080
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "--url"
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "http://example.default.svc:8080"
+      - notContains:
+          path: spec.template.spec.containers[0].command
+          content: "run"
 
   - it: should set pod labels and annotations
     template: templates/deployment.yaml

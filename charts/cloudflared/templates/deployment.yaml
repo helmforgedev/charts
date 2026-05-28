@@ -53,7 +53,17 @@ spec:
             {{- range .Values.cloudflared.extraArgs }}
             - {{ . | quote }}
             {{- end }}
+            {{- if .Values.tunnel.quickTunnel.enabled }}
+            {{- if .Values.tunnel.quickTunnel.helloWorld }}
+            - --hello-world
+            {{- else }}
+            - --url
+            - {{ required "tunnel.quickTunnel.url is required when tunnel.quickTunnel.enabled=true and helloWorld=false" .Values.tunnel.quickTunnel.url | quote }}
+            {{- end }}
+            {{- else }}
             - run
+            {{- end }}
+          {{- if not .Values.tunnel.quickTunnel.enabled }}
           env:
             - name: TUNNEL_TOKEN
               valueFrom:
@@ -63,6 +73,10 @@ spec:
             {{- with .Values.cloudflared.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- else if .Values.cloudflared.extraEnv }}
+          env:
+            {{- toYaml .Values.cloudflared.extraEnv | nindent 12 }}
+          {{- end }}
           ports:
             - name: metrics
               containerPort: {{ .Values.cloudflared.metricsPort }}

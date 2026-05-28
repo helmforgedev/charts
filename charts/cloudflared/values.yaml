@@ -16,7 +16,7 @@ image:
   # -- cloudflared container image
   repository: docker.io/cloudflare/cloudflared
   # -- Image tag
-  tag: "2026.5.0"
+  tag: "2026.5.2"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -32,6 +32,37 @@ tunnel:
   existingSecret: ""
   # -- Key inside the existing secret
   existingSecretKey: token
+  quickTunnel:
+    # -- Run an ephemeral quick tunnel for demos and smoke tests. Not recommended for production.
+    enabled: false
+    # -- Run cloudflared's built-in hello-world origin when quickTunnel.enabled=true.
+    helloWorld: true
+    # -- Origin URL used when quickTunnel.enabled=true and helloWorld=false.
+    url: http://localhost:8080
+
+externalSecrets:
+  # -- Render an ExternalSecret for the Cloudflare tunnel token.
+  # Requires tunnel.existingSecret to prevent drift between chart-managed
+  # Secret data and the ExternalSecret target.
+  enabled: false
+  # -- ExternalSecret API version. Must remain external-secrets.io/v1.
+  apiVersion: external-secrets.io/v1
+  # -- ExternalSecret refresh interval.
+  refreshInterval: "0"
+  secretStoreRef:
+    # -- Existing SecretStore or ClusterSecretStore name.
+    name: ""
+    # -- Secret store kind: SecretStore or ClusterSecretStore.
+    kind: SecretStore
+  target:
+    # -- ExternalSecret target creation policy.
+    creationPolicy: Owner
+  # -- Data entries mapping remote secret data to the tunnel token key.
+  data: []
+  #   - secretKey: token
+  #     remoteRef:
+  #       key: cloudflared/tunnel
+  #       property: token
 
 # =============================================================================
 # cloudflared Options
@@ -88,6 +119,10 @@ service:
   port: 2000
   # -- Annotations for the Service
   annotations: {}
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ""
+  # -- Ordered list of IP families for the Service: IPv4 | IPv6. Empty uses cluster default.
+  ipFamilies: []
 
 # =============================================================================
 # Metrics / Monitoring
@@ -113,7 +148,7 @@ probes:
   startup:
     enabled: true
     path: /ready
-    initialDelaySeconds: 5
+    initialDelaySeconds: 15
     periodSeconds: 5
     timeoutSeconds: 3
     failureThreshold: 12
@@ -136,16 +171,27 @@ probes:
 # Resources and Security
 # =============================================================================
 
-resources: {}
-  # requests:
-  #   cpu: 50m
-  #   memory: 64Mi
-  # limits:
-  #   memory: 128Mi
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 128Mi
 
-podSecurityContext: {}
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65532
 
 # =============================================================================
 # Scheduling
