@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 suite: ConfigMap
 templates:
   - templates/configmap.yaml
@@ -23,6 +24,47 @@ tests:
       - matchRegex:
           path: data["config.yaml"]
           pattern: "Ping Google"
+
+  - it: should disable Prometheus metrics by default
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "enabled: false"
+
+  - it: should wire metrics values into the default config
+    set:
+      metrics.enabled: true
+      metrics.defaultGoMetrics: true
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "enabled: true"
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "defaultGoMetrics: true"
+
+  - it: should preserve OliveTin runtime templates by default
+    set:
+      config: |
+        actions:
+          - title: "Echo message"
+            shell: "echo {{ message }}"
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "echo \\{\\{ message \\}\\}"
+
+  - it: should allow opt-in Helm templating for config
+    set:
+      metrics.enabled: true
+      configTpl.enabled: true
+      config: |
+        prometheus:
+          enabled: {{ .Values.metrics.enabled }}
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "enabled: true"
 
   - it: should use custom config
     set:
