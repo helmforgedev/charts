@@ -30,6 +30,90 @@ SSH (if enabled):
 
   SSH:  ssh://git@localhost:2222/<org>/<repo>.git
 
+Internal service endpoints:
+  HTTP: http://{{ include "gitea.fullname" . }}-http.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.http.port | default 3000 }}
+  SSH:  {{ include "gitea.fullname" . }}-ssh.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.ssh.port | default 22 }}
+
+--------------------------------------------------------------------
+  CONFIGURATION
+--------------------------------------------------------------------
+
+Deployment:
+  Image:        {{ include "gitea.image" . }}
+  Replicas:     {{ .Values.replicaCount }}
+  Run mode:     {{ .Values.gitea.runMode }}
+  App name:     {{ .Values.gitea.appName }}
+
+Services:
+  HTTP type:    {{ .Values.service.http.type }}
+  HTTP port:    {{ .Values.service.http.port }}
+  SSH type:     {{ .Values.service.ssh.type }}
+  SSH port:     {{ .Values.service.ssh.port }}
+{{- if .Values.service.http.ipFamilyPolicy }}
+  HTTP IP policy: {{ .Values.service.http.ipFamilyPolicy }}
+{{- end }}
+{{- with .Values.service.http.ipFamilies }}
+  HTTP IP families: {{ join ", " . }}
+{{- end }}
+{{- if .Values.service.ssh.ipFamilyPolicy }}
+  SSH IP policy: {{ .Values.service.ssh.ipFamilyPolicy }}
+{{- end }}
+{{- with .Values.service.ssh.ipFamilies }}
+  SSH IP families: {{ join ", " . }}
+{{- end }}
+
+Database:
+  Mode:         {{ include "gitea.databaseMode" . }}
+  Vendor:       {{ include "gitea.databaseVendor" . }}
+{{- if ne (include "gitea.databaseMode" .) "sqlite" }}
+  Host:         {{ include "gitea.databaseHost" . }}:{{ include "gitea.databasePort" . }}
+  Name:         {{ include "gitea.databaseName" . }}
+  Username:     {{ include "gitea.databaseUsername" . }}
+{{- else }}
+  SQLite file:  {{ .Values.database.sqlite.file }}
+{{- end }}
+
+Storage:
+  Persistence:  {{ .Values.persistence.enabled }}
+{{- if .Values.persistence.enabled }}
+  Size:         {{ .Values.persistence.size }}
+  Access mode:  {{ .Values.persistence.accessMode }}
+  StorageClass: {{ .Values.persistence.storageClass | default "<cluster default>" }}
+{{- end }}
+
+Backup:
+  Enabled:      {{ .Values.backup.enabled }}
+{{- if .Values.backup.enabled }}
+  Schedule:     {{ .Values.backup.schedule }}
+  Suspended:    {{ .Values.backup.suspend }}
+  S3 endpoint:  {{ .Values.backup.s3.endpoint }}
+  S3 bucket:    {{ .Values.backup.s3.bucket }}/{{ .Values.backup.s3.prefix }}
+{{- end }}
+
+--------------------------------------------------------------------
+  CREDENTIALS AND SECRETS
+--------------------------------------------------------------------
+
+Admin account:
+  Username: {{ .Values.admin.username | default "<set admin.username to create admin user>" }}
+{{- if .Values.admin.existingSecret }}
+  Password: stored in existing Secret {{ .Values.admin.existingSecret }}
+{{- else if .Values.admin.password }}
+  Password: provided through values.
+{{- else }}
+  Password: auto-generated in Secret {{ include "gitea.adminSecretName" . }}
+  Retrieve it with:
+    kubectl get secret {{ include "gitea.adminSecretName" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.admin-password}' | base64 -d
+{{- end }}
+
+Database credentials:
+{{- if eq (include "gitea.databaseMode" .) "sqlite" }}
+  SQLite mode does not require database network credentials.
+{{- else }}
+  Secret: {{ include "gitea.databaseSecretName" . }}
+  Password key: {{ include "gitea.databaseSecretKey" . }}
+{{- end }}
+
 --------------------------------------------------------------------
   GETTING STARTED
 --------------------------------------------------------------------
@@ -38,6 +122,23 @@ SSH (if enabled):
 2. kubectl get pods -l app.kubernetes.io/name=gitea -n {{ .Release.Namespace }}
 3. kubectl logs -l app.kubernetes.io/name=gitea -n {{ .Release.Namespace }} --all-containers --tail=50 -f
 4. Open the Web UI and complete the Gitea setup wizard (first access)
+5. Create the first organization and repository.
+6. Configure SSH clone URLs if exposing SSH outside the cluster.
+
+{{- if .Values.backup.enabled }}
+--------------------------------------------------------------------
+  BACKUP OPERATIONS
+--------------------------------------------------------------------
+
+List backup CronJobs:
+  kubectl get cronjob -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Trigger a manual backup:
+  kubectl create job -n {{ .Release.Namespace }} --from=cronjob/{{ include "gitea.fullname" . }}-backup {{ include "gitea.fullname" . }}-backup-manual-$(date +%s)
+
+Check recent backup logs:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=backup --tail=100
+{{- end }}
 
 --------------------------------------------------------------------
   TROUBLESHOOTING
@@ -47,6 +148,9 @@ SSH (if enabled):
   kubectl logs -l app.kubernetes.io/name=gitea -n {{ .Release.Namespace }} --all-containers --tail=100
   kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
   kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+  kubectl describe svc {{ include "gitea.fullname" . }}-http -n {{ .Release.Namespace }}
+  kubectl describe svc {{ include "gitea.fullname" . }}-ssh -n {{ .Release.Namespace }}
 
 {{- if .Values.postgresql.enabled }}
 View PostgreSQL logs:
@@ -64,6 +168,18 @@ View MySQL logs:
 {{- if not .Values.ingress.enabled }}
 
 NOTE: Ingress is not enabled. Access via port-forward (see above).
+{{- end }}
+{{- if and (eq (include "gitea.databaseMode" .) "sqlite") (gt (int .Values.replicaCount) 1) }}
+
+WARNING: SQLite is selected with more than one replica. Use PostgreSQL, MySQL, or an external database before scaling writes.
+{{- end }}
+{{- if not .Values.persistence.enabled }}
+
+WARNING: Persistence is disabled. Repository data and SQLite state will be lost when pods are recreated.
+{{- end }}
+{{- if not .Values.backup.enabled }}
+
+NOTE: Backups are disabled. Enable backup.enabled and configure S3-compatible storage before production use.
 {{- end }}
 
 --------------------------------------------------------------------
