@@ -31,9 +31,24 @@ tests:
           path: data["config.yaml"]
           pattern: "enabled: false"
 
-  - it: should enable Prometheus metrics in rendered config when metrics are enabled
+  - it: should preserve OliveTin runtime templates by default
+    set:
+      config: |
+        actions:
+          - title: "Echo message"
+            shell: "echo {{ message }}"
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "echo \\{\\{ message \\}\\}"
+
+  - it: should allow opt-in Helm templating for config
     set:
       metrics.enabled: true
+      configTpl.enabled: true
+      config: |
+        prometheus:
+          enabled: {{ .Values.metrics.enabled }}
     asserts:
       - matchRegex:
           path: data["config.yaml"]

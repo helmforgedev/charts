@@ -54,9 +54,11 @@ kubectl port-forward svc/<release>-olivetin 1337:80
 | Key | Default | Description |
 |-----|---------|-------------|
 | `configInit.enabled` | `true` | Prepare writable OliveTin runtime files before startup |
+| `configInit.securityContext` | non-root | Security context for the config bootstrap init container |
 | `image.tag` | `3000.13.0` | OliveTin image tag |
 | `olivetin.port` | `1337` | Application port |
 | `config` | sample action | OliveTin YAML configuration |
+| `configTpl.enabled` | `false` | Opt in to Helm `tpl` rendering for `config` |
 | `persistence.enabled` | `false` | Enable optional PVC for data |
 | `persistence.size` | `1Gi` | PVC size |
 | `ingress.enabled` | `false` | Enable ingress |
@@ -82,7 +84,9 @@ metrics:
 
 ## Configuration
 
-The `config` value is mounted as `/config/config.yaml` inside the container. See the [OliveTin documentation](https://docs.olivetin.app) for all available options.
+The `config` value is mounted as `/config/config.yaml` inside the container. It is not rendered through Helm `tpl` by default, so OliveTin runtime expressions such as `{{ message }}` remain literal for OliveTin to evaluate. Set `configTpl.enabled=true` only when you intentionally want Helm to render templates inside `config`.
+
+See the [OliveTin documentation](https://docs.olivetin.app) for all available options.
 
 ## Ingress Example
 
