@@ -57,7 +57,7 @@ kubectl port-forward svc/<release>-olivetin 1337:80
 | `configInit.securityContext` | non-root | Security context for the config bootstrap init container |
 | `image.tag` | `3000.13.0` | OliveTin image tag |
 | `olivetin.port` | `1337` | Application port |
-| `config` | sample action | OliveTin YAML configuration |
+| `config` | `""` | OliveTin YAML configuration. Empty uses the chart-managed default config. |
 | `configTpl.enabled` | `false` | Opt in to Helm `tpl` rendering for `config` |
 | `persistence.enabled` | `false` | Enable optional PVC for data |
 | `persistence.size` | `1Gi` | PVC size |
