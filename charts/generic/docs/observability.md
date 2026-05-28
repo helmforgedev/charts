@@ -30,9 +30,13 @@ KEDA ScaledObjects target the chart-managed Deployment or StatefulSet and requir
 
 ## Autoscaling and HA safety
 
-Deployment and StatefulSet HPA resources are supported by the Kubernetes `autoscaling/v2` API. Validate StatefulSet scaling with the application owner before enabling it in production, because ordered identity, storage semantics, and application clustering behavior remain workload-specific.
+Deployment and StatefulSet HPA resources are supported by the Kubernetes `autoscaling/v2` API. Validate StatefulSet scaling
+with the application owner before enabling it in production, because ordered identity, storage semantics, and application
+clustering behavior remain workload-specific.
 
-KEDA, VPA, PodMonitor, and PrometheusRule resources require their operators and CRDs to exist before enabling those features. The generic chart keeps them disabled by default and validates only their manifests unless the target cluster has the matching CRDs installed.
+KEDA, VPA, PodMonitor, and PrometheusRule resources require their operators and CRDs to exist before enabling those
+features. The generic chart keeps them disabled by default and validates only their manifests unless the target cluster
+has the matching CRDs installed.
 
 <!-- @AI-METADATA
 type: chart-docs

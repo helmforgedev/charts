@@ -58,4 +58,5 @@ Recommended installer path:
 sites/default/files/.ht.sqlite
 ```
 
-Use SQLite for lightweight environments, evaluation, or controlled single-replica installs. It is not the recommended production path for most Drupal installations and it cannot be combined with horizontal scaling.
+Use SQLite for lightweight environments, evaluation, or controlled single-replica installs. It is not the recommended
+production path for most Drupal installations and it cannot be combined with horizontal scaling.

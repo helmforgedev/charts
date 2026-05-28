@@ -32,7 +32,7 @@ helm install kafka oci://ghcr.io/helmforgedev/helm/kafka -f values.yaml
 ## What this chart covers
 
 - KRaft only
-- official Kafka `4.2.0` runtime image
+- official Kafka `4.3.0` runtime image
 - persistent storage for single-broker, controllers, and brokers
 - automatic cleanup of `lost+found` directories in PVCs (ext4/xfs compatibility)
 - stable in-cluster advertised listeners for brokers
@@ -51,9 +51,9 @@ helm install kafka oci://ghcr.io/helmforgedev/helm/kafka -f values.yaml
 
 ## Official references
 
-- Kafka downloads: https://downloads.apache.org/kafka/
-- Kafka documentation: https://kafka.apache.org/documentation/
-- Kafka Docker image: https://hub.docker.com/r/apache/kafka
+- [Kafka downloads](https://downloads.apache.org/kafka/)
+- [Kafka documentation](https://kafka.apache.org/documentation/)
+- [Kafka Docker image](https://hub.docker.com/r/apache/kafka)
 
 ## Quick start
 
@@ -128,7 +128,10 @@ metrics:
 |-----------|-------------|---------|
 | `architecture` | `single-broker` or `cluster` | `single-broker` |
 | `image.repository` | Kafka image repository | `apache/kafka` |
-| `image.tag` | Kafka image tag | `4.2.0` |
+| `image.tag` | Kafka image tag | `4.3.0` |
+| `service.type` | Client bootstrap service type | `ClusterIP` |
+| `service.ipFamilyPolicy` | Service IP family policy for client, headless, and metrics Services | `""` |
+| `service.ipFamilies` | Service IP families for client, headless, and metrics Services | `[]` |
 | `kraft.existingSecret` | Existing secret for cluster ID and controller directory IDs | `""` |
 | `listeners.client.port` | Kafka client port | `9092` |
 | `listeners.controller.port` | KRaft controller port | `9093` |
