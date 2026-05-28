@@ -5,7 +5,7 @@
 Helm chart for deploying [Homarr](https://homarr.dev/) modern application dashboard on Kubernetes using the official
 [`ghcr.io/homarr-labs/homarr`](https://github.com/homarr-labs/homarr/pkgs/container/homarr) container image.
 
-Current application version: `v1.61.0`.
+Current application version: `v1.62.0`.
 
 ## Features
 
@@ -174,7 +174,7 @@ backup:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `ghcr.io/homarr-labs/homarr` | Container image repository |
-| `image.tag` | `"v1.61.0"` | Homarr image tag |
+| `image.tag` | `"v1.62.0"` | Homarr image tag |
 | `replicaCount` | `1` | Number of replicas |
 | `homarr.logLevel` | `info` | Log level |
 | `homarr.authProviders` | `credentials` | Auth providers (credentials, ldap, oidc) |
@@ -258,9 +258,9 @@ outside this chart.
 
 ## Upgrade Notes
 
-This update moves the default image from `v1.60.0` to `v1.61.0`. Review upstream release notes before upgrading production
-environments. Homarr `v1.61.0` includes feature, bug fix and revert updates, with no breaking changes
-identified in the upstream release metadata.
+This update moves the default image from `v1.61.0` to `v1.62.0`. Review upstream release notes before upgrading production
+environments. Homarr `v1.62.0` includes feature, bug fix, and performance updates; no breaking changes were identified in
+the upstream release metadata.
 
 For PostgreSQL and MySQL, the chart sets `DB_DIALECT`, `DB_DRIVER`, and discrete database environment variables instead of
 rendering a full `DB_URL`; this avoids requiring URL-encoded passwords in Kubernetes Secrets.
