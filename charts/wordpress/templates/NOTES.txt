@@ -1,109 +1,283 @@
-WordPress has been deployed!
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+--------------------------------------------------------------------
+  WordPress has been successfully deployed!
+--------------------------------------------------------------------
 
-Web Interface:
+Chart:      {{ .Chart.Name }}
+Version:    {{ .Chart.Version }}
+AppVersion: {{ .Chart.AppVersion }}
+Release:    {{ .Release.Name }}
+Namespace:  {{ .Release.Namespace }}
+
+--------------------------------------------------------------------
+  ACCESS INFORMATION
+--------------------------------------------------------------------
+
 {{- if .Values.gatewayAPI.enabled }}
-  Gateway API HTTPRoute:
-  {{- range .Values.gatewayAPI.hostnames }}
-  http(s)://{{ . }}
-  {{- end }}
+Gateway API HTTPRoute:
+{{- range .Values.gatewayAPI.hostnames }}
+  WEB:   http(s)://{{ . }}{{ $.Values.gatewayAPI.path }}
+  ADMIN: http(s)://{{ . }}/wp-admin
+{{- end }}
 {{- else if .Values.ingress.enabled }}
-  {{- range .Values.ingress.hosts }}
-  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
-  {{- end }}
+Ingress:
+{{- range .Values.ingress.hosts }}
+  WEB:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+  ADMIN: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}/wp-admin
+{{- end }}
+{{- else if eq .Values.service.type "LoadBalancer" }}
+LoadBalancer service:
+  kubectl get svc {{ include "wordpress.fullname" . }} -n {{ .Release.Namespace }}
+
+  export SERVICE_IP=$(kubectl get svc {{ include "wordpress.fullname" . }} -n {{ .Release.Namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+  echo "http://$SERVICE_IP:{{ .Values.service.port }}"
+{{- else if eq .Values.service.type "NodePort" }}
+NodePort service:
+  export NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="ExternalIP")].address}')
+  export NODE_PORT=$(kubectl get svc {{ include "wordpress.fullname" . }} -n {{ .Release.Namespace }} -o jsonpath='{.spec.ports[0].nodePort}')
+  echo "http://$NODE_IP:$NODE_PORT"
 {{- else }}
+ClusterIP service:
   kubectl port-forward svc/{{ include "wordpress.fullname" . }} -n {{ .Release.Namespace }} 8080:{{ .Values.service.port }}
-  Then visit: http://localhost:8080
+
+  WEB:   http://localhost:8080
+  ADMIN: http://localhost:8080/wp-admin
 {{- end }}
 
-Admin Panel:
-{{- if .Values.ingress.enabled }}
-  {{- range .Values.ingress.hosts }}
-  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}/wp-admin
-  {{- end }}
-{{- else }}
-  http://localhost:8080/wp-admin
-{{- end }}
+Internal service endpoint:
+  http://{{ include "wordpress.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
 
-Admin Credentials:
+--------------------------------------------------------------------
+  CREDENTIALS
+--------------------------------------------------------------------
+
+Admin account:
   Username: {{ .Values.wordpress.adminUser }}
 {{- if eq (include "wordpress.externalSecretAdminEnabled" .) "true" }}
-  Password: Managed by ExternalSecret {{ include "wordpress.adminSecretName" . }}
+  Password: managed by ExternalSecret {{ include "wordpress.adminSecretName" . }}
 {{- else if .Values.admin.existingSecret }}
-  Password: Using existing secret {{ .Values.admin.existingSecret }}
+  Password: stored in existing Secret {{ .Values.admin.existingSecret }}
+  Password key: {{ include "wordpress.adminSecretKey" . }}
 {{- else if .Values.wordpress.adminPassword }}
-  Password: Using the password from values.
+  Password: provided through values.
 {{- else }}
-  Password (auto-generated):
+  Password: auto-generated in Secret {{ include "wordpress.adminSecretName" . }}
+  Retrieve it with:
     kubectl get secret {{ include "wordpress.adminSecretName" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.admin-password}' | base64 -d
 {{- end }}
 
-Database:
+Database credentials:
   Mode: {{ include "wordpress.databaseMode" . }}
-  Host: {{ include "wordpress.databaseHost" . }}:{{ include "wordpress.databasePort" . }}
-  Name: {{ include "wordpress.databaseName" . }}
+  Secret: {{ include "wordpress.databaseSecretName" . }}
+  Password key: {{ include "wordpress.databaseSecretKey" . }}
 {{- if eq (include "wordpress.externalSecretDatabaseEnabled" .) "true" }}
-  Password: Managed by ExternalSecret {{ include "wordpress.databaseSecretName" . }}
+  Source: ExternalSecret-managed database credentials
 {{- end }}
 
-{{- if .Values.service.ipFamilyPolicy }}
+--------------------------------------------------------------------
+  CONFIGURATION
+--------------------------------------------------------------------
+
+Deployment:
+  Image:        {{ include "wordpress.image" . }}
+  Replicas:     {{ .Values.replicaCount }}
+  Site title:   {{ .Values.wordpress.siteTitle }}
+  Site URL:     {{ .Values.wordpress.siteUrl | default "<derived from routing>" }}
 
 Service:
-  IP Family Policy: {{ .Values.service.ipFamilyPolicy }}
-  {{- with .Values.service.ipFamilies }}
-  IP Families: {{ join ", " . }}
-  {{- end }}
+  Type:         {{ .Values.service.type }}
+  Port:         {{ .Values.service.port }}
+{{- if .Values.service.ipFamilyPolicy }}
+  IP policy:    {{ .Values.service.ipFamilyPolicy }}
+{{- end }}
+{{- with .Values.service.ipFamilies }}
+  IP families:  {{ join ", " . }}
 {{- end }}
 
-{{- if .Values.wpCron.cronJob.enabled }}
+Routing:
+  Gateway API:  {{ .Values.gatewayAPI.enabled }}
+  Ingress:      {{ .Values.ingress.enabled }}
 
-WordPress Cron:
-  Kubernetes CronJob is enabled.
-  WordPress pseudo-cron is disabled through DISABLE_WP_CRON.
+Database:
+  Mode:         {{ include "wordpress.databaseMode" . }}
+  Host:         {{ include "wordpress.databaseHost" . }}:{{ include "wordpress.databasePort" . }}
+  Name:         {{ include "wordpress.databaseName" . }}
+  Username:     {{ include "wordpress.databaseUsername" . }}
+
+Storage:
+  Persistence:  {{ .Values.persistence.enabled }}
+{{- if .Values.persistence.enabled }}
+  Size:         {{ .Values.persistence.size }}
+  Access mode:  {{ .Values.persistence.accessMode }}
+  StorageClass: {{ .Values.persistence.storageClass | default "<cluster default>" }}
 {{- end }}
 
-{{- if .Values.plugins.installer.enabled }}
-
-Plugins:
-  Installer Job is enabled as a post-install/post-upgrade hook.
-  If WordPress core is not installed yet, activation is deferred until a later upgrade.
-{{- end }}
+Features:
+  WP CronJob:   {{ .Values.wpCron.cronJob.enabled }}
+  Plugins Job:  {{ .Values.plugins.installer.enabled }}
+  Object cache: {{ .Values.objectCache.enabled }}
+  Metrics:      {{ .Values.metrics.enabled }}
+  Backups:      {{ .Values.backup.enabled }}
+  NetworkPolicy: {{ .Values.networkPolicy.enabled }}
 
 {{- if .Values.objectCache.enabled }}
-
 Object Cache:
-  Redis Object Cache is enabled.
-  Redis host: {{ include "wordpress.redisHost" . }}:{{ .Values.objectCache.redis.port }}
-  Verify functionality by checking wp-content/object-cache.php and Redis keys after web requests.
-{{- end }}
-
-{{- if .Values.networkPolicy.enabled }}
-
-NetworkPolicy:
-  Enabled. Review egress rules if plugins, SMTP, object storage, or update checks need outbound access.
+  Provider:     {{ .Values.objectCache.provider }}
+  Redis mode:   {{ .Values.objectCache.redis.mode }}
+  Redis host:   {{ include "wordpress.redisHost" . }}:{{ .Values.objectCache.redis.port }}
+  Redis prefix: {{ include "wordpress.redisPrefix" . }}
 {{- end }}
 
 {{- if .Values.backup.enabled }}
-
 Backup:
-  Schedule: {{ .Values.backup.schedule }}
-  S3 Endpoint: {{ .Values.backup.s3.endpoint }}
-  S3 Bucket: {{ .Values.backup.s3.bucket }}/{{ .Values.backup.s3.prefix }}
-  {{- if eq (include "wordpress.externalSecretBackupEnabled" .) "true" }}
-  Credentials: Managed by ExternalSecret {{ include "wordpress.backupSecretName" . }}
-  {{- end }}
+  Schedule:     {{ .Values.backup.schedule }}
+  Suspended:    {{ .Values.backup.suspend }}
+  S3 endpoint:  {{ .Values.backup.s3.endpoint }}
+  S3 bucket:    {{ .Values.backup.s3.bucket }}/{{ .Values.backup.s3.prefix }}
+  Secret:       {{ include "wordpress.backupSecretName" . }}
+{{- end }}
+
+--------------------------------------------------------------------
+  GETTING STARTED
+--------------------------------------------------------------------
+
+1. Wait for WordPress to become ready:
+   kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=wordpress -n {{ .Release.Namespace }} --timeout=300s
+
+2. Check workload status:
+   kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+3. Open the Web UI and finish the initial site setup if required.
+
+4. Sign in to the admin panel and verify permalink, plugin, and theme settings.
+
+5. For production, configure TLS routing, explicit credentials, backups, metrics, resource requests and limits, and a storage strategy before scaling replicas.
+
+{{- if .Values.wpCron.cronJob.enabled }}
+--------------------------------------------------------------------
+  WORDPRESS CRON
+--------------------------------------------------------------------
+
+Kubernetes CronJob is enabled. WordPress pseudo-cron is disabled through DISABLE_WP_CRON.
+
+Inspect CronJob:
+  kubectl get cronjob -n {{ .Release.Namespace }} -l app.kubernetes.io/component=cron
+
+Check recent CronJob logs:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=cron --tail=100
+{{- end }}
+
+{{- if .Values.plugins.installer.enabled }}
+--------------------------------------------------------------------
+  PLUGIN INSTALLER
+--------------------------------------------------------------------
+
+The plugin installer Job runs after install and upgrade.
+
+Inspect plugin installer Jobs:
+  kubectl get jobs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=plugin-installer
+
+Check installer logs:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=plugin-installer --tail=100
+{{- end }}
+
+{{- if .Values.backup.enabled }}
+--------------------------------------------------------------------
+  BACKUP OPERATIONS
+--------------------------------------------------------------------
+
+List backup CronJobs:
+  kubectl get cronjob -n {{ .Release.Namespace }} -l app.kubernetes.io/component=backup
+
+Trigger a manual backup:
+  kubectl create job -n {{ .Release.Namespace }} --from=cronjob/{{ include "wordpress.fullname" . }}-backup {{ include "wordpress.fullname" . }}-backup-manual-$(date +%s)
+
+Check recent backup logs:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=backup --tail=100
 {{- end }}
 
 {{- if .Values.metrics.enabled }}
+--------------------------------------------------------------------
+  MONITORING
+--------------------------------------------------------------------
 
-Metrics:
-  Prometheus metrics are available on port {{ .Values.metrics.port }}.
-  {{- if .Values.metrics.serviceMonitor.enabled }}
-  A ServiceMonitor has been created for Prometheus Operator.
-  {{- end }}
+Prometheus metrics are available on port {{ .Values.metrics.port }}.
+{{- if .Values.metrics.serviceMonitor.enabled }}
+A ServiceMonitor has been created for Prometheus Operator.
 {{- end }}
 
-Production reminder:
-  Defaults are suitable for development. For production, set explicit resources,
-  TLS routing, backups, metrics, credentials, and a storage strategy before scaling replicas.
+Port-forward metrics locally:
+  kubectl port-forward svc/{{ include "wordpress.fullname" . }}-metrics -n {{ .Release.Namespace }} {{ .Values.metrics.port }}:{{ .Values.metrics.port }}
+{{- end }}
+
+--------------------------------------------------------------------
+  TROUBLESHOOTING
+--------------------------------------------------------------------
+
+Describe WordPress pods:
+  kubectl describe pod -l app.kubernetes.io/name=wordpress -n {{ .Release.Namespace }}
+
+View WordPress logs:
+  kubectl logs -l app.kubernetes.io/name=wordpress -n {{ .Release.Namespace }} --all-containers --tail=100
+
+View release resources:
+  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+  kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+
+Describe service and routing:
+  kubectl describe svc {{ include "wordpress.fullname" . }} -n {{ .Release.Namespace }}
+{{- if .Values.ingress.enabled }}
+  kubectl describe ingress -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+{{- end }}
+{{- if .Values.gatewayAPI.enabled }}
+  kubectl describe httproute -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+{{- end }}
+
+View MySQL logs:
+{{- if .Values.mysql.enabled }}
+  kubectl logs -l app.kubernetes.io/name=mysql -n {{ .Release.Namespace }} --all-containers --tail=100
+{{- else }}
+  External database mode is selected. Check the external database outside this release.
+{{- end }}
+
+{{- if .Values.objectCache.enabled }}
+View Redis/Object Cache logs:
+  kubectl logs -l app.kubernetes.io/name=redis -n {{ .Release.Namespace }} --all-containers --tail=100
+{{- end }}
+
+--------------------------------------------------------------------
+  WARNINGS
+--------------------------------------------------------------------
+
+{{- if and (not .Values.ingress.enabled) (not .Values.gatewayAPI.enabled) (eq .Values.service.type "ClusterIP") }}
+NOTE: No external routing is enabled. Use port-forward or enable Gateway API, Ingress, LoadBalancer, or NodePort access.
+{{- end }}
+{{- if not .Values.backup.enabled }}
+
+NOTE: Backups are disabled. Enable backup.enabled and configure S3-compatible storage before production use.
+{{- end }}
+{{- if not .Values.metrics.enabled }}
+
+NOTE: Metrics are disabled. Enable metrics.enabled for Prometheus scraping.
+{{- end }}
+{{- if not .Values.networkPolicy.enabled }}
+
+NOTE: NetworkPolicy is disabled. Enable it for stricter namespace traffic control.
+{{- end }}
+{{- if and (gt (int .Values.replicaCount) 1) (eq .Values.persistence.accessMode "ReadWriteOnce") }}
+
+WARNING: More than one replica is configured with ReadWriteOnce persistence. Use shared storage or validate scheduling constraints before scaling.
+{{- end }}
+
+--------------------------------------------------------------------
+  ADDITIONAL RESOURCES
+--------------------------------------------------------------------
+
+Documentation:  https://helmforge.dev/docs/charts/wordpress
+Chart Source:   https://github.com/helmforgedev/charts/tree/main/charts/wordpress
+Report Issues:  https://github.com/helmforgedev/charts/issues
+Discussions:    https://github.com/helmforgedev/charts/discussions
+WordPress:      https://wordpress.org
 
 Happy Helmforging :)
