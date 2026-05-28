@@ -246,7 +246,7 @@ backup:
 | `initPermissions.enabled` | `true` | Normalize `/opt/adguardhome/conf` and `/opt/adguardhome/work` permissions before startup |
 | `initPermissions.image.repository` | `docker.io/library/busybox` | Init permissions container image |
 | `initPermissions.image.tag` | `1.37` | Init permissions image tag |
-| `initPermissions.securityContext.capabilities.add` | `[CHOWN]` | Minimal capability required to assign PVC ownership when non-root runtime security contexts are configured |
+| `initPermissions.securityContext.capabilities.add` | `[CHOWN, DAC_READ_SEARCH, FOWNER]` | Minimal capabilities for PVC ownership, recursive traversal, and directory mode updates |
 | `initPermissions.resources` | `{}` | Init permissions resource requests/limits |
 
 When `securityContext.runAsUser` or `podSecurityContext.runAsUser` is configured for a non-root runtime, pre-seed `AdGuardHome.yaml` with
