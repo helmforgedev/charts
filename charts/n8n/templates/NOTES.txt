@@ -49,10 +49,16 @@ Ingress is enabled.
 Ingress is disabled.
 {{- end }}
 
-{{- if .Values.gateway.enabled }}
+{{- $gatewayAPI := default dict .Values.gatewayAPI }}
+{{- $legacyGateway := default dict .Values.gateway }}
+{{- $gatewayEnabled := or (default false $gatewayAPI.enabled) (default false $legacyGateway.enabled) }}
+{{- $gatewayName := default (default "" $legacyGateway.gatewayName) $gatewayAPI.gatewayName }}
+{{- $gatewayNamespace := default (default "" $legacyGateway.gatewayNamespace) $gatewayAPI.gatewayNamespace }}
+{{- $gatewayHostnames := default (default list $legacyGateway.hostnames) $gatewayAPI.hostnames }}
+{{- if $gatewayEnabled }}
 Gateway API HTTPRoute is enabled.
-  Gateway: {{ .Values.gateway.gatewayName }}{{ with .Values.gateway.gatewayNamespace }}.{{ . }}{{ end }}
-{{- range .Values.gateway.hostnames }}
+  Gateway: {{ $gatewayName }}{{ with $gatewayNamespace }}.{{ . }}{{ end }}
+{{- range $gatewayHostnames }}
 - Hostname: {{ . }}
 {{- end }}
 {{- else }}
