@@ -28,8 +28,31 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if ne (include "gitea.databaseMode" .) "sqlite" }}
+      {{- if or (and .Values.persistence.enabled .Values.volumePermissions.enabled) (ne (include "gitea.databaseMode" .) "sqlite") }}
       initContainers:
+        {{- if and .Values.persistence.enabled .Values.volumePermissions.enabled }}
+        - name: volume-permissions
+          image: "{{ .Values.volumePermissions.image.repository }}:{{ .Values.volumePermissions.image.tag }}"
+          imagePullPolicy: {{ .Values.volumePermissions.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              mkdir -p /var/lib/gitea /etc/gitea
+              chown -R 1000:1000 /var/lib/gitea /etc/gitea
+          {{- with .Values.volumePermissions.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/gitea
+              subPath: data
+            - name: data
+              mountPath: /etc/gitea
+              subPath: config
+        {{- end }}
+        {{- if ne (include "gitea.databaseMode" .) "sqlite" }}
         - name: wait-for-db
           image: docker.io/library/busybox:1.37
           command:
@@ -41,11 +64,21 @@ spec:
                 sleep 2
               done
               echo "Database is reachable."
+        {{- end }}
       {{- end }}
       containers:
         - name: gitea
           image: {{ include "gitea.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              mkdir -p "$(dirname "${GITEA_APP_INI}")"
+              if [ ! -f "${GITEA_APP_INI}" ]; then
+                touch "${GITEA_APP_INI}"
+              fi
+              exec /usr/bin/dumb-init -- /usr/local/bin/docker-entrypoint.sh
           ports:
             - name: http
               containerPort: 3000
@@ -57,6 +90,8 @@ spec:
             {{- end }}
           env:
             # -- Core Gitea settings
+            - name: GITEA_APP_INI
+              value: "/etc/gitea/app.ini"
             - name: GITEA__server__APP_DATA_PATH
               value: /var/lib/gitea/data
             - name: GITEA__server__DOMAIN

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 suite: Service
 templates:
   - service.yaml
@@ -57,6 +58,10 @@ tests:
     set:
       services:
         - name: metrics
+          ipFamilyPolicy: PreferDualStack
+          ipFamilies:
+            - IPv4
+            - IPv6
           ports:
             - name: metrics
               port: 9090
@@ -67,3 +72,33 @@ tests:
       - equal:
           path: metadata.name
           value: test-metrics
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+      - equal:
+          path: spec.ipFamilies
+          value:
+            - IPv4
+            - IPv6
+
+  - it: should not inherit ipFamilies when an additional service overrides only ipFamilyPolicy
+    documentIndex: 1
+    set:
+      service:
+        ipFamilyPolicy: RequireDualStack
+        ipFamilies:
+          - IPv4
+          - IPv6
+      services:
+        - name: metrics
+          ipFamilyPolicy: SingleStack
+          ports:
+            - name: metrics
+              port: 9090
+              targetPort: 9090
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: SingleStack
+      - notExists:
+          path: spec.ipFamilies

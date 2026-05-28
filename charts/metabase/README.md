@@ -125,6 +125,8 @@ externalSecrets:
 
 | Key | Default | Description |
 |-----|---------|-------------|
+| `image.repository` | `docker.io/metabase/metabase` | Metabase container image repository |
+| `image.tag` | `v0.61.2` | Metabase container image tag |
 | `metabase.port` | `3000` | Application port |
 | `metabase.encryptionSecretKey` | `""` | Encryption key (auto-generated) |
 | `metabase.siteUrl` | `""` | Public site URL |
@@ -148,6 +150,12 @@ externalSecrets:
 | `externalSecrets.secretStoreRef.name` | `""` | SecretStore name (required when enabled) |
 | `externalSecrets.secretStoreRef.kind` | `SecretStore` | SecretStore kind |
 | `externalSecrets.data` | `[]` | Remote key mappings (must include encryption key entry) |
+
+## Upgrade Notes
+
+Metabase `v0.61.2` is a stable upstream maintenance release. Back up the Metabase
+application database before upgrading and validate the `/api/health` endpoint
+after rollout.
 
 ## More Information
 

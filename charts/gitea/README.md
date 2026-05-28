@@ -4,6 +4,11 @@
 
 Helm chart for deploying [Gitea](https://gitea.io/) self-hosted Git service on Kubernetes using the official [`gitea/gitea`](https://hub.docker.com/r/gitea/gitea) rootless Docker image.
 
+- **Current application version** `1.26.2`
+- **Default image** `docker.io/gitea/gitea:1.26.2-rootless`
+- **Chart lock policy** source chart does not commit `Chart.lock`; dependencies are resolved during packaging/validation
+- **Rootless storage** PVC paths are prepared for UID/GID 1000 by a small initContainer
+
 ## Features
 
 - **Official rootless image** based on `gitea/gitea:<version>-rootless` (UID 1000)
@@ -117,7 +122,7 @@ gitea:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `gitea/gitea` | Container image repository |
-| `image.tag` | `""` | Image tag (defaults to `appVersion-rootless`) |
+| `image.tag` | `"1.26.2-rootless"` | Image tag |
 | `replicaCount` | `1` | Number of replicas |
 | `gitea.appName` | `"Gitea: Git with a cup of tea"` | Application display name |
 | `gitea.runMode` | `prod` | Run mode (dev, prod, test) |
@@ -143,6 +148,7 @@ gitea:
 | `mysql.enabled` | `false` | Deploy MySQL subchart |
 | `persistence.enabled` | `true` | Enable persistent storage |
 | `persistence.size` | `10Gi` | Volume size |
+| `volumePermissions.enabled` | `false` | Opt in to a root initContainer that prepares PVC ownership for UID/GID 1000 |
 | `service.http.type` | `ClusterIP` | HTTP service type |
 | `service.http.port` | `3000` | HTTP service port |
 | `service.ssh.enabled` | `true` | Enable SSH service |
@@ -168,6 +174,11 @@ When `database.mode` is `auto` (default), the chart detects which database to us
 
 Only one database source can be active. The chart fails with a clear error if multiple are configured.
 
+## Upgrade Notes
+
+This update moves the default rootless image from `1.26.1-rootless` to `1.26.2-rootless`. Review upstream
+Gitea release notes before upgrading production instances, especially for repository, SSH, and database migration behavior.
+
 ## SSH Access
 
 The chart creates a separate SSH service. For external SSH access:
@@ -190,6 +201,16 @@ The backup CronJob is database-aware:
 - **MySQL**: runs `mysqldump` and compresses the output
 
 All backups are uploaded to S3-compatible storage using the MinIO client.
+
+## Pod Security Restricted
+
+The default install avoids root init containers so it can run in namespaces that enforce the Kubernetes `restricted`
+Pod Security profile. The chart preserves the rootless Gitea config path at `/etc/gitea/app.ini` for upgrade
+compatibility and mounts it from the `config` subPath on the data PVC.
+
+Set `volumePermissions.enabled=true` only when your storage class requires an explicit root `chown` step. That opt-in
+mode renders a root initContainer with `CHOWN`/`FOWNER`; keep it disabled in restricted namespaces unless your policy
+explicitly allows that init container.
 
 ## More Information
 

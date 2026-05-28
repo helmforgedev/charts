@@ -11,6 +11,7 @@ OliveTin gives safe and simple access to predefined shell commands from a web in
 - **Configuration via ConfigMap** — YAML config mounted at /config/config.yaml
 - **Prometheus metrics** — optional /metrics endpoint with ServiceMonitor support
 - **Ingress support** — TLS with cert-manager
+- **Gateway API support** — optional HTTPRoute rendering for modern ingress controllers
 - **Lightweight** — minimal resource usage
 
 ## Installation
@@ -52,13 +53,22 @@ kubectl port-forward svc/<release>-olivetin 1337:80
 
 | Key | Default | Description |
 |-----|---------|-------------|
+| `configInit.enabled` | `true` | Prepare writable OliveTin runtime files before startup |
+| `configInit.securityContext` | non-root | Security context for the config bootstrap init container |
+| `image.tag` | `3000.13.0` | OliveTin image tag |
+| `securityContext` | non-root | Security context for the OliveTin application container |
 | `olivetin.port` | `1337` | Application port |
-| `config` | sample action | OliveTin YAML configuration |
+| `config` | `""` | OliveTin YAML configuration. Empty uses the chart-managed default config. |
+| `configTpl.enabled` | `false` | Opt in to Helm `tpl` rendering for `config` |
 | `persistence.enabled` | `false` | Enable optional PVC for data |
 | `persistence.size` | `1Gi` | PVC size |
 | `ingress.enabled` | `false` | Enable ingress |
 | `service.port` | `80` | Service port |
+| `service.ipFamilyPolicy` | omitted | Optional Service IP family policy for dual-stack clusters |
+| `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute rendering |
+| `gatewayAPI.httpRoutes[].rules[].omitDefaultBackend` | `false` | Omit the default Service backend for redirect-only rules |
 | `metrics.enabled` | `false` | Enable Prometheus metrics |
+| `metrics.defaultGoMetrics` | `false` | Expose default Go runtime metrics |
 | `metrics.serviceMonitor.enabled` | `false` | Create ServiceMonitor |
 
 ## Prometheus Metrics
@@ -68,6 +78,7 @@ OliveTin exposes metrics at `/metrics`. To enable scraping with Prometheus Opera
 ```yaml
 metrics:
   enabled: true
+  defaultGoMetrics: false
   serviceMonitor:
     enabled: true
     interval: 30s
@@ -75,7 +86,11 @@ metrics:
 
 ## Configuration
 
-The `config` value is mounted as `/config/config.yaml` inside the container. See the [OliveTin documentation](https://docs.olivetin.app) for all available options.
+The `config` value is mounted as `/config/config.yaml` inside the container. It is not rendered through Helm `tpl` by default,
+so OliveTin runtime expressions such as `{{ message }}` remain literal for OliveTin to evaluate. Set `configTpl.enabled=true`
+only when you intentionally want Helm to render templates inside `config`.
+
+See the [OliveTin documentation](https://docs.olivetin.app) for all available options.
 
 ## Ingress Example
 

@@ -1,5 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
-# OliveTin Helm Chart — Default Values
+# OliveTin Helm Chart - Default Values
 # =============================================================================
 # Focus: web interface for running predefined shell commands
 
@@ -15,10 +16,33 @@ image:
   # -- OliveTin container image
   repository: docker.io/jamesread/olivetin
   # -- Image tag
-  tag: "3000.11.3"
+  tag: "3000.13.0"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
+
+# =============================================================================
+# Config Directory Bootstrap
+# =============================================================================
+
+configInit:
+  # -- Create writable runtime files/directories expected by OliveTin before startup
+  enabled: true
+  image:
+    # -- Config init container image
+    repository: docker.io/library/busybox
+    # -- Config init container image tag
+    tag: "1.37"
+    pullPolicy: IfNotPresent
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
 
 # =============================================================================
 # OliveTin Configuration
@@ -31,12 +55,14 @@ olivetin:
   # -- @default -- `[]`
   extraEnv: []
 
-# -- OliveTin YAML configuration mounted at /config/config.yaml
-# -- See https://docs.olivetin.app for all options
-config: |
-  actions:
-    - title: "Ping Google"
-      shell: "ping -c 1 google.com"
+# -- OliveTin YAML configuration mounted at /config/config.yaml.
+# -- Leave empty to use the chart-managed default config, including metrics values.
+# -- See https://docs.olivetin.app for all options.
+config: ""
+
+configTpl:
+  # -- Render config through Helm tpl. Disabled by default so OliveTin runtime templates such as {{ message }} remain literal.
+  enabled: false
 
 # =============================================================================
 # Metrics
@@ -45,6 +71,8 @@ config: |
 metrics:
   # -- Enable Prometheus metrics scraping annotations
   enabled: false
+  # -- Expose default Go runtime metrics alongside OliveTin metrics
+  defaultGoMetrics: false
   serviceMonitor:
     # -- Create a ServiceMonitor for Prometheus Operator
     enabled: false
@@ -97,6 +125,14 @@ service:
   port: 80
   # -- Annotations for the Service
   annotations: {}
+  # -- IP family policy. One of: SingleStack | PreferDualStack | RequireDualStack. Omit for cluster default.
+  # @default -- omitted
+  # ipFamilyPolicy: PreferDualStack
+  # -- Ordered list of IP families for the Service. Each entry: IPv4 | IPv6. Omit for cluster default.
+  # @default -- omitted
+  # ipFamilies:
+  #   - IPv4
+  #   - IPv6
 
 # =============================================================================
 # Ingress
@@ -151,9 +187,18 @@ probes:
 
 resources: {}
 
-podSecurityContext: {}
+podSecurityContext:
+  fsGroup: 65534
+  fsGroupChangePolicy: OnRootMismatch
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 999
 
 # =============================================================================
 # Scheduling
@@ -178,3 +223,7 @@ extraVolumeMounts: []
 
 # -- Extra manifests to deploy alongside the chart
 extraManifests: []
+
+gatewayAPI:
+  enabled: false
+  httpRoutes: []
