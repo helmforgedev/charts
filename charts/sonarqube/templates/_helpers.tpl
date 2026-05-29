@@ -155,6 +155,9 @@ app.kubernetes.io/part-of: sonarqube
 {{- end }}
 
 {{- define "sonarqube.validate" -}}
+{{- if gt (.Values.replicaCount | int) 1 -}}
+{{- fail "replicaCount greater than 1 is unsupported for this SonarQube Community chart" -}}
+{{- end -}}
 {{- if not (has .Values.sonarqube.databaseMode (list "embedded" "external")) -}}
 {{- fail "sonarqube.databaseMode must be embedded or external" -}}
 {{- end -}}
