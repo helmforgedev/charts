@@ -139,6 +139,10 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 {{- end -}}
 
+{{- define "zookeeper.jaasString" -}}
+{{- printf "%s" . | replace "\\" "\\\\" | replace "\"" "\\\"" -}}
+{{- end -}}
+
 {{- define "zookeeper.externalSecretTargetName" -}}
 {{- if .Values.externalSecrets.target.name -}}
 {{- .Values.externalSecrets.target.name -}}
