@@ -1,4 +1,7 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and (eq .Values.service.type "ExternalName") (not .Values.service.externalName) }}
+{{- fail "service.externalName is required when service.type=ExternalName" }}
+{{- end }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -11,6 +14,9 @@ metadata:
   {{- end }}
 spec:
   type: {{ .Values.service.type }}
+  {{- if eq .Values.service.type "ExternalName" }}
+  externalName: {{ .Values.service.externalName | quote }}
+  {{- end }}
   {{- with .Values.service.ipFamilyPolicy }}
   ipFamilyPolicy: {{ . }}
   {{- end }}
@@ -31,5 +37,7 @@ spec:
       protocol: TCP
       appProtocol: http
     {{- end }}
+  {{- if ne .Values.service.type "ExternalName" }}
   selector:
     {{- include "oauth2-proxy.selectorLabels" . | nindent 4 }}
+  {{- end }}
