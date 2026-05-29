@@ -41,11 +41,21 @@ spec:
               if valkey-cli {{ include "valkey.cliTlsArgs" . }} -h "{{ include "valkey.clusterStatefulSetName" . }}-0.{{ include "valkey.headlessServiceFqdn" . }}" -p {{ .Values.service.ports.valkey }} {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" --no-auth-warning {{- end }} cluster info | grep -q cluster_state:ok; then
                 existing="{{ include "valkey.clusterStatefulSetName" . }}-0.{{ include "valkey.headlessServiceFqdn" . }}:{{ .Values.service.ports.valkey }}"
                 cluster_nodes="$(valkey-cli {{ include "valkey.cliTlsArgs" . }} -h "{{ include "valkey.clusterStatefulSetName" . }}-0.{{ include "valkey.headlessServiceFqdn" . }}" -p {{ .Values.service.ports.valkey }} {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" --no-auth-warning {{- end }} cluster nodes)"
+                replicas_per_master={{ .Values.cluster.replicasPerMaster }}
+                desired_masters=$(({{ .Values.cluster.nodes }} / (replicas_per_master + 1)))
+                [ "$desired_masters" -lt 1 ] && desired_masters=1
+                existing_masters="$(printf '%s\n' "$cluster_nodes" | awk '$3 ~ /master/ && $3 !~ /fail/ {count++} END {print count+0}')"
                 for i in $(seq 0 $(({{ .Values.cluster.nodes }} - 1))); do
                   node="{{ include "valkey.clusterStatefulSetName" . }}-${i}.{{ include "valkey.headlessServiceFqdn" . }}:{{ .Values.service.ports.valkey }}"
                   if ! printf '%s\n' "$cluster_nodes" | grep -Fq "$node"; then
-                    echo "adding missing cluster node $node"
-                    yes yes | valkey-cli {{ include "valkey.cliTlsArgs" . }} --cluster add-node "$node" "$existing" {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" {{- end }}
+                    if [ "$existing_masters" -lt "$desired_masters" ]; then
+                      echo "adding missing cluster master $node"
+                      yes yes | valkey-cli {{ include "valkey.cliTlsArgs" . }} --cluster add-node "$node" "$existing" {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" {{- end }}
+                      existing_masters=$((existing_masters + 1))
+                    else
+                      echo "adding missing cluster replica $node"
+                      yes yes | valkey-cli {{ include "valkey.cliTlsArgs" . }} --cluster add-node "$node" "$existing" --cluster-replica {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" {{- end }}
+                    fi
                   fi
                 done
                 yes yes | valkey-cli {{ include "valkey.cliTlsArgs" . }} --cluster rebalance "$existing" --cluster-use-empty-masters {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" {{- end }}

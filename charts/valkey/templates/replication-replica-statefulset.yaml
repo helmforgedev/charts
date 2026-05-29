@@ -36,6 +36,12 @@ spec:
           command: ["sh", "-ec"]
           args:
             - |
+              {{- if include "valkey.isSentinel" . }}
+              if [ -f /data/.helmforge-sentinel-replica-bootstrapped ]; then
+                echo "replica already bootstrapped; sentinel will preserve the current role"
+                exit 0
+              fi
+              {{- end }}
               until valkey-cli {{ include "valkey.cliTlsArgs" . }} -h {{ include "valkey.primaryPodFqdn" . | quote }} -p {{ .Values.service.ports.valkey }} {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" --no-auth-warning {{- end }} ping >/dev/null 2>&1; do
                 echo "waiting for primary {{ include "valkey.primaryPodFqdn" . }}:{{ .Values.service.ports.valkey }}"
                 sleep 5
@@ -63,12 +69,19 @@ spec:
           command: ["sh", "-ec"]
           args:
             - |
-              exec valkey-server /etc/valkey/valkey.conf \
-                --replicaof {{ include "valkey.primaryPodFqdn" . }} {{ .Values.service.ports.valkey }} \
-              {{- if .Values.auth.enabled }}
-                --masterauth "$VALKEY_PASSWORD" \
-                --requirepass "$VALKEY_PASSWORD"
+              set -- /etc/valkey/valkey.conf
+              {{- if include "valkey.isSentinel" . }}
+              if [ ! -f /data/.helmforge-sentinel-replica-bootstrapped ]; then
+                set -- "$@" --replicaof {{ include "valkey.primaryPodFqdn" . | quote }} {{ .Values.service.ports.valkey }}
+                touch /data/.helmforge-sentinel-replica-bootstrapped
+              fi
+              {{- else }}
+              set -- "$@" --replicaof {{ include "valkey.primaryPodFqdn" . | quote }} {{ .Values.service.ports.valkey }}
               {{- end }}
+              {{- if .Values.auth.enabled }}
+              set -- "$@" --masterauth "$VALKEY_PASSWORD" --requirepass "$VALKEY_PASSWORD"
+              {{- end }}
+              exec valkey-server "$@"
           ports:
             - name: valkey
               containerPort: {{ .Values.service.ports.valkey }}

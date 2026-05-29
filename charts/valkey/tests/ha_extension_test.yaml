@@ -112,6 +112,36 @@ tests:
           value: data
         template: sentinel-statefulset.yaml
 
+  - it: should preserve sentinel failover role on replica restarts
+    set:
+      architecture: sentinel
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "replica already bootstrapped; sentinel will preserve the current role"
+        template: replication-replica-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "if \\[ ! -f /data/\\.helmforge-sentinel-replica-bootstrapped \\]; then"
+        template: replication-replica-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "set -- \"\\$@\" --replicaof"
+        template: replication-replica-statefulset.yaml
+
+  - it: should keep fixed replicaof in replication mode
+    set:
+      architecture: replication
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "helmforge-sentinel-replica-bootstrapped"
+        template: replication-replica-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "set -- \"\\$@\" --replicaof"
+        template: replication-replica-statefulset.yaml
+
   - it: should render extra env and volumes in cluster pods
     set:
       architecture: cluster
