@@ -96,6 +96,42 @@ tests:
                 key: postgres-password
         template: templates/deployment.yaml
 
+  - it: should honor PostgreSQL subchart fullname override
+    set:
+      postgresql.fullnameOverride: pg
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: until nc -z pg 5432; do
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: pg-auth
+                key: postgres-password
+        template: templates/deployment.yaml
+
+  - it: should honor Valkey subchart fullname override
+    set:
+      valkey.fullnameOverride: cache
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: until nc -z cache-client 6379; do
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: cache-auth
+                key: valkey-password
+        template: templates/deployment.yaml
+
   - it: should pass external Valkey password to Immich
     set:
       valkey.internal.enabled: false
