@@ -65,6 +65,9 @@ app.kubernetes.io/part-of: metrics-server
 {{- if .Values.metricsServer.kubelet.useNodeStatusPort }}
 - --kubelet-use-node-status-port
 {{- end }}
+{{- if .Values.serviceMonitor.enabled }}
+- --authorization-always-allow-paths=/livez,/readyz,/metrics
+{{- end }}
 - --metric-resolution={{ .Values.metricsServer.metricResolution }}
 {{- if .Values.metricsServer.kubelet.insecureTLS }}
 - --kubelet-insecure-tls
