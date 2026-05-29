@@ -1,0 +1,29 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if or .Values.gateway.enabled .Values.gatewayAPI.enabled }}
+{{- $gateway := ternary .Values.gatewayAPI .Values.gateway .Values.gatewayAPI.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "openreel-video.fullname" . }}
+  labels:
+    {{- include "openreel-video.labels" . | nindent 4 }}
+  {{- with $gateway.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- toYaml $gateway.parentRefs | nindent 4 }}
+  {{- with $gateway.hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - matches:
+        - path:
+            type: {{ $gateway.pathType }}
+            value: {{ $gateway.path | quote }}
+      backendRefs:
+        - name: {{ include "openreel-video.fullname" . }}
+          port: {{ .Values.service.port }}
+{{- end }}
