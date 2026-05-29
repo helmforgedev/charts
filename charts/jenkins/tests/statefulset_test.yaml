@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: StatefulSet
+templates:
+  - statefulset.yaml
+  - configmap.yaml
+  - secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a secure Jenkins controller StatefulSet
+    template: statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: test-jenkins
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+      - exists:
+          path: spec.volumeClaimTemplates[0]
+
+  - it: should use emptyDir when persistence is disabled
+    template: statefulset.yaml
+    set:
+      persistence.enabled: false
+    asserts:
+      - notExists:
+          path: spec.volumeClaimTemplates
+      - equal:
+          path: spec.template.spec.volumes[0].name
+          value: jenkins-home
+
+  - it: should add plugin init container when plugin install is enabled
+    template: statefulset.yaml
+    set:
+      persistence.enabled: false
+      plugins.install.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: install-plugins

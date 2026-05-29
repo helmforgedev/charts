@@ -1,0 +1,64 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "jenkins.fullname" . }}
+  labels:
+    {{- include "jenkins.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "jenkins.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: controller
+  policyTypes:
+    - Ingress
+    - Egress
+  {{- if .Values.networkPolicy.ingress.enabled }}
+  ingress:
+    - from:
+        - {{- if .Values.networkPolicy.ingress.namespaceSelector }}
+          namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.ingress.namespaceSelector | nindent 14 }}
+          {{- end }}
+          podSelector:
+            {{- if .Values.networkPolicy.ingress.podSelector }}
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.ingress.podSelector | nindent 14 }}
+            {{- else }}
+            {}
+            {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.controller.httpPort }}
+        {{- if .Values.agent.enabled }}
+        - protocol: TCP
+          port: {{ .Values.controller.agentPort }}
+        {{- end }}
+  {{- else }}
+  ingress: []
+  {{- end }}
+  egress:
+    {{- if .Values.networkPolicy.egress.allowCluster }}
+    - to:
+        - namespaceSelector: {}
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.allowDns }}
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.allowInternet }}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.extraRules }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

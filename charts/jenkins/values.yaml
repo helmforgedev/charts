@@ -1,0 +1,265 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# Jenkins Helm Chart - Default Values
+# =============================================================================
+
+# -- Override chart name
+nameOverride: ""
+# -- Override full release name
+fullnameOverride: ""
+
+# -- Extra labels applied to all resources
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  repository: docker.io/jenkins/jenkins
+  tag: "2.555.2-lts-jdk21"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Controller
+# =============================================================================
+
+replicaCount: 1
+
+controller:
+  # -- Jenkins HTTP listen port inside the container
+  httpPort: 8080
+  # -- Jenkins inbound agent TCP port. Set agent.enabled=false to disable.
+  agentPort: 50000
+  # -- Jenkins arguments
+  jenkinsOpts: ""
+  # -- JVM options for Jenkins. The setup wizard is disabled because this chart creates the admin account by default.
+  javaOpts: "-Djenkins.install.runSetupWizard=false -Djava.awt.headless=true"
+  # -- Optional root URL exposed through JCasC snippets or plugins
+  jenkinsUrl: ""
+
+admin:
+  # -- Create an initial admin account with an init Groovy script
+  create: true
+  user: admin
+  password: ""
+  existingSecret: ""
+  existingSecretUserKey: jenkins-admin-user
+  existingSecretPasswordKey: jenkins-admin-password
+
+agent:
+  # -- Expose the inbound Jenkins agent TCP port
+  enabled: true
+  servicePort: 50000
+
+# =============================================================================
+# Configuration as Code and Plugins
+# =============================================================================
+
+jcasC:
+  # -- Mount Jenkins Configuration as Code files and set CASC_JENKINS_CONFIG.
+  # The configuration-as-code plugin must be present in the image or installed through plugins.install.
+  enabled: false
+  folder: /var/jenkins_home/casc_configs
+  configScripts: {}
+  # example: |
+  #   jenkins:
+  #     systemMessage: "Managed by HelmForge"
+
+plugins:
+  install:
+    # -- Install plugins with jenkins-plugin-cli before Jenkins starts.
+    enabled: false
+    initializeOnce: true
+    latest: false
+    latestSpecified: false
+    list:
+      - kubernetes:4423.vb_59f230b_ce53
+      - workflow-aggregator:608.v67378e9d3db_1
+      - git:5.10.1
+      - configuration-as-code:2074.va_57f83f7a_10b_
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  enabled: true
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 8Gi
+  annotations: {}
+
+# =============================================================================
+# Networking
+# =============================================================================
+
+service:
+  type: ClusterIP
+  annotations: {}
+  httpPort: 8080
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ~
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: jenkins.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+gateway:
+  enabled: false
+  apiVersion: gateway.networking.k8s.io/v1
+  parentRefs: []
+  hostnames: []
+  annotations: {}
+  labels: {}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+
+networkPolicy:
+  enabled: false
+  ingress:
+    enabled: true
+    namespaceSelector: {}
+    podSelector: {}
+  egress:
+    enabled: true
+    allowCluster: true
+    allowDns: true
+    allowInternet: true
+    extraRules: []
+
+# =============================================================================
+# Service Account and RBAC
+# =============================================================================
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+rbac:
+  # -- Create namespaced RBAC for Jenkins Kubernetes agents.
+  create: false
+  readSecrets: false
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+livenessProbe:
+  initialDelaySeconds: 120
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+readinessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 12
+
+startupProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 60
+
+# =============================================================================
+# Metrics
+# =============================================================================
+
+metrics:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    path: /prometheus
+    labels: {}
+
+# =============================================================================
+# Scheduling and Security
+# =============================================================================
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 3Gi
+
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+podLabels: {}
+podAnnotations: {}
+annotations: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 90
+
+pdb:
+  enabled: false
+  minAvailable: 1
+
+# =============================================================================
+# Extra
+# =============================================================================
+
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []
+extraManifests: []
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret for the Jenkins admin Secret.
+  # Requires admin.existingSecret to be set to prevent credential drift between
+  # the chart-managed admin Secret and the ExternalSecret.
+  enabled: false
+  apiVersion: external-secrets.io/v1
+  refreshInterval: "0"
+  secretStoreRef:
+    name: ""
+    kind: SecretStore
+  target:
+    creationPolicy: Owner
+  data: []
+  #   - secretKey: jenkins-admin-password
+  #     remoteRef:
+  #       key: jenkins/admin
+  #       property: password

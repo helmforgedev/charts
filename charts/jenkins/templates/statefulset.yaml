@@ -1,0 +1,194 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "jenkins.fullname" . }}
+  labels:
+    {{- include "jenkins.labels" . | nindent 4 }}
+  {{- with .Values.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  serviceName: {{ include "jenkins.fullname" . }}
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "jenkins.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: controller
+  template:
+    metadata:
+      labels:
+        {{- include "jenkins.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: controller
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "jenkins.serviceAccountName" . }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.plugins.install.enabled }}
+      initContainers:
+        - name: install-plugins
+          image: {{ include "jenkins.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              if [ "{{ .Values.plugins.install.initializeOnce }}" = "true" ] && [ -f /var/jenkins_home/.helmforge-plugins-initialized ]; then
+                echo "Plugin initialization already completed"
+                exit 0
+              fi
+              jenkins-plugin-cli \
+                --plugin-file /opt/helmforge/plugins/plugins.txt \
+                --plugin-download-directory /var/jenkins_home/plugins \
+                --latest {{ .Values.plugins.install.latest }} \
+                --latest-specified {{ .Values.plugins.install.latestSpecified }}
+              touch /var/jenkins_home/.helmforge-plugins-initialized
+          volumeMounts:
+            - name: jenkins-home
+              mountPath: /var/jenkins_home
+            - name: config
+              mountPath: /opt/helmforge/plugins
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+      {{- end }}
+      containers:
+        - name: jenkins
+          image: {{ include "jenkins.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.controller.httpPort }}
+            {{- if .Values.agent.enabled }}
+            - name: agent
+              containerPort: {{ .Values.controller.agentPort }}
+            {{- end }}
+          env:
+            - name: JENKINS_OPTS
+              value: {{ .Values.controller.jenkinsOpts | quote }}
+            - name: JAVA_OPTS
+              value: {{ .Values.controller.javaOpts | quote }}
+            {{- if .Values.agent.enabled }}
+            - name: JENKINS_SLAVE_AGENT_PORT
+              value: {{ .Values.controller.agentPort | quote }}
+            {{- end }}
+            {{- if .Values.admin.create }}
+            - name: JENKINS_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "jenkins.adminSecretName" . }}
+                  key: {{ .Values.admin.existingSecretUserKey }}
+            - name: JENKINS_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "jenkins.adminSecretName" . }}
+                  key: {{ .Values.admin.existingSecretPasswordKey }}
+            {{- end }}
+            {{- if .Values.jcasC.enabled }}
+            - name: CASC_JENKINS_CONFIG
+              value: {{ .Values.jcasC.folder | quote }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /login
+              port: http
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /login
+              port: http
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /login
+              port: http
+            {{- toYaml .Values.startupProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: jenkins-home
+              mountPath: /var/jenkins_home
+            {{- if .Values.admin.create }}
+            - name: config
+              mountPath: /usr/share/jenkins/ref/init.groovy.d/00-basic-security.groovy
+              subPath: 00-basic-security.groovy
+            {{- end }}
+            {{- if .Values.jcasC.enabled }}
+            - name: config
+              mountPath: {{ .Values.jcasC.folder }}
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      volumes:
+        {{- if not .Values.persistence.enabled }}
+        - name: jenkins-home
+          emptyDir: {}
+        {{- end }}
+        {{- if or .Values.admin.create .Values.jcasC.enabled .Values.plugins.install.enabled }}
+        - name: config
+          configMap:
+            name: {{ include "jenkins.configMapName" . }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- if .Values.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: jenkins-home
+        labels:
+          {{- include "jenkins.selectorLabels" . | nindent 10 }}
+        {{- with .Values.persistence.annotations }}
+        annotations:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      spec:
+        accessModes:
+          {{- toYaml .Values.persistence.accessModes | nindent 10 }}
+        {{- if .Values.persistence.storageClass }}
+        storageClassName: {{ .Values.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}
+  {{- end }}
