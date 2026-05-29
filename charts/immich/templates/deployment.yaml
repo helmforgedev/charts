@@ -1,4 +1,5 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "immich.validate" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -112,6 +113,13 @@ spec:
               value: {{ include "immich.valkeyHost" . | quote }}
             - name: REDIS_PORT
               value: {{ .Values.valkey.external.port | quote }}
+            {{- if and (not .Values.valkey.internal.enabled) (or .Values.valkey.external.password .Values.valkey.external.existingSecret) }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "immich.redisSecretName" . }}
+                  key: {{ include "immich.redisSecretKey" . }}
+            {{- end }}
             {{- if .Values.machineLearning.enabled }}
             - name: IMMICH_MACHINE_LEARNING_URL
               value: {{ include "immich.mlUrl" . | quote }}

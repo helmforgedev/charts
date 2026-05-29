@@ -23,4 +23,13 @@ app.kubernetes.io/part-of: helmforge
 {{- if .Values.database.external.password -}}{{ .Values.database.external.password }}{{- else -}}{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}{{- if and $existing (index $existing.data "database-password") -}}{{ index $existing.data "database-password" | b64dec }}{{- else -}}{{ randAlphaNum 32 }}{{- end -}}{{- end -}}
 {{- end -}}
 {{- define "immich.valkeyHost" -}}{{- if .Values.valkey.internal.enabled -}}{{ include "immich.fullname" . }}-valkey{{- else -}}{{ .Values.valkey.external.host }}{{- end -}}{{- end -}}
+{{- define "immich.redisSecretName" -}}{{- if and (not .Values.valkey.internal.enabled) .Values.valkey.external.existingSecret -}}{{ .Values.valkey.external.existingSecret }}{{- else -}}{{ include "immich.fullname" . }}-redis{{- end -}}{{- end -}}
+{{- define "immich.redisSecretKey" -}}{{- if and (not .Values.valkey.internal.enabled) .Values.valkey.external.existingSecret -}}{{ .Values.valkey.external.existingSecretPasswordKey }}{{- else -}}redis-password{{- end -}}{{- end -}}
 {{- define "immich.mlUrl" -}}http://{{ include "immich.fullname" . }}-machine-learning:{{ .Values.machineLearning.service.port }}{{- end -}}
+
+{{- define "immich.validate" -}}
+{{- $serverScaled := or .Values.autoscaling.enabled (gt (.Values.server.replicaCount | int) 1) -}}
+{{- if and .Values.server.persistence.enabled $serverScaled (not (has "ReadWriteMany" .Values.server.persistence.accessModes)) -}}
+{{- fail "server persistence requires ReadWriteMany accessModes when server replicas or autoscaling are enabled" -}}
+{{- end -}}
+{{- end -}}
