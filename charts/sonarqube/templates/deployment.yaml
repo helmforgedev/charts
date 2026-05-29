@@ -24,11 +24,11 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "sonarqube.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: sonarqube
-        {{- with .Values.podLabels }}
+        {{- with omit .Values.podLabels "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/component" }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+        {{- include "sonarqube.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: sonarqube
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -57,12 +57,14 @@ spec:
               {{- end }}
               {{- if .Values.communityBranchPlugin.enabled }}
               rm -f /extensions/plugins/sonarqube-community-branch-plugin-*.jar
-              wget -O "/extensions/plugins/{{ include "sonarqube.communityBranchJarName" . }}" {{ include "sonarqube.communityBranchJarUrl" . | quote }}
+              branch_plugin="/extensions/plugins/{{ include "sonarqube.communityBranchJarName" . }}"
+              wget -O "${branch_plugin}" {{ include "sonarqube.communityBranchJarUrl" . | quote }}
               mkdir -p /web
               wget -O /tmp/sonarqube-webapp.zip {{ include "sonarqube.communityBranchWebappUrl" . | quote }}
               unzip -o /tmp/sonarqube-webapp.zip -d /web
               rm -f /tmp/sonarqube-webapp.zip
-              find /extensions/plugins /web -mindepth 1 -exec chmod g=u {} +
+              chmod g=u "${branch_plugin}"
+              find /web -mindepth 1 -exec chmod g=u {} +
               {{- end }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
