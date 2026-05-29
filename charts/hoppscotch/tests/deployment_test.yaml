@@ -141,6 +141,20 @@ tests:
             value: postgresql://hoppscotch:$(DB_PASSWORD)@RELEASE-NAME-postgresql:5432/hoppscotch
         template: deployment.yaml
 
+  - it: should derive wait-for-db host and port from external database URL
+    set:
+      postgresql:
+        enabled: false
+      database:
+        external:
+          enabled: true
+          url: postgresql://hoppscotch:secret@postgresql.database.svc.cluster.local:15432/hoppscotch
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "nc -z -w2 postgresql\\.database\\.svc\\.cluster\\.local 15432"
+        template: deployment.yaml
+
   - it: should use writable XDG directories for Caddy storage
     asserts:
       - contains:
@@ -197,6 +211,10 @@ tests:
 
   - it: should run as non-root
     asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+        template: deployment.yaml
       - equal:
           path: spec.template.spec.securityContext.runAsNonRoot
           value: true
