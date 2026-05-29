@@ -98,3 +98,34 @@ tests:
           content:
             name: JENKINS_OPTS
             value: --prefix=/jenkins --httpPort=9090
+
+  - it: should disable setup wizard when admin bootstrap is enabled
+    template: statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JAVA_OPTS
+            value: -Djava.awt.headless=true -Djenkins.install.runSetupWizard=false
+
+  - it: should keep setup wizard available when admin bootstrap is disabled
+    template: statefulset.yaml
+    set:
+      admin.create: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JAVA_OPTS
+            value: -Djava.awt.headless=true
+
+  - it: should honor explicit setup wizard java option
+    template: statefulset.yaml
+    set:
+      controller.javaOpts: -Djenkins.install.runSetupWizard=true -Djava.awt.headless=true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JAVA_OPTS
+            value: -Djenkins.install.runSetupWizard=true -Djava.awt.headless=true

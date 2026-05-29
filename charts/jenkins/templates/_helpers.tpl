@@ -87,3 +87,12 @@ app.kubernetes.io/part-of: helmforge
 {{- printf "%s %s" (.Values.controller.jenkinsOpts | default "") $httpPortArg | trim -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "jenkins.javaOpts" -}}
+{{- $javaOpts := .Values.controller.javaOpts | default "" -}}
+{{- if and .Values.admin.create (not (contains "jenkins.install.runSetupWizard" $javaOpts)) -}}
+{{- printf "%s -Djenkins.install.runSetupWizard=false" $javaOpts | trim -}}
+{{- else -}}
+{{- $javaOpts -}}
+{{- end -}}
+{{- end -}}
