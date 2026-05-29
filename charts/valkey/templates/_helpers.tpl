@@ -44,6 +44,27 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 
 {{/*
+Merge global annotations with resource-specific annotations.
+Resource-specific annotations win when keys overlap.
+*/}}
+{{- define "valkey.annotations" -}}
+{{- $global := default dict .root.Values.annotations -}}
+{{- $local := default dict .annotations -}}
+{{- $annotations := mergeOverwrite (deepCopy $global) $local -}}
+{{- with $annotations -}}
+{{- toYaml . -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "valkey.renderAnnotations" -}}
+{{- $annotations := include "valkey.annotations" . -}}
+{{- if $annotations }}
+annotations:
+{{ $annotations | nindent 2 }}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Selector labels.
 */}}
 {{- define "valkey.selectorLabels" -}}

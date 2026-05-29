@@ -45,6 +45,37 @@ tests:
             port: 6379
             targetPort: valkey
 
+  - it: should apply global annotations and allow service-specific overrides
+    set:
+      annotations:
+        argocd.argoproj.io/sync-wave: "1"
+        example.com/global: "true"
+      service:
+        clientAnnotations:
+          argocd.argoproj.io/sync-wave: "2"
+          example.com/client: "true"
+    asserts:
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-wave"]
+          value: "1"
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["example.com/global"]
+          value: "true"
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-wave"]
+          value: "2"
+        documentIndex: 1
+      - equal:
+          path: metadata.annotations["example.com/global"]
+          value: "true"
+        documentIndex: 1
+      - equal:
+          path: metadata.annotations["example.com/client"]
+          value: "true"
+        documentIndex: 1
+
   - it: should render a single dedicated metrics service
     set:
       metrics.enabled: true
