@@ -60,6 +60,26 @@ tests:
           path: data["jupyterhub_config.py"]
           pattern: "c\\.KubeSpawner\\.image_pull_secrets = \\[{\"name\":\"private-registry\"}\\]"
 
+  - it: should render profiles through JSON parsing for Python literals
+    template: configmap.yaml
+    set:
+      singleuser.profiles:
+        - display_name: Lab
+          default: true
+          kubespawner_override:
+            default_url: /lab
+            extra_resource_limits: null
+    asserts:
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: "import json"
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: "c\\.KubeSpawner\\.profile_list = json\\.loads"
+      - notMatchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: "default: true"
+
   - it: should label spawned notebook pods for NetworkPolicy
     template: configmap.yaml
     asserts:
