@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: MachineLearning
+templates:
+  - templates/machine-learning.yaml
+  - templates/pvc.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should fail scaled ML with default RWO cache PVC
+    set:
+      machineLearning.replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: machineLearning persistence requires ReadWriteMany accessModes when machineLearning.replicaCount is greater than 1
+        template: templates/machine-learning.yaml
+
+  - it: should allow scaled ML with RWX cache PVC
+    set:
+      machineLearning.replicaCount: 2
+      machineLearning.persistence.accessModes:
+        - ReadWriteMany
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+        template: templates/machine-learning.yaml
+      - equal:
+          path: spec.accessModes[0]
+          value: ReadWriteMany
+        template: templates/pvc.yaml
+        documentIndex: 1

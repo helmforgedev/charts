@@ -32,4 +32,7 @@ app.kubernetes.io/part-of: helmforge
 {{- if and .Values.server.persistence.enabled $serverScaled (not (has "ReadWriteMany" .Values.server.persistence.accessModes)) -}}
 {{- fail "server persistence requires ReadWriteMany accessModes when server replicas or autoscaling are enabled" -}}
 {{- end -}}
+{{- if and .Values.machineLearning.enabled .Values.machineLearning.persistence.enabled (gt (.Values.machineLearning.replicaCount | int) 1) (not (has "ReadWriteMany" .Values.machineLearning.persistence.accessModes)) -}}
+{{- fail "machineLearning persistence requires ReadWriteMany accessModes when machineLearning.replicaCount is greater than 1" -}}
+{{- end -}}
 {{- end -}}
