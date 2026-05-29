@@ -29,12 +29,12 @@ spec:
           args:
             - |
               for i in $(seq 0 $(({{ .Values.cluster.nodes }} - 1))); do
-                until valkey-cli {{ include "valkey.cliTlsArgs" . }} -h "{{ include "valkey.clusterStatefulSetName" . }}-${i}.{{ include "valkey.headlessServiceFqdn" . }}" {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" --no-auth-warning {{- end }} ping; do
+                until valkey-cli {{ include "valkey.cliTlsArgs" . }} -h "{{ include "valkey.clusterStatefulSetName" . }}-${i}.{{ include "valkey.headlessServiceFqdn" . }}" -p {{ .Values.service.ports.valkey }} {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" --no-auth-warning {{- end }} ping; do
                   echo "waiting for node $i"
                   sleep 5
                 done
               done
-              if valkey-cli {{ include "valkey.cliTlsArgs" . }} -h "{{ include "valkey.clusterStatefulSetName" . }}-0.{{ include "valkey.headlessServiceFqdn" . }}" {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" --no-auth-warning {{- end }} cluster info | grep -q cluster_state:ok; then
+              if valkey-cli {{ include "valkey.cliTlsArgs" . }} -h "{{ include "valkey.clusterStatefulSetName" . }}-0.{{ include "valkey.headlessServiceFqdn" . }}" -p {{ .Values.service.ports.valkey }} {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" --no-auth-warning {{- end }} cluster info | grep -q cluster_state:ok; then
                 echo "cluster already initialized"
                 exit 0
               fi
