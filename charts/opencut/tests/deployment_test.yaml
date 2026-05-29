@@ -37,6 +37,74 @@ tests:
         template: templates/redis-http.yaml
         documentIndex: 0
 
+  - it: should honor PostgreSQL subchart auth secret overrides
+    set:
+      postgresql.auth.existingSecret: pg-auth
+      postgresql.auth.existingSecretUserPasswordKey: password
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: pg-auth
+                key: password
+        template: templates/deployment.yaml
+
+  - it: should include bundled Redis auth in redis HTTP bridge URL
+    set:
+      redis.auth.enabled: true
+      redis.auth.existingSecret: redis-auth
+      redis.auth.existingSecretPasswordKey: password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: redis-auth
+                key: password
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SRH_CONNECTION_STRING
+            value: redis://:$(REDIS_PASSWORD)@test-redis-client:6379
+        template: templates/redis-http.yaml
+        documentIndex: 0
+
+  - it: should include external Redis password in redis HTTP bridge URL
+    set:
+      redis.external.host: redis.example.com
+      redis.external.password: redis-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-opencut-app
+                key: redis-password
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SRH_CONNECTION_STRING
+            value: redis://:$(REDIS_PASSWORD)@redis.example.com:6379
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - equal:
+          path: stringData["redis-password"]
+          value: redis-secret
+        template: templates/secret.yaml
+        documentIndex: 0
+
   - it: should omit Upstash bridge env when redis HTTP bridge is disabled
     set:
       redisHttp.enabled: false

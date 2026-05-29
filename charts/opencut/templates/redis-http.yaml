@@ -35,8 +35,15 @@ spec:
                 secretKeyRef:
                   name: {{ include "opencut.secretName" . }}
                   key: redis-rest-token
+            {{- if include "opencut.redisAuthEnabled" . }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opencut.redisSecretName" . }}
+                  key: {{ include "opencut.redisSecretKey" . }}
+            {{- end }}
             - name: SRH_CONNECTION_STRING
-              value: "redis://{{ include "opencut.redisHost" . }}:{{ include "opencut.redisPort" . }}"
+              value: "redis://{{- if include "opencut.redisAuthEnabled" . -}}:$(REDIS_PASSWORD)@{{- end -}}{{ include "opencut.redisHost" . }}:{{ include "opencut.redisPort" . }}"
           ports:
             - name: http
               containerPort: 80

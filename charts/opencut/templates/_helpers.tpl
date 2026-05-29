@@ -78,11 +78,11 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 
 {{- define "opencut.databaseSecretName" -}}
-{{- if and (eq (include "opencut.databaseMode" .) "external") .Values.database.external.existingSecret -}}{{ .Values.database.external.existingSecret }}{{- else if eq (include "opencut.databaseMode" .) "external" -}}{{ printf "%s-database" (include "opencut.fullname" .) }}{{- else -}}{{ printf "%s-postgresql-auth" .Release.Name }}{{- end -}}
+{{- if and (eq (include "opencut.databaseMode" .) "external") .Values.database.external.existingSecret -}}{{ .Values.database.external.existingSecret }}{{- else if eq (include "opencut.databaseMode" .) "external" -}}{{ printf "%s-database" (include "opencut.fullname" .) }}{{- else if .Values.postgresql.auth.existingSecret -}}{{ .Values.postgresql.auth.existingSecret }}{{- else -}}{{ printf "%s-postgresql-auth" .Release.Name }}{{- end -}}
 {{- end -}}
 
 {{- define "opencut.databaseSecretKey" -}}
-{{- if and (eq (include "opencut.databaseMode" .) "external") .Values.database.external.existingSecret -}}{{ .Values.database.external.existingSecretPasswordKey | default "database-password" }}{{- else if eq (include "opencut.databaseMode" .) "external" -}}database-password{{- else -}}user-password{{- end -}}
+{{- if and (eq (include "opencut.databaseMode" .) "external") .Values.database.external.existingSecret -}}{{ .Values.database.external.existingSecretPasswordKey | default "database-password" }}{{- else if eq (include "opencut.databaseMode" .) "external" -}}database-password{{- else -}}{{ .Values.postgresql.auth.existingSecretUserPasswordKey | default "user-password" }}{{- end -}}
 {{- end -}}
 
 {{- define "opencut.redisHost" -}}
@@ -91,6 +91,18 @@ app.kubernetes.io/part-of: helmforge
 
 {{- define "opencut.redisPort" -}}
 {{- if .Values.redis.external.host -}}{{ .Values.redis.external.port | toString }}{{- else -}}6379{{- end -}}
+{{- end -}}
+
+{{- define "opencut.redisAuthEnabled" -}}
+{{- if or (and (not .Values.redis.external.host) .Values.redis.auth.enabled) .Values.redis.external.password .Values.redis.external.existingSecret -}}true{{- end -}}
+{{- end -}}
+
+{{- define "opencut.redisSecretName" -}}
+{{- if .Values.redis.external.existingSecret -}}{{ .Values.redis.external.existingSecret }}{{- else if .Values.redis.external.password -}}{{ include "opencut.secretName" . }}{{- else if .Values.redis.auth.existingSecret -}}{{ .Values.redis.auth.existingSecret }}{{- else -}}{{ printf "%s-redis-auth" .Release.Name }}{{- end -}}
+{{- end -}}
+
+{{- define "opencut.redisSecretKey" -}}
+{{- if .Values.redis.external.existingSecret -}}{{ .Values.redis.external.existingSecretPasswordKey | default "redis-password" }}{{- else if .Values.redis.external.password -}}redis-password{{- else -}}{{ .Values.redis.auth.existingSecretPasswordKey | default "redis-password" }}{{- end -}}
 {{- end -}}
 
 {{- define "opencut.redisHttpName" -}}
