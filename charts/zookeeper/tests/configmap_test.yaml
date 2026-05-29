@@ -42,19 +42,25 @@ tests:
           path: data["start.sh"]
           pattern: 'ZOO_DATA_LOG_DIR="/datalog"'
 
-  - it: expands TLS passwords before exporting extra config
+  - it: uses TLS passwordPath files instead of exporting secret values
     set:
       tls.client.enabled: true
       tls.client.existingSecret: zk-tls
       tls.client.keystorePassword: change-me
       tls.client.truststorePassword: change-me-too
     asserts:
-      - matchRegex:
+      - notMatchRegex:
           path: data["start.sh"]
-          pattern: 'extra_cfg="\$\{extra_cfg//\\\$\\\{ZK_KEYSTORE_PASSWORD\\\}/\$\{ZK_KEYSTORE_PASSWORD\}\}"'
+          pattern: 'ZK_KEYSTORE_PASSWORD\}'
       - matchRegex:
           path: data["zoo-extra.cfg"]
-          pattern: 'ssl.keyStore.password=\$\{ZK_KEYSTORE_PASSWORD\}'
+          pattern: 'ssl\.keyStore\.passwordPath=/etc/zookeeper/tls-passwords/keystore-password'
+      - matchRegex:
+          path: data["zoo-extra.cfg"]
+          pattern: 'ssl\.trustStore\.passwordPath=/etc/zookeeper/tls-passwords/truststore-password'
+      - notMatchRegex:
+          path: data["zoo-extra.cfg"]
+          pattern: 'ssl\.keyStore\.password='
 
   - it: enables Prometheus metrics provider
     set:
@@ -73,6 +79,13 @@ tests:
       - matchRegex:
           path: data["zoo-extra.cfg"]
           pattern: "foo=bar\nbaz=qux"
+
+  - it: rejects whitespace-sensitive extra config
+    set:
+      zookeeper.extraConfig: "foo=bar baz"
+    asserts:
+      - failedTemplate:
+          errorMessage: "zookeeper.extraConfig cannot contain spaces or tabs because the official entrypoint splits ZOO_CFG_EXTRA on whitespace"
 
   - it: enables SASL client auth config
     set:

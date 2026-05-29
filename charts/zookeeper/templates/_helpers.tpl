@@ -168,6 +168,9 @@ app.kubernetes.io/part-of: helmforge
 {{- if and .Values.tls.client.enabled (not .Values.tls.client.existingSecret) -}}
 {{- fail "tls.client.enabled requires tls.client.existingSecret" -}}
 {{- end -}}
+{{- if and .Values.zookeeper.extraConfig (regexMatch "[ \t]" .Values.zookeeper.extraConfig) -}}
+{{- fail "zookeeper.extraConfig cannot contain spaces or tabs because the official entrypoint splits ZOO_CFG_EXTRA on whitespace" -}}
+{{- end -}}
 {{- if and .Values.externalSecrets.enabled (not .Values.externalSecrets.secretStoreRef.name) -}}
 {{- fail "externalSecrets.enabled requires externalSecrets.secretStoreRef.name" -}}
 {{- end -}}
