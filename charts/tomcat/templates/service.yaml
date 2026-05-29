@@ -1,0 +1,35 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tomcat.fullname" . }}
+  labels:
+    {{- include "tomcat.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tomcat
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    {{- include "tomcat.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: tomcat
+  ports:
+    - name: http
+      port: {{ .Values.service.ports.http }}
+      targetPort: http
+      protocol: TCP
+    {{- if .Values.jmx.enabled }}
+    - name: jmx
+      port: {{ .Values.service.ports.jmx }}
+      targetPort: jmx
+      protocol: TCP
+    {{- end }}

@@ -1,0 +1,212 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# Apache Tomcat Helm Chart - Default Values
+# =============================================================================
+
+replicaCount: 1
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+image:
+  repository: docker.io/library/tomcat
+  tag: "11.0.22-jdk17-temurin-noble"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+containerPorts:
+  http: 8080
+  jmx: 9010
+
+service:
+  type: ClusterIP
+  annotations: {}
+  ports:
+    http: 80
+    jmx: 9010
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ~
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
+
+serviceAccount:
+  create: false
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: false
+
+tomcat:
+  # -- Extra CATALINA_OPTS appended before JMX options.
+  catalinaOpts: ""
+  # -- Extra JAVA_OPTS.
+  javaOpts: ""
+  # -- Optional server.xml override. Use only when you need connector/proxy customizations.
+  serverXml: ""
+  # -- Existing ConfigMap with key server.xml.
+  existingServerXmlConfigMap: ""
+  # -- Extra environment variables.
+  extraEnv: []
+  extraEnvFrom: []
+
+webapps:
+  mountPath: /usr/local/tomcat/webapps
+  persistence:
+    enabled: false
+    existingClaim: ""
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 8Gi
+  defaultRoot:
+    # -- Render a small ROOT webapp so default installs have deterministic health checks.
+    enabled: true
+    index: |
+      <%@ page contentType="text/plain; charset=UTF-8" %>
+      Apache Tomcat is running on HelmForge.
+    health: |
+      <%@ page contentType="text/plain; charset=UTF-8" %>
+      OK
+
+logs:
+  persistence:
+    enabled: false
+    existingClaim: ""
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 4Gi
+
+jmx:
+  enabled: false
+  port: 9010
+  rmiPort: 9010
+  authenticate: false
+  ssl: false
+  hostname: 127.0.0.1
+  extraOpts: ""
+
+ingress:
+  enabled: false
+  annotations: {}
+  ingressClassName: ""
+  hosts:
+    - host: tomcat.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+gatewayAPI:
+  enabled: false
+  apiVersion: gateway.networking.k8s.io/v1
+  annotations: {}
+  parentRefs: []
+  hostnames: []
+  matches:
+    - path:
+        type: PathPrefix
+        value: /
+  filters: []
+
+networkPolicy:
+  enabled: false
+  ingress:
+    allowSameNamespace: true
+    extraFrom: []
+  egress:
+    enabled: false
+    allowDNS: true
+    allowHTTP: false
+    allowHTTPS: true
+    extraTo: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+podSecurityContext:
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  runAsUser: 1001
+  runAsGroup: 1001
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+startupProbe:
+  enabled: true
+  mode: http
+  path: /health.jsp
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+
+livenessProbe:
+  enabled: true
+  mode: http
+  path: /health.jsp
+  initialDelaySeconds: 30
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+readinessProbe:
+  enabled: true
+  mode: http
+  path: /health.jsp
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+
+pdb:
+  enabled: false
+  minAvailable: 1
+
+podLabels: {}
+podAnnotations: {}
+annotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 60
+
+extraInitContainers: []
+extraContainers: []
+extraVolumes: []
+extraVolumeMounts: []
+
+tests:
+  enabled: true
+  image:
+    repository: docker.io/library/busybox
+    tag: "1.37"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi

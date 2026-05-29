@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Deployment
+templates:
+  - deployment.yaml
+  - configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render deployment with official image and non-root security
+    template: deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/library/tomcat:11.0.22-jdk17-temurin-noble
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop[0]
+          value: ALL
+
+  - it: should mount writable runtime directories
+    template: deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: webapps
+            mountPath: /usr/local/tomcat/webapps
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: logs
+            mountPath: /usr/local/tomcat/logs
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: temp
+            mountPath: /usr/local/tomcat/temp
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: work
+            mountPath: /usr/local/tomcat/work
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: conf-localhost
+            mountPath: /usr/local/tomcat/conf/Catalina/localhost
+
+  - it: should render default root health webapp
+    template: configmap.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: data["health.jsp"]
+          value: |
+            <%@ page contentType="text/plain; charset=UTF-8" %>
+            OK
+
+  - it: should fail http probes when default root is disabled
+    template: deployment.yaml
+    set:
+      webapps.defaultRoot.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "startupProbe.mode=http requires webapps.defaultRoot.enabled=true or a user-provided app at startupProbe.path"
+
+  - it: should allow tcp probes without default root
+    template: deployment.yaml
+    set:
+      webapps.defaultRoot.enabled: false
+      startupProbe.mode: tcp
+      livenessProbe.mode: tcp
+      readinessProbe.mode: tcp
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.tcpSocket.port
+          value: http

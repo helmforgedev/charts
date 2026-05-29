@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Operations
+templates:
+  - hpa.yaml
+  - pdb.yaml
+  - networkpolicy.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render HPA
+    template: hpa.yaml
+    set:
+      autoscaling.enabled: true
+    asserts:
+      - isKind:
+          of: HorizontalPodAutoscaler
+      - equal:
+          path: spec.maxReplicas
+          value: 5
+
+  - it: should render PDB
+    template: pdb.yaml
+    set:
+      pdb.enabled: true
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.minAvailable
+          value: 1
+
+  - it: should render NetworkPolicy
+    template: networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Egress

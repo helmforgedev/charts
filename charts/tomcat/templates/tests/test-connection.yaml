@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+{{- if .Values.tests.enabled }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "tomcat.fullname" . }}-test-connection
+  labels:
+    {{- include "tomcat.labels" . | nindent 4 }}
+    app.kubernetes.io/component: test
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  serviceAccountName: {{ include "tomcat.serviceAccountName" . }}
+  automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+  {{- with .Values.podSecurityContext }}
+  securityContext:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  containers:
+    - name: wget
+      image: "{{ .Values.tests.image.repository }}:{{ .Values.tests.image.tag }}"
+      imagePullPolicy: {{ .Values.tests.image.pullPolicy }}
+      command: ["sh", "-ec"]
+      args:
+        - |
+          wget -qO- "http://{{ include "tomcat.fullname" . }}:{{ .Values.service.ports.http }}/health.jsp" | grep -q OK
+      resources:
+        {{- toYaml .Values.tests.resources | nindent 8 }}
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+{{- end }}
