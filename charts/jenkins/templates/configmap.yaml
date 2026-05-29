@@ -20,11 +20,13 @@ data:
     if (password) {
       def existingRealm = instance.getSecurityRealm()
       def realm = null
+      def createdRealm = false
       if (existingRealm instanceof HudsonPrivateSecurityRealm) {
         realm = existingRealm
       } else if (!instance.isUseSecurity()) {
         realm = new HudsonPrivateSecurityRealm(false)
         instance.setSecurityRealm(realm)
+        createdRealm = true
       } else {
         println("Existing non-local security realm detected; skipping HelmForge admin bootstrap")
         return
@@ -34,9 +36,13 @@ data:
         realm.createAccount(user, password)
       }
 
-      def strategy = new FullControlOnceLoggedInAuthorizationStrategy()
-      strategy.setAllowAnonymousRead(false)
-      instance.setAuthorizationStrategy(strategy)
+      if (createdRealm || !instance.isUseSecurity()) {
+        def strategy = new FullControlOnceLoggedInAuthorizationStrategy()
+        strategy.setAllowAnonymousRead(false)
+        instance.setAuthorizationStrategy(strategy)
+      } else {
+        println("Existing authorization strategy detected; preserving configured permissions")
+      }
       instance.save()
     }
   {{- end }}
