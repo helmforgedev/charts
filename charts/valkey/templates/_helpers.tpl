@@ -249,6 +249,9 @@ Common valkey.conf baseline.
 {{- define "valkey.commonConfig" -}}
 bind 0.0.0.0
 protected-mode no
+{{- if not .Values.tls.enabled }}
+port {{ .Values.service.ports.valkey }}
+{{- end }}
 dir /data
 appendonly yes
 save 900 1
@@ -273,7 +276,11 @@ Exporter environment.
 */}}
 {{- define "valkey.exporterEnv" -}}
 - name: REDIS_ADDR
-  value: redis://127.0.0.1:{{ .Values.service.ports.valkey }}
+  value: {{ ternary "rediss" "redis" .Values.tls.enabled }}://127.0.0.1:{{ .Values.service.ports.valkey }}
+{{- if .Values.tls.enabled }}
+- name: REDIS_EXPORTER_TLS_CA_CERT_FILE
+  value: /tls/{{ .Values.tls.caFilename }}
+{{- end }}
 {{- if .Values.auth.enabled }}
 - name: REDIS_USER
   value: default
@@ -282,6 +289,15 @@ Exporter environment.
     secretKeyRef:
       name: {{ include "valkey.secretName" . }}
       key: {{ .Values.auth.existingSecretPasswordKey }}
+{{- end }}
+{{- end -}}
+
+{{- define "valkey.metricsVolumeMounts" -}}
+{{- if .Values.tls.enabled }}
+volumeMounts:
+  - name: tls
+    mountPath: /tls
+    readOnly: true
 {{- end }}
 {{- end -}}
 
