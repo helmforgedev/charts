@@ -1,0 +1,237 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# OAuth2 Proxy Helm Chart - Default Values
+# =============================================================================
+# Focus: secure OAuth2/OIDC reverse proxy for Kubernetes ingress and Gateway API.
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+replicaCount: 2
+revisionHistoryLimit: 3
+
+image:
+  # -- Official upstream OAuth2 Proxy image
+  repository: quay.io/oauth2-proxy/oauth2-proxy
+  # -- Image tag
+  tag: "v7.15.2"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+auth:
+  # -- Create a Kubernetes Secret for client and cookie credentials.
+  createSecret: true
+  # -- Existing Secret with keys defined below. Required when externalSecrets.enabled=true.
+  existingSecret: ""
+  clientID: ""
+  clientSecret: ""
+  cookieSecret: ""
+  keys:
+    clientID: client-id
+    clientSecret: client-secret
+    cookieSecret: cookie-secret
+
+externalSecrets:
+  enabled: false
+  apiVersion: external-secrets.io/v1
+  refreshInterval: "0"
+  secretStoreRef:
+    name: ""
+    kind: SecretStore
+  target:
+    creationPolicy: Owner
+  data: []
+
+config:
+  # -- OAuth2 Proxy provider. Common values: oidc, github, google, gitlab, keycloak-oidc.
+  provider: oidc
+  providerDisplayName: ""
+  oidcIssuerUrl: ""
+  redirectUrl: ""
+  upstreams:
+    - file:///dev/null
+  emailDomains:
+    - "*"
+  whitelistDomains: []
+  cookie:
+    name: ""
+    domains: []
+    secure: true
+    sameSite: lax
+    expire: 168h
+    refresh: ""
+  reverseProxy:
+    enabled: true
+    realClientIpHeader: X-Real-IP
+    # -- Explicitly trusted reverse proxies for X-Forwarded-* headers.
+    trustedProxyIps:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+      - fd00::/8
+  headers:
+    setXAuthRequest: true
+    passAuthorizationHeader: false
+    passAccessToken: false
+    passUserHeaders: true
+    skipAuthStripHeaders: true
+  logging:
+    standard: true
+    request: true
+    auth: true
+    silencePing: true
+    excludePaths:
+      - /ping
+      - /ready
+      - /metrics
+  # -- Extra TOML appended to oauth2_proxy.cfg.
+  extraConfig: ""
+
+alphaConfig:
+  enabled: false
+  existingSecret: ""
+  config: {}
+
+authenticatedEmailsFile:
+  enabled: false
+  existingSecret: ""
+  secretKey: restricted_user_access
+  emails: []
+
+extraArgs: {}
+extraEnv: []
+envFrom: []
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: false
+
+service:
+  type: ClusterIP
+  port: 80
+  annotations: {}
+  ipFamilyPolicy: ""
+  ipFamilies: []
+
+metrics:
+  enabled: true
+  port: 44180
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: oauth2-proxy.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+gateway:
+  enabled: false
+  annotations: {}
+  parentRefs: []
+  hostnames: []
+  path: /
+  pathType: PathPrefix
+
+gatewayAPI:
+  enabled: false
+  annotations: {}
+  parentRefs: []
+  hostnames: []
+  path: /
+  pathType: PathPrefix
+
+networkPolicy:
+  enabled: false
+  ingress: []
+  egress: []
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+probes:
+  startup:
+    enabled: true
+    path: /ping
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 12
+  liveness:
+    enabled: true
+    path: /ping
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    path: /ready
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 2000
+  runAsGroup: 2000
+  fsGroup: 2000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+podAnnotations: {}
+podLabels: {}
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+
+extraVolumes: []
+extraVolumeMounts: []
+
+test:
+  image:
+    repository: docker.io/library/busybox
+    tag: "1.37.0"
+    pullPolicy: IfNotPresent
+
+extraObjects: []

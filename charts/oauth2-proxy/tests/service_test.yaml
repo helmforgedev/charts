@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Service
+templates:
+  - templates/service.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render an HTTP service with metrics by default
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.ports[0].name
+          value: http
+      - equal:
+          path: spec.ports[0].port
+          value: 80
+      - equal:
+          path: spec.ports[1].name
+          value: metrics
+      - equal:
+          path: spec.ports[1].port
+          value: 44180
+
+  - it: should support dual-stack service settings
+    set:
+      service.ipFamilyPolicy: RequireDualStack
+      service.ipFamilies:
+        - IPv6
+        - IPv4
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: RequireDualStack
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv6
+      - equal:
+          path: spec.ipFamilies[1]
+          value: IPv4
+
+  - it: should omit metrics port when metrics are disabled
+    set:
+      metrics.enabled: false
+    asserts:
+      - lengthEqual:
+          path: spec.ports
+          count: 1

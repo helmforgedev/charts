@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/configmap.yaml
+  - templates/secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should use the official image and config-test init container
+    set:
+      auth.clientID: test-client
+      auth.clientSecret: test-secret
+      auth.cookieSecret: "0123456789abcdef0123456789abcdef"
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].args[1]
+          value: --config-test
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: quay.io/oauth2-proxy/oauth2-proxy:v7.15.2
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+        template: templates/deployment.yaml
+
+  - it: should use an existing secret without rendering a chart-managed secret
+    set:
+      auth.existingSecret: oauth2-proxy-existing
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
+          value: oauth2-proxy-existing
+        template: templates/deployment.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/secret.yaml

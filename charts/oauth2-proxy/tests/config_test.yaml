@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Config
+templates:
+  - templates/configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render trusted proxy IPs for reverse proxy mode
+    asserts:
+      - matchRegex:
+          path: data["oauth2_proxy.cfg"]
+          pattern: 'trusted_proxy_ips = \["10.0.0.0/8","172.16.0.0/12","192.168.0.0/16","fd00::/8"\]'
+      - matchRegex:
+          path: data["oauth2_proxy.cfg"]
+          pattern: 'reverse_proxy = true'
+
+  - it: should render OIDC issuer and redirect URL when configured
+    set:
+      config.oidcIssuerUrl: https://issuer.example.test
+      config.redirectUrl: https://auth.example.test/oauth2/callback
+    asserts:
+      - matchRegex:
+          path: data["oauth2_proxy.cfg"]
+          pattern: 'oidc_issuer_url = "https://issuer.example.test"'
+      - matchRegex:
+          path: data["oauth2_proxy.cfg"]
+          pattern: 'redirect_url = "https://auth.example.test/oauth2/callback"'

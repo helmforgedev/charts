@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: Apache-2.0
+replicaCount: 2
+
+auth:
+  clientID: ci-client
+  clientSecret: ci-client-secret
+  cookieSecret: "0123456789abcdef0123456789abcdef"
+
+config:
+  provider: github
+  redirectUrl: http://oauth2-proxy.example.test/oauth2/callback
+  cookie:
+    secure: false
+  reverseProxy:
+    enabled: true
+    trustedProxyIps:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+  extraConfig: |-
+    skip_provider_button = true
+
+metrics:
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: prometheus
+
+service:
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+    - IPv4
+    - IPv6
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: oauth2-proxy.example.test
+      paths:
+        - path: /
+          pathType: Prefix
+
+gateway:
+  enabled: true
+  parentRefs:
+    - name: public
+  hostnames:
+    - oauth2-proxy.example.test
+
+networkPolicy:
+  enabled: true
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+
+authenticatedEmailsFile:
+  enabled: true
+  emails:
+    - user@example.test
