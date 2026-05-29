@@ -28,7 +28,7 @@ app.kubernetes.io/part-of: helmforge
 {{- $secretName := include "immich.databaseSecretName" . -}}
 {{- if .Values.database.external.password -}}{{ .Values.database.external.password }}{{- else -}}{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}{{- if and $existing (index $existing.data "database-password") -}}{{ index $existing.data "database-password" | b64dec }}{{- else -}}{{ randAlphaNum 32 }}{{- end -}}{{- end -}}
 {{- end -}}
-{{- define "immich.valkeyInternalEnabled" -}}{{- if .Values.valkey.enabled -}}true{{- end -}}{{- end -}}
+{{- define "immich.valkeyInternalEnabled" -}}{{- if .Values.valkey.internal.enabled -}}true{{- end -}}{{- end -}}
 {{- define "immich.valkeyHost" -}}{{- if include "immich.valkeyInternalEnabled" . -}}{{ .Release.Name }}-valkey-client{{- else -}}{{ .Values.valkey.external.host }}{{- end -}}{{- end -}}
 {{- define "immich.valkeyPort" -}}{{- if include "immich.valkeyInternalEnabled" . -}}{{ .Values.valkey.service.ports.valkey | default 6379 }}{{- else -}}{{ .Values.valkey.external.port }}{{- end -}}{{- end -}}
 {{- define "immich.redisSecretName" -}}{{- if include "immich.valkeyInternalEnabled" . -}}{{- if .Values.valkey.auth.existingSecret -}}{{ .Values.valkey.auth.existingSecret }}{{- else -}}{{ .Release.Name }}-valkey-auth{{- end -}}{{- else if .Values.valkey.external.existingSecret -}}{{ .Values.valkey.external.existingSecret }}{{- else -}}{{ include "immich.fullname" . }}-redis{{- end -}}{{- end -}}

@@ -29,9 +29,9 @@ the k3d values file.
 ## External Database
 
 ```yaml
+postgresql:
+  enabled: false
 database:
-  internal:
-    enabled: false
   external:
     host: postgres.example.com
     database: immich
