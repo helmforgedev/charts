@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Deployment
+templates:
+  - deployment.yaml
+  - configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render non-root Apache deployment
+    template: deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+
+  - it: should add exporter when metrics are enabled
+    template: deployment.yaml
+    set:
+      metrics.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: apache-exporter
