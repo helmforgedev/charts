@@ -6,14 +6,24 @@ release:
   name: test
   namespace: default
 tests:
-  - it: should render trusted proxy IPs for reverse proxy mode
+  - it: should not trust broad private proxy ranges by default
     asserts:
-      - matchRegex:
+      - notMatchRegex:
           path: data["oauth2_proxy.cfg"]
-          pattern: 'trusted_proxy_ips = \["10.0.0.0/8","172.16.0.0/12","192.168.0.0/16","fd00::/8"\]'
+          pattern: 'trusted_proxy_ips ='
       - matchRegex:
           path: data["oauth2_proxy.cfg"]
           pattern: 'reverse_proxy = true'
+
+  - it: should render configured trusted proxy IPs for reverse proxy mode
+    set:
+      config.reverseProxy.trustedProxyIps:
+        - 10.10.0.0/16
+        - fd42::/64
+    asserts:
+      - matchRegex:
+          path: data["oauth2_proxy.cfg"]
+          pattern: 'trusted_proxy_ips = \["10.10.0.0/16","fd42::/64"\]'
 
   - it: should render OIDC issuer and redirect URL when configured
     set:

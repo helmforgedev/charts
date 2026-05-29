@@ -48,9 +48,19 @@ spec:
             {{- if .Values.alphaConfig.enabled }}
             - --alpha-config=/etc/oauth2-proxy/alpha/alpha-config.yaml
             {{- end }}
+            {{- range $key, $value := .Values.extraArgs }}
+            - --{{ $key }}={{ $value }}
+            {{- end }}
             - --config-test
           env:
             {{- include "oauth2-proxy.secretEnv" . | nindent 12 }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           volumeMounts:
             - name: config
               mountPath: /etc/oauth2-proxy
@@ -66,6 +76,9 @@ spec:
             - name: alpha-config
               mountPath: /etc/oauth2-proxy/alpha
               readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
             {{- end }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}

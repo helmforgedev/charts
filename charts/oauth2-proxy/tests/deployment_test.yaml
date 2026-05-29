@@ -69,3 +69,47 @@ tests:
             mountPath: /etc/oauth2-proxy/alpha
             readOnly: true
         template: templates/deployment.yaml
+
+  - it: should mirror runtime escape hatches in config-test init container
+    set:
+      auth.clientID: test-client
+      auth.clientSecret: test-secret
+      auth.cookieSecret: "0123456789abcdef0123456789abcdef"
+      extraArgs:
+        oidc-issuer-url: https://issuer.example.test
+      extraEnv:
+        - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+          value: "true"
+      envFrom:
+        - secretRef:
+            name: oauth2-extra-env
+      extraVolumes:
+        - name: custom-ca
+          secret:
+            secretName: custom-ca
+      extraVolumeMounts:
+        - name: custom-ca
+          mountPath: /etc/ssl/custom
+          readOnly: true
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: --oidc-issuer-url=https://issuer.example.test
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+            value: "true"
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.initContainers[0].envFrom[0].secretRef.name
+          value: oauth2-extra-env
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: custom-ca
+            mountPath: /etc/ssl/custom
+            readOnly: true
+        template: templates/deployment.yaml
