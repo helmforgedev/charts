@@ -39,6 +39,8 @@ flowchart TB
 - Keep upload persistence separate from database/cache persistence.
 - Fail render-time validation when server replicas or autoscaling use upload
   persistence without `ReadWriteMany`.
+- Use `Recreate` automatically when upload persistence is enabled without
+  `ReadWriteMany`, avoiding RollingUpdate surge contention on a single RWO PVC.
 - Use a single `gateway` values block for Gateway API HTTPRoute support.
 
 ## Explicit Non-Goals

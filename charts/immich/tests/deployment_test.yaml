@@ -55,6 +55,31 @@ tests:
           path: spec.replicas
         template: templates/deployment.yaml
 
+  - it: should use Recreate strategy with default RWO uploads persistence
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+        template: templates/deployment.yaml
+
+  - it: should allow strategy override when explicitly configured
+    set:
+      server.strategy.type: RollingUpdate
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+        template: templates/deployment.yaml
+
+  - it: should omit strategy when uploads use RWX and no override is set
+    set:
+      server.persistence.accessModes:
+        - ReadWriteMany
+    asserts:
+      - notExists:
+          path: spec.strategy
+        template: templates/deployment.yaml
+
   - it: should pass external Valkey password to Immich
     set:
       valkey.internal.enabled: false
