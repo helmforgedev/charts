@@ -1,0 +1,27 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.apiService.create }}
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  name: v1beta1.metrics.k8s.io
+  labels:
+    {{- include "metrics-server.labels" . | nindent 4 }}
+  {{- with .Values.apiService.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  group: metrics.k8s.io
+  groupPriorityMinimum: {{ .Values.apiService.groupPriorityMinimum }}
+  version: v1beta1
+  versionPriority: {{ .Values.apiService.versionPriority }}
+  service:
+    name: {{ include "metrics-server.fullname" . }}
+    namespace: {{ .Release.Namespace }}
+    port: {{ .Values.service.port }}
+  {{- if .Values.apiService.caBundle }}
+  caBundle: {{ .Values.apiService.caBundle | quote }}
+  {{- else }}
+  insecureSkipTLSVerify: {{ .Values.apiService.insecureSkipTLSVerify }}
+  {{- end }}
+{{- end }}

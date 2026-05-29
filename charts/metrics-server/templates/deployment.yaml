@@ -1,0 +1,123 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "metrics-server.validate" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "metrics-server.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "metrics-server.labels" . | nindent 4 }}
+    app.kubernetes.io/component: metrics-server
+  {{- with .Values.deploymentAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  strategy:
+    {{- toYaml .Values.deploymentStrategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "metrics-server.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: metrics-server
+  template:
+    metadata:
+      labels:
+        {{- include "metrics-server.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: metrics-server
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "metrics-server.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      hostNetwork: {{ .Values.hostNetwork.enabled }}
+      dnsPolicy: {{ default (ternary "ClusterFirstWithHostNet" "ClusterFirst" .Values.hostNetwork.enabled) .Values.dnsPolicy }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.schedulerName }}
+      schedulerName: {{ . }}
+      {{- end }}
+      containers:
+        - name: metrics-server
+          image: {{ include "metrics-server.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            {{- include "metrics-server.args" . | nindent 12 }}
+          ports:
+            - name: https
+              containerPort: {{ .Values.containerPort }}
+              protocol: TCP
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.path }}
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.path }}
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: {{ .Values.metricsServer.certDir }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+        - name: tmp
+          {{- toYaml .Values.tmpVolume | nindent 10 }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

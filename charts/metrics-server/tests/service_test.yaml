@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Service
+templates:
+  - templates/service.yaml
+release:
+  name: test
+  namespace: metrics
+tests:
+  - it: should expose HTTPS service
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - contains:
+          path: spec.ports
+          content:
+            name: https
+            port: 443
+            targetPort: https
+            protocol: TCP
+
+  - it: should support dual-stack service settings
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies:
+        - IPv4
+        - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+      - equal:
+          path: spec.ipFamilies[1]
+          value: IPv6

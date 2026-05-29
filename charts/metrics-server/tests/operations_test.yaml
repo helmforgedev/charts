@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Operations
+templates:
+  - templates/pdb.yaml
+  - templates/networkpolicy.yaml
+  - templates/servicemonitor.yaml
+  - templates/tests/test-connection.yaml
+release:
+  name: test
+  namespace: metrics
+tests:
+  - it: should render PDB with unhealthy eviction policy
+    template: templates/pdb.yaml
+    set:
+      pdb.enabled: true
+      pdb.maxUnavailable: 1
+      pdb.unhealthyPodEvictionPolicy: AlwaysAllow
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+      - equal:
+          path: spec.unhealthyPodEvictionPolicy
+          value: AlwaysAllow
+
+  - it: should render NetworkPolicy with egress controls
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.egress[2].ports[0].port
+          value: 10250
+
+  - it: should render ServiceMonitor when enabled
+    template: templates/servicemonitor.yaml
+    set:
+      serviceMonitor.enabled: true
+      serviceMonitor.additionalLabels.release: prometheus
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+      - equal:
+          path: metadata.labels.release
+          value: prometheus
+      - equal:
+          path: spec.endpoints[0].port
+          value: https
+
+  - it: should render Helm test pod
+    template: templates/tests/test-connection.yaml
+    asserts:
+      - isKind:
+          of: Pod
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: test
+      - matchRegex:
+          path: spec.containers[0].args[0]
+          pattern: /readyz

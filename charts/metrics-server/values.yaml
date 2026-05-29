@@ -1,0 +1,172 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# Metrics Server Helm Chart - Default Values
+# =============================================================================
+
+replicaCount: 1
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+image:
+  repository: registry.k8s.io/metrics-server/metrics-server
+  tag: "v0.8.1"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: true
+
+rbac:
+  create: true
+  pspEnabled: false
+  aggregatedMetricsReader:
+    create: true
+
+apiService:
+  create: true
+  annotations: {}
+  insecureSkipTLSVerify: true
+  caBundle: ""
+  groupPriorityMinimum: 100
+  versionPriority: 100
+
+containerPort: 10250
+hostNetwork:
+  enabled: false
+
+dnsPolicy: ""
+priorityClassName: system-cluster-critical
+revisionHistoryLimit: 10
+
+deploymentStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1
+    maxSurge: 0
+
+metricsServer:
+  certDir: /tmp
+  metricResolution: 15s
+  kubelet:
+    preferredAddressTypes:
+      - InternalIP
+      - ExternalIP
+      - Hostname
+    useNodeStatusPort: true
+    insecureTLS: false
+    certificateAuthority: ""
+    requestTimeout: ""
+  extraArgs: []
+
+service:
+  type: ClusterIP
+  annotations: {}
+  labels: {}
+  port: 443
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ~
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 200Mi
+  limits:
+    cpu: 500m
+    memory: 500Mi
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  capabilities:
+    drop:
+      - ALL
+
+livenessProbe:
+  enabled: true
+  path: /livez
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+
+readinessProbe:
+  enabled: true
+  path: /readyz
+  initialDelaySeconds: 20
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+
+pdb:
+  enabled: false
+  minAvailable: ""
+  maxUnavailable: 1
+  unhealthyPodEvictionPolicy: ""
+
+networkPolicy:
+  enabled: false
+  ingress:
+    allowSameNamespace: true
+    extraFrom: []
+  egress:
+    enabled: false
+    allowKubelet: true
+    kubeletPort: 10250
+    allowAPIServer: true
+    apiServerPort: 443
+    allowDNS: true
+    extraTo: []
+
+serviceMonitor:
+  enabled: false
+  apiVersion: monitoring.coreos.com/v1
+  additionalLabels: {}
+  interval: 1m
+  scrapeTimeout: 10s
+  metricRelabelings: []
+  relabelings: []
+
+podLabels: {}
+podAnnotations: {}
+deploymentAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+schedulerName: ""
+
+tmpVolume:
+  emptyDir: {}
+
+extraVolumes: []
+extraVolumeMounts: []
+extraContainers: []
+
+tests:
+  enabled: true
+  image:
+    repository: docker.io/library/busybox
+    tag: "1.37"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
