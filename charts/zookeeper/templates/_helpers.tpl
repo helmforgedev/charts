@@ -134,6 +134,20 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 {{- end -}}
 
+{{- define "zookeeper.authSecretManagedByExternalSecret" -}}
+{{- if and .Values.externalSecrets.enabled (eq (include "zookeeper.externalSecretTargetName" .) (include "zookeeper.authSecretName" .)) -}}true{{- end -}}
+{{- end -}}
+
+{{- define "zookeeper.tlsPasswordsSecretManagedByExternalSecret" -}}
+{{- if and .Values.externalSecrets.enabled (eq (include "zookeeper.externalSecretTargetName" .) (include "zookeeper.tlsPasswordsSecretName" .)) -}}true{{- end -}}
+{{- end -}}
+
+{{- define "zookeeper.hasChartManagedSensitiveSecret" -}}
+{{- $authManaged := and .Values.auth.client.enabled (not .Values.auth.client.existingSecret) (not (include "zookeeper.authSecretManagedByExternalSecret" .)) -}}
+{{- $tlsManaged := and .Values.tls.client.enabled (not .Values.tls.client.existingPasswordsSecret) (not (include "zookeeper.tlsPasswordsSecretManagedByExternalSecret" .)) -}}
+{{- if or $authManaged $tlsManaged -}}true{{- end -}}
+{{- end -}}
+
 {{- define "zookeeper.validate" -}}
 {{- if lt (.Values.replicaCount | int) 1 -}}
 {{- fail "replicaCount must be at least 1" -}}

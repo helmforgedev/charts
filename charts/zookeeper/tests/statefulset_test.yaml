@@ -90,6 +90,38 @@ tests:
             secret:
               secretName: zk-tls
 
+  - it: rolls pods when chart-managed TLS passwords change
+    template: statefulset.yaml
+    set:
+      tls.client.enabled: true
+      tls.client.existingSecret: zk-tls
+      tls.client.keystorePassword: change-me
+      tls.client.truststorePassword: change-me-too
+    asserts:
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/secret"]
+          pattern: "^[a-f0-9]{64}$"
+
+  - it: omits sensitive secret checksum when ExternalSecret owns TLS passwords
+    template: statefulset.yaml
+    set:
+      tls.client.enabled: true
+      tls.client.existingSecret: zk-tls
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: platform-secrets
+      externalSecrets.data:
+        - secretKey: keystore-password
+          remoteRef:
+            key: zookeeper/tls
+            property: keystore-password
+        - secretKey: truststore-password
+          remoteRef:
+            key: zookeeper/tls
+            property: truststore-password
+    asserts:
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/secret"]
+
   - it: rejects even replica count unless explicitly allowed
     template: statefulset.yaml
     set:

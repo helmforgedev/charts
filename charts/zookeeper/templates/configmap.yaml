@@ -13,9 +13,12 @@ data:
     set -euo pipefail
 
     ordinal="${HOSTNAME##*-}"
-    export ZOO_MY_ID="$((ordinal + 1))"
+    rm -f "${ZOO_CONF_DIR:-/conf}/zoo.cfg"
     {{- if gt (.Values.replicaCount | int) 1 }}
+    export ZOO_MY_ID="$((ordinal + 1))"
     export ZOO_SERVERS="{{ include "zookeeper.servers" . }}"
+    {{- else }}
+    export ZOO_SERVERS=" "
     {{- end }}
     export ZOO_DATA_DIR="/data"
     export ZOO_DATA_LOG_DIR="/datalog"
@@ -41,6 +44,7 @@ data:
 
     exec /docker-entrypoint.sh zkServer.sh start-foreground
   zoo-extra.cfg: |
+    clientPort={{ .Values.zookeeper.clientPort }}
     admin.serverPort={{ .Values.zookeeper.adminServerPort }}
     {{- if .Values.metrics.enabled }}
     metricsProvider.className=org.apache.zookeeper.metrics.prometheus.PrometheusMetricsProvider
