@@ -76,7 +76,7 @@ tests:
       ingress.enabled: true
     asserts:
       - failedTemplate:
-          errorMessage: "public exposure with the default dummy authenticator requires auth.dummyPassword, hub.extraConfig with a real authenticator, or auth.allowInsecureDummy=true"
+          errorMessage: "public exposure with the default dummy authenticator requires auth.dummyPassword or auth.allowInsecureDummy=true"
 
   - it: should reject public gateway with insecure dummy auth
     template: configmap.yaml
@@ -84,7 +84,7 @@ tests:
       gateway.enabled: true
     asserts:
       - failedTemplate:
-          errorMessage: "public exposure with the default dummy authenticator requires auth.dummyPassword, hub.extraConfig with a real authenticator, or auth.allowInsecureDummy=true"
+          errorMessage: "public exposure with the default dummy authenticator requires auth.dummyPassword or auth.allowInsecureDummy=true"
 
   - it: should reject load balancer with insecure dummy auth
     template: configmap.yaml
@@ -92,7 +92,45 @@ tests:
       service.type: LoadBalancer
     asserts:
       - failedTemplate:
-          errorMessage: "public exposure with the default dummy authenticator requires auth.dummyPassword, hub.extraConfig with a real authenticator, or auth.allowInsecureDummy=true"
+          errorMessage: "public exposure with the default dummy authenticator requires auth.dummyPassword or auth.allowInsecureDummy=true"
+
+  - it: should reject node port with insecure dummy auth
+    template: configmap.yaml
+    set:
+      service.type: NodePort
+    asserts:
+      - failedTemplate:
+          errorMessage: "public exposure with the default dummy authenticator requires auth.dummyPassword or auth.allowInsecureDummy=true"
+
+  - it: should reject non-auth extra config as dummy auth proof
+    template: configmap.yaml
+    set:
+      ingress.enabled: true
+      hub.extraConfig: |
+        c.JupyterHub.shutdown_on_logout = True
+    asserts:
+      - failedTemplate:
+          errorMessage: "public exposure with the default dummy authenticator requires auth.dummyPassword or auth.allowInsecureDummy=true"
+
+  - it: should require extra config for custom authenticators
+    template: configmap.yaml
+    set:
+      ingress.enabled: true
+      auth.type: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: "public exposure with a custom authenticator requires hub.extraConfig"
+
+  - it: should allow public ingress with a custom authenticator config
+    template: configmap.yaml
+    set:
+      ingress.enabled: true
+      auth.type: custom
+      hub.extraConfig: |
+        c.JupyterHub.authenticator_class = "nativeauthenticator.NativeAuthenticator"
+    asserts:
+      - isKind:
+          of: ConfigMap
 
   - it: should allow public ingress with explicit dummy opt-in
     template: configmap.yaml

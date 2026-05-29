@@ -49,8 +49,11 @@ app.kubernetes.io/part-of: helmforge
 {{- if .Values.proxy.secretToken }}{{ .Values.proxy.secretToken }}{{- else if .Values.proxy.existingSecret }}{{ "" }}{{- else }}{{ randAlphaNum 64 }}{{- end -}}
 {{- end -}}
 {{- define "jupyterhub.validateValues" -}}
-{{- $publicExposure := or .Values.ingress.enabled .Values.gateway.enabled (eq .Values.service.type "LoadBalancer") -}}
-{{- if and $publicExposure (eq .Values.auth.type "dummy") (not .Values.auth.dummyPassword) (not .Values.auth.allowInsecureDummy) (not .Values.hub.extraConfig) -}}
-{{- fail "public exposure with the default dummy authenticator requires auth.dummyPassword, hub.extraConfig with a real authenticator, or auth.allowInsecureDummy=true" -}}
+{{- $publicExposure := or .Values.ingress.enabled .Values.gateway.enabled (eq .Values.service.type "LoadBalancer") (eq .Values.service.type "NodePort") -}}
+{{- if and $publicExposure (eq .Values.auth.type "dummy") (not .Values.auth.dummyPassword) (not .Values.auth.allowInsecureDummy) -}}
+{{- fail "public exposure with the default dummy authenticator requires auth.dummyPassword or auth.allowInsecureDummy=true" -}}
+{{- end -}}
+{{- if and $publicExposure (ne .Values.auth.type "dummy") (not .Values.hub.extraConfig) -}}
+{{- fail "public exposure with a custom authenticator requires hub.extraConfig" -}}
 {{- end -}}
 {{- end -}}
