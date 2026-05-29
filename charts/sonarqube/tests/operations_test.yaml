@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Operations
+templates:
+  - templates/networkpolicy.yaml
+  - templates/pdb.yaml
+  - templates/externalsecret.yaml
+  - templates/tests/test-connection.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render NetworkPolicy with egress controls
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.egress[3].ports[0].port
+          value: 5432
+
+  - it: should render PDB when enabled
+    template: templates/pdb.yaml
+    set:
+      pdb.enabled: true
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.minAvailable
+          value: 1
+
+  - it: should render ExternalSecrets for database and monitoring passcode
+    template: templates/externalsecret.yaml
+    set:
+      sonarqube.databaseMode: external
+      database.external.jdbcUrl: jdbc:postgresql://postgres:5432/sonarqube
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: platform-secrets
+      externalSecrets.database.enabled: true
+      externalSecrets.database.passwordRemoteRef:
+        key: sonarqube/database
+        property: password
+      externalSecrets.monitoringPasscode.enabled: true
+      externalSecrets.monitoringPasscode.remoteRef:
+        key: sonarqube/monitoring
+        property: passcode
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: spec.secretStoreRef.name
+          value: platform-secrets
+        documentIndex: 0
+      - equal:
+          path: spec.target.name
+          value: test-sonarqube-database
+        documentIndex: 0
+      - equal:
+          path: spec.target.name
+          value: test-sonarqube-monitoring
+        documentIndex: 1
+
+  - it: should render Helm test pod
+    template: templates/tests/test-connection.yaml
+    asserts:
+      - isKind:
+          of: Pod
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: test
+      - matchRegex:
+          path: spec.containers[0].args[0]
+          pattern: /api/system/status

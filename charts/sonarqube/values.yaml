@@ -1,0 +1,249 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# SonarQube Helm Chart - Default Values
+# =============================================================================
+
+replicaCount: 1
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+image:
+  repository: docker.io/library/sonarqube
+  tag: "26.4.0.121862-community"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+containerPorts:
+  http: 9000
+
+service:
+  type: ClusterIP
+  annotations: {}
+  port: 9000
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ~
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
+
+serviceAccount:
+  create: false
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: false
+
+sonarqube:
+  # -- embedded is for evaluation and k3d smoke tests only. Use external for production PostgreSQL.
+  databaseMode: embedded
+  context: ""
+  webJavaOpts: "-Xms256m -Xmx512m"
+  ceJavaOpts: "-Xms256m -Xmx512m"
+  searchJavaOpts: "-Xms512m -Xmx512m"
+  esBootstrapChecksDisable: true
+  monitoringPasscode: ""
+  existingMonitoringPasscodeSecret: ""
+  existingMonitoringPasscodeSecretKey: monitoring-passcode
+  extraEnv: []
+  extraEnvFrom: []
+  sonarProperties: {}
+
+database:
+  external:
+    jdbcUrl: ""
+    username: sonar
+    password: ""
+    existingSecret: ""
+    existingSecretPasswordKey: jdbc-password
+
+externalSecrets:
+  enabled: false
+  apiVersion: external-secrets.io/v1
+  refreshInterval: "1h"
+  secretStoreRef:
+    name: ""
+    kind: SecretStore
+  target:
+    creationPolicy: Owner
+  database:
+    enabled: false
+    targetName: ""
+    passwordRemoteRef:
+      key: ""
+      property: ""
+      version: ""
+      decodingStrategy: ""
+      conversionStrategy: ""
+  monitoringPasscode:
+    enabled: false
+    targetName: ""
+    remoteRef:
+      key: ""
+      property: ""
+      version: ""
+      decodingStrategy: ""
+      conversionStrategy: ""
+
+plugins:
+  enabled: false
+  image:
+    repository: docker.io/library/busybox
+    tag: "1.37"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  install: []
+  # - name: sonar-auth-oidc
+  #   url: https://example.com/sonar-auth-oidc.jar
+
+communityBranchPlugin:
+  enabled: false
+  version: "26.4.0"
+  jarUrl: ""
+  webappUrl: ""
+
+persistence:
+  data:
+    enabled: true
+    existingClaim: ""
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+  extensions:
+    enabled: true
+    existingClaim: ""
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi
+  logs:
+    enabled: false
+    existingClaim: ""
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi
+
+ingress:
+  enabled: false
+  annotations: {}
+  ingressClassName: ""
+  hosts:
+    - host: sonarqube.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+gatewayAPI:
+  enabled: false
+  apiVersion: gateway.networking.k8s.io/v1
+  annotations: {}
+  parentRefs: []
+  hostnames: []
+  matches:
+    - path:
+        type: PathPrefix
+        value: /
+  filters: []
+
+networkPolicy:
+  enabled: false
+  ingress:
+    allowSameNamespace: true
+    extraFrom: []
+  egress:
+    enabled: false
+    allowDNS: true
+    allowHTTP: true
+    allowHTTPS: true
+    allowPostgreSQL: true
+    postgresqlPort: 5432
+    extraTo: []
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 2Gi
+  limits:
+    cpu: 2
+    memory: 3Gi
+
+podSecurityContext:
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+startupProbe:
+  enabled: true
+  path: /api/system/status
+  initialDelaySeconds: 30
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 80
+
+livenessProbe:
+  enabled: true
+  path: /api/system/status
+  initialDelaySeconds: 180
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+readinessProbe:
+  enabled: true
+  path: /api/system/status
+  initialDelaySeconds: 60
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 20
+
+pdb:
+  enabled: false
+  minAvailable: 1
+
+podLabels: {}
+podAnnotations: {}
+annotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 120
+
+extraInitContainers: []
+extraContainers: []
+extraVolumes: []
+extraVolumeMounts: []
+
+tests:
+  enabled: true
+  image:
+    repository: docker.io/library/busybox
+    tag: "1.37"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
