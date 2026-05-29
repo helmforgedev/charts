@@ -1,10 +1,48 @@
-OpenReel Video has been deployed.
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+=============================================================================
+OpenReel Video deployed successfully!
+=============================================================================
 
-Service:
-  {{ include "openreel-video.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+ACCESS:
+{{- if .Values.ingress.enabled }}
+  {{- range .Values.ingress.hosts }}
+   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+  {{- end }}
+{{- else if and .Values.gateway.enabled .Values.gateway.hostnames }}
+  {{- range .Values.gateway.hostnames }}
+   https://{{ . }}
+  {{- end }}
+{{- else }}
+   kubectl port-forward svc/{{ include "openreel-video.fullname" . }} -n {{ .Release.Namespace }} 8080:{{ .Values.service.port }}
+   Open: http://localhost:8080
+{{- end }}
 
-Health:
-  /healthz
+SERVICE:
+   Internal: {{ include "openreel-video.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+   Health:   /healthz
+   Image:    {{ include "openreel-video.image" . }}
 
-Image:
-  {{ include "openreel-video.image" . }}
+RUNTIME:
+   Static web editor: enabled
+   Container port: {{ .Values.service.targetPort }}
+   Temporary volume: {{ ternary "enabled" "disabled" .Values.tmpVolume.enabled }}
+
+OPERATIONS:
+   Run Helm tests:
+     helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+   Inspect pods:
+     kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+     kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "openreel-video.fullname" . }}
+
+PRODUCTION REMINDERS:
+   1. Configure Ingress or Gateway API with HTTPS and COOP/COEP-compatible edge behavior.
+   2. Keep resource limits explicit for browser-heavy static asset delivery.
+   3. Enable NetworkPolicy after confirming ingress-controller namespace selectors.
+
+DOCUMENTATION:
+   Chart: https://helmforge.dev/docs/charts/openreel-video
+   Source: https://github.com/helmforgedev/charts/tree/main/charts/openreel-video
+   OpenReel Video: https://github.com/Augani/openreel-video
+
+=============================================================================

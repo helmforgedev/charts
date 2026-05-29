@@ -13,6 +13,7 @@ defaults tuned for WebCodecs and WASM workloads.
   and WASM-heavy browser workflows.
 - Gateway API, Ingress, dual-stack Service support, HPA, PDB, NetworkPolicy,
   schema, and Helm tests.
+- Production, networking, and runtime documentation with runnable examples.
 
 ## Install
 
@@ -23,7 +24,7 @@ helm install openreel-video oci://ghcr.io/helmforgedev/helm/openreel-video
 ## Gateway API
 
 ```yaml
-gatewayAPI:
+gateway:
   enabled: true
   parentRefs:
     - name: public
@@ -32,10 +33,32 @@ gatewayAPI:
     - openreel.example.com
 ```
 
+## Ingress
+
+```yaml
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  hosts:
+    - host: openreel.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+```
+
+## Documentation
+
+- [Design](DESIGN.md)
+- [Production guide](docs/production.md)
+- [Networking](docs/networking.md)
+- [Runtime](docs/runtime.md)
+- [Examples](examples/)
+
 ## Local Validation
 
 ```bash
 helm lint charts/openreel-video --strict
 helm template openreel-video charts/openreel-video -f charts/openreel-video/ci/ci-values.yaml
 helm unittest charts/openreel-video
+kubeconform -strict -summary rendered.yaml
 ```

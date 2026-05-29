@@ -1,92 +1,178 @@
 # SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# OpenReel Video Helm Chart - Default Values
+# =============================================================================
+
+# -- Override the chart name.
 nameOverride: ""
+
+# -- Override the fully qualified release name.
 fullnameOverride: ""
+
+# -- Additional labels applied to all chart resources.
 commonLabels: {}
 
+# -- Number of OpenReel Video replicas when autoscaling is disabled.
 replicaCount: 1
+
+# -- Number of old ReplicaSets retained by the Deployment.
 revisionHistoryLimit: 3
 
 image:
+  # -- OpenReel Video image repository maintained by HelmForge.
   repository: docker.io/helmforge/openreel-video
+  # -- OpenReel Video image tag. Do not use latest.
   tag: "v0.4.0"
+  # -- Image pull policy.
   pullPolicy: IfNotPresent
 
+# -- Image pull secrets.
 imagePullSecrets: []
 
+# =============================================================================
+# Service Account
+# =============================================================================
+
 serviceAccount:
+  # -- Create a dedicated ServiceAccount.
   create: true
+  # -- ServiceAccount name override.
   name: ""
+  # -- ServiceAccount annotations.
   annotations: {}
+  # -- Mount the ServiceAccount token into OpenReel Video pods.
   automountServiceAccountToken: false
 
+# =============================================================================
+# Service
+# =============================================================================
+
 service:
+  # -- Service type for OpenReel Video HTTP traffic.
   type: ClusterIP
+  # -- ExternalName target when service.type=ExternalName.
   externalName: ""
+  # -- Service port.
   port: 80
+  # -- Container target port.
   targetPort: 8080
+  # -- Service annotations.
   annotations: {}
+  # -- Service IP family policy: SingleStack, PreferDualStack, RequireDualStack. Empty uses cluster default.
   ipFamilyPolicy: ""
+  # -- Service IP families override. Empty uses cluster default.
   ipFamilies: []
 
+# =============================================================================
+# Ingress
+# =============================================================================
+
 ingress:
+  # -- Enable Ingress.
   enabled: false
-  className: ""
+  # -- Ingress class name.
+  # ingressClassName: traefik
+  ingressClassName: ""
+  # -- Ingress annotations.
   annotations: {}
+  # -- Ingress hosts and paths.
   hosts:
     - host: openreel.local
       paths:
         - path: /
           pathType: Prefix
+  # -- Ingress TLS configuration.
   tls: []
 
+# =============================================================================
+# Gateway API
+# =============================================================================
+
 gateway:
+  # -- Enable Gateway API HTTPRoute. Requires Gateway API CRDs and parentRefs.
   enabled: false
+  # -- HTTPRoute annotations.
   annotations: {}
+  # -- parentRefs pointing to existing Gateway resources.
   parentRefs: []
+  # -- Hostnames matched by the HTTPRoute.
   hostnames: []
+  # -- HTTPRoute path value.
   path: /
+  # -- HTTPRoute path match type.
   pathType: PathPrefix
 
-gatewayAPI:
-  enabled: false
-  annotations: {}
-  parentRefs: []
-  hostnames: []
-  path: /
-  pathType: PathPrefix
+# =============================================================================
+# Network Policy
+# =============================================================================
 
 networkPolicy:
+  # -- Enable NetworkPolicy for OpenReel Video pods.
   enabled: false
+  # -- Additional ingress rules appended to the default web policy.
   ingress: []
+  # -- Additional egress rules appended to the default web policy.
   egress: []
 
+# =============================================================================
+# Autoscaling and Availability
+# =============================================================================
+
 autoscaling:
+  # -- Enable HorizontalPodAutoscaler.
   enabled: false
+  # -- Minimum replicas.
   minReplicas: 1
+  # -- Maximum replicas.
   maxReplicas: 4
+  # -- Target CPU utilization percentage.
   targetCPUUtilizationPercentage: 70
+  # -- Target memory utilization percentage.
   targetMemoryUtilizationPercentage: 80
 
 pdb:
+  # -- Enable PodDisruptionBudget.
   enabled: true
+  # -- Minimum available pods for the PodDisruptionBudget.
   minAvailable: 1
+
+# =============================================================================
+# Probes
+# =============================================================================
 
 probes:
   liveness:
+    # -- Enable liveness probe.
     enabled: true
+    # -- Liveness probe path.
     path: /healthz
+    # -- Liveness probe initial delay in seconds.
     initialDelaySeconds: 10
+    # -- Liveness probe period in seconds.
     periodSeconds: 20
+    # -- Liveness probe timeout in seconds.
     timeoutSeconds: 5
+    # -- Liveness probe failure threshold.
     failureThreshold: 3
   readiness:
+    # -- Enable readiness probe.
     enabled: true
+    # -- Readiness probe path.
     path: /healthz
+    # -- Readiness probe initial delay in seconds.
     initialDelaySeconds: 5
+    # -- Readiness probe period in seconds.
     periodSeconds: 10
+    # -- Readiness probe timeout in seconds.
     timeoutSeconds: 5
+    # -- Readiness probe failure threshold.
     failureThreshold: 3
 
+# =============================================================================
+# Security and Resources
+# =============================================================================
+
+# -- Container resource requests and limits.
 resources:
   requests:
     cpu: 25m
@@ -95,6 +181,7 @@ resources:
     cpu: 250m
     memory: 128Mi
 
+# -- Pod security context.
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 101
@@ -103,6 +190,7 @@ podSecurityContext:
   seccompProfile:
     type: RuntimeDefault
 
+# -- Container security context.
 securityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
@@ -110,23 +198,56 @@ securityContext:
     drop:
       - ALL
 
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+# -- Additional pod annotations.
 podAnnotations: {}
+
+# -- Additional pod labels.
 podLabels: {}
+
+# -- Priority class name.
 priorityClassName: ""
+
+# -- Grace period for shutdown in seconds.
 terminationGracePeriodSeconds: 30
+
+# -- Node selector for pod scheduling.
 nodeSelector: {}
+
+# -- Tolerations for pod scheduling.
 tolerations: []
+
+# -- Affinity rules for pod scheduling.
 affinity: {}
+
+# -- Topology spread constraints for pod scheduling.
 topologySpreadConstraints: []
 
+# =============================================================================
+# Runtime Volumes
+# =============================================================================
+
 tmpVolume:
+  # -- Mount an emptyDir at /tmp for the non-root NGINX runtime.
   enabled: true
+  # -- Size limit for the /tmp emptyDir volume.
   sizeLimit: 64Mi
+
+# =============================================================================
+# Tests and Extensions
+# =============================================================================
 
 test:
   image:
+    # -- Helm test image repository.
     repository: docker.io/library/busybox
+    # -- Helm test image tag.
     tag: "1.37.0"
+    # -- Helm test image pull policy.
     pullPolicy: IfNotPresent
 
+# -- Extra Kubernetes manifests rendered with the release.
 extraObjects: []
