@@ -32,6 +32,27 @@ tests:
           path: spec.egress[2].ports[0].port
           value: 443
 
+  - it: should deny ingress when no ingress sources are configured
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.ingress.allowSameNamespace: false
+      networkPolicy.ingress.extraFrom: []
+    asserts:
+      - equal:
+          path: spec.ingress
+          value: []
+
+  - it: should allow ingress to the named pod port
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      service.port: 80
+    asserts:
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: http
+
   - it: should render PDB when enabled
     template: templates/pdb.yaml
     set:
