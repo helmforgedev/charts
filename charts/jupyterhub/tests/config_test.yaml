@@ -119,7 +119,18 @@ tests:
       auth.type: custom
     asserts:
       - failedTemplate:
-          errorMessage: "public exposure with a custom authenticator requires hub.extraConfig"
+          errorMessage: "public exposure with a custom authenticator requires hub.extraConfig to set authenticator_class"
+
+  - it: should reject custom auth without an authenticator class override
+    template: configmap.yaml
+    set:
+      ingress.enabled: true
+      auth.type: custom
+      hub.extraConfig: |
+        c.JupyterHub.shutdown_on_logout = True
+    asserts:
+      - failedTemplate:
+          errorMessage: "public exposure with a custom authenticator requires hub.extraConfig to set authenticator_class"
 
   - it: should allow public ingress with a custom authenticator config
     template: configmap.yaml
@@ -131,6 +142,9 @@ tests:
     asserts:
       - isKind:
           of: ConfigMap
+      - notMatchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: "DummyAuthenticator"
 
   - it: should allow public ingress with explicit dummy opt-in
     template: configmap.yaml

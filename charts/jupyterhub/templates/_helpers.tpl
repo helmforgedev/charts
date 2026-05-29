@@ -53,7 +53,7 @@ app.kubernetes.io/part-of: helmforge
 {{- if and $publicExposure (eq .Values.auth.type "dummy") (not .Values.auth.dummyPassword) (not .Values.auth.allowInsecureDummy) -}}
 {{- fail "public exposure with the default dummy authenticator requires auth.dummyPassword or auth.allowInsecureDummy=true" -}}
 {{- end -}}
-{{- if and $publicExposure (ne .Values.auth.type "dummy") (not .Values.hub.extraConfig) -}}
-{{- fail "public exposure with a custom authenticator requires hub.extraConfig" -}}
+{{- if and $publicExposure (ne .Values.auth.type "dummy") (not (regexMatch "authenticator_class" .Values.hub.extraConfig)) -}}
+{{- fail "public exposure with a custom authenticator requires hub.extraConfig to set authenticator_class" -}}
 {{- end -}}
 {{- end -}}
