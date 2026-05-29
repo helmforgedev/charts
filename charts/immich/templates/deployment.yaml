@@ -43,7 +43,7 @@ spec:
             - sh
             - -ec
             - |
-              until nc -z {{ include "immich.databaseHost" . }} {{ .Values.database.external.port }}; do
+              until nc -z {{ include "immich.databaseHost" . }} {{ include "immich.databasePort" . }}; do
                 sleep 2
               done
           securityContext:
@@ -62,7 +62,7 @@ spec:
             - sh
             - -ec
             - |
-              until nc -z {{ include "immich.valkeyHost" . }} {{ .Values.valkey.external.port }}; do
+              until nc -z {{ include "immich.valkeyHost" . }} {{ include "immich.valkeyPort" . }}; do
                 sleep 2
               done
           securityContext:
@@ -99,11 +99,11 @@ spec:
             - name: DB_HOSTNAME
               value: {{ include "immich.databaseHost" . | quote }}
             - name: DB_PORT
-              value: {{ .Values.database.external.port | quote }}
+              value: {{ include "immich.databasePort" . | quote }}
             - name: DB_DATABASE_NAME
-              value: {{ .Values.database.external.database | quote }}
+              value: {{ include "immich.databaseName" . | quote }}
             - name: DB_USERNAME
-              value: {{ .Values.database.external.username | quote }}
+              value: {{ include "immich.databaseUsername" . | quote }}
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -112,8 +112,8 @@ spec:
             - name: REDIS_HOSTNAME
               value: {{ include "immich.valkeyHost" . | quote }}
             - name: REDIS_PORT
-              value: {{ .Values.valkey.external.port | quote }}
-            {{- if and (not .Values.valkey.internal.enabled) (or .Values.valkey.external.password .Values.valkey.external.existingSecret) }}
+              value: {{ include "immich.valkeyPort" . | quote }}
+            {{- if include "immich.hasRedisPassword" . }}
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -158,7 +158,16 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
-      {{- with .Values.nodeSelector }}nodeSelector: {{- toYaml . | nindent 8 }}{{- end }}
-      {{- with .Values.affinity }}affinity: {{- toYaml . | nindent 8 }}{{- end }}
-      {{- with .Values.tolerations }}tolerations: {{- toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}

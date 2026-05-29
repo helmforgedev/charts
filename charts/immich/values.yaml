@@ -45,23 +45,6 @@ server:
     size: 50Gi
 
 database:
-  internal:
-    enabled: true
-    image:
-      repository: ghcr.io/immich-app/postgres
-      tag: "14-vectorchord0.4.3-pgvectors0.2.0"
-      pullPolicy: IfNotPresent
-    persistence:
-      enabled: true
-      size: 20Gi
-    shmSize: 128Mi
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: "1"
-        memory: 1Gi
   external:
     host: ""
     port: 5432
@@ -71,13 +54,62 @@ database:
     existingSecret: ""
     existingSecretPasswordKey: database-password
 
+postgresql:
+  enabled: true
+  image:
+    repository: ghcr.io/immich-app/postgres
+    tag: "14-vectorchord0.4.3-pgvectors0.2.0"
+    pullPolicy: IfNotPresent
+  auth:
+    database: immich
+    username: postgres
+    password: ""
+    existingSecret: ""
+    existingSecretPostgresPasswordKey: postgres-password
+    existingSecretUserPasswordKey: user-password
+  service:
+    port: 5432
+  config:
+    postgresql: |
+      shared_preload_libraries = 'vchord.so, vectors.so'
+      max_wal_size = 2GB
+      shared_buffers = 512MB
+      wal_compression = on
+  standalone:
+    persistence:
+      enabled: true
+      size: 20Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+  extraEnv:
+    - name: POSTGRES_INITDB_ARGS
+      value: --data-checksums
+  extraVolumes:
+    - name: shm
+      emptyDir:
+        medium: Memory
+        sizeLimit: 128Mi
+  extraVolumeMounts:
+    - name: shm
+      mountPath: /dev/shm
+
 valkey:
-  internal:
+  enabled: true
+  architecture: standalone
+  auth:
     enabled: true
-    image:
-      repository: docker.io/valkey/valkey
-      tag: "9"
-      pullPolicy: IfNotPresent
+    password: ""
+    existingSecret: ""
+    existingSecretPasswordKey: valkey-password
+  service:
+    ports:
+      valkey: 6379
+  standalone:
     persistence:
       enabled: true
       size: 5Gi
@@ -88,6 +120,8 @@ valkey:
       limits:
         cpu: 500m
         memory: 512Mi
+  internal:
+    enabled: true
   external:
     host: ""
     port: 6379

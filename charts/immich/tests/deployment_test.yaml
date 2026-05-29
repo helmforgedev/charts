@@ -19,6 +19,28 @@ tests:
           value: DB_HOSTNAME
         template: templates/deployment.yaml
       - equal:
+          path: spec.template.spec.containers[0].env[7].value
+          value: test-postgresql
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-postgresql-auth
+                key: postgres-password
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-valkey-auth
+                key: valkey-password
+        template: templates/deployment.yaml
+      - equal:
           path: spec.template.spec.automountServiceAccountToken
           value: false
         template: templates/deployment.yaml
@@ -35,7 +57,7 @@ tests:
 
   - it: should pass external Valkey password to Immich
     set:
-      valkey.internal.enabled: false
+      valkey.enabled: false
       valkey.external.host: valkey.example.com
       valkey.external.password: redis-secret
     asserts:
@@ -52,11 +74,10 @@ tests:
           path: stringData["redis-password"]
           value: redis-secret
         template: templates/secret.yaml
-        documentIndex: 1
 
   - it: should use external Valkey existingSecret for Redis password
     set:
-      valkey.internal.enabled: false
+      valkey.enabled: false
       valkey.external.host: valkey.example.com
       valkey.external.existingSecret: valkey-auth
       valkey.external.existingSecretPasswordKey: password
@@ -94,3 +115,29 @@ tests:
           value: ReadWriteMany
         template: templates/pvc.yaml
         documentIndex: 0
+
+  - it: should keep common labels and scheduling values valid
+    set:
+      commonLabels.team: platform
+      nodeSelector.disk: ssd
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: media
+          effect: NoSchedule
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution: []
+    asserts:
+      - equal:
+          path: metadata.labels.team
+          value: platform
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.nodeSelector.disk
+          value: ssd
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.tolerations[0].key
+          value: dedicated
+        template: templates/deployment.yaml
