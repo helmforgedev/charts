@@ -25,6 +25,12 @@ app.kubernetes.io/part-of: helmforge
 {{ toYaml . }}
 {{- end }}
 {{- end -}}
+{{- define "jupyterhub.podLabels" -}}
+{{- $labels := omit .Values.podLabels "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/component" -}}
+{{- with $labels -}}
+{{- toYaml . -}}
+{{- end -}}
+{{- end -}}
 {{- define "jupyterhub.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}{{ default (include "jupyterhub.fullname" .) .Values.serviceAccount.name }}{{- else }}{{ default "default" .Values.serviceAccount.name }}{{- end -}}
 {{- end -}}
@@ -55,5 +61,10 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 {{- if and $publicExposure (ne .Values.auth.type "dummy") (not (regexMatch "authenticator_class" .Values.hub.extraConfig)) -}}
 {{- fail "public exposure with a custom authenticator requires hub.extraConfig to set authenticator_class" -}}
+{{- end -}}
+{{- range $key := list "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/component" -}}
+{{- if hasKey $.Values.podLabels $key -}}
+{{- fail (printf "podLabels cannot override reserved selector label %s" $key) -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}

@@ -18,7 +18,7 @@ spec:
         {{- include "jupyterhub.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: hub
         {{- with .Values.podLabels }}
-        {{- toYaml . | nindent 8 }}
+        {{- include "jupyterhub.podLabels" $ | nindent 8 }}
         {{- end }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
@@ -46,7 +46,7 @@ spec:
             - sh
             - -ec
             - |
-              until code="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: token ${CONFIGPROXY_AUTH_TOKEN}" "http://{{ include "jupyterhub.proxyApiName" . }}:{{ .Values.service.proxyApiPort }}/api/routes" || true)" && [ "$code" = "200" ]; do
+              until code="$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: token ${CONFIGPROXY_AUTH_TOKEN}" "http://{{ include "jupyterhub.proxyApiName" . }}:{{ .Values.service.proxyApiPort }}/api/routes" 2>/dev/null || true)" && [ "$code" = "200" ]; do
                 echo "waiting for proxy api"
                 sleep 2
               done
