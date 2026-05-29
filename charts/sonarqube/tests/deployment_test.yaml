@@ -38,6 +38,11 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
+            name: SONAR_WEB_PORT
+            value: "9000"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
             name: SONAR_ES_BOOTSTRAP_CHECKS_DISABLE
             value: "true"
       - equal:
@@ -49,6 +54,20 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.httpGet.path
           value: /api/system/status
+
+  - it: should keep SonarQube web port in sync with the container port
+    template: templates/deployment.yaml
+    set:
+      containerPorts.http: 9100
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 9100
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SONAR_WEB_PORT
+            value: "9100"
 
   - it: should prefix probes with SonarQube context
     template: templates/deployment.yaml
