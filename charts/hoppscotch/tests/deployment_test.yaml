@@ -155,6 +155,20 @@ tests:
           pattern: "nc -z -w2 postgresql\\.database\\.svc\\.cluster\\.local 15432"
         template: deployment.yaml
 
+  - it: should derive wait-for-db host and port from bracketed IPv6 external database URL
+    set:
+      postgresql:
+        enabled: false
+      database:
+        external:
+          enabled: true
+          url: postgresql://hoppscotch:secret@[2001:db8::1]:15432/hoppscotch
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "nc -z -w2 2001:db8::1 15432"
+        template: deployment.yaml
+
   - it: should use writable XDG directories for Caddy storage
     asserts:
       - contains:

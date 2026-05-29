@@ -59,15 +59,18 @@ validateAll — fail-fast on misconfigured values
 {{- if and .Values.namespaceOverride .Values.postgresql.enabled -}}
   {{- fail "namespaceOverride requires postgresql.enabled=false and an external database because subchart secrets remain in the release namespace" -}}
 {{- end -}}
+{{- if and .Values.namespaceOverride (not .Values.database.external.enabled) -}}
+  {{- fail "namespaceOverride requires database.external.enabled=true because chart-managed resources are rendered outside the release namespace" -}}
+{{- end -}}
+{{- if and .Values.database.external.enabled (not .Values.database.external.host) (not .Values.database.external.url) (not .Values.database.external.existingSecret) -}}
+  {{- fail "database.external.host or database.external.url or database.external.existingSecret is required when database.external.enabled=true" -}}
+{{- end -}}
 {{- if eq $mode "production" -}}
   {{- if and (not .Values.ingress.host) (not .Values.baseUrl) -}}
     {{- fail "production mode requires ingress.host or baseUrl to be set" -}}
   {{- end -}}
   {{- if and (not .Values.postgresql.enabled) (not .Values.database.external.enabled) -}}
     {{- fail "production mode requires postgresql.enabled=true or database.external.enabled=true" -}}
-  {{- end -}}
-  {{- if and .Values.database.external.enabled (not .Values.database.external.host) (not .Values.database.external.url) (not .Values.database.external.existingSecret) -}}
-    {{- fail "database.external.host or database.external.url or database.external.existingSecret is required when database.external.enabled=true" -}}
   {{- end -}}
 {{- end -}}
 {{- if and .Values.encryption.key (ne (len .Values.encryption.key) 32) -}}
@@ -257,7 +260,11 @@ databaseHost — resolves subchart or external host
 {{- .Values.database.external.host -}}
 {{- else if .Values.database.external.url -}}
 {{- $parsed := urlParse .Values.database.external.url -}}
-{{- $parsed.host | splitList ":" | first -}}
+{{- if hasPrefix "[" $parsed.host -}}
+{{- regexReplaceAll "^\\[([^\\]]+)\\](?::[0-9]+)?$" $parsed.host "${1}" -}}
+{{- else -}}
+{{- regexReplaceAll ":[0-9]+$" $parsed.host "" -}}
+{{- end -}}
 {{- end -}}
 {{- else -}}
 {{- printf "%s-postgresql" .Release.Name -}}
@@ -273,8 +280,8 @@ databasePort
 {{- .Values.database.external.port | default 5432 | toString -}}
 {{- else if .Values.database.external.url -}}
 {{- $parsed := urlParse .Values.database.external.url -}}
-{{- if contains ":" $parsed.host -}}
-{{- $parsed.host | splitList ":" | last -}}
+{{- if regexMatch ":([0-9]+)$" $parsed.host -}}
+{{- regexFind "[0-9]+$" $parsed.host -}}
 {{- else -}}
 5432
 {{- end -}}

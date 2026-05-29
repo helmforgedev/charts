@@ -27,6 +27,31 @@ tests:
           errorMessage: "namespaceOverride requires postgresql.enabled=false and an external database because subchart secrets remain in the release namespace"
         template: deployment.yaml
 
+  - it: should fail when namespaceOverride is used without an external database
+    set:
+      namespaceOverride: hoppscotch-system
+      postgresql:
+        enabled: false
+      database:
+        external:
+          enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "namespaceOverride requires database.external.enabled=true because chart-managed resources are rendered outside the release namespace"
+        template: deployment.yaml
+
+  - it: should fail when external database is enabled without connection details
+    set:
+      postgresql:
+        enabled: false
+      database:
+        external:
+          enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.external.host or database.external.url or database.external.existingSecret is required when database.external.enabled=true"
+        template: deployment.yaml
+
   - it: should fail in production mode without database
     set:
       mode: production
