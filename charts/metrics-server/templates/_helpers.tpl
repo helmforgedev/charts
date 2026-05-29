@@ -84,9 +84,6 @@ app.kubernetes.io/part-of: metrics-server
 {{- end }}
 
 {{- define "metrics-server.validate" -}}
-{{- if and .Values.pdb.enabled .Values.pdb.minAvailable .Values.pdb.maxUnavailable -}}
-{{- fail "pdb.minAvailable and pdb.maxUnavailable are mutually exclusive" -}}
-{{- end -}}
 {{- if and .Values.apiService.create (not .Values.rbac.create) -}}
 {{- fail "rbac.create must be true when apiService.create=true because Metrics API aggregation requires RBAC delegation" -}}
 {{- end -}}
