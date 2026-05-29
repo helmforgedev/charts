@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Helm test connection
+templates:
+  - templates/tests/test-connection.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a helm test pod by default
+    asserts:
+      - isKind:
+          of: Pod
+      - equal:
+          path: metadata.name
+          value: test-valkey-test-connection
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: test
+      - equal:
+          path: spec.containers[0].env[0].value
+          value: test-valkey-client
+
+  - it: should target the primary service for replication
+    set:
+      architecture: replication
+    asserts:
+      - equal:
+          path: spec.containers[0].env[0].value
+          value: test-valkey-primary
+
+  - it: should target the primary service for sentinel
+    set:
+      architecture: sentinel
+    asserts:
+      - equal:
+          path: spec.containers[0].env[0].value
+          value: test-valkey-primary
+
+  - it: should target the client service for cluster
+    set:
+      architecture: cluster
+    asserts:
+      - equal:
+          path: spec.containers[0].env[0].value
+          value: test-valkey-client

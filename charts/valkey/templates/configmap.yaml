@@ -1,0 +1,44 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "valkey.configMapName" . }}
+  labels:
+    {{- include "valkey.labels" . | nindent 4 }}
+data:
+  valkey-standalone.conf: |
+    {{- include "valkey.commonConfig" . | nindent 4 }}
+    {{- with .Values.config.valkey }}
+    {{ . | nindent 4 }}
+    {{- end }}
+  valkey-primary.conf: |
+    {{- include "valkey.commonConfig" . | nindent 4 }}
+    {{- with .Values.config.valkey }}
+    {{ . | nindent 4 }}
+    {{- end }}
+  valkey-replica.conf: |
+    {{- include "valkey.commonConfig" . | nindent 4 }}
+    replica-read-only yes
+    {{- with .Values.config.valkey }}
+    {{ . | nindent 4 }}
+    {{- end }}
+  valkey-cluster.conf: |
+    {{- include "valkey.commonConfig" . | nindent 4 }}
+    cluster-enabled yes
+    cluster-config-file nodes.conf
+    cluster-node-timeout 5000
+    appendonly yes
+    {{- with .Values.config.valkey }}
+    {{ . | nindent 4 }}
+    {{- end }}
+  sentinel.conf: |
+    port {{ .Values.service.ports.sentinel }}
+    dir /tmp
+    sentinel resolve-hostnames yes
+    sentinel monitor mymaster {{ include "valkey.primaryPodFqdn" . }} {{ .Values.service.ports.valkey }} {{ .Values.sentinel.quorum }}
+    sentinel down-after-milliseconds mymaster {{ .Values.sentinel.downAfterMilliseconds }}
+    sentinel failover-timeout mymaster {{ .Values.sentinel.failoverTimeout }}
+    sentinel parallel-syncs mymaster {{ .Values.sentinel.parallelSyncs }}
+    {{- with .Values.config.sentinel }}
+    {{ . | nindent 4 }}
+    {{- end }}

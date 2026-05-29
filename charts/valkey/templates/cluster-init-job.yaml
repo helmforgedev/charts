@@ -1,0 +1,53 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and (include "valkey.isCluster" .) .Values.cluster.initJob.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "valkey.fullname" . }}-cluster-init
+  labels:
+    {{- include "valkey.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.cluster.initJob.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.cluster.initJob.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "valkey.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: valkey-cluster-init
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "valkey.serviceAccountName" . }}
+      containers:
+        - name: valkey-cli
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-ec"]
+          args:
+            - |
+              for i in $(seq 0 $(({{ .Values.cluster.nodes }} - 1))); do
+                until valkey-cli -h "{{ include "valkey.clusterStatefulSetName" . }}-${i}.{{ include "valkey.headlessServiceFqdn" . }}" {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" {{- end }} ping; do
+                  echo "waiting for node $i"
+                  sleep 5
+                done
+              done
+              if valkey-cli -h "{{ include "valkey.clusterStatefulSetName" . }}-0.{{ include "valkey.headlessServiceFqdn" . }}" {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" {{- end }} cluster info | grep -q cluster_state:ok; then
+                echo "cluster already initialized"
+                exit 0
+              fi
+              yes yes | valkey-cli --cluster create \
+              {{- range $i, $_ := until (.Values.cluster.nodes | int) }}
+                {{ include "valkey.clusterStatefulSetName" $ }}-{{ $i }}.{{ include "valkey.headlessServiceFqdn" $ }}:{{ $.Values.service.ports.valkey }} \
+              {{- end }}
+              --cluster-replicas {{ .Values.cluster.replicasPerMaster }} {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" {{- end }}
+          env:
+            {{- if .Values.auth.enabled }}
+            - name: VALKEY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "valkey.secretName" . }}
+                  key: {{ .Values.auth.existingSecretPasswordKey }}
+            {{- end }}
+{{- end }}

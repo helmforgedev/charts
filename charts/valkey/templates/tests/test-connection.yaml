@@ -1,0 +1,57 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.tests.enabled }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "valkey.fullname" . }}-test-connection
+  labels:
+    {{- include "valkey.labels" . | nindent 4 }}
+    app.kubernetes.io/component: test
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  serviceAccountName: {{ include "valkey.serviceAccountName" . }}
+  {{- with .Values.podSecurityContext }}
+  securityContext:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  containers:
+    - name: valkey-cli
+      image: "{{ .Values.tests.image.repository }}:{{ .Values.tests.image.tag }}"
+      imagePullPolicy: {{ .Values.tests.image.pullPolicy }}
+      command: ["sh", "-ec"]
+      args:
+        - |
+          {{- if include "valkey.isCluster" . }}
+          valkey-cli -c -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS cluster info | grep -q 'cluster_state:ok'
+          {{- else }}
+          valkey-cli -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS ping | grep -q PONG
+          valkey-cli -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS set helmforge:health ok | grep -q OK
+          test "$(valkey-cli -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS get helmforge:health)" = "ok"
+          {{- end }}
+      env:
+        - name: VALKEY_HOST
+          {{- if or (include "valkey.isStandalone" .) (include "valkey.isCluster" .) }}
+          value: {{ include "valkey.clientServiceName" . | quote }}
+          {{- else }}
+          value: {{ include "valkey.primaryServiceName" . | quote }}
+          {{- end }}
+        - name: VALKEY_PORT
+          value: {{ .Values.service.ports.valkey | quote }}
+        {{- if .Values.auth.enabled }}
+        - name: VALKEY_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "valkey.secretName" . }}
+              key: {{ .Values.auth.existingSecretPasswordKey }}
+        - name: VALKEY_AUTH_ARGS
+          value: --no-auth-warning -a $(VALKEY_PASSWORD)
+        {{- else }}
+        - name: VALKEY_AUTH_ARGS
+          value: ""
+        {{- end }}
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+{{- end }}

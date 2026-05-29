@@ -1,0 +1,196 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if or (include "valkey.isStandalone" .) (include "valkey.isReplication" .) (include "valkey.isSentinel" .) (include "valkey.isCluster" .) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "valkey.headlessServiceName" . }}
+  labels:
+    {{- include "valkey.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: valkey
+      port: {{ .Values.service.ports.valkey }}
+      targetPort: valkey
+    {{- if .Values.metrics.enabled }}
+    - name: metrics
+      port: {{ .Values.service.ports.metrics }}
+      targetPort: metrics
+    {{- end }}
+  selector:
+    {{- include "valkey.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: valkey
+{{- end }}
+
+{{- if include "valkey.isStandalone" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "valkey.clientServiceName" . }}
+  labels:
+    {{- include "valkey.labels" . | nindent 4 }}
+  {{- with .Values.service.clientAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: valkey
+      port: {{ .Values.service.ports.valkey }}
+      targetPort: valkey
+    {{- if .Values.metrics.enabled }}
+    - name: metrics
+      port: {{ .Values.service.ports.metrics }}
+      targetPort: metrics
+    {{- end }}
+  selector:
+    {{- include "valkey.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: valkey
+    app.kubernetes.io/role: standalone
+{{- end }}
+
+{{- if or (include "valkey.isReplication" .) (include "valkey.isSentinel" .) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "valkey.primaryServiceName" . }}
+  labels:
+    {{- include "valkey.labels" . | nindent 4 }}
+  {{- with .Values.service.primaryAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: valkey
+      port: {{ .Values.service.ports.valkey }}
+      targetPort: valkey
+    {{- if .Values.metrics.enabled }}
+    - name: metrics
+      port: {{ .Values.service.ports.metrics }}
+      targetPort: metrics
+    {{- end }}
+  selector:
+    {{- include "valkey.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: valkey
+    app.kubernetes.io/role: primary
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "valkey.replicaServiceName" . }}
+  labels:
+    {{- include "valkey.labels" . | nindent 4 }}
+  {{- with .Values.service.replicaAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: valkey
+      port: {{ .Values.service.ports.valkey }}
+      targetPort: valkey
+    {{- if .Values.metrics.enabled }}
+    - name: metrics
+      port: {{ .Values.service.ports.metrics }}
+      targetPort: metrics
+    {{- end }}
+  selector:
+    {{- include "valkey.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: valkey
+    app.kubernetes.io/role: replica
+{{- end }}
+
+{{- if include "valkey.isSentinel" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "valkey.sentinelServiceName" . }}
+  labels:
+    {{- include "valkey.labels" . | nindent 4 }}
+  {{- with .Values.service.sentinelAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: sentinel
+      port: {{ .Values.service.ports.sentinel }}
+      targetPort: sentinel
+  selector:
+    {{- include "valkey.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: sentinel
+{{- end }}
+
+{{- if include "valkey.isCluster" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "valkey.clientServiceName" . }}
+  labels:
+    {{- include "valkey.labels" . | nindent 4 }}
+  {{- with .Values.service.clusterAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: valkey
+      port: {{ .Values.service.ports.valkey }}
+      targetPort: valkey
+    {{- if .Values.metrics.enabled }}
+    - name: metrics
+      port: {{ .Values.service.ports.metrics }}
+      targetPort: metrics
+    {{- end }}
+  selector:
+    {{- include "valkey.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: valkey
+    app.kubernetes.io/role: cluster
+{{- end }}
