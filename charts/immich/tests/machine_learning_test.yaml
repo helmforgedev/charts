@@ -42,3 +42,45 @@ tests:
           value: registry-auth
         template: templates/machine-learning.yaml
         documentIndex: 1
+
+  - it: should apply scheduling values to machine learning pods
+    set:
+      priorityClassName: media-high
+      nodeSelector:
+        disk: ssd
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: media
+          effect: NoSchedule
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution: []
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: immich
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: media-high
+        template: templates/machine-learning.yaml
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.nodeSelector.disk
+          value: ssd
+        template: templates/machine-learning.yaml
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.tolerations[0].key
+          value: dedicated
+        template: templates/machine-learning.yaml
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].topologyKey
+          value: kubernetes.io/hostname
+        template: templates/machine-learning.yaml
+        documentIndex: 1
