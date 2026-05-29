@@ -45,30 +45,41 @@ tests:
             port: 6379
             targetPort: valkey
 
-  - it: should apply global annotations and allow service-specific overrides
+  - it: should apply global and service annotations with per-service overrides
     set:
       annotations:
         argocd.argoproj.io/sync-wave: "1"
         example.com/global: "true"
       service:
-        clientAnnotations:
+        annotations:
           argocd.argoproj.io/sync-wave: "2"
+          example.com/service: "true"
+        clientAnnotations:
+          argocd.argoproj.io/sync-wave: "3"
           example.com/client: "true"
     asserts:
       - equal:
           path: metadata.annotations["argocd.argoproj.io/sync-wave"]
-          value: "1"
+          value: "2"
         documentIndex: 0
       - equal:
           path: metadata.annotations["example.com/global"]
           value: "true"
         documentIndex: 0
       - equal:
+          path: metadata.annotations["example.com/service"]
+          value: "true"
+        documentIndex: 0
+      - equal:
           path: metadata.annotations["argocd.argoproj.io/sync-wave"]
-          value: "2"
+          value: "3"
         documentIndex: 1
       - equal:
           path: metadata.annotations["example.com/global"]
+          value: "true"
+        documentIndex: 1
+      - equal:
+          path: metadata.annotations["example.com/service"]
           value: "true"
         documentIndex: 1
       - equal:

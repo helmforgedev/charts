@@ -64,6 +64,24 @@ annotations:
 {{- end -}}
 {{- end -}}
 
+{{- define "valkey.serviceAnnotations" -}}
+{{- $global := default dict .root.Values.annotations -}}
+{{- $service := default dict .root.Values.service.annotations -}}
+{{- $local := default dict .annotations -}}
+{{- $annotations := mergeOverwrite (deepCopy $global) $service $local -}}
+{{- with $annotations -}}
+{{- toYaml . -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "valkey.renderServiceAnnotations" -}}
+{{- $annotations := include "valkey.serviceAnnotations" . -}}
+{{- if $annotations }}
+annotations:
+{{ $annotations | nindent 2 }}
+{{- end -}}
+{{- end -}}
+
 {{/*
 Selector labels.
 */}}
