@@ -92,6 +92,28 @@ tests:
                 key: password
         template: templates/deployment.yaml
 
+  - it: should fail external database without explicit password or secret
+    set:
+      postgresql.enabled: false
+      database.external.host: postgres.example.com
+      database.external.password: ""
+      database.external.existingSecret: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: external database requires database.external.password or database.external.existingSecret
+        template: templates/deployment.yaml
+
+  - it: should create external database password secret only when password is explicit
+    set:
+      postgresql.enabled: false
+      database.external.host: postgres.example.com
+      database.external.password: db-secret
+    asserts:
+      - equal:
+          path: stringData["database-password"]
+          value: db-secret
+        template: templates/secret.yaml
+
   - it: should fail scaled server with default RWO uploads PVC
     set:
       server.replicaCount: 2

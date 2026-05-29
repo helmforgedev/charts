@@ -25,8 +25,7 @@ app.kubernetes.io/part-of: helmforge
 {{- define "immich.databaseSecretName" -}}{{- if include "immich.databaseInternalEnabled" . -}}{{- if .Values.postgresql.auth.existingSecret -}}{{ .Values.postgresql.auth.existingSecret }}{{- else -}}{{ .Release.Name }}-postgresql-auth{{- end -}}{{- else if .Values.database.external.existingSecret -}}{{ .Values.database.external.existingSecret }}{{- else -}}{{ include "immich.fullname" . }}-database{{- end -}}{{- end -}}
 {{- define "immich.databaseSecretKey" -}}{{- if include "immich.databaseInternalEnabled" . -}}{{- if eq .Values.postgresql.auth.username "postgres" -}}{{ .Values.postgresql.auth.existingSecretPostgresPasswordKey | default "postgres-password" }}{{- else -}}{{ .Values.postgresql.auth.existingSecretUserPasswordKey | default "user-password" }}{{- end -}}{{- else if .Values.database.external.existingSecret -}}{{ .Values.database.external.existingSecretPasswordKey }}{{- else -}}database-password{{- end -}}{{- end -}}
 {{- define "immich.databasePassword" -}}
-{{- $secretName := include "immich.databaseSecretName" . -}}
-{{- if .Values.database.external.password -}}{{ .Values.database.external.password }}{{- else -}}{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}{{- if and $existing (index $existing.data "database-password") -}}{{ index $existing.data "database-password" | b64dec }}{{- else -}}{{ randAlphaNum 32 }}{{- end -}}{{- end -}}
+{{- .Values.database.external.password -}}
 {{- end -}}
 {{- define "immich.valkeyInternalEnabled" -}}{{- if .Values.valkey.internal.enabled -}}true{{- end -}}{{- end -}}
 {{- define "immich.valkeyHost" -}}{{- if include "immich.valkeyInternalEnabled" . -}}{{ .Release.Name }}-valkey-client{{- else -}}{{ .Values.valkey.external.host }}{{- end -}}{{- end -}}
@@ -43,5 +42,8 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 {{- if and .Values.machineLearning.enabled .Values.machineLearning.persistence.enabled (gt (.Values.machineLearning.replicaCount | int) 1) (not (has "ReadWriteMany" .Values.machineLearning.persistence.accessModes)) -}}
 {{- fail "machineLearning persistence requires ReadWriteMany accessModes when machineLearning.replicaCount is greater than 1" -}}
+{{- end -}}
+{{- if and (not (include "immich.databaseInternalEnabled" .)) (not .Values.database.external.password) (not .Values.database.external.existingSecret) -}}
+{{- fail "external database requires database.external.password or database.external.existingSecret" -}}
 {{- end -}}
 {{- end -}}
