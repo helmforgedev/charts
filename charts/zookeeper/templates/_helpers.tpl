@@ -120,12 +120,17 @@ app.kubernetes.io/part-of: helmforge
 {{- if .Values.auth.client.password -}}
 {{- .Values.auth.client.password -}}
 {{- else -}}
-{{- $secret := lookup "v1" "Secret" (include "zookeeper.namespace" .) (include "zookeeper.authSecretName" .) -}}
-{{- if and $secret $secret.data (hasKey $secret.data .Values.auth.client.existingSecretJaasKey) -}}
-{{- "preserved" -}}
-{{- else -}}
 {{- randAlphaNum 32 -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "zookeeper.externalSecretTargetName" -}}
+{{- if .Values.externalSecrets.target.name -}}
+{{- .Values.externalSecrets.target.name -}}
+{{- else if and .Values.tls.client.enabled (not .Values.auth.client.enabled) -}}
+{{- include "zookeeper.tlsPasswordsSecretName" . -}}
+{{- else -}}
+{{- include "zookeeper.authSecretName" . -}}
 {{- end -}}
 {{- end -}}
 
