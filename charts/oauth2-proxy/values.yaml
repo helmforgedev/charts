@@ -4,11 +4,16 @@
 # =============================================================================
 # Focus: secure OAuth2/OIDC reverse proxy for Kubernetes ingress and Gateway API.
 
+# -- Override the chart name.
 nameOverride: ""
+# -- Override the fully qualified release name.
 fullnameOverride: ""
+# -- Additional labels applied to all chart resources.
 commonLabels: {}
 
+# -- Number of OAuth2 Proxy replicas when autoscaling is disabled.
 replicaCount: 2
+# -- Number of old ReplicaSets retained by the Deployment.
 revisionHistoryLimit: 3
 
 image:
@@ -34,50 +39,83 @@ auth:
     cookieSecret: cookie-secret
 
 externalSecrets:
+  # -- Render an ExternalSecret for OAuth2 client and cookie credentials.
   enabled: false
+  # -- ExternalSecret API version.
   apiVersion: external-secrets.io/v1
+  # -- ExternalSecret refresh interval.
   refreshInterval: "0"
   secretStoreRef:
+    # -- SecretStore or ClusterSecretStore name.
     name: ""
+    # -- Secret store kind.
     kind: SecretStore
   target:
+    # -- ExternalSecret target creation policy.
     creationPolicy: Owner
+  # -- ExternalSecret data entries for individual credential keys.
   data: []
+  # -- ExternalSecret dataFrom entries for provider-side secret extraction.
+  dataFrom: []
 
 config:
   # -- OAuth2 Proxy provider. Common values: oidc, github, google, gitlab, keycloak-oidc.
   provider: oidc
+  # -- Provider display name shown by OAuth2 Proxy.
   providerDisplayName: ""
+  # -- OIDC issuer URL when using OIDC-compatible providers.
   oidcIssuerUrl: ""
+  # -- OAuth2 redirect URL.
   redirectUrl: ""
+  # -- Upstream targets protected by OAuth2 Proxy.
   upstreams:
     - file:///dev/null
+  # -- Allowed email domains.
   emailDomains:
     - "*"
+  # -- Allowed redirect whitelist domains.
   whitelistDomains: []
   cookie:
+    # -- Cookie name override.
     name: ""
+    # -- Cookie domains.
     domains: []
+    # -- Mark cookies secure.
     secure: true
+    # -- Cookie SameSite mode.
     sameSite: lax
+    # -- Cookie expiration duration.
     expire: 168h
+    # -- Optional cookie refresh duration.
     refresh: ""
   reverseProxy:
+    # -- Enable reverse proxy header handling.
     enabled: true
+    # -- Header used to determine real client IP.
     realClientIpHeader: X-Real-IP
     # -- Explicitly trusted reverse proxies for X-Forwarded-* headers.
     trustedProxyIps: []
   headers:
+    # -- Set X-Auth-Request-* headers.
     setXAuthRequest: true
+    # -- Pass Authorization header to upstreams.
     passAuthorizationHeader: false
+    # -- Pass OAuth access token to upstreams.
     passAccessToken: false
+    # -- Pass user headers to upstreams.
     passUserHeaders: true
+    # -- Strip inbound auth headers before setting trusted headers.
     skipAuthStripHeaders: true
   logging:
+    # -- Enable standard logging.
     standard: true
+    # -- Enable request logging.
     request: true
+    # -- Enable auth logging.
     auth: true
+    # -- Silence ping logging.
     silencePing: true
+    # -- Paths excluded from request logging.
     excludePaths:
       - /ping
       - /ready
@@ -86,109 +124,167 @@ config:
   extraConfig: ""
 
 alphaConfig:
+  # -- Enable OAuth2 Proxy alpha config file support.
   enabled: false
+  # -- Existing Secret containing alpha-config.yaml.
   existingSecret: ""
+  # -- Inline alpha config rendered to a Secret when enabled and no existingSecret is set.
   config: {}
 
 authenticatedEmailsFile:
+  # -- Enable restricted email allow-list file.
   enabled: false
+  # -- Existing Secret containing the allow-list file.
   existingSecret: ""
+  # -- Secret key containing the allow-list file.
   secretKey: restricted_user_access
+  # -- Email addresses rendered into the allow-list file.
   emails: []
 
+# -- Additional CLI arguments rendered as --key=value.
 extraArgs: {}
+# -- Additional environment variables for OAuth2 Proxy.
 extraEnv: []
+# -- Additional envFrom sources for OAuth2 Proxy.
 envFrom: []
 
 serviceAccount:
+  # -- Create a dedicated ServiceAccount.
   create: true
+  # -- ServiceAccount name override.
   name: ""
+  # -- ServiceAccount annotations.
   annotations: {}
+  # -- Mount the ServiceAccount token into pods.
   automountServiceAccountToken: false
 
 service:
+  # -- Service type.
   type: ClusterIP
+  # -- ExternalName target when service.type=ExternalName.
   externalName: ""
+  # -- Service HTTP port.
   port: 80
+  # -- Service annotations.
   annotations: {}
+  # -- Service IP family policy: SingleStack, PreferDualStack, RequireDualStack. Empty uses cluster default.
   ipFamilyPolicy: ""
+  # -- Service IP families.
   ipFamilies: []
 
 metrics:
+  # -- Expose OAuth2 Proxy metrics port.
   enabled: true
+  # -- Metrics port.
   port: 44180
   serviceMonitor:
+    # -- Render a Prometheus Operator ServiceMonitor.
     enabled: false
+    # -- ServiceMonitor scrape interval.
     interval: 30s
+    # -- ServiceMonitor scrape timeout.
     scrapeTimeout: 10s
+    # -- Additional ServiceMonitor labels.
     labels: {}
 
 ingress:
+  # -- Enable Kubernetes Ingress.
   enabled: false
-  className: ""
+  # -- IngressClass name.
+  ingressClassName: ""
+  # -- Ingress annotations.
   annotations: {}
+  # -- Ingress host rules.
   hosts:
     - host: oauth2-proxy.local
       paths:
         - path: /
           pathType: Prefix
+  # -- Ingress TLS configuration.
   tls: []
 
 gateway:
+  # -- Enable Gateway API HTTPRoute.
   enabled: false
+  # -- HTTPRoute annotations.
   annotations: {}
+  # -- Gateway parentRefs.
   parentRefs: []
+  # -- HTTPRoute hostnames.
   hostnames: []
+  # -- HTTPRoute match path.
   path: /
-  pathType: PathPrefix
-
-gatewayAPI:
-  enabled: false
-  annotations: {}
-  parentRefs: []
-  hostnames: []
-  path: /
+  # -- HTTPRoute path match type.
   pathType: PathPrefix
 
 networkPolicy:
+  # -- Enable NetworkPolicy for OAuth2 Proxy pods.
   enabled: false
+  # -- Additional ingress rules.
   ingress: []
+  # -- Additional egress rules.
   egress: []
 
 autoscaling:
+  # -- Enable HorizontalPodAutoscaler.
   enabled: false
+  # -- Minimum HPA replicas.
   minReplicas: 2
+  # -- Maximum HPA replicas.
   maxReplicas: 6
+  # -- Target average CPU utilization.
   targetCPUUtilizationPercentage: 70
+  # -- Target average memory utilization.
   targetMemoryUtilizationPercentage: 80
 
 pdb:
+  # -- Enable PodDisruptionBudget.
   enabled: true
+  # -- Minimum available pods for disruption budget.
   minAvailable: 1
 
 probes:
   startup:
+    # -- Enable startup probe.
     enabled: true
+    # -- Startup probe path.
     path: /ping
+    # -- Startup probe initial delay.
     initialDelaySeconds: 5
+    # -- Startup probe period.
     periodSeconds: 5
+    # -- Startup probe timeout.
     timeoutSeconds: 2
+    # -- Startup probe failure threshold.
     failureThreshold: 12
   liveness:
+    # -- Enable liveness probe.
     enabled: true
+    # -- Liveness probe path.
     path: /ping
+    # -- Liveness probe initial delay.
     initialDelaySeconds: 10
+    # -- Liveness probe period.
     periodSeconds: 10
+    # -- Liveness probe timeout.
     timeoutSeconds: 2
+    # -- Liveness probe failure threshold.
     failureThreshold: 3
   readiness:
+    # -- Enable readiness probe.
     enabled: true
+    # -- Readiness probe path.
     path: /ready
+    # -- Readiness probe initial delay.
     initialDelaySeconds: 5
+    # -- Readiness probe period.
     periodSeconds: 10
+    # -- Readiness probe timeout.
     timeoutSeconds: 2
+    # -- Readiness probe failure threshold.
     failureThreshold: 3
 
+# -- Container resource requests and limits.
 resources:
   requests:
     cpu: 50m
@@ -197,6 +293,7 @@ resources:
     cpu: 500m
     memory: 256Mi
 
+# -- Pod-level security context.
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 2000
@@ -205,6 +302,7 @@ podSecurityContext:
   seccompProfile:
     type: RuntimeDefault
 
+# -- Container-level security context.
 securityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
@@ -212,23 +310,37 @@ securityContext:
     drop:
       - ALL
 
+# -- Additional pod annotations.
 podAnnotations: {}
+# -- Additional pod labels.
 podLabels: {}
+# -- PriorityClass name.
 priorityClassName: ""
+# -- Pod termination grace period.
 terminationGracePeriodSeconds: 30
 
+# -- Node selector.
 nodeSelector: {}
+# -- Pod tolerations.
 tolerations: []
+# -- Pod affinity rules.
 affinity: {}
+# -- Pod topology spread constraints.
 topologySpreadConstraints: []
 
+# -- Additional volumes.
 extraVolumes: []
+# -- Additional volume mounts.
 extraVolumeMounts: []
 
 test:
   image:
+    # -- Helm test image repository.
     repository: docker.io/library/busybox
+    # -- Helm test image tag.
     tag: "1.37.0"
+    # -- Helm test image pull policy.
     pullPolicy: IfNotPresent
 
+# -- Additional Kubernetes objects rendered verbatim.
 extraObjects: []

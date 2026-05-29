@@ -1,19 +1,58 @@
-OAuth2 Proxy has been deployed.
+=============================================================================
+OAuth2 Proxy deployed successfully!
+=============================================================================
 
-Service:
-  {{ include "oauth2-proxy.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+ACCESS:
+   kubectl port-forward svc/{{ include "oauth2-proxy.fullname" . }} -n {{ .Release.Namespace }} 4180:{{ .Values.service.port }}
+   Open: http://localhost:4180
 
-Health checks:
-  /ping and /ready are exposed on the HTTP port.
+SERVICE:
+   Internal: {{ include "oauth2-proxy.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+   Health:   /ping and /ready
+   Image:    {{ include "oauth2-proxy.image" . }}
 
-Credential source:
+CREDENTIALS:
 {{- if .Values.externalSecrets.enabled }}
-  ExternalSecret target: {{ .Values.auth.existingSecret }}
+   Source: ExternalSecret
+   Target Secret: {{ .Values.auth.existingSecret }}
 {{- else if .Values.auth.existingSecret }}
-  Existing Secret: {{ .Values.auth.existingSecret }}
+   Source: Existing Secret
+   Secret: {{ .Values.auth.existingSecret }}
 {{- else }}
-  Chart-managed Secret: {{ include "oauth2-proxy.secretName" . }}
+   Source: Chart-managed Secret
+   Secret: {{ include "oauth2-proxy.secretName" . }}
 {{- end }}
 
-When running behind a reverse proxy, keep trusted_proxy_ips narrowed to proxies
-that are allowed to set X-Forwarded-* headers.
+NETWORKING:
+{{- if .Values.ingress.enabled }}
+   Ingress: enabled
+   Class: {{ .Values.ingress.ingressClassName | default "(cluster default)" }}
+{{- else }}
+   Ingress: disabled
+{{- end }}
+{{- if .Values.gateway.enabled }}
+   Gateway API: enabled
+   HTTPRoute: {{ include "oauth2-proxy.fullname" . }}
+{{- else }}
+   Gateway API: disabled
+{{- end }}
+
+OPERATIONS:
+   Run Helm tests:
+     helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+   Inspect pods:
+     kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+     kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "oauth2-proxy.fullname" . }}
+
+SECURITY REMINDERS:
+   1. Keep cookie secrets stable and generated outside Helm for production.
+   2. Keep config.reverseProxy.trustedProxyIps limited to trusted edge proxy CIDRs.
+   3. Use HTTPS at the edge and keep config.cookie.secure=true outside local tests.
+
+DOCUMENTATION:
+   Chart: https://helmforge.dev/docs/charts/oauth2-proxy
+   Source: https://github.com/helmforgedev/charts/tree/main/charts/oauth2-proxy
+   OAuth2 Proxy: https://oauth2-proxy.github.io/oauth2-proxy/
+
+=============================================================================

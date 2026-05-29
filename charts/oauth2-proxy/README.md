@@ -14,7 +14,7 @@ and runtime validation.
   controllers, gateways, or service mesh edge proxies.
 - Chart-managed Secret, existing Secret, or ExternalSecret credential modes.
 - Config validation init container using `--config-test`.
-- Dual-stack Service defaults, Ingress, Gateway API `HTTPRoute`, ServiceMonitor,
+- Dual-stack Service defaults, Ingress with `ingressClassName`, Gateway API `HTTPRoute`, ServiceMonitor,
   HPA, PDB, and optional NetworkPolicy.
 
 ## Install
@@ -42,7 +42,8 @@ auth:
 ```
 
 When `externalSecrets.enabled=true`, `auth.existingSecret` must match the
-ExternalSecret target name.
+ExternalSecret target name. Provide either `externalSecrets.data` or
+`externalSecrets.dataFrom`.
 
 ## Reverse Proxy Hardening
 
