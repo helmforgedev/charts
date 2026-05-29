@@ -13,6 +13,7 @@ metadata:
 spec:
   restartPolicy: Never
   serviceAccountName: {{ include "valkey.serviceAccountName" . }}
+  automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
   {{- with .Values.podSecurityContext }}
   securityContext:
     {{- toYaml . | nindent 4 }}
@@ -25,11 +26,11 @@ spec:
       args:
         - |
           {{- if include "valkey.isCluster" . }}
-          valkey-cli -c -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS cluster info | grep -q 'cluster_state:ok'
+          valkey-cli $VALKEY_TLS_ARGS -c -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS cluster info | grep -q 'cluster_state:ok'
           {{- else }}
-          valkey-cli -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS ping | grep -q PONG
-          valkey-cli -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS set helmforge:health ok | grep -q OK
-          test "$(valkey-cli -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS get helmforge:health)" = "ok"
+          valkey-cli $VALKEY_TLS_ARGS -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS ping | grep -q PONG
+          valkey-cli $VALKEY_TLS_ARGS -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS set helmforge:health ok | grep -q OK
+          test "$(valkey-cli $VALKEY_TLS_ARGS -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS get helmforge:health)" = "ok"
           {{- end }}
       env:
         - name: VALKEY_HOST
@@ -40,6 +41,8 @@ spec:
           {{- end }}
         - name: VALKEY_PORT
           value: {{ .Values.service.ports.valkey | quote }}
+        - name: VALKEY_TLS_ARGS
+          value: {{ ternary (printf "--tls --cacert /tls/%s" .Values.tls.caFilename) "" .Values.tls.enabled | quote }}
         {{- if .Values.auth.enabled }}
         - name: VALKEY_PASSWORD
           valueFrom:
@@ -54,4 +57,16 @@ spec:
         {{- end }}
       securityContext:
         {{- toYaml .Values.securityContext | nindent 8 }}
+      {{- if .Values.tls.enabled }}
+      volumeMounts:
+        - name: tls
+          mountPath: /tls
+          readOnly: true
+      {{- end }}
+  {{- if .Values.tls.enabled }}
+  volumes:
+    - name: tls
+      secret:
+        secretName: {{ .Values.tls.existingSecret }}
+  {{- end }}
 {{- end }}

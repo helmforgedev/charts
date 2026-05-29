@@ -220,6 +220,30 @@ tls-auth-clients no
 {{- end -}}
 
 {{/*
+TLS block for sentinel.conf.
+*/}}
+{{- define "valkey.sentinelTlsConfig" -}}
+{{- if .Values.tls.enabled }}
+port 0
+tls-port {{ .Values.service.ports.sentinel }}
+tls-cert-file /tls/{{ .Values.tls.certFilename }}
+tls-key-file /tls/{{ .Values.tls.keyFilename }}
+tls-ca-cert-file /tls/{{ .Values.tls.caFilename }}
+tls-auth-clients no
+tls-replication yes
+{{- end }}
+{{- end -}}
+
+{{/*
+valkey-cli TLS flags.
+*/}}
+{{- define "valkey.cliTlsArgs" -}}
+{{- if .Values.tls.enabled -}}
+--tls --cacert /tls/{{ .Values.tls.caFilename }}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Common valkey.conf baseline.
 */}}
 {{- define "valkey.commonConfig" -}}
@@ -238,9 +262,9 @@ Probe command.
 */}}
 {{- define "valkey.probeCommand" -}}
 {{- if .Values.auth.enabled -}}
-valkey-cli -a "$VALKEY_PASSWORD" ping
+valkey-cli {{ include "valkey.cliTlsArgs" . }} -a "$VALKEY_PASSWORD" --no-auth-warning ping
 {{- else -}}
-valkey-cli ping
+valkey-cli {{ include "valkey.cliTlsArgs" . }} ping
 {{- end -}}
 {{- end -}}
 
@@ -301,6 +325,7 @@ imagePullSecrets:
   {{- toYaml . | nindent 2 }}
 {{- end }}
 serviceAccountName: {{ include "valkey.serviceAccountName" . }}
+automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
 {{- with .Values.priorityClassName }}
 priorityClassName: {{ . }}
 {{- end }}

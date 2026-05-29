@@ -235,6 +235,7 @@ Use the generic extension values when platform-specific integration is needed:
 | `tests.enabled` | Render Helm test connection pod | `true` |
 | `tests.image.repository` | Helm test image repository | `docker.io/valkey/valkey` |
 | `tests.image.tag` | Helm test image tag | `9.1.0` |
+| `automountServiceAccountToken` | Mount Kubernetes API service account token into pods | `false` |
 | `podSecurityContext.seccompProfile.type` | Pod seccomp profile | `RuntimeDefault` |
 | `securityContext.capabilities.drop` | Linux capabilities dropped by default | `["ALL"]` |
 | `pdb.enabled` | Create PodDisruptionBudget for HA modes | `false` |
@@ -254,6 +255,8 @@ The `ci/` scenarios validate chart behavior across common configurations:
 - `external-secrets.yaml`
 - `metrics.yaml`
 - `dual-stack.yaml`
+- `tls-replication.yaml`
+- `tls-cluster.yaml`
 
 Local validation should include:
 

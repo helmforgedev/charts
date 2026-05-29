@@ -18,6 +18,9 @@ data:
     {{- end }}
   valkey-replica.conf: |
     {{- include "valkey.commonConfig" . | nindent 4 }}
+    {{- if .Values.tls.enabled }}
+    tls-replication yes
+    {{- end }}
     replica-read-only yes
     {{- with .Values.config.valkey }}
     {{ . | nindent 4 }}
@@ -27,12 +30,20 @@ data:
     cluster-enabled yes
     cluster-config-file nodes.conf
     cluster-node-timeout 5000
+    {{- if .Values.tls.enabled }}
+    tls-cluster yes
+    tls-replication yes
+    {{- end }}
     appendonly yes
     {{- with .Values.config.valkey }}
     {{ . | nindent 4 }}
     {{- end }}
   sentinel.conf: |
+    {{- if .Values.tls.enabled }}
+    {{- include "valkey.sentinelTlsConfig" . | nindent 4 }}
+    {{- else }}
     port {{ .Values.service.ports.sentinel }}
+    {{- end }}
     dir /tmp
     sentinel resolve-hostnames yes
     sentinel monitor mymaster {{ include "valkey.primaryPodFqdn" . }} {{ .Values.service.ports.valkey }} {{ .Values.sentinel.quorum }}

@@ -32,7 +32,7 @@ spec:
           command: ["sh", "-ec"]
           args:
             - |
-              until valkey-cli -h {{ include "valkey.primaryPodFqdn" . | quote }} -p {{ .Values.service.ports.valkey }} {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" --no-auth-warning {{- end }} ping >/dev/null 2>&1; do
+              until valkey-cli {{ include "valkey.cliTlsArgs" . }} -h {{ include "valkey.primaryPodFqdn" . | quote }} -p {{ .Values.service.ports.valkey }} {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" --no-auth-warning {{- end }} ping >/dev/null 2>&1; do
                 echo "waiting for primary {{ include "valkey.primaryPodFqdn" . }}:{{ .Values.service.ports.valkey }}"
                 sleep 5
               done
@@ -46,6 +46,12 @@ spec:
           {{- end }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- if .Values.tls.enabled }}
+          volumeMounts:
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+          {{- end }}
       containers:
         - name: valkey
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -103,6 +109,11 @@ spec:
               subPath: valkey-replica.conf
             - name: data
               mountPath: /data
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
         {{- if .Values.metrics.enabled }}
         - name: metrics
           image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
@@ -120,6 +131,11 @@ spec:
         {{- if not .Values.replication.replica.persistence.enabled }}
         - name: data
           emptyDir: {}
+        {{- end }}
+        {{- if .Values.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ .Values.tls.existingSecret }}
         {{- end }}
   {{- if .Values.replication.replica.persistence.enabled }}
   volumeClaimTemplates:

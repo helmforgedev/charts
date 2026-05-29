@@ -80,6 +80,11 @@ spec:
               subPath: valkey-primary.conf
             - name: data
               mountPath: /data
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
         {{- if .Values.metrics.enabled }}
         - name: metrics
           image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
@@ -97,6 +102,11 @@ spec:
         {{- if not .Values.replication.primary.persistence.enabled }}
         - name: data
           emptyDir: {}
+        {{- end }}
+        {{- if .Values.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ .Values.tls.existingSecret }}
         {{- end }}
   {{- if .Values.replication.primary.persistence.enabled }}
   volumeClaimTemplates:
