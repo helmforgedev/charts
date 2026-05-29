@@ -145,3 +145,59 @@ tests:
             configMap:
               name: extra-config
         template: cluster-statefulset.yaml
+
+  - it: should render metrics resources in replication pods
+    set:
+      architecture: replication
+      metrics.enabled: true
+      metrics.resources:
+        requests:
+          cpu: 20m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].resources.requests.cpu
+          value: 20m
+        template: replication-primary-statefulset.yaml
+      - equal:
+          path: spec.template.spec.containers[1].resources.limits.memory
+          value: 128Mi
+        template: replication-replica-statefulset.yaml
+
+  - it: should render metrics resources in sentinel valkey pods
+    set:
+      architecture: sentinel
+      metrics.enabled: true
+      metrics.resources:
+        requests:
+          cpu: 20m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].resources.requests.memory
+          value: 64Mi
+        template: replication-primary-statefulset.yaml
+      - equal:
+          path: spec.template.spec.containers[1].resources.limits.memory
+          value: 128Mi
+        template: replication-replica-statefulset.yaml
+
+  - it: should render metrics resources in cluster pods
+    set:
+      architecture: cluster
+      metrics.enabled: true
+      metrics.resources:
+        requests:
+          cpu: 20m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].resources.requests.cpu
+          value: 20m
+        template: cluster-statefulset.yaml
