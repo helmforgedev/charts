@@ -1,0 +1,139 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: HA Extension Points
+templates:
+  - replication-primary-statefulset.yaml
+  - replication-replica-statefulset.yaml
+  - sentinel-statefulset.yaml
+  - cluster-statefulset.yaml
+  - configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render extra env and volumes in replication pods
+    set:
+      architecture: replication
+      extraEnv:
+        - name: EXTRA_SETTING
+          value: enabled
+      extraVolumes:
+        - name: extra-config
+          configMap:
+            name: extra-config
+      extraVolumeMounts:
+        - name: extra-config
+          mountPath: /extra
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: EXTRA_SETTING
+            value: enabled
+        template: replication-primary-statefulset.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: extra-config
+            mountPath: /extra
+        template: replication-replica-statefulset.yaml
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: extra-config
+            configMap:
+              name: extra-config
+        template: replication-primary-statefulset.yaml
+
+  - it: should render extra env and volumes in sentinel pods
+    set:
+      architecture: sentinel
+      extraEnv:
+        - name: EXTRA_SETTING
+          value: enabled
+      extraVolumes:
+        - name: extra-config
+          configMap:
+            name: extra-config
+      extraVolumeMounts:
+        - name: extra-config
+          mountPath: /extra
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: EXTRA_SETTING
+            value: enabled
+        template: sentinel-statefulset.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: extra-config
+            mountPath: /extra
+        template: sentinel-statefulset.yaml
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: extra-config
+            configMap:
+              name: extra-config
+        template: sentinel-statefulset.yaml
+
+  - it: should persist sentinel runtime state when enabled
+    set:
+      architecture: sentinel
+      sentinel.persistence.enabled: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "exec valkey-sentinel /data/sentinel.conf"
+        template: sentinel-statefulset.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /data
+        template: sentinel-statefulset.yaml
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+        template: sentinel-statefulset.yaml
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: data
+        template: sentinel-statefulset.yaml
+
+  - it: should render extra env and volumes in cluster pods
+    set:
+      architecture: cluster
+      extraEnv:
+        - name: EXTRA_SETTING
+          value: enabled
+      extraVolumes:
+        - name: extra-config
+          configMap:
+            name: extra-config
+      extraVolumeMounts:
+        - name: extra-config
+          mountPath: /extra
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: EXTRA_SETTING
+            value: enabled
+        template: cluster-statefulset.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: extra-config
+            mountPath: /extra
+        template: cluster-statefulset.yaml
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: extra-config
+            configMap:
+              name: extra-config
+        template: cluster-statefulset.yaml

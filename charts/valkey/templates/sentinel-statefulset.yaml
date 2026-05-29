@@ -39,11 +39,11 @@ spec:
                 echo "waiting for primary $VALKEY_PRIMARY_HOST:$VALKEY_PRIMARY_PORT"
                 sleep 5
               done
-              cp /etc/valkey-base/sentinel.conf /tmp/sentinel.conf
+              cp /etc/valkey-base/sentinel.conf /data/sentinel.conf
               {{- if .Values.auth.enabled }}
-              echo "sentinel auth-pass mymaster ${VALKEY_PASSWORD}" >> /tmp/sentinel.conf
+              echo "sentinel auth-pass mymaster ${VALKEY_PASSWORD}" >> /data/sentinel.conf
               {{- end }}
-              exec valkey-sentinel /tmp/sentinel.conf
+              exec valkey-sentinel /data/sentinel.conf
           ports:
             - name: sentinel
               containerPort: {{ .Values.service.ports.sentinel }}
@@ -60,6 +60,9 @@ spec:
                 secretKeyRef:
                   name: {{ include "valkey.secretName" . }}
                   key: {{ .Values.auth.existingSecretPasswordKey }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- else }}
           env:
             - name: VALKEY_PRIMARY_HOST
@@ -68,6 +71,9 @@ spec:
               value: {{ .Values.service.ports.valkey | quote }}
             - name: VALKEY_TLS_ARGS
               value: {{ ternary (printf "--tls --cacert /tls/%s" .Values.tls.caFilename) "" .Values.tls.enabled | quote }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
           {{- with .Values.sentinel.resources }}
           resources:
@@ -79,19 +85,31 @@ spec:
             - name: config
               mountPath: /etc/valkey-base/sentinel.conf
               subPath: sentinel.conf
+            - name: data
+              mountPath: /data
             {{- if .Values.tls.enabled }}
             - name: tls
               mountPath: /tls
               readOnly: true
             {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
       volumes:
         - name: config
           configMap:
             name: {{ include "valkey.configMapName" . }}
+        {{- if not .Values.sentinel.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
         {{- if .Values.tls.enabled }}
         - name: tls
           secret:
             secretName: {{ .Values.tls.existingSecret }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
         {{- end }}
   {{- if .Values.sentinel.persistence.enabled }}
   volumeClaimTemplates:
