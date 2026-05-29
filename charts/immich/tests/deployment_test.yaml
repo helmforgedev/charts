@@ -117,6 +117,34 @@ tests:
                 key: password
         template: templates/deployment.yaml
 
+  - it: should use Redis subchart primary service and port for replicated internal cache
+    set:
+      valkey.architecture: replication
+      valkey.service.ports.redis: 6380
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_HOSTNAME
+            value: test-valkey-primary
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PORT
+            value: "6380"
+        template: templates/deployment.yaml
+
+  - it: should render upload PVC storageClass
+    set:
+      server.persistence.storageClass: media-rwx
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: media-rwx
+        template: templates/pvc.yaml
+        documentIndex: 0
+
   - it: should fail external database without explicit password or secret
     set:
       postgresql.enabled: false

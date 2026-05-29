@@ -36,6 +36,8 @@ flowchart TB
   VectorChord PostgreSQL build.
 - Use the HelmForge Redis chart aliased as `valkey` because Immich consumes the
   Redis protocol and the existing HelmForge chart is the shared cache primitive.
+  Standalone and cluster modes use the Redis client service; replication mode
+  points Immich at the primary service.
 - Keep upload persistence separate from database/cache persistence.
 - Fail render-time validation when server replicas or autoscaling use upload
   persistence without `ReadWriteMany`.
