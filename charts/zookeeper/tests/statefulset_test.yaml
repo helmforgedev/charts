@@ -70,6 +70,25 @@ tests:
             secret:
               secretName: test-zookeeper-auth
 
+  - it: mounts overridden ExternalSecret target for auth
+    template: statefulset.yaml
+    set:
+      auth.client.enabled: true
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: platform-secrets
+      externalSecrets.target.name: custom-zookeeper-secret
+      externalSecrets.data:
+        - secretKey: jaas.conf
+          remoteRef:
+            key: zookeeper/jaas
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: auth
+            secret:
+              secretName: custom-zookeeper-secret
+
   - it: mounts TLS material when secure client port is enabled
     template: statefulset.yaml
     set:
@@ -89,6 +108,31 @@ tests:
             name: tls
             secret:
               secretName: zk-tls
+
+  - it: mounts overridden ExternalSecret target for TLS passwords
+    template: statefulset.yaml
+    set:
+      tls.client.enabled: true
+      tls.client.existingSecret: zk-tls
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: platform-secrets
+      externalSecrets.target.name: custom-zookeeper-secret
+      externalSecrets.data:
+        - secretKey: keystore-password
+          remoteRef:
+            key: zookeeper/tls
+            property: keystore-password
+        - secretKey: truststore-password
+          remoteRef:
+            key: zookeeper/tls
+            property: truststore-password
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls-passwords
+            secret:
+              secretName: custom-zookeeper-secret
 
   - it: enables Netty when secure client port is enabled
     template: configmap.yaml

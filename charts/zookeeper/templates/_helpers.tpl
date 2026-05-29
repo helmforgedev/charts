@@ -56,8 +56,15 @@ app.kubernetes.io/part-of: helmforge
 {{- if gt (.Values.replicaCount | int) 1 -}}true{{- else -}}{{ .Values.service.headless.publishNotReadyAddresses }}{{- end -}}
 {{- end -}}
 
+{{- define "zookeeper.suffixedName" -}}
+{{- $prefix := .name -}}
+{{- $suffix := .suffix -}}
+{{- $maxPrefix := int (sub 63 (len $suffix)) -}}
+{{- printf "%s%s" ($prefix | trunc $maxPrefix | trimSuffix "-") $suffix | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "zookeeper.headlessServiceName" -}}
-{{- printf "%s-headless" (include "zookeeper.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- include "zookeeper.suffixedName" (dict "name" (include "zookeeper.fullname" .) "suffix" "-headless") -}}
 {{- end -}}
 
 {{- define "zookeeper.clientServiceName" -}}
@@ -65,26 +72,30 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 
 {{- define "zookeeper.metricsServiceName" -}}
-{{- printf "%s-metrics" (include "zookeeper.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- include "zookeeper.suffixedName" (dict "name" (include "zookeeper.fullname" .) "suffix" "-metrics") -}}
 {{- end -}}
 
 {{- define "zookeeper.configMapName" -}}
-{{- printf "%s-config" (include "zookeeper.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- include "zookeeper.suffixedName" (dict "name" (include "zookeeper.fullname" .) "suffix" "-config") -}}
 {{- end -}}
 
 {{- define "zookeeper.authSecretName" -}}
 {{- if .Values.auth.client.existingSecret -}}
 {{- .Values.auth.client.existingSecret -}}
+{{- else if and .Values.externalSecrets.enabled .Values.auth.client.enabled .Values.externalSecrets.target.name -}}
+{{- .Values.externalSecrets.target.name -}}
 {{- else -}}
-{{- printf "%s-auth" (include "zookeeper.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- include "zookeeper.suffixedName" (dict "name" (include "zookeeper.fullname" .) "suffix" "-auth") -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "zookeeper.tlsPasswordsSecretName" -}}
 {{- if .Values.tls.client.existingPasswordsSecret -}}
 {{- .Values.tls.client.existingPasswordsSecret -}}
+{{- else if and .Values.externalSecrets.enabled .Values.tls.client.enabled .Values.externalSecrets.target.name -}}
+{{- .Values.externalSecrets.target.name -}}
 {{- else -}}
-{{- printf "%s-tls-passwords" (include "zookeeper.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- include "zookeeper.suffixedName" (dict "name" (include "zookeeper.fullname" .) "suffix" "-tls-passwords") -}}
 {{- end -}}
 {{- end -}}
 
