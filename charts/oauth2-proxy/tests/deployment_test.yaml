@@ -42,3 +42,30 @@ tests:
       - hasDocuments:
           count: 0
         template: templates/secret.yaml
+
+  - it: should mount optional config secrets in config-test init container
+    set:
+      auth.clientID: test-client
+      auth.clientSecret: test-secret
+      auth.cookieSecret: "0123456789abcdef0123456789abcdef"
+      authenticatedEmailsFile.enabled: true
+      authenticatedEmailsFile.emails:
+        - user@example.com
+      alphaConfig.enabled: true
+      alphaConfig.config:
+        injectRequestHeaders: []
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: authenticated-emails
+            mountPath: /etc/oauth2-proxy/authenticated-emails
+            readOnly: true
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: alpha-config
+            mountPath: /etc/oauth2-proxy/alpha
+            readOnly: true
+        template: templates/deployment.yaml
