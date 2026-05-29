@@ -45,3 +45,29 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[0].name
           value: install-plugins
+
+  - it: should pass custom HTTP port to Jenkins startup options
+    template: statefulset.yaml
+    set:
+      controller.httpPort: 8081
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8081
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JENKINS_OPTS
+            value: --httpPort=8081
+
+  - it: should not duplicate an explicit HTTP port option
+    template: statefulset.yaml
+    set:
+      controller.httpPort: 8081
+      controller.jenkinsOpts: --prefix=/jenkins --httpPort=9090
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JENKINS_OPTS
+            value: --prefix=/jenkins --httpPort=9090

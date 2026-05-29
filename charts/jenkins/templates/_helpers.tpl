@@ -78,3 +78,12 @@ app.kubernetes.io/part-of: helmforge
 {{- define "jenkins.image" -}}
 {{- printf "%s:%s" .Values.image.repository (.Values.image.tag | default .Chart.AppVersion) -}}
 {{- end -}}
+
+{{- define "jenkins.controllerOpts" -}}
+{{- $httpPortArg := printf "--httpPort=%v" .Values.controller.httpPort -}}
+{{- if contains "--httpPort" (.Values.controller.jenkinsOpts | default "") -}}
+{{- .Values.controller.jenkinsOpts -}}
+{{- else -}}
+{{- printf "%s %s" (.Values.controller.jenkinsOpts | default "") $httpPortArg | trim -}}
+{{- end -}}
+{{- end -}}

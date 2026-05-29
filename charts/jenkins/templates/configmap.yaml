@@ -18,11 +18,21 @@ data:
     def password = System.getenv('JENKINS_ADMIN_PASSWORD')
 
     if (password) {
-      def realm = new HudsonPrivateSecurityRealm(false)
+      def existingRealm = instance.getSecurityRealm()
+      def realm = null
+      if (existingRealm instanceof HudsonPrivateSecurityRealm) {
+        realm = existingRealm
+      } else if (!instance.isUseSecurity()) {
+        realm = new HudsonPrivateSecurityRealm(false)
+        instance.setSecurityRealm(realm)
+      } else {
+        println("Existing non-local security realm detected; skipping HelmForge admin bootstrap")
+        return
+      }
+
       if (realm.getUser(user) == null) {
         realm.createAccount(user, password)
       }
-      instance.setSecurityRealm(realm)
 
       def strategy = new FullControlOnceLoggedInAuthorizationStrategy()
       strategy.setAllowAnonymousRead(false)
