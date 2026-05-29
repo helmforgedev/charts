@@ -38,6 +38,10 @@ app.kubernetes.io/part-of: helmforge
 {{- $base := trimSuffix "/" .Values.hub.baseUrl -}}
 {{- if eq $base "" -}}/hub/health{{- else -}}{{ printf "%s/hub/health" $base }}{{- end -}}
 {{- end -}}
+{{- define "jupyterhub.hubMetricsPath" -}}
+{{- $base := trimSuffix "/" .Values.hub.baseUrl -}}
+{{- if eq $base "" -}}/hub/metrics{{- else -}}{{ printf "%s/hub/metrics" $base }}{{- end -}}
+{{- end -}}
 {{- define "jupyterhub.secretName" -}}
 {{- if .Values.proxy.existingSecret }}{{ .Values.proxy.existingSecret }}{{- else }}{{ include "jupyterhub.fullname" . }}-proxy{{- end -}}
 {{- end -}}
