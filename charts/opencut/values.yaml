@@ -1,0 +1,231 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# OpenCut Helm Chart - Default Values
+# =============================================================================
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+replicaCount: 1
+revisionHistoryLimit: 3
+
+image:
+  repository: docker.io/helmforge/opencut
+  tag: "v0.3.0"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+opencut:
+  siteUrl: ""
+  betterAuthSecret: ""
+  marbleApiUrl: https://api.marblecms.com
+  marbleWorkspaceKey: placeholder
+  freesoundClientId: ""
+  freesoundApiKey: ""
+  extraEnv: []
+
+database:
+  mode: auto
+  external:
+    host: ""
+    port: 5432
+    name: opencut
+    username: opencut
+    password: ""
+    existingSecret: ""
+    existingSecretPasswordKey: database-password
+
+externalSecrets:
+  # -- Render an ExternalSecret for the external PostgreSQL password.
+  # Requires database.external.existingSecret to prevent credential drift.
+  enabled: false
+  # -- ExternalSecret API version.
+  apiVersion: external-secrets.io/v1
+  # -- ExternalSecret refresh interval.
+  refreshInterval: "0"
+  secretStoreRef:
+    # -- Existing SecretStore or ClusterSecretStore name.
+    name: ""
+    # -- Secret store kind: SecretStore or ClusterSecretStore.
+    kind: SecretStore
+  target:
+    # -- ExternalSecret target creation policy.
+    creationPolicy: Owner
+  # -- Data entries mapping remote secret data to database.external.existingSecretPasswordKey.
+  data: []
+  #   - secretKey: database-password
+  #     remoteRef:
+  #       key: opencut/database
+  #       property: password
+
+postgresql:
+  enabled: true
+  architecture: standalone
+  auth:
+    database: opencut
+    username: opencut
+    password: ""
+    postgresPassword: ""
+  standalone:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+  standalone:
+    persistence:
+      enabled: true
+      size: 1Gi
+  external:
+    host: ""
+    port: 6379
+
+redisHttp:
+  enabled: true
+  image:
+    repository: docker.io/hiett/serverless-redis-http
+    tag: "0.0.10"
+    pullPolicy: IfNotPresent
+  token: ""
+  service:
+    port: 80
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: false
+
+service:
+  type: ClusterIP
+  port: 80
+  annotations: {}
+  ipFamilyPolicy: ""
+  ipFamilies: []
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: opencut.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+gateway:
+  enabled: false
+  annotations: {}
+  parentRefs: []
+  hostnames: []
+  path: /
+  pathType: PathPrefix
+
+gatewayAPI:
+  enabled: false
+  annotations: {}
+  parentRefs: []
+  hostnames: []
+  path: /
+  pathType: PathPrefix
+
+networkPolicy:
+  enabled: false
+  ingress: []
+  egress: []
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+probes:
+  startup:
+    enabled: true
+    path: /api/health
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 18
+  liveness:
+    enabled: true
+    path: /api/health
+    initialDelaySeconds: 30
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    path: /api/health
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+podAnnotations: {}
+podLabels: {}
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+extraVolumes: []
+extraVolumeMounts: []
+
+test:
+  image:
+    repository: docker.io/library/busybox
+    tag: "1.37.0"
+    pullPolicy: IfNotPresent
+
+extraObjects: []

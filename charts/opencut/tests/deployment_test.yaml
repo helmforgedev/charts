@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+  - templates/redis-http.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should use HelmForge OpenCut image and hardened pod settings
+    set:
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/helmforge/opencut:v0.3.0
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+        template: templates/deployment.yaml
+
+  - it: should render redis HTTP bridge by default
+    asserts:
+      - isKind:
+          of: Deployment
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/hiett/serverless-redis-http:0.0.10
+        template: templates/redis-http.yaml
+        documentIndex: 0
