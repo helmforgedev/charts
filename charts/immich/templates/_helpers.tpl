@@ -49,4 +49,7 @@ app.kubernetes.io/part-of: helmforge
 {{- if and (not (include "immich.databaseInternalEnabled" .)) (not .Values.database.external.password) (not .Values.database.external.existingSecret) -}}
 {{- fail "external database requires database.external.password or database.external.existingSecret" -}}
 {{- end -}}
+{{- if and (not (include "immich.databaseInternalEnabled" .)) (not .Values.database.external.host) -}}
+{{- fail "external database requires database.external.host" -}}
+{{- end -}}
 {{- end -}}
