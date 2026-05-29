@@ -34,6 +34,10 @@ app.kubernetes.io/part-of: helmforge
 {{- define "jupyterhub.hubDataClaimName" -}}
 {{- if .Values.hub.persistence.existingClaim }}{{ .Values.hub.persistence.existingClaim }}{{- else }}{{ include "jupyterhub.hubName" . }}-data{{- end -}}
 {{- end -}}
+{{- define "jupyterhub.hubHealthPath" -}}
+{{- $base := trimSuffix "/" .Values.hub.baseUrl -}}
+{{- if eq $base "" -}}/hub/health{{- else -}}{{ printf "%s/hub/health" $base }}{{- end -}}
+{{- end -}}
 {{- define "jupyterhub.secretName" -}}
 {{- if .Values.proxy.existingSecret }}{{ .Values.proxy.existingSecret }}{{- else }}{{ include "jupyterhub.fullname" . }}-proxy{{- end -}}
 {{- end -}}
