@@ -1,14 +1,15 @@
 # Immich Helm Chart
 
 Immich is a self-hosted photo and video management platform. This HelmForge
-chart deploys Immich server, machine learning, Valkey, and the upstream
-VectorChord PostgreSQL image recommended by Immich.
+chart deploys Immich server, machine learning, a Redis/Valkey-compatible cache,
+and the upstream VectorChord PostgreSQL image recommended by Immich.
 
 ## Highlights
 
 - Official Immich images pinned to `v2.7.5`.
 - Internal PostgreSQL uses `ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0`.
-- Internal Valkey uses `docker.io/valkey/valkey:9`.
+- Internal cache uses the HelmForge Redis chart aliased as `valkey` for
+  Redis/Valkey-compatible protocol support.
 - Machine learning service enabled by default with a model cache volume.
 - External database and Redis/Valkey support with External Secrets Operator hooks.
 - Gateway API, Ingress, dual-stack Service support, HPA, PDB, NetworkPolicy,
@@ -22,7 +23,7 @@ helm install immich oci://ghcr.io/helmforgedev/helm/immich
 
 ## Persistence
 
-Persistent storage is enabled by default for uploads, PostgreSQL, Valkey, and
+Persistent storage is enabled by default for uploads, PostgreSQL, internal cache, and
 machine-learning model cache. For local smoke tests, disable persistence with
 the k3d values file.
 
