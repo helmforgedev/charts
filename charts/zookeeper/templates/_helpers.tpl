@@ -53,7 +53,7 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 
 {{- define "zookeeper.publishNotReadyAddresses" -}}
-{{- if gt (.Values.replicaCount | int) 1 -}}true{{- else -}}{{ .Values.service.headless.publishNotReadyAddresses }}{{- end -}}
+{{- if or (gt (.Values.replicaCount | int) 1) (not .Values.zookeeper.standaloneEnabled) -}}true{{- else -}}{{ .Values.service.headless.publishNotReadyAddresses }}{{- end -}}
 {{- end -}}
 
 {{- define "zookeeper.suffixedName" -}}
