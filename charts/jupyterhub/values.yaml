@@ -1,0 +1,179 @@
+# SPDX-License-Identifier: Apache-2.0
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+hub:
+  replicaCount: 1
+  image:
+    repository: quay.io/jupyterhub/k8s-hub
+    tag: "4.3.5"
+    pullPolicy: IfNotPresent
+  baseUrl: /
+  dbPath: /srv/jupyterhub/jupyterhub.sqlite
+  logLevel: INFO
+  extraConfig: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+proxy:
+  image:
+    repository: docker.io/jupyterhub/configurable-http-proxy
+    tag: "4.6.3"
+    pullPolicy: IfNotPresent
+  secretToken: ""
+  existingSecret: ""
+  existingSecretTokenKey: proxy-token
+  logLevel: warn
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+auth:
+  type: dummy
+  dummyPassword: ""
+
+singleuser:
+  image:
+    name: quay.io/jupyter/base-notebook
+    tag: "2026-05-26"
+    pullPolicy: IfNotPresent
+  cpu:
+    guarantee: 0.1
+    limit: 1
+  memory:
+    guarantee: 512M
+    limit: 2G
+  storage:
+    enabled: false
+    capacity: 10Gi
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+  startTimeout: 300
+  defaultUrl: /lab
+  profiles: []
+
+imagePullSecrets: []
+
+service:
+  type: ClusterIP
+  annotations: {}
+  port: 80
+  proxyApiPort: 8001
+  ipFamilyPolicy: ~
+  ipFamilies: []
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: jupyterhub.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+gateway:
+  enabled: false
+  apiVersion: gateway.networking.k8s.io/v1
+  parentRefs: []
+  hostnames: []
+  annotations: {}
+  labels: {}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+
+networkPolicy:
+  enabled: false
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+rbac:
+  create: true
+
+metrics:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    labels: {}
+
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+livenessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+readinessProbe:
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+startupProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 60
+
+podLabels: {}
+podAnnotations: {}
+annotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+
+pdb:
+  enabled: false
+  minAvailable: 1
+
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []
+extraManifests: []
+
+externalSecrets:
+  enabled: false
+  apiVersion: external-secrets.io/v1
+  refreshInterval: "0"
+  secretStoreRef:
+    name: ""
+    kind: SecretStore
+  target:
+    creationPolicy: Owner
+  data: []

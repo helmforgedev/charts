@@ -1,0 +1,54 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "jupyterhub.hubName" . }}-config
+  labels:
+    {{- include "jupyterhub.labels" . | nindent 4 }}
+data:
+  jupyterhub_config.py: |
+    import os
+
+    c.JupyterHub.bind_url = "http://:8081/hub/"
+    c.JupyterHub.hub_bind_url = "http://:8081"
+    c.JupyterHub.hub_connect_url = "http://{{ include "jupyterhub.hubName" . }}:8081"
+    c.JupyterHub.base_url = "{{ .Values.hub.baseUrl }}"
+    c.JupyterHub.db_url = "sqlite:///{{ .Values.hub.dbPath }}"
+    c.JupyterHub.log_level = "{{ .Values.hub.logLevel }}"
+
+    c.ConfigurableHTTPProxy.should_start = False
+    c.ConfigurableHTTPProxy.api_url = "http://{{ include "jupyterhub.proxyName" . }}:{{ .Values.service.proxyApiPort }}"
+    c.ConfigurableHTTPProxy.auth_token = os.environ["CONFIGPROXY_AUTH_TOKEN"]
+
+    c.JupyterHub.authenticator_class = "dummy"
+    c.DummyAuthenticator.password = os.environ.get("DUMMY_PASSWORD", "")
+
+    c.JupyterHub.spawner_class = "kubespawner.KubeSpawner"
+    c.KubeSpawner.namespace = os.environ["POD_NAMESPACE"]
+    c.KubeSpawner.service_account = "{{ include "jupyterhub.serviceAccountName" . }}"
+    c.KubeSpawner.automount_service_account_token = False
+    c.KubeSpawner.image = "{{ .Values.singleuser.image.name }}:{{ .Values.singleuser.image.tag }}"
+    c.KubeSpawner.image_pull_policy = "{{ .Values.singleuser.image.pullPolicy }}"
+    c.KubeSpawner.start_timeout = {{ .Values.singleuser.startTimeout }}
+    c.KubeSpawner.default_url = "{{ .Values.singleuser.defaultUrl }}"
+    c.KubeSpawner.cpu_guarantee = {{ .Values.singleuser.cpu.guarantee }}
+    c.KubeSpawner.cpu_limit = {{ .Values.singleuser.cpu.limit }}
+    c.KubeSpawner.mem_guarantee = "{{ .Values.singleuser.memory.guarantee }}"
+    c.KubeSpawner.mem_limit = "{{ .Values.singleuser.memory.limit }}"
+    c.KubeSpawner.uid = 1000
+    c.KubeSpawner.gid = 100
+    c.KubeSpawner.fs_gid = 100
+    {{- if .Values.singleuser.storage.enabled }}
+    c.KubeSpawner.storage_pvc_ensure = True
+    c.KubeSpawner.storage_capacity = "{{ .Values.singleuser.storage.capacity }}"
+    c.KubeSpawner.storage_access_modes = {{ .Values.singleuser.storage.accessModes | toJson }}
+    c.KubeSpawner.pvc_name_template = "claim-{username}"
+    c.KubeSpawner.volumes = [{"name": "home", "persistentVolumeClaim": {"claimName": "claim-{username}"}}]
+    c.KubeSpawner.volume_mounts = [{"name": "home", "mountPath": "/home/jovyan"}]
+    {{- end }}
+    {{- with .Values.singleuser.profiles }}
+    c.KubeSpawner.profile_list = {{ . | toJson }}
+    {{- end }}
+    {{- with .Values.hub.extraConfig }}
+{{ . | nindent 4 }}
+    {{- end }}
