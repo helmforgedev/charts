@@ -44,6 +44,13 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
+Namespace for chart-managed namespaced resources.
+*/}}
+{{- define "openhab.namespace" -}}
+{{- .Values.namespaceOverride | default .Release.Namespace }}
+{{- end }}
+
+{{/*
 Selector labels
 */}}
 {{- define "openhab.selectorLabels" -}}

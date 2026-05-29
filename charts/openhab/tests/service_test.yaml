@@ -48,6 +48,24 @@ tests:
           path: spec.ports[0].port
           value: 9090
 
+  - it: should apply dual-stack settings to HTTP service
+    set:
+      service:
+        ipFamilyPolicy: PreferDualStack
+        ipFamilies:
+          - IPv4
+          - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv4
+      - equal:
+          path: spec.ipFamilies[1]
+          value: IPv6
+
   - it: should not create karaf service when disabled
     set:
       karaf.enabled: false
@@ -61,3 +79,49 @@ tests:
     asserts:
       - hasDocuments:
           count: 2
+
+  - it: should apply dual-stack settings to Karaf service when enabled
+    set:
+      karaf:
+        enabled: true
+        service:
+          ipFamilyPolicy: PreferDualStack
+          ipFamilies:
+            - IPv4
+            - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+        documentIndex: 1
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv4
+        documentIndex: 1
+      - equal:
+          path: spec.ipFamilies[1]
+          value: IPv6
+        documentIndex: 1
+
+  - it: should inherit dual-stack settings for Karaf service from HTTP service
+    set:
+      service:
+        ipFamilyPolicy: PreferDualStack
+        ipFamilies:
+          - IPv4
+          - IPv6
+      karaf:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+        documentIndex: 1
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv4
+        documentIndex: 1
+      - equal:
+          path: spec.ipFamilies[1]
+          value: IPv6
+        documentIndex: 1

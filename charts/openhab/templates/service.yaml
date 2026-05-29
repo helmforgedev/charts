@@ -3,7 +3,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "openhab.fullname" . }}
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "openhab.namespace" . }}
   labels:
     {{- include "openhab.labels" . | nindent 4 }}
 spec:
@@ -28,11 +28,20 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "openhab.fullname" . }}-karaf
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "openhab.namespace" . }}
   labels:
     {{- include "openhab.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.karaf.service.type }}
+  {{- $karafIpFamilyPolicy := .Values.karaf.service.ipFamilyPolicy | default .Values.service.ipFamilyPolicy }}
+  {{- with $karafIpFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- $karafIpFamilies := .Values.karaf.service.ipFamilies | default .Values.service.ipFamilies }}
+  {{- with $karafIpFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   ports:
     - port: {{ .Values.karaf.service.port }}
       targetPort: karaf

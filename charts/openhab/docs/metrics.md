@@ -6,7 +6,7 @@ for Prometheus Operator.
 
 ## Architecture
 
-```
+```text
 openHAB (port 8080)
   └─> GET /rest/metrics/prometheus
         └─> Prometheus scraper (annotation-based or ServiceMonitor)

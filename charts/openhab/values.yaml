@@ -20,11 +20,15 @@ replicaCount: 1
 nameOverride: ""
 # -- Override the full release name
 fullnameOverride: ""
+# -- Override the namespace used by chart-managed namespaced resources. The target namespace must already exist.
+namespaceOverride: ""
 
 # -- ServiceAccount configuration
 serviceAccount:
   # -- Create a ServiceAccount
   create: true
+  # -- Mount the Kubernetes API token into the pod
+  automountServiceAccountToken: false
   # -- Annotations to add to the ServiceAccount
   annotations: {}
   # -- Name of the ServiceAccount (defaults to release name)
@@ -208,6 +212,10 @@ karaf:
     type: ClusterIP
     # -- Karaf SSH port
     port: 8101
+    # -- Set the ipFamilyPolicy for Karaf SSH Service (dual-stack)
+    ipFamilyPolicy: ''
+    # -- Set the ipFamilies for Karaf SSH Service
+    ipFamilies: []
 
 # -- Resource requests and limits
 resources:
@@ -227,6 +235,8 @@ startupProbe:
   httpGet:
     path: /rest/uuid
     port: http
+  # Avoid noisy first-boot probe warning events while OSGi starts.
+  initialDelaySeconds: 60
   # 60 attempts x 10s = 10 minutes maximum startup window.
   # Keep this generous: openHAB's OSGi bundle loading depends heavily on hardware.
   failureThreshold: 60
@@ -402,4 +412,3 @@ externalSecrets:
   target:
     creationPolicy: Owner
   data: []
-

@@ -83,7 +83,9 @@ helm install my-openhab helmforge/openhab -f values.yaml
 - Correct security context (`fsGroup: 9001`; `runAsUser`/`runAsGroup` intentionally unset — entrypoint manages privilege drop via gosu)
 - Startup/liveness/readiness probes via `/rest/uuid` (returns 200, no auth required)
 - Optional Ingress with websocket annotation guidance for `/rest/events`
+- Optional Gateway API HTTPRoute for shared Gateway deployments
 - Optional Karaf SSH admin console (port 8101)
+- Namespace override support for pre-created operational namespaces
 - Optional admin credentials Secret
 - Prometheus metrics via `/rest/metrics/prometheus` (pod annotations + ServiceMonitor)
 - Automated S3 backup via CronJob (tar + MinIO client)
@@ -100,18 +102,32 @@ Use feature flags instead to enable optional components.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `image.tag` | openHAB image tag | `4.2.2` |
+| `image.tag` | openHAB image tag | `5.1.4` |
 | `image.repository` | Image repository | `docker.io/openhab/openhab` |
 | `replicaCount` | Must be 1 — no clustering support | `1` |
+| `namespaceOverride` | Namespace for chart-managed resources | `""` |
+| `serviceAccount.automountServiceAccountToken` | Mount Kubernetes API token into the pod | `false` |
 | `podSecurityContext.fsGroup` | fsGroup for PVC ownership after privilege drop | `9001` |
 | `service.type` | Service type | `ClusterIP` |
 | `service.port` | HTTP port | `8080` |
+| `service.ipFamilyPolicy` | HTTP Service dual-stack policy | `""` |
+| `service.ipFamilies` | HTTP Service IP families | `[]` |
 | `ingress.enabled` | Enable Ingress | `false` |
 | `ingress.ingressClassName` | Ingress class name | `""` |
 | `env.TZ` | Timezone | `UTC` |
 | `env.EXTRA_JAVA_OPTS` | Extra JVM options | `""` |
 | `karaf.enabled` | Enable Karaf SSH console | `false` |
+| `karaf.service.ipFamilyPolicy` | Karaf Service dual-stack policy | `""` |
+| `karaf.service.ipFamilies` | Karaf Service IP families | `[]` |
 | `admin.secretEnabled` | Create admin credentials Secret | `false` |
+
+### Gateway API Parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `gateway.enabled` | Enable HTTPRoute creation | `false` |
+| `gateway.hostnames` | HTTPRoute hostnames | `[openhab.local]` |
+| `gateway.parentRefs` | Parent Gateway references | `[]` |
 
 ### Persistence Parameters
 
