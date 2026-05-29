@@ -43,6 +43,8 @@ flowchart TB
   persistence without `ReadWriteMany`.
 - Use `Recreate` automatically when upload persistence is enabled without
   `ReadWriteMany`, avoiding RollingUpdate surge contention on a single RWO PVC.
+- Use the same non-surge behavior for the machine-learning model cache when it
+  uses non-RWX persistence.
 - Use a single `gateway` values block for Gateway API HTTPRoute support.
 
 ## Explicit Non-Goals

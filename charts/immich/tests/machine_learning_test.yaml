@@ -7,6 +7,34 @@ release:
   name: test
   namespace: default
 tests:
+  - it: should use Recreate strategy with default RWO cache persistence
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+        template: templates/machine-learning.yaml
+        documentIndex: 1
+
+  - it: should allow machine learning strategy override
+    set:
+      machineLearning.strategy.type: RollingUpdate
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+        template: templates/machine-learning.yaml
+        documentIndex: 1
+
+  - it: should omit machine learning strategy when cache uses RWX and no override is set
+    set:
+      machineLearning.persistence.accessModes:
+        - ReadWriteMany
+    asserts:
+      - notExists:
+          path: spec.strategy
+        template: templates/machine-learning.yaml
+        documentIndex: 1
+
   - it: should fail scaled ML with default RWO cache PVC
     set:
       machineLearning.replicaCount: 2

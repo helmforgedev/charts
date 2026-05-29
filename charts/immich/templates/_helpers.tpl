@@ -52,4 +52,7 @@ app.kubernetes.io/part-of: helmforge
 {{- if and (not (include "immich.databaseInternalEnabled" .)) (not .Values.database.external.host) -}}
 {{- fail "external database requires database.external.host" -}}
 {{- end -}}
+{{- if and (not (include "immich.valkeyInternalEnabled" .)) (not .Values.valkey.external.host) -}}
+{{- fail "external cache requires valkey.external.host" -}}
+{{- end -}}
 {{- end -}}
