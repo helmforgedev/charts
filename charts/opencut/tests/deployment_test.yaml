@@ -36,6 +36,16 @@ tests:
           value: docker.io/hiett/serverless-redis-http:0.0.10
         template: templates/redis-http.yaml
         documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.failureThreshold
+          value: 12
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.initialDelaySeconds
+          value: 60
+        template: templates/redis-http.yaml
+        documentIndex: 0
 
   - it: should honor PostgreSQL subchart auth secret overrides
     set:
@@ -171,22 +181,6 @@ tests:
           content:
             name: NEXT_PUBLIC_SITE_URL
             value: https://opencut.gateway.example
-        template: templates/deployment.yaml
-
-  - it: should derive site URL from Gateway API hostnames
-    set:
-      opencut.betterAuthSecret: test-secret
-      gatewayAPI.enabled: true
-      gatewayAPI.parentRefs:
-        - name: public
-      gatewayAPI.hostnames:
-        - opencut.gateway-api.example
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: NEXT_PUBLIC_SITE_URL
-            value: https://opencut.gateway-api.example
         template: templates/deployment.yaml
 
   - it: should fail when redis HTTP bridge has no Redis backend

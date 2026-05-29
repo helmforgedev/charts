@@ -1,0 +1,81 @@
+# Production OpenCut with bundled HelmForge PostgreSQL and Redis
+
+opencut:
+  siteUrl: https://opencut.example.com
+  betterAuthSecret: replace-with-a-stable-secret
+  marbleWorkspaceKey: replace-with-workspace-key
+
+postgresql:
+  auth:
+    existingSecret: opencut-postgresql-auth
+    existingSecretUserPasswordKey: user-password
+  standalone:
+    persistence:
+      enabled: true
+      storageClass: fast-retain
+      size: 50Gi
+
+redis:
+  auth:
+    enabled: true
+    existingSecret: opencut-redis-auth
+    existingSecretPasswordKey: redis-password
+  standalone:
+    persistence:
+      enabled: true
+      storageClass: fast-retain
+      size: 8Gi
+
+redisHttp:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+service:
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+    - IPv4
+    - IPv6
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: opencut.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: opencut-tls
+      hosts:
+        - opencut.example.com
+
+networkPolicy:
+  enabled: true
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 768Mi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: opencut

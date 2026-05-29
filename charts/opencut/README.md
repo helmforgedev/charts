@@ -12,6 +12,7 @@ Redis-over-HTTP bridge required by the upstream application runtime.
 - External Secrets Operator integration for external database credentials.
 - Gateway API, Ingress, dual-stack Service support, HPA, PDB, NetworkPolicy,
   schema, and Helm tests.
+- Production, external-service, and networking guides with runnable examples.
 
 ## Install
 
@@ -35,6 +36,40 @@ database:
     existingSecret: opencut-db
     existingSecretPasswordKey: database-password
 ```
+
+## Networking
+
+Ingress uses the HelmForge-standard `ingress.ingressClassName` key:
+
+```yaml
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  hosts:
+    - host: opencut.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+```
+
+Gateway API support is exposed through a single `gateway` block:
+
+```yaml
+gateway:
+  enabled: true
+  parentRefs:
+    - name: public
+  hostnames:
+    - opencut.example.com
+```
+
+## Documentation
+
+- [Design](DESIGN.md)
+- [Production guide](docs/production.md)
+- [External services](docs/external-services.md)
+- [Networking](docs/networking.md)
+- [Examples](examples/)
 
 ## External Secrets
 
@@ -66,4 +101,5 @@ helm dependency build charts/opencut
 helm lint charts/opencut
 helm template opencut charts/opencut -f charts/opencut/ci/ci-values.yaml
 helm unittest charts/opencut
+kubeconform -strict -summary rendered.yaml
 ```

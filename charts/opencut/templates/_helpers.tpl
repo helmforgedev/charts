@@ -111,7 +111,7 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 
 {{- define "opencut.siteUrl" -}}
-{{- if .Values.opencut.siteUrl -}}{{ .Values.opencut.siteUrl }}{{- else if and .Values.ingress.enabled (gt (len .Values.ingress.hosts) 0) -}}{{ printf "https://%s" (index .Values.ingress.hosts 0).host }}{{- else if and .Values.gatewayAPI.enabled (gt (len .Values.gatewayAPI.hostnames) 0) -}}{{ printf "https://%s" (index .Values.gatewayAPI.hostnames 0) }}{{- else if and .Values.gateway.enabled (gt (len .Values.gateway.hostnames) 0) -}}{{ printf "https://%s" (index .Values.gateway.hostnames 0) }}{{- else -}}http://localhost:3000{{- end -}}
+{{- if .Values.opencut.siteUrl -}}{{ .Values.opencut.siteUrl }}{{- else if and .Values.ingress.enabled (gt (len .Values.ingress.hosts) 0) -}}{{ printf "https://%s" (index .Values.ingress.hosts 0).host }}{{- else if and .Values.gateway.enabled (gt (len .Values.gateway.hostnames) 0) -}}{{ printf "https://%s" (index .Values.gateway.hostnames 0) }}{{- else -}}http://localhost:3000{{- end -}}
 {{- end -}}
 
 {{- define "opencut.betterAuthSecret" -}}
