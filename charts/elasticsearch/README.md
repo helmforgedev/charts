@@ -158,6 +158,7 @@ dataTiers:
 | Parameter | Description | Default |
 |---|---|---|
 | `clusterProfile` | Cluster preset: `dev`, `staging`, `production-ha` | `dev` |
+| `namespaceOverride` | Namespace for chart-managed namespaced resources | `""` |
 | `clusterName` | Elasticsearch cluster name | `helmforge-cluster` |
 | `image.repository` | Elasticsearch image | `docker.io/library/elasticsearch` |
 | `image.tag` | Image tag | `9.4.1` |
@@ -273,6 +274,16 @@ dataTiers:
 | `service.type` | Service type for HTTP access | `ClusterIP` |
 | `service.httpPort` | Elasticsearch HTTP port | `9200` |
 | `service.transportPort` | Inter-node transport port | `9300` |
+| `service.ipFamilyPolicy` | Service dual-stack policy for HTTP and headless Services | `null` |
+| `service.ipFamilies` | Service IP families for HTTP and headless Services | `[]` |
+
+### Service Account
+
+| Parameter | Description | Default |
+|---|---|---|
+| `serviceAccount.create` | Create a dedicated ServiceAccount | `false` |
+| `serviceAccount.name` | ServiceAccount name override | `""` |
+| `serviceAccount.automountServiceAccountToken` | Mount Kubernetes API token into workload pods | `false` |
 
 ### Other
 
@@ -338,23 +349,3 @@ Key differences from the Bitnami Elasticsearch chart:
 | Grafana dashboards | 3 included | Not included |
 
 When migrating, snapshot your data first and plan for a reindex if you are changing major Elasticsearch versions.
-
-<!-- @AI-METADATA
-type: chart-readme
-title: Elasticsearch Helm Chart
-description: Production-ready Elasticsearch chart with cluster profiles, multi-role architecture, automated backups, ILM, data tiers, cert-manager TLS, and monitoring
-
-keywords: elasticsearch, search, observability, elk, multi-role, ilm, backup, tls, prometheus
-
-purpose: Usage guide for the Elasticsearch Helm chart covering cluster profiles, multi-role setup, backup, ILM, data tiers, security, and monitoring
-scope: Chart
-
-relations:
-  - charts/elasticsearch/docs/profile-dev.md
-  - charts/elasticsearch/docs/profile-production-ha.md
-  - charts/elasticsearch/docs/backup-restore.md
-  - charts/elasticsearch/docs/security.md
-path: charts/elasticsearch/README.md
-version: 1.0
-date: 2026-04-09
--->
