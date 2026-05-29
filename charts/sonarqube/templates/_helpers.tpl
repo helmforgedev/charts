@@ -122,6 +122,17 @@ app.kubernetes.io/part-of: sonarqube
 {{- printf "sonarqube-community-branch-plugin-%s.jar" .Values.communityBranchPlugin.version }}
 {{- end }}
 
+{{- define "sonarqube.probePath" -}}
+{{- $root := .root -}}
+{{- $path := .path | default "/" -}}
+{{- $context := trimSuffix "/" ($root.Values.sonarqube.context | default "") -}}
+{{- if and $context (not (or (eq $path $context) (hasPrefix (printf "%s/" $context) $path))) -}}
+{{- printf "%s%s" $context $path -}}
+{{- else -}}
+{{- $path -}}
+{{- end -}}
+{{- end }}
+
 {{- define "sonarqube.externalSecretDataItem" -}}
 - secretKey: {{ .secretKey | quote }}
   remoteRef:

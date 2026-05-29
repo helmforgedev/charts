@@ -50,6 +50,31 @@ tests:
           path: spec.template.spec.containers[0].readinessProbe.httpGet.path
           value: /api/system/status
 
+  - it: should prefix probes with SonarQube context
+    template: templates/deployment.yaml
+    set:
+      sonarqube.context: /sonar
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /sonar/api/system/status
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /sonar/api/system/status
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /sonar/api/system/status
+
+  - it: should not duplicate context when probe path already includes it
+    template: templates/deployment.yaml
+    set:
+      sonarqube.context: /sonar
+      startupProbe.path: /sonar/api/system/status
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /sonar/api/system/status
+
   - it: should reference external database credentials from generated Secret
     template: templates/deployment.yaml
     set:
