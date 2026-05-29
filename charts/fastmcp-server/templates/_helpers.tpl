@@ -10,6 +10,10 @@
 {{- end -}}
 {{- end -}}
 
+{{- define "fastmcp-server.namespace" -}}
+{{- default .Release.Namespace .Values.namespaceOverride -}}
+{{- end -}}
+
 {{- define "fastmcp-server.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}

@@ -10,6 +10,53 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-fastmcp-server
 
+  - it: should support namespace override
+    set:
+      namespaceOverride: fastmcp-runtime
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: fastmcp-runtime
+
+  - it: should disable service account token automount by default
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: should set restricted container security defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop[0]
+          value: ALL
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 1000
+
+  - it: should set default resources
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 512Mi
+
   - it: should set MCP_SERVER_NAME env
     asserts:
       - contains:
@@ -52,7 +99,7 @@ tests:
       - isNotNull:
           path: spec.template.spec.containers[0].readinessProbe
 
-  - it: should use new health endpoints for probes
+  - it: should use resilient health endpoints for probes
     asserts:
       - equal:
           path: spec.template.spec.containers[0].startupProbe.httpGet.path
@@ -62,7 +109,7 @@ tests:
           value: /healthz
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.httpGet.path
-          value: /readyz
+          value: /healthz
 
   - it: should have helmforge labels
     asserts:
