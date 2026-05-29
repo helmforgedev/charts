@@ -268,6 +268,8 @@ When `service.ipFamilies` includes `IPv6` and `memcached.listenAddress` is left 
 `0.0.0.0`, the chart starts Memcached with `0.0.0.0,::` so both IPv4 and IPv6 Service paths have
 a listener. Explicit `memcached.listenAddress` overrides are preserved for clusters that require a
 specific bind policy.
+The same dual-stack fields are applied to the client, headless, and metrics Services so monitoring
+traffic follows the same cluster IP family policy as cache traffic.
 
 NetworkPolicy:
 
@@ -305,6 +307,7 @@ networkPolicy:
 | `networkPolicy.egress.allowSameNamespace` | `true` | Allows cache and metrics responses to same-namespace clients. |
 | `pdb.maxUnavailable` | `""` | Optional PDB disruption limit. Explicit `0` is honored. |
 | `service.ipFamilyPolicy` | `""` | Optional Kubernetes Service dual-stack policy. |
+| `service.ipFamilies` | `[]` | Optional ordered Service IP families. |
 | `externalSecrets.enabled` | `false` | Renders External Secrets Operator v1 resource. |
 | `serviceAccount.automountServiceAccountToken` | `false` | Keeps Kubernetes API token disabled by default. |
 
@@ -339,19 +342,3 @@ kubectl logs statefulset/memcached -c memcached
 ## Design
 
 Read [DESIGN.md](DESIGN.md) for architecture diagrams, production trade-offs, and non-goals.
-
-<!-- @AI-METADATA
-type: chart-readme
-title: Memcached Helm Chart
-description: Documentation for the HelmForge Memcached chart
-keywords: memcached, cache, kubernetes, helm, tls, extstore, metrics, external-secrets
-purpose: Explain install, configuration, production path, and operations
-scope: Chart Documentation
-relations:
-  - charts/memcached/Chart.yaml
-  - charts/memcached/values.yaml
-  - charts/memcached/DESIGN.md
-path: charts/memcached/README.md
-version: 1.0
-date: 2026-05-06
--->
