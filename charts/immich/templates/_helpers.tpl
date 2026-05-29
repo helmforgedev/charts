@@ -43,6 +43,9 @@ app.kubernetes.io/part-of: helmforge
 {{- if and .Values.machineLearning.enabled .Values.machineLearning.persistence.enabled (gt (.Values.machineLearning.replicaCount | int) 1) (not (has "ReadWriteMany" .Values.machineLearning.persistence.accessModes)) -}}
 {{- fail "machineLearning persistence requires ReadWriteMany accessModes when machineLearning.replicaCount is greater than 1" -}}
 {{- end -}}
+{{- if and (include "immich.databaseInternalEnabled" .) (ne .Values.postgresql.auth.username "postgres") -}}
+{{- fail "internal PostgreSQL for Immich requires postgresql.auth.username=postgres so the app user owns the database" -}}
+{{- end -}}
 {{- if and (not (include "immich.databaseInternalEnabled" .)) (not .Values.database.external.password) (not .Values.database.external.existingSecret) -}}
 {{- fail "external database requires database.external.password or database.external.existingSecret" -}}
 {{- end -}}
