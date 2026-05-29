@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Config Rollout
+templates:
+  - standalone-statefulset.yaml
+  - replication-primary-statefulset.yaml
+  - replication-replica-statefulset.yaml
+  - sentinel-statefulset.yaml
+  - cluster-statefulset.yaml
+  - configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should checksum config in standalone pod template
+    template: standalone-statefulset.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/config"]
+          pattern: "^[a-f0-9]{64}$"
+
+  - it: should checksum config in replication pod templates
+    set:
+      architecture: replication
+    asserts:
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/config"]
+          pattern: "^[a-f0-9]{64}$"
+        template: replication-primary-statefulset.yaml
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/config"]
+          pattern: "^[a-f0-9]{64}$"
+        template: replication-replica-statefulset.yaml
+
+  - it: should checksum config in sentinel pod templates
+    set:
+      architecture: sentinel
+    asserts:
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/config"]
+          pattern: "^[a-f0-9]{64}$"
+        template: replication-primary-statefulset.yaml
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/config"]
+          pattern: "^[a-f0-9]{64}$"
+        template: replication-replica-statefulset.yaml
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/config"]
+          pattern: "^[a-f0-9]{64}$"
+        template: sentinel-statefulset.yaml
+
+  - it: should checksum config in cluster pod template
+    set:
+      architecture: cluster
+    asserts:
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/config"]
+          pattern: "^[a-f0-9]{64}$"
+        template: cluster-statefulset.yaml
+
+  - it: should preserve user pod annotations with checksum
+    set:
+      podAnnotations:
+        example.com/restarted-by: platform
+    asserts:
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/config"]
+          pattern: "^[a-f0-9]{64}$"
+        template: standalone-statefulset.yaml
+      - equal:
+          path: spec.template.metadata.annotations["example.com/restarted-by"]
+          value: platform
+        template: standalone-statefulset.yaml
