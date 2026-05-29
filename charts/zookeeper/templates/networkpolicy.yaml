@@ -1,0 +1,119 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "zookeeper.fullname" . }}
+  namespace: {{ include "zookeeper.namespace" . | quote }}
+  labels:
+    {{- include "zookeeper.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "zookeeper.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: server
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "zookeeper.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: server
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.ports.follower }}
+        - protocol: TCP
+          port: {{ .Values.service.ports.election }}
+    {{- if or .Values.networkPolicy.allowSameNamespace .Values.networkPolicy.client.namespaceSelectors .Values.networkPolicy.client.podSelectors .Values.networkPolicy.client.ipBlocks }}
+    - from:
+        {{- if .Values.networkPolicy.allowSameNamespace }}
+        - podSelector: {}
+        {{- end }}
+        {{- range .Values.networkPolicy.client.namespaceSelectors }}
+        - namespaceSelector:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- range .Values.networkPolicy.client.podSelectors }}
+        - podSelector:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- range .Values.networkPolicy.client.ipBlocks }}
+        - ipBlock:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.ports.client }}
+        {{- if .Values.tls.client.enabled }}
+        - protocol: TCP
+          port: {{ .Values.service.ports.tls }}
+        {{- end }}
+        {{- if .Values.zookeeper.adminServerEnabled }}
+        - protocol: TCP
+          port: {{ .Values.service.ports.admin }}
+        {{- end }}
+    {{- end }}
+    {{- if and .Values.metrics.enabled (or .Values.networkPolicy.allowSameNamespace .Values.networkPolicy.metrics.namespaceSelectors .Values.networkPolicy.metrics.podSelectors) }}
+    - from:
+        {{- if .Values.networkPolicy.allowSameNamespace }}
+        - podSelector: {}
+        {{- end }}
+        {{- range .Values.networkPolicy.metrics.namespaceSelectors }}
+        - namespaceSelector:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- range .Values.networkPolicy.metrics.podSelectors }}
+        - podSelector:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.ports.metrics }}
+    {{- end }}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "zookeeper.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: server
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.ports.follower }}
+        - protocol: TCP
+          port: {{ .Values.service.ports.election }}
+    {{- if .Values.networkPolicy.egress.allowSameNamespace }}
+    - to:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.ports.client }}
+        {{- if .Values.tls.client.enabled }}
+        - protocol: TCP
+          port: {{ .Values.service.ports.tls }}
+        {{- end }}
+        {{- if .Values.zookeeper.adminServerEnabled }}
+        - protocol: TCP
+          port: {{ .Values.service.ports.admin }}
+        {{- end }}
+        {{- if .Values.metrics.enabled }}
+        - protocol: TCP
+          port: {{ .Values.service.ports.metrics }}
+        {{- end }}
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.allowDns }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.extra }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

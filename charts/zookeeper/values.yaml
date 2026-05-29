@@ -1,0 +1,274 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# Apache ZooKeeper Helm Chart - Default Values
+# =============================================================================
+
+# -- Number of ZooKeeper servers. Use an odd number for quorum safety.
+replicaCount: 3
+
+# -- Permit even replica counts. Keep false for production quorum safety.
+allowEvenReplicas: false
+
+# -- Override chart name
+nameOverride: ""
+# -- Override full release name
+fullnameOverride: ""
+# -- Override namespace for chart-managed namespaced resources. Target namespace must already exist.
+namespaceOverride: ""
+# -- Kubernetes cluster DNS domain used for internal service FQDNs
+clusterDomain: cluster.local
+# -- Labels added to all resources
+commonLabels: {}
+
+image:
+  # -- Official Apache ZooKeeper image repository
+  repository: docker.io/library/zookeeper
+  # -- Official image tag. 3.9.5 contains security and bug fixes in the current 3.9 line.
+  tag: "3.9.5"
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# ZooKeeper Configuration
+# =============================================================================
+
+zookeeper:
+  # -- Client port for plaintext client connections
+  clientPort: 2181
+  # -- Quorum follower port
+  followerPort: 2888
+  # -- Quorum election port
+  electionPort: 3888
+  # -- ZooKeeper tickTime in milliseconds
+  tickTime: 2000
+  # -- ZooKeeper initLimit
+  initLimit: 10
+  # -- ZooKeeper syncLimit
+  syncLimit: 5
+  # -- Maximum client connections per host
+  maxClientCnxns: 60
+  # -- Enable standalone mode automatically when replicaCount=1
+  standaloneEnabled: true
+  # -- Enable ZooKeeper AdminServer
+  adminServerEnabled: true
+  # -- AdminServer port
+  adminServerPort: 8080
+  # -- Snapshot retention count
+  autopurgeSnapRetainCount: 3
+  # -- Snapshot purge interval in hours. 0 disables purge.
+  autopurgePurgeInterval: 1
+  # -- Four-letter-word command whitelist
+  fourLetterWordWhitelist: srvr,stat,ruok,mntr,conf,isro
+  # -- Extra lines appended to zoo.cfg through ZOO_CFG_EXTRA
+  extraConfig: ""
+  # -- Extra JVM flags appended to JVMFLAGS
+  jvmFlags: ""
+
+# =============================================================================
+# Authentication and TLS
+# =============================================================================
+
+auth:
+  client:
+    # -- Enable SASL/Digest client authentication.
+    enabled: false
+    # -- ZooKeeper digest username used in generated JAAS config.
+    username: zookeeper
+    # -- ZooKeeper digest password. Auto-generated when empty and no existingSecret is set.
+    password: ""
+    # -- Existing Secret containing a JAAS file.
+    existingSecret: ""
+    # -- Secret key containing jaas.conf.
+    existingSecretJaasKey: jaas.conf
+
+tls:
+  client:
+    # -- Enable secure client port. Requires existingSecret with keystore/truststore files.
+    enabled: false
+    # -- Secure client port
+    port: 3181
+    # -- Existing Secret containing JKS stores.
+    existingSecret: ""
+    keystoreKey: zookeeper.keystore.jks
+    truststoreKey: zookeeper.truststore.jks
+    keystorePassword: ""
+    truststorePassword: ""
+    existingPasswordsSecret: ""
+    existingKeystorePasswordKey: keystore-password
+    existingTruststorePasswordKey: truststore-password
+
+# =============================================================================
+# Networking
+# =============================================================================
+
+service:
+  type: ClusterIP
+  annotations: {}
+  headless:
+    annotations: {}
+    publishNotReadyAddresses: true
+  ports:
+    client: 2181
+    tls: 3181
+    follower: 2888
+    election: 3888
+    admin: 8080
+    metrics: 7000
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ""
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
+
+networkPolicy:
+  # -- Create NetworkPolicy resources
+  enabled: false
+  # -- Allow client traffic from pods in the same namespace
+  allowSameNamespace: true
+  client:
+    namespaceSelectors: []
+    podSelectors: []
+    ipBlocks: []
+  metrics:
+    namespaceSelectors: []
+    podSelectors: []
+  egress:
+    # -- Allow egress from ZooKeeper pods to pods in the same namespace on client/admin/metrics ports.
+    allowSameNamespace: false
+    allowDns: true
+    extra: []
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  enabled: true
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 8Gi
+  dataLogDir:
+    enabled: false
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 8Gi
+
+# =============================================================================
+# Observability
+# =============================================================================
+
+metrics:
+  # -- Enable ZooKeeper Prometheus metrics provider on the metrics port
+  enabled: false
+  # -- Metrics provider HTTP port
+  port: 7000
+  service:
+    annotations: {}
+  serviceMonitor:
+    enabled: false
+    namespace: ""
+    interval: 30s
+    scrapeTimeout: 10s
+    additionalLabels: {}
+    relabelings: []
+    metricRelabelings: []
+  prometheusRule:
+    enabled: false
+    namespace: ""
+    additionalLabels: {}
+    rules:
+      - alert: ZooKeeperDown
+        expr: up{job=~".*zookeeper.*"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: ZooKeeper metrics target is down
+
+# =============================================================================
+# Kubernetes Workload Controls
+# =============================================================================
+
+serviceAccount:
+  create: false
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: false
+
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1
+  minAvailable: ""
+
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    memory: 1Gi
+
+livenessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+readinessProbe:
+  initialDelaySeconds: 15
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+startupProbe:
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+
+terminationGracePeriodSeconds: 30
+updateStrategy:
+  type: RollingUpdate
+
+podLabels: {}
+podAnnotations: {}
+priorityClassName: ""
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+
+extraEnv: []
+extraEnvFrom: []
+extraVolumes: []
+extraVolumeMounts: []
+extraInitContainers: []
+extraContainers: []
+extraManifests: []
+
+externalSecrets:
+  # -- Render ExternalSecret for auth JAAS or TLS password material.
+  enabled: false
+  apiVersion: external-secrets.io/v1
+  refreshInterval: 1h
+  secretStoreRef:
+    name: ""
+    kind: ClusterSecretStore
+  target:
+    creationPolicy: Owner
+  data: []

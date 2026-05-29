@@ -1,0 +1,90 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Service
+templates:
+  - service.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: renders headless and client services by default
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: configures stable headless service
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: test-zookeeper-headless
+      - equal:
+          path: spec.clusterIP
+          value: None
+      - equal:
+          path: spec.publishNotReadyAddresses
+          value: true
+      - contains:
+          path: spec.ports
+          content:
+            name: follower
+            port: 2888
+            targetPort: follower
+            protocol: TCP
+
+  - it: configures client service
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: test-zookeeper
+      - contains:
+          path: spec.ports
+          content:
+            name: client
+            port: 2181
+            targetPort: client
+            protocol: TCP
+
+  - it: renders metrics service when enabled
+    set:
+      metrics.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 3
+      - equal:
+          path: metadata.name
+          value: test-zookeeper-metrics
+        documentIndex: 2
+
+  - it: renders dual-stack fields on client service
+    documentIndex: 1
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies:
+        - IPv4
+        - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+      - equal:
+          path: spec.ipFamilies[1]
+          value: IPv6
+
+  - it: exposes secure client port when TLS is enabled
+    documentIndex: 1
+    set:
+      tls.client.enabled: true
+      tls.client.existingSecret: zk-tls
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: tls-client
+            port: 3181
+            targetPort: tls-client
+            protocol: TCP

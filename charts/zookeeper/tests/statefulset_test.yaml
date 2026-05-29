@@ -1,0 +1,109 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: StatefulSet
+templates:
+  - statefulset.yaml
+  - configmap.yaml
+  - secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: renders replicated ensemble with official image
+    template: statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.replicas
+          value: 3
+      - equal:
+          path: spec.serviceName
+          value: test-zookeeper-headless
+      - equal:
+          path: spec.podManagementPolicy
+          value: Parallel
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/library/zookeeper:3.9.5
+      - exists:
+          path: spec.volumeClaimTemplates[0]
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-peer-dns
+
+  - it: supports ephemeral standalone mode
+    template: statefulset.yaml
+    set:
+      replicaCount: 1
+      persistence.enabled: false
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+      - notExists:
+          path: spec.template.spec.initContainers
+
+  - it: mounts auth secret when SASL client auth is enabled
+    template: statefulset.yaml
+    set:
+      auth.client.enabled: true
+      auth.client.password: chart-testing-password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: auth
+            mountPath: /etc/zookeeper/auth
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: auth
+            secret:
+              secretName: test-zookeeper-auth
+
+  - it: mounts TLS material when secure client port is enabled
+    template: statefulset.yaml
+    set:
+      tls.client.enabled: true
+      tls.client.existingSecret: zk-tls
+      tls.client.existingPasswordsSecret: zk-tls-passwords
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: tls-client
+            containerPort: 3181
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls
+            secret:
+              secretName: zk-tls
+
+  - it: rejects even replica count unless explicitly allowed
+    template: statefulset.yaml
+    set:
+      replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCount must be odd for quorum safety unless allowEvenReplicas=true"
+
+  - it: allows even replica count when explicitly configured
+    template: statefulset.yaml
+    set:
+      replicaCount: 2
+      allowEvenReplicas: true
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2

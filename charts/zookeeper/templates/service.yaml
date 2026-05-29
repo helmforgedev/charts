@@ -1,0 +1,129 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "zookeeper.headlessServiceName" . }}
+  namespace: {{ include "zookeeper.namespace" . | quote }}
+  labels:
+    {{- include "zookeeper.labels" . | nindent 4 }}
+  {{- with .Values.service.headless.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: {{ .Values.service.headless.publishNotReadyAddresses }}
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    {{- include "zookeeper.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+  ports:
+    - name: client
+      port: {{ .Values.service.ports.client }}
+      targetPort: client
+      protocol: TCP
+    {{- if .Values.tls.client.enabled }}
+    - name: tls-client
+      port: {{ .Values.service.ports.tls }}
+      targetPort: tls-client
+      protocol: TCP
+    {{- end }}
+    - name: follower
+      port: {{ .Values.service.ports.follower }}
+      targetPort: follower
+      protocol: TCP
+    - name: election
+      port: {{ .Values.service.ports.election }}
+      targetPort: election
+      protocol: TCP
+    {{- if .Values.zookeeper.adminServerEnabled }}
+    - name: admin
+      port: {{ .Values.service.ports.admin }}
+      targetPort: admin
+      protocol: TCP
+    {{- end }}
+    {{- if .Values.metrics.enabled }}
+    - name: metrics
+      port: {{ .Values.service.ports.metrics }}
+      targetPort: metrics
+      protocol: TCP
+    {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "zookeeper.clientServiceName" . }}
+  namespace: {{ include "zookeeper.namespace" . | quote }}
+  labels:
+    {{- include "zookeeper.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    {{- include "zookeeper.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+  ports:
+    - name: client
+      port: {{ .Values.service.ports.client }}
+      targetPort: client
+      protocol: TCP
+    {{- if .Values.tls.client.enabled }}
+    - name: tls-client
+      port: {{ .Values.service.ports.tls }}
+      targetPort: tls-client
+      protocol: TCP
+    {{- end }}
+    {{- if .Values.zookeeper.adminServerEnabled }}
+    - name: admin
+      port: {{ .Values.service.ports.admin }}
+      targetPort: admin
+      protocol: TCP
+    {{- end }}
+{{- if .Values.metrics.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "zookeeper.metricsServiceName" . }}
+  namespace: {{ include "zookeeper.namespace" . | quote }}
+  labels:
+    {{- include "zookeeper.labels" . | nindent 4 }}
+    app.kubernetes.io/component: metrics
+  {{- with .Values.metrics.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    {{- include "zookeeper.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+  ports:
+    - name: metrics
+      port: {{ .Values.service.ports.metrics }}
+      targetPort: metrics
+      protocol: TCP
+{{- end }}

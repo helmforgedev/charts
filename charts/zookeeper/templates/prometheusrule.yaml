@@ -1,0 +1,19 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "zookeeper.validate" . }}
+{{- if and .Values.metrics.enabled .Values.metrics.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "zookeeper.fullname" . }}
+  namespace: {{ default (include "zookeeper.namespace" .) .Values.metrics.prometheusRule.namespace | quote }}
+  labels:
+    {{- include "zookeeper.labels" . | nindent 4 }}
+    {{- with .Values.metrics.prometheusRule.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: {{ printf "%s.rules" (include "zookeeper.fullname" .) | quote }}
+      rules:
+        {{- toYaml .Values.metrics.prometheusRule.rules | nindent 8 }}
+{{- end }}

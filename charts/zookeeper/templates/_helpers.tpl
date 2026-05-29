@@ -1,0 +1,154 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- define "zookeeper.name" -}}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "zookeeper.fullname" -}}
+{{- if .Values.fullnameOverride -}}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default .Chart.Name .Values.nameOverride -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "zookeeper.namespace" -}}
+{{- .Values.namespaceOverride | default .Release.Namespace -}}
+{{- end -}}
+
+{{- define "zookeeper.chart" -}}
+{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "zookeeper.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "zookeeper.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name | quote }}
+{{- end -}}
+
+{{- define "zookeeper.labels" -}}
+helm.sh/chart: {{ include "zookeeper.chart" . }}
+{{ include "zookeeper.selectorLabels" . }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+app.kubernetes.io/part-of: helmforge
+{{- with .Values.commonLabels }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
+{{- define "zookeeper.image" -}}
+{{- printf "%s:%s" .Values.image.repository (.Values.image.tag | default .Chart.AppVersion) -}}
+{{- end -}}
+
+{{- define "zookeeper.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create -}}
+{{- default (include "zookeeper.fullname" .) .Values.serviceAccount.name -}}
+{{- else -}}
+{{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "zookeeper.headlessServiceName" -}}
+{{- printf "%s-headless" (include "zookeeper.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "zookeeper.clientServiceName" -}}
+{{- include "zookeeper.fullname" . -}}
+{{- end -}}
+
+{{- define "zookeeper.metricsServiceName" -}}
+{{- printf "%s-metrics" (include "zookeeper.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "zookeeper.configMapName" -}}
+{{- printf "%s-config" (include "zookeeper.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "zookeeper.authSecretName" -}}
+{{- if .Values.auth.client.existingSecret -}}
+{{- .Values.auth.client.existingSecret -}}
+{{- else -}}
+{{- printf "%s-auth" (include "zookeeper.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "zookeeper.tlsPasswordsSecretName" -}}
+{{- if .Values.tls.client.existingPasswordsSecret -}}
+{{- .Values.tls.client.existingPasswordsSecret -}}
+{{- else -}}
+{{- printf "%s-tls-passwords" (include "zookeeper.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "zookeeper.tlsSecretName" -}}
+{{- .Values.tls.client.existingSecret -}}
+{{- end -}}
+
+{{- define "zookeeper.clusterDomain" -}}
+{{- default "cluster.local" .Values.clusterDomain -}}
+{{- end -}}
+
+{{- define "zookeeper.headlessFqdn" -}}
+{{- printf "%s.%s.svc.%s" (include "zookeeper.headlessServiceName" .) (include "zookeeper.namespace" .) (include "zookeeper.clusterDomain" .) -}}
+{{- end -}}
+
+{{- define "zookeeper.servers" -}}
+{{- $root := . -}}
+{{- $servers := list -}}
+{{- range $i := until (.Values.replicaCount | int) -}}
+{{- $id := add1 $i -}}
+{{- $host := printf "%s-%d.%s" (include "zookeeper.fullname" $root) $i (include "zookeeper.headlessFqdn" $root) -}}
+{{- $servers = append $servers (printf "server.%d=%s:%d:%d;%d" $id $host ($root.Values.zookeeper.followerPort | int) ($root.Values.zookeeper.electionPort | int) ($root.Values.zookeeper.clientPort | int)) -}}
+{{- end -}}
+{{- join " " $servers -}}
+{{- end -}}
+
+{{- define "zookeeper.peerHosts" -}}
+{{- $root := . -}}
+{{- $hosts := list -}}
+{{- range $i := until (.Values.replicaCount | int) -}}
+{{- $hosts = append $hosts (printf "%s-%d.%s" (include "zookeeper.fullname" $root) $i (include "zookeeper.headlessFqdn" $root)) -}}
+{{- end -}}
+{{- join " " $hosts -}}
+{{- end -}}
+
+{{- define "zookeeper.authPassword" -}}
+{{- if .Values.auth.client.password -}}
+{{- .Values.auth.client.password -}}
+{{- else -}}
+{{- $secret := lookup "v1" "Secret" (include "zookeeper.namespace" .) (include "zookeeper.authSecretName" .) -}}
+{{- if and $secret $secret.data (hasKey $secret.data .Values.auth.client.existingSecretJaasKey) -}}
+{{- "preserved" -}}
+{{- else -}}
+{{- randAlphaNum 32 -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "zookeeper.validate" -}}
+{{- if lt (.Values.replicaCount | int) 1 -}}
+{{- fail "replicaCount must be at least 1" -}}
+{{- end -}}
+{{- if and (not .Values.allowEvenReplicas) (gt (.Values.replicaCount | int) 1) (eq (mod (.Values.replicaCount | int) 2) 0) -}}
+{{- fail "replicaCount must be odd for quorum safety unless allowEvenReplicas=true" -}}
+{{- end -}}
+{{- if and .Values.metrics.serviceMonitor.enabled (not .Values.metrics.enabled) -}}
+{{- fail "metrics.serviceMonitor.enabled requires metrics.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.metrics.prometheusRule.enabled (not .Values.metrics.enabled) -}}
+{{- fail "metrics.prometheusRule.enabled requires metrics.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.tls.client.enabled (not .Values.tls.client.existingSecret) -}}
+{{- fail "tls.client.enabled requires tls.client.existingSecret" -}}
+{{- end -}}
+{{- if and .Values.externalSecrets.enabled (not .Values.externalSecrets.secretStoreRef.name) -}}
+{{- fail "externalSecrets.enabled requires externalSecrets.secretStoreRef.name" -}}
+{{- end -}}
+{{- if and .Values.externalSecrets.enabled (ne .Values.externalSecrets.apiVersion "external-secrets.io/v1") -}}
+{{- fail "externalSecrets.apiVersion must be external-secrets.io/v1" -}}
+{{- end -}}
+{{- end -}}
