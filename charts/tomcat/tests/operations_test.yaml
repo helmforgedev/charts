@@ -65,3 +65,25 @@ tests:
           content:
             protocol: TCP
             port: jmx-rmi
+
+  - it: should nest extra egress peers under to
+    template: networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.allowDNS: false
+      networkPolicy.egress.allowHTTPS: false
+      networkPolicy.egress.extraTo:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: database
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgresql
+    asserts:
+      - equal:
+          path: spec.egress[0].to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: database
+      - equal:
+          path: spec.egress[0].to[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: postgresql
