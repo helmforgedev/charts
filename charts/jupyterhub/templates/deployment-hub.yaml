@@ -38,6 +38,42 @@ spec:
       serviceAccountName: {{ include "jupyterhub.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: wait-for-proxy-api
+          image: docker.io/curlimages/curl:8.17.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -ec
+            - |
+              until code="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: token ${CONFIGPROXY_AUTH_TOKEN}" "http://{{ include "jupyterhub.proxyApiName" . }}:{{ .Values.service.proxyApiPort }}/api/routes" || true)" && [ "$code" = "200" ]; do
+                echo "waiting for proxy api"
+                sleep 2
+              done
+          env:
+            - name: CONFIGPROXY_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "jupyterhub.secretName" . }}
+                  key: {{ .Values.proxy.existingSecretTokenKey }}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
       containers:
         - name: hub
           image: "{{ .Values.hub.image.repository }}:{{ .Values.hub.image.tag }}"
