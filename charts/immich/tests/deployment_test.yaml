@@ -80,6 +80,22 @@ tests:
           path: spec.strategy
         template: templates/deployment.yaml
 
+  - it: should use the PostgreSQL subchart ExternalSecret auth target for internal database passwords
+    set:
+      postgresql.externalSecrets.enabled: true
+      postgresql.externalSecrets.auth.enabled: true
+      postgresql.externalSecrets.auth.targetName: platform-postgresql-auth
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: platform-postgresql-auth
+                key: postgres-password
+        template: templates/deployment.yaml
+
   - it: should pass external Valkey password to Immich
     set:
       valkey.internal.enabled: false
