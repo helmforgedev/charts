@@ -53,6 +53,23 @@ tests:
                 key: password
         template: templates/deployment.yaml
 
+  - it: should honor PostgreSQL subchart ExternalSecret target overrides
+    set:
+      postgresql.externalSecrets.enabled: true
+      postgresql.externalSecrets.auth.enabled: true
+      postgresql.externalSecrets.auth.targetName: pg-auth-from-eso
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: pg-auth-from-eso
+                key: user-password
+        template: templates/deployment.yaml
+
   - it: should include bundled Redis auth in redis HTTP bridge URL
     set:
       redis.auth.enabled: true
@@ -115,3 +132,12 @@ tests:
           content:
             name: UPSTASH_REDIS_REST_URL
         template: templates/deployment.yaml
+
+  - it: should fail when redis HTTP bridge has no Redis backend
+    set:
+      redis.enabled: false
+      redis.external.host: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: redisHttp.enabled requires redis.enabled=true or redis.external.host to be set
+        template: templates/redis-http.yaml

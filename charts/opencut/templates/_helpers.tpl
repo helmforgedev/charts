@@ -78,7 +78,7 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 
 {{- define "opencut.databaseSecretName" -}}
-{{- if and (eq (include "opencut.databaseMode" .) "external") .Values.database.external.existingSecret -}}{{ .Values.database.external.existingSecret }}{{- else if eq (include "opencut.databaseMode" .) "external" -}}{{ printf "%s-database" (include "opencut.fullname" .) }}{{- else if .Values.postgresql.auth.existingSecret -}}{{ .Values.postgresql.auth.existingSecret }}{{- else -}}{{ printf "%s-postgresql-auth" .Release.Name }}{{- end -}}
+{{- if and (eq (include "opencut.databaseMode" .) "external") .Values.database.external.existingSecret -}}{{ .Values.database.external.existingSecret }}{{- else if eq (include "opencut.databaseMode" .) "external" -}}{{ printf "%s-database" (include "opencut.fullname" .) }}{{- else if .Values.postgresql.auth.existingSecret -}}{{ .Values.postgresql.auth.existingSecret }}{{- else if and .Values.postgresql.externalSecrets.enabled .Values.postgresql.externalSecrets.auth.enabled .Values.postgresql.externalSecrets.auth.targetName -}}{{ .Values.postgresql.externalSecrets.auth.targetName }}{{- else -}}{{ printf "%s-postgresql-auth" .Release.Name }}{{- end -}}
 {{- end -}}
 
 {{- define "opencut.databaseSecretKey" -}}
@@ -86,6 +86,7 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 
 {{- define "opencut.redisHost" -}}
+{{- if and .Values.redisHttp.enabled (not .Values.redis.enabled) (not .Values.redis.external.host) -}}{{- fail "redisHttp.enabled requires redis.enabled=true or redis.external.host to be set" -}}{{- end -}}
 {{- if .Values.redis.external.host -}}{{ .Values.redis.external.host }}{{- else -}}{{ printf "%s-redis-client" .Release.Name }}{{- end -}}
 {{- end -}}
 
