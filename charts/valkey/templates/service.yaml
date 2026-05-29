@@ -31,6 +31,33 @@ spec:
     app.kubernetes.io/component: valkey
 {{- end }}
 
+{{- if and .Values.metrics.enabled (or (include "valkey.isStandalone" .) (include "valkey.isReplication" .) (include "valkey.isSentinel" .) (include "valkey.isCluster" .)) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "valkey.metricsServiceName" . }}
+  labels:
+    {{- include "valkey.labels" . | nindent 4 }}
+    app.kubernetes.io/component: metrics
+spec:
+  type: ClusterIP
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: metrics
+      port: {{ .Values.service.ports.metrics }}
+      targetPort: metrics
+  selector:
+    {{- include "valkey.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: valkey
+{{- end }}
+
 {{- if include "valkey.isStandalone" . }}
 ---
 apiVersion: v1
