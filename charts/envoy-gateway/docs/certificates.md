@@ -222,19 +222,3 @@ scrape:
 3. **Use Let's Encrypt staging for testing** — Avoid rate limits during development
 4. **Wildcard certificates** — Use DNS-01 challenge with cert-manager for `*.example.com`
 5. **Ensure Secret exists before Gateway** — The Gateway will not accept an HTTPS listener if the referenced Secret is missing
-
-<!-- @AI-METADATA
-type: chart-docs
-title: TLS Certificates Guide
-description: Internal certgen job and external application TLS configuration for Envoy Gateway
-keywords: tls, certificates, certgen, letsencrypt, acme, ssl, https, envoy-gateway, gateway-listener
-purpose: Guide for internal cert generation and configuring HTTPS on Gateway listeners
-scope: Chart
-relations:
-  - charts/envoy-gateway/README.md
-  - charts/envoy-gateway/values.yaml
-  - charts/envoy-gateway/examples/production.yaml
-path: charts/envoy-gateway/docs/certificates.md
-version: 2.0
-date: 2026-04-10
--->
