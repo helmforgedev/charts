@@ -23,6 +23,9 @@ spec:
         {{- end }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.auth.enabled }}
+        checksum/auth-secret: {{ dict "password" .Values.auth.password "existingSecret" .Values.auth.existingSecret "key" .Values.auth.existingSecretPasswordKey "externalSecrets" .Values.externalSecrets | toJson | sha256sum }}
+        {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -39,8 +42,11 @@ spec:
                 echo "waiting for primary $VALKEY_PRIMARY_HOST:$VALKEY_PRIMARY_PORT"
                 sleep 5
               done
-              cp /etc/valkey-base/sentinel.conf /data/sentinel.conf
+              if [ ! -f /data/sentinel.conf ]; then
+                cp /etc/valkey-base/sentinel.conf /data/sentinel.conf
+              fi
               {{- if .Values.auth.enabled }}
+              sed -i '/^sentinel auth-pass mymaster /d' /data/sentinel.conf
               echo "sentinel auth-pass mymaster ${VALKEY_PASSWORD}" >> /data/sentinel.conf
               {{- end }}
               exec valkey-sentinel /data/sentinel.conf

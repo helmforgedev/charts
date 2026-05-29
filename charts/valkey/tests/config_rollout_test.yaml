@@ -17,6 +17,9 @@ tests:
       - matchRegex:
           path: spec.template.metadata.annotations["checksum/config"]
           pattern: "^[a-f0-9]{64}$"
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/auth-secret"]
+          pattern: "^[a-f0-9]{64}$"
 
   - it: should checksum config in replication pod templates
     set:
@@ -28,6 +31,14 @@ tests:
         template: replication-primary-statefulset.yaml
       - matchRegex:
           path: spec.template.metadata.annotations["checksum/config"]
+          pattern: "^[a-f0-9]{64}$"
+        template: replication-replica-statefulset.yaml
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/auth-secret"]
+          pattern: "^[a-f0-9]{64}$"
+        template: replication-primary-statefulset.yaml
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/auth-secret"]
           pattern: "^[a-f0-9]{64}$"
         template: replication-replica-statefulset.yaml
 
@@ -47,6 +58,10 @@ tests:
           path: spec.template.metadata.annotations["checksum/config"]
           pattern: "^[a-f0-9]{64}$"
         template: sentinel-statefulset.yaml
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/auth-secret"]
+          pattern: "^[a-f0-9]{64}$"
+        template: sentinel-statefulset.yaml
 
   - it: should checksum config in cluster pod template
     set:
@@ -56,6 +71,28 @@ tests:
           path: spec.template.metadata.annotations["checksum/config"]
           pattern: "^[a-f0-9]{64}$"
         template: cluster-statefulset.yaml
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/auth-secret"]
+          pattern: "^[a-f0-9]{64}$"
+        template: cluster-statefulset.yaml
+
+  - it: should checksum auth secret references for existing auth secrets
+    set:
+      auth.existingSecret: valkey-auth
+      auth.existingSecretPasswordKey: password
+    asserts:
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/auth-secret"]
+          pattern: "^[a-f0-9]{64}$"
+        template: standalone-statefulset.yaml
+
+  - it: should omit auth checksum when auth is disabled
+    set:
+      auth.enabled: false
+    asserts:
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/auth-secret"]
+        template: standalone-statefulset.yaml
 
   - it: should preserve user pod annotations with checksum
     set:
