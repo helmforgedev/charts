@@ -48,3 +48,9 @@ app.kubernetes.io/part-of: helmforge
 {{- define "jupyterhub.proxyToken" -}}
 {{- if .Values.proxy.secretToken }}{{ .Values.proxy.secretToken }}{{- else if .Values.proxy.existingSecret }}{{ "" }}{{- else }}{{ randAlphaNum 64 }}{{- end -}}
 {{- end -}}
+{{- define "jupyterhub.validateValues" -}}
+{{- $publicExposure := or .Values.ingress.enabled .Values.gateway.enabled (eq .Values.service.type "LoadBalancer") -}}
+{{- if and $publicExposure (eq .Values.auth.type "dummy") (not .Values.auth.dummyPassword) (not .Values.auth.allowInsecureDummy) (not .Values.hub.extraConfig) -}}
+{{- fail "public exposure with the default dummy authenticator requires auth.dummyPassword, hub.extraConfig with a real authenticator, or auth.allowInsecureDummy=true" -}}
+{{- end -}}
+{{- end -}}

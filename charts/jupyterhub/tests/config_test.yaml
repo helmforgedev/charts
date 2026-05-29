@@ -69,3 +69,45 @@ tests:
       - matchRegex:
           path: data["jupyterhub_config.py"]
           pattern: '"app\.kubernetes\.io/instance": "test"'
+
+  - it: should reject public ingress with insecure dummy auth
+    template: configmap.yaml
+    set:
+      ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "public exposure with the default dummy authenticator requires auth.dummyPassword, hub.extraConfig with a real authenticator, or auth.allowInsecureDummy=true"
+
+  - it: should reject public gateway with insecure dummy auth
+    template: configmap.yaml
+    set:
+      gateway.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "public exposure with the default dummy authenticator requires auth.dummyPassword, hub.extraConfig with a real authenticator, or auth.allowInsecureDummy=true"
+
+  - it: should reject load balancer with insecure dummy auth
+    template: configmap.yaml
+    set:
+      service.type: LoadBalancer
+    asserts:
+      - failedTemplate:
+          errorMessage: "public exposure with the default dummy authenticator requires auth.dummyPassword, hub.extraConfig with a real authenticator, or auth.allowInsecureDummy=true"
+
+  - it: should allow public ingress with explicit dummy opt-in
+    template: configmap.yaml
+    set:
+      ingress.enabled: true
+      auth.allowInsecureDummy: true
+    asserts:
+      - isKind:
+          of: ConfigMap
+
+  - it: should allow public ingress with a dummy password
+    template: configmap.yaml
+    set:
+      ingress.enabled: true
+      auth.dummyPassword: chart-testing-password
+    asserts:
+      - isKind:
+          of: ConfigMap
