@@ -124,8 +124,10 @@
     },
     "adminService": { "$ref": "#/definitions/service" },
     "phishService": { "$ref": "#/definitions/service" },
+    "service": { "$ref": "#/definitions/serviceDefaults" },
     "adminIngress": { "$ref": "#/definitions/ingress" },
     "phishIngress": { "$ref": "#/definitions/ingress" },
+    "gateway": { "$ref": "#/definitions/gateway" },
     "networkPolicy": {
       "type": "object",
       "additionalProperties": false,
@@ -281,6 +283,27 @@
         }
       }
     },
+    "serviceDefaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ipFamilyPolicy": {
+          "type": ["string", "null"],
+          "description": "Shared Service IP family policy. One of SingleStack, PreferDualStack, RequireDualStack. Omit for cluster default.",
+          "enum": ["SingleStack", "PreferDualStack", "RequireDualStack", null]
+        },
+        "ipFamilies": {
+          "type": "array",
+          "description": "Shared ordered list of IP families for Services. Each entry is IPv4 or IPv6. Omit for cluster default.",
+          "items": {
+            "type": "string",
+            "enum": ["IPv4", "IPv6"]
+          },
+          "maxItems": 2,
+          "uniqueItems": true
+        }
+      }
+    },
     "ingress": {
       "type": "object",
       "additionalProperties": false,
@@ -314,6 +337,54 @@
       "properties": {
         "secretName": { "type": "string" },
         "hosts": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable Gateway API HTTPRoute rendering",
+          "default": false
+        },
+        "admin": { "$ref": "#/definitions/gatewayRoute" },
+        "phish": { "$ref": "#/definitions/gatewayRoute" }
+      }
+    },
+    "gatewayRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Render this HTTPRoute",
+          "default": false
+        },
+        "parentRefs": {
+          "type": "array",
+          "description": "HTTPRoute parentRefs for existing Gateway listeners",
+          "items": { "type": "object" }
+        },
+        "hostnames": {
+          "type": "array",
+          "description": "HTTPRoute hostnames",
+          "items": { "type": "string" }
+        },
+        "annotations": {
+          "type": "object",
+          "description": "HTTPRoute annotations"
+        },
+        "matches": {
+          "type": "array",
+          "description": "HTTPRoute path/header matches",
+          "items": { "type": "object" }
+        },
+        "filters": {
+          "type": "array",
+          "description": "HTTPRoute filters",
+          "items": { "type": "object" }
+        }
       }
     },
     "networkPolicyIngressSurface": {

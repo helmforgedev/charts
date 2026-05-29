@@ -1,0 +1,35 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "gophish.validateAll" . }}
+{{- if and .Values.gateway.enabled .Values.gateway.admin.enabled }}
+{{- if not .Values.gateway.admin.parentRefs }}
+{{- fail "gateway.admin.parentRefs is required when gateway.enabled=true and gateway.admin.enabled=true" }}
+{{- end }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "gophish.fullname" . }}-admin
+  labels:
+    {{- include "gophish.labels" . | nindent 4 }}
+    app.kubernetes.io/component: admin
+  {{- with .Values.gateway.admin.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- toYaml .Values.gateway.admin.parentRefs | nindent 4 }}
+  {{- with .Values.gateway.admin.hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - matches:
+        {{- toYaml .Values.gateway.admin.matches | nindent 8 }}
+      {{- with .Values.gateway.admin.filters }}
+      filters:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      backendRefs:
+        - name: {{ include "gophish.fullname" . }}-admin
+          port: {{ .Values.adminService.port }}
+{{- end }}
