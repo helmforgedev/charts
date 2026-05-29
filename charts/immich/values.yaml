@@ -1,0 +1,213 @@
+# SPDX-License-Identifier: Apache-2.0
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+
+image:
+  repository: ghcr.io/immich-app/immich-server
+  tag: "v2.7.5"
+  pullPolicy: IfNotPresent
+
+machineLearning:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: ghcr.io/immich-app/immich-machine-learning
+    tag: "v2.7.5"
+    pullPolicy: IfNotPresent
+  service:
+    port: 3003
+  persistence:
+    enabled: true
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+  extraEnv: []
+
+server:
+  replicaCount: 1
+  revisionHistoryLimit: 3
+  logLevel: log
+  logFormat: json
+  timezone: Etc/UTC
+  extraEnv: []
+  persistence:
+    enabled: true
+    size: 50Gi
+
+database:
+  internal:
+    enabled: true
+    image:
+      repository: ghcr.io/immich-app/postgres
+      tag: "14-vectorchord0.4.3-pgvectors0.2.0"
+      pullPolicy: IfNotPresent
+    persistence:
+      enabled: true
+      size: 20Gi
+    shmSize: 128Mi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+  external:
+    host: ""
+    port: 5432
+    database: immich
+    username: postgres
+    password: ""
+    existingSecret: ""
+    existingSecretPasswordKey: database-password
+
+valkey:
+  internal:
+    enabled: true
+    image:
+      repository: docker.io/valkey/valkey
+      tag: "9"
+      pullPolicy: IfNotPresent
+    persistence:
+      enabled: true
+      size: 5Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  external:
+    host: ""
+    port: 6379
+    password: ""
+    existingSecret: ""
+    existingSecretPasswordKey: redis-password
+
+externalSecrets:
+  enabled: false
+  apiVersion: external-secrets.io/v1
+  refreshInterval: "0"
+  secretStoreRef:
+    name: ""
+    kind: SecretStore
+  target:
+    creationPolicy: Owner
+  database:
+    enabled: false
+    data: []
+  redis:
+    enabled: false
+    data: []
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: false
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 2283
+  annotations: {}
+  ipFamilyPolicy: ""
+  ipFamilies: []
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: immich.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+gatewayAPI:
+  enabled: false
+  annotations: {}
+  parentRefs: []
+  hostnames: []
+  path: /
+  pathType: PathPrefix
+
+gateway:
+  enabled: false
+  annotations: {}
+  parentRefs: []
+  hostnames: []
+  path: /
+  pathType: PathPrefix
+
+networkPolicy:
+  enabled: false
+  ingress: []
+  egress: []
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+probes:
+  path: /api/server/ping
+  livenessInitialDelaySeconds: 60
+  readinessInitialDelaySeconds: 20
+
+wait:
+  image:
+    repository: docker.io/library/busybox
+    tag: "1.37.0"
+    pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 2Gi
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+podAnnotations: {}
+podLabels: {}
+priorityClassName: ""
+terminationGracePeriodSeconds: 30
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+
+test:
+  image:
+    repository: docker.io/library/busybox
+    tag: "1.37.0"
+    pullPolicy: IfNotPresent
+
+extraObjects: []

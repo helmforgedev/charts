@@ -1,0 +1,79 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.machineLearning.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "immich.fullname" . }}-machine-learning
+  labels:
+    {{- include "immich.labels" . | nindent 4 }}
+    app.kubernetes.io/component: machine-learning
+spec:
+  ports:
+    - name: http
+      port: {{ .Values.machineLearning.service.port }}
+      targetPort: http
+  selector:
+    {{- include "immich.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: machine-learning
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "immich.fullname" . }}-machine-learning
+  labels:
+    {{- include "immich.labels" . | nindent 4 }}
+    app.kubernetes.io/component: machine-learning
+spec:
+  replicas: {{ .Values.machineLearning.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "immich.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: machine-learning
+  template:
+    metadata:
+      labels:
+        {{- include "immich.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: machine-learning
+    spec:
+      serviceAccountName: {{ include "immich.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: machine-learning
+          image: "{{ .Values.machineLearning.image.repository }}:{{ .Values.machineLearning.image.tag }}"
+          imagePullPolicy: {{ .Values.machineLearning.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.machineLearning.service.port }}
+          env:
+            - name: IMMICH_ENV
+              value: production
+            - name: IMMICH_HOST
+              value: 0.0.0.0
+            - name: IMMICH_PORT
+              value: {{ .Values.machineLearning.service.port | quote }}
+            - name: MACHINE_LEARNING_CACHE_FOLDER
+              value: /cache
+            {{- with .Values.machineLearning.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.machineLearning.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: cache
+              mountPath: /cache
+      volumes:
+        - name: cache
+          {{- if .Values.machineLearning.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "immich.fullname" . }}-ml-cache
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}

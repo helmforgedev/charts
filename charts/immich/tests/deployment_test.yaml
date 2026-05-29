@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render official Immich image and database env
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/immich-app/immich-server:v2.7.5
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].env[7].name
+          value: DB_HOSTNAME
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+        template: templates/deployment.yaml
+
+  - it: should omit replicas when autoscaling is enabled
+    set:
+      autoscaling.enabled: true
+    asserts:
+      - notExists:
+          path: spec.replicas
+        template: templates/deployment.yaml
