@@ -70,6 +70,18 @@ tests:
                 key: user-password
         template: templates/deployment.yaml
 
+  - it: should honor bundled PostgreSQL service port in database URL
+    set:
+      postgresql.service.port: 15432
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_URL
+            value: postgresql://opencut:$(DATABASE_PASSWORD)@test-postgresql:15432/opencut
+        template: templates/deployment.yaml
+
   - it: should include bundled Redis auth in redis HTTP bridge URL
     set:
       redis.auth.enabled: true
@@ -91,6 +103,18 @@ tests:
           content:
             name: SRH_CONNECTION_STRING
             value: redis://:$(REDIS_PASSWORD)@test-redis-client:6379
+        template: templates/redis-http.yaml
+        documentIndex: 0
+
+  - it: should honor bundled Redis service port in redis HTTP bridge URL
+    set:
+      redis.service.ports.redis: 16379
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SRH_CONNECTION_STRING
+            value: redis://test-redis-client:16379
         template: templates/redis-http.yaml
         documentIndex: 0
 

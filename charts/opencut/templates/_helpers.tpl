@@ -66,7 +66,7 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 
 {{- define "opencut.databasePort" -}}
-{{- if eq (include "opencut.databaseMode" .) "external" -}}{{ .Values.database.external.port | toString }}{{- else -}}5432{{- end -}}
+{{- if eq (include "opencut.databaseMode" .) "external" -}}{{ .Values.database.external.port | toString }}{{- else -}}{{ dig "service" "port" 5432 .Values.postgresql | toString }}{{- end -}}
 {{- end -}}
 
 {{- define "opencut.databaseName" -}}
@@ -91,7 +91,7 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 
 {{- define "opencut.redisPort" -}}
-{{- if .Values.redis.external.host -}}{{ .Values.redis.external.port | toString }}{{- else -}}6379{{- end -}}
+{{- if .Values.redis.external.host -}}{{ .Values.redis.external.port | toString }}{{- else -}}{{ dig "service" "ports" "redis" 6379 .Values.redis | toString }}{{- end -}}
 {{- end -}}
 
 {{- define "opencut.redisAuthEnabled" -}}
