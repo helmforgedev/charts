@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+auth:
+  type: custom
+
+hub:
+  extraConfig: |
+    c.JupyterHub.authenticator_class = "nativeauthenticator.NativeAuthenticator"
+  persistence:
+    enabled: true
+    storageClass: fast-retain
+    size: 20Gi
+
+singleuser:
+  storage:
+    enabled: true
+    storageClass: fast-retain
+    capacity: 20Gi
+  profiles:
+    - display_name: Standard Lab
+      slug: standard
+      default: true
+      kubespawner_override:
+        default_url: /lab
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: hub.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: jupyterhub-tls
+      hosts:
+        - hub.example.com
+
+networkPolicy:
+  enabled: true
+
+metrics:
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: prometheus

@@ -1,8 +1,66 @@
-JupyterHub has been deployed.
+=============================================================================
+JupyterHub deployed successfully!
+=============================================================================
 
-Release: {{ .Release.Name }}
-Namespace: {{ .Release.Namespace }}
-Service: {{ include "jupyterhub.proxyName" . }}
+ACCESS:
+   kubectl port-forward svc/{{ include "jupyterhub.proxyName" . }} -n {{ .Release.Namespace }} 8080:{{ .Values.service.port }}
+   Open: http://localhost:8080{{ .Values.hub.baseUrl }}
 
-Internal URL:
-  http://{{ include "jupyterhub.proxyName" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}/
+SERVICES:
+   Proxy: {{ include "jupyterhub.proxyName" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+   Proxy API: {{ include "jupyterhub.proxyApiName" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.proxyApiPort }}
+   Hub: {{ include "jupyterhub.hubName" . }}.{{ .Release.Namespace }}.svc.cluster.local:8081
+
+AUTHENTICATION:
+   Auth type: {{ .Values.auth.type }}
+{{- if and (eq .Values.auth.type "dummy") (not .Values.auth.dummyPassword) }}
+   Dummy password: empty
+{{- else if eq .Values.auth.type "dummy" }}
+   Dummy password: configured
+{{- end }}
+
+PERSISTENCE:
+{{- if .Values.hub.persistence.enabled }}
+   Hub PVC: {{ include "jupyterhub.hubDataClaimName" . }}
+{{- else }}
+   Hub state: emptyDir
+{{- end }}
+{{- if .Values.singleuser.storage.enabled }}
+   Single-user PVCs: enabled
+{{- else }}
+   Single-user PVCs: disabled
+{{- end }}
+
+NETWORKING:
+{{- if .Values.ingress.enabled }}
+   Ingress: enabled
+   Class: {{ .Values.ingress.ingressClassName | default "(cluster default)" }}
+{{- else }}
+   Ingress: disabled
+{{- end }}
+{{- if .Values.gateway.enabled }}
+   Gateway API: enabled
+   HTTPRoute: {{ include "jupyterhub.fullname" . }}
+{{- else }}
+   Gateway API: disabled
+{{- end }}
+
+OPERATIONS:
+   Run Helm tests:
+     helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+   Inspect pods:
+     kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+     kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "jupyterhub.hubName" . }}
+
+SECURITY REMINDERS:
+   1. Do not expose DummyAuthenticator publicly without auth.dummyPassword.
+   2. Use a real authenticator through hub.extraConfig for production.
+   3. Keep the proxy token in an existing Secret or ExternalSecret for GitOps.
+
+DOCUMENTATION:
+   Chart: https://helmforge.dev/docs/charts/jupyterhub
+   Source: https://github.com/helmforgedev/charts/tree/main/charts/jupyterhub
+   JupyterHub: https://jupyter.org/hub
+
+=============================================================================
