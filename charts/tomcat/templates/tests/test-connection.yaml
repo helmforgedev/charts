@@ -25,7 +25,11 @@ spec:
       command: ["sh", "-ec"]
       args:
         - |
-          wget -qO- "http://{{ include "tomcat.fullname" . }}:{{ .Values.service.ports.http }}/health.jsp" | grep -q OK
+          {{- if eq .Values.readinessProbe.mode "http" }}
+          wget -qO- "http://{{ include "tomcat.fullname" . }}:{{ .Values.service.ports.http }}{{ .Values.readinessProbe.path }}" >/dev/null
+          {{- else }}
+          nc -z -w5 "{{ include "tomcat.fullname" . }}" {{ .Values.service.ports.http }}
+          {{- end }}
       resources:
         {{- toYaml .Values.tests.resources | nindent 8 }}
       securityContext:
