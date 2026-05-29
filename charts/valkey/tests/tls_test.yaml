@@ -45,6 +45,26 @@ tests:
           path: data["valkey-standalone.conf"]
           pattern: "port 6380"
 
+  - it: should pass custom port to health probes
+    template: standalone-statefulset.yaml
+    set:
+      service.ports.valkey: 6380
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].livenessProbe.exec.command[2]
+          pattern: "valkey-cli .* -p 6380 .*ping"
+
+  - it: should configure masterauth on authenticated primary
+    template: replication-primary-statefulset.yaml
+    set:
+      architecture: replication
+      auth.enabled: true
+      auth.password: secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --masterauth
+
   - it: should configure metrics exporter for TLS
     template: standalone-statefulset.yaml
     set:

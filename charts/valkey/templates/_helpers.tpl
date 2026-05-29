@@ -265,9 +265,9 @@ Probe command.
 */}}
 {{- define "valkey.probeCommand" -}}
 {{- if .Values.auth.enabled -}}
-valkey-cli {{ include "valkey.cliTlsArgs" . }} -a "$VALKEY_PASSWORD" --no-auth-warning ping
+valkey-cli {{ include "valkey.cliTlsArgs" . }} -p {{ .Values.service.ports.valkey }} -a "$VALKEY_PASSWORD" --no-auth-warning ping
 {{- else -}}
-valkey-cli {{ include "valkey.cliTlsArgs" . }} ping
+valkey-cli {{ include "valkey.cliTlsArgs" . }} -p {{ .Values.service.ports.valkey }} ping
 {{- end -}}
 {{- end -}}
 
