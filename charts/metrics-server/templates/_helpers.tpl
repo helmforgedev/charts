@@ -50,9 +50,17 @@ app.kubernetes.io/part-of: metrics-server
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag }}
 {{- end }}
 
+{{- define "metrics-server.securePort" -}}
+{{- if and .Values.hostNetwork.enabled (eq (.Values.containerPort | int) 10250) -}}
+4443
+{{- else -}}
+{{- .Values.containerPort -}}
+{{- end -}}
+{{- end }}
+
 {{- define "metrics-server.args" -}}
 - --cert-dir={{ .Values.metricsServer.certDir }}
-- --secure-port={{ .Values.containerPort }}
+- --secure-port={{ include "metrics-server.securePort" . }}
 - --kubelet-preferred-address-types={{ join "," .Values.metricsServer.kubelet.preferredAddressTypes }}
 {{- if .Values.metricsServer.kubelet.useNodeStatusPort }}
 - --kubelet-use-node-status-port

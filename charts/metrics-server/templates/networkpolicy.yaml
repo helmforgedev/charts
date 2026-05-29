@@ -18,22 +18,28 @@ spec:
     - Egress
     {{- end }}
   ingress:
-    {{- if or .Values.networkPolicy.ingress.allowSameNamespace .Values.networkPolicy.ingress.extraFrom }}
+    {{- if or .Values.networkPolicy.ingress.allowSameNamespace .Values.networkPolicy.ingress.allowAPIServer .Values.networkPolicy.ingress.extraFrom }}
     - from:
         {{- if .Values.networkPolicy.ingress.allowSameNamespace }}
         - podSelector: {}
+        {{- end }}
+        {{- if .Values.networkPolicy.ingress.allowAPIServer }}
+        {{- range .Values.networkPolicy.ingress.apiServerCidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
         {{- end }}
         {{- with .Values.networkPolicy.ingress.extraFrom }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       ports:
         - protocol: TCP
-          port: {{ .Values.containerPort }}
+          port: {{ include "metrics-server.securePort" . }}
     {{- else }}
     - from: []
       ports:
         - protocol: TCP
-          port: {{ .Values.containerPort }}
+          port: {{ include "metrics-server.securePort" . }}
     {{- end }}
   {{- if .Values.networkPolicy.egress.enabled }}
   egress:
@@ -55,7 +61,10 @@ spec:
     {{- end }}
     {{- if .Values.networkPolicy.egress.allowKubelet }}
     - to:
-        - namespaceSelector: {}
+        {{- range .Values.networkPolicy.egress.kubeletCidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
       ports:
         - protocol: TCP
           port: {{ .Values.networkPolicy.egress.kubeletPort }}
