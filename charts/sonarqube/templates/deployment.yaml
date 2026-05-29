@@ -154,9 +154,12 @@ spec:
           {{- end }}
           {{- if .Values.readinessProbe.enabled }}
           readinessProbe:
-            httpGet:
-              path: {{ include "sonarqube.probePath" (dict "root" . "path" .Values.readinessProbe.path) | quote }}
-              port: http
+            exec:
+              command:
+                - sh
+                - -ec
+                - |
+                  wget -qO- "http://127.0.0.1:${SONAR_WEB_PORT}{{ include "sonarqube.probePath" (dict "root" . "path" .Values.readinessProbe.path) }}" | grep -q '"status":"UP"'
             initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
