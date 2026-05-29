@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: NetworkPolicy
+templates:
+  - templates/networkpolicy.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should scope web policy to web pods and protect redis-http bridge
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/component"]
+          value: web
+        documentIndex: 0
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/component"]
+          value: redis-http
+        documentIndex: 1
+      - equal:
+          path: spec.ingress[0].from[0].podSelector.matchLabels["app.kubernetes.io/component"]
+          value: web
+        documentIndex: 1
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 6379
+        documentIndex: 1

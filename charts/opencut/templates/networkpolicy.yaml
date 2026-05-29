@@ -10,6 +10,7 @@ spec:
   podSelector:
     matchLabels:
       {{- include "opencut.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: web
   policyTypes:
     - Ingress
     - Egress
@@ -38,4 +39,35 @@ spec:
         - protocol: TCP
           port: 443
     {{- end }}
+{{- if .Values.redisHttp.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "opencut.redisHttpName" . }}
+  labels:
+    {{- include "opencut.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-http
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "opencut.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis-http
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "opencut.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: web
+      ports:
+        - protocol: TCP
+          port: {{ .Values.redisHttp.service.port }}
+  egress:
+    - ports:
+        - protocol: TCP
+          port: {{ include "opencut.redisPort" . }}
+{{- end }}
 {{- end }}
