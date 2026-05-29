@@ -92,13 +92,4 @@ failureThreshold: {{ $probe.failureThreshold }}
 {{- if and .Values.gatewayAPI.enabled (empty .Values.gatewayAPI.parentRefs) -}}
 {{- fail "gatewayAPI.parentRefs must contain at least one parentRef when gatewayAPI.enabled=true" -}}
 {{- end -}}
-{{- if and (not .Values.webapps.defaultRoot.enabled) (eq .Values.startupProbe.mode "http") -}}
-{{- fail "startupProbe.mode=http requires webapps.defaultRoot.enabled=true or a user-provided app at startupProbe.path" -}}
-{{- end -}}
-{{- if and (not .Values.webapps.defaultRoot.enabled) (eq .Values.livenessProbe.mode "http") -}}
-{{- fail "livenessProbe.mode=http requires webapps.defaultRoot.enabled=true or a user-provided app at livenessProbe.path" -}}
-{{- end -}}
-{{- if and (not .Values.webapps.defaultRoot.enabled) (eq .Values.readinessProbe.mode "http") -}}
-{{- fail "readinessProbe.mode=http requires webapps.defaultRoot.enabled=true or a user-provided app at readinessProbe.path" -}}
-{{- end -}}
 {{- end }}

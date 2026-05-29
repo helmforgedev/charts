@@ -17,6 +17,7 @@ spec:
     - Egress
     {{- end }}
   ingress:
+    {{- if or .Values.networkPolicy.ingress.allowSameNamespace .Values.networkPolicy.ingress.extraFrom }}
     - from:
         {{- if .Values.networkPolicy.ingress.allowSameNamespace }}
         - podSelector: {}
@@ -30,7 +31,14 @@ spec:
         {{- if .Values.jmx.enabled }}
         - protocol: TCP
           port: jmx
+          {{- if ne (.Values.jmx.rmiPort | int) (.Values.jmx.port | int) }}
+        - protocol: TCP
+          port: jmx-rmi
+          {{- end }}
         {{- end }}
+    {{- else }}
+    []
+    {{- end }}
   {{- if .Values.networkPolicy.egress.enabled }}
   egress:
     {{- if .Values.networkPolicy.egress.allowDNS }}

@@ -65,13 +65,16 @@ tests:
             <%@ page contentType="text/plain; charset=UTF-8" %>
             OK
 
-  - it: should fail http probes when default root is disabled
+  - it: should allow user-provided HTTP probes when default root is disabled
     template: deployment.yaml
     set:
       webapps.defaultRoot.enabled: false
+      startupProbe.enabled: true
+      startupProbe.path: /custom/health
     asserts:
-      - failedTemplate:
-          errorMessage: "startupProbe.mode=http requires webapps.defaultRoot.enabled=true or a user-provided app at startupProbe.path"
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /custom/health
 
   - it: should allow tcp probes without default root
     template: deployment.yaml
@@ -84,3 +87,16 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].startupProbe.tcpSocket.port
           value: http
+
+  - it: should expose a separate JMX RMI container port when configured
+    template: deployment.yaml
+    set:
+      jmx.enabled: true
+      jmx.rmiPort: 9011
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: jmx-rmi
+            containerPort: 9011
+            protocol: TCP

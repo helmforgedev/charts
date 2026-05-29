@@ -41,3 +41,27 @@ tests:
       - contains:
           path: spec.policyTypes
           content: Egress
+
+  - it: should deny ingress when no ingress peers are configured
+    template: networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.ingress.allowSameNamespace: false
+      networkPolicy.ingress.extraFrom: []
+    asserts:
+      - equal:
+          path: spec.ingress
+          value: []
+
+  - it: should expose JMX RMI port in NetworkPolicy when configured
+    template: networkpolicy.yaml
+    set:
+      jmx.enabled: true
+      jmx.rmiPort: 9011
+      networkPolicy.enabled: true
+    asserts:
+      - contains:
+          path: spec.ingress[0].ports
+          content:
+            protocol: TCP
+            port: jmx-rmi
