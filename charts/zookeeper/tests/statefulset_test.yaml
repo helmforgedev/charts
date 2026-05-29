@@ -90,6 +90,28 @@ tests:
             secret:
               secretName: zk-tls
 
+  - it: enables Netty when secure client port is enabled
+    template: configmap.yaml
+    set:
+      tls.client.enabled: true
+      tls.client.existingSecret: zk-tls
+    asserts:
+      - matchRegex:
+          path: data["zoo-extra.cfg"]
+          pattern: "serverCnxnFactory=org\\.apache\\.zookeeper\\.server\\.NettyServerCnxnFactory"
+      - matchRegex:
+          path: data["zoo-extra.cfg"]
+          pattern: "secureClientPort=3181"
+
+  - it: still waits for peer DNS when multi-replica unpublished addresses are requested off
+    template: statefulset.yaml
+    set:
+      service.headless.publishNotReadyAddresses: false
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-peer-dns
+
   - it: rolls pods when chart-managed TLS passwords change
     template: statefulset.yaml
     set:

@@ -64,9 +64,10 @@ spec:
       topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if or (gt (.Values.replicaCount | int) 1) .Values.extraInitContainers }}
+      {{- $waitForPeerDns := gt (.Values.replicaCount | int) 1 -}}
+      {{- if or $waitForPeerDns .Values.extraInitContainers }}
       initContainers:
-        {{- if gt (.Values.replicaCount | int) 1 }}
+        {{- if $waitForPeerDns }}
         - name: wait-for-peer-dns
           image: {{ include "zookeeper.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}

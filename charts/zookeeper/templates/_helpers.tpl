@@ -52,6 +52,10 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 {{- end -}}
 
+{{- define "zookeeper.publishNotReadyAddresses" -}}
+{{- if gt (.Values.replicaCount | int) 1 -}}true{{- else -}}{{ .Values.service.headless.publishNotReadyAddresses }}{{- end -}}
+{{- end -}}
+
 {{- define "zookeeper.headlessServiceName" -}}
 {{- printf "%s-headless" (include "zookeeper.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
