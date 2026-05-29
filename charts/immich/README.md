@@ -14,6 +14,7 @@ and the upstream VectorChord PostgreSQL image recommended by Immich.
 - External database and Redis/Valkey support with External Secrets Operator hooks.
 - Gateway API, Ingress, dual-stack Service support, HPA, PDB, NetworkPolicy,
   schema, and Helm tests.
+- Production, external-service, and networking guides with runnable examples.
 
 ## Install
 
@@ -39,4 +40,46 @@ database:
     username: immich
     existingSecret: immich-db
     existingSecretPasswordKey: database-password
+```
+
+## Gateway API
+
+```yaml
+gateway:
+  enabled: true
+  parentRefs:
+    - name: public
+      namespace: gateway-system
+  hostnames:
+    - immich.example.com
+```
+
+## Ingress
+
+```yaml
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  hosts:
+    - host: immich.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+```
+
+## Documentation
+
+- [Design](DESIGN.md)
+- [Production guide](docs/production.md)
+- [External services](docs/external-services.md)
+- [Networking](docs/networking.md)
+- [Examples](examples/)
+
+## Local Validation
+
+```bash
+helm dependency build charts/immich
+helm lint --strict charts/immich
+helm unittest charts/immich
+helm template immich charts/immich -f charts/immich/ci/ci-values.yaml
 ```

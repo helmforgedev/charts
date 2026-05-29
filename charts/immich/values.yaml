@@ -1,27 +1,45 @@
 # SPDX-License-Identifier: Apache-2.0
+# -- Override the chart name.
 nameOverride: ""
+
+# -- Override the fully qualified release name.
 fullnameOverride: ""
+
+# -- Additional labels applied to all chart resources.
 commonLabels: {}
 
 image:
+  # -- Immich server image repository.
   repository: ghcr.io/immich-app/immich-server
+  # -- Immich server image tag.
   tag: "v2.7.5"
+  # -- Immich server image pull policy.
   pullPolicy: IfNotPresent
 
 machineLearning:
+  # -- Enable the Immich machine-learning service.
   enabled: true
+  # -- Number of machine-learning replicas.
   replicaCount: 1
   image:
+    # -- Machine-learning image repository.
     repository: ghcr.io/immich-app/immich-machine-learning
+    # -- Machine-learning image tag.
     tag: "v2.7.5"
+    # -- Machine-learning image pull policy.
     pullPolicy: IfNotPresent
   service:
+    # -- Machine-learning service port.
     port: 3003
   persistence:
+    # -- Enable persistent model cache.
     enabled: true
+    # -- Access modes for the model cache PVC.
     accessModes:
       - ReadWriteOnce
+    # -- Model cache PVC size.
     size: 10Gi
+  # -- Machine-learning resource requests and limits.
   resources:
     requests:
       cpu: 100m
@@ -29,48 +47,78 @@ machineLearning:
     limits:
       cpu: "1"
       memory: 2Gi
+  # -- Extra environment variables for machine-learning pods.
   extraEnv: []
 
 server:
+  # -- Number of Immich server replicas when autoscaling is disabled.
   replicaCount: 1
+  # -- Number of old ReplicaSets retained by the server Deployment.
   revisionHistoryLimit: 3
+  # -- Immich log level.
   logLevel: log
+  # -- Immich log format.
   logFormat: json
+  # -- Container timezone.
   timezone: Etc/UTC
+  # -- Extra environment variables for the Immich server.
   extraEnv: []
   persistence:
+    # -- Enable upload library persistence.
     enabled: true
+    # -- Access modes for the upload library PVC.
     accessModes:
       - ReadWriteOnce
+    # -- Upload library PVC size.
     size: 50Gi
 
 database:
   external:
+    # -- External PostgreSQL hostname. Used when postgresql.enabled=false.
     host: ""
+    # -- External PostgreSQL port.
     port: 5432
+    # -- External PostgreSQL database name.
     database: immich
+    # -- External PostgreSQL username.
     username: postgres
+    # -- External PostgreSQL password. Prefer existingSecret or externalSecrets for production.
     password: ""
+    # -- Existing Secret containing the external PostgreSQL password.
     existingSecret: ""
+    # -- Secret key containing the external PostgreSQL password.
     existingSecretPasswordKey: database-password
 
 postgresql:
+  # -- Enable the HelmForge PostgreSQL subchart with the Immich VectorChord image override.
   enabled: true
   image:
+    # -- PostgreSQL image repository recommended by Immich.
     repository: ghcr.io/immich-app/postgres
+    # -- PostgreSQL image tag with VectorChord and pgvectors.
     tag: "14-vectorchord0.4.3-pgvectors0.2.0"
+    # -- PostgreSQL image pull policy.
     pullPolicy: IfNotPresent
   auth:
+    # -- PostgreSQL database name.
     database: immich
+    # -- PostgreSQL username. Internal Immich mode requires postgres.
     username: postgres
+    # -- PostgreSQL superuser password. Empty lets the subchart generate it.
     postgresPassword: ""
+    # -- PostgreSQL user password. Empty lets the subchart generate it.
     password: ""
+    # -- Existing Secret consumed by the PostgreSQL subchart.
     existingSecret: ""
+    # -- Key for the postgres password in an existing Secret.
     existingSecretPostgresPasswordKey: postgres-password
+    # -- Key for the user password in an existing Secret.
     existingSecretUserPasswordKey: user-password
   service:
+    # -- PostgreSQL service port.
     port: 5432
   config:
+    # -- postgresql.conf fragment for Immich VectorChord defaults.
     postgresql: |
       shared_preload_libraries = 'vchord.so, vectors.so'
       max_wal_size = 2GB
@@ -78,8 +126,11 @@ postgresql:
       wal_compression = on
   standalone:
     persistence:
+      # -- Enable PostgreSQL persistence.
       enabled: true
+      # -- PostgreSQL PVC size.
       size: 20Gi
+    # -- PostgreSQL resource requests and limits.
     resources:
       requests:
         cpu: 100m
@@ -87,32 +138,44 @@ postgresql:
       limits:
         cpu: "1"
         memory: 1Gi
+  # -- Extra environment variables for the PostgreSQL subchart.
   extraEnv:
     - name: POSTGRES_INITDB_ARGS
       value: --data-checksums
+  # -- Extra volumes for the PostgreSQL subchart.
   extraVolumes:
     - name: shm
       emptyDir:
         medium: Memory
         sizeLimit: 128Mi
+  # -- Extra volume mounts for the PostgreSQL subchart.
   extraVolumeMounts:
     - name: shm
       mountPath: /dev/shm
 
 valkey:
+  # -- Redis chart architecture for the HelmForge Redis subchart aliased as valkey.
   architecture: standalone
   auth:
+    # -- Enable cache password authentication.
     enabled: true
+    # -- Cache password. Empty lets the subchart generate it.
     password: ""
+    # -- Existing Secret containing the cache password.
     existingSecret: ""
+    # -- Key containing the cache password.
     existingSecretPasswordKey: valkey-password
   service:
     ports:
+      # -- Cache service port.
       valkey: 6379
   standalone:
     persistence:
+      # -- Enable cache persistence.
       enabled: true
+      # -- Cache PVC size.
       size: 5Gi
+    # -- Cache resource requests and limits.
     resources:
       requests:
         cpu: 50m
@@ -121,100 +184,148 @@ valkey:
         cpu: 500m
         memory: 512Mi
   internal:
+    # -- Enable the bundled HelmForge Redis subchart aliased as valkey.
     enabled: true
   external:
+    # -- External Redis/Valkey hostname. Used when valkey.internal.enabled=false.
     host: ""
+    # -- External Redis/Valkey port.
     port: 6379
+    # -- External Redis/Valkey password. Prefer existingSecret for production.
     password: ""
+    # -- Existing Secret containing the external Redis/Valkey password.
     existingSecret: ""
+    # -- Secret key containing the external Redis/Valkey password.
     existingSecretPasswordKey: redis-password
 
 externalSecrets:
+  # -- Render ExternalSecret resources for external database and cache credentials.
   enabled: false
+  # -- ExternalSecret API version.
   apiVersion: external-secrets.io/v1
+  # -- ExternalSecret refresh interval.
   refreshInterval: "0"
   secretStoreRef:
+    # -- Existing SecretStore or ClusterSecretStore name.
     name: ""
+    # -- Secret store kind.
     kind: SecretStore
   target:
+    # -- ExternalSecret target creation policy.
     creationPolicy: Owner
   database:
+    # -- Render ExternalSecret data for database credentials.
     enabled: false
+    # -- ExternalSecret data entries for database credentials.
     data: []
   redis:
+    # -- Render ExternalSecret data for Redis/Valkey credentials.
     enabled: false
+    # -- ExternalSecret data entries for Redis/Valkey credentials.
     data: []
 
+# -- Image pull secrets.
 imagePullSecrets: []
 
 serviceAccount:
+  # -- Create a dedicated ServiceAccount.
   create: true
+  # -- ServiceAccount name override.
   name: ""
+  # -- ServiceAccount annotations.
   annotations: {}
+  # -- Mount the ServiceAccount token into Immich pods.
   automountServiceAccountToken: false
 
 service:
+  # -- Service type for Immich server traffic.
   type: ClusterIP
+  # -- Service port.
   port: 80
+  # -- Immich server target port.
   targetPort: 2283
+  # -- Service annotations.
   annotations: {}
+  # -- Service IP family policy: SingleStack, PreferDualStack, RequireDualStack. Empty uses cluster default.
   ipFamilyPolicy: ""
+  # -- Service IP families override. Empty uses cluster default.
   ipFamilies: []
 
 ingress:
+  # -- Enable Ingress.
   enabled: false
-  className: ""
+  # -- Ingress class name.
+  # ingressClassName: traefik
+  ingressClassName: ""
+  # -- Ingress annotations.
   annotations: {}
+  # -- Ingress hosts and paths.
   hosts:
     - host: immich.local
       paths:
         - path: /
           pathType: Prefix
+  # -- Ingress TLS configuration.
   tls: []
 
-gatewayAPI:
-  enabled: false
-  annotations: {}
-  parentRefs: []
-  hostnames: []
-  path: /
-  pathType: PathPrefix
-
 gateway:
+  # -- Enable Gateway API HTTPRoute. Requires Gateway API CRDs and parentRefs.
   enabled: false
+  # -- HTTPRoute annotations.
   annotations: {}
+  # -- parentRefs pointing to existing Gateway resources.
   parentRefs: []
+  # -- Hostnames matched by the HTTPRoute.
   hostnames: []
+  # -- HTTPRoute path value.
   path: /
+  # -- HTTPRoute path match type.
   pathType: PathPrefix
 
 networkPolicy:
+  # -- Enable NetworkPolicy for Immich pods.
   enabled: false
+  # -- Additional ingress rules. Defaults allow namespace ingress.
   ingress: []
+  # -- Additional egress rules. Defaults allow all egress for database, cache, machine-learning, and external API compatibility.
   egress: []
 
 autoscaling:
+  # -- Enable HorizontalPodAutoscaler for the Immich server.
   enabled: false
+  # -- Minimum server replicas.
   minReplicas: 1
+  # -- Maximum server replicas.
   maxReplicas: 4
+  # -- Target CPU utilization percentage.
   targetCPUUtilizationPercentage: 70
+  # -- Target memory utilization percentage.
   targetMemoryUtilizationPercentage: 80
 
 pdb:
+  # -- Enable PodDisruptionBudget for the Immich server.
   enabled: false
+  # -- Minimum available pods for the PodDisruptionBudget.
   minAvailable: 1
 
 probes:
+  # -- Immich server HTTP probe path.
   path: /api/server/ping
+  # -- Liveness probe initial delay in seconds.
   livenessInitialDelaySeconds: 60
+  # -- Readiness probe initial delay in seconds.
   readinessInitialDelaySeconds: 20
 
 wait:
   image:
+    # -- Init container image repository used while waiting for database/cache.
     repository: docker.io/library/busybox
+    # -- Init container image tag.
     tag: "1.37.0"
+    # -- Init container image pull policy.
     pullPolicy: IfNotPresent
 
+# -- Immich server resource requests and limits.
 resources:
   requests:
     cpu: 100m
@@ -223,29 +334,50 @@ resources:
     cpu: "1"
     memory: 2Gi
 
+# -- Pod security context for Immich pods.
 podSecurityContext:
   seccompProfile:
     type: RuntimeDefault
 
+# -- Container security context for the Immich server.
 securityContext:
   allowPrivilegeEscalation: false
   capabilities:
     drop:
       - ALL
 
+# -- Additional pod annotations.
 podAnnotations: {}
+
+# -- Additional pod labels.
 podLabels: {}
+
+# -- Priority class name.
 priorityClassName: ""
+
+# -- Grace period for shutdown in seconds.
 terminationGracePeriodSeconds: 30
+
+# -- Node selector for pod scheduling.
 nodeSelector: {}
+
+# -- Tolerations for pod scheduling.
 tolerations: []
+
+# -- Affinity rules for pod scheduling.
 affinity: {}
+
+# -- Topology spread constraints for pod scheduling.
 topologySpreadConstraints: []
 
 test:
   image:
+    # -- Helm test image repository.
     repository: docker.io/library/busybox
+    # -- Helm test image tag.
     tag: "1.37.0"
+    # -- Helm test image pull policy.
     pullPolicy: IfNotPresent
 
+# -- Extra Kubernetes manifests rendered with the release.
 extraObjects: []
