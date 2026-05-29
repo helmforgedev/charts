@@ -30,6 +30,10 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 {{- define "jupyterhub.hubName" -}}{{ include "jupyterhub.fullname" . }}-hub{{- end -}}
 {{- define "jupyterhub.proxyName" -}}{{ include "jupyterhub.fullname" . }}{{- end -}}
+{{- define "jupyterhub.proxyApiName" -}}{{ include "jupyterhub.fullname" . }}-proxy-api{{- end -}}
+{{- define "jupyterhub.hubDataClaimName" -}}
+{{- if .Values.hub.persistence.existingClaim }}{{ .Values.hub.persistence.existingClaim }}{{- else }}{{ include "jupyterhub.hubName" . }}-data{{- end -}}
+{{- end -}}
 {{- define "jupyterhub.secretName" -}}
 {{- if .Values.proxy.existingSecret }}{{ .Values.proxy.existingSecret }}{{- else }}{{ include "jupyterhub.fullname" . }}-proxy{{- end -}}
 {{- end -}}

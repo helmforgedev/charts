@@ -5,6 +5,7 @@ templates:
   - deployment-proxy.yaml
   - configmap.yaml
   - secret.yaml
+  - pvc-hub.yaml
 release:
   name: test
   namespace: default
@@ -22,6 +23,9 @@ tests:
           value: true
       - exists:
           path: spec.template.metadata.annotations["checksum/secret"]
+      - equal:
+          path: spec.template.spec.volumes[1].persistentVolumeClaim.claimName
+          value: test-jupyterhub-hub-data
 
   - it: should render proxy deployment
     template: deployment-proxy.yaml
@@ -33,6 +37,75 @@ tests:
           value: 8000
       - exists:
           path: spec.template.metadata.annotations["checksum/secret"]
+
+  - it: should render hub data PVC by default
+    template: pvc-hub.yaml
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: metadata.name
+          value: test-jupyterhub-hub-data
+      - equal:
+          path: spec.resources.requests.storage
+          value: 10Gi
+
+  - it: should use emptyDir when hub persistence is disabled
+    template: deployment-hub.yaml
+    set:
+      hub.persistence.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[1].emptyDir
+          value: {}
+
+  - it: should use existing hub data claim when configured
+    template: deployment-hub.yaml
+    set:
+      hub.persistence.existingClaim: hub-db-existing
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[1].persistentVolumeClaim.claimName
+          value: hub-db-existing
+
+  - it: should render image pull secrets on hub and proxy pods
+    set:
+      imagePullSecrets:
+        - name: private-registry
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: private-registry
+        template: deployment-hub.yaml
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: private-registry
+        template: deployment-proxy.yaml
+
+  - it: should render extra volumes and mounts on hub pod
+    template: deployment-hub.yaml
+    set:
+      extraVolumes:
+        - name: ca-bundle
+          secret:
+            secretName: ca-bundle
+      extraVolumeMounts:
+        - name: ca-bundle
+          mountPath: /etc/ssl/custom
+          readOnly: true
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: ca-bundle
+            secret:
+              secretName: ca-bundle
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: ca-bundle
+            mountPath: /etc/ssl/custom
+            readOnly: true
 
   - it: should render scheduling controls on hub and proxy pods
     set:
