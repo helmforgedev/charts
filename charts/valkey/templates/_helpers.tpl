@@ -280,6 +280,10 @@ Exporter environment.
 {{- if .Values.tls.enabled }}
 - name: REDIS_EXPORTER_TLS_CA_CERT_FILE
   value: /tls/{{ .Values.tls.caFilename }}
+{{- if .Values.metrics.tlsSkipVerify }}
+- name: REDIS_EXPORTER_SKIP_TLS_VERIFICATION
+  value: "true"
+{{- end }}
 {{- end }}
 {{- if .Values.auth.enabled }}
 - name: REDIS_USER
