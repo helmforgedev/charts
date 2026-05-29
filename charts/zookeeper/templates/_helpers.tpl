@@ -163,6 +163,20 @@ app.kubernetes.io/part-of: helmforge
 {{- if or $authManaged $tlsManaged -}}true{{- end -}}
 {{- end -}}
 
+{{- define "zookeeper.fourLetterWordWhitelist" -}}
+{{- $commands := list -}}
+{{- range $command := splitList "," .Values.zookeeper.fourLetterWordWhitelist -}}
+{{- $trimmed := trim $command -}}
+{{- if $trimmed -}}
+{{- $commands = append $commands $trimmed -}}
+{{- end -}}
+{{- end -}}
+{{- if not (has "srvr" $commands) -}}
+{{- $commands = append $commands "srvr" -}}
+{{- end -}}
+{{- join "," (uniq $commands) -}}
+{{- end -}}
+
 {{- define "zookeeper.validate" -}}
 {{- if lt (.Values.replicaCount | int) 1 -}}
 {{- fail "replicaCount must be at least 1" -}}
