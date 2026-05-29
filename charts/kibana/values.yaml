@@ -1,0 +1,318 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# Kibana Helm Chart
+# =============================================================================
+# Production-ready Kibana deployment using official Elastic images.
+#
+# Quick start:
+#   helm install kibana helmforge/kibana \
+#     --set elasticsearch.hosts[0]=http://elasticsearch:9200
+#
+# Hardened image:
+#   helm install kibana helmforge/kibana --set image.flavor=wolfi
+# =============================================================================
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+
+# -- Override the full release name used in resource names
+fullnameOverride: ""
+
+# -- Labels added to every resource created by this chart
+commonLabels: {}
+
+# =============================================================================
+# Image
+# =============================================================================
+image:
+  # -- Official Elastic Kibana image repository
+  repository: docker.elastic.co/kibana/kibana
+  # -- Official Elastic Wolfi image repository for hardened deployments
+  wolfiRepository: docker.elastic.co/kibana/kibana-wolfi
+  # -- Image flavor. Valid values: default, wolfi
+  flavor: default
+  # -- Kibana image tag. Defaults to the chart appVersion.
+  tag: "9.4.2"
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# -- Number of Kibana replicas
+replicaCount: 1
+
+# =============================================================================
+# Elasticsearch Connection
+# =============================================================================
+elasticsearch:
+  # -- Elasticsearch URLs. Elastic recommends matching Kibana and Elasticsearch versions.
+  hosts:
+    - http://elasticsearch:9200
+
+  auth:
+    # -- Authentication type for Kibana to Elasticsearch. Valid values: none, basic, serviceAccountToken
+    type: none
+    # -- Username used when auth.type=basic
+    username: kibana_system
+    # -- Password used when auth.type=basic and no existingSecret is set
+    password: ""
+    # -- Service account token used when auth.type=serviceAccountToken and no existingSecret is set
+    serviceAccountToken: ""
+    # -- Existing secret containing Elasticsearch credentials
+    existingSecret: ""
+    # -- Secret key for the basic-auth password
+    passwordKey: elasticsearch-password
+    # -- Secret key for the service account token
+    serviceAccountTokenKey: service-account-token
+
+  tls:
+    # -- Enable TLS trust configuration for Elasticsearch connections
+    enabled: false
+    # -- TLS certificate verification mode. Valid values: full, certificate, none
+    verificationMode: full
+    # -- Existing secret containing the Elasticsearch CA certificate
+    certificateAuthoritiesSecret: ""
+    # -- Secret key containing the CA certificate
+    certificateAuthoritiesKey: ca.crt
+
+# =============================================================================
+# Kibana Configuration
+# =============================================================================
+server:
+  # -- Public base URL used by Kibana for absolute URLs
+  publicBaseUrl: ""
+  # -- Base path when Kibana is served behind a reverse proxy path
+  basePath: ""
+  # -- Rewrite base path from incoming requests
+  rewriteBasePath: false
+
+telemetry:
+  # -- Enable Elastic telemetry
+  enabled: false
+
+encryptionKeys:
+  # -- Existing secret containing Kibana encryption keys
+  existingSecret: ""
+  # -- Key name for xpack.security.encryptionKey
+  securityKeyKey: xpack-security-encryption-key
+  # -- Key name for xpack.reporting.encryptionKey
+  reportingKeyKey: xpack-reporting-encryption-key
+  # -- Key name for xpack.encryptedSavedObjects.encryptionKey
+  encryptedSavedObjectsKeyKey: xpack-encrypted-saved-objects-encryption-key
+  # -- Value for xpack.security.encryptionKey. Use at least 32 characters.
+  securityKey: ""
+  # -- Value for xpack.reporting.encryptionKey. Use at least 32 characters.
+  reportingKey: ""
+  # -- Value for xpack.encryptedSavedObjects.encryptionKey. Use at least 32 characters.
+  encryptedSavedObjectsKey: ""
+  # -- Require static keys when replicaCount > 1 to keep sessions and reporting stable
+  requireForMultipleReplicas: true
+
+# -- Additional kibana.yml settings
+extraConfig: {}
+
+# -- Extra environment variables
+extraEnv: []
+
+# -- Extra volumes
+extraVolumes: []
+
+# -- Extra volume mounts
+extraVolumeMounts: []
+
+# =============================================================================
+# Workload
+# =============================================================================
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  fsGroup: 1000
+  runAsNonRoot: true
+  runAsUser: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 90
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 5
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 15
+  timeoutSeconds: 10
+  failureThreshold: 12
+
+startupProbe:
+  enabled: true
+  initialDelaySeconds: 90
+  periodSeconds: 10
+  timeoutSeconds: 10
+  failureThreshold: 60
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+terminationGracePeriodSeconds: 120
+
+# =============================================================================
+# Persistence
+# =============================================================================
+persistence:
+  # -- Persist /usr/share/kibana/data
+  enabled: false
+  # -- Existing PVC name
+  existingClaim: ""
+  # -- Storage class name
+  storageClass: ""
+  # -- Access modes
+  accessModes:
+    - ReadWriteOnce
+  # -- PVC size
+  size: 10Gi
+  annotations: {}
+
+# =============================================================================
+# Service
+# =============================================================================
+service:
+  type: ClusterIP
+  port: 5601
+  targetPort: http
+  annotations: {}
+  # -- Set the ipFamilyPolicy for dual-stack clusters
+  ipFamilyPolicy: ~
+  # -- Set the ipFamilies for dual-stack clusters
+  ipFamilies: []
+
+# =============================================================================
+# Ingress
+# =============================================================================
+ingress:
+  enabled: false
+  ingressClassName: traefik
+  annotations: {}
+  hosts:
+    - host: kibana.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+gateway:
+  enabled: false
+  hostnames: []
+  parentRefs: []
+  # -- Skip the live CRD presence check when CRDs are managed externally
+  skipCRDCheck: false
+
+# =============================================================================
+# Service Account
+# =============================================================================
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: false
+
+# =============================================================================
+# Pod Disruption Budget
+# =============================================================================
+pdb:
+  enabled: true
+  minAvailable: 1
+  maxUnavailable: ""
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+networkPolicy:
+  enabled: false
+  ingress:
+    allowSameNamespace: true
+    namespaceSelectors: []
+    podSelectors: []
+    ipBlocks: []
+    extraFrom: []
+  egress:
+    enabled: true
+    allowDns: true
+    elasticsearch:
+      enabled: true
+      ports:
+        - 9200
+      namespaceSelectors: []
+      podSelectors: []
+      ipBlocks: []
+    extra: []
+
+# =============================================================================
+# Prometheus Operator
+# =============================================================================
+serviceMonitor:
+  # -- Create a ServiceMonitor for deployments that expose Prometheus-compatible Kibana metrics
+  enabled: false
+  namespace: ""
+  interval: 30s
+  scrapeTimeout: 10s
+  path: /metrics
+  labels: {}
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+externalSecrets:
+  enabled: false
+  apiVersion: external-secrets.io/v1
+  refreshInterval: "0"
+  secretStoreRef:
+    name: ""
+    kind: ClusterSecretStore
+  target:
+    creationPolicy: Owner
+  data: []
+  # -- Skip the live CRD presence check when CRDs are managed externally
+  skipCRDCheck: false
+
+# =============================================================================
+# Helm Test
+# =============================================================================
+test:
+  image:
+    repository: docker.io/library/busybox
+    tag: "1.37.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi

@@ -1,0 +1,88 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "kibana.fullname" . }}
+  labels:
+    {{- include "kibana.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "kibana.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if .Values.networkPolicy.egress.enabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 5601
+      from:
+        {{- if .Values.networkPolicy.ingress.allowSameNamespace }}
+        - podSelector: {}
+        {{- end }}
+        {{- range .Values.networkPolicy.ingress.namespaceSelectors }}
+        - namespaceSelector:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- range .Values.networkPolicy.ingress.podSelectors }}
+        - podSelector:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- range .Values.networkPolicy.ingress.ipBlocks }}
+        - ipBlock:
+            cidr: {{ .cidr | quote }}
+            {{- with .except }}
+            except:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+        {{- end }}
+        {{- with .Values.networkPolicy.ingress.extraFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if not (or .Values.networkPolicy.ingress.allowSameNamespace .Values.networkPolicy.ingress.namespaceSelectors .Values.networkPolicy.ingress.podSelectors .Values.networkPolicy.ingress.ipBlocks .Values.networkPolicy.ingress.extraFrom) }}
+        []
+        {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  egress:
+    {{- if .Values.networkPolicy.egress.allowDns }}
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.elasticsearch.enabled }}
+    - ports:
+        {{- range .Values.networkPolicy.egress.elasticsearch.ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+      to:
+        {{- range .Values.networkPolicy.egress.elasticsearch.namespaceSelectors }}
+        - namespaceSelector:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- range .Values.networkPolicy.egress.elasticsearch.podSelectors }}
+        - podSelector:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- range .Values.networkPolicy.egress.elasticsearch.ipBlocks }}
+        - ipBlock:
+            cidr: {{ .cidr | quote }}
+            {{- with .except }}
+            except:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+        {{- end }}
+        {{- if not (or .Values.networkPolicy.egress.elasticsearch.namespaceSelectors .Values.networkPolicy.egress.elasticsearch.podSelectors .Values.networkPolicy.egress.elasticsearch.ipBlocks) }}
+        - podSelector: {}
+        {{- end }}
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.extra }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

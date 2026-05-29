@@ -1,0 +1,36 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "kibana.fullname" . }}-test-connection
+  labels:
+    {{- include "kibana.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: wget
+      image: "{{ .Values.test.image.repository }}:{{ .Values.test.image.tag }}"
+      imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 1000
+      resources:
+        {{- toYaml .Values.test.resources | nindent 8 }}
+      command:
+        - /bin/sh
+        - -ec
+        - wget -qO- "http://{{ include "kibana.fullname" . }}:{{ .Values.service.port }}{{ include "kibana.probePath" . }}"

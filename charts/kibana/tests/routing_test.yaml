@@ -1,0 +1,111 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: kibana - routing and policies
+templates:
+  - templates/service.yaml
+  - templates/ingress.yaml
+  - templates/httproute.yaml
+  - templates/networkpolicy.yaml
+  - templates/pdb.yaml
+  - templates/servicemonitor.yaml
+  - templates/pvc.yaml
+  - templates/externalsecret.yaml
+
+tests:
+  - it: renders dual-stack service fields
+    template: templates/service.yaml
+    set:
+      service:
+        ipFamilyPolicy: PreferDualStack
+        ipFamilies:
+          - IPv4
+          - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+      - equal:
+          path: spec.ipFamilies[1]
+          value: IPv6
+
+  - it: renders ingress when enabled
+    template: templates/ingress.yaml
+    set:
+      ingress:
+        enabled: true
+    asserts:
+      - isKind:
+          of: Ingress
+
+  - it: renders Gateway API HTTPRoute
+    template: templates/httproute.yaml
+    set:
+      gateway:
+        enabled: true
+        skipCRDCheck: true
+        hostnames:
+          - kibana.example.com
+        parentRefs:
+          - name: shared-gateway
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 5601
+
+  - it: renders NetworkPolicy with egress controls
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+
+  - it: renders persistence PVC
+    template: templates/pvc.yaml
+    set:
+      persistence:
+        enabled: true
+        size: 1Gi
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: spec.resources.requests.storage
+          value: 1Gi
+
+  - it: renders ServiceMonitor
+    template: templates/servicemonitor.yaml
+    set:
+      serviceMonitor:
+        enabled: true
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+
+  - it: renders ExternalSecret
+    template: templates/externalsecret.yaml
+    set:
+      elasticsearch:
+        auth:
+          type: serviceAccountToken
+      externalSecrets:
+        enabled: true
+        skipCRDCheck: true
+        secretStoreRef:
+          name: cluster-secrets
+        data:
+          - secretKey: service-account-token
+            remoteRef:
+              key: elastic/kibana
+              property: service-account-token
+    asserts:
+      - isKind:
+          of: ExternalSecret
+      - equal:
+          path: spec.secretStoreRef.name
+          value: cluster-secrets

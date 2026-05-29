@@ -1,0 +1,181 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kibana.fullname" . }}
+  labels:
+    {{- include "kibana.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "kibana.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kibana.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if eq (include "kibana.managedSecretNeeded" .) "true" }}
+        checksum/secrets: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "kibana.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: kibana
+          image: {{ include "kibana.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 5601
+              protocol: TCP
+          {{- if eq (include "kibana.hasEnv" .) "true" }}
+          env:
+            {{- if eq .Values.elasticsearch.auth.type "basic" }}
+            - name: ELASTICSEARCH_USERNAME
+              value: {{ .Values.elasticsearch.auth.username | quote }}
+            - name: ELASTICSEARCH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kibana.elasticsearchAuthSecretName" . }}
+                  key: {{ .Values.elasticsearch.auth.passwordKey }}
+            {{- end }}
+            {{- if eq .Values.elasticsearch.auth.type "serviceAccountToken" }}
+            - name: ELASTICSEARCH_SERVICEACCOUNTTOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kibana.elasticsearchAuthSecretName" . }}
+                  key: {{ .Values.elasticsearch.auth.serviceAccountTokenKey }}
+            {{- end }}
+            {{- if or .Values.encryptionKeys.existingSecret .Values.encryptionKeys.securityKey }}
+            - name: XPACK_SECURITY_ENCRYPTIONKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kibana.encryptionSecretName" . }}
+                  key: {{ .Values.encryptionKeys.securityKeyKey }}
+            {{- end }}
+            {{- if or .Values.encryptionKeys.existingSecret .Values.encryptionKeys.reportingKey }}
+            - name: XPACK_REPORTING_ENCRYPTIONKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kibana.encryptionSecretName" . }}
+                  key: {{ .Values.encryptionKeys.reportingKeyKey }}
+            {{- end }}
+            {{- if or .Values.encryptionKeys.existingSecret .Values.encryptionKeys.encryptedSavedObjectsKey }}
+            - name: XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kibana.encryptionSecretName" . }}
+                  key: {{ .Values.encryptionKeys.encryptedSavedObjectsKeyKey }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /usr/share/kibana/config/kibana.yml
+              subPath: kibana.yml
+              readOnly: true
+            - name: data
+              mountPath: /usr/share/kibana/data
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.elasticsearch.tls.enabled }}
+            - name: elasticsearch-ca
+              mountPath: /usr/share/kibana/config/certs
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ include "kibana.probePath" . }}
+              port: http
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ include "kibana.probePath" . }}
+              port: http
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ include "kibana.probePath" . }}
+              port: http
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "kibana.fullname" . }}-config
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-data" (include "kibana.fullname" .)) .Values.persistence.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.elasticsearch.tls.enabled }}
+        - name: elasticsearch-ca
+          secret:
+            secretName: {{ .Values.elasticsearch.tls.certificateAuthoritiesSecret }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
