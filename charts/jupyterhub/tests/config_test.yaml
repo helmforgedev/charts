@@ -15,6 +15,9 @@ tests:
       - matchRegex:
           path: data["jupyterhub_config.py"]
           pattern: "KubeSpawner"
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: "c\\.JupyterHub\\.authenticate_prometheus = False"
 
   - it: should render proxy token secret
     template: secret.yaml
@@ -31,6 +34,21 @@ tests:
       - matchRegex:
           path: data["jupyterhub_config.py"]
           pattern: "c\\.KubeSpawner\\.storage_class = \"fast-rwx\""
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: 'c\.KubeSpawner\.pvc_name_template = "test-jupyterhub-claim-\{username\}"'
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: '"claimName": "test-jupyterhub-claim-\{username\}"'
+
+  - it: should allow authenticated Prometheus metrics when explicitly enabled
+    template: configmap.yaml
+    set:
+      metrics.authenticatePrometheus: true
+    asserts:
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: "c\\.JupyterHub\\.authenticate_prometheus = True"
 
   - it: should pass imagePullSecrets to KubeSpawner
     template: configmap.yaml

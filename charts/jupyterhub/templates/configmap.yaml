@@ -15,6 +15,7 @@ data:
     c.JupyterHub.base_url = "{{ .Values.hub.baseUrl }}"
     c.JupyterHub.db_url = "sqlite:///{{ .Values.hub.dbPath }}"
     c.JupyterHub.log_level = "{{ .Values.hub.logLevel }}"
+    c.JupyterHub.authenticate_prometheus = {{ ternary "True" "False" .Values.metrics.authenticatePrometheus }}
 
     c.ConfigurableHTTPProxy.should_start = False
     c.ConfigurableHTTPProxy.api_url = "http://{{ include "jupyterhub.proxyApiName" . }}:{{ .Values.service.proxyApiPort }}"
@@ -53,8 +54,8 @@ data:
     {{- with .Values.singleuser.storage.storageClass }}
     c.KubeSpawner.storage_class = "{{ . }}"
     {{- end }}
-    c.KubeSpawner.pvc_name_template = "claim-{username}"
-    c.KubeSpawner.volumes = [{"name": "home", "persistentVolumeClaim": {"claimName": "claim-{username}"}}]
+    c.KubeSpawner.pvc_name_template = "{{ include "jupyterhub.fullname" . }}-claim-{username}"
+    c.KubeSpawner.volumes = [{"name": "home", "persistentVolumeClaim": {"claimName": "{{ include "jupyterhub.fullname" . }}-claim-{username}"}}]
     c.KubeSpawner.volume_mounts = [{"name": "home", "mountPath": "/home/jovyan"}]
     {{- end }}
     {{- with .Values.singleuser.profiles }}
