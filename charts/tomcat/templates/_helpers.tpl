@@ -68,7 +68,7 @@ app.kubernetes.io/part-of: tomcat
 
 {{- define "tomcat.jmxOpts" -}}
 {{- if .Values.jmx.enabled -}}
--Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port={{ .Values.jmx.port }} -Dcom.sun.management.jmxremote.rmi.port={{ .Values.jmx.rmiPort }} -Dcom.sun.management.jmxremote.authenticate={{ .Values.jmx.authenticate }} -Dcom.sun.management.jmxremote.ssl={{ .Values.jmx.ssl }} -Djava.rmi.server.hostname={{ .Values.jmx.hostname }}{{ with .Values.jmx.extraOpts }} {{ . }}{{ end }}
+-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port={{ .Values.jmx.port }} -Dcom.sun.management.jmxremote.rmi.port={{ .Values.jmx.rmiPort }} -Dcom.sun.management.jmxremote.authenticate={{ .Values.jmx.authenticate }} -Dcom.sun.management.jmxremote.ssl={{ .Values.jmx.ssl }} -Djava.rmi.server.hostname={{ default "$(POD_IP)" .Values.jmx.hostname }}{{ with .Values.jmx.extraOpts }} {{ . }}{{ end }}
 {{- end -}}
 {{- end }}
 

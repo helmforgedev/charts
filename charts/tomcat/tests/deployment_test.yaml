@@ -118,3 +118,36 @@ tests:
             name: jmx-rmi
             containerPort: 9011
             protocol: TCP
+
+  - it: should advertise pod IP for JMX by default
+    template: deployment.yaml
+    set:
+      jmx.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[1].value
+          pattern: "-Djava\\.rmi\\.server\\.hostname=\\$\\(POD_IP\\)"
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].env[1].value
+          pattern: "-Djava\\.rmi\\.server\\.hostname=127\\.0\\.0\\.1"
+
+  - it: should honor explicit JMX hostname
+    template: deployment.yaml
+    set:
+      jmx.enabled: true
+      jmx.hostname: tomcat-jmx.example.com
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POD_IP
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[0].value
+          pattern: "-Djava\\.rmi\\.server\\.hostname=tomcat-jmx\\.example\\.com"
