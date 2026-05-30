@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: ServiceMonitor
+templates:
+  - servicemonitor.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render metrics path with baseUrl
+    set:
+      metrics.serviceMonitor.enabled: true
+      metrics.authenticatePrometheus: false
+      hub.baseUrl: /notebooks/
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+      - equal:
+          path: spec.endpoints[0].path
+          value: /notebooks/hub/metrics
+
+  - it: should render default metrics path
+    set:
+      metrics.serviceMonitor.enabled: true
+      metrics.authenticatePrometheus: false
+    asserts:
+      - equal:
+          path: spec.endpoints[0].path
+          value: /hub/metrics
+
+  - it: should reject authenticated metrics without ServiceMonitor credentials
+    set:
+      metrics.serviceMonitor.enabled: true
+      metrics.authenticatePrometheus: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "metrics.serviceMonitor.enabled=true requires metrics.authenticatePrometheus=false until ServiceMonitor scrape credentials are configured"

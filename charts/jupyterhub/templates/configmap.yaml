@@ -1,0 +1,78 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "jupyterhub.validateValues" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "jupyterhub.hubName" . }}-config
+  labels:
+    {{- include "jupyterhub.labels" . | nindent 4 }}
+  {{- include "jupyterhub.renderAnnotations" (dict "common" .Values.annotations) | nindent 2 }}
+data:
+  jupyterhub_config.py: |
+    import os
+    import json
+
+    c.JupyterHub.bind_url = "http://:8081/hub/"
+    c.JupyterHub.hub_bind_url = "http://:8081"
+    c.JupyterHub.hub_connect_url = "http://{{ include "jupyterhub.hubName" . }}:8081"
+    c.JupyterHub.base_url = "{{ .Values.hub.baseUrl }}"
+    c.JupyterHub.db_url = "sqlite:///{{ .Values.hub.dbPath }}"
+    {{- with .Values.hub.cookieSecret.existingSecret }}
+    c.JupyterHub.cookie_secret_file = "/srv/jupyterhub/{{ $.Values.hub.cookieSecret.fileName }}"
+    {{- end }}
+    c.JupyterHub.log_level = "{{ .Values.hub.logLevel }}"
+    c.JupyterHub.cleanup_servers = {{ ternary "True" "False" .Values.hub.cleanupServers }}
+    c.JupyterHub.authenticate_prometheus = {{ ternary "True" "False" .Values.metrics.authenticatePrometheus }}
+
+    c.ConfigurableHTTPProxy.should_start = False
+    c.ConfigurableHTTPProxy.api_url = "http://{{ include "jupyterhub.proxyApiName" . }}:{{ .Values.service.proxyApiPort }}"
+    c.ConfigurableHTTPProxy.auth_token = os.environ["CONFIGPROXY_AUTH_TOKEN"]
+
+    {{- if eq .Values.auth.type "dummy" }}
+    c.JupyterHub.authenticator_class = "dummy"
+    c.DummyAuthenticator.password = os.environ.get("DUMMY_PASSWORD", "")
+    {{- end }}
+
+    c.JupyterHub.spawner_class = "kubespawner.KubeSpawner"
+    c.KubeSpawner.namespace = os.environ["POD_NAMESPACE"]
+    c.KubeSpawner.service_account = "{{ include "jupyterhub.serviceAccountName" . }}"
+    c.KubeSpawner.automount_service_account_token = False
+    c.KubeSpawner.image = "{{ .Values.singleuser.image.name }}:{{ .Values.singleuser.image.tag }}"
+    c.KubeSpawner.image_pull_policy = "{{ .Values.singleuser.image.pullPolicy }}"
+    c.KubeSpawner.extra_labels = {
+        "app.kubernetes.io/name": "{{ include "jupyterhub.name" . }}",
+        "app.kubernetes.io/instance": "{{ .Release.Name }}",
+        "app.kubernetes.io/component": "singleuser",
+        {{- range $key, $value := omit .Values.podLabels "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/component" }}
+        {{ $key | quote }}: {{ $value | toString | quote }},
+        {{- end }}
+    }
+    {{- with .Values.imagePullSecrets }}
+    c.KubeSpawner.image_pull_secrets = {{ . | toJson }}
+    {{- end }}
+    c.KubeSpawner.start_timeout = {{ .Values.singleuser.startTimeout }}
+    c.KubeSpawner.default_url = "{{ .Values.singleuser.defaultUrl }}"
+    c.KubeSpawner.cpu_guarantee = {{ .Values.singleuser.cpu.guarantee }}
+    c.KubeSpawner.cpu_limit = {{ .Values.singleuser.cpu.limit }}
+    c.KubeSpawner.mem_guarantee = "{{ .Values.singleuser.memory.guarantee }}"
+    c.KubeSpawner.mem_limit = "{{ .Values.singleuser.memory.limit }}"
+    c.KubeSpawner.uid = 1000
+    c.KubeSpawner.gid = 100
+    c.KubeSpawner.fs_gid = 100
+    {{- if .Values.singleuser.storage.enabled }}
+    c.KubeSpawner.storage_pvc_ensure = True
+    c.KubeSpawner.storage_capacity = "{{ .Values.singleuser.storage.capacity }}"
+    c.KubeSpawner.storage_access_modes = {{ .Values.singleuser.storage.accessModes | toJson }}
+    {{- with .Values.singleuser.storage.storageClass }}
+    c.KubeSpawner.storage_class = "{{ . }}"
+    {{- end }}
+    c.KubeSpawner.pvc_name_template = "{{ include "jupyterhub.fullname" . }}-claim-{username}"
+    c.KubeSpawner.volumes = [{"name": "home", "persistentVolumeClaim": {"claimName": "{{ include "jupyterhub.fullname" . }}-claim-{username}"}}]
+    c.KubeSpawner.volume_mounts = [{"name": "home", "mountPath": "/home/jovyan"}]
+    {{- end }}
+    {{- with .Values.singleuser.profiles }}
+    c.KubeSpawner.profile_list = json.loads({{ . | toJson | quote }})
+    {{- end }}
+    {{- with .Values.hub.extraConfig }}
+{{ . | nindent 4 }}
+    {{- end }}
