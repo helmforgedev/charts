@@ -1,0 +1,77 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "metrics-server.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "metrics-server.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "metrics-server.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: metrics-server
+  policyTypes:
+    - Ingress
+    {{- if .Values.networkPolicy.egress.enabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    {{- if or .Values.networkPolicy.ingress.allowSameNamespace .Values.networkPolicy.ingress.allowAPIServer .Values.networkPolicy.ingress.extraFrom }}
+    - from:
+        {{- if .Values.networkPolicy.ingress.allowSameNamespace }}
+        - podSelector: {}
+        {{- end }}
+        {{- if .Values.networkPolicy.ingress.allowAPIServer }}
+        {{- range .Values.networkPolicy.ingress.apiServerCidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+        {{- end }}
+        {{- with .Values.networkPolicy.ingress.extraFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ include "metrics-server.securePort" . }}
+    {{- else }}
+    []
+    {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  egress:
+    {{- if .Values.networkPolicy.egress.allowDNS }}
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.allowAPIServer }}
+    - to:
+        {{- range .Values.networkPolicy.egress.apiServerCidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.egress.apiServerPort }}
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.allowKubelet }}
+    - to:
+        {{- range .Values.networkPolicy.egress.kubeletCidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.egress.kubeletPort }}
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.extraTo }}
+    - to:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+  {{- end }}
+{{- end }}
