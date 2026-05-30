@@ -43,11 +43,14 @@ annotations:
 {{- define "jupyterhub.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}{{ default (include "jupyterhub.fullname" .) .Values.serviceAccount.name }}{{- else }}{{ default "default" .Values.serviceAccount.name }}{{- end -}}
 {{- end -}}
-{{- define "jupyterhub.hubName" -}}{{ include "jupyterhub.fullname" . }}-hub{{- end -}}
+{{- define "jupyterhub.hubName" -}}{{ printf "%s-hub" (include "jupyterhub.fullname" . | trunc 59 | trimSuffix "-") | trunc 63 | trimSuffix "-" }}{{- end -}}
 {{- define "jupyterhub.proxyName" -}}{{ include "jupyterhub.fullname" . }}{{- end -}}
-{{- define "jupyterhub.proxyApiName" -}}{{ include "jupyterhub.fullname" . }}-proxy-api{{- end -}}
+{{- define "jupyterhub.proxyDeploymentName" -}}{{ printf "%s-proxy" (include "jupyterhub.fullname" . | trunc 57 | trimSuffix "-") | trunc 63 | trimSuffix "-" }}{{- end -}}
+{{- define "jupyterhub.proxyApiName" -}}{{ printf "%s-proxy-api" (include "jupyterhub.fullname" . | trunc 53 | trimSuffix "-") | trunc 63 | trimSuffix "-" }}{{- end -}}
+{{- define "jupyterhub.singleuserNetworkPolicyName" -}}{{ printf "%s-singleuser" (include "jupyterhub.fullname" . | trunc 52 | trimSuffix "-") | trunc 63 | trimSuffix "-" }}{{- end -}}
+{{- define "jupyterhub.testName" -}}{{ printf "%s-test-connection" (include "jupyterhub.fullname" . | trunc 47 | trimSuffix "-") | trunc 63 | trimSuffix "-" }}{{- end -}}
 {{- define "jupyterhub.hubDataClaimName" -}}
-{{- if .Values.hub.persistence.existingClaim }}{{ .Values.hub.persistence.existingClaim }}{{- else }}{{ include "jupyterhub.hubName" . }}-data{{- end -}}
+{{- if .Values.hub.persistence.existingClaim }}{{ .Values.hub.persistence.existingClaim }}{{- else }}{{ printf "%s-hub-data" (include "jupyterhub.fullname" . | trunc 54 | trimSuffix "-") | trunc 63 | trimSuffix "-" }}{{- end -}}
 {{- end -}}
 {{- define "jupyterhub.hubHealthPath" -}}
 {{- $base := trimSuffix "/" .Values.hub.baseUrl -}}
@@ -62,7 +65,7 @@ annotations:
 {{- if eq $base "" -}}/hub/error{{- else -}}{{ printf "%s/hub/error" $base }}{{- end -}}
 {{- end -}}
 {{- define "jupyterhub.secretName" -}}
-{{- if .Values.proxy.existingSecret }}{{ .Values.proxy.existingSecret }}{{- else }}{{ include "jupyterhub.fullname" . }}-proxy{{- end -}}
+{{- if .Values.proxy.existingSecret }}{{ .Values.proxy.existingSecret }}{{- else }}{{ include "jupyterhub.proxyDeploymentName" . }}{{- end -}}
 {{- end -}}
 {{- define "jupyterhub.proxyToken" -}}
 {{- if .Values.proxy.secretToken }}{{ .Values.proxy.secretToken }}{{- else if .Values.proxy.existingSecret }}{{ "" }}{{- else }}{{ randAlphaNum 64 }}{{- end -}}

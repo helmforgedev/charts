@@ -68,6 +68,35 @@ tests:
           path: spec.template.spec.containers[0].args
           content: --api-ip=0.0.0.0
 
+  - it: should keep derived workload and PVC names within DNS label length
+    set:
+      fullnameOverride: jupyterhub-with-a-very-long-name-that-fills-the-dns-label-limit
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: "^.{1,63}$"
+        template: deployment-hub.yaml
+      - matchRegex:
+          path: metadata.name
+          pattern: "-hub$"
+        template: deployment-hub.yaml
+      - matchRegex:
+          path: metadata.name
+          pattern: "^.{1,63}$"
+        template: deployment-proxy.yaml
+      - matchRegex:
+          path: metadata.name
+          pattern: "-proxy$"
+        template: deployment-proxy.yaml
+      - matchRegex:
+          path: metadata.name
+          pattern: "^.{1,63}$"
+        template: pvc-hub.yaml
+      - matchRegex:
+          path: metadata.name
+          pattern: "-hub-data$"
+        template: pvc-hub.yaml
+
   - it: should bind proxy listeners to IPv6 wildcard for dual-stack services
     template: deployment-proxy.yaml
     set:

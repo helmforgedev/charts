@@ -90,6 +90,36 @@ tests:
           path: spec.ingress[0].from[1].podSelector.matchLabels["app.kubernetes.io/component"]
           value: hub
         documentIndex: 2
+
+  - it: should keep derived network policy names within DNS label length
+    set:
+      networkPolicy.enabled: true
+      fullnameOverride: jupyterhub-with-a-very-long-name-that-fills-the-dns-label-limit
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: "^.{1,63}$"
+        documentIndex: 0
+      - matchRegex:
+          path: metadata.name
+          pattern: "-proxy$"
+        documentIndex: 0
+      - matchRegex:
+          path: metadata.name
+          pattern: "^.{1,63}$"
+        documentIndex: 1
+      - matchRegex:
+          path: metadata.name
+          pattern: "-hub$"
+        documentIndex: 1
+      - matchRegex:
+          path: metadata.name
+          pattern: "^.{1,63}$"
+        documentIndex: 2
+      - matchRegex:
+          path: metadata.name
+          pattern: "-singleuser$"
+        documentIndex: 2
       - contains:
           path: spec.egress[0].ports
           content:
