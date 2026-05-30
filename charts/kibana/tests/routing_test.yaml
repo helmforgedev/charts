@@ -32,9 +32,13 @@ tests:
     set:
       ingress:
         enabled: true
+        ingressClassName: nginx
     asserts:
       - isKind:
           of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
 
   - it: renders Gateway API HTTPRoute
     template: templates/httproute.yaml
@@ -109,3 +113,39 @@ tests:
       - equal:
           path: spec.secretStoreRef.name
           value: cluster-secrets
+
+  - it: renders ExternalSecret with dataFrom
+    template: templates/externalsecret.yaml
+    set:
+      elasticsearch:
+        auth:
+          type: serviceAccountToken
+      externalSecrets:
+        enabled: true
+        skipCRDCheck: true
+        secretStoreRef:
+          name: cluster-secrets
+        dataFrom:
+          - extract:
+              key: elastic/kibana
+    asserts:
+      - isKind:
+          of: ExternalSecret
+      - equal:
+          path: spec.dataFrom[0].extract.key
+          value: elastic/kibana
+
+  - it: fails ExternalSecret without data or dataFrom
+    template: templates/externalsecret.yaml
+    set:
+      elasticsearch:
+        auth:
+          type: serviceAccountToken
+      externalSecrets:
+        enabled: true
+        skipCRDCheck: true
+        secretStoreRef:
+          name: cluster-secrets
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.data or externalSecrets.dataFrom must not be empty when externalSecrets.enabled=true"

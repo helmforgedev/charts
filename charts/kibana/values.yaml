@@ -76,6 +76,28 @@ elasticsearch:
     # -- Secret key containing the CA certificate
     certificateAuthoritiesKey: ca.crt
 
+bundledElasticsearch:
+  # -- Enable the HelmForge Elasticsearch subchart for local/dev deployments.
+  # Keep disabled when connecting to an existing Elasticsearch service.
+  enabled: false
+
+bundled-elasticsearch:
+  # -- Values passed to the aliased HelmForge Elasticsearch subchart.
+  clusterProfile: dev
+  image:
+    # -- Keep bundled Elasticsearch aligned with the Kibana appVersion.
+    tag: "9.4.2"
+  # -- Disable nested Kibana from the Elasticsearch chart.
+  kibana:
+    enabled: false
+  # -- Keep the subchart lightweight by default when enabled for local tests.
+  master:
+    persistence:
+      enabled: false
+  sysctlInit:
+    enabled: false
+  resources: {}
+
 # =============================================================================
 # Kibana Configuration
 # =============================================================================
@@ -120,6 +142,32 @@ extraVolumes: []
 
 # -- Extra volume mounts
 extraVolumeMounts: []
+
+# -- Wait for the first configured Elasticsearch endpoint before starting Kibana
+waitForElasticsearch:
+  enabled: false
+  image:
+    repository: docker.io/library/busybox
+    tag: "1.37.0"
+    pullPolicy: IfNotPresent
+  timeoutSeconds: 300
+  intervalSeconds: 5
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
 
 # =============================================================================
 # Workload
@@ -297,7 +345,10 @@ externalSecrets:
     kind: ClusterSecretStore
   target:
     creationPolicy: Owner
+  # -- ExternalSecret data entries for individual Kibana secret keys.
   data: []
+  # -- ExternalSecret dataFrom entries for provider-side extraction.
+  dataFrom: []
   # -- Skip the live CRD presence check when CRDs are managed externally
   skipCRDCheck: false
 

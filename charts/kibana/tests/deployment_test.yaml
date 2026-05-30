@@ -77,6 +77,22 @@ tests:
           path: spec.template.spec.containers[0].readinessProbe.httpGet.path
           value: /kibana/api/status
 
+  - it: can wait for Elasticsearch before starting Kibana
+    template: templates/deployment.yaml
+    set:
+      waitForElasticsearch:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-elasticsearch
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: docker.io/library/busybox:1.37.0
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "http://elasticsearch:9200"
+
   - it: mounts Elasticsearch CA when TLS is enabled
     template: templates/deployment.yaml
     set:

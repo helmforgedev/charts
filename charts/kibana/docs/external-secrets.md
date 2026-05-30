@@ -1,14 +1,15 @@
-# SPDX-License-Identifier: Apache-2.0
+# Kibana External Secrets
+
+The chart can render an ExternalSecret for Elasticsearch credentials and Kibana
+encryption keys.
+
+```yaml
 elasticsearch:
   auth:
     type: serviceAccountToken
 
-encryptionKeys:
-  requireForMultipleReplicas: true
-
 externalSecrets:
   enabled: true
-  skipCRDCheck: true
   secretStoreRef:
     name: cluster-secrets
     kind: ClusterSecretStore
@@ -21,12 +22,17 @@ externalSecrets:
       remoteRef:
         key: elastic/kibana
         property: security-key
-    - secretKey: xpack-reporting-encryption-key
-      remoteRef:
+```
+
+Use `dataFrom` when the remote secret contains all expected keys:
+
+```yaml
+externalSecrets:
+  enabled: true
+  dataFrom:
+    - extract:
         key: elastic/kibana
-        property: reporting-key
-    - secretKey: xpack-encrypted-saved-objects-encryption-key
-      remoteRef:
-        key: elastic/kibana
-        property: saved-objects-key
-  dataFrom: []
+```
+
+The chart fails rendering when ExternalSecret is enabled without `data` or
+`dataFrom`.

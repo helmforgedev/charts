@@ -56,6 +56,32 @@ spec:
       priorityClassName: {{ . | quote }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if .Values.waitForElasticsearch.enabled }}
+      initContainers:
+        - name: wait-for-elasticsearch
+          image: "{{ .Values.waitForElasticsearch.image.repository }}:{{ .Values.waitForElasticsearch.image.tag }}"
+          imagePullPolicy: {{ .Values.waitForElasticsearch.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.waitForElasticsearch.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.waitForElasticsearch.resources | nindent 12 }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              endpoint={{ first .Values.elasticsearch.hosts | quote }}
+              timeout={{ .Values.waitForElasticsearch.timeoutSeconds }}
+              interval={{ .Values.waitForElasticsearch.intervalSeconds }}
+              elapsed=0
+              until wget -q -O /dev/null "$endpoint" 2>/dev/null; do
+                if [ "$elapsed" -ge "$timeout" ]; then
+                  echo "Timed out waiting for Elasticsearch at $endpoint" >&2
+                  exit 1
+                fi
+                sleep "$interval"
+                elapsed=$((elapsed + interval))
+              done
+      {{- end }}
       containers:
         - name: kibana
           image: {{ include "kibana.image" . | quote }}

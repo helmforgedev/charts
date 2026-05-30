@@ -1,18 +1,55 @@
-Kibana has been installed.
+=============================================================================
+Kibana deployed successfully!
+=============================================================================
 
-Release: {{ .Release.Name }}
-Namespace: {{ .Release.Namespace }}
+ACCESS:
+   kubectl port-forward svc/{{ include "kibana.fullname" . }} -n {{ .Release.Namespace }} 5601:{{ .Values.service.port }}
+   Open: http://localhost:5601/
 
-Internal URL:
-  http://{{ include "kibana.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+SERVICE:
+   Internal URL: http://{{ include "kibana.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+   Status URL: http://{{ include "kibana.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}{{ include "kibana.probePath" . }}
 
-{{- if .Values.ingress.enabled }}
-Ingress hosts:
-{{- range .Values.ingress.hosts }}
-  - {{ .host }}
+IMAGE:
+   {{ include "kibana.image" . }}
+
+ELASTICSEARCH:
+   Hosts:
+{{- range .Values.elasticsearch.hosts }}
+     - {{ . }}
 {{- end }}
-{{- end }}
+   Auth type: {{ .Values.elasticsearch.auth.type }}
+   Bundled Elasticsearch subchart: {{ ternary "enabled" "disabled" .Values.bundledElasticsearch.enabled }}
 
-{{- if eq .Values.elasticsearch.auth.type "none" }}
-Elasticsearch authentication is disabled in chart values. Enable elasticsearch.auth.type for secured clusters.
-{{- end }}
+CONFIGURATION:
+   Persistence: {{ ternary "enabled" "disabled" .Values.persistence.enabled }}
+   Wolfi image: {{ ternary "enabled" "disabled" (eq .Values.image.flavor "wolfi") }}
+   ExternalSecret: {{ ternary "enabled" "disabled" .Values.externalSecrets.enabled }}
+
+NETWORKING:
+   Ingress: {{ ternary "enabled" "disabled" .Values.ingress.enabled }}
+   Gateway API: {{ ternary "enabled" "disabled" .Values.gateway.enabled }}
+   NetworkPolicy: {{ ternary "enabled" "disabled" .Values.networkPolicy.enabled }}
+
+OBSERVABILITY:
+   ServiceMonitor: {{ ternary "enabled" "disabled" .Values.serviceMonitor.enabled }}
+
+OPERATIONS:
+   Run Helm tests:
+     helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+   Inspect pods:
+     kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+     kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "kibana.fullname" . }}
+
+SECURITY REMINDERS:
+   1. Use static encryption keys for multiple replicas.
+   2. Use Elasticsearch TLS and authentication for production clusters.
+   3. Prefer ExternalSecret or existing Secrets for tokens and encryption keys.
+
+DOCUMENTATION:
+   Chart: https://helmforge.dev/docs/charts/kibana
+   Source: https://github.com/helmforgedev/charts/tree/main/charts/kibana
+   Kibana: https://www.elastic.co/kibana
+
+=============================================================================

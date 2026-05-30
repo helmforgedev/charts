@@ -130,8 +130,10 @@ app.kubernetes.io/part-of: helmforge
 {{- if and .Values.externalSecrets.enabled (not .Values.externalSecrets.secretStoreRef.name) -}}
 {{- fail "externalSecrets.secretStoreRef.name is required when externalSecrets.enabled=true" -}}
 {{- end -}}
-{{- if and .Values.externalSecrets.enabled (not .Values.externalSecrets.data) -}}
-{{- fail "externalSecrets.data must not be empty when externalSecrets.enabled=true" -}}
+{{- $externalSecretData := .Values.externalSecrets.data | default list -}}
+{{- $externalSecretDataFrom := .Values.externalSecrets.dataFrom | default list -}}
+{{- if and .Values.externalSecrets.enabled (eq (add (len $externalSecretData) (len $externalSecretDataFrom)) 0) -}}
+{{- fail "externalSecrets.data or externalSecrets.dataFrom must not be empty when externalSecrets.enabled=true" -}}
 {{- end -}}
 {{- end -}}
 
