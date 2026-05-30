@@ -76,3 +76,35 @@ tests:
           path: spec.egress[1].ports[0].port
           value: 16379
         documentIndex: 1
+
+  - it: should append custom web egress rules to the defaults
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress:
+        - to:
+            - ipBlock:
+                cidr: 10.10.0.0/16
+          ports:
+            - protocol: TCP
+              port: 8443
+    asserts:
+      - contains:
+          path: spec.egress[0].ports
+          content:
+            protocol: UDP
+            port: 53
+        documentIndex: 0
+      - contains:
+          path: spec.egress[1].ports
+          content:
+            protocol: TCP
+            port: 5432
+        documentIndex: 0
+      - equal:
+          path: spec.egress[2].to[0].ipBlock.cidr
+          value: 10.10.0.0/16
+        documentIndex: 0
+      - equal:
+          path: spec.egress[2].ports[0].port
+          value: 8443
+        documentIndex: 0

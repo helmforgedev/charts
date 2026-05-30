@@ -27,6 +27,32 @@ spec:
         - name: redis-http
           image: "{{ .Values.redisHttp.image.repository }}:{{ .Values.redisHttp.image.tag }}"
           imagePullPolicy: {{ .Values.redisHttp.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              url_encode() {
+                printf '%s' "$1" \
+                  | sed -e 's/%/%25/g' \
+                        -e 's/:/%3A/g' \
+                        -e 's/@/%40/g' \
+                        -e 's#/#%2F#g' \
+                        -e 's/?/%3F/g' \
+                        -e 's/#/%23/g' \
+                        -e 's/ /%20/g' \
+                        -e 's/&/%26/g' \
+                        -e 's/=/%3D/g' \
+                        -e 's/+/%2B/g'
+              }
+              if [ -n "${REDIS_PASSWORD:-}" ]; then
+                redis_password="$(url_encode "$REDIS_PASSWORD")"
+                export SRH_CONNECTION_STRING="redis://:${redis_password}@${REDIS_HOST}:${REDIS_PORT}"
+                unset redis_password
+              else
+                export SRH_CONNECTION_STRING="redis://${REDIS_HOST}:${REDIS_PORT}"
+              fi
+              exec _build/prod/rel/prod/bin/prod start
           env:
             - name: SRH_MODE
               value: env
@@ -42,8 +68,10 @@ spec:
                   name: {{ include "opencut.redisSecretName" . }}
                   key: {{ include "opencut.redisSecretKey" . }}
             {{- end }}
-            - name: SRH_CONNECTION_STRING
-              value: "redis://{{- if include "opencut.redisAuthEnabled" . -}}:$(REDIS_PASSWORD)@{{- end -}}{{ include "opencut.redisHost" . }}:{{ include "opencut.redisPort" . }}"
+            - name: REDIS_HOST
+              value: {{ include "opencut.redisHost" . | quote }}
+            - name: REDIS_PORT
+              value: {{ include "opencut.redisPort" . | quote }}
           ports:
             - name: http
               containerPort: 80

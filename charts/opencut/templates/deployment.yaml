@@ -80,6 +80,20 @@ spec:
         - name: opencut
           image: {{ include "opencut.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              url_encode() {
+                node -e 'process.stdout.write(encodeURIComponent(process.argv[1] || ""))' "$1"
+              }
+              database_username="$(url_encode "$DATABASE_USERNAME")"
+              database_password="$(url_encode "$DATABASE_PASSWORD")"
+              database_name="$(url_encode "$DATABASE_NAME")"
+              export DATABASE_URL="postgresql://${database_username}:${database_password}@${DATABASE_HOST}:${DATABASE_PORT}/${database_name}"
+              unset database_username database_password database_name
+              exec docker-entrypoint.sh node apps/web/server.js
           ports:
             - name: http
               containerPort: 3000
@@ -95,13 +109,19 @@ spec:
               value: {{ include "opencut.siteUrl" . | quote }}
             - name: NEXT_PUBLIC_MARBLE_API_URL
               value: {{ .Values.opencut.marbleApiUrl | quote }}
+            - name: DATABASE_USERNAME
+              value: {{ include "opencut.databaseUsername" . | quote }}
             - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "opencut.databaseSecretName" . }}
                   key: {{ include "opencut.databaseSecretKey" . }}
-            - name: DATABASE_URL
-              value: {{ printf "postgresql://%s:$(DATABASE_PASSWORD)@%s:%s/%s" (include "opencut.databaseUsername" .) (include "opencut.databaseHost" .) (include "opencut.databasePort" .) (include "opencut.databaseName" .) | quote }}
+            - name: DATABASE_HOST
+              value: {{ include "opencut.databaseHost" . | quote }}
+            - name: DATABASE_PORT
+              value: {{ include "opencut.databasePort" . | quote }}
+            - name: DATABASE_NAME
+              value: {{ include "opencut.databaseName" . | quote }}
             - name: BETTER_AUTH_SECRET
               valueFrom:
                 secretKeyRef:
