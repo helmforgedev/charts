@@ -62,7 +62,9 @@ app.kubernetes.io/part-of: helmforge
 {{- $strategy := deepCopy .Values.deploymentStrategy -}}
 {{- $rolling := default dict $strategy.rollingUpdate -}}
 {{- $usesDefaultRolling := and (eq $strategy.type "RollingUpdate") (eq (toString $rolling.maxUnavailable) "0") (eq (toString $rolling.maxSurge) "1") -}}
-{{- if and .Values.hostNetwork.enabled $usesDefaultRolling }}
+{{- if ne $strategy.type "RollingUpdate" }}
+{{- toYaml (omit $strategy "rollingUpdate") }}
+{{- else if and .Values.hostNetwork.enabled $usesDefaultRolling }}
 type: RollingUpdate
 rollingUpdate:
   maxUnavailable: 1
