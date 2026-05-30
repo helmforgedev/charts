@@ -80,6 +80,6 @@ ingress:
 ```bash
 helm dependency build charts/immich
 helm lint --strict charts/immich
-helm unittest charts/immich
+helm unittest --with-subchart=false charts/immich
 helm template immich charts/immich -f charts/immich/ci/ci-values.yaml
 ```
