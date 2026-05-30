@@ -27,10 +27,14 @@ commonLabels: {}
 # =============================================================================
 
 image:
+  # -- Container image repository
   repository: docker.io/valkey/valkey
+  # -- Container image tag
   tag: "9.1.0"
+  # -- Image pull policy
   pullPolicy: IfNotPresent
 
+# -- Image pull secrets for private registries
 imagePullSecrets: []
 
 # =============================================================================
@@ -56,8 +60,11 @@ tls:
   enabled: false
   # -- Existing secret with tls.crt, tls.key and ca.crt
   existingSecret: ""
+  # -- Certificate filename mounted from tls.existingSecret
   certFilename: tls.crt
+  # -- Private key filename mounted from tls.existingSecret
   keyFilename: tls.key
+  # -- CA certificate filename mounted from tls.existingSecret
   caFilename: ca.crt
 
 # =============================================================================
@@ -66,11 +73,16 @@ tls:
 
 standalone:
   persistence:
+    # -- Enable persistent storage for standalone mode
     enabled: true
+    # -- StorageClass for the standalone PVC. Empty uses the cluster default.
     storageClass: ""
+    # -- Access modes for the standalone PVC
     accessModes:
       - ReadWriteOnce
+    # -- Size of the standalone PVC
     size: 8Gi
+  # -- Resource requests and limits for the standalone Valkey container
   resources: {}
 
 # =============================================================================
@@ -78,22 +90,33 @@ standalone:
 # =============================================================================
 
 replication:
+  # -- Number of replica nodes in replication mode
   replicaCount: 2
   primary:
     persistence:
+      # -- Enable persistent storage for the primary node
       enabled: true
+      # -- StorageClass for the primary PVC. Empty uses the cluster default.
       storageClass: ""
+      # -- Access modes for the primary PVC
       accessModes:
         - ReadWriteOnce
+      # -- Size of the primary PVC
       size: 8Gi
+    # -- Resource requests and limits for the primary Valkey container
     resources: {}
   replica:
     persistence:
+      # -- Enable persistent storage for replica nodes
       enabled: true
+      # -- StorageClass for replica PVCs. Empty uses the cluster default.
       storageClass: ""
+      # -- Access modes for replica PVCs
       accessModes:
         - ReadWriteOnce
+      # -- Size of each replica PVC
       size: 8Gi
+    # -- Resource requests and limits for replica Valkey containers
     resources: {}
 
 # =============================================================================
@@ -101,17 +124,27 @@ replication:
 # =============================================================================
 
 sentinel:
+  # -- Number of Sentinel pods
   replicaCount: 3
+  # -- Sentinel quorum required for failover decisions
   quorum: 2
+  # -- Milliseconds before Sentinel marks the primary as subjectively down
   downAfterMilliseconds: 60000
+  # -- Sentinel failover timeout in milliseconds
   failoverTimeout: 180000
+  # -- Number of replicas that can reconfigure in parallel during failover
   parallelSyncs: 1
   persistence:
+    # -- Enable persistent storage for Sentinel pods
     enabled: false
+    # -- StorageClass for Sentinel PVCs. Empty uses the cluster default.
     storageClass: ""
+    # -- Access modes for Sentinel PVCs
     accessModes:
       - ReadWriteOnce
+    # -- Size of each Sentinel PVC
     size: 1Gi
+  # -- Resource requests and limits for Sentinel containers
   resources: {}
 
 # =============================================================================
@@ -119,18 +152,28 @@ sentinel:
 # =============================================================================
 
 cluster:
+  # -- Total number of Valkey Cluster nodes
   nodes: 6
+  # -- Number of replicas assigned to each cluster master
   replicasPerMaster: 1
   initJob:
+    # -- Run a post-install Job that creates the Valkey Cluster topology
     enabled: true
+    # -- Backoff limit for the cluster initialization Job
     backoffLimit: 4
+    # -- Active deadline for the cluster initialization Job
     activeDeadlineSeconds: 900
   persistence:
+    # -- Enable persistent storage for cluster nodes
     enabled: true
+    # -- StorageClass for cluster PVCs. Empty uses the cluster default.
     storageClass: ""
+    # -- Access modes for cluster PVCs
     accessModes:
       - ReadWriteOnce
+    # -- Size of each cluster PVC
     size: 8Gi
+  # -- Resource requests and limits for cluster Valkey containers
   resources: {}
 
 # =============================================================================
@@ -148,16 +191,26 @@ config:
 # =============================================================================
 
 service:
+  # -- Client Service type used by standalone and cluster modes
   type: ClusterIP
+  # -- Annotations applied to all Valkey Services
   annotations: {}
+  # -- Annotations applied to the client Service
   clientAnnotations: {}
+  # -- Annotations applied to the primary Service in replication and sentinel modes
   primaryAnnotations: {}
+  # -- Annotations applied to the replica Service in replication and sentinel modes
   replicaAnnotations: {}
+  # -- Annotations applied to the Sentinel Service
   sentinelAnnotations: {}
+  # -- Annotations applied to the cluster client Service
   clusterAnnotations: {}
   ports:
+    # -- Valkey service port
     valkey: 6379
+    # -- Sentinel service port
     sentinel: 26379
+    # -- Metrics service port
     metrics: 9121
   # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
   ipFamilyPolicy: ~
@@ -165,8 +218,11 @@ service:
   ipFamilies: []
 
 serviceAccount:
+  # -- Create a dedicated ServiceAccount
   create: false
+  # -- Existing ServiceAccount name when serviceAccount.create=false
   name: ""
+  # -- Annotations added to the ServiceAccount
   annotations: {}
 
 # -- Mount Kubernetes API service account token into pods.
@@ -177,21 +233,33 @@ automountServiceAccountToken: false
 # =============================================================================
 
 livenessProbe:
+  # -- Initial delay before liveness probes begin
   initialDelaySeconds: 20
+  # -- Liveness probe interval
   periodSeconds: 15
+  # -- Liveness probe timeout
   timeoutSeconds: 5
+  # -- Liveness probe failure threshold
   failureThreshold: 6
 
 readinessProbe:
+  # -- Initial delay before readiness probes begin
   initialDelaySeconds: 10
+  # -- Readiness probe interval
   periodSeconds: 10
+  # -- Readiness probe timeout
   timeoutSeconds: 5
+  # -- Readiness probe failure threshold
   failureThreshold: 3
 
 startupProbe:
+  # -- Initial delay before startup probes begin
   initialDelaySeconds: 5
+  # -- Startup probe interval
   periodSeconds: 10
+  # -- Startup probe timeout
   timeoutSeconds: 5
+  # -- Startup probe failure threshold
   failureThreshold: 30
 
 # =============================================================================
@@ -199,16 +267,25 @@ startupProbe:
 # =============================================================================
 
 metrics:
+  # -- Enable Prometheus metrics exporter sidecar
   enabled: false
+  # -- Skip TLS verification for exporter connections to Valkey when TLS is enabled
   tlsSkipVerify: true
   image:
+    # -- Metrics exporter image repository
     repository: docker.io/oliver006/redis_exporter
+    # -- Metrics exporter image tag
     tag: v1.69.0
+    # -- Metrics exporter image pull policy
     pullPolicy: IfNotPresent
+  # -- Resource requests and limits for the metrics exporter
   resources: {}
   serviceMonitor:
+    # -- Render a Prometheus Operator ServiceMonitor
     enabled: false
+    # -- ServiceMonitor scrape interval
     interval: 30s
+    # -- Extra labels added to the ServiceMonitor
     labels: {}
 
 # =============================================================================
@@ -216,10 +293,14 @@ metrics:
 # =============================================================================
 
 tests:
+  # -- Render Helm test resources
   enabled: true
   image:
+    # -- Helm test image repository
     repository: docker.io/valkey/valkey
+    # -- Helm test image tag
     tag: "9.1.0"
+    # -- Helm test image pull policy
     pullPolicy: IfNotPresent
 
 # =============================================================================
@@ -227,41 +308,63 @@ tests:
 # =============================================================================
 
 podSecurityContext:
+  # -- Filesystem group used by Valkey writable volumes
   fsGroup: 999
   seccompProfile:
+    # -- Pod-level seccomp profile type
     type: RuntimeDefault
 
 securityContext:
+  # -- User ID used by Valkey containers
   runAsUser: 999
+  # -- Group ID used by Valkey containers
   runAsGroup: 999
+  # -- Require containers to run as a non-root user
   runAsNonRoot: true
+  # -- Prevent privilege escalation
   allowPrivilegeEscalation: false
+  # -- Run root filesystem as read-only when supported by the deployment mode
   readOnlyRootFilesystem: false
   capabilities:
+    # -- Linux capabilities dropped from containers
     drop:
       - ALL
 
+# -- Extra labels added to pods
 podLabels: {}
+# -- Extra annotations added to pods
 podAnnotations: {}
+# -- Extra annotations added to all resources
 annotations: {}
 
+# -- Node selector for pod scheduling
 nodeSelector: {}
+# -- Tolerations for pod scheduling
 tolerations: []
+# -- Affinity rules for pod scheduling
 affinity: {}
+# -- Topology spread constraints for pod scheduling
 topologySpreadConstraints: []
+# -- PriorityClass name for pods
 priorityClassName: ""
+# -- Termination grace period in seconds
 terminationGracePeriodSeconds: 60
 
 pdb:
+  # -- Render PodDisruptionBudget resources for supported topologies
   enabled: false
 
 # =============================================================================
 # Extra
 # =============================================================================
 
+# -- Extra environment variables added to Valkey containers
 extraEnv: []
+# -- Extra volumes added to Valkey pods
 extraVolumes: []
+# -- Extra volume mounts added to Valkey containers
 extraVolumeMounts: []
+# -- Extra Kubernetes manifests rendered with tpl
 extraManifests: []
 
 # =============================================================================
@@ -273,12 +376,17 @@ externalSecrets:
   # Requires auth.existingSecret to be set to prevent credential drift between
   # the chart-managed auth Secret and the ExternalSecret.
   enabled: false
+  # -- ExternalSecret API version
   apiVersion: external-secrets.io/v1
+  # -- ExternalSecret refresh interval
   refreshInterval: "0"
   secretStoreRef:
+    # -- SecretStore or ClusterSecretStore name
     name: ""
+    # -- Secret store kind: SecretStore or ClusterSecretStore
     kind: SecretStore
   target:
+    # -- ExternalSecret target creation policy
     creationPolicy: Owner
   # -- Data entries mapping remote keys to the Valkey password key.
   data: []
