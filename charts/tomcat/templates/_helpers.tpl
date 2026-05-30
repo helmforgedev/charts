@@ -92,4 +92,7 @@ failureThreshold: {{ $probe.failureThreshold }}
 {{- if and .Values.gatewayAPI.enabled (empty .Values.gatewayAPI.parentRefs) -}}
 {{- fail "gatewayAPI.parentRefs must contain at least one parentRef when gatewayAPI.enabled=true" -}}
 {{- end -}}
+{{- if and .Values.jmx.enabled (ne (.Values.jmx.rmiPort | int) (.Values.jmx.port | int)) (eq (.Values.service.ports.jmxRmi | int) (.Values.service.ports.jmx | int)) -}}
+{{- fail "service.ports.jmxRmi must differ from service.ports.jmx when jmx.rmiPort differs from jmx.port" -}}
+{{- end -}}
 {{- end }}

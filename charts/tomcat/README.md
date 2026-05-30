@@ -63,6 +63,8 @@ jmx:
 ```
 
 For authenticated or TLS-secured JMX, mount the required files with `extraVolumes`/`extraVolumeMounts` and append JVM flags through `jmx.extraOpts`.
+When `jmx.rmiPort` differs from `jmx.port`, the chart exposes the RMI endpoint
+through `service.ports.jmxRmi` so the registry and RMI Service ports stay unique.
 
 ## Production Notes
 
