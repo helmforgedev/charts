@@ -2,10 +2,13 @@
 
 Jenkins is an open source automation server for continuous integration and delivery.
 
-This HelmForge chart deploys the official `jenkins/jenkins` controller image with production-oriented Kubernetes defaults.
-It includes a StatefulSet controller, persistent Jenkins home, secure initial admin bootstrap, optional Jenkins Configuration as Code,
-optional plugin installation with `jenkins-plugin-cli`, optional RBAC for Kubernetes agents, dual-stack Service support,
-Gateway API, Ingress, NetworkPolicy, ExternalSecret, ServiceMonitor, PodDisruptionBudget, and Helm tests.
+This HelmForge chart deploys the official `jenkins/jenkins` controller image
+with production-oriented Kubernetes defaults. It includes a StatefulSet
+controller, persistent Jenkins home, secure initial admin bootstrap, optional
+Jenkins Configuration as Code, optional plugin installation with
+`jenkins-plugin-cli`, optional RBAC for Kubernetes agents, dual-stack Service
+support, Gateway API, Ingress, NetworkPolicy, ExternalSecret, ServiceMonitor,
+PodDisruptionBudget, and Helm tests.
 
 ## Install
 
@@ -22,7 +25,8 @@ By default the chart creates an initial admin user and stores the generated pass
 kubectl get secret jenkins-admin -o jsonpath='{.data.jenkins-admin-password}' | base64 -d
 ```
 
-Use `admin.existingSecret` with `admin.existingSecretUserKey` and `admin.existingSecretPasswordKey` to manage credentials externally.
+Use `admin.existingSecret` with `admin.existingSecretUserKey` and
+`admin.existingSecretPasswordKey` to manage credentials externally.
 
 ## Plugins and JCasC
 
@@ -40,7 +44,22 @@ plugins:
       - configuration-as-code:2074.va_57f83f7a_10b_
 ```
 
-JCasC files can be mounted and activated with `jcasC.enabled=true`. The `configuration-as-code` plugin must be included in the image or installed through the plugin bootstrap.
+JCasC files can be mounted and activated with `jcasC.enabled=true`. The
+`configuration-as-code` plugin must be included in the image or installed
+through the plugin bootstrap.
+
+## Ingress
+
+```yaml
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: jenkins.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+```
 
 ## Gateway API
 
@@ -55,4 +74,13 @@ gateway:
 
 ## Validation
 
-This chart is tested with Helm lint, strict lint, Helm unittest, kubeconform, Artifact Hub lint, markdown lint, security scans, and k3d runtime validation.
+This chart is tested with Helm lint, strict lint, Helm unittest, kubeconform,
+Artifact Hub lint, markdown lint, security scans, and k3d runtime validation.
+
+## Documentation
+
+- [Design](./DESIGN.md)
+- [Production guide](./docs/production.md)
+- [Networking](./docs/networking.md)
+- [External Secrets](./docs/external-secrets.md)
+- [JCasC and plugins](./docs/jcasc-and-plugins.md)

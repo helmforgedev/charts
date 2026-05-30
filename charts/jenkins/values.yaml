@@ -16,16 +16,21 @@ commonLabels: {}
 # =============================================================================
 
 image:
+  # -- Jenkins controller image repository.
   repository: docker.io/jenkins/jenkins
+  # -- Jenkins controller image tag.
   tag: "2.555.2-lts-jdk21"
+  # -- Jenkins controller image pull policy.
   pullPolicy: IfNotPresent
 
+# -- Image pull secrets.
 imagePullSecrets: []
 
 # =============================================================================
 # Controller
 # =============================================================================
 
+# -- Jenkins controller replica count. Jenkins controller is intentionally single-replica.
 replicaCount: 1
 
 controller:
@@ -43,15 +48,21 @@ controller:
 admin:
   # -- Create an initial admin account with an init Groovy script
   create: true
+  # -- Initial admin username.
   user: admin
+  # -- Initial admin password. Empty generates a random password.
   password: ""
+  # -- Existing Secret containing initial admin credentials.
   existingSecret: ""
+  # -- Secret key containing the initial admin username.
   existingSecretUserKey: jenkins-admin-user
+  # -- Secret key containing the initial admin password.
   existingSecretPasswordKey: jenkins-admin-password
 
 agent:
   # -- Expose the inbound Jenkins agent TCP port
   enabled: true
+  # -- Service port for inbound Jenkins agents.
   servicePort: 50000
 
 # =============================================================================
@@ -62,7 +73,9 @@ jcasC:
   # -- Mount Jenkins Configuration as Code files and set CASC_JENKINS_CONFIG.
   # The configuration-as-code plugin must be present in the image or installed through plugins.install.
   enabled: false
+  # -- Folder where JCasC scripts are mounted.
   folder: /var/jenkins_home/casc_configs
+  # -- JCasC configuration scripts rendered into the chart ConfigMap.
   configScripts: {}
   # example: |
   #   jenkins:
@@ -72,9 +85,13 @@ plugins:
   install:
     # -- Install plugins with jenkins-plugin-cli before Jenkins starts.
     enabled: false
+    # -- Skip plugin installation when the marker file already exists.
     initializeOnce: true
+    # -- Pass --latest to jenkins-plugin-cli.
     latest: false
+    # -- Pass --latest-specified to jenkins-plugin-cli.
     latestSpecified: false
+    # -- Plugin coordinates installed by jenkins-plugin-cli.
     list:
       - kubernetes:4423.vb_59f230b_ce53
       - workflow-aggregator:608.v67378e9d3db_1
@@ -86,11 +103,16 @@ plugins:
 # =============================================================================
 
 persistence:
+  # -- Persist JENKINS_HOME.
   enabled: true
+  # -- StorageClass for the Jenkins home PVC. Empty uses the cluster default.
   storageClass: ""
+  # -- Access modes for the Jenkins home PVC.
   accessModes:
     - ReadWriteOnce
+  # -- Jenkins home PVC size.
   size: 8Gi
+  # -- Jenkins home PVC annotations.
   annotations: {}
 
 # =============================================================================
@@ -98,8 +120,11 @@ persistence:
 # =============================================================================
 
 service:
+  # -- Service type.
   type: ClusterIP
+  # -- Service annotations.
   annotations: {}
+  # -- HTTP service port.
   httpPort: 8080
   # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
   ipFamilyPolicy: ~
@@ -107,23 +132,35 @@ service:
   ipFamilies: []
 
 ingress:
+  # -- Enable Kubernetes Ingress.
   enabled: false
-  className: ""
+  # -- IngressClass name.
+  ingressClassName: ""
+  # -- Ingress annotations.
   annotations: {}
+  # -- Ingress host rules.
   hosts:
     - host: jenkins.local
       paths:
         - path: /
           pathType: Prefix
+  # -- Ingress TLS configuration.
   tls: []
 
 gateway:
+  # -- Enable Gateway API HTTPRoute.
   enabled: false
+  # -- Gateway API version.
   apiVersion: gateway.networking.k8s.io/v1
+  # -- Gateway parentRefs.
   parentRefs: []
+  # -- HTTPRoute hostnames.
   hostnames: []
+  # -- HTTPRoute annotations.
   annotations: {}
+  # -- HTTPRoute labels.
   labels: {}
+  # -- HTTPRoute rules.
   rules:
     - matches:
         - path:
@@ -131,16 +168,25 @@ gateway:
             value: /
 
 networkPolicy:
+  # -- Enable NetworkPolicy resources.
   enabled: false
   ingress:
+    # -- Restrict inbound traffic to selected namespaces and pods.
     enabled: true
+    # -- Namespace selector allowed to reach Jenkins.
     namespaceSelector: {}
+    # -- Pod selector allowed to reach Jenkins.
     podSelector: {}
   egress:
+    # -- Restrict outbound traffic from Jenkins pods.
     enabled: true
+    # -- Allow egress to cluster CIDRs through namespace/pod selectors.
     allowCluster: true
+    # -- Allow DNS egress.
     allowDns: true
+    # -- Allow general internet egress for update centers and plugin downloads.
     allowInternet: true
+    # -- Extra egress rules.
     extraRules: []
 
 # =============================================================================
@@ -148,8 +194,11 @@ networkPolicy:
 # =============================================================================
 
 serviceAccount:
+  # -- Create a dedicated ServiceAccount.
   create: true
+  # -- ServiceAccount name override.
   name: ""
+  # -- ServiceAccount annotations.
   annotations: {}
 
 rbac:
@@ -185,9 +234,13 @@ startupProbe:
 
 metrics:
   serviceMonitor:
+    # -- Render a Prometheus Operator ServiceMonitor.
     enabled: false
+    # -- ServiceMonitor scrape interval.
     interval: 30s
+    # -- Jenkins Prometheus metrics path.
     path: /prometheus
+    # -- Additional ServiceMonitor labels.
     labels: {}
 
 # =============================================================================
@@ -218,28 +271,43 @@ securityContext:
     drop:
       - ALL
 
+# -- Additional pod labels.
 podLabels: {}
+# -- Additional pod annotations.
 podAnnotations: {}
+# -- Additional resource annotations.
 annotations: {}
 
+# -- Node selector.
 nodeSelector: {}
+# -- Pod tolerations.
 tolerations: []
+# -- Pod affinity.
 affinity: {}
+# -- Pod topology spread constraints.
 topologySpreadConstraints: []
+# -- PriorityClass name.
 priorityClassName: ""
+# -- Pod termination grace period.
 terminationGracePeriodSeconds: 90
 
 pdb:
+  # -- Enable PodDisruptionBudget.
   enabled: false
+  # -- Minimum available pods.
   minAvailable: 1
 
 # =============================================================================
 # Extra
 # =============================================================================
 
+# -- Additional environment variables for the Jenkins container.
 extraEnv: []
+# -- Additional pod volumes.
 extraVolumes: []
+# -- Additional Jenkins container volume mounts.
 extraVolumeMounts: []
+# -- Additional manifests rendered verbatim.
 extraManifests: []
 
 # =============================================================================
@@ -257,8 +325,12 @@ externalSecrets:
     name: ""
     kind: SecretStore
   target:
+    # -- ExternalSecret target creation policy.
     creationPolicy: Owner
+  # -- ExternalSecret data entries for individual admin credential keys.
   data: []
+  # -- ExternalSecret dataFrom entries for provider-side extraction.
+  dataFrom: []
   #   - secretKey: jenkins-admin-password
   #     remoteRef:
   #       key: jenkins/admin
