@@ -24,7 +24,15 @@ spec:
       args:
         - |
           {{- if include "valkey.isCluster" . }}
-          valkey-cli $VALKEY_TLS_ARGS -c -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS cluster info | grep -q 'cluster_state:ok'
+          for i in $(seq 1 30); do
+            if valkey-cli $VALKEY_TLS_ARGS -c -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS cluster info | grep -q 'cluster_state:ok'; then
+              exit 0
+            fi
+            echo "waiting for Valkey Cluster to report cluster_state:ok ($i/30)"
+            sleep 2
+          done
+          valkey-cli $VALKEY_TLS_ARGS -c -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS cluster info
+          exit 1
           {{- else }}
           valkey-cli $VALKEY_TLS_ARGS -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS ping | grep -q PONG
           valkey-cli $VALKEY_TLS_ARGS -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS set helmforge:health ok | grep -q OK

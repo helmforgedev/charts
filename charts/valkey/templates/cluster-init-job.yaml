@@ -38,25 +38,62 @@ spec:
               done
               if valkey-cli {{ include "valkey.cliTlsArgs" . }} -h "{{ include "valkey.clusterStatefulSetName" . }}-0.{{ include "valkey.headlessServiceFqdn" . }}" -p {{ .Values.service.ports.valkey }} {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" --no-auth-warning {{- end }} cluster info | grep -q cluster_state:ok; then
                 existing="{{ include "valkey.clusterStatefulSetName" . }}-0.{{ include "valkey.headlessServiceFqdn" . }}:{{ .Values.service.ports.valkey }}"
-                cluster_nodes="$(valkey-cli {{ include "valkey.cliTlsArgs" . }} -h "{{ include "valkey.clusterStatefulSetName" . }}-0.{{ include "valkey.headlessServiceFqdn" . }}" -p {{ .Values.service.ports.valkey }} {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" --no-auth-warning {{- end }} cluster nodes)"
+                refresh_cluster_nodes() {
+                  cluster_nodes="$(valkey-cli {{ include "valkey.cliTlsArgs" . }} -h "{{ include "valkey.clusterStatefulSetName" . }}-0.{{ include "valkey.headlessServiceFqdn" . }}" -p {{ .Values.service.ports.valkey }} {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" --no-auth-warning {{- end }} cluster nodes)"
+                }
+                refresh_cluster_nodes
+                node_address_exists() {
+                  node_host="$1"
+                  node_endpoint="${node_host}:{{ .Values.service.ports.valkey }}"
+                  printf '%s\n' "$cluster_nodes" | awk -v host="$node_host" -v endpoint="$node_endpoint" '
+                    {
+                      split($2, announced, ",")
+                      split(announced[1], bus, "@")
+                      if (bus[1] == endpoint || announced[2] == host || announced[2] == endpoint) {
+                        found = 1
+                      }
+                    }
+                    END { exit found ? 0 : 1 }
+                  '
+                }
                 replicas_per_master={{ .Values.cluster.replicasPerMaster }}
                 desired_masters=$(({{ .Values.cluster.nodes }} / (replicas_per_master + 1)))
                 [ "$desired_masters" -lt 1 ] && desired_masters=1
                 existing_masters="$(printf '%s\n' "$cluster_nodes" | awk '$3 ~ /master/ && $3 !~ /fail/ {count++} END {print count+0}')"
+                added_nodes=0
                 for i in $(seq 0 $(({{ .Values.cluster.nodes }} - 1))); do
-                  node="{{ include "valkey.clusterStatefulSetName" . }}-${i}.{{ include "valkey.headlessServiceFqdn" . }}:{{ .Values.service.ports.valkey }}"
-                  if ! printf '%s\n' "$cluster_nodes" | grep -Fq "$node"; then
+                  node_host="{{ include "valkey.clusterStatefulSetName" . }}-${i}.{{ include "valkey.headlessServiceFqdn" . }}"
+                  node="${node_host}:{{ .Values.service.ports.valkey }}"
+                  if ! node_address_exists "$node_host"; then
                     if [ "$existing_masters" -lt "$desired_masters" ]; then
                       echo "adding missing cluster master $node"
                       yes yes | valkey-cli {{ include "valkey.cliTlsArgs" . }} --cluster add-node "$node" "$existing" {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" {{- end }}
                       existing_masters=$((existing_masters + 1))
+                      added_nodes=$((added_nodes + 1))
                     else
                       echo "adding missing cluster replica $node"
                       yes yes | valkey-cli {{ include "valkey.cliTlsArgs" . }} --cluster add-node "$node" "$existing" --cluster-replica {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" {{- end }}
+                      added_nodes=$((added_nodes + 1))
                     fi
                   fi
                 done
-                yes yes | valkey-cli {{ include "valkey.cliTlsArgs" . }} --cluster rebalance "$existing" --cluster-use-empty-masters {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" {{- end }}
+                if [ "$added_nodes" -gt 0 ]; then
+                  for attempt in $(seq 1 30); do
+                    refresh_cluster_nodes
+                    missing_nodes=0
+                    for i in $(seq 0 $(({{ .Values.cluster.nodes }} - 1))); do
+                      node_host="{{ include "valkey.clusterStatefulSetName" . }}-${i}.{{ include "valkey.headlessServiceFqdn" . }}"
+                      if ! node_address_exists "$node_host"; then
+                        missing_nodes=$((missing_nodes + 1))
+                      fi
+                    done
+                    [ "$missing_nodes" -eq 0 ] && break
+                    echo "waiting for new cluster nodes to be visible before rebalance ($attempt/30)"
+                    sleep 2
+                  done
+                  [ "$missing_nodes" -eq 0 ] || { echo "cluster membership did not converge before rebalance"; exit 1; }
+                fi
+                valkey-cli {{ include "valkey.cliTlsArgs" . }} --cluster rebalance "$existing" --cluster-use-empty-primaries --cluster-threshold 1 --cluster-yes {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" {{- end }}
                 echo "cluster already initialized"
                 exit 0
               fi
