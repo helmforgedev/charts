@@ -38,3 +38,6 @@ PostgreSQL chart.
 ## Networking
 
 Ingress uses `ingress.ingressClassName`. Gateway API uses the single standard `gateway` block and renders an `HTTPRoute` to the public proxy Service.
+When the Service is dual-stack or IPv6, configurable-http-proxy binds public and
+API listeners to `::`; `proxy.bind.ip` and `proxy.bind.apiIp` can override the
+detected bind addresses.

@@ -67,6 +67,19 @@ annotations:
 {{- define "jupyterhub.proxyToken" -}}
 {{- if .Values.proxy.secretToken }}{{ .Values.proxy.secretToken }}{{- else if .Values.proxy.existingSecret }}{{ "" }}{{- else }}{{ randAlphaNum 64 }}{{- end -}}
 {{- end -}}
+{{- define "jupyterhub.proxyDefaultBindIp" -}}
+{{- if or (has "IPv6" .Values.service.ipFamilies) (eq .Values.service.ipFamilyPolicy "PreferDualStack") (eq .Values.service.ipFamilyPolicy "RequireDualStack") -}}
+::
+{{- else -}}
+0.0.0.0
+{{- end -}}
+{{- end -}}
+{{- define "jupyterhub.proxyBindIp" -}}
+{{- default (include "jupyterhub.proxyDefaultBindIp" .) .Values.proxy.bind.ip -}}
+{{- end -}}
+{{- define "jupyterhub.proxyApiBindIp" -}}
+{{- default (include "jupyterhub.proxyDefaultBindIp" .) .Values.proxy.bind.apiIp -}}
+{{- end -}}
 {{- define "jupyterhub.validateValues" -}}
 {{- $publicExposure := or .Values.ingress.enabled .Values.gateway.enabled (eq .Values.service.type "LoadBalancer") (eq .Values.service.type "NodePort") -}}
 {{- if and $publicExposure (eq .Values.auth.type "dummy") (not .Values.auth.dummyPassword) (not .Values.auth.allowInsecureDummy) -}}

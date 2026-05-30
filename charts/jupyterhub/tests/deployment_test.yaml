@@ -61,6 +61,41 @@ tests:
           value: 8000
       - exists:
           path: spec.template.metadata.annotations["checksum/secret"]
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --ip=0.0.0.0
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --api-ip=0.0.0.0
+
+  - it: should bind proxy listeners to IPv6 wildcard for dual-stack services
+    template: deployment-proxy.yaml
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies:
+        - IPv6
+        - IPv4
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: "--ip=::"
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: "--api-ip=::"
+
+  - it: should allow explicit proxy bind addresses
+    template: deployment-proxy.yaml
+    set:
+      proxy.bind.ip: 0.0.0.0
+      proxy.bind.apiIp: 127.0.0.1
+      service.ipFamilyPolicy: PreferDualStack
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --ip=0.0.0.0
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --api-ip=127.0.0.1
 
   - it: should prefix proxy error target with baseUrl
     template: deployment-proxy.yaml
