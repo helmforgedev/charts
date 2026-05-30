@@ -30,3 +30,39 @@ tests:
           value: 1
       - notExists:
           path: spec.minAvailable
+
+  - it: should protect data and sentinel pods in sentinel mode
+    set:
+      architecture: sentinel
+      pdb.enabled: true
+      sentinel.quorum: 2
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: test-valkey
+        documentIndex: 0
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: valkey
+        documentIndex: 0
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: test-valkey-sentinel
+        documentIndex: 1
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: sentinel
+        documentIndex: 1
+      - equal:
+          path: spec.minAvailable
+          value: 2
+        documentIndex: 1
+      - notExists:
+          path: spec.maxUnavailable
+        documentIndex: 1

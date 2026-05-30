@@ -14,3 +14,20 @@ spec:
       {{- include "valkey.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: valkey
 {{- end }}
+{{- if and .Values.pdb.enabled (include "valkey.isSentinel" .) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "valkey.sentinelStatefulSetName" . }}
+  labels:
+    {{- include "valkey.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sentinel
+  {{- include "valkey.renderAnnotations" (dict "root" .) | nindent 2 }}
+spec:
+  minAvailable: {{ .Values.sentinel.quorum }}
+  selector:
+    matchLabels:
+      {{- include "valkey.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: sentinel
+{{- end }}
