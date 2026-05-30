@@ -150,4 +150,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if and .Values.config.reverseProxy.enabled (eq (len $trustedProxyIps) 0) -}}
 {{- fail "config.reverseProxy.trustedProxyIps must contain at least one trusted proxy CIDR when config.reverseProxy.enabled=true" -}}
 {{- end -}}
+{{- range $key := list "app.kubernetes.io/name" "app.kubernetes.io/instance" -}}
+{{- if hasKey $.Values.podLabels $key -}}
+{{- fail (printf "podLabels cannot override reserved selector label %s" $key) -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}

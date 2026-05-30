@@ -53,6 +53,38 @@ tests:
           errorMessage: auth.createSecret=false requires auth.existingSecret or externalSecrets.enabled=true so OAuth2 Proxy credentials are available
         template: templates/deployment.yaml
 
+  - it: should reject pod labels that override selector labels
+    set:
+      podLabels:
+        app.kubernetes.io/instance: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels cannot override reserved selector label app.kubernetes.io/instance
+        template: templates/deployment.yaml
+
+  - it: should reject pod labels that override selector name
+    set:
+      podLabels:
+        app.kubernetes.io/name: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels cannot override reserved selector label app.kubernetes.io/name
+        template: templates/deployment.yaml
+
+  - it: should allow non-selector pod labels
+    set:
+      podLabels:
+        team: platform
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.team
+          value: platform
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/instance"]
+          value: test
+        template: templates/deployment.yaml
+
   - it: should mount optional config secrets in config-test init container
     set:
       auth.clientID: test-client
