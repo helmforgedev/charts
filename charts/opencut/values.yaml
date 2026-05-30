@@ -75,6 +75,14 @@ database:
 postgresql:
   # -- Enable the HelmForge PostgreSQL subchart.
   enabled: true
+  # -- PostgreSQL subchart name override.
+  nameOverride: ""
+  # -- PostgreSQL subchart full name override.
+  fullnameOverride: ""
+  # -- Extra PostgreSQL environment variables inherited by the subchart.
+  extraEnv:
+    - name: POSTGRES_INITDB_ARGS
+      value: "--auth-local=scram-sha-256 --auth-host=scram-sha-256"
   # -- PostgreSQL architecture used by the subchart.
   architecture: standalone
   auth:
@@ -91,11 +99,20 @@ postgresql:
     # -- Key in the PostgreSQL auth Secret containing the OpenCut user password.
     existingSecretUserPasswordKey: user-password
   standalone:
+    # -- PostgreSQL standalone resource preset inherited by the subchart.
+    resourcesPreset: small
     persistence:
       # -- Enable PostgreSQL persistence.
       enabled: true
       # -- PostgreSQL PVC size.
       size: 8Gi
+  replication:
+    primary:
+      # -- PostgreSQL primary resource preset when architecture=replication.
+      resourcesPreset: small
+    readReplicas:
+      # -- PostgreSQL read replica resource preset when architecture=replication.
+      resourcesPreset: small
   externalSecrets:
     # -- Enable PostgreSQL subchart External Secrets support.
     enabled: false
@@ -134,11 +151,15 @@ externalSecrets:
 redis:
   # -- Enable the HelmForge Redis subchart for OpenCut cache/session data.
   enabled: true
-  # -- Redis architecture used by the subchart.
+  # -- Redis subchart name override.
+  nameOverride: ""
+  # -- Redis subchart full name override.
+  fullnameOverride: ""
+  # -- Redis architecture used by the subchart. OpenCut supports standalone or replication.
   architecture: standalone
   auth:
     # -- Enable Redis password authentication.
-    enabled: false
+    enabled: true
     # -- Redis password. Prefer existingSecret for production.
     password: ""
     # -- Existing Secret containing the Redis password.
@@ -151,6 +172,57 @@ redis:
       enabled: true
       # -- Redis PVC size.
       size: 1Gi
+    # -- Redis standalone resources inherited by the subchart.
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+  replication:
+    primary:
+      persistence:
+        # -- Enable Redis primary persistence when architecture=replication.
+        enabled: true
+      # -- Redis primary resources when architecture=replication.
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 250m
+          memory: 256Mi
+    replica:
+      persistence:
+        # -- Enable Redis replica persistence when architecture=replication.
+        enabled: true
+      # -- Redis replica resources when architecture=replication.
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 250m
+          memory: 256Mi
+  securityContext:
+    # -- Redis container user inherited by the subchart.
+    runAsUser: 999
+    # -- Redis container group inherited by the subchart.
+    runAsGroup: 999
+    # -- Run Redis as non-root.
+    runAsNonRoot: true
+    # -- Disable Redis privilege escalation.
+    allowPrivilegeEscalation: false
+    # -- Keep writable root filesystem because Redis may write runtime files outside /data depending on configuration.
+    readOnlyRootFilesystem: false
+    # -- Drop all Linux capabilities from Redis.
+    capabilities:
+      drop:
+        - ALL
+    # -- Use the runtime default seccomp profile for Redis.
+    seccompProfile:
+      type: RuntimeDefault
   external:
     # -- External Redis hostname used instead of the bundled Redis service.
     host: ""
@@ -230,6 +302,9 @@ redisHttp:
   securityContext:
     allowPrivilegeEscalation: false
     readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
     capabilities:
       drop:
         - ALL

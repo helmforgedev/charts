@@ -12,6 +12,10 @@ Use [examples/production.yaml](../examples/production.yaml) as a starting point.
 - Set `opencut.betterAuthSecret` from a secret generator and keep it stable.
 - Decide whether the release owns PostgreSQL and Redis or consumes platform
   services.
+- When overriding bundled dependency names, use `postgresql.nameOverride`,
+  `postgresql.fullnameOverride`, `redis.nameOverride`, or
+  `redis.fullnameOverride`; OpenCut derives service and Secret names from the
+  same HelmForge subchart rules.
 - Set persistence sizes and storage classes for bundled dependencies.
 - Set CPU and memory resources for OpenCut and the Redis HTTP bridge.
 - Enable `networkPolicy.enabled=true` once namespace traffic requirements are

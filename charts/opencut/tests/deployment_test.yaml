@@ -92,6 +92,39 @@ tests:
             value: postgresql://opencut:$(DATABASE_PASSWORD)@test-postgresql:15432/opencut
         template: templates/deployment.yaml
 
+  - it: should honor PostgreSQL subchart fullname override in database URL and auth secret
+    set:
+      postgresql.fullnameOverride: custom-postgresql
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: custom-postgresql-auth
+                key: user-password
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_URL
+            value: postgresql://opencut:$(DATABASE_PASSWORD)@custom-postgresql:5432/opencut
+        template: templates/deployment.yaml
+
+  - it: should use PostgreSQL primary service in replication mode
+    set:
+      postgresql.architecture: replication
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_URL
+            value: postgresql://opencut:$(DATABASE_PASSWORD)@test-postgresql-primary:5432/opencut
+        template: templates/deployment.yaml
+
   - it: should include bundled Redis auth in redis HTTP bridge URL
     set:
       redis.auth.enabled: true
@@ -116,6 +149,41 @@ tests:
         template: templates/redis-http.yaml
         documentIndex: 0
 
+  - it: should honor Redis subchart fullname override in redis HTTP bridge URL and auth secret
+    set:
+      redis.fullnameOverride: custom-redis
+      redis.auth.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: custom-redis-auth
+                key: redis-password
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SRH_CONNECTION_STRING
+            value: redis://:$(REDIS_PASSWORD)@custom-redis-client:6379
+        template: templates/redis-http.yaml
+        documentIndex: 0
+
+  - it: should use Redis primary service in replication mode
+    set:
+      redis.architecture: replication
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SRH_CONNECTION_STRING
+            value: redis://:$(REDIS_PASSWORD)@test-redis-primary:6379
+        template: templates/redis-http.yaml
+        documentIndex: 0
+
   - it: should honor bundled Redis service port in redis HTTP bridge URL
     set:
       redis.service.ports.redis: 16379
@@ -124,7 +192,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: SRH_CONNECTION_STRING
-            value: redis://test-redis-client:16379
+            value: redis://:$(REDIS_PASSWORD)@test-redis-client:16379
         template: templates/redis-http.yaml
         documentIndex: 0
 

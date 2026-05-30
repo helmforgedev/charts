@@ -52,6 +52,59 @@ app.kubernetes.io/part-of: helmforge
 {{- printf "%s-app" (include "opencut.fullname" .) -}}
 {{- end -}}
 
+{{- define "opencut.postgresqlName" -}}
+{{- default "postgresql" .Values.postgresql.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "opencut.postgresqlFullname" -}}
+{{- if .Values.postgresql.fullnameOverride -}}
+{{- .Values.postgresql.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name (include "opencut.postgresqlName" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "opencut.postgresqlServiceName" -}}
+{{- if eq (.Values.postgresql.architecture | default "standalone") "replication" -}}
+{{- printf "%s-primary" (include "opencut.postgresqlFullname" .) -}}
+{{- else -}}
+{{- include "opencut.postgresqlFullname" . -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "opencut.redisName" -}}
+{{- default "redis" .Values.redis.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "opencut.redisFullname" -}}
+{{- if .Values.redis.fullnameOverride -}}
+{{- .Values.redis.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := include "opencut.redisName" . -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "opencut.redisClientServiceName" -}}
+{{- printf "%s-client" (include "opencut.redisFullname" .) -}}
+{{- end -}}
+
+{{- define "opencut.redisPrimaryServiceName" -}}
+{{- printf "%s-primary" (include "opencut.redisFullname" .) -}}
+{{- end -}}
+
+{{- define "opencut.redisServiceName" -}}
+{{- if eq (.Values.redis.architecture | default "standalone") "replication" -}}
+{{- include "opencut.redisPrimaryServiceName" . -}}
+{{- else -}}
+{{- include "opencut.redisClientServiceName" . -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "opencut.databaseMode" -}}
 {{- $hasExternal := ne (.Values.database.external.host | default "") "" -}}
 {{- $hasPostgresql := .Values.postgresql.enabled | default false -}}
@@ -62,7 +115,7 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 
 {{- define "opencut.databaseHost" -}}
-{{- if eq (include "opencut.databaseMode" .) "external" -}}{{ .Values.database.external.host }}{{- else -}}{{ printf "%s-postgresql" .Release.Name }}{{- end -}}
+{{- if eq (include "opencut.databaseMode" .) "external" -}}{{ .Values.database.external.host }}{{- else -}}{{ include "opencut.postgresqlServiceName" . }}{{- end -}}
 {{- end -}}
 
 {{- define "opencut.databasePort" -}}
@@ -78,7 +131,7 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 
 {{- define "opencut.databaseSecretName" -}}
-{{- if and (eq (include "opencut.databaseMode" .) "external") .Values.database.external.existingSecret -}}{{ .Values.database.external.existingSecret }}{{- else if eq (include "opencut.databaseMode" .) "external" -}}{{ printf "%s-database" (include "opencut.fullname" .) }}{{- else if .Values.postgresql.auth.existingSecret -}}{{ .Values.postgresql.auth.existingSecret }}{{- else if and .Values.postgresql.externalSecrets.enabled .Values.postgresql.externalSecrets.auth.enabled .Values.postgresql.externalSecrets.auth.targetName -}}{{ .Values.postgresql.externalSecrets.auth.targetName }}{{- else -}}{{ printf "%s-postgresql-auth" .Release.Name }}{{- end -}}
+{{- if and (eq (include "opencut.databaseMode" .) "external") .Values.database.external.existingSecret -}}{{ .Values.database.external.existingSecret }}{{- else if eq (include "opencut.databaseMode" .) "external" -}}{{ printf "%s-database" (include "opencut.fullname" .) }}{{- else if .Values.postgresql.auth.existingSecret -}}{{ .Values.postgresql.auth.existingSecret }}{{- else if and .Values.postgresql.externalSecrets.enabled .Values.postgresql.externalSecrets.auth.enabled .Values.postgresql.externalSecrets.auth.targetName -}}{{ .Values.postgresql.externalSecrets.auth.targetName }}{{- else -}}{{ printf "%s-auth" (include "opencut.postgresqlFullname" .) }}{{- end -}}
 {{- end -}}
 
 {{- define "opencut.databaseSecretKey" -}}
@@ -87,7 +140,7 @@ app.kubernetes.io/part-of: helmforge
 
 {{- define "opencut.redisHost" -}}
 {{- if and .Values.redisHttp.enabled (not .Values.redis.enabled) (not .Values.redis.external.host) -}}{{- fail "redisHttp.enabled requires redis.enabled=true or redis.external.host to be set" -}}{{- end -}}
-{{- if .Values.redis.external.host -}}{{ .Values.redis.external.host }}{{- else -}}{{ printf "%s-redis-client" .Release.Name }}{{- end -}}
+{{- if .Values.redis.external.host -}}{{ .Values.redis.external.host }}{{- else -}}{{ include "opencut.redisServiceName" . }}{{- end -}}
 {{- end -}}
 
 {{- define "opencut.redisPort" -}}
@@ -99,7 +152,7 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 
 {{- define "opencut.redisSecretName" -}}
-{{- if .Values.redis.external.existingSecret -}}{{ .Values.redis.external.existingSecret }}{{- else if .Values.redis.external.password -}}{{ include "opencut.secretName" . }}{{- else if .Values.redis.auth.existingSecret -}}{{ .Values.redis.auth.existingSecret }}{{- else -}}{{ printf "%s-redis-auth" .Release.Name }}{{- end -}}
+{{- if .Values.redis.external.existingSecret -}}{{ .Values.redis.external.existingSecret }}{{- else if .Values.redis.external.password -}}{{ include "opencut.secretName" . }}{{- else if .Values.redis.auth.existingSecret -}}{{ .Values.redis.auth.existingSecret }}{{- else -}}{{ printf "%s-auth" (include "opencut.redisFullname" .) }}{{- end -}}
 {{- end -}}
 
 {{- define "opencut.redisSecretKey" -}}

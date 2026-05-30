@@ -37,6 +37,14 @@ database:
     existingSecretPasswordKey: database-password
 ```
 
+## Bundled Subcharts
+
+The chart uses the HelmForge PostgreSQL and Redis subcharts by default. OpenCut
+derives connection hosts and Secret names from the same `nameOverride`,
+`fullnameOverride`, and architecture settings used by those dependencies. Redis
+standalone mode connects through the client Service, while Redis replication
+mode connects the HTTP bridge to the primary Service.
+
 ## Networking
 
 Ingress uses the HelmForge-standard `ingress.ingressClassName` key:
