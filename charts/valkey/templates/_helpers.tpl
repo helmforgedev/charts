@@ -282,6 +282,12 @@ valkey-cli TLS flags.
 {{- end -}}
 {{- end -}}
 
+{{- define "valkey.probeTlsArgs" -}}
+{{- if .Values.tls.enabled -}}
+--tls --cacert /tls/{{ .Values.tls.caFilename }} --insecure
+{{- end -}}
+{{- end -}}
+
 {{/*
 Common valkey.conf baseline.
 */}}
@@ -304,9 +310,9 @@ Probe command.
 */}}
 {{- define "valkey.probeCommand" -}}
 {{- if .Values.auth.enabled -}}
-valkey-cli {{ include "valkey.cliTlsArgs" . }} -p {{ .Values.service.ports.valkey }} -a "$VALKEY_PASSWORD" --no-auth-warning ping
+valkey-cli {{ include "valkey.probeTlsArgs" . }} -p {{ .Values.service.ports.valkey }} -a "$VALKEY_PASSWORD" --no-auth-warning ping
 {{- else -}}
-valkey-cli {{ include "valkey.cliTlsArgs" . }} -p {{ .Values.service.ports.valkey }} ping
+valkey-cli {{ include "valkey.probeTlsArgs" . }} -p {{ .Values.service.ports.valkey }} ping
 {{- end -}}
 {{- end -}}
 
