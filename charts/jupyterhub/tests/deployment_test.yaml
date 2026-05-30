@@ -111,6 +111,26 @@ tests:
       - failedTemplate:
           errorMessage: "hub.replicaCount > 1 requires hub.extraConfig to configure an external c.JupyterHub.db_url; the default SQLite database is single-writer and must run with one Hub replica"
 
+  - it: should reject multiple hub replicas when db_url is only mentioned in a comment
+    template: deployment-hub.yaml
+    set:
+      hub.replicaCount: 2
+      hub.extraConfig: |
+        # c.JupyterHub.db_url = "postgresql+psycopg2://jupyterhub:secret@postgresql/jupyterhub"
+    asserts:
+      - failedTemplate:
+          errorMessage: "hub.replicaCount > 1 requires hub.extraConfig to configure an external c.JupyterHub.db_url; the default SQLite database is single-writer and must run with one Hub replica"
+
+  - it: should reject multiple hub replicas when db_url is only mentioned in a string
+    template: deployment-hub.yaml
+    set:
+      hub.replicaCount: 2
+      hub.extraConfig: |
+        db_url_example = "c.JupyterHub.db_url = postgresql+psycopg2://jupyterhub:secret@postgresql/jupyterhub"
+    asserts:
+      - failedTemplate:
+          errorMessage: "hub.replicaCount > 1 requires hub.extraConfig to configure an external c.JupyterHub.db_url; the default SQLite database is single-writer and must run with one Hub replica"
+
   - it: should allow multiple hub replicas when external database is configured
     template: deployment-hub.yaml
     set:

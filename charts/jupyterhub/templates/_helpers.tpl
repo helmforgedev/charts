@@ -75,7 +75,7 @@ annotations:
 {{- if and $publicExposure (ne .Values.auth.type "dummy") (not (regexMatch "authenticator_class" .Values.hub.extraConfig)) -}}
 {{- fail "public exposure with a custom authenticator requires hub.extraConfig to set authenticator_class" -}}
 {{- end -}}
-{{- $hasExternalHubDb := regexMatch "c\\.JupyterHub\\.db_url\\s*=" .Values.hub.extraConfig -}}
+{{- $hasExternalHubDb := regexMatch "(?m)^\\s*c\\.JupyterHub\\.db_url\\s*=" .Values.hub.extraConfig -}}
 {{- if and (gt (int .Values.hub.replicaCount) 1) (not $hasExternalHubDb) -}}
 {{- fail "hub.replicaCount > 1 requires hub.extraConfig to configure an external c.JupyterHub.db_url; the default SQLite database is single-writer and must run with one Hub replica" -}}
 {{- end -}}
