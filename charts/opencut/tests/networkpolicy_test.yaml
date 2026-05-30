@@ -108,3 +108,24 @@ tests:
           path: spec.egress[2].ports[0].port
           value: 8443
         documentIndex: 0
+
+  - it: should append custom web ingress rules without dropping the default web port
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.ingress:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: ingress-nginx
+          ports:
+            - protocol: TCP
+              port: 3000
+    asserts:
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 3000
+        documentIndex: 0
+      - equal:
+          path: spec.ingress[1].from[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: ingress-nginx
+        documentIndex: 0
