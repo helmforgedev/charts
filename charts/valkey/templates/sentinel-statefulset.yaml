@@ -45,6 +45,26 @@ spec:
                   sleep 5
                 done
                 cp /etc/valkey-base/sentinel.conf /data/sentinel.conf
+              elif grep -q '^# HelmForge managed sentinel config begin$' /data/sentinel.conf; then
+                sed -i '/^# HelmForge managed sentinel config begin$/,/^# HelmForge managed sentinel config end$/d' /data/sentinel.conf
+                cat /etc/valkey-base/sentinel.conf >> /data/sentinel.conf
+              else
+                sed -i \
+                  -e '/^port /d' \
+                  -e '/^tls-port /d' \
+                  -e '/^tls-cert-file /d' \
+                  -e '/^tls-key-file /d' \
+                  -e '/^tls-ca-cert-file /d' \
+                  -e '/^tls-auth-clients /d' \
+                  -e '/^tls-replication /d' \
+                  -e '/^dir /d' \
+                  -e '/^sentinel resolve-hostnames /d' \
+                  -e '/^sentinel monitor mymaster /d' \
+                  -e '/^sentinel down-after-milliseconds mymaster /d' \
+                  -e '/^sentinel failover-timeout mymaster /d' \
+                  -e '/^sentinel parallel-syncs mymaster /d' \
+                  /data/sentinel.conf
+                cat /etc/valkey-base/sentinel.conf >> /data/sentinel.conf
               fi
               {{- if .Values.auth.enabled }}
               sed -i '/^sentinel auth-pass mymaster /d' /data/sentinel.conf

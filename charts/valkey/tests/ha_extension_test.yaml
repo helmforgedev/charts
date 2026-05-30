@@ -99,6 +99,18 @@ tests:
           path: spec.template.spec.containers[0].args[0]
           pattern: "sed -i '/\\^sentinel auth-pass mymaster /d' /data/sentinel.conf"
         template: sentinel-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "HelmForge managed sentinel config begin"
+        template: sentinel-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "sentinel down-after-milliseconds mymaster /d"
+        template: sentinel-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "cat /etc/valkey-base/sentinel.conf >> /data/sentinel.conf"
+        template: sentinel-statefulset.yaml
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -115,6 +127,45 @@ tests:
           path: spec.volumeClaimTemplates[0].metadata.name
           value: data
         template: sentinel-statefulset.yaml
+
+  - it: should mark sentinel config as a replaceable managed block
+    set:
+      architecture: sentinel
+      sentinel.quorum: 3
+      sentinel.downAfterMilliseconds: 45000
+      sentinel.failoverTimeout: 240000
+      sentinel.parallelSyncs: 2
+      config.sentinel: |
+        sentinel announce-hostnames yes
+    asserts:
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "# HelmForge managed sentinel config begin"
+        template: configmap.yaml
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "sentinel monitor mymaster test-valkey-primary-0\\.test-valkey-headless\\.default\\.svc\\.cluster\\.local 6379 3"
+        template: configmap.yaml
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "sentinel down-after-milliseconds mymaster 45000"
+        template: configmap.yaml
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "sentinel failover-timeout mymaster 240000"
+        template: configmap.yaml
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "sentinel parallel-syncs mymaster 2"
+        template: configmap.yaml
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "sentinel announce-hostnames yes"
+        template: configmap.yaml
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "# HelmForge managed sentinel config end"
+        template: configmap.yaml
 
   - it: should preserve sentinel failover role on replica restarts
     set:
