@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Config
+templates:
+  - configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render httpd hardening config
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["httpd.conf"]
+          pattern: "ServerTokens Prod"
+      - matchRegex:
+          path: data["httpd.conf"]
+          pattern: "TraceEnable Off"
+      - matchRegex:
+          path: data["httpd.conf"]
+          pattern: "(?m)^Listen 8080$"
+      - notMatchRegex:
+          path: data["httpd.conf"]
+          pattern: "Listen 0\\.0\\.0\\.0:"
+
+  - it: should require valid users when basic auth is enabled
+    documentIndex: 0
+    set:
+      basicAuth.enabled: true
+      basicAuth.existingSecret: apache-basicauth
+    asserts:
+      - matchRegex:
+          path: data["httpd.conf"]
+          pattern: "Require valid-user"
+      - matchRegex:
+          path: data["httpd.conf"]
+          pattern: "LoadModule authn_core_module modules/mod_authn_core.so"
+      - notMatchRegex:
+          path: data["httpd.conf"]
+          pattern: "<Directory \"/usr/local/apache2/htdocs\">[\\s\\S]*Require all granted"
+
+  - it: should honor custom htpasswd key
+    documentIndex: 0
+    set:
+      basicAuth.enabled: true
+      basicAuth.existingSecret: apache-basicauth
+      basicAuth.htpasswdKey: users
+    asserts:
+      - matchRegex:
+          path: data["httpd.conf"]
+          pattern: 'AuthUserFile "/usr/local/apache2/auth/users"'
+
+  - it: should expose unauthenticated health endpoint
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: data["healthz.html"]
+          value: |
+            ok
+      - matchRegex:
+          path: data["httpd.conf"]
+          pattern: 'Alias "/healthz" "/usr/local/apache2/healthz.html"'
+      - matchRegex:
+          path: data["httpd.conf"]
+          pattern: "<Location \"/healthz\">[\\s\\S]*Require all granted"
+
+  - it: should default server-status to localhost access
+    documentIndex: 0
+    set:
+      metrics.enabled: true
+    asserts:
+      - matchRegex:
+          path: data["httpd.conf"]
+          pattern: "<Location \"/server-status\">[\\s\\S]*Require local"
+
+  - it: should render default content ConfigMap
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - exists:
+          path: data["index.html"]
