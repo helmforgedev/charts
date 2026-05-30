@@ -157,6 +157,25 @@ tests:
       - equal:
           path: spec.replicas
           value: 2
+      - notExists:
+          path: spec.strategy
+
+  - it: should allow multiple hub replicas with external database and an existing hub claim
+    template: deployment-hub.yaml
+    set:
+      hub.replicaCount: 2
+      hub.persistence.existingClaim: hub-rwx-existing
+      hub.extraConfig: |
+        c.JupyterHub.db_url = "postgresql+psycopg2://jupyterhub:secret@postgresql/jupyterhub"
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+      - equal:
+          path: spec.template.spec.volumes[1].persistentVolumeClaim.claimName
+          value: hub-rwx-existing
+      - notExists:
+          path: spec.strategy
 
   - it: should render image pull secrets on hub and proxy pods
     set:
