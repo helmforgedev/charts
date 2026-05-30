@@ -46,6 +46,28 @@ spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       initContainers:
+        {{- with .Values.hub.cookieSecret.existingSecret }}
+        - name: prepare-cookie-secret
+          image: "{{ $.Values.hub.image.repository }}:{{ $.Values.hub.image.tag }}"
+          imagePullPolicy: {{ $.Values.hub.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              umask 077
+              cp "/var/run/jupyterhub-cookie-secret/{{ $.Values.hub.cookieSecret.existingSecretKey }}" "/srv/jupyterhub/{{ $.Values.hub.cookieSecret.fileName }}"
+              chmod 600 "/srv/jupyterhub/{{ $.Values.hub.cookieSecret.fileName }}"
+          resources:
+            {{- toYaml $.Values.hub.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml $.Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /srv/jupyterhub
+            - name: cookie-secret
+              mountPath: /var/run/jupyterhub-cookie-secret
+              readOnly: true
+        {{- end }}
         - name: wait-for-proxy-api
           image: docker.io/curlimages/curl:8.17.0
           imagePullPolicy: IfNotPresent
@@ -149,6 +171,14 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        {{- with .Values.hub.cookieSecret.existingSecret }}
+        - name: cookie-secret
+          secret:
+            secretName: {{ . }}
+            items:
+              - key: {{ $.Values.hub.cookieSecret.existingSecretKey }}
+                path: {{ $.Values.hub.cookieSecret.existingSecretKey }}
+        {{- end }}
         - name: tmp
           emptyDir: {}
         {{- with .Values.extraVolumes }}

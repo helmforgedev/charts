@@ -96,6 +96,12 @@ annotations:
 {{- if and (gt (int .Values.hub.replicaCount) 1) .Values.hub.persistence.enabled (not .Values.hub.persistence.existingClaim) $singleWriterHubPVC -}}
 {{- fail "hub.replicaCount > 1 with hub.persistence.enabled=true requires hub.persistence.accessModes without ReadWriteOnce or ReadWriteOncePod, or hub.persistence.enabled=false, to avoid multiple Hub replicas sharing a single-writer PVC" -}}
 {{- end -}}
+{{- if and (gt (int .Values.hub.replicaCount) 1) $hasExternalHubDb (not .Values.hub.persistence.enabled) (not .Values.hub.cookieSecret.existingSecret) -}}
+{{- fail "hub.replicaCount > 1 with hub.persistence.enabled=false requires hub.cookieSecret.existingSecret so every Hub replica uses the same JupyterHub cookie secret" -}}
+{{- end -}}
+{{- if and .Values.hub.cookieSecret.fileName (contains "/" .Values.hub.cookieSecret.fileName) -}}
+{{- fail "hub.cookieSecret.fileName must be a file name, not a path" -}}
+{{- end -}}
 {{- if and .Values.metrics.serviceMonitor.enabled .Values.metrics.authenticatePrometheus -}}
 {{- fail "metrics.serviceMonitor.enabled=true requires metrics.authenticatePrometheus=false until ServiceMonitor scrape credentials are configured" -}}
 {{- end -}}

@@ -166,7 +166,7 @@ tests:
       - failedTemplate:
           errorMessage: "hub.replicaCount > 1 requires hub.extraConfig to configure an external c.JupyterHub.db_url; the default SQLite database is single-writer and must run with one Hub replica"
 
-  - it: should allow multiple hub replicas when external database is configured
+  - it: should reject multiple hub replicas with external database, disabled persistence, and no shared cookie secret
     template: deployment-hub.yaml
     set:
       hub.replicaCount: 2
@@ -174,9 +174,42 @@ tests:
       hub.extraConfig: |
         c.JupyterHub.db_url = "postgresql+psycopg2://jupyterhub:secret@postgresql/jupyterhub"
     asserts:
+      - failedTemplate:
+          errorMessage: "hub.replicaCount > 1 with hub.persistence.enabled=false requires hub.cookieSecret.existingSecret so every Hub replica uses the same JupyterHub cookie secret"
+
+  - it: should allow multiple hub replicas with external database and shared cookie secret
+    template: deployment-hub.yaml
+    set:
+      hub.replicaCount: 2
+      hub.persistence.enabled: false
+      hub.cookieSecret.existingSecret: hub-cookie
+      hub.extraConfig: |
+        c.JupyterHub.db_url = "postgresql+psycopg2://jupyterhub:secret@postgresql/jupyterhub"
+    asserts:
       - equal:
           path: spec.replicas
           value: 2
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: cookie-secret
+            secret:
+              secretName: hub-cookie
+              items:
+                - key: cookie-secret
+                  path: cookie-secret
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: prepare-cookie-secret
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chmod 600 \"/srv/jupyterhub/jupyterhub_cookie_secret\""
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: cookie-secret
+            mountPath: /var/run/jupyterhub-cookie-secret
+            readOnly: true
 
   - it: should reject multiple hub replicas with external database and RWO hub persistence
     template: deployment-hub.yaml

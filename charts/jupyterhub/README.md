@@ -31,6 +31,9 @@ Set `c.JupyterHub.db_url` in `hub.extraConfig` before increasing
 When running multiple Hub replicas, disable Hub persistence or use multi-writer
 storage; `ReadWriteOnce` and `ReadWriteOncePod` PVCs are intentionally rejected
 for HA Hub deployments.
+If Hub persistence is disabled for HA, set `hub.cookieSecret.existingSecret` so
+all Hub replicas read the same `jupyterhub_cookie_secret` file and can decrypt
+each other's login cookies.
 The chart runs configurable-http-proxy separately from the Hub and defaults
 `hub.cleanupServers=false`, so notebook pods are not stopped during normal Hub
 rollouts or node drains.
