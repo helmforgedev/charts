@@ -59,3 +59,9 @@ app.kubernetes.io/part-of: helmforge
 {{- define "apache.basicAuthSecretName" -}}
 {{- default (printf "%s-basicauth" (include "apache.fullname" .)) .Values.basicAuth.existingSecret -}}
 {{- end -}}
+
+{{- define "apache.validate" -}}
+{{- if and .Values.basicAuth.enabled (not .Values.basicAuth.existingSecret) -}}
+{{- fail "basicAuth.enabled requires basicAuth.existingSecret to reference an htpasswd Secret. Create the Secret manually or use externalSecrets.enabled with basicAuth.existingSecret." -}}
+{{- end -}}
+{{- end -}}

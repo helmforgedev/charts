@@ -51,3 +51,5 @@ networkPolicy:
     allowDns: true
     allowInternet: false
 ```
+
+When `allowInternet=true`, the chart allows both `0.0.0.0/0` and `::/0` so IPv4, IPv6, and dual-stack clusters behave consistently.

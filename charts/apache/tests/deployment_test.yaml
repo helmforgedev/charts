@@ -33,3 +33,30 @@ tests:
       - equal:
           path: spec.template.spec.containers[1].name
           value: apache-exporter
+
+  - it: should require an existing secret when basic auth is enabled
+    template: deployment.yaml
+    set:
+      basicAuth.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "basicAuth.enabled requires basicAuth.existingSecret to reference an htpasswd Secret. Create the Secret manually or use externalSecrets.enabled with basicAuth.existingSecret."
+
+  - it: should mount configured basic auth secret
+    template: deployment.yaml
+    set:
+      basicAuth.enabled: true
+      basicAuth.existingSecret: apache-basicauth
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: basic-auth
+            secret:
+              secretName: apache-basicauth
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: basic-auth
+            mountPath: /usr/local/apache2/auth
+            readOnly: true
