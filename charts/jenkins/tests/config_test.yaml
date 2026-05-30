@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Config
+templates:
+  - configmap.yaml
+  - secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should create admin secret by default
+    template: secret.yaml
+    asserts:
+      - isKind:
+          of: Secret
+      - equal:
+          path: metadata.name
+          value: test-jenkins-admin
+
+  - it: should render JCasC and plugins config
+    template: configmap.yaml
+    set:
+      plugins.install.enabled: true
+      jcasC.enabled: true
+      jcasC.configScripts.welcome: |
+        jenkins:
+          systemMessage: "Managed by HelmForge"
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - exists:
+          path: data["plugins.txt"]
+      - exists:
+          path: data["welcome.yaml"]
+
+  - it: should preserve existing security realms during admin bootstrap
+    template: configmap.yaml
+    set:
+      admin.create: true
+    asserts:
+      - matchRegex:
+          path: data["00-basic-security.groovy"]
+          pattern: "existingRealm instanceof HudsonPrivateSecurityRealm"
+      - matchRegex:
+          path: data["00-basic-security.groovy"]
+          pattern: "Existing non-local security realm detected"
+      - matchRegex:
+          path: data["00-basic-security.groovy"]
+          pattern: "Existing authorization strategy detected"
