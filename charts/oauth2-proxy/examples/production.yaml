@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+replicaCount: 2
+
+auth:
+  createSecret: false
+  existingSecret: oauth2-proxy-auth
+
+config:
+  provider: oidc
+  oidcIssuerUrl: https://idp.example.com/realms/platform
+  redirectUrl: https://auth.example.com/oauth2/callback
+  cookie:
+    secure: true
+    domains:
+      - .example.com
+  reverseProxy:
+    enabled: true
+    trustedProxyIps:
+      - 10.42.0.0/16
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: auth.example.com
+      paths:
+        - path: /oauth2
+          pathType: Prefix
+  tls:
+    - secretName: oauth2-proxy-tls
+      hosts:
+        - auth.example.com
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: prometheus
+
+networkPolicy:
+  enabled: true

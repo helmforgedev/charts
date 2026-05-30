@@ -1,0 +1,43 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "oauth2-proxy.fullname" . }}
+  labels:
+    {{- include "oauth2-proxy.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "oauth2-proxy.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    {{- if .Values.networkPolicy.ingress }}
+    {{- toYaml .Values.networkPolicy.ingress | nindent 4 }}
+    {{- else }}
+    - ports:
+        - protocol: TCP
+          port: 4180
+        {{- if .Values.metrics.enabled }}
+        - protocol: TCP
+          port: {{ .Values.metrics.port }}
+        {{- end }}
+    {{- end }}
+  egress:
+    {{- if .Values.networkPolicy.egress }}
+    {{- toYaml .Values.networkPolicy.egress | nindent 4 }}
+    {{- else }}
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+    {{- end }}
+{{- end }}

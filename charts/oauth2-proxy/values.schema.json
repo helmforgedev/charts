@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "OAuth2 Proxy Helm Chart Values",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "nameOverride": { "type": "string", "default": "" },
+    "fullnameOverride": { "type": "string", "default": "" },
+    "commonLabels": { "type": "object" },
+    "replicaCount": { "type": "integer", "minimum": 1, "default": 2 },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": { "type": "string", "default": "quay.io/oauth2-proxy/oauth2-proxy" },
+        "tag": { "type": "string", "default": "v7.15.2" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "default": "IfNotPresent" }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "createSecret": { "type": "boolean", "default": true },
+        "existingSecret": { "type": "string", "default": "" },
+        "clientID": { "type": "string", "default": "" },
+        "clientSecret": { "type": "string", "default": "" },
+        "cookieSecret": { "type": "string", "default": "" },
+        "keys": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "clientID": { "type": "string", "default": "client-id" },
+            "clientSecret": { "type": "string", "default": "client-secret" },
+            "cookieSecret": { "type": "string", "default": "cookie-secret" }
+          }
+        }
+      }
+    },
+    "externalSecrets": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "apiVersion": { "type": "string", "enum": ["external-secrets.io/v1"], "default": "external-secrets.io/v1" },
+        "refreshInterval": { "type": "string", "default": "0" },
+        "secretStoreRef": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "default": "" },
+            "kind": { "type": "string", "enum": ["SecretStore", "ClusterSecretStore"], "default": "SecretStore" }
+          }
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "creationPolicy": { "type": "string", "enum": ["Owner", "Merge", "Orphan", "None"], "default": "Owner" }
+          }
+        },
+        "data": { "type": "array", "items": { "type": "object" }, "default": [] },
+        "dataFrom": { "type": "array", "items": { "type": "object" }, "default": [] }
+      }
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "provider": { "type": "string", "default": "oidc" },
+        "oidcIssuerUrl": { "type": "string", "default": "" },
+        "redirectUrl": { "type": "string", "default": "" },
+        "upstreams": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "emailDomains": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "reverseProxy": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "trustedProxyIps": { "type": "array", "items": { "type": "string" }, "default": [] }
+          },
+          "allOf": [
+            {
+              "if": {
+                "required": ["enabled"],
+                "properties": {
+                  "enabled": { "const": true }
+                }
+              },
+              "then": {
+                "properties": {
+                  "trustedProxyIps": { "minItems": 1 }
+                },
+                "required": ["trustedProxyIps"]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer", "ExternalName"], "default": "ClusterIP" },
+        "externalName": { "type": "string", "default": "" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 80 },
+        "ipFamilyPolicy": { "type": "string", "enum": ["", "SingleStack", "PreferDualStack", "RequireDualStack"], "default": "" },
+        "ipFamilies": { "type": "array", "items": { "type": "string", "enum": ["IPv4", "IPv6"] } }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 44180 },
+        "serviceMonitor": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "interval": { "type": "string", "default": "30s" },
+            "scrapeTimeout": { "type": "string", "default": "10s" }
+          }
+        }
+      }
+    },
+    "alphaConfig": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "existingSecret": { "type": "string", "default": "" },
+        "config": { "type": "object", "default": {} }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "ingressClassName": { "type": "string", "default": "" },
+        "hosts": { "type": "array", "items": { "type": "object" } },
+        "tls": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "parentRefs": { "type": "array", "items": { "type": "object" }, "default": [] }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "ingress": { "type": "array", "items": { "type": "object" }, "default": [] },
+        "egress": { "type": "array", "items": { "type": "object" }, "default": [] }
+      }
+    },
+    "resources": { "type": "object" },
+    "podSecurityContext": { "type": "object" },
+    "securityContext": { "type": "object" },
+    "extraObjects": { "type": "array", "items": { "type": "object" }, "default": [] }
+  }
+}
