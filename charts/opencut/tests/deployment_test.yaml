@@ -265,15 +265,59 @@ tests:
         template: templates/secret.yaml
         documentIndex: 0
 
-  - it: should omit Upstash bridge env when redis HTTP bridge is disabled
+  - it: should fail when redis HTTP bridge is disabled without an external Redis REST URL
     set:
       redisHttp.enabled: false
       opencut.betterAuthSecret: test-secret
     asserts:
-      - notContains:
+      - failedTemplate:
+          errorMessage: redisHttp.enabled=false requires redisHttp.external.url so OpenCut receives UPSTASH_REDIS_REST_URL
+        template: templates/deployment.yaml
+
+  - it: should render external Redis REST env when redis HTTP bridge is disabled
+    set:
+      redisHttp.enabled: false
+      redisHttp.external.url: https://redis-rest.example.com
+      redisHttp.external.token: external-token
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: UPSTASH_REDIS_REST_URL
+            value: https://redis-rest.example.com
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPSTASH_REDIS_REST_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: test-opencut-app
+                key: redis-rest-token
+        template: templates/deployment.yaml
+      - equal:
+          path: stringData["redis-rest-token"]
+          value: external-token
+        template: templates/secret.yaml
+        documentIndex: 0
+
+  - it: should use an existing Secret for external Redis REST token
+    set:
+      redisHttp.enabled: false
+      redisHttp.external.url: https://redis-rest.example.com
+      redisHttp.external.existingSecret: redis-rest-auth
+      redisHttp.external.existingSecretTokenKey: token
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPSTASH_REDIS_REST_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: redis-rest-auth
+                key: token
         template: templates/deployment.yaml
 
   - it: should derive site URL from Gateway hostnames

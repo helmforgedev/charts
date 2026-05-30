@@ -10,6 +10,8 @@ Supported dependency modes:
 - bundled HelmForge PostgreSQL and Redis subcharts for turnkey installs
 - external PostgreSQL and external Redis for platform-managed data services
 - Redis-over-HTTP bridge for OpenCut `UPSTASH_REDIS_REST_*` compatibility
+- external Redis REST endpoint for platforms that already provide an
+  Upstash-compatible API
 
 The chart intentionally avoids installing platform controllers such as Ingress,
 Gateway API, External Secrets Operator, storage provisioners, or monitoring
@@ -58,6 +60,9 @@ credential ownership are managed outside the release.
   dependencies so database behavior, guardrails, and values remain consistent.
 - Keep the Redis HTTP bridge explicit because the upstream application consumes
   HTTP-style Redis environment variables.
+- Fail fast when the bridge is disabled without an external Redis REST URL and
+  token source, because OpenCut requires both `UPSTASH_REDIS_REST_URL` and
+  `UPSTASH_REDIS_REST_TOKEN` at startup.
 - Use a single `gateway` values block for Gateway API HTTPRoute support.
 - Derive `opencut.siteUrl` from Ingress or Gateway hostnames only when the user
   does not set it directly.

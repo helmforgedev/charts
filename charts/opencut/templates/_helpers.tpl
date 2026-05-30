@@ -163,6 +163,23 @@ app.kubernetes.io/part-of: helmforge
 {{- printf "%s-redis-http" (include "opencut.fullname" .) -}}
 {{- end -}}
 
+{{- define "opencut.validateRedisRest" -}}
+{{- if and (not .Values.redisHttp.enabled) (not .Values.redisHttp.external.url) -}}
+{{- fail "redisHttp.enabled=false requires redisHttp.external.url so OpenCut receives UPSTASH_REDIS_REST_URL" -}}
+{{- end -}}
+{{- if and (not .Values.redisHttp.enabled) (not .Values.redisHttp.external.token) (not .Values.redisHttp.external.existingSecret) -}}
+{{- fail "redisHttp.enabled=false requires redisHttp.external.token or redisHttp.external.existingSecret so OpenCut receives UPSTASH_REDIS_REST_TOKEN" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "opencut.redisRestExternalSecretName" -}}
+{{- if .Values.redisHttp.external.existingSecret -}}{{ .Values.redisHttp.external.existingSecret }}{{- else -}}{{ include "opencut.secretName" . }}{{- end -}}
+{{- end -}}
+
+{{- define "opencut.redisRestExternalSecretKey" -}}
+{{- .Values.redisHttp.external.existingSecretTokenKey | default "redis-rest-token" -}}
+{{- end -}}
+
 {{- define "opencut.siteUrl" -}}
 {{- if .Values.opencut.siteUrl -}}{{ .Values.opencut.siteUrl }}{{- else if and .Values.ingress.enabled (gt (len .Values.ingress.hosts) 0) -}}{{ printf "%s://%s" (ternary "https" "http" (gt (len .Values.ingress.tls) 0)) (index .Values.ingress.hosts 0).host }}{{- else if and .Values.gateway.enabled (gt (len .Values.gateway.hostnames) 0) -}}{{ printf "https://%s" (index .Values.gateway.hostnames 0) }}{{- else -}}http://localhost:3000{{- end -}}
 {{- end -}}
@@ -174,5 +191,5 @@ app.kubernetes.io/part-of: helmforge
 
 {{- define "opencut.redisRestToken" -}}
 {{- $secretName := include "opencut.secretName" . -}}
-{{- if .Values.redisHttp.token -}}{{ .Values.redisHttp.token }}{{- else -}}{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}{{- if and $existing (index $existing.data "redis-rest-token") -}}{{ index $existing.data "redis-rest-token" | b64dec }}{{- else -}}{{ randAlphaNum 32 }}{{- end -}}{{- end -}}
+{{- if and (not .Values.redisHttp.enabled) .Values.redisHttp.external.token -}}{{ .Values.redisHttp.external.token }}{{- else if .Values.redisHttp.token -}}{{ .Values.redisHttp.token }}{{- else -}}{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}{{- if and $existing (index $existing.data "redis-rest-token") -}}{{ index $existing.data "redis-rest-token" | b64dec }}{{- else -}}{{ randAlphaNum 32 }}{{- end -}}{{- end -}}
 {{- end -}}

@@ -9,6 +9,7 @@ Redis-over-HTTP bridge required by the upstream application runtime.
 - HelmForge-maintained `docker.io/helmforge/opencut:v0.3.0` image.
 - PostgreSQL and Redis subcharts for a turnkey install.
 - `serverless-redis-http` bridge for `UPSTASH_REDIS_REST_*` compatibility.
+- External Redis REST endpoint support when the in-cluster bridge is disabled.
 - External Secrets Operator integration for external database credentials.
 - Gateway API, Ingress, dual-stack Service support, HPA, PDB, NetworkPolicy,
   schema, and Helm tests.

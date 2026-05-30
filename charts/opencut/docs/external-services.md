@@ -38,8 +38,22 @@ redis:
     existingSecretPasswordKey: redis-password
 ```
 
-`redisHttp.enabled` should remain enabled unless the OpenCut runtime is changed
-to consume another Redis HTTP-compatible endpoint directly.
+`redisHttp.enabled` should remain enabled unless OpenCut can reach another
+Redis REST-compatible endpoint directly. When disabling the in-cluster bridge,
+provide the required `UPSTASH_REDIS_REST_*` settings through
+`redisHttp.external`:
+
+```yaml
+redis:
+  enabled: false
+
+redisHttp:
+  enabled: false
+  external:
+    url: https://redis-rest.example.com
+    existingSecret: opencut-redis-rest
+    existingSecretTokenKey: redis-rest-token
+```
 
 ## External Secrets Operator
 
