@@ -1,0 +1,505 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+  - templates/redis-http.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should use HelmForge OpenCut image and hardened pod settings
+    set:
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/helmforge/opencut:v0.3.0
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: prepare-runtime-app
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: runtime-app
+            mountPath: /app-runtime
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: runtime-app
+            mountPath: /app
+        template: templates/deployment.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "http://localhost:3000"
+        template: templates/deployment.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "NEXT_PUBLIC_SITE_URL"
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BETTER_AUTH_URL
+            value: http://localhost:3000
+        template: templates/deployment.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "https://api.marblecms.com"
+        template: templates/deployment.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "NEXT_PUBLIC_MARBLE_API_URL"
+        template: templates/deployment.yaml
+
+  - it: should render redis HTTP bridge by default
+    asserts:
+      - isKind:
+          of: Deployment
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/hiett/serverless-redis-http:0.0.10
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.failureThreshold
+          value: 12
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.initialDelaySeconds
+          value: 60
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/secret"]
+          pattern: "^[a-f0-9]{64}$"
+        template: templates/redis-http.yaml
+        documentIndex: 0
+
+  - it: should render pull secrets and priority class on web and redis bridge pods
+    set:
+      imagePullSecrets:
+        - name: private-registry
+      priorityClassName: platform-critical
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: private-registry
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: platform-critical
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: private-registry
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: platform-critical
+        template: templates/redis-http.yaml
+        documentIndex: 0
+
+  - it: should keep redis HTTP bridge names within DNS label length
+    set:
+      fullnameOverride: opencut-with-a-very-long-name-that-fills-the-dns-label-limit
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: "^.{1,63}$"
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - matchRegex:
+          path: metadata.name
+          pattern: "-redis-http$"
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - matchRegex:
+          path: metadata.name
+          pattern: "^.{1,63}$"
+        template: templates/redis-http.yaml
+        documentIndex: 1
+      - matchRegex:
+          path: metadata.name
+          pattern: "-redis-http$"
+        template: templates/redis-http.yaml
+        documentIndex: 1
+
+  - it: should honor PostgreSQL subchart auth secret overrides
+    set:
+      postgresql.auth.existingSecret: pg-auth
+      postgresql.auth.existingSecretUserPasswordKey: password
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: pg-auth
+                key: password
+        template: templates/deployment.yaml
+
+  - it: should honor PostgreSQL subchart ExternalSecret target overrides
+    set:
+      postgresql.externalSecrets.enabled: true
+      postgresql.externalSecrets.auth.enabled: true
+      postgresql.externalSecrets.auth.targetName: pg-auth-from-eso
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: pg-auth-from-eso
+                key: user-password
+        template: templates/deployment.yaml
+
+  - it: should honor bundled PostgreSQL service port in database URL
+    set:
+      postgresql.service.port: 15432
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_PORT
+            value: "15432"
+        template: templates/deployment.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "encodeURIComponent"
+        template: templates/deployment.yaml
+
+  - it: should honor PostgreSQL subchart fullname override in database URL and auth secret
+    set:
+      postgresql.fullnameOverride: custom-postgresql
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: custom-postgresql-auth
+                key: user-password
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_HOST
+            value: custom-postgresql
+        template: templates/deployment.yaml
+
+  - it: should use PostgreSQL primary service in replication mode
+    set:
+      postgresql.architecture: replication
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_HOST
+            value: test-postgresql-primary
+        template: templates/deployment.yaml
+
+  - it: should include bundled Redis auth in redis HTTP bridge URL
+    set:
+      redis.auth.enabled: true
+      redis.auth.existingSecret: redis-auth
+      redis.auth.existingSecretPasswordKey: password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: redis-auth
+                key: password
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_HOST
+            value: test-redis-client
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "SRH_CONNECTION_STRING"
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "s/\\\\\\[/%5B/g"
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "s/\\\\\\]/%5D/g"
+        template: templates/redis-http.yaml
+        documentIndex: 0
+
+  - it: should honor Redis subchart fullname override in redis HTTP bridge URL and auth secret
+    set:
+      redis.fullnameOverride: custom-redis
+      redis.auth.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: custom-redis-auth
+                key: redis-password
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_HOST
+            value: custom-redis-client
+        template: templates/redis-http.yaml
+        documentIndex: 0
+
+  - it: should use Redis primary service in replication mode
+    set:
+      redis.architecture: replication
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_HOST
+            value: test-redis-primary
+        template: templates/redis-http.yaml
+        documentIndex: 0
+
+  - it: should honor bundled Redis service port in redis HTTP bridge URL
+    set:
+      redis.service.ports.redis: 16379
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PORT
+            value: "16379"
+        template: templates/redis-http.yaml
+        documentIndex: 0
+
+  - it: should include external Redis password in redis HTTP bridge URL
+    set:
+      redis.external.host: redis.example.com
+      redis.external.password: redis-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-opencut-app
+                key: redis-password
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_HOST
+            value: redis.example.com
+        template: templates/redis-http.yaml
+        documentIndex: 0
+      - equal:
+          path: stringData["redis-password"]
+          value: redis-secret
+        template: templates/secret.yaml
+        documentIndex: 0
+
+  - it: should fail when redis HTTP bridge is disabled without an external Redis REST URL
+    set:
+      redisHttp.enabled: false
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - failedTemplate:
+          errorMessage: redisHttp.enabled=false requires redisHttp.external.url so OpenCut receives UPSTASH_REDIS_REST_URL
+        template: templates/deployment.yaml
+
+  - it: should render external Redis REST env when redis HTTP bridge is disabled
+    set:
+      redisHttp.enabled: false
+      redisHttp.external.url: https://redis-rest.example.com
+      redisHttp.external.token: external-token
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPSTASH_REDIS_REST_URL
+            value: https://redis-rest.example.com
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPSTASH_REDIS_REST_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: test-opencut-app
+                key: redis-rest-token
+        template: templates/deployment.yaml
+      - equal:
+          path: stringData["redis-rest-token"]
+          value: external-token
+        template: templates/secret.yaml
+        documentIndex: 0
+
+  - it: should use an existing Secret for external Redis REST token
+    set:
+      redisHttp.enabled: false
+      redisHttp.external.url: https://redis-rest.example.com
+      redisHttp.external.existingSecret: redis-rest-auth
+      redisHttp.external.existingSecretTokenKey: token
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPSTASH_REDIS_REST_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: redis-rest-auth
+                key: token
+        template: templates/deployment.yaml
+
+  - it: should derive site URL from Gateway hostnames
+    set:
+      opencut.betterAuthSecret: test-secret
+      gateway.enabled: true
+      gateway.parentRefs:
+        - name: public
+      gateway.hostnames:
+        - opencut.gateway.example
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NEXT_PUBLIC_SITE_URL
+            value: https://opencut.gateway.example
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BETTER_AUTH_URL
+            value: https://opencut.gateway.example
+        template: templates/deployment.yaml
+
+  - it: should derive HTTP site URL from non-TLS ingress
+    set:
+      opencut.betterAuthSecret: test-secret
+      ingress.enabled: true
+      ingress.hosts:
+        - host: opencut.example.test
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NEXT_PUBLIC_SITE_URL
+            value: http://opencut.example.test
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BETTER_AUTH_URL
+            value: http://opencut.example.test
+        template: templates/deployment.yaml
+
+  - it: should derive HTTPS site URL from TLS ingress
+    set:
+      opencut.betterAuthSecret: test-secret
+      ingress.enabled: true
+      ingress.hosts:
+        - host: opencut.example.test
+          paths:
+            - path: /
+              pathType: Prefix
+      ingress.tls:
+        - secretName: opencut-tls
+          hosts:
+            - opencut.example.test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NEXT_PUBLIC_SITE_URL
+            value: https://opencut.example.test
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BETTER_AUTH_URL
+            value: https://opencut.example.test
+        template: templates/deployment.yaml
+
+  - it: should derive HTTP site URL when selected ingress host is not covered by TLS
+    set:
+      opencut.betterAuthSecret: test-secret
+      ingress.enabled: true
+      ingress.hosts:
+        - host: opencut-http.example.test
+          paths:
+            - path: /
+              pathType: Prefix
+        - host: opencut-https.example.test
+          paths:
+            - path: /
+              pathType: Prefix
+      ingress.tls:
+        - secretName: opencut-tls
+          hosts:
+            - opencut-https.example.test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NEXT_PUBLIC_SITE_URL
+            value: http://opencut-http.example.test
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BETTER_AUTH_URL
+            value: http://opencut-http.example.test
+        template: templates/deployment.yaml
+
+  - it: should fail when redis HTTP bridge has no Redis backend
+    set:
+      redis.enabled: false
+      redis.external.host: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: redisHttp.enabled requires redis.enabled=true or redis.external.host to be set
+        template: templates/redis-http.yaml

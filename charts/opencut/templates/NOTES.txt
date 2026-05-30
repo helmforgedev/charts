@@ -1,0 +1,67 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+=============================================================================
+OpenCut deployed successfully!
+=============================================================================
+
+ACCESS:
+{{- if .Values.ingress.enabled }}
+  {{- range .Values.ingress.hosts }}
+   {{ ternary "https" "http" (eq (include "opencut.ingressHostHasTls" (dict "root" $ "host" .host)) "true") }}://{{ .host }}
+  {{- end }}
+{{- else if and .Values.gateway.enabled .Values.gateway.hostnames }}
+  {{- range .Values.gateway.hostnames }}
+   https://{{ . }}
+  {{- end }}
+{{- else }}
+   kubectl port-forward svc/{{ include "opencut.fullname" . }} -n {{ .Release.Namespace }} 3000:{{ .Values.service.port }}
+   Open: http://localhost:3000
+{{- end }}
+
+SERVICE:
+   Internal: {{ include "opencut.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+   Health:   /api/health
+   Image:    {{ include "opencut.image" . }}
+
+DATABASE:
+{{- if .Values.postgresql.enabled }}
+   PostgreSQL: bundled HelmForge subchart
+   Service: {{ include "opencut.databaseHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ dig "service" "port" 5432 .Values.postgresql }}
+{{- else }}
+   PostgreSQL: external
+   Host: {{ .Values.database.external.host }}:{{ .Values.database.external.port }}
+{{- end }}
+
+REDIS:
+{{- if .Values.redisHttp.enabled }}
+  {{- if .Values.redis.enabled }}
+   Redis: bundled HelmForge subchart
+   Service: {{ include "opencut.redisHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ dig "service" "ports" "redis" 6379 .Values.redis }}
+  {{- else }}
+   Redis: external
+   Host: {{ .Values.redis.external.host }}:{{ .Values.redis.external.port }}
+  {{- end }}
+   Redis HTTP bridge: enabled ({{ include "opencut.redisHttpName" . }}:{{ .Values.redisHttp.service.port }})
+{{- else }}
+   Redis: external REST-compatible endpoint
+   Redis HTTP endpoint: external ({{ .Values.redisHttp.external.url }})
+{{- end }}
+
+OPERATIONS:
+   Run Helm tests:
+     helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+   Inspect pods:
+     kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+     kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "opencut.fullname" . }}
+
+PRODUCTION REMINDERS:
+   1. Set opencut.siteUrl and opencut.betterAuthSecret explicitly.
+   2. Use existingSecret or External Secrets for database and Redis credentials.
+   3. Enable persistence, resources, NetworkPolicy, and external TLS before exposing publicly.
+
+DOCUMENTATION:
+   Chart: https://helmforge.dev/docs/charts/opencut
+   Source: https://github.com/helmforgedev/charts/tree/main/charts/opencut
+   OpenCut: https://github.com/OpenCut-app/OpenCut
+
+=============================================================================
