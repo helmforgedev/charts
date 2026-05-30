@@ -156,6 +156,58 @@ tests:
         template: templates/secret.yaml
         documentIndex: 0
 
+  - it: should pass reverse proxy trust flags in alpha mode
+    set:
+      auth.createSecret: false
+      externalSecrets.enabled: true
+      alphaConfig.enabled: true
+      alphaConfig.config:
+        providers: []
+        upstreamConfig:
+          upstreams:
+            - id: static
+              path: /
+              static: true
+              staticCode: 200
+      config.reverseProxy.enabled: true
+      config.reverseProxy.realClientIpHeader: X-Forwarded-For
+      config.reverseProxy.trustedProxyIps:
+        - 10.42.0.0/16
+        - fd42::/64
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: --reverse-proxy=true
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: --real-client-ip-header=X-Forwarded-For
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: --trusted-proxy-ip=10.42.0.0/16
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: --trusted-proxy-ip=fd42::/64
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --reverse-proxy=true
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --real-client-ip-header=X-Forwarded-For
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --trusted-proxy-ip=10.42.0.0/16
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --trusted-proxy-ip=fd42::/64
+        template: templates/deployment.yaml
+
   - it: should mirror runtime escape hatches in config-test init container
     set:
       auth.clientID: test-client

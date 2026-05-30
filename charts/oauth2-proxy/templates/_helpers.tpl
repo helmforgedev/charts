@@ -111,6 +111,16 @@ app.kubernetes.io/instance: {{ .Release.Name }}
       key: {{ .Values.auth.keys.cookieSecret }}
 {{- end -}}
 
+{{- define "oauth2-proxy.alphaReverseProxyArgs" -}}
+{{- if and .Values.alphaConfig.enabled .Values.config.reverseProxy.enabled }}
+- --reverse-proxy=true
+- --real-client-ip-header={{ .Values.config.reverseProxy.realClientIpHeader }}
+{{- range .Values.config.reverseProxy.trustedProxyIps }}
+- --trusted-proxy-ip={{ . }}
+{{- end }}
+{{- end }}
+{{- end -}}
+
 {{- define "oauth2-proxy.alphaConfig" -}}
 {{- $alpha := deepCopy .Values.alphaConfig.config -}}
 {{- $server := get $alpha "server" | default (dict) -}}
