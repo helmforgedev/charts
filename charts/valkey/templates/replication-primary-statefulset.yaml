@@ -46,13 +46,20 @@ spec:
               {{- if .Values.auth.enabled }}
               set -- "$@" --requirepass "$VALKEY_PASSWORD" --masterauth "$VALKEY_PASSWORD"
               {{- end }}
+              bootstrap_marker="/data/.helmforge-sentinel-primary-bootstrapped"
               sentinel_master=""
-              for attempt in $(seq 1 30); do
-                sentinel_master="$(valkey-cli {{ include "valkey.cliTlsArgs" . }} -h {{ include "valkey.sentinelServiceFqdn" . | quote }} -p {{ .Values.service.ports.sentinel }} sentinel get-master-addr-by-name mymaster 2>/dev/null | awk 'NR == 1 { print $1 }')"
-                [ -n "$sentinel_master" ] && break
-                echo "waiting for Sentinel master discovery ($attempt/30)"
-                sleep 2
-              done
+              if [ -f "$bootstrap_marker" ]; then
+                for attempt in $(seq 1 30); do
+                  sentinel_master="$(valkey-cli {{ include "valkey.cliTlsArgs" . }} -h {{ include "valkey.sentinelServiceFqdn" . | quote }} -p {{ .Values.service.ports.sentinel }} sentinel get-master-addr-by-name mymaster 2>/dev/null | awk 'NR == 1 { print $1 }')"
+                  [ -n "$sentinel_master" ] && break
+                  echo "waiting for Sentinel master discovery ($attempt/30)"
+                  sleep 2
+                done
+                if [ -z "$sentinel_master" ]; then
+                  echo "Sentinel master discovery failed for an already bootstrapped primary; refusing to start without role confirmation"
+                  exit 1
+                fi
+              fi
               self_fqdn="$(hostname -f)"
               self_ip="$(hostname -i | awk '{ print $1 }')"
               if [ -n "$sentinel_master" ] \
@@ -62,6 +69,7 @@ spec:
                 echo "starting as replica of Sentinel master ${sentinel_master}:{{ .Values.service.ports.valkey }}"
                 set -- "$@" --replicaof "$sentinel_master" {{ .Values.service.ports.valkey }}
               fi
+              touch "$bootstrap_marker"
               exec valkey-server "$@"
             {{- else }}
             - /etc/valkey/valkey.conf

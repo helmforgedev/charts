@@ -179,21 +179,33 @@ tests:
           pattern: "# HelmForge managed sentinel config end"
         template: configmap.yaml
 
-  - it: should preserve sentinel failover role on replica restarts
+  - it: should reseed sentinel replicas from the current sentinel master on restarts
     set:
       architecture: sentinel
     asserts:
       - matchRegex:
           path: spec.template.spec.initContainers[0].args[0]
-          pattern: "replica already bootstrapped; sentinel will preserve the current role"
+          pattern: "sentinel get-master-addr-by-name mymaster"
+        template: replication-replica-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "main container will fail closed if the role cannot be confirmed"
         template: replication-replica-statefulset.yaml
       - matchRegex:
           path: spec.template.spec.containers[0].args[0]
-          pattern: "if \\[ ! -f /data/\\.helmforge-sentinel-replica-bootstrapped \\]; then"
+          pattern: "sentinel get-master-addr-by-name mymaster"
         template: replication-replica-statefulset.yaml
       - matchRegex:
           path: spec.template.spec.containers[0].args[0]
-          pattern: "set -- \"\\$@\" --replicaof"
+          pattern: "set -- \"\\$@\" --replicaof \"\\$sentinel_master\""
+        template: replication-replica-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "refusing to start as an unconfirmed master"
+        template: replication-replica-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "Sentinel reports this pod as the current master; starting without replicaof"
         template: replication-replica-statefulset.yaml
       - contains:
           path: spec.template.spec.initContainers[0].volumeMounts
@@ -223,6 +235,14 @@ tests:
       - matchRegex:
           path: spec.template.spec.containers[0].args[0]
           pattern: "set -- \"\\$@\" --replicaof \"\\$sentinel_master\""
+        template: replication-primary-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "helmforge-sentinel-primary-bootstrapped"
+        template: replication-primary-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "refusing to start without role confirmation"
         template: replication-primary-statefulset.yaml
 
   - it: should keep fixed replicaof in replication mode

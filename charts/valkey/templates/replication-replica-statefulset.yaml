@@ -38,8 +38,15 @@ spec:
           args:
             - |
               {{- if include "valkey.isSentinel" . }}
+              sentinel_master=""
+              for attempt in $(seq 1 30); do
+                sentinel_master="$(valkey-cli {{ include "valkey.cliTlsArgs" . }} -h {{ include "valkey.sentinelServiceFqdn" . | quote }} -p {{ .Values.service.ports.sentinel }} sentinel get-master-addr-by-name mymaster 2>/dev/null | awk 'NR == 1 { print $1 }')"
+                [ -n "$sentinel_master" ] && exit 0
+                echo "waiting for Sentinel master discovery ($attempt/30)"
+                sleep 2
+              done
               if [ -f /data/.helmforge-sentinel-replica-bootstrapped ]; then
-                echo "replica already bootstrapped; sentinel will preserve the current role"
+                echo "Sentinel unavailable for already bootstrapped replica; main container will fail closed if the role cannot be confirmed"
                 exit 0
               fi
               {{- end }}
@@ -74,10 +81,31 @@ spec:
             - |
               set -- /etc/valkey/valkey.conf
               {{- if include "valkey.isSentinel" . }}
-              if [ ! -f /data/.helmforge-sentinel-replica-bootstrapped ]; then
+              bootstrap_marker="/data/.helmforge-sentinel-replica-bootstrapped"
+              sentinel_master=""
+              for attempt in $(seq 1 30); do
+                sentinel_master="$(valkey-cli {{ include "valkey.cliTlsArgs" . }} -h {{ include "valkey.sentinelServiceFqdn" . | quote }} -p {{ .Values.service.ports.sentinel }} sentinel get-master-addr-by-name mymaster 2>/dev/null | awk 'NR == 1 { print $1 }')"
+                [ -n "$sentinel_master" ] && break
+                echo "waiting for Sentinel master discovery ($attempt/30)"
+                sleep 2
+              done
+              self_fqdn="$(hostname -f)"
+              self_ip="$(hostname -i | awk '{ print $1 }')"
+              if [ -n "$sentinel_master" ]; then
+                if [ "$sentinel_master" != "$self_fqdn" ] && [ "$sentinel_master" != "$self_ip" ]; then
+                  echo "starting as replica of Sentinel master ${sentinel_master}:{{ .Values.service.ports.valkey }}"
+                  set -- "$@" --replicaof "$sentinel_master" {{ .Values.service.ports.valkey }}
+                else
+                  echo "Sentinel reports this pod as the current master; starting without replicaof"
+                fi
+              elif [ -f "$bootstrap_marker" ]; then
+                echo "Sentinel master discovery failed for an already bootstrapped replica; refusing to start as an unconfirmed master"
+                exit 1
+              else
+                echo "Sentinel unavailable during first replica bootstrap; seeding from initial primary {{ include "valkey.primaryPodFqdn" . }}:{{ .Values.service.ports.valkey }}"
                 set -- "$@" --replicaof {{ include "valkey.primaryPodFqdn" . | quote }} {{ .Values.service.ports.valkey }}
-                touch /data/.helmforge-sentinel-replica-bootstrapped
               fi
+              touch "$bootstrap_marker"
               {{- else }}
               set -- "$@" --replicaof {{ include "valkey.primaryPodFqdn" . | quote }} {{ .Values.service.ports.valkey }}
               {{- end }}
