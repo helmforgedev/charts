@@ -25,6 +25,15 @@ app.kubernetes.io/part-of: helmforge
 {{ toYaml . }}
 {{- end }}
 {{- end -}}
+{{- define "jupyterhub.renderAnnotations" -}}
+{{- $common := .common | default dict -}}
+{{- $specific := .specific | default dict -}}
+{{- $annotations := mergeOverwrite (deepCopy $common) $specific -}}
+{{- with $annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end -}}
+{{- end -}}
 {{- define "jupyterhub.podLabels" -}}
 {{- $labels := omit .Values.podLabels "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/component" -}}
 {{- with $labels -}}
