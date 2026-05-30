@@ -85,7 +85,7 @@ annotations:
 {{- if and $publicExposure (eq .Values.auth.type "dummy") (not .Values.auth.dummyPassword) (not .Values.auth.allowInsecureDummy) -}}
 {{- fail "public exposure with the default dummy authenticator requires auth.dummyPassword or auth.allowInsecureDummy=true" -}}
 {{- end -}}
-{{- if and $publicExposure (ne .Values.auth.type "dummy") (not (regexMatch "authenticator_class" .Values.hub.extraConfig)) -}}
+{{- if and $publicExposure (ne .Values.auth.type "dummy") (not (regexMatch "(?m)^\\s*c\\.JupyterHub\\.authenticator_class\\s*=" .Values.hub.extraConfig)) -}}
 {{- fail "public exposure with a custom authenticator requires hub.extraConfig to set authenticator_class" -}}
 {{- end -}}
 {{- $hasExternalHubDb := regexMatch "(?m)^\\s*c\\.JupyterHub\\.db_url\\s*=" .Values.hub.extraConfig -}}
