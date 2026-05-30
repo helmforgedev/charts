@@ -38,6 +38,21 @@ spec:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       initContainers:
+        - name: prepare-runtime-app
+          image: {{ include "opencut.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              cp -R /app/. /app-runtime/
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: runtime-app
+              mountPath: /app-runtime
+            - name: tmp
+              mountPath: /tmp
         - name: wait-for-postgresql
           image: docker.io/library/busybox:1.37.0
           command:
@@ -93,6 +108,14 @@ spec:
               database_name="$(url_encode "$DATABASE_NAME")"
               export DATABASE_URL="postgresql://${database_username}:${database_password}@${DATABASE_HOST}:${DATABASE_PORT}/${database_name}"
               unset database_username database_password database_name
+              site_url_replacement="$(printf '%s' "$NEXT_PUBLIC_SITE_URL" | sed -e 's/[\/&|]/\\&/g')"
+              for public_env_dir in apps/web/.next apps/web/public; do
+                if [ -d "$public_env_dir" ]; then
+                  find "$public_env_dir" -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.html' -o -name '*.json' -o -name '*.css' \) \
+                    -exec sed -i "s|http://localhost:3000|${site_url_replacement}|g" {} +
+                fi
+              done
+              unset site_url_replacement public_env_dir
               exec docker-entrypoint.sh node apps/web/server.js
           ports:
             - name: http
@@ -189,12 +212,16 @@ spec:
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           volumeMounts:
+            - name: runtime-app
+              mountPath: /app
             - name: tmp
               mountPath: /tmp
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
       volumes:
+        - name: runtime-app
+          emptyDir: {}
         - name: tmp
           emptyDir: {}
         {{- with .Values.extraVolumes }}
