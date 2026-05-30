@@ -103,6 +103,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
       name: {{ include "oauth2-proxy.secretName" . }}
       key: {{ .Values.auth.keys.cookieSecret }}
 {{- end -}}
+{{- define "oauth2-proxy.cookieSecretEnv" -}}
+- name: OAUTH2_PROXY_COOKIE_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "oauth2-proxy.secretName" . }}
+      key: {{ .Values.auth.keys.cookieSecret }}
+{{- end -}}
 
 {{- define "oauth2-proxy.validate" -}}
 {{- if and (not .Values.auth.createSecret) (not .Values.auth.existingSecret) (not .Values.externalSecrets.enabled) -}}
