@@ -66,6 +66,9 @@ app.kubernetes.io/part-of: helmforge
 {{- if and $publicExposure (ne .Values.auth.type "dummy") (not (regexMatch "authenticator_class" .Values.hub.extraConfig)) -}}
 {{- fail "public exposure with a custom authenticator requires hub.extraConfig to set authenticator_class" -}}
 {{- end -}}
+{{- if and (gt (int .Values.hub.replicaCount) 1) (not (regexMatch "c\\.JupyterHub\\.db_url\\s*=" .Values.hub.extraConfig)) -}}
+{{- fail "hub.replicaCount > 1 requires hub.extraConfig to configure an external c.JupyterHub.db_url; the default SQLite database is single-writer and must run with one Hub replica" -}}
+{{- end -}}
 {{- range $key := list "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/component" -}}
 {{- if hasKey $.Values.podLabels $key -}}
 {{- fail (printf "podLabels cannot override reserved selector label %s" $key) -}}

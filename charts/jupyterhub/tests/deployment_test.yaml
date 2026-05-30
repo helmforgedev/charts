@@ -103,6 +103,25 @@ tests:
           path: spec.template.spec.volumes[1].persistentVolumeClaim.claimName
           value: hub-db-existing
 
+  - it: should reject multiple hub replicas with the default SQLite database
+    template: deployment-hub.yaml
+    set:
+      hub.replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: "hub.replicaCount > 1 requires hub.extraConfig to configure an external c.JupyterHub.db_url; the default SQLite database is single-writer and must run with one Hub replica"
+
+  - it: should allow multiple hub replicas when external database is configured
+    template: deployment-hub.yaml
+    set:
+      hub.replicaCount: 2
+      hub.extraConfig: |
+        c.JupyterHub.db_url = "postgresql+psycopg2://jupyterhub:secret@postgresql/jupyterhub"
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+
   - it: should render image pull secrets on hub and proxy pods
     set:
       imagePullSecrets:

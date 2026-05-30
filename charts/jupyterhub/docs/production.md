@@ -10,6 +10,8 @@ The default Hub state uses a SQLite database on the Hub PVC. Keep Hub replicas
 at one for this mode. For larger deployments, configure JupyterHub to use an
 external database in `hub.extraConfig` and manage that database with the
 HelmForge PostgreSQL chart.
+The chart fails rendering when `hub.replicaCount > 1` and no external
+`c.JupyterHub.db_url` is configured, because SQLite is single-writer storage.
 
 ## Single-User Pods
 

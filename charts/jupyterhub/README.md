@@ -26,6 +26,8 @@ set `proxy.existingSecret` and optionally render an `ExternalSecret`.
 Keep the default SQLite Hub database to one Hub replica. For larger deployments,
 configure an external database with `hub.extraConfig` and manage it with the
 HelmForge PostgreSQL chart.
+Set `c.JupyterHub.db_url` in `hub.extraConfig` before increasing
+`hub.replicaCount` above `1`.
 
 ## Single-User Image
 
