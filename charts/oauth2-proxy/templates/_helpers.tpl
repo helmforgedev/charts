@@ -105,6 +105,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "oauth2-proxy.validate" -}}
+{{- if and (not .Values.auth.createSecret) (not .Values.auth.existingSecret) (not .Values.externalSecrets.enabled) -}}
+{{- fail "auth.createSecret=false requires auth.existingSecret or externalSecrets.enabled=true so OAuth2 Proxy credentials are available" -}}
+{{- end -}}
 {{- $trustedProxyIps := default (list) .Values.config.reverseProxy.trustedProxyIps -}}
 {{- if and .Values.config.reverseProxy.enabled (eq (len $trustedProxyIps) 0) -}}
 {{- fail "config.reverseProxy.trustedProxyIps must contain at least one trusted proxy CIDR when config.reverseProxy.enabled=true" -}}
