@@ -234,6 +234,20 @@ Secret value helpers.
 {{- end -}}
 
 {{/*
+Authentication checksum for pod rollouts.
+*/}}
+{{- define "valkey.authChecksum" -}}
+{{- $existingSecretData := "" -}}
+{{- if .Values.auth.existingSecret -}}
+{{- $secret := lookup "v1" "Secret" .Release.Namespace .Values.auth.existingSecret -}}
+{{- if and $secret $secret.data (hasKey $secret.data .Values.auth.existingSecretPasswordKey) -}}
+{{- $existingSecretData = index $secret.data .Values.auth.existingSecretPasswordKey -}}
+{{- end -}}
+{{- end -}}
+{{- dict "password" .Values.auth.password "existingSecret" .Values.auth.existingSecret "key" .Values.auth.existingSecretPasswordKey "existingSecretData" $existingSecretData "externalSecrets" .Values.externalSecrets | toJson | sha256sum -}}
+{{- end -}}
+
+{{/*
 Port helper for Valkey when TLS is enabled.
 */}}
 {{- define "valkey.serverArgs" -}}

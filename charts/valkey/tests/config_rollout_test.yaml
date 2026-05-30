@@ -86,6 +86,51 @@ tests:
           pattern: "^[a-f0-9]{64}$"
         template: standalone-statefulset.yaml
 
+  - it: should checksum existing auth secret references for replication pods
+    set:
+      architecture: replication
+      auth.existingSecret: valkey-auth
+      auth.existingSecretPasswordKey: password
+    asserts:
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/auth-secret"]
+          pattern: "^[a-f0-9]{64}$"
+        template: replication-primary-statefulset.yaml
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/auth-secret"]
+          pattern: "^[a-f0-9]{64}$"
+        template: replication-replica-statefulset.yaml
+
+  - it: should checksum existing auth secret references for sentinel pods
+    set:
+      architecture: sentinel
+      auth.existingSecret: valkey-auth
+      auth.existingSecretPasswordKey: password
+    asserts:
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/auth-secret"]
+          pattern: "^[a-f0-9]{64}$"
+        template: replication-primary-statefulset.yaml
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/auth-secret"]
+          pattern: "^[a-f0-9]{64}$"
+        template: replication-replica-statefulset.yaml
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/auth-secret"]
+          pattern: "^[a-f0-9]{64}$"
+        template: sentinel-statefulset.yaml
+
+  - it: should checksum existing auth secret references for cluster pods
+    set:
+      architecture: cluster
+      auth.existingSecret: valkey-auth
+      auth.existingSecretPasswordKey: password
+    asserts:
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/auth-secret"]
+          pattern: "^[a-f0-9]{64}$"
+        template: cluster-statefulset.yaml
+
   - it: should omit auth checksum when auth is disabled
     set:
       auth.enabled: false
