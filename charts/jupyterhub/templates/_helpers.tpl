@@ -78,8 +78,9 @@ annotations:
 {{- if and (gt (int .Values.hub.replicaCount) 1) (not (regexMatch "c\\.JupyterHub\\.db_url\\s*=" .Values.hub.extraConfig)) -}}
 {{- fail "hub.replicaCount > 1 requires hub.extraConfig to configure an external c.JupyterHub.db_url; the default SQLite database is single-writer and must run with one Hub replica" -}}
 {{- end -}}
-{{- if and (gt (int .Values.hub.replicaCount) 1) .Values.hub.persistence.enabled (has "ReadWriteOnce" .Values.hub.persistence.accessModes) -}}
-{{- fail "hub.replicaCount > 1 with hub.persistence.enabled=true requires hub.persistence.accessModes without ReadWriteOnce, or hub.persistence.enabled=false, to avoid multiple Hub replicas sharing a single-writer PVC" -}}
+{{- $singleWriterHubPVC := or (has "ReadWriteOnce" .Values.hub.persistence.accessModes) (has "ReadWriteOncePod" .Values.hub.persistence.accessModes) -}}
+{{- if and (gt (int .Values.hub.replicaCount) 1) .Values.hub.persistence.enabled $singleWriterHubPVC -}}
+{{- fail "hub.replicaCount > 1 with hub.persistence.enabled=true requires hub.persistence.accessModes without ReadWriteOnce or ReadWriteOncePod, or hub.persistence.enabled=false, to avoid multiple Hub replicas sharing a single-writer PVC" -}}
 {{- end -}}
 {{- range $key := list "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/component" -}}
 {{- if hasKey $.Values.podLabels $key -}}

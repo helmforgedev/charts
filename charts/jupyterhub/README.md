@@ -28,6 +28,9 @@ configure an external database with `hub.extraConfig` and manage it with the
 HelmForge PostgreSQL chart.
 Set `c.JupyterHub.db_url` in `hub.extraConfig` before increasing
 `hub.replicaCount` above `1`.
+When running multiple Hub replicas, disable Hub persistence or use multi-writer
+storage; `ReadWriteOnce` and `ReadWriteOncePod` PVCs are intentionally rejected
+for HA Hub deployments.
 
 ## Single-User Image
 
