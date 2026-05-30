@@ -36,6 +36,9 @@ hostNetwork:
   enabled: true
 ```
 
+When `hostNetwork.enabled=true` and the default rolling update strategy is unchanged, the chart renders `maxUnavailable: 1` and `maxSurge: 0`.
+This avoids single-node upgrades stalling while a replacement pod waits for the same host-network secure port still held by the old pod.
+
 ## NetworkPolicy
 
 Metrics Server must reach kubelets on every node. When enabling egress NetworkPolicy, verify your CNI policy model allows traffic to node IPs and kubelet ports.

@@ -28,6 +28,7 @@ helm install metrics-server oci://ghcr.io/helmforgedev/helm/metrics-server -n ku
 - optional k3d and kind-compatible `--kubelet-insecure-tls`
 - optional high availability with replicas, topology spread, and PodDisruptionBudget
 - optional hostNetwork mode for clusters where the API server cannot reach pod IPs
+- hostNetwork-safe rollout behavior that avoids single-node host port upgrade deadlocks
 - dual-stack Service fields
 - optional NetworkPolicy and ServiceMonitor
 - Helm test pod that checks `/readyz`

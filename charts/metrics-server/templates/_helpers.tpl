@@ -58,6 +58,20 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 {{- end }}
 
+{{- define "metrics-server.deploymentStrategy" -}}
+{{- $strategy := deepCopy .Values.deploymentStrategy -}}
+{{- $rolling := default dict $strategy.rollingUpdate -}}
+{{- $usesDefaultRolling := and (eq $strategy.type "RollingUpdate") (eq (toString $rolling.maxUnavailable) "0") (eq (toString $rolling.maxSurge) "1") -}}
+{{- if and .Values.hostNetwork.enabled $usesDefaultRolling }}
+type: RollingUpdate
+rollingUpdate:
+  maxUnavailable: 1
+  maxSurge: 0
+{{- else }}
+{{- toYaml $strategy }}
+{{- end }}
+{{- end }}
+
 {{- define "metrics-server.args" -}}
 - --cert-dir={{ .Values.metricsServer.certDir }}
 - --secure-port={{ include "metrics-server.securePort" . }}
