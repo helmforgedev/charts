@@ -203,8 +203,20 @@ app.kubernetes.io/part-of: helmforge
 {{- .Values.redisHttp.external.existingSecretTokenKey | default "redis-rest-token" -}}
 {{- end -}}
 
+{{- define "opencut.ingressHostHasTls" -}}
+{{- $host := .host -}}
+{{- $root := .root -}}
+{{- $hasTls := false -}}
+{{- range $tls := $root.Values.ingress.tls -}}
+{{- if has $host ($tls.hosts | default list) -}}
+{{- $hasTls = true -}}
+{{- end -}}
+{{- end -}}
+{{- if $hasTls -}}true{{- end -}}
+{{- end -}}
+
 {{- define "opencut.siteUrl" -}}
-{{- if .Values.opencut.siteUrl -}}{{ .Values.opencut.siteUrl }}{{- else if and .Values.ingress.enabled (gt (len .Values.ingress.hosts) 0) -}}{{ printf "%s://%s" (ternary "https" "http" (gt (len .Values.ingress.tls) 0)) (index .Values.ingress.hosts 0).host }}{{- else if and .Values.gateway.enabled (gt (len .Values.gateway.hostnames) 0) -}}{{ printf "https://%s" (index .Values.gateway.hostnames 0) }}{{- else -}}http://localhost:3000{{- end -}}
+{{- if .Values.opencut.siteUrl -}}{{ .Values.opencut.siteUrl }}{{- else if and .Values.ingress.enabled (gt (len .Values.ingress.hosts) 0) -}}{{- $host := (index .Values.ingress.hosts 0).host -}}{{ printf "%s://%s" (ternary "https" "http" (eq (include "opencut.ingressHostHasTls" (dict "root" . "host" $host)) "true")) $host }}{{- else if and .Values.gateway.enabled (gt (len .Values.gateway.hostnames) 0) -}}{{ printf "https://%s" (index .Values.gateway.hostnames 0) }}{{- else -}}http://localhost:3000{{- end -}}
 {{- end -}}
 
 {{- define "opencut.betterAuthSecret" -}}

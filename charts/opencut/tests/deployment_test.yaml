@@ -464,6 +464,37 @@ tests:
             value: https://opencut.example.test
         template: templates/deployment.yaml
 
+  - it: should derive HTTP site URL when selected ingress host is not covered by TLS
+    set:
+      opencut.betterAuthSecret: test-secret
+      ingress.enabled: true
+      ingress.hosts:
+        - host: opencut-http.example.test
+          paths:
+            - path: /
+              pathType: Prefix
+        - host: opencut-https.example.test
+          paths:
+            - path: /
+              pathType: Prefix
+      ingress.tls:
+        - secretName: opencut-tls
+          hosts:
+            - opencut-https.example.test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NEXT_PUBLIC_SITE_URL
+            value: http://opencut-http.example.test
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BETTER_AUTH_URL
+            value: http://opencut-http.example.test
+        template: templates/deployment.yaml
+
   - it: should fail when redis HTTP bridge has no Redis backend
     set:
       redis.enabled: false
