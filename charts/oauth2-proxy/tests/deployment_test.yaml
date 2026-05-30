@@ -61,6 +61,8 @@ tests:
       authenticatedEmailsFile.enabled: true
       authenticatedEmailsFile.emails:
         - user@example.com
+      auth.createSecret: false
+      externalSecrets.enabled: true
       alphaConfig.enabled: true
       alphaConfig.config:
         injectRequestHeaders: []
@@ -113,6 +115,38 @@ tests:
                 name: test-oauth2-proxy-auth
                 key: cookie-secret
         template: templates/deployment.yaml
+      - matchRegex:
+          path: stringData["alpha-config.yaml"]
+          pattern: 'bindAddress: 0\.0\.0\.0:4180'
+        template: templates/secret.yaml
+        documentIndex: 1
+      - matchRegex:
+          path: stringData["alpha-config.yaml"]
+          pattern: 'metricsServer:\n\s+bindAddress: 0\.0\.0\.0:44180'
+        template: templates/secret.yaml
+        documentIndex: 1
+
+  - it: should preserve explicit alpha listener config
+    set:
+      auth.createSecret: false
+      externalSecrets.enabled: true
+      alphaConfig.enabled: true
+      alphaConfig.config:
+        server:
+          bindAddress: 0.0.0.0:8080
+        metricsServer:
+          bindAddress: "-"
+    asserts:
+      - matchRegex:
+          path: stringData["alpha-config.yaml"]
+          pattern: 'server:\n\s+bindAddress: 0\.0\.0\.0:8080'
+        template: templates/secret.yaml
+        documentIndex: 0
+      - matchRegex:
+          path: stringData["alpha-config.yaml"]
+          pattern: "metricsServer:\\n\\s+bindAddress: ['\"]-['\"]"
+        template: templates/secret.yaml
+        documentIndex: 0
 
   - it: should mirror runtime escape hatches in config-test init container
     set:

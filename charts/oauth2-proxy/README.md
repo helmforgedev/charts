@@ -86,6 +86,14 @@ metrics:
     enabled: true
 ```
 
+## Alpha Config
+
+When `alphaConfig.enabled=true`, the chart renders the structured
+`alpha-config.yaml` without the legacy TOML file. To keep Kubernetes probes,
+Service traffic, and metrics reachable, the chart injects
+`server.bindAddress: 0.0.0.0:4180` and `metricsServer.bindAddress` when those
+fields are not set explicitly.
+
 ## Local Validation
 
 ```bash

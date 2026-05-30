@@ -111,6 +111,27 @@ app.kubernetes.io/instance: {{ .Release.Name }}
       key: {{ .Values.auth.keys.cookieSecret }}
 {{- end -}}
 
+{{- define "oauth2-proxy.alphaConfig" -}}
+{{- $alpha := deepCopy .Values.alphaConfig.config -}}
+{{- $server := get $alpha "server" | default (dict) -}}
+{{- if kindIs "map" $server -}}
+{{- if and (not (hasKey $server "bindAddress")) (not (hasKey $server "BindAddress")) -}}
+{{- $_ := set $server "bindAddress" "0.0.0.0:4180" -}}
+{{- end -}}
+{{- $_ := set $alpha "server" $server -}}
+{{- end -}}
+{{- if .Values.metrics.enabled -}}
+{{- $metricsServer := get $alpha "metricsServer" | default (dict) -}}
+{{- if kindIs "map" $metricsServer -}}
+{{- if and (not (hasKey $metricsServer "bindAddress")) (not (hasKey $metricsServer "BindAddress")) -}}
+{{- $_ := set $metricsServer "bindAddress" (printf "0.0.0.0:%v" .Values.metrics.port) -}}
+{{- end -}}
+{{- $_ := set $alpha "metricsServer" $metricsServer -}}
+{{- end -}}
+{{- end -}}
+{{- toYaml $alpha -}}
+{{- end -}}
+
 {{- define "oauth2-proxy.validate" -}}
 {{- if and (not .Values.auth.createSecret) (not .Values.auth.existingSecret) (not .Values.externalSecrets.enabled) -}}
 {{- fail "auth.createSecret=false requires auth.existingSecret or externalSecrets.enabled=true so OAuth2 Proxy credentials are available" -}}
