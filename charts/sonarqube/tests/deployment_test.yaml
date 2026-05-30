@@ -114,8 +114,66 @@ tests:
             name: SONAR_JDBC_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: test-sonarqube-secrets
-                key: jdbc-password
+                  name: test-sonarqube-secrets
+                  key: jdbc-password
+
+  - it: should configure bundled HelmForge PostgreSQL when enabled
+    template: templates/deployment.yaml
+    set:
+      postgresql.enabled: true
+      postgresql.auth.database: sonarqube
+      postgresql.auth.username: sonar
+      postgresql.auth.password: secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SONAR_JDBC_URL
+            value: jdbc:postgresql://test-postgresql.default.svc.cluster.local:5432/sonarqube
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SONAR_JDBC_USERNAME
+            value: sonar
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SONAR_JDBC_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-postgresql-auth
+                key: user-password
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-database
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: 'nc -z "test-postgresql.default.svc.cluster.local" 5432'
+
+  - it: should honor bundled PostgreSQL fullnameOverride and secret key
+    template: templates/deployment.yaml
+    set:
+      sonarqube.databaseMode: postgresql
+      postgresql.enabled: true
+      postgresql.fullnameOverride: platform-sonar-postgresql
+      postgresql.auth.database: sonar
+      postgresql.auth.username: sonar
+      postgresql.auth.existingSecret: platform-sonar-db
+      postgresql.auth.existingSecretUserPasswordKey: password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SONAR_JDBC_URL
+            value: jdbc:postgresql://platform-sonar-postgresql.default.svc.cluster.local:5432/sonar
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SONAR_JDBC_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: platform-sonar-db
+                key: password
 
   - it: should use existing PVC names when provided
     template: templates/deployment.yaml

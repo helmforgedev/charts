@@ -1,6 +1,25 @@
 # Production
 
-Use `sonarqube.databaseMode=external` for production.
+Use PostgreSQL for production. For a self-contained release, enable the HelmForge PostgreSQL subchart:
+
+```yaml
+sonarqube:
+  databaseMode: postgresql
+  esBootstrapChecksDisable: false
+
+postgresql:
+  enabled: true
+  auth:
+    database: sonarqube
+    username: sonar
+    password: change-me
+  standalone:
+    persistence:
+      enabled: true
+      size: 50Gi
+```
+
+For platform-managed database services, use `sonarqube.databaseMode=external`.
 
 ```yaml
 sonarqube:
@@ -28,7 +47,7 @@ Keep `sonarqube.esBootstrapChecksDisable=true` only for disposable local environ
 
 ## Persistence
 
-Keep the data and extensions volumes persistent:
+Keep the SonarQube data and extensions volumes persistent:
 
 ```yaml
 persistence:
@@ -41,6 +60,8 @@ persistence:
 ```
 
 Use `existingClaim` when PVC lifecycle is managed outside Helm.
+
+If `postgresql.enabled=true`, also size and back up the PostgreSQL PVC according to your retention requirements.
 
 ## Network
 

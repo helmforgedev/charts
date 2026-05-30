@@ -41,8 +41,31 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
-      {{- if or .Values.plugins.enabled .Values.communityBranchPlugin.enabled .Values.extraInitContainers }}
+      {{- $databaseMode := include "sonarqube.databaseMode" . }}
+      {{- if or (and .Values.waitForDatabase.enabled (eq $databaseMode "postgresql")) .Values.plugins.enabled .Values.communityBranchPlugin.enabled .Values.extraInitContainers }}
       initContainers:
+        {{- if and .Values.waitForDatabase.enabled (eq $databaseMode "postgresql") }}
+        - name: wait-for-database
+          image: "{{ .Values.waitForDatabase.image.repository }}:{{ .Values.waitForDatabase.image.tag }}"
+          imagePullPolicy: {{ .Values.waitForDatabase.image.pullPolicy }}
+          command: ["sh", "-ec"]
+          args:
+            - |
+              attempts=$((({{ .Values.waitForDatabase.timeoutSeconds }} + 1) / 2))
+              attempt=0
+              until nc -z {{ include "sonarqube.postgresqlHost" . | quote }} {{ include "sonarqube.postgresqlPort" . }}; do
+                attempt=$((attempt + 1))
+                if [ "${attempt}" -ge "${attempts}" ]; then
+                  echo "PostgreSQL did not become reachable before timeout" >&2
+                  exit 1
+                fi
+                sleep 2
+              done
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.waitForDatabase.resources | nindent 12 }}
+        {{- end }}
         {{- if or .Values.plugins.enabled .Values.communityBranchPlugin.enabled }}
         - name: install-plugins
           image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
@@ -103,11 +126,21 @@ spec:
               value: {{ .Values.containerPorts.http | quote }}
             - name: SONAR_ES_BOOTSTRAP_CHECKS_DISABLE
               value: {{ .Values.sonarqube.esBootstrapChecksDisable | quote }}
-            {{- if eq .Values.sonarqube.databaseMode "external" }}
+            {{- if eq $databaseMode "external" }}
             - name: SONAR_JDBC_URL
               value: {{ .Values.database.external.jdbcUrl | quote }}
             - name: SONAR_JDBC_USERNAME
               value: {{ .Values.database.external.username | quote }}
+            - name: SONAR_JDBC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "sonarqube.databaseSecretName" . }}
+                  key: {{ include "sonarqube.databaseSecretKey" . }}
+            {{- else if eq $databaseMode "postgresql" }}
+            - name: SONAR_JDBC_URL
+              value: {{ include "sonarqube.postgresqlJdbcUrl" . | quote }}
+            - name: SONAR_JDBC_USERNAME
+              value: {{ .Values.postgresql.auth.username | quote }}
             - name: SONAR_JDBC_PASSWORD
               valueFrom:
                 secretKeyRef:

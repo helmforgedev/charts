@@ -22,6 +22,23 @@ tests:
       - failedTemplate:
           errorMessage: database.external.password, database.external.existingSecret, or externalSecrets.database.enabled is required when sonarqube.databaseMode=external
 
+  - it: should require postgresql subchart when bundled mode is explicit
+    set:
+      sonarqube.databaseMode: postgresql
+    asserts:
+      - failedTemplate:
+          errorMessage: postgresql.enabled must be true when sonarqube.databaseMode=postgresql
+
+  - it: should reject external database mode while bundled PostgreSQL is enabled
+    set:
+      sonarqube.databaseMode: external
+      database.external.jdbcUrl: jdbc:postgresql://postgres:5432/sonarqube
+      database.external.password: secret
+      postgresql.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: postgresql.enabled must be false when SonarQube is configured for external database mode
+
   - it: should reject unsupported Community multi-replica deployments
     set:
       replicaCount: 2

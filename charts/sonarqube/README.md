@@ -1,6 +1,7 @@
 # SonarQube
 
-SonarQube Community Build for Kubernetes using the official Docker image, with explicit local and production database modes, plugin automation, and optional support for the community branch plugin.
+SonarQube Community Build for Kubernetes using the official Docker image.
+It supports embedded evaluation mode, HelmForge PostgreSQL, external PostgreSQL, plugin automation, and the community branch plugin.
 
 ## Install
 
@@ -22,10 +23,12 @@ helm install sonarqube oci://ghcr.io/helmforgedev/helm/sonarqube -f values.yaml
 
 - official `docker.io/library/sonarqube` image
 - `embedded` mode for disposable local validation
+- `postgresql` mode backed by the HelmForge PostgreSQL subchart
 - `external` mode for PostgreSQL-backed production deployments
 - generated, existing, or External Secrets Operator-backed database password handling
 - optional monitoring passcode secret handling
 - plugin download init container with persistent extensions volume
+- bundled PostgreSQL wait init container to avoid first-start connection races
 - first-class community branch plugin wiring, including Java agents and webapp replacement
 - Gateway API `HTTPRoute`, Ingress, and dual-stack Service fields
 - default non-root pod security context, dropped Linux capabilities, and read-only root filesystem
@@ -34,7 +37,23 @@ helm install sonarqube oci://ghcr.io/helmforgedev/helm/sonarqube -f values.yaml
 
 ## Database Modes
 
-The default `embedded` mode is intentionally scoped to local smoke tests and disposable evaluation. Use external PostgreSQL for production.
+The default `auto` mode uses external settings when provided, then `postgresql.enabled`, and otherwise falls back to embedded evaluation mode. The embedded mode is intentionally scoped to disposable evaluation.
+
+Bundled HelmForge PostgreSQL:
+
+```yaml
+sonarqube:
+  databaseMode: postgresql
+
+postgresql:
+  enabled: true
+  auth:
+    database: sonarqube
+    username: sonar
+    password: change-me
+```
+
+External PostgreSQL:
 
 ```yaml
 sonarqube:
@@ -128,7 +147,9 @@ service:
 |-----|---------|-------------|
 | `image.repository` | `docker.io/library/sonarqube` | Official SonarQube image repository |
 | `image.tag` | `26.4.0.121862-community` | SonarQube Community Build image tag |
-| `sonarqube.databaseMode` | `embedded` | `embedded` for local testing or `external` for PostgreSQL |
+| `sonarqube.databaseMode` | `auto` | `auto`, `embedded`, `postgresql`, or `external` |
+| `postgresql.enabled` | `false` | Deploy HelmForge PostgreSQL as a subchart |
+| `waitForDatabase.enabled` | `true` | Wait for bundled PostgreSQL before starting SonarQube |
 | `database.external.jdbcUrl` | `""` | JDBC URL when using external mode |
 | `database.external.existingSecret` | `""` | Existing database password Secret |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret resources |
@@ -146,7 +167,7 @@ service:
 
 Before production use, read [Production](docs/production.md).
 SonarQube embeds Elasticsearch and requires host kernel settings for production bootstrap checks.
-The chart defaults to disabled bootstrap checks for k3d and evaluation; production clusters should set the host requirements and use external PostgreSQL.
+The chart defaults to disabled bootstrap checks for k3d and evaluation; production clusters should set the host requirements and use bundled or external PostgreSQL.
 
 ## References
 

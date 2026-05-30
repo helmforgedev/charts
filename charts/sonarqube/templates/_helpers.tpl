@@ -58,6 +58,44 @@ app.kubernetes.io/part-of: sonarqube
 {{- printf "%s-secrets" (include "sonarqube.fullname" .) }}
 {{- end }}
 
+{{- define "sonarqube.postgresqlFullname" -}}
+{{- if .Values.postgresql.fullnameOverride -}}
+{{- .Values.postgresql.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default "postgresql" .Values.postgresql.nameOverride -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end }}
+
+{{- define "sonarqube.postgresqlHost" -}}
+{{- printf "%s.%s.svc.%s" (include "sonarqube.postgresqlFullname" .) .Release.Namespace .Values.clusterDomain -}}
+{{- end }}
+
+{{- define "sonarqube.postgresqlJdbcUrl" -}}
+{{- $service := .Values.postgresql.service | default dict -}}
+{{- $port := get $service "port" | default 5432 -}}
+{{- printf "jdbc:postgresql://%s:%v/%s" (include "sonarqube.postgresqlHost" .) $port .Values.postgresql.auth.database -}}
+{{- end }}
+
+{{- define "sonarqube.postgresqlPort" -}}
+{{- $service := .Values.postgresql.service | default dict -}}
+{{- get $service "port" | default 5432 -}}
+{{- end }}
+
+{{- define "sonarqube.databaseMode" -}}
+{{- if eq .Values.sonarqube.databaseMode "auto" -}}
+  {{- if or .Values.database.external.jdbcUrl .Values.database.external.existingSecret (and .Values.externalSecrets.enabled .Values.externalSecrets.database.enabled) .Values.database.external.password -}}
+external
+  {{- else if .Values.postgresql.enabled -}}
+postgresql
+  {{- else -}}
+embedded
+  {{- end -}}
+{{- else -}}
+{{- .Values.sonarqube.databaseMode -}}
+{{- end -}}
+{{- end }}
+
 {{- define "sonarqube.dataClaimName" -}}
 {{- default (printf "%s-data" (include "sonarqube.fullname" .)) .Values.persistence.data.existingClaim }}
 {{- end }}
@@ -71,7 +109,14 @@ app.kubernetes.io/part-of: sonarqube
 {{- end }}
 
 {{- define "sonarqube.databaseSecretName" -}}
-{{- if and .Values.externalSecrets.enabled .Values.externalSecrets.database.enabled .Values.externalSecrets.database.targetName -}}
+{{- $mode := include "sonarqube.databaseMode" . -}}
+{{- if eq $mode "postgresql" -}}
+{{- if .Values.postgresql.auth.existingSecret -}}
+{{- .Values.postgresql.auth.existingSecret -}}
+{{- else -}}
+{{- printf "%s-auth" (include "sonarqube.postgresqlFullname" .) -}}
+{{- end -}}
+{{- else if and .Values.externalSecrets.enabled .Values.externalSecrets.database.enabled .Values.externalSecrets.database.targetName -}}
 {{- .Values.externalSecrets.database.targetName -}}
 {{- else if and .Values.externalSecrets.enabled .Values.externalSecrets.database.enabled -}}
 {{- printf "%s-database" (include "sonarqube.fullname" .) -}}
@@ -83,7 +128,12 @@ app.kubernetes.io/part-of: sonarqube
 {{- end }}
 
 {{- define "sonarqube.databaseSecretKey" -}}
+{{- $mode := include "sonarqube.databaseMode" . -}}
+{{- if eq $mode "postgresql" -}}
+{{- .Values.postgresql.auth.existingSecretUserPasswordKey | default "user-password" -}}
+{{- else -}}
 {{- .Values.database.external.existingSecretPasswordKey -}}
+{{- end -}}
 {{- end }}
 
 {{- define "sonarqube.monitoringSecretName" -}}
@@ -155,13 +205,20 @@ app.kubernetes.io/part-of: sonarqube
 {{- end }}
 
 {{- define "sonarqube.validate" -}}
+{{- $mode := include "sonarqube.databaseMode" . -}}
 {{- if gt (.Values.replicaCount | int) 1 -}}
 {{- fail "replicaCount greater than 1 is unsupported for this SonarQube Community chart" -}}
 {{- end -}}
-{{- if not (has .Values.sonarqube.databaseMode (list "embedded" "external")) -}}
-{{- fail "sonarqube.databaseMode must be embedded or external" -}}
+{{- if not (has .Values.sonarqube.databaseMode (list "auto" "embedded" "external" "postgresql")) -}}
+{{- fail "sonarqube.databaseMode must be auto, embedded, external, or postgresql" -}}
 {{- end -}}
-{{- if eq .Values.sonarqube.databaseMode "external" -}}
+{{- if and (eq .Values.sonarqube.databaseMode "postgresql") (not .Values.postgresql.enabled) -}}
+{{- fail "postgresql.enabled must be true when sonarqube.databaseMode=postgresql" -}}
+{{- end -}}
+{{- if and (eq $mode "external") .Values.postgresql.enabled -}}
+{{- fail "postgresql.enabled must be false when SonarQube is configured for external database mode" -}}
+{{- end -}}
+{{- if eq $mode "external" -}}
   {{- if not .Values.database.external.jdbcUrl -}}
     {{- fail "database.external.jdbcUrl is required when sonarqube.databaseMode=external" -}}
   {{- end -}}
@@ -170,6 +227,14 @@ app.kubernetes.io/part-of: sonarqube
   {{- end -}}
   {{- if and (not .Values.database.external.password) (not .Values.database.external.existingSecret) (not (and .Values.externalSecrets.enabled .Values.externalSecrets.database.enabled)) -}}
     {{- fail "database.external.password, database.external.existingSecret, or externalSecrets.database.enabled is required when sonarqube.databaseMode=external" -}}
+  {{- end -}}
+{{- end -}}
+{{- if eq $mode "postgresql" -}}
+  {{- if not .Values.postgresql.auth.database -}}
+    {{- fail "postgresql.auth.database is required when using bundled PostgreSQL" -}}
+  {{- end -}}
+  {{- if not .Values.postgresql.auth.username -}}
+    {{- fail "postgresql.auth.username is required when using bundled PostgreSQL" -}}
   {{- end -}}
 {{- end -}}
 {{- if and .Values.gatewayAPI.enabled (empty .Values.gatewayAPI.parentRefs) -}}
