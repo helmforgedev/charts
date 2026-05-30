@@ -96,6 +96,14 @@ annotations:
 {{- if and (gt (int .Values.hub.replicaCount) 1) .Values.hub.persistence.enabled (not .Values.hub.persistence.existingClaim) $singleWriterHubPVC -}}
 {{- fail "hub.replicaCount > 1 with hub.persistence.enabled=true requires hub.persistence.accessModes without ReadWriteOnce or ReadWriteOncePod, or hub.persistence.enabled=false, to avoid multiple Hub replicas sharing a single-writer PVC" -}}
 {{- end -}}
+{{- if and .Values.metrics.serviceMonitor.enabled .Values.metrics.authenticatePrometheus -}}
+{{- fail "metrics.serviceMonitor.enabled=true requires metrics.authenticatePrometheus=false until ServiceMonitor scrape credentials are configured" -}}
+{{- end -}}
+{{- range $key := list "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/component" -}}
+{{- if hasKey $.Values.commonLabels $key -}}
+{{- fail (printf "commonLabels cannot override reserved selector label %s" $key) -}}
+{{- end -}}
+{{- end -}}
 {{- range $key := list "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/component" -}}
 {{- if hasKey $.Values.podLabels $key -}}
 {{- fail (printf "podLabels cannot override reserved selector label %s" $key) -}}
