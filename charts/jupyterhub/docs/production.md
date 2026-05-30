@@ -12,6 +12,10 @@ external database in `hub.extraConfig` and manage that database with the
 HelmForge PostgreSQL chart.
 The chart fails rendering when `hub.replicaCount > 1` and no external
 `c.JupyterHub.db_url` is configured, because SQLite is single-writer storage.
+Because the chart runs configurable-http-proxy separately from the Hub, it sets
+`c.JupyterHub.cleanup_servers = False` by default through
+`hub.cleanupServers=false`. Keep this default to preserve running user servers
+across Hub rollouts, checksum-triggered restarts, and node drains.
 
 ## Single-User Pods
 

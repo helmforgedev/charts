@@ -31,6 +31,9 @@ Set `c.JupyterHub.db_url` in `hub.extraConfig` before increasing
 When running multiple Hub replicas, disable Hub persistence or use multi-writer
 storage; `ReadWriteOnce` and `ReadWriteOncePod` PVCs are intentionally rejected
 for HA Hub deployments.
+The chart runs configurable-http-proxy separately from the Hub and defaults
+`hub.cleanupServers=false`, so notebook pods are not stopped during normal Hub
+rollouts or node drains.
 
 ## Single-User Image
 
