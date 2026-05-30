@@ -10,12 +10,13 @@ invalidates existing sessions.
 
 ## Reverse Proxy Headers
 
-When `config.reverseProxy.enabled=true`, set
-`config.reverseProxy.trustedProxyIps` to only the ingress controller, Gateway
-implementation, or edge proxy CIDRs that are allowed to set `X-Forwarded-*`
-headers.
+The chart disables reverse proxy header handling by default. When
+`config.reverseProxy.enabled=true`, set `config.reverseProxy.trustedProxyIps` to
+only the ingress controller, Gateway implementation, or edge proxy CIDRs that
+are allowed to set `X-Forwarded-*` headers.
 
-Leaving the list empty avoids broad default trust in direct-client deployments.
+The template fails when reverse proxy mode is enabled with an empty trusted CIDR
+list, preventing an accidental trust-all header configuration.
 
 ## Availability
 

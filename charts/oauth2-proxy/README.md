@@ -10,8 +10,9 @@ and runtime validation.
 - Official `quay.io/oauth2-proxy/oauth2-proxy` image.
 - `v7.15.2` default, including the upstream security fixes for critical
   authentication bypass advisories.
-- Explicit `trusted_proxy_ips` support for deployments behind ingress
-  controllers, gateways, or service mesh edge proxies.
+- Reverse proxy header trust disabled by default, with required explicit
+  `trusted_proxy_ips` CIDRs when enabled behind ingress controllers, gateways,
+  or service mesh edge proxies.
 - Chart-managed Secret, existing Secret, or ExternalSecret credential modes.
 - Config validation init container using `--config-test`.
 - Dual-stack Service defaults, Ingress with `ingressClassName`, Gateway API `HTTPRoute`, ServiceMonitor,
@@ -51,6 +52,11 @@ OAuth2 Proxy `v7.15.2` introduced `trusted_proxy_ips` to prevent trusting
 client-supplied `X-Forwarded-*` headers from untrusted sources. Keep this list
 narrow and aligned with the IP ranges used by your ingress controller, Gateway
 implementation, or edge proxy.
+
+The chart keeps `config.reverseProxy.enabled=false` by default. If you enable
+reverse proxy header handling, the chart requires at least one
+`config.reverseProxy.trustedProxyIps` CIDR so a missing list cannot fall back to
+broad trust.
 
 ```yaml
 config:

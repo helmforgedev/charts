@@ -5,7 +5,8 @@
 - Deploy the official OAuth2 Proxy image with secure Kubernetes defaults.
 - Keep credentials flexible through chart-managed Secrets, existing Secrets, or ExternalSecret.
 - Support both Ingress and Gateway API with a single HelmForge-standard `gateway` values block.
-- Make reverse-proxy deployments safer by exposing explicit `trustedProxyIps` configuration.
+- Make reverse-proxy deployments safer by disabling proxy header trust by
+  default and requiring explicit `trustedProxyIps` configuration when enabled.
 - Validate rendered configuration before the workload starts by running `oauth2-proxy --config-test`.
 
 ## Architecture
@@ -26,7 +27,9 @@ flowchart LR
 - Pods run as non-root with dropped Linux capabilities and runtime default seccomp.
 - The ServiceAccount token is not mounted by default.
 - Cookies are secure by default; local examples explicitly disable this only for HTTP testing.
-- `reverse_proxy` is enabled for Kubernetes edge use cases, but `trusted_proxy_ips` is empty by default so operators must opt in to trusted forwarding ranges.
+- `reverse_proxy` is disabled by default so direct deployments do not trust
+  forwarded headers. When enabled, `trusted_proxy_ips` must contain at least one
+  trusted edge proxy CIDR.
 - The init container validates the final OAuth2 Proxy configuration and uses the same image, args, env, mounts, and security context as the runtime container.
 
 ## Networking

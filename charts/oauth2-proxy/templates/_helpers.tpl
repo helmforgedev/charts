@@ -103,3 +103,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
       name: {{ include "oauth2-proxy.secretName" . }}
       key: {{ .Values.auth.keys.cookieSecret }}
 {{- end -}}
+
+{{- define "oauth2-proxy.validate" -}}
+{{- $trustedProxyIps := default (list) .Values.config.reverseProxy.trustedProxyIps -}}
+{{- if and .Values.config.reverseProxy.enabled (eq (len $trustedProxyIps) 0) -}}
+{{- fail "config.reverseProxy.trustedProxyIps must contain at least one trusted proxy CIDR when config.reverseProxy.enabled=true" -}}
+{{- end -}}
+{{- end -}}
