@@ -202,10 +202,38 @@ tests:
             mountPath: /data
         template: replication-replica-statefulset.yaml
 
+  - it: should start old sentinel primary as a replica of the current sentinel master
+    set:
+      architecture: sentinel
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value:
+            - sh
+            - -ec
+        template: replication-primary-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "sentinel get-master-addr-by-name mymaster"
+        template: replication-primary-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "self_ip=\"\\$\\(hostname -i"
+        template: replication-primary-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "set -- \"\\$@\" --replicaof \"\\$sentinel_master\""
+        template: replication-primary-statefulset.yaml
+
   - it: should keep fixed replicaof in replication mode
     set:
       architecture: replication
     asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value:
+            - valkey-server
+        template: replication-primary-statefulset.yaml
       - notMatchRegex:
           path: spec.template.spec.containers[0].args[0]
           pattern: "helmforge-sentinel-replica-bootstrapped"
