@@ -1,0 +1,263 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "opencut.validateRedisRest" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "opencut.fullname" . }}
+  labels:
+    {{- include "opencut.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  selector:
+    matchLabels:
+      {{- include "opencut.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: web
+  template:
+    metadata:
+      labels:
+        {{- include "opencut.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: web
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "opencut.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        - name: prepare-runtime-app
+          image: {{ include "opencut.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              cp -R /app/. /app-runtime/
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: runtime-app
+              mountPath: /app-runtime
+            - name: tmp
+              mountPath: /tmp
+        - name: wait-for-postgresql
+          image: docker.io/library/busybox:1.37.0
+          command:
+            - sh
+            - -ec
+            - |
+              until nc -z -w2 {{ include "opencut.databaseHost" . }} {{ include "opencut.databasePort" . }} >/dev/null 2>&1; do sleep 2; done
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+        {{- if .Values.redisHttp.enabled }}
+        - name: wait-for-redis-http
+          image: docker.io/library/busybox:1.37.0
+          command:
+            - sh
+            - -ec
+            - |
+              until wget -qO- http://{{ include "opencut.redisHttpName" . }}:{{ .Values.redisHttp.service.port }}/ >/dev/null 2>&1; do sleep 2; done
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+        {{- end }}
+      containers:
+        - name: opencut
+          image: {{ include "opencut.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              url_encode() {
+                node -e 'process.stdout.write(encodeURIComponent(process.argv[1] || ""))' "$1"
+              }
+              database_username="$(url_encode "$DATABASE_USERNAME")"
+              database_password="$(url_encode "$DATABASE_PASSWORD")"
+              database_name="$(url_encode "$DATABASE_NAME")"
+              export DATABASE_URL="postgresql://${database_username}:${database_password}@${DATABASE_HOST}:${DATABASE_PORT}/${database_name}"
+              unset database_username database_password database_name
+              site_url_replacement="$(printf '%s' "$NEXT_PUBLIC_SITE_URL" | sed -e 's/[\/&|]/\\&/g')"
+              marble_api_url_replacement="$(printf '%s' "$NEXT_PUBLIC_MARBLE_API_URL" | sed -e 's/[\/&|]/\\&/g')"
+              for public_env_dir in apps/web/.next apps/web/public; do
+                if [ -d "$public_env_dir" ]; then
+                  find "$public_env_dir" -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.html' -o -name '*.json' -o -name '*.css' \) \
+                    -exec sed -i \
+                      -e "s|http://localhost:3000|${site_url_replacement}|g" \
+                      -e "s|https://api.marblecms.com|${marble_api_url_replacement}|g" \
+                      {} +
+                fi
+              done
+              unset site_url_replacement marble_api_url_replacement public_env_dir
+              exec docker-entrypoint.sh node apps/web/server.js
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "3000"
+            - name: HOSTNAME
+              value: 0.0.0.0
+            - name: NEXT_PUBLIC_SITE_URL
+              value: {{ include "opencut.siteUrl" . | quote }}
+            - name: BETTER_AUTH_URL
+              value: {{ include "opencut.siteUrl" . | quote }}
+            - name: NEXT_PUBLIC_MARBLE_API_URL
+              value: {{ .Values.opencut.marbleApiUrl | quote }}
+            - name: DATABASE_USERNAME
+              value: {{ include "opencut.databaseUsername" . | quote }}
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opencut.databaseSecretName" . }}
+                  key: {{ include "opencut.databaseSecretKey" . }}
+            - name: DATABASE_HOST
+              value: {{ include "opencut.databaseHost" . | quote }}
+            - name: DATABASE_PORT
+              value: {{ include "opencut.databasePort" . | quote }}
+            - name: DATABASE_NAME
+              value: {{ include "opencut.databaseName" . | quote }}
+            - name: BETTER_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opencut.secretName" . }}
+                  key: better-auth-secret
+            {{- if .Values.redisHttp.enabled }}
+            - name: UPSTASH_REDIS_REST_URL
+              value: "http://{{ include "opencut.redisHttpName" . }}:{{ .Values.redisHttp.service.port }}"
+            - name: UPSTASH_REDIS_REST_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opencut.secretName" . }}
+                  key: redis-rest-token
+            {{- else }}
+            - name: UPSTASH_REDIS_REST_URL
+              value: {{ .Values.redisHttp.external.url | quote }}
+            - name: UPSTASH_REDIS_REST_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opencut.redisRestExternalSecretName" . }}
+                  key: {{ include "opencut.redisRestExternalSecretKey" . }}
+            {{- end }}
+            - name: MARBLE_WORKSPACE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opencut.secretName" . }}
+                  key: marble-workspace-key
+            - name: FREESOUND_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opencut.secretName" . }}
+                  key: freesound-client-id
+            - name: FREESOUND_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opencut.secretName" . }}
+                  key: freesound-api-key
+            {{- with .Values.opencut.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.probes.startup.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: runtime-app
+              mountPath: /app
+            - name: tmp
+              mountPath: /tmp
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: runtime-app
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

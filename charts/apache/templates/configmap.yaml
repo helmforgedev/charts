@@ -1,0 +1,85 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "apache.validate" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "apache.configMapName" . }}
+  labels:
+    {{- include "apache.labels" . | nindent 4 }}
+data:
+  healthz.html: |
+    ok
+  httpd.conf: |
+    ServerRoot "/usr/local/apache2"
+    Listen {{ .Values.containerPorts.http }}
+    ServerName {{ .Values.serverName }}
+    ServerTokens {{ .Values.httpd.serverTokens }}
+    ServerSignature {{ .Values.httpd.serverSignature }}
+    TraceEnable {{ .Values.httpd.traceEnable }}
+    PidFile /usr/local/apache2/logs/httpd.pid
+    LogLevel {{ .Values.httpd.logLevel }}
+    LoadModule mpm_event_module modules/mod_mpm_event.so
+    LoadModule authn_core_module modules/mod_authn_core.so
+    LoadModule authn_file_module modules/mod_authn_file.so
+    LoadModule authz_core_module modules/mod_authz_core.so
+    LoadModule authz_host_module modules/mod_authz_host.so
+    LoadModule authz_user_module modules/mod_authz_user.so
+    LoadModule auth_basic_module modules/mod_auth_basic.so
+    LoadModule unixd_module modules/mod_unixd.so
+    LoadModule dir_module modules/mod_dir.so
+    LoadModule mime_module modules/mod_mime.so
+    LoadModule log_config_module modules/mod_log_config.so
+    LoadModule alias_module modules/mod_alias.so
+    LoadModule headers_module modules/mod_headers.so
+    LoadModule status_module modules/mod_status.so
+    TypesConfig conf/mime.types
+    LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-agent}i\"" combined
+    ErrorLog /proc/self/fd/2
+    CustomLog /proc/self/fd/1 combined
+    DocumentRoot "/usr/local/apache2/htdocs"
+    Alias "/healthz" "/usr/local/apache2/healthz.html"
+    <Location "/healthz">
+        Require all granted
+    </Location>
+    <Directory "/usr/local/apache2/htdocs">
+        Options {{ .Values.httpd.options }}
+        AllowOverride {{ .Values.httpd.allowOverride }}
+        {{- if .Values.basicAuth.enabled }}
+        AuthType Basic
+        AuthName "Apache"
+        AuthBasicProvider file
+        AuthUserFile "/usr/local/apache2/auth/{{ .Values.basicAuth.htpasswdKey }}"
+        Require valid-user
+        {{- else }}
+        Require all granted
+        {{- end }}
+    </Directory>
+    DirectoryIndex index.html
+    {{- if or .Values.serverStatus.enabled .Values.metrics.enabled }}
+    ExtendedStatus On
+    <Location "{{ .Values.serverStatus.path }}">
+        SetHandler server-status
+        Require {{ .Values.serverStatus.require }}
+    </Location>
+    {{- end }}
+    {{- with .Values.httpd.extraConfig }}
+{{ . | nindent 4 }}
+    {{- end }}
+    {{- range $name, $content := .Values.httpd.extraVhosts }}
+    # HelmForge extra vhost: {{ $name }}
+{{ $content | nindent 4 }}
+    {{- end }}
+{{- if not .Values.content.existingConfigMap }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "apache.contentConfigMapName" . }}
+  labels:
+    {{- include "apache.labels" . | nindent 4 }}
+data:
+  {{- range $name, $content := .Values.content.files }}
+  {{ $name }}: |
+{{ $content | nindent 4 }}
+  {{- end }}
+{{- end }}

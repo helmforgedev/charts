@@ -1,0 +1,547 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# OpenCut Helm Chart - Default Values
+# =============================================================================
+
+# -- Override the chart name.
+nameOverride: ""
+
+# -- Override the fully qualified release name.
+fullnameOverride: ""
+
+# -- Additional labels applied to all chart resources.
+commonLabels: {}
+
+# -- Number of OpenCut web replicas. Keep at 1 when using local persistent state.
+replicaCount: 1
+
+# -- Number of old ReplicaSets retained by the Deployment.
+revisionHistoryLimit: 3
+
+image:
+  # -- OpenCut image repository maintained by HelmForge.
+  repository: docker.io/helmforge/opencut
+  # -- OpenCut image tag. Do not use latest.
+  tag: "v0.3.0"
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets used by OpenCut and helper workloads.
+imagePullSecrets: []
+
+# =============================================================================
+# OpenCut Runtime
+# =============================================================================
+
+opencut:
+  # -- Public URL used by authentication callbacks and browser-facing links. When empty, the chart derives it from Ingress or Gateway hostnames.
+  siteUrl: ""
+  # -- Better Auth secret. Set explicitly for production to avoid rotation on reinstall.
+  betterAuthSecret: ""
+  # -- Marble CMS API URL consumed by OpenCut.
+  marbleApiUrl: https://api.marblecms.com
+  # -- Marble workspace key. Replace the placeholder for real deployments.
+  marbleWorkspaceKey: placeholder
+  # -- Optional Freesound client ID.
+  freesoundClientId: ""
+  # -- Optional Freesound API key.
+  freesoundApiKey: ""
+  # -- Extra environment variables appended to the OpenCut container.
+  extraEnv: []
+
+# =============================================================================
+# PostgreSQL
+# =============================================================================
+
+database:
+  # -- Database selection mode. auto uses bundled PostgreSQL unless database.external.host is set.
+  mode: auto
+  external:
+    # -- External PostgreSQL hostname. Setting this disables bundled PostgreSQL only when postgresql.enabled=false.
+    host: ""
+    # -- External PostgreSQL port.
+    port: 5432
+    # -- External PostgreSQL database name.
+    name: opencut
+    # -- External PostgreSQL username.
+    username: opencut
+    # -- External PostgreSQL password. Prefer existingSecret or externalSecrets for production.
+    password: ""
+    # -- Existing Secret containing the external PostgreSQL password.
+    existingSecret: ""
+    # -- Secret key containing the external PostgreSQL password.
+    existingSecretPasswordKey: database-password
+
+postgresql:
+  # -- Enable the HelmForge PostgreSQL subchart.
+  enabled: true
+  # -- PostgreSQL subchart name override.
+  nameOverride: ""
+  # -- PostgreSQL subchart full name override.
+  fullnameOverride: ""
+  # -- Extra PostgreSQL environment variables inherited by the subchart.
+  extraEnv:
+    - name: POSTGRES_INITDB_ARGS
+      value: "--auth-local=scram-sha-256 --auth-host=scram-sha-256"
+  # -- PostgreSQL architecture used by the subchart.
+  architecture: standalone
+  auth:
+    # -- PostgreSQL database created for OpenCut.
+    database: opencut
+    # -- PostgreSQL user created for OpenCut.
+    username: opencut
+    # -- PostgreSQL user password. Empty lets the subchart generate it.
+    password: ""
+    # -- PostgreSQL superuser password. Empty lets the subchart generate it.
+    postgresPassword: ""
+    # -- Existing Secret consumed by the PostgreSQL subchart.
+    existingSecret: ""
+    # -- Key in the PostgreSQL auth Secret containing the OpenCut user password.
+    existingSecretUserPasswordKey: user-password
+  standalone:
+    # -- PostgreSQL standalone resource preset inherited by the subchart.
+    resourcesPreset: small
+    persistence:
+      # -- Enable PostgreSQL persistence.
+      enabled: true
+      # -- PostgreSQL PVC size.
+      size: 8Gi
+  replication:
+    primary:
+      # -- PostgreSQL primary resource preset when architecture=replication.
+      resourcesPreset: small
+    readReplicas:
+      # -- PostgreSQL read replica resource preset when architecture=replication.
+      resourcesPreset: small
+  externalSecrets:
+    # -- Enable PostgreSQL subchart External Secrets support.
+    enabled: false
+    auth:
+      # -- Render a PostgreSQL auth ExternalSecret from the subchart.
+      enabled: false
+      # -- Target Secret name rendered by the PostgreSQL auth ExternalSecret.
+      targetName: ""
+
+externalSecrets:
+  # -- Render an ExternalSecret for the external PostgreSQL password. Requires database.external.existingSecret to prevent credential drift.
+  enabled: false
+  # -- ExternalSecret API version.
+  apiVersion: external-secrets.io/v1
+  # -- ExternalSecret refresh interval.
+  refreshInterval: "0"
+  secretStoreRef:
+    # -- Existing SecretStore or ClusterSecretStore name.
+    name: ""
+    # -- Secret store kind: SecretStore or ClusterSecretStore.
+    kind: SecretStore
+  target:
+    # -- ExternalSecret target creation policy.
+    creationPolicy: Owner
+  # -- Data entries mapping remote secret data to database.external.existingSecretPasswordKey.
+  data: []
+  #   - secretKey: database-password
+  #     remoteRef:
+  #       key: opencut/database
+  #       property: password
+
+# =============================================================================
+# Redis and HTTP Bridge
+# =============================================================================
+
+redis:
+  # -- Enable the HelmForge Redis subchart for OpenCut cache/session data.
+  enabled: true
+  # -- Redis subchart name override.
+  nameOverride: ""
+  # -- Redis subchart full name override.
+  fullnameOverride: ""
+  # -- Redis architecture used by the subchart. OpenCut supports standalone or replication.
+  architecture: standalone
+  auth:
+    # -- Enable Redis password authentication.
+    enabled: true
+    # -- Redis password. Prefer existingSecret for production.
+    password: ""
+    # -- Existing Secret containing the Redis password.
+    existingSecret: ""
+    # -- Key in the Redis auth Secret containing the Redis password.
+    existingSecretPasswordKey: redis-password
+  standalone:
+    persistence:
+      # -- Enable Redis persistence.
+      enabled: true
+      # -- Redis PVC size.
+      size: 1Gi
+    # -- Redis standalone resources inherited by the subchart.
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+  replication:
+    primary:
+      persistence:
+        # -- Enable Redis primary persistence when architecture=replication.
+        enabled: true
+      # -- Redis primary resources when architecture=replication.
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 250m
+          memory: 256Mi
+    replica:
+      persistence:
+        # -- Enable Redis replica persistence when architecture=replication.
+        enabled: true
+      # -- Redis replica resources when architecture=replication.
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 250m
+          memory: 256Mi
+  securityContext:
+    # -- Redis container user inherited by the subchart.
+    runAsUser: 999
+    # -- Redis container group inherited by the subchart.
+    runAsGroup: 999
+    # -- Run Redis as non-root.
+    runAsNonRoot: true
+    # -- Disable Redis privilege escalation.
+    allowPrivilegeEscalation: false
+    # -- Keep writable root filesystem because Redis may write runtime files outside /data depending on configuration.
+    readOnlyRootFilesystem: false
+    # -- Drop all Linux capabilities from Redis.
+    capabilities:
+      drop:
+        - ALL
+    # -- Use the runtime default seccomp profile for Redis.
+    seccompProfile:
+      type: RuntimeDefault
+  external:
+    # -- External Redis hostname used instead of the bundled Redis service.
+    host: ""
+    # -- External Redis port.
+    port: 6379
+    # -- External Redis password. Prefer existingSecret for production.
+    password: ""
+    # -- Existing Secret containing the external Redis password.
+    existingSecret: ""
+    # -- Secret key containing the external Redis password.
+    existingSecretPasswordKey: redis-password
+
+redisHttp:
+  # -- Enable the Redis-over-HTTP bridge required by the OpenCut runtime.
+  enabled: true
+  image:
+    # -- Redis HTTP bridge image repository.
+    repository: docker.io/hiett/serverless-redis-http
+    # -- Redis HTTP bridge image tag.
+    tag: "0.0.10"
+    # -- Redis HTTP bridge pull policy.
+    pullPolicy: IfNotPresent
+  # -- Static Redis REST token. Empty lets the chart generate and persist a token in the app Secret.
+  token: ""
+  external:
+    # -- External Redis REST URL used when the in-cluster Redis HTTP bridge is disabled.
+    url: ""
+    # -- External Redis REST token used when the in-cluster Redis HTTP bridge is disabled. Prefer existingSecret for production.
+    token: ""
+    # -- Existing Secret containing the external Redis REST token.
+    existingSecret: ""
+    # -- Secret key containing the external Redis REST token.
+    existingSecretTokenKey: redis-rest-token
+  service:
+    # -- Redis HTTP bridge service port.
+    port: 80
+  probes:
+    startup:
+      # -- Enable Redis HTTP bridge startup probe.
+      enabled: true
+      # -- Redis HTTP bridge startup probe path.
+      path: /
+      # -- Redis HTTP bridge startup probe initial delay in seconds.
+      initialDelaySeconds: 60
+      # -- Redis HTTP bridge startup probe period in seconds.
+      periodSeconds: 5
+      # -- Redis HTTP bridge startup probe timeout in seconds.
+      timeoutSeconds: 3
+      # -- Redis HTTP bridge startup probe failure threshold.
+      failureThreshold: 12
+    readiness:
+      # -- Enable Redis HTTP bridge readiness probe.
+      enabled: true
+      # -- Redis HTTP bridge readiness probe path.
+      path: /
+      # -- Redis HTTP bridge readiness probe initial delay in seconds.
+      initialDelaySeconds: 60
+      # -- Redis HTTP bridge readiness probe period in seconds.
+      periodSeconds: 10
+      # -- Redis HTTP bridge readiness probe timeout in seconds.
+      timeoutSeconds: 3
+      # -- Redis HTTP bridge readiness probe failure threshold.
+      failureThreshold: 6
+    liveness:
+      # -- Enable Redis HTTP bridge liveness probe.
+      enabled: true
+      # -- Redis HTTP bridge liveness probe path.
+      path: /
+      # -- Redis HTTP bridge liveness probe initial delay in seconds.
+      initialDelaySeconds: 90
+      # -- Redis HTTP bridge liveness probe period in seconds.
+      periodSeconds: 20
+      # -- Redis HTTP bridge liveness probe timeout in seconds.
+      timeoutSeconds: 3
+      # -- Redis HTTP bridge liveness probe failure threshold.
+      failureThreshold: 3
+  # -- Redis HTTP bridge resource requests and limits.
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  # -- Redis HTTP bridge container security context.
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    capabilities:
+      drop:
+        - ALL
+
+# =============================================================================
+# Service Account
+# =============================================================================
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: true
+  # -- ServiceAccount name override.
+  name: ""
+  # -- ServiceAccount annotations.
+  annotations: {}
+  # -- Mount the ServiceAccount token into OpenCut pods.
+  automountServiceAccountToken: false
+
+# =============================================================================
+# Service
+# =============================================================================
+
+service:
+  # -- Service type for OpenCut HTTP traffic.
+  type: ClusterIP
+  # -- Service port for OpenCut HTTP traffic.
+  port: 80
+  # -- Service annotations.
+  annotations: {}
+  # -- Service IP family policy: SingleStack, PreferDualStack, RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ""
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
+
+# =============================================================================
+# Ingress
+# =============================================================================
+
+ingress:
+  # -- Enable Ingress for OpenCut.
+  enabled: false
+  # -- Ingress class name.
+  # ingressClassName: traefik
+  ingressClassName: ""
+  # -- Ingress annotations.
+  annotations: {}
+  # -- Ingress hosts and paths.
+  hosts:
+    - host: opencut.local
+      paths:
+        - path: /
+          pathType: Prefix
+  # -- Ingress TLS configuration.
+  tls: []
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gateway:
+  # -- Enable Gateway API HTTPRoute. Requires Gateway API CRDs and parentRefs.
+  enabled: false
+  # -- HTTPRoute annotations.
+  annotations: {}
+  # -- parentRefs pointing to existing Gateway resources.
+  parentRefs: []
+  # -- Hostnames matched by the HTTPRoute.
+  hostnames: []
+  # -- HTTPRoute path value.
+  path: /
+  # -- HTTPRoute path match type.
+  pathType: PathPrefix
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+
+networkPolicy:
+  # -- Enable NetworkPolicies for OpenCut and the Redis HTTP bridge.
+  enabled: false
+  # -- Additional ingress rules appended to the OpenCut web policy.
+  ingress: []
+  # -- Additional egress rules appended to the OpenCut web policy.
+  egress: []
+
+# =============================================================================
+# Autoscaling and Availability
+# =============================================================================
+
+autoscaling:
+  # -- Enable HorizontalPodAutoscaler for OpenCut web pods.
+  enabled: false
+  # -- Minimum OpenCut web replicas.
+  minReplicas: 1
+  # -- Maximum OpenCut web replicas.
+  maxReplicas: 4
+  # -- Target CPU utilization percentage.
+  targetCPUUtilizationPercentage: 70
+  # -- Target memory utilization percentage.
+  targetMemoryUtilizationPercentage: 80
+
+pdb:
+  # -- Enable PodDisruptionBudget for OpenCut web pods.
+  enabled: true
+  # -- Minimum available pods for the PodDisruptionBudget.
+  minAvailable: 1
+
+# =============================================================================
+# Probes
+# =============================================================================
+
+probes:
+  startup:
+    # -- Enable OpenCut startup probe.
+    enabled: true
+    # -- Startup probe path.
+    path: /api/health
+    # -- Startup probe initial delay in seconds.
+    initialDelaySeconds: 20
+    # -- Startup probe period in seconds.
+    periodSeconds: 10
+    # -- Startup probe timeout in seconds.
+    timeoutSeconds: 5
+    # -- Startup probe failure threshold.
+    failureThreshold: 18
+  liveness:
+    # -- Enable OpenCut liveness probe.
+    enabled: true
+    # -- Liveness probe path.
+    path: /api/health
+    # -- Liveness probe initial delay in seconds.
+    initialDelaySeconds: 30
+    # -- Liveness probe period in seconds.
+    periodSeconds: 20
+    # -- Liveness probe timeout in seconds.
+    timeoutSeconds: 5
+    # -- Liveness probe failure threshold.
+    failureThreshold: 3
+  readiness:
+    # -- Enable OpenCut readiness probe.
+    enabled: true
+    # -- Readiness probe path.
+    path: /api/health
+    # -- Readiness probe initial delay in seconds.
+    initialDelaySeconds: 10
+    # -- Readiness probe period in seconds.
+    periodSeconds: 10
+    # -- Readiness probe timeout in seconds.
+    timeoutSeconds: 5
+    # -- Readiness probe failure threshold.
+    failureThreshold: 6
+
+# =============================================================================
+# Security and Resources
+# =============================================================================
+
+# -- OpenCut web container resource requests and limits.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+# -- Pod security context for OpenCut web pods.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container security context for the OpenCut web container.
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# =============================================================================
+# Scheduling
+# =============================================================================
+
+# -- Additional pod annotations.
+podAnnotations: {}
+
+# -- Additional pod labels.
+podLabels: {}
+
+# -- Priority class name.
+priorityClassName: ""
+
+# -- Grace period for shutdown in seconds.
+terminationGracePeriodSeconds: 30
+
+# -- Node selector for pod scheduling.
+nodeSelector: {}
+
+# -- Tolerations for pod scheduling.
+tolerations: []
+
+# -- Affinity rules for pod scheduling.
+affinity: {}
+
+# -- Topology spread constraints for pod scheduling.
+topologySpreadConstraints: []
+
+# -- Extra volumes mounted into OpenCut web pods.
+extraVolumes: []
+
+# -- Extra volume mounts mounted into the OpenCut web container.
+extraVolumeMounts: []
+
+# =============================================================================
+# Tests and Extensions
+# =============================================================================
+
+test:
+  image:
+    # -- Helm test image repository.
+    repository: docker.io/library/busybox
+    # -- Helm test image tag.
+    tag: "1.37.0"
+    # -- Helm test image pull policy.
+    pullPolicy: IfNotPresent
+
+# -- Extra Kubernetes manifests rendered with the release.
+extraObjects: []

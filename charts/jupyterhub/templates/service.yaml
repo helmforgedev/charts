@@ -1,0 +1,75 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "jupyterhub.proxyName" . }}
+  labels:
+    {{- include "jupyterhub.labels" . | nindent 4 }}
+    app.kubernetes.io/component: proxy
+  {{- include "jupyterhub.renderAnnotations" (dict "common" .Values.annotations "specific" .Values.service.annotations) | nindent 2 }}
+spec:
+  type: {{ .Values.service.type }}
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+  selector:
+    {{- include "jupyterhub.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: proxy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "jupyterhub.proxyApiName" . }}
+  labels:
+    {{- include "jupyterhub.labels" . | nindent 4 }}
+    app.kubernetes.io/component: proxy-api
+  {{- include "jupyterhub.renderAnnotations" (dict "common" .Values.annotations) | nindent 2 }}
+spec:
+  type: ClusterIP
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: proxy-api
+      port: {{ .Values.service.proxyApiPort }}
+      targetPort: api
+  selector:
+    {{- include "jupyterhub.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: proxy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "jupyterhub.hubName" . }}
+  labels:
+    {{- include "jupyterhub.labels" . | nindent 4 }}
+    app.kubernetes.io/component: hub
+  {{- include "jupyterhub.renderAnnotations" (dict "common" .Values.annotations) | nindent 2 }}
+spec:
+  type: ClusterIP
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: hub
+      port: 8081
+      targetPort: hub
+  selector:
+    {{- include "jupyterhub.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: hub

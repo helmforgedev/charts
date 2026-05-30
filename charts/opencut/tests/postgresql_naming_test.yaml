@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: PostgreSQL naming
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+release:
+  name: team-postgresql
+  namespace: default
+tests:
+  - it: should match the bundled PostgreSQL chart name when release already contains postgresql
+    set:
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_HOST
+            value: team-postgresql-postgresql
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: team-postgresql-postgresql-auth
+                key: user-password
+        template: templates/deployment.yaml
+
+  - it: should match the bundled PostgreSQL primary service in replication mode
+    set:
+      postgresql.architecture: replication
+      opencut.betterAuthSecret: test-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_HOST
+            value: team-postgresql-postgresql-primary
+        template: templates/deployment.yaml

@@ -1,0 +1,187 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "immich.validate" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "immich.fullname" . }}
+  labels:
+    {{- include "immich.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.server.replicaCount }}
+  {{- end }}
+  revisionHistoryLimit: {{ .Values.server.revisionHistoryLimit }}
+  {{- if .Values.server.strategy.type }}
+  strategy:
+    type: {{ .Values.server.strategy.type }}
+  {{- else if and .Values.server.persistence.enabled (not (has "ReadWriteMany" .Values.server.persistence.accessModes)) }}
+  strategy:
+    type: Recreate
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "immich.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        {{- include "immich.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: server
+        {{- with .Values.podLabels }}{{- toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "immich.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: wait-for-postgresql
+          image: "{{ .Values.wait.image.repository }}:{{ .Values.wait.image.tag }}"
+          imagePullPolicy: {{ .Values.wait.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              until nc -z {{ include "immich.databaseHost" . }} {{ include "immich.databasePort" . }}; do
+                sleep 2
+              done
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            capabilities:
+              drop:
+                - ALL
+        - name: wait-for-valkey
+          image: "{{ .Values.wait.image.repository }}:{{ .Values.wait.image.tag }}"
+          imagePullPolicy: {{ .Values.wait.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              until nc -z {{ include "immich.valkeyHost" . }} {{ include "immich.valkeyPort" . }}; do
+                sleep 2
+              done
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            capabilities:
+              drop:
+                - ALL
+      containers:
+        - name: immich
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+          env:
+            - name: IMMICH_ENV
+              value: production
+            - name: IMMICH_LOG_LEVEL
+              value: {{ .Values.server.logLevel | quote }}
+            - name: IMMICH_LOG_FORMAT
+              value: {{ .Values.server.logFormat | quote }}
+            - name: IMMICH_HOST
+              value: 0.0.0.0
+            - name: IMMICH_PORT
+              value: {{ .Values.service.targetPort | quote }}
+            - name: TZ
+              value: {{ .Values.server.timezone | quote }}
+            - name: UPLOAD_LOCATION
+              value: /data
+            - name: DB_HOSTNAME
+              value: {{ include "immich.databaseHost" . | quote }}
+            - name: DB_PORT
+              value: {{ include "immich.databasePort" . | quote }}
+            - name: DB_DATABASE_NAME
+              value: {{ include "immich.databaseName" . | quote }}
+            - name: DB_USERNAME
+              value: {{ include "immich.databaseUsername" . | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "immich.databaseSecretName" . }}
+                  key: {{ include "immich.databaseSecretKey" . }}
+            - name: REDIS_HOSTNAME
+              value: {{ include "immich.valkeyHost" . | quote }}
+            - name: REDIS_PORT
+              value: {{ include "immich.valkeyPort" . | quote }}
+            {{- if include "immich.hasRedisPassword" . }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "immich.redisSecretName" . }}
+                  key: {{ include "immich.redisSecretKey" . }}
+            {{- end }}
+            {{- if .Values.machineLearning.enabled }}
+            - name: IMMICH_MACHINE_LEARNING_URL
+              value: {{ include "immich.mlUrl" . | quote }}
+            {{- end }}
+            {{- with .Values.server.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.livenessInitialDelaySeconds }}
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readinessInitialDelaySeconds }}
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: uploads
+              mountPath: /data
+      volumes:
+        - name: uploads
+          {{- if .Values.server.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "immich.fullname" . }}-uploads
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}

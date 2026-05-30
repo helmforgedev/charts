@@ -1,0 +1,303 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# Apache HTTP Server Helm Chart - Default Values
+# =============================================================================
+
+# -- Number of Apache pods when autoscaling is disabled.
+replicaCount: 2
+
+# -- Override the chart name.
+nameOverride: ""
+# -- Override the fully qualified release name.
+fullnameOverride: ""
+# -- Additional labels applied to all chart resources.
+commonLabels: {}
+
+image:
+  # -- Apache HTTP Server image repository.
+  repository: docker.io/library/httpd
+  # -- Apache HTTP Server image tag.
+  tag: "2.4.67"
+  # -- Apache HTTP Server image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets.
+imagePullSecrets: []
+
+# -- ServerName rendered into the generated Apache configuration.
+serverName: localhost
+
+containerPorts:
+  # -- Non-root Apache listener port.
+  http: 8080
+  # -- Apache exporter container port.
+  metrics: 9117
+
+httpd:
+  # -- Value for ServerTokens.
+  serverTokens: Prod
+  # -- Value for ServerSignature.
+  serverSignature: "Off"
+  # -- Value for TraceEnable.
+  traceEnable: "Off"
+  # -- Apache LogLevel.
+  logLevel: warn
+  # -- Directory AllowOverride setting.
+  allowOverride: None
+  # -- Directory Options setting.
+  options: "-Indexes +FollowSymLinks"
+  # -- Extra Apache configuration appended to httpd.conf.
+  extraConfig: ""
+  # -- Extra virtual host snippets rendered into httpd.conf.
+  extraVhosts: {}
+
+content:
+  # -- Existing ConfigMap containing site content. Empty renders content.files.
+  existingConfigMap: ""
+  # -- Static files rendered into the generated content ConfigMap.
+  files:
+    index.html: |
+      <!doctype html>
+      <html lang="en">
+      <head>
+        <meta charset="utf-8">
+        <title>HelmForge Apache</title>
+      </head>
+      <body>
+        <h1>HelmForge Apache</h1>
+        <p>Apache HTTP Server is running.</p>
+      </body>
+      </html>
+
+basicAuth:
+  # -- Enable Basic Auth using an htpasswd file from a Secret.
+  enabled: false
+  # -- Existing Secret containing the htpasswd data.
+  existingSecret: ""
+  # -- Secret key containing the htpasswd file.
+  htpasswdKey: htpasswd
+
+serverStatus:
+  # -- Enable mod_status endpoint and exporter scraping.
+  enabled: false
+  # -- mod_status path.
+  path: /server-status
+  # -- Apache Require expression for mod_status.
+  require: "local"
+
+service:
+  # -- Service type.
+  type: ClusterIP
+  # -- Service annotations.
+  annotations: {}
+  # -- Public HTTP service port.
+  port: 80
+  # -- Metrics service port when metrics.enabled=true.
+  metricsPort: 9117
+  # -- Service IP family policy. Null uses cluster default.
+  ipFamilyPolicy: ~
+  # -- Service IP families.
+  ipFamilies: []
+
+ingress:
+  # -- Enable Kubernetes Ingress.
+  enabled: false
+  # -- IngressClass name.
+  ingressClassName: ""
+  # -- Ingress annotations.
+  annotations: {}
+  # -- Ingress host rules.
+  hosts:
+    - host: apache.local
+      paths:
+        - path: /
+          pathType: Prefix
+  # -- Ingress TLS configuration.
+  tls: []
+
+gateway:
+  # -- Enable Gateway API HTTPRoute.
+  enabled: false
+  # -- Gateway API version.
+  apiVersion: gateway.networking.k8s.io/v1
+  # -- Gateway parentRefs.
+  parentRefs: []
+  # -- HTTPRoute hostnames.
+  hostnames: []
+  # -- HTTPRoute annotations.
+  annotations: {}
+  # -- HTTPRoute labels.
+  labels: {}
+  # -- HTTPRoute rules.
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+
+networkPolicy:
+  # -- Enable NetworkPolicy resources.
+  enabled: false
+  ingress:
+    # -- Restrict inbound HTTP traffic to selected namespaces and pods.
+    enabled: true
+    # -- Namespace selector allowed to reach Apache.
+    namespaceSelector: {}
+    # -- Pod selector allowed to reach Apache.
+    podSelector: {}
+  egress:
+    # -- Restrict outbound traffic from Apache pods.
+    enabled: true
+    # -- Allow DNS egress.
+    allowDns: true
+    # -- Allow general IPv4 and IPv6 internet egress.
+    allowInternet: true
+    # -- Extra egress rules.
+    extraRules: []
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: true
+  # -- ServiceAccount name override.
+  name: ""
+  # -- ServiceAccount annotations.
+  annotations: {}
+
+# -- Apache liveness probe settings.
+livenessProbe:
+  initialDelaySeconds: 10
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+# -- Apache readiness probe settings.
+readinessProbe:
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# -- Apache startup probe settings.
+startupProbe:
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+
+metrics:
+  # -- Enable Apache exporter sidecar and metrics service port.
+  enabled: false
+  image:
+    # -- Apache exporter image repository.
+    repository: docker.io/lusotycoon/apache-exporter
+    # -- Apache exporter image tag.
+    tag: v1.0.11
+    # -- Apache exporter image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Apache exporter resources.
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  serviceMonitor:
+    # -- Render a Prometheus Operator ServiceMonitor.
+    enabled: false
+    # -- ServiceMonitor scrape interval.
+    interval: 30s
+    # -- Additional ServiceMonitor labels.
+    labels: {}
+
+# -- Apache container resources.
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# -- Pod-level security context.
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container-level security context.
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# -- Additional pod labels.
+podLabels: {}
+# -- Additional pod annotations.
+podAnnotations: {}
+# -- Additional resource annotations.
+annotations: {}
+
+# -- Node selector.
+nodeSelector: {}
+# -- Pod tolerations.
+tolerations: []
+# -- Pod affinity.
+affinity: {}
+# -- Pod topology spread constraints.
+topologySpreadConstraints: []
+# -- PriorityClass name.
+priorityClassName: ""
+# -- Pod termination grace period.
+terminationGracePeriodSeconds: 30
+
+pdb:
+  # -- Enable PodDisruptionBudget.
+  enabled: false
+  # -- Minimum available pods.
+  minAvailable: 1
+
+autoscaling:
+  # -- Enable HorizontalPodAutoscaler.
+  enabled: false
+  # -- Minimum HPA replicas.
+  minReplicas: 2
+  # -- Maximum HPA replicas.
+  maxReplicas: 10
+  # -- Target CPU utilization percentage.
+  targetCPUUtilizationPercentage: 80
+
+# -- Additional environment variables for the Apache container.
+extraEnv: []
+# -- Additional pod volumes.
+extraVolumes: []
+# -- Additional Apache container volume mounts.
+extraVolumeMounts: []
+# -- Additional manifests rendered verbatim.
+extraManifests: []
+
+externalSecrets:
+  # -- Render an ExternalSecret for the Basic Auth Secret.
+  enabled: false
+  # -- ExternalSecret API version.
+  apiVersion: external-secrets.io/v1
+  # -- ExternalSecret refresh interval.
+  refreshInterval: "0"
+  secretStoreRef:
+    # -- SecretStore or ClusterSecretStore name.
+    name: ""
+    # -- Secret store kind.
+    kind: SecretStore
+  target:
+    # -- ExternalSecret target creation policy.
+    creationPolicy: Owner
+  # -- ExternalSecret data entries for individual htpasswd keys.
+  data: []
+  # -- ExternalSecret dataFrom entries for provider-side extraction.
+  dataFrom: []

@@ -1,0 +1,131 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: StatefulSet
+templates:
+  - statefulset.yaml
+  - configmap.yaml
+  - secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a secure Jenkins controller StatefulSet
+    template: statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: test-jenkins
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+      - exists:
+          path: spec.volumeClaimTemplates[0]
+
+  - it: should use emptyDir when persistence is disabled
+    template: statefulset.yaml
+    set:
+      persistence.enabled: false
+    asserts:
+      - notExists:
+          path: spec.volumeClaimTemplates
+      - equal:
+          path: spec.template.spec.volumes[0].name
+          value: jenkins-home
+
+  - it: should add plugin init container when plugin install is enabled
+    template: statefulset.yaml
+    set:
+      persistence.enabled: false
+      plugins.install.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: install-plugins
+      - notMatchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "--latest-specified false"
+
+  - it: should render latest-specified switch only when enabled
+    template: statefulset.yaml
+    set:
+      persistence.enabled: false
+      plugins.install.enabled: true
+      plugins.install.latestSpecified: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "--latest-specified"
+
+  - it: should pass custom HTTP port to Jenkins startup options
+    template: statefulset.yaml
+    set:
+      controller.httpPort: 8081
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8081
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JENKINS_OPTS
+            value: --httpPort=8081
+
+  - it: should disable inbound agent listener when agent service is disabled
+    template: statefulset.yaml
+    set:
+      agent.enabled: false
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].ports[1]
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JENKINS_SLAVE_AGENT_PORT
+            value: "-1"
+
+  - it: should not duplicate an explicit HTTP port option
+    template: statefulset.yaml
+    set:
+      controller.httpPort: 8081
+      controller.jenkinsOpts: --prefix=/jenkins --httpPort=9090
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JENKINS_OPTS
+            value: --prefix=/jenkins --httpPort=9090
+
+  - it: should disable setup wizard when admin bootstrap is enabled
+    template: statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JAVA_OPTS
+            value: -Djava.awt.headless=true -Djenkins.install.runSetupWizard=false
+
+  - it: should keep setup wizard available when admin bootstrap is disabled
+    template: statefulset.yaml
+    set:
+      admin.create: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JAVA_OPTS
+            value: -Djava.awt.headless=true
+
+  - it: should honor explicit setup wizard java option
+    template: statefulset.yaml
+    set:
+      controller.javaOpts: -Djenkins.install.runSetupWizard=true -Djava.awt.headless=true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JAVA_OPTS
+            value: -Djenkins.install.runSetupWizard=true -Djava.awt.headless=true

@@ -1,0 +1,33 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "jupyterhub.fullname" . }}
+  labels:
+    {{- include "jupyterhub.labels" . | nindent 4 }}
+  {{- include "jupyterhub.renderAnnotations" (dict "common" .Values.annotations "specific" .Values.ingress.annotations) | nindent 2 }}
+spec:
+  {{- with .Values.ingress.ingressClassName }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "jupyterhub.proxyName" $ }}
+                port:
+                  name: http
+          {{- end }}
+    {{- end }}
+{{- end }}

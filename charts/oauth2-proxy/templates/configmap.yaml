@@ -1,0 +1,70 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "oauth2-proxy.validate" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "oauth2-proxy.configName" . }}
+  labels:
+    {{- include "oauth2-proxy.labels" . | nindent 4 }}
+data:
+  oauth2_proxy.cfg: |-
+    {{- if .Values.alphaConfig.enabled }}
+    # Alpha configuration is mounted as alpha-config.yaml; legacy TOML options are intentionally omitted.
+    {{- else }}
+    http_address = "0.0.0.0:4180"
+    {{- if .Values.metrics.enabled }}
+    metrics_address = "0.0.0.0:{{ .Values.metrics.port }}"
+    {{- end }}
+    provider = {{ .Values.config.provider | quote }}
+    {{- with .Values.config.providerDisplayName }}
+    provider_display_name = {{ . | quote }}
+    {{- end }}
+    {{- with .Values.config.oidcIssuerUrl }}
+    oidc_issuer_url = {{ . | quote }}
+    {{- end }}
+    {{- with .Values.config.redirectUrl }}
+    redirect_url = {{ . | quote }}
+    {{- end }}
+    upstreams = {{ .Values.config.upstreams | toJson }}
+    email_domains = {{ .Values.config.emailDomains | toJson }}
+    {{- with .Values.config.whitelistDomains }}
+    whitelist_domains = {{ . | toJson }}
+    {{- end }}
+    {{- with .Values.config.cookie.name }}
+    cookie_name = {{ . | quote }}
+    {{- end }}
+    {{- with .Values.config.cookie.domains }}
+    cookie_domains = {{ . | toJson }}
+    {{- end }}
+    cookie_secure = {{ .Values.config.cookie.secure }}
+    cookie_samesite = {{ .Values.config.cookie.sameSite | quote }}
+    cookie_expire = {{ .Values.config.cookie.expire | quote }}
+    {{- with .Values.config.cookie.refresh }}
+    cookie_refresh = {{ . | quote }}
+    {{- end }}
+    reverse_proxy = {{ .Values.config.reverseProxy.enabled }}
+    {{- if .Values.config.reverseProxy.enabled }}
+    real_client_ip_header = {{ .Values.config.reverseProxy.realClientIpHeader | quote }}
+    {{- with .Values.config.reverseProxy.trustedProxyIps }}
+    trusted_proxy_ips = {{ . | toJson }}
+    {{- end }}
+    {{- end }}
+    set_xauthrequest = {{ .Values.config.headers.setXAuthRequest }}
+    pass_authorization_header = {{ .Values.config.headers.passAuthorizationHeader }}
+    pass_access_token = {{ .Values.config.headers.passAccessToken }}
+    pass_user_headers = {{ .Values.config.headers.passUserHeaders }}
+    skip_auth_strip_headers = {{ .Values.config.headers.skipAuthStripHeaders }}
+    standard_logging = {{ .Values.config.logging.standard }}
+    request_logging = {{ .Values.config.logging.request }}
+    auth_logging = {{ .Values.config.logging.auth }}
+    silence_ping_logging = {{ .Values.config.logging.silencePing }}
+    {{- with .Values.config.logging.excludePaths }}
+    exclude_logging_paths = {{ . | toJson }}
+    {{- end }}
+    {{- if .Values.authenticatedEmailsFile.enabled }}
+    authenticated_emails_file = "/etc/oauth2-proxy/authenticated-emails/{{ .Values.authenticatedEmailsFile.secretKey }}"
+    {{- end }}
+    {{- with .Values.config.extraConfig }}
+{{ . | nindent 4 }}
+    {{- end }}
+    {{- end }}
