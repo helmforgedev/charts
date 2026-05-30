@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Gateway
+templates:
+  - templates/httproute.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render HTTPRoute with gateway values
+    set:
+      gateway.enabled: true
+      gateway.parentRefs:
+        - name: public
+          namespace: gateway-system
+      gateway.hostnames:
+        - openreel.example.com
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.parentRefs[0].name
+          value: public
+      - equal:
+          path: spec.hostnames[0]
+          value: openreel.example.com
+
+  - it: should require parentRefs when enabled
+    set:
+      gateway.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: gateway.enabled requires gateway.parentRefs to be populated to create a valid HTTPRoute.
