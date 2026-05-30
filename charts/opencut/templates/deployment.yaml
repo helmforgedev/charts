@@ -109,13 +109,17 @@ spec:
               export DATABASE_URL="postgresql://${database_username}:${database_password}@${DATABASE_HOST}:${DATABASE_PORT}/${database_name}"
               unset database_username database_password database_name
               site_url_replacement="$(printf '%s' "$NEXT_PUBLIC_SITE_URL" | sed -e 's/[\/&|]/\\&/g')"
+              marble_api_url_replacement="$(printf '%s' "$NEXT_PUBLIC_MARBLE_API_URL" | sed -e 's/[\/&|]/\\&/g')"
               for public_env_dir in apps/web/.next apps/web/public; do
                 if [ -d "$public_env_dir" ]; then
                   find "$public_env_dir" -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.html' -o -name '*.json' -o -name '*.css' \) \
-                    -exec sed -i "s|http://localhost:3000|${site_url_replacement}|g" {} +
+                    -exec sed -i \
+                      -e "s|http://localhost:3000|${site_url_replacement}|g" \
+                      -e "s|https://api.marblecms.com|${marble_api_url_replacement}|g" \
+                      {} +
                 fi
               done
-              unset site_url_replacement public_env_dir
+              unset site_url_replacement marble_api_url_replacement public_env_dir
               exec docker-entrypoint.sh node apps/web/server.js
           ports:
             - name: http
