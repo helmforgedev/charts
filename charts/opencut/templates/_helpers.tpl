@@ -184,9 +184,16 @@ app.kubernetes.io/part-of: helmforge
 {{- .Values.redisHttp.service.port | toString -}}
 {{- else -}}
 {{- $url := .Values.redisHttp.external.url | default "" -}}
-{{- $explicitPort := regexFind ":[0-9]+" $url -}}
+{{- $withoutScheme := regexReplaceAll "^[a-zA-Z][a-zA-Z0-9+.-]*://" $url "" -}}
+{{- $authority := regexReplaceAll "[/?#].*$" $withoutScheme "" -}}
+{{- $explicitPort := "" -}}
+{{- if hasPrefix "[" $authority -}}
+{{- $explicitPort = regexFind "\\]:[0-9]+$" $authority -}}
+{{- else -}}
+{{- $explicitPort = regexFind ":[0-9]+$" $authority -}}
+{{- end -}}
 {{- if $explicitPort -}}
-{{- trimPrefix ":" $explicitPort -}}
+{{- trimPrefix ":" (trimPrefix "]:" $explicitPort) -}}
 {{- else if hasPrefix "http://" $url -}}
 {{- "80" -}}
 {{- else -}}

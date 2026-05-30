@@ -93,6 +93,27 @@ tests:
             protocol: TCP
             port: 8079
 
+  - it: should derive external Redis REST port from IPv6 URL authority
+    set:
+      networkPolicy.enabled: true
+      redis.enabled: false
+      redisHttp.enabled: false
+      redisHttp.external.url: https://[2001:db8::1]:8079/redis
+      redisHttp.external.token: test-token
+    asserts:
+      - hasDocuments:
+          count: 1
+      - contains:
+          path: spec.egress[1].ports
+          content:
+            protocol: TCP
+            port: 8079
+      - notContains:
+          path: spec.egress[1].ports
+          content:
+            protocol: TCP
+            port: 2001
+
   - it: should fail when external Redis REST URL has no supported scheme
     set:
       networkPolicy.enabled: true
