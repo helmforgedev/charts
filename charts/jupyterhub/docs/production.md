@@ -21,6 +21,16 @@ Because the chart runs configurable-http-proxy separately from the Hub, it sets
 `hub.cleanupServers=false`. Keep this default to preserve running user servers
 across Hub rollouts, checksum-triggered restarts, and node drains.
 
+## Metrics
+
+The chart keeps `c.JupyterHub.authenticate_prometheus = True` by default so
+public Ingress, Gateway, LoadBalancer, and NodePort routes do not expose
+`/hub/metrics` anonymously. The current ServiceMonitor integration does not
+wire scrape credentials, so enabling it requires
+`metrics.authenticatePrometheus=false`. For public deployments this also
+requires `metrics.allowPublicUnauthenticatedPrometheus=true` as an explicit
+acknowledgement that anonymous metrics are reachable through the public proxy.
+
 ## Single-User Pods
 
 Use `singleuser.profiles` to offer controlled notebook profiles. Enable `singleuser.storage.enabled=true` when users need persistent home directories.

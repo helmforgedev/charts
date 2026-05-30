@@ -25,6 +25,7 @@ flowchart LR
 - KubeSpawner disables automounted tokens for single-user pods.
 - Public exposure with DummyAuthenticator requires either `auth.dummyPassword` or an explicit insecure opt-in.
 - Public exposure with custom authenticators requires `hub.extraConfig` to set `authenticator_class`.
+- Prometheus metrics remain authenticated by default, and public anonymous metrics require an explicit opt-in.
 - The Hub Deployment uses `Recreate` while the default SQLite PVC is enabled.
 - The proxy runs separately from the Hub, so `hub.cleanupServers=false` keeps user notebook pods running across Hub restarts.
 

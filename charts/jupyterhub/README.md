@@ -37,6 +37,11 @@ each other's login cookies.
 The chart runs configurable-http-proxy separately from the Hub and defaults
 `hub.cleanupServers=false`, so notebook pods are not stopped during normal Hub
 rollouts or node drains.
+Prometheus metrics stay authenticated by default. If you enable a
+ServiceMonitor, set `metrics.authenticatePrometheus=false` only for private
+scrape paths, or explicitly set
+`metrics.allowPublicUnauthenticatedPrometheus=true` when public exposure should
+also allow anonymous `/hub/metrics`.
 
 ## Single-User Image
 

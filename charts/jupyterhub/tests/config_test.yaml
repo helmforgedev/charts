@@ -17,7 +17,7 @@ tests:
           pattern: "KubeSpawner"
       - matchRegex:
           path: data["jupyterhub_config.py"]
-          pattern: "c\\.JupyterHub\\.authenticate_prometheus = False"
+          pattern: "c\\.JupyterHub\\.authenticate_prometheus = True"
       - matchRegex:
           path: data["jupyterhub_config.py"]
           pattern: "c\\.JupyterHub\\.cleanup_servers = False"
@@ -62,14 +62,14 @@ tests:
           path: data["jupyterhub_config.py"]
           pattern: '"claimName": "test-jupyterhub-claim-\{username\}"'
 
-  - it: should allow authenticated Prometheus metrics when explicitly enabled
+  - it: should allow unauthenticated Prometheus metrics when explicitly disabled
     template: configmap.yaml
     set:
-      metrics.authenticatePrometheus: true
+      metrics.authenticatePrometheus: false
     asserts:
       - matchRegex:
           path: data["jupyterhub_config.py"]
-          pattern: "c\\.JupyterHub\\.authenticate_prometheus = True"
+          pattern: "c\\.JupyterHub\\.authenticate_prometheus = False"
 
   - it: should pass imagePullSecrets to KubeSpawner
     template: configmap.yaml
@@ -170,6 +170,27 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "public exposure with the default dummy authenticator requires auth.dummyPassword or auth.allowInsecureDummy=true"
+
+  - it: should reject public ingress with unauthenticated metrics unless explicitly accepted
+    template: configmap.yaml
+    set:
+      ingress.enabled: true
+      auth.dummyPassword: chart-testing-password
+      metrics.authenticatePrometheus: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "public exposure with unauthenticated Prometheus metrics requires metrics.allowPublicUnauthenticatedPrometheus=true"
+
+  - it: should allow public ingress with explicit unauthenticated metrics opt-in
+    template: configmap.yaml
+    set:
+      ingress.enabled: true
+      auth.dummyPassword: chart-testing-password
+      metrics.authenticatePrometheus: false
+      metrics.allowPublicUnauthenticatedPrometheus: true
+    asserts:
+      - isKind:
+          of: ConfigMap
 
   - it: should reject non-auth extra config as dummy auth proof
     template: configmap.yaml

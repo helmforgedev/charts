@@ -105,6 +105,9 @@ annotations:
 {{- if and .Values.metrics.serviceMonitor.enabled .Values.metrics.authenticatePrometheus -}}
 {{- fail "metrics.serviceMonitor.enabled=true requires metrics.authenticatePrometheus=false until ServiceMonitor scrape credentials are configured" -}}
 {{- end -}}
+{{- if and $publicExposure (not .Values.metrics.authenticatePrometheus) (not .Values.metrics.allowPublicUnauthenticatedPrometheus) -}}
+{{- fail "public exposure with unauthenticated Prometheus metrics requires metrics.allowPublicUnauthenticatedPrometheus=true" -}}
+{{- end -}}
 {{- range $key := list "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/component" -}}
 {{- if hasKey $.Values.commonLabels $key -}}
 {{- fail (printf "commonLabels cannot override reserved selector label %s" $key) -}}
