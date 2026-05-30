@@ -160,7 +160,11 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 
 {{- define "opencut.redisHttpName" -}}
-{{- printf "%s-redis-http" (include "opencut.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s-redis-http" (include "opencut.fullname" . | trunc 52 | trimSuffix "-") | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "opencut.testName" -}}
+{{- printf "%s-test" (include "opencut.fullname" . | trunc 58 | trimSuffix "-") | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{- define "opencut.validateRedisRest" -}}
