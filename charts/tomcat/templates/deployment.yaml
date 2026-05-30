@@ -42,8 +42,26 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
-      {{- if or .Values.webapps.defaultRoot.enabled .Values.extraInitContainers }}
+      {{- if or .Values.webapps.copyImageContent.enabled .Values.webapps.defaultRoot.enabled .Values.extraInitContainers }}
       initContainers:
+        {{- if .Values.webapps.copyImageContent.enabled }}
+        - name: copy-image-webapps
+          image: {{ include "tomcat.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-ec"]
+          args:
+            - |
+              if [ -d "{{ .Values.webapps.mountPath }}" ] && [ -z "$(find /webapps -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+                cp -R "{{ .Values.webapps.mountPath }}/." /webapps/
+              fi
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: webapps
+              mountPath: /webapps
+        {{- end }}
         {{- if .Values.webapps.defaultRoot.enabled }}
         - name: seed-default-root
           image: "{{ .Values.webapps.defaultRoot.initImage.repository }}:{{ .Values.webapps.defaultRoot.initImage.tag }}"

@@ -75,11 +75,37 @@ tests:
       webapps.defaultRoot.resources.requests.cpu: 25m
     asserts:
       - equal:
-          path: spec.template.spec.initContainers[0].image
+          path: spec.template.spec.initContainers[1].image
           value: docker.io/library/busybox:1.37
       - equal:
-          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          path: spec.template.spec.initContainers[1].resources.requests.cpu
           value: 25m
+
+  - it: should copy image webapps before mounting the shared webapps volume
+    template: deployment.yaml
+    set:
+      image.repository: registry.example.com/apps/custom-tomcat
+      image.tag: "1.2.3"
+      webapps.defaultRoot.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: copy-image-webapps
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: registry.example.com/apps/custom-tomcat:1.2.3
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "cp -R .*/webapps/\\.\" /webapps/"
+
+  - it: should allow disabling image webapps copy
+    template: deployment.yaml
+    set:
+      webapps.copyImageContent.enabled: false
+      webapps.defaultRoot.enabled: false
+    asserts:
+      - isNull:
+          path: spec.template.spec.initContainers
 
   - it: should allow user-provided HTTP probes when default root is disabled
     template: deployment.yaml

@@ -6,6 +6,7 @@ Apache Tomcat chart for Kubernetes using the official `docker.io/library/tomcat`
 
 - Official Tomcat image, pinned by default to `11.0.22-jdk17-temurin-noble`.
 - Stable default install with an optional ROOT health webapp for deterministic probes and Helm tests.
+- Preserves WARs or exploded applications baked into immutable Tomcat images before mounting the writable webapps volume.
 - Non-root runtime with writable `webapps`, `logs`, `temp`, and `work` volumes.
 - Ingress and Gateway API `HTTPRoute` exposure.
 - Optional JMX remote port for platform monitoring integrations.
@@ -21,6 +22,8 @@ helm install tomcat oci://repo.helmforge.dev/charts/tomcat
 
 The official Tomcat image starts without a production application. This chart enables a small default ROOT app so `/health.jsp` works immediately.
 For real workloads, mount WAR files or exploded applications through `extraInitContainers`, `extraVolumes`, and `extraVolumeMounts`, or enable `webapps.persistence`.
+If you build an immutable Tomcat image with applications under `/usr/local/tomcat/webapps`, keep `webapps.copyImageContent.enabled=true`.
+The chart copies those image contents into the writable webapps volume when it is empty.
 
 For production applications that do not expose `/health.jsp`, switch probes to TCP or set probe paths to an application endpoint:
 
@@ -80,6 +83,7 @@ For authenticated or TLS-secured JMX, mount the required files with `extraVolume
 | `service.ipFamilyPolicy` | `null` | Optional Service dual-stack policy. |
 | `service.ipFamilies` | `[]` | Optional Service IP family ordering. |
 | `webapps.defaultRoot.enabled` | `true` | Render a minimal ROOT app for health checks. |
+| `webapps.copyImageContent.enabled` | `true` | Copy image-baked webapps into the mounted webapps volume when empty. |
 | `webapps.persistence.enabled` | `false` | Persist `/usr/local/tomcat/webapps`. |
 | `logs.persistence.enabled` | `false` | Persist `/usr/local/tomcat/logs`. |
 | `tomcat.serverXml` | `""` | Inline `server.xml` override. |
