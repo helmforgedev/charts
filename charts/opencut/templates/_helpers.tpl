@@ -167,8 +167,27 @@ app.kubernetes.io/part-of: helmforge
 {{- if and (not .Values.redisHttp.enabled) (not .Values.redisHttp.external.url) -}}
 {{- fail "redisHttp.enabled=false requires redisHttp.external.url so OpenCut receives UPSTASH_REDIS_REST_URL" -}}
 {{- end -}}
+{{- if and (not .Values.redisHttp.enabled) .Values.redisHttp.external.url (not (or (hasPrefix "http://" .Values.redisHttp.external.url) (hasPrefix "https://" .Values.redisHttp.external.url))) -}}
+{{- fail "redisHttp.enabled=false requires redisHttp.external.url to start with http:// or https:// so the chart can derive the NetworkPolicy egress port" -}}
+{{- end -}}
 {{- if and (not .Values.redisHttp.enabled) (not .Values.redisHttp.external.token) (not .Values.redisHttp.external.existingSecret) -}}
 {{- fail "redisHttp.enabled=false requires redisHttp.external.token or redisHttp.external.existingSecret so OpenCut receives UPSTASH_REDIS_REST_TOKEN" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "opencut.redisRestEgressPort" -}}
+{{- if .Values.redisHttp.enabled -}}
+{{- .Values.redisHttp.service.port | toString -}}
+{{- else -}}
+{{- $url := .Values.redisHttp.external.url | default "" -}}
+{{- $explicitPort := regexFind ":[0-9]+" $url -}}
+{{- if $explicitPort -}}
+{{- trimPrefix ":" $explicitPort -}}
+{{- else if hasPrefix "http://" $url -}}
+{{- "80" -}}
+{{- else -}}
+{{- "443" -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
