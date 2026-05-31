@@ -92,10 +92,10 @@ app.kubernetes.io/part-of: helmforge
 {{- define "zookeeper.tlsPasswordsSecretName" -}}
 {{- if .Values.tls.client.existingPasswordsSecret -}}
 {{- .Values.tls.client.existingPasswordsSecret -}}
-{{- else if and .Values.externalSecrets.enabled .Values.tls.client.enabled .Values.auth.client.enabled (not .Values.externalSecrets.target.name) -}}
-{{- include "zookeeper.authSecretName" . -}}
 {{- else if and .Values.externalSecrets.enabled .Values.tls.client.enabled .Values.externalSecrets.target.name -}}
 {{- .Values.externalSecrets.target.name -}}
+{{- else if and .Values.externalSecrets.enabled .Values.tls.client.enabled .Values.auth.client.enabled (not .Values.auth.client.existingSecret) -}}
+{{- include "zookeeper.authSecretName" . -}}
 {{- else -}}
 {{- include "zookeeper.suffixedName" (dict "name" (include "zookeeper.fullname" .) "suffix" "-tls-passwords") -}}
 {{- end -}}
@@ -148,7 +148,7 @@ app.kubernetes.io/part-of: helmforge
 {{- define "zookeeper.externalSecretTargetName" -}}
 {{- if .Values.externalSecrets.target.name -}}
 {{- .Values.externalSecrets.target.name -}}
-{{- else if and .Values.tls.client.enabled (not .Values.auth.client.enabled) -}}
+{{- else if and .Values.tls.client.enabled (or (not .Values.auth.client.enabled) .Values.auth.client.existingSecret) -}}
 {{- include "zookeeper.tlsPasswordsSecretName" . -}}
 {{- else -}}
 {{- include "zookeeper.authSecretName" . -}}

@@ -177,6 +177,8 @@ externalSecrets:
 When SASL client auth and TLS are enabled together, the default ExternalSecret target is the auth Secret.
 Include `jaas.conf`, `keystore-password`, and `truststore-password` in `externalSecrets.data`, or set
 `externalSecrets.target.name` to a shared Secret name.
+When `auth.client.existingSecret` is set, the default ExternalSecret target remains the TLS password Secret so the
+chart does not mutate the user-managed JAAS Secret.
 
 ## Dual Stack
 
