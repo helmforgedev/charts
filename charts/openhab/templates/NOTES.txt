@@ -4,7 +4,7 @@ openHAB {{ .Chart.AppVersion }} - Home Automation Platform
 ================================================================================
 
 Release   : {{ .Release.Name }}
-Namespace : {{ .Release.Namespace }}
+Namespace : {{ include "openhab.namespace" . }}
 Version   : {{ .Chart.Version }}
 App       : {{ .Chart.AppVersion }}
 
@@ -17,17 +17,17 @@ App       : {{ .Chart.AppVersion }}
   openHAB Web UI: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
 {{- end }}
 {{- else if eq .Values.service.type "NodePort" }}
-  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "openhab.fullname" . }})
-  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  export NODE_PORT=$(kubectl get --namespace {{ include "openhab.namespace" . }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "openhab.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ include "openhab.namespace" . }} -o jsonpath="{.items[0].status.addresses[0].address}")
   echo "openHAB Web UI: http://$NODE_IP:$NODE_PORT"
 {{- else if eq .Values.service.type "LoadBalancer" }}
   NOTE: It may take a few minutes for the LoadBalancer IP to be assigned.
-  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "openhab.fullname" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  export SERVICE_IP=$(kubectl get svc --namespace {{ include "openhab.namespace" . }} {{ include "openhab.fullname" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
   echo "openHAB Web UI: http://$SERVICE_IP:{{ .Values.service.port }}"
 {{- else }}
   Port-forward to access the web UI:
 
-  kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ include "openhab.fullname" . }} 8080:{{ .Values.service.port }}
+  kubectl port-forward --namespace {{ include "openhab.namespace" . }} svc/{{ include "openhab.fullname" . }} 8080:{{ .Values.service.port }}
 
   openHAB Web UI: http://127.0.0.1:8080
 {{- end }}
@@ -48,11 +48,11 @@ App       : {{ .Chart.AppVersion }}
   Admin credentials are stored in Secret '{{ include "openhab.adminSecretName" . }}' for reference:
 
   Username:
-    kubectl get secret --namespace {{ .Release.Namespace }} {{ include "openhab.adminSecretName" . }} \
+    kubectl get secret --namespace {{ include "openhab.namespace" . }} {{ include "openhab.adminSecretName" . }} \
       -o jsonpath="{.data.username}" | base64 --decode
 
   Password:
-    kubectl get secret --namespace {{ .Release.Namespace }} {{ include "openhab.adminSecretName" . }} \
+    kubectl get secret --namespace {{ include "openhab.namespace" . }} {{ include "openhab.adminSecretName" . }} \
       -o jsonpath="{.data.password}" | base64 --decode
 {{- end }}
 
@@ -65,7 +65,7 @@ App       : {{ .Chart.AppVersion }}
 
   Wait for the pod to be READY before accessing the web UI:
 
-  kubectl wait --namespace {{ .Release.Namespace }} \
+  kubectl wait --namespace {{ include "openhab.namespace" . }} \
     pod -l app.kubernetes.io/name={{ include "openhab.name" . }} \
     --for=condition=Ready --timeout=300s
 
@@ -126,12 +126,12 @@ App       : {{ .Chart.AppVersion }}
   openHAB will pick up the change automatically.
 {{- else }}
   No ConfigMaps configured. Manage configuration files directly via:
-    kubectl exec --namespace {{ .Release.Namespace }} \
-      deploy/{{ include "openhab.fullname" . }} -- ls /openhab/conf/
+    kubectl exec --namespace {{ include "openhab.namespace" . }} \
+      statefulset/{{ include "openhab.fullname" . }} -- ls /openhab/conf/
 
   Or copy files to the pod:
     kubectl cp ./myfile.items \
-      {{ .Release.Namespace }}/$(kubectl get pod -n {{ .Release.Namespace }} \
+      {{ include "openhab.namespace" . }}/$(kubectl get pod -n {{ include "openhab.namespace" . }} \
       -l app.kubernetes.io/name={{ include "openhab.name" . }} -o name | head -1 | cut -d/ -f2):/openhab/conf/items/
 {{- end }}
 
@@ -143,7 +143,7 @@ App       : {{ .Chart.AppVersion }}
   Karaf admin console is enabled on port {{ .Values.karaf.service.port }}.
 
   Port-forward and connect:
-    kubectl port-forward --namespace {{ .Release.Namespace }} \
+    kubectl port-forward --namespace {{ include "openhab.namespace" . }} \
       svc/{{ include "openhab.fullname" . }}-karaf {{ .Values.karaf.service.port }}:{{ .Values.karaf.service.port }}
 
     ssh -p {{ .Values.karaf.service.port }} openhab@127.0.0.1
@@ -165,25 +165,25 @@ App       : {{ .Chart.AppVersion }}
 ================================================================================
 
   Check pod status:
-    kubectl get pods --namespace {{ .Release.Namespace }} \
+    kubectl get pods --namespace {{ include "openhab.namespace" . }} \
       -l app.kubernetes.io/name={{ include "openhab.name" . }}
 
   View logs (live):
-    kubectl logs --namespace {{ .Release.Namespace }} \
+    kubectl logs --namespace {{ include "openhab.namespace" . }} \
       -l app.kubernetes.io/name={{ include "openhab.name" . }} -f
 
   View openHAB application log:
-    kubectl exec --namespace {{ .Release.Namespace }} \
-      $(kubectl get pod -n {{ .Release.Namespace }} \
+    kubectl exec --namespace {{ include "openhab.namespace" . }} \
+      $(kubectl get pod -n {{ include "openhab.namespace" . }} \
       -l app.kubernetes.io/name={{ include "openhab.name" . }} -o name | head -1) -- \
       tail -f /openhab/userdata/logs/openhab.log
 
   Describe pod (for events/errors):
-    kubectl describe pod --namespace {{ .Release.Namespace }} \
+    kubectl describe pod --namespace {{ include "openhab.namespace" . }} \
       -l app.kubernetes.io/name={{ include "openhab.name" . }}
 
   Check startup probe:
-    kubectl get pod --namespace {{ .Release.Namespace }} \
+    kubectl get pod --namespace {{ include "openhab.namespace" . }} \
       -l app.kubernetes.io/name={{ include "openhab.name" . }} \
       -o jsonpath='{.items[0].status.containerStatuses[0].started}'
 
@@ -203,3 +203,4 @@ App       : {{ .Chart.AppVersion }}
   Chart issues:       https://github.com/helmforgedev/charts/issues
 
 ================================================================================
+Happy Helmforging :)
