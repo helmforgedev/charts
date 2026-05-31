@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: notes tests
+templates:
+  - NOTES.txt
+release:
+  name: hoppscotch
+  namespace: release-system
+tests:
+  - it: should use resource namespace for Kubernetes commands when namespaceOverride is set
+    set:
+      namespaceOverride: hoppscotch-system
+      postgresql:
+        enabled: false
+      database:
+        external:
+          enabled: true
+          url: postgresql://hoppscotch:secret@postgresql.database.svc.cluster.local:5432/hoppscotch
+    asserts:
+      - matchRegexRaw:
+          pattern: "Namespace:[[:space:]]+hoppscotch-system"
+      - matchRegexRaw:
+          pattern: "Helm Namespace:[[:space:]]+release-system"
+      - matchRegexRaw:
+          pattern: "kubectl port-forward svc/hoppscotch-hoppscotch 8080:80 -n hoppscotch-system"
+      - not: true
+        matchRegexRaw:
+          pattern: "kubectl port-forward svc/hoppscotch-hoppscotch 8080:80 -n release-system"

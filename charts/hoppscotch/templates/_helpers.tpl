@@ -32,6 +32,10 @@ app.kubernetes.io/name: {{ include "hoppscotch.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{- define "hoppscotch.namespace" -}}
+{{- .Values.namespaceOverride | default .Release.Namespace -}}
+{{- end -}}
+
 {{- define "hoppscotch.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
 {{- default (include "hoppscotch.fullname" .) .Values.serviceAccount.name -}}
@@ -52,15 +56,21 @@ validateAll — fail-fast on misconfigured values
 {{- if not (has $mode (list "dev" "production")) -}}
   {{- fail "mode must be one of: dev, production" -}}
 {{- end -}}
+{{- if and .Values.namespaceOverride .Values.postgresql.enabled -}}
+  {{- fail "namespaceOverride requires postgresql.enabled=false and an external database because subchart secrets remain in the release namespace" -}}
+{{- end -}}
+{{- if and .Values.namespaceOverride (not .Values.database.external.enabled) -}}
+  {{- fail "namespaceOverride requires database.external.enabled=true because chart-managed resources are rendered outside the release namespace" -}}
+{{- end -}}
+{{- if and .Values.database.external.enabled (not .Values.database.external.host) (not .Values.database.external.url) (not .Values.database.external.existingSecret) -}}
+  {{- fail "database.external.host or database.external.url or database.external.existingSecret is required when database.external.enabled=true" -}}
+{{- end -}}
 {{- if eq $mode "production" -}}
   {{- if and (not .Values.ingress.host) (not .Values.baseUrl) -}}
     {{- fail "production mode requires ingress.host or baseUrl to be set" -}}
   {{- end -}}
   {{- if and (not .Values.postgresql.enabled) (not .Values.database.external.enabled) -}}
     {{- fail "production mode requires postgresql.enabled=true or database.external.enabled=true" -}}
-  {{- end -}}
-  {{- if and .Values.database.external.enabled (not .Values.database.external.host) (not .Values.database.external.url) (not .Values.database.external.existingSecret) -}}
-    {{- fail "database.external.host or database.external.url or database.external.existingSecret is required when database.external.enabled=true" -}}
   {{- end -}}
 {{- end -}}
 {{- if and .Values.encryption.key (ne (len .Values.encryption.key) 32) -}}
@@ -246,7 +256,16 @@ databaseHost — resolves subchart or external host
 */}}
 {{- define "hoppscotch.databaseHost" -}}
 {{- if .Values.database.external.enabled -}}
+{{- if .Values.database.external.host -}}
 {{- .Values.database.external.host -}}
+{{- else if .Values.database.external.url -}}
+{{- $parsed := urlParse .Values.database.external.url -}}
+{{- if hasPrefix "[" $parsed.host -}}
+{{- regexReplaceAll "^\\[([^\\]]+)\\](?::[0-9]+)?$" $parsed.host "${1}" -}}
+{{- else -}}
+{{- regexReplaceAll ":[0-9]+$" $parsed.host "" -}}
+{{- end -}}
+{{- end -}}
 {{- else -}}
 {{- printf "%s-postgresql" .Release.Name -}}
 {{- end -}}
@@ -257,7 +276,16 @@ databasePort
 */}}
 {{- define "hoppscotch.databasePort" -}}
 {{- if .Values.database.external.enabled -}}
+{{- if .Values.database.external.host -}}
 {{- .Values.database.external.port | default 5432 | toString -}}
+{{- else if .Values.database.external.url -}}
+{{- $parsed := urlParse .Values.database.external.url -}}
+{{- if regexMatch ":([0-9]+)$" $parsed.host -}}
+{{- regexFind "[0-9]+$" $parsed.host -}}
+{{- else -}}
+5432
+{{- end -}}
+{{- end -}}
 {{- else -}}
 5432
 {{- end -}}
@@ -357,8 +385,8 @@ shouldRunPostgresqlExtensionsJob — only run upgrade hook against existing bund
   {{- if not .Values.postgresqlExtensionsJob.requireExistingResources -}}
 true
   {{- else -}}
-    {{- $secret := lookup "v1" "Secret" .Release.Namespace (include "hoppscotch.postgresqlSecretName" .) -}}
-    {{- $service := lookup "v1" "Service" .Release.Namespace (include "hoppscotch.databaseHost" .) -}}
+    {{- $secret := lookup "v1" "Secret" (include "hoppscotch.namespace" .) (include "hoppscotch.postgresqlSecretName" .) -}}
+    {{- $service := lookup "v1" "Service" (include "hoppscotch.namespace" .) (include "hoppscotch.databaseHost" .) -}}
     {{- if and $secret $service -}}true{{- end -}}
   {{- end -}}
 {{- end -}}
