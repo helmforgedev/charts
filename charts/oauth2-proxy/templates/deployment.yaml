@@ -1,0 +1,229 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "oauth2-proxy.validate" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "oauth2-proxy.fullname" . }}
+  labels:
+    {{- include "oauth2-proxy.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  selector:
+    matchLabels:
+      {{- include "oauth2-proxy.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "oauth2-proxy.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "oauth2-proxy.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        - name: config-test
+          image: {{ include "oauth2-proxy.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            {{- if not .Values.alphaConfig.enabled }}
+            - --config=/etc/oauth2-proxy/oauth2_proxy.cfg
+            {{- end }}
+            {{- if .Values.alphaConfig.enabled }}
+            - --alpha-config=/etc/oauth2-proxy/alpha/alpha-config.yaml
+            {{- end }}
+            {{- if and .Values.alphaConfig.enabled .Values.authenticatedEmailsFile.enabled }}
+            - --authenticated-emails-file=/etc/oauth2-proxy/authenticated-emails/{{ .Values.authenticatedEmailsFile.secretKey }}
+            {{- end }}
+            {{- include "oauth2-proxy.alphaReverseProxyArgs" . | nindent 12 }}
+            {{- range $key, $value := .Values.extraArgs }}
+            - --{{ $key }}={{ $value }}
+            {{- end }}
+            - --config-test
+          env:
+            {{- if .Values.alphaConfig.enabled }}
+            {{- include "oauth2-proxy.cookieSecretEnv" . | nindent 12 }}
+            {{- else }}
+            {{- include "oauth2-proxy.secretEnv" . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- if not .Values.alphaConfig.enabled }}
+            - name: config
+              mountPath: /etc/oauth2-proxy
+              readOnly: true
+            {{- end }}
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.authenticatedEmailsFile.enabled }}
+            - name: authenticated-emails
+              mountPath: /etc/oauth2-proxy/authenticated-emails
+              readOnly: true
+            {{- end }}
+            {{- if .Values.alphaConfig.enabled }}
+            - name: alpha-config
+              mountPath: /etc/oauth2-proxy/alpha
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+      containers:
+        - name: oauth2-proxy
+          image: {{ include "oauth2-proxy.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            {{- if not .Values.alphaConfig.enabled }}
+            - --config=/etc/oauth2-proxy/oauth2_proxy.cfg
+            {{- end }}
+            {{- if .Values.alphaConfig.enabled }}
+            - --alpha-config=/etc/oauth2-proxy/alpha/alpha-config.yaml
+            {{- end }}
+            {{- if and .Values.alphaConfig.enabled .Values.authenticatedEmailsFile.enabled }}
+            - --authenticated-emails-file=/etc/oauth2-proxy/authenticated-emails/{{ .Values.authenticatedEmailsFile.secretKey }}
+            {{- end }}
+            {{- include "oauth2-proxy.alphaReverseProxyArgs" . | nindent 12 }}
+            {{- range $key, $value := .Values.extraArgs }}
+            - --{{ $key }}={{ $value }}
+            {{- end }}
+          env:
+            {{- if .Values.alphaConfig.enabled }}
+            {{- include "oauth2-proxy.cookieSecretEnv" . | nindent 12 }}
+            {{- else }}
+            {{- include "oauth2-proxy.secretEnv" . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 4180
+              protocol: TCP
+            {{- if .Values.metrics.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.metrics.port }}
+              protocol: TCP
+            {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.probes.startup.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            {{- if not .Values.alphaConfig.enabled }}
+            - name: config
+              mountPath: /etc/oauth2-proxy
+              readOnly: true
+            {{- end }}
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.authenticatedEmailsFile.enabled }}
+            - name: authenticated-emails
+              mountPath: /etc/oauth2-proxy/authenticated-emails
+              readOnly: true
+            {{- end }}
+            {{- if .Values.alphaConfig.enabled }}
+            - name: alpha-config
+              mountPath: /etc/oauth2-proxy/alpha
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        {{- if not .Values.alphaConfig.enabled }}
+        - name: config
+          configMap:
+            name: {{ include "oauth2-proxy.configName" . }}
+        {{- end }}
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.authenticatedEmailsFile.enabled }}
+        - name: authenticated-emails
+          secret:
+            secretName: {{ include "oauth2-proxy.authenticatedEmailsSecretName" . }}
+        {{- end }}
+        {{- if .Values.alphaConfig.enabled }}
+        - name: alpha-config
+          secret:
+            secretName: {{ include "oauth2-proxy.alphaConfigSecretName" . }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

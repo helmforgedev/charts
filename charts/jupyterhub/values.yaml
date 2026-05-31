@@ -1,0 +1,306 @@
+# SPDX-License-Identifier: Apache-2.0
+# -- Override the chart name.
+nameOverride: ""
+# -- Override the fully qualified release name.
+fullnameOverride: ""
+# -- Additional labels applied to all chart resources.
+commonLabels: {}
+
+hub:
+  # -- Number of Hub replicas. Keep at 1 when using the default SQLite database.
+  replicaCount: 1
+  image:
+    # -- JupyterHub Hub image repository.
+    repository: quay.io/jupyterhub/k8s-hub
+    # -- JupyterHub Hub image tag.
+    tag: "4.3.5"
+    # -- JupyterHub Hub image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Public base URL for JupyterHub.
+  baseUrl: /
+  # -- SQLite database path used by the Hub.
+  dbPath: /srv/jupyterhub/jupyterhub.sqlite
+  cookieSecret:
+    # -- Existing Secret with a shared JupyterHub cookie secret. Required for HA Hubs when hub.persistence.enabled=false.
+    existingSecret: ""
+    # -- Key in hub.cookieSecret.existingSecret containing the hex-encoded cookie secret.
+    existingSecretKey: cookie-secret
+    # -- File name used when mounting the shared cookie secret into /srv/jupyterhub.
+    fileName: jupyterhub_cookie_secret
+  # -- Hub log level.
+  logLevel: INFO
+  # -- Stop/delete single-user servers when the Hub shuts down. Keep false with the chart-managed external proxy so user servers survive Hub restarts.
+  cleanupServers: false
+  # -- Extra Python config appended to jupyterhub_config.py.
+  extraConfig: ""
+  persistence:
+    # -- Persist Hub state, including the default SQLite database.
+    enabled: true
+    # -- Existing PVC for Hub state.
+    existingClaim: ""
+    # -- StorageClass for the Hub PVC. Empty uses the cluster default.
+    storageClass: ""
+    # -- Access modes for the Hub PVC. Use a multi-writer mode or disable persistence when hub.replicaCount > 1.
+    accessModes:
+      - ReadWriteOnce
+    # -- Hub PVC size.
+    size: 10Gi
+  # -- Hub container resources.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+proxy:
+  image:
+    # -- configurable-http-proxy image repository.
+    repository: docker.io/jupyterhub/configurable-http-proxy
+    # -- configurable-http-proxy image tag.
+    tag: "4.6.3"
+    # -- configurable-http-proxy image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Proxy auth token. Empty generates or reuses a Secret token.
+  secretToken: ""
+  # -- Existing Secret containing the proxy auth token.
+  existingSecret: ""
+  # -- Secret key containing the proxy auth token.
+  existingSecretTokenKey: proxy-token
+  # -- Proxy log level.
+  logLevel: warn
+  bind:
+    # -- Public-facing configurable-http-proxy bind IP. Empty uses 0.0.0.0 for IPv4 services and :: for dual-stack/IPv6 services.
+    ip: ""
+    # -- Proxy API bind IP. Empty uses 0.0.0.0 for IPv4 services and :: for dual-stack/IPv6 services.
+    apiIp: ""
+  # -- Proxy container resources.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+auth:
+  # -- Authenticator type. Use dummy for local testing or custom with hub.extraConfig.
+  type: dummy
+  # -- DummyAuthenticator password.
+  dummyPassword: ""
+  # -- Explicitly allow exposing JupyterHub with DummyAuthenticator and no password.
+  allowInsecureDummy: false
+
+singleuser:
+  image:
+    # -- Single-user notebook image repository.
+    name: quay.io/jupyter/base-notebook
+    # -- Single-user notebook image tag.
+    tag: "2026-05-26"
+    # -- Single-user notebook image pull policy.
+    pullPolicy: IfNotPresent
+  cpu:
+    # -- Guaranteed CPU for single-user pods.
+    guarantee: 0.1
+    # -- CPU limit for single-user pods.
+    limit: 1
+  memory:
+    # -- Guaranteed memory for single-user pods.
+    guarantee: 512M
+    # -- Memory limit for single-user pods.
+    limit: 2G
+  storage:
+    # -- Enable per-user persistent home volumes.
+    enabled: false
+    # -- Per-user PVC size.
+    capacity: 10Gi
+    # -- Per-user PVC StorageClass. Empty uses the cluster default.
+    storageClass: ""
+    # -- Per-user PVC access modes.
+    accessModes:
+      - ReadWriteOnce
+  # -- KubeSpawner start timeout.
+  startTimeout: 300
+  # -- Default URL opened for users.
+  defaultUrl: /lab
+  # -- KubeSpawner profile list.
+  profiles: []
+
+# -- Image pull secrets.
+imagePullSecrets: []
+
+service:
+  # -- Service type for public proxy traffic.
+  type: ClusterIP
+  # -- Service annotations.
+  annotations: {}
+  # -- Public proxy service port.
+  port: 80
+  # -- Internal configurable-http-proxy API service port.
+  proxyApiPort: 8001
+  # -- Service IP family policy. Null uses cluster default.
+  ipFamilyPolicy: ~
+  # -- Service IP families.
+  ipFamilies: []
+
+ingress:
+  # -- Enable Kubernetes Ingress.
+  enabled: false
+  # -- IngressClass name.
+  ingressClassName: ""
+  # -- Ingress annotations.
+  annotations: {}
+  # -- Ingress host rules.
+  hosts:
+    - host: jupyterhub.local
+      paths:
+        - path: /
+          pathType: Prefix
+  # -- Ingress TLS configuration.
+  tls: []
+
+gateway:
+  # -- Enable Gateway API HTTPRoute.
+  enabled: false
+  # -- Gateway API version.
+  apiVersion: gateway.networking.k8s.io/v1
+  # -- Gateway parentRefs.
+  parentRefs: []
+  # -- HTTPRoute hostnames.
+  hostnames: []
+  # -- HTTPRoute annotations.
+  annotations: {}
+  # -- HTTPRoute labels.
+  labels: {}
+  # -- HTTPRoute rules.
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+
+networkPolicy:
+  # -- Enable NetworkPolicy resources.
+  enabled: false
+  hub:
+    # -- Additional Hub egress rules appended after the default DNS, HTTPS, and same-namespace rules. Use this for external PostgreSQL/MySQL databases or private endpoints.
+    egress: []
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: true
+  # -- ServiceAccount name override.
+  name: ""
+  # -- ServiceAccount annotations.
+  annotations: {}
+
+rbac:
+  # -- Create namespaced RBAC for KubeSpawner user pod management.
+  create: true
+
+metrics:
+  # -- Require authentication for Prometheus metrics.
+  authenticatePrometheus: true
+  # -- Explicitly allow anonymous /hub/metrics on public Ingress, Gateway, LoadBalancer, or NodePort exposure.
+  allowPublicUnauthenticatedPrometheus: false
+  serviceMonitor:
+    # -- Render a Prometheus Operator ServiceMonitor. Requires metrics.authenticatePrometheus=false until scrape credentials are configured.
+    enabled: false
+    # -- ServiceMonitor scrape interval.
+    interval: 30s
+    # -- Additional ServiceMonitor labels.
+    labels: {}
+
+# -- Pod-level security context.
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container-level security context.
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# -- Hub liveness probe settings.
+livenessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+# -- Hub and proxy readiness probe settings.
+readinessProbe:
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+# -- Hub startup probe settings.
+startupProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 60
+
+# -- Additional labels for Hub, proxy, and single-user pods.
+podLabels: {}
+# -- Additional pod annotations.
+podAnnotations: {}
+# -- Additional resource annotations.
+annotations: {}
+# -- Node selector.
+nodeSelector: {}
+# -- Pod tolerations.
+tolerations: []
+# -- Pod affinity.
+affinity: {}
+# -- Pod topology spread constraints.
+topologySpreadConstraints: []
+# -- PriorityClass name.
+priorityClassName: ""
+# -- Pod termination grace period.
+terminationGracePeriodSeconds: 30
+
+pdb:
+  # -- Enable PodDisruptionBudget.
+  enabled: false
+  # -- Minimum available pods.
+  minAvailable: 1
+
+# -- Additional Hub environment variables.
+extraEnv: []
+# -- Additional Hub volumes.
+extraVolumes: []
+# -- Additional Hub volume mounts.
+extraVolumeMounts: []
+# -- Additional manifests rendered verbatim.
+extraManifests: []
+
+externalSecrets:
+  # -- Render an ExternalSecret for the proxy token.
+  enabled: false
+  # -- ExternalSecret API version.
+  apiVersion: external-secrets.io/v1
+  # -- ExternalSecret refresh interval.
+  refreshInterval: "0"
+  secretStoreRef:
+    # -- SecretStore or ClusterSecretStore name.
+    name: ""
+    # -- Secret store kind.
+    kind: SecretStore
+  target:
+    # -- ExternalSecret target creation policy.
+    creationPolicy: Owner
+  # -- ExternalSecret data entries for individual token keys.
+  data: []
+  # -- ExternalSecret dataFrom entries for provider-side extraction.
+  dataFrom: []

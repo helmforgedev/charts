@@ -1,0 +1,285 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "sonarqube.validate" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sonarqube.fullname" . }}
+  labels:
+    {{- include "sonarqube.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sonarqube
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "sonarqube.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: sonarqube
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- with omit .Values.podLabels "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/component" }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- include "sonarqube.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: sonarqube
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "sonarqube.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- $databaseMode := include "sonarqube.databaseMode" . }}
+      {{- if or (and .Values.waitForDatabase.enabled (eq $databaseMode "postgresql")) .Values.plugins.enabled .Values.communityBranchPlugin.enabled .Values.extraInitContainers }}
+      initContainers:
+        {{- if and .Values.waitForDatabase.enabled (eq $databaseMode "postgresql") }}
+        - name: wait-for-database
+          image: "{{ .Values.waitForDatabase.image.repository }}:{{ .Values.waitForDatabase.image.tag }}"
+          imagePullPolicy: {{ .Values.waitForDatabase.image.pullPolicy }}
+          command: ["sh", "-ec"]
+          args:
+            - |
+              attempts=$((({{ .Values.waitForDatabase.timeoutSeconds }} + 1) / 2))
+              attempt=0
+              until nc -z {{ include "sonarqube.postgresqlHost" . | quote }} {{ include "sonarqube.postgresqlPort" . }}; do
+                attempt=$((attempt + 1))
+                if [ "${attempt}" -ge "${attempts}" ]; then
+                  echo "PostgreSQL did not become reachable before timeout" >&2
+                  exit 1
+                fi
+                sleep 2
+              done
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.waitForDatabase.resources | nindent 12 }}
+        {{- end }}
+        {{- if or .Values.plugins.enabled .Values.communityBranchPlugin.enabled }}
+        - name: install-plugins
+          image: "{{ .Values.plugins.image.repository }}:{{ .Values.plugins.image.tag }}"
+          imagePullPolicy: {{ .Values.plugins.image.pullPolicy }}
+          command: ["sh", "-ec"]
+          args:
+            - |
+              set -eu
+              mkdir -p /extensions/plugins
+              {{- range .Values.plugins.install }}
+              wget -O "/extensions/plugins/{{ .name }}.jar" {{ .url | quote }}
+              {{- end }}
+              {{- if .Values.communityBranchPlugin.enabled }}
+              rm -f /extensions/plugins/sonarqube-community-branch-plugin-*.jar
+              branch_plugin="/extensions/plugins/{{ include "sonarqube.communityBranchJarName" . }}"
+              wget -O "${branch_plugin}" {{ include "sonarqube.communityBranchJarUrl" . | quote }}
+              mkdir -p /web
+              wget -O /tmp/sonarqube-webapp.zip {{ include "sonarqube.communityBranchWebappUrl" . | quote }}
+              unzip -o /tmp/sonarqube-webapp.zip -d /web
+              rm -f /tmp/sonarqube-webapp.zip
+              chmod g=u "${branch_plugin}"
+              find /web -mindepth 1 -exec chmod g=u {} +
+              {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.plugins.resources | nindent 12 }}
+          volumeMounts:
+            - name: extensions
+              mountPath: /extensions
+            {{- if .Values.communityBranchPlugin.enabled }}
+            - name: webapp
+              mountPath: /web
+            - name: tmp
+              mountPath: /tmp
+            {{- end }}
+        {{- end }}
+        {{- with .Values.extraInitContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: sonarqube
+          image: {{ include "sonarqube.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: SONAR_WEB_JAVAOPTS
+              value: {{ .Values.sonarqube.webJavaOpts | quote }}
+            - name: SONAR_CE_JAVAOPTS
+              value: {{ .Values.sonarqube.ceJavaOpts | quote }}
+            - name: SONAR_SEARCH_JAVAOPTS
+              value: {{ .Values.sonarqube.searchJavaOpts | quote }}
+            - name: SONAR_WEB_PORT
+              value: {{ .Values.containerPorts.http | quote }}
+            - name: SONAR_ES_BOOTSTRAP_CHECKS_DISABLE
+              value: {{ .Values.sonarqube.esBootstrapChecksDisable | quote }}
+            {{- if eq $databaseMode "external" }}
+            - name: SONAR_JDBC_URL
+              value: {{ .Values.database.external.jdbcUrl | quote }}
+            - name: SONAR_JDBC_USERNAME
+              value: {{ .Values.database.external.username | quote }}
+            - name: SONAR_JDBC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "sonarqube.databaseSecretName" . }}
+                  key: {{ include "sonarqube.databaseSecretKey" . }}
+            {{- else if eq $databaseMode "postgresql" }}
+            - name: SONAR_JDBC_URL
+              value: {{ include "sonarqube.postgresqlJdbcUrl" . | quote }}
+            - name: SONAR_JDBC_USERNAME
+              value: {{ .Values.postgresql.auth.username | quote }}
+            - name: SONAR_JDBC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "sonarqube.databaseSecretName" . }}
+                  key: {{ include "sonarqube.databaseSecretKey" . }}
+            {{- end }}
+            {{- if or .Values.sonarqube.monitoringPasscode .Values.sonarqube.existingMonitoringPasscodeSecret .Values.externalSecrets.monitoringPasscode.enabled }}
+            - name: SONAR_WEB_SYSTEMPASSCODE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "sonarqube.monitoringSecretName" . }}
+                  key: {{ include "sonarqube.monitoringSecretKey" . }}
+            {{- end }}
+            {{- with .Values.sonarqube.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.sonarqube.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.containerPorts.http }}
+              protocol: TCP
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ include "sonarqube.probePath" (dict "root" . "path" .Values.startupProbe.path) | quote }}
+              port: http
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ include "sonarqube.probePath" (dict "root" . "path" .Values.livenessProbe.path) | quote }}
+              port: http
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - |
+                  curl -fsS "http://127.0.0.1:${SONAR_WEB_PORT}{{ include "sonarqube.probePath" (dict "root" . "path" .Values.readinessProbe.path) }}" | grep -q '"status":"UP"'
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /opt/sonarqube/data
+            - name: extensions
+              mountPath: /opt/sonarqube/extensions
+            - name: logs
+              mountPath: /opt/sonarqube/logs
+            - name: temp
+              mountPath: /opt/sonarqube/temp
+            - name: tmp
+              mountPath: /tmp
+            - name: config
+              mountPath: /opt/sonarqube/conf/sonar.properties
+              subPath: sonar.properties
+              readOnly: true
+            {{- if .Values.communityBranchPlugin.enabled }}
+            - name: webapp
+              mountPath: /opt/sonarqube/web
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.data.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "sonarqube.dataClaimName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: extensions
+          {{- if .Values.persistence.extensions.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "sonarqube.extensionsClaimName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: logs
+          {{- if .Values.persistence.logs.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "sonarqube.logsClaimName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: temp
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: {{ include "sonarqube.configMapName" . }}
+            items:
+              - key: sonar.properties
+                path: sonar.properties
+        {{- if .Values.communityBranchPlugin.enabled }}
+        - name: webapp
+          emptyDir: {}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}

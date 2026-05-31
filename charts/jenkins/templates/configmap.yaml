@@ -1,0 +1,61 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if or .Values.admin.create .Values.jcasC.enabled .Values.plugins.install.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "jenkins.configMapName" . }}
+  labels:
+    {{- include "jenkins.labels" . | nindent 4 }}
+data:
+  {{- if .Values.admin.create }}
+  00-basic-security.groovy: |
+    import jenkins.model.Jenkins
+    import hudson.security.HudsonPrivateSecurityRealm
+    import hudson.security.FullControlOnceLoggedInAuthorizationStrategy
+
+    def instance = Jenkins.get()
+    def user = System.getenv('JENKINS_ADMIN_USER') ?: 'admin'
+    def password = System.getenv('JENKINS_ADMIN_PASSWORD')
+
+    if (password) {
+      def existingRealm = instance.getSecurityRealm()
+      def realm = null
+      def createdRealm = false
+      if (existingRealm instanceof HudsonPrivateSecurityRealm) {
+        realm = existingRealm
+      } else if (!instance.isUseSecurity()) {
+        realm = new HudsonPrivateSecurityRealm(false)
+        instance.setSecurityRealm(realm)
+        createdRealm = true
+      } else {
+        println("Existing non-local security realm detected; skipping HelmForge admin bootstrap")
+        return
+      }
+
+      if (realm.getUser(user) == null) {
+        realm.createAccount(user, password)
+      }
+
+      if (createdRealm || !instance.isUseSecurity()) {
+        def strategy = new FullControlOnceLoggedInAuthorizationStrategy()
+        strategy.setAllowAnonymousRead(false)
+        instance.setAuthorizationStrategy(strategy)
+      } else {
+        println("Existing authorization strategy detected; preserving configured permissions")
+      }
+      instance.save()
+    }
+  {{- end }}
+  {{- if .Values.plugins.install.enabled }}
+  plugins.txt: |
+    {{- range .Values.plugins.install.list }}
+    {{ . }}
+    {{- end }}
+  {{- end }}
+  {{- if .Values.jcasC.enabled }}
+  {{- range $name, $content := .Values.jcasC.configScripts }}
+  {{ $name }}.yaml: |
+{{ $content | nindent 4 }}
+  {{- end }}
+  {{- end }}
+{{- end }}

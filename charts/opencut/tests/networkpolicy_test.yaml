@@ -1,0 +1,179 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: NetworkPolicy
+templates:
+  - templates/networkpolicy.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should scope web policy to web pods and protect redis-http bridge
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/component"]
+          value: web
+        documentIndex: 0
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/component"]
+          value: redis-http
+        documentIndex: 1
+      - equal:
+          path: spec.ingress[0].from[0].podSelector.matchLabels["app.kubernetes.io/component"]
+          value: web
+        documentIndex: 1
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 6379
+        documentIndex: 1
+      - contains:
+          path: spec.egress[0].ports
+          content:
+            protocol: UDP
+            port: 53
+        documentIndex: 1
+
+  - it: should honor external database and Redis HTTP ports in web egress
+    set:
+      networkPolicy.enabled: true
+      postgresql.enabled: false
+      database.external.host: postgres.example.com
+      database.external.port: 15432
+      redisHttp.service.port: 8080
+    asserts:
+      - contains:
+          path: spec.egress[1].ports
+          content:
+            protocol: TCP
+            port: 15432
+        documentIndex: 0
+      - contains:
+          path: spec.egress[1].ports
+          content:
+            protocol: TCP
+            port: 8080
+        documentIndex: 0
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 80
+        documentIndex: 1
+
+  - it: should honor bundled PostgreSQL and Redis service ports in egress
+    set:
+      networkPolicy.enabled: true
+      postgresql.service.port: 15432
+      redis.service.ports.redis: 16379
+    asserts:
+      - contains:
+          path: spec.egress[1].ports
+          content:
+            protocol: TCP
+            port: 15432
+        documentIndex: 0
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 16379
+        documentIndex: 1
+
+  - it: should derive external Redis REST port for web egress when bridge is disabled
+    set:
+      networkPolicy.enabled: true
+      redis.enabled: false
+      redisHttp.enabled: false
+      redisHttp.external.url: http://redis-rest.example.com:8079
+      redisHttp.external.token: test-token
+    asserts:
+      - hasDocuments:
+          count: 1
+      - contains:
+          path: spec.egress[1].ports
+          content:
+            protocol: TCP
+            port: 8079
+
+  - it: should derive external Redis REST port from IPv6 URL authority
+    set:
+      networkPolicy.enabled: true
+      redis.enabled: false
+      redisHttp.enabled: false
+      redisHttp.external.url: https://[2001:db8::1]:8079/redis
+      redisHttp.external.token: test-token
+    asserts:
+      - hasDocuments:
+          count: 1
+      - contains:
+          path: spec.egress[1].ports
+          content:
+            protocol: TCP
+            port: 8079
+      - notContains:
+          path: spec.egress[1].ports
+          content:
+            protocol: TCP
+            port: 2001
+
+  - it: should fail when external Redis REST URL has no supported scheme
+    set:
+      networkPolicy.enabled: true
+      redis.enabled: false
+      redisHttp.enabled: false
+      redisHttp.external.url: redis-rest.example.com:8079
+      redisHttp.external.token: test-token
+    asserts:
+      - failedTemplate:
+          errorMessage: "redisHttp.enabled=false requires redisHttp.external.url to start with http:// or https:// so the chart can derive the NetworkPolicy egress port"
+
+  - it: should append custom web egress rules to the defaults
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress:
+        - to:
+            - ipBlock:
+                cidr: 10.10.0.0/16
+          ports:
+            - protocol: TCP
+              port: 8443
+    asserts:
+      - contains:
+          path: spec.egress[0].ports
+          content:
+            protocol: UDP
+            port: 53
+        documentIndex: 0
+      - contains:
+          path: spec.egress[1].ports
+          content:
+            protocol: TCP
+            port: 5432
+        documentIndex: 0
+      - equal:
+          path: spec.egress[2].to[0].ipBlock.cidr
+          value: 10.10.0.0/16
+        documentIndex: 0
+      - equal:
+          path: spec.egress[2].ports[0].port
+          value: 8443
+        documentIndex: 0
+
+  - it: should append custom web ingress rules without dropping the default web port
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.ingress:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: ingress-nginx
+          ports:
+            - protocol: TCP
+              port: 3000
+    asserts:
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 3000
+        documentIndex: 0
+      - equal:
+          path: spec.ingress[1].from[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: ingress-nginx
+        documentIndex: 0

@@ -1,0 +1,233 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: TLS support
+templates:
+  - configmap.yaml
+  - standalone-statefulset.yaml
+  - replication-primary-statefulset.yaml
+  - replication-replica-statefulset.yaml
+  - cluster-statefulset.yaml
+  - cluster-init-job.yaml
+  - templates/tests/test-connection.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should make standalone probes use valkey-cli TLS flags
+    template: standalone-statefulset.yaml
+    set:
+      tls.enabled: true
+      tls.existingSecret: valkey-tls
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].livenessProbe.exec.command[2]
+          pattern: "valkey-cli --tls --cacert /tls/ca.crt --insecure .* ping"
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tls
+            mountPath: /tls
+            readOnly: true
+
+  - it: should require a TLS secret when TLS is enabled
+    template: standalone-statefulset.yaml
+    set:
+      tls.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "tls.enabled requires tls.existingSecret"
+
+  - it: should render custom plaintext port in Valkey config
+    template: configmap.yaml
+    set:
+      service.ports.valkey: 6380
+    asserts:
+      - matchRegex:
+          path: data["valkey-standalone.conf"]
+          pattern: "port 6380"
+
+  - it: should pass custom port to health probes
+    template: standalone-statefulset.yaml
+    set:
+      service.ports.valkey: 6380
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].livenessProbe.exec.command[2]
+          pattern: "valkey-cli .* -p 6380 .*ping"
+
+  - it: should configure masterauth on authenticated primary
+    template: replication-primary-statefulset.yaml
+    set:
+      architecture: replication
+      auth.enabled: true
+      auth.password: secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --masterauth
+
+  - it: should configure metrics exporter for TLS
+    template: standalone-statefulset.yaml
+    set:
+      metrics.enabled: true
+      tls.enabled: true
+      tls.existingSecret: valkey-tls
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: REDIS_ADDR
+            value: rediss://127.0.0.1:6379
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: REDIS_EXPORTER_TLS_CA_CERT_FILE
+            value: /tls/ca.crt
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: REDIS_EXPORTER_SKIP_TLS_VERIFICATION
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[1].volumeMounts
+          content:
+            name: tls
+            mountPath: /tls
+            readOnly: true
+
+  - it: should allow TLS metrics verification when explicitly requested
+    template: standalone-statefulset.yaml
+    set:
+      metrics.enabled: true
+      metrics.tlsSkipVerify: false
+      tls.enabled: true
+      tls.existingSecret: valkey-tls
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: REDIS_EXPORTER_SKIP_TLS_VERIFICATION
+            value: "true"
+
+  - it: should mount TLS certificates on replication primary
+    template: replication-primary-statefulset.yaml
+    set:
+      architecture: replication
+      tls.enabled: true
+      tls.existingSecret: valkey-tls
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tls
+            mountPath: /tls
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls
+            secret:
+              secretName: valkey-tls
+
+  - it: should wait for primary over TLS before starting replicas
+    template: replication-replica-statefulset.yaml
+    set:
+      architecture: replication
+      tls.enabled: true
+      tls.existingSecret: valkey-tls
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "valkey-cli --tls --cacert /tls/ca.crt"
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: tls
+            mountPath: /tls
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tls
+            mountPath: /tls
+            readOnly: true
+
+  - it: should enable replication and cluster TLS directives
+    template: configmap.yaml
+    set:
+      architecture: cluster
+      tls.enabled: true
+      tls.existingSecret: valkey-tls
+    asserts:
+      - matchRegex:
+          path: data["valkey-primary.conf"]
+          pattern: "tls-replication yes"
+      - matchRegex:
+          path: data["valkey-replica.conf"]
+          pattern: "tls-replication yes"
+      - matchRegex:
+          path: data["valkey-cluster.conf"]
+          pattern: "tls-cluster yes"
+      - matchRegex:
+          path: data["valkey-cluster.conf"]
+          pattern: "tls-replication yes"
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "tls-port 26379"
+
+  - it: should mount TLS certificates on cluster nodes and init job
+    template: cluster-statefulset.yaml
+    set:
+      architecture: cluster
+      tls.enabled: true
+      tls.existingSecret: valkey-tls
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tls
+            mountPath: /tls
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls
+            secret:
+              secretName: valkey-tls
+
+  - it: should use TLS in cluster init commands
+    template: cluster-init-job.yaml
+    set:
+      architecture: cluster
+      tls.enabled: true
+      tls.existingSecret: valkey-tls
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "valkey-cli --tls --cacert /tls/ca.crt"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "-p 6379"
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tls
+            mountPath: /tls
+            readOnly: true
+
+  - it: should mount TLS certificates and use TLS in helm test
+    template: templates/tests/test-connection.yaml
+    set:
+      tls.enabled: true
+      tls.existingSecret: valkey-tls
+    asserts:
+      - contains:
+          path: spec.containers[0].env
+          content:
+            name: VALKEY_TLS_ARGS
+            value: --tls --cacert /tls/ca.crt
+      - contains:
+          path: spec.containers[0].volumeMounts
+          content:
+            name: tls
+            mountPath: /tls
+            readOnly: true

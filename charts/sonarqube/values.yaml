@@ -1,0 +1,416 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# SonarQube Helm Chart - Default Values
+# =============================================================================
+
+# -- Number of SonarQube pods. Community Build supports a single application node.
+replicaCount: 1
+
+# -- Override the chart name used in generated resource names.
+nameOverride: ""
+# -- Override the full release name used in generated resource names.
+fullnameOverride: ""
+# -- Labels added to all chart resources.
+commonLabels: {}
+# -- Kubernetes cluster DNS domain used when building bundled PostgreSQL JDBC URLs.
+clusterDomain: cluster.local
+
+image:
+  # -- SonarQube image repository. Uses the official Docker image.
+  repository: docker.io/library/sonarqube
+  # -- SonarQube Community Build image tag.
+  tag: "26.4.0.121862-community"
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Optional image pull secrets.
+imagePullSecrets: []
+
+containerPorts:
+  # -- SonarQube HTTP container port.
+  http: 9000
+
+service:
+  # -- Kubernetes Service type.
+  type: ClusterIP
+  # -- Service annotations.
+  annotations: {}
+  # -- Service HTTP port.
+  port: 9000
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ~
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: false
+  # -- ServiceAccount name. Empty uses the chart fullname when create=true.
+  name: ""
+  # -- ServiceAccount annotations.
+  annotations: {}
+  # -- Mount Kubernetes API credentials into the SonarQube pod.
+  automountServiceAccountToken: false
+
+sonarqube:
+  # -- Database mode: auto | embedded | external | postgresql. In auto mode, external settings win, then postgresql.enabled, then embedded evaluation mode.
+  databaseMode: auto
+  # -- HTTP context path, for example /sonar.
+  context: ""
+  # -- JVM options for the web process.
+  webJavaOpts: "-Xms256m -Xmx512m"
+  # -- JVM options for the compute engine process.
+  ceJavaOpts: "-Xms256m -Xmx512m"
+  # -- JVM options for embedded search.
+  searchJavaOpts: "-Xms512m -Xmx512m"
+  # -- Disable embedded search bootstrap checks. Keep true for k3d/evaluation; set false only after preparing production nodes.
+  esBootstrapChecksDisable: true
+  # -- Inline monitoring passcode. Prefer existingMonitoringPasscodeSecret or External Secrets for production.
+  monitoringPasscode: ""
+  # -- Existing Secret containing the monitoring passcode.
+  existingMonitoringPasscodeSecret: ""
+  # -- Secret key containing the monitoring passcode.
+  existingMonitoringPasscodeSecretKey: monitoring-passcode
+  # -- Extra environment variables for the SonarQube container.
+  extraEnv: []
+  # -- Extra envFrom entries for the SonarQube container.
+  extraEnvFrom: []
+  # -- Additional sonar.properties entries rendered into the configuration file.
+  sonarProperties: {}
+
+database:
+  external:
+    # -- JDBC URL used when sonarqube.databaseMode=external.
+    jdbcUrl: ""
+    # -- Database username used when sonarqube.databaseMode=external.
+    username: sonar
+    # -- Inline database password. Prefer existingSecret or External Secrets for production.
+    password: ""
+    # -- Existing Secret containing the external database password.
+    existingSecret: ""
+    # -- Secret key containing the external database password.
+    existingSecretPasswordKey: jdbc-password
+
+postgresql:
+  # -- Deploy HelmForge PostgreSQL as a subchart for SonarQube.
+  enabled: false
+  # -- PostgreSQL architecture from the HelmForge PostgreSQL chart.
+  architecture: standalone
+  auth:
+    # -- Database name created by the PostgreSQL subchart.
+    database: sonarqube
+    # -- Database username created by the PostgreSQL subchart.
+    username: sonar
+    # -- Database password. Leave empty to let the PostgreSQL subchart generate and persist it.
+    password: ""
+  standalone:
+    persistence:
+      # -- Enable PostgreSQL PVC for bundled database mode.
+      enabled: true
+      # -- Storage class for PostgreSQL PVC. Empty uses the cluster default.
+      storageClass: ""
+      # -- Access modes for PostgreSQL PVC.
+      accessModes:
+        - ReadWriteOnce
+      # -- PostgreSQL PVC size.
+      size: 20Gi
+
+externalSecrets:
+  # -- Render ExternalSecret resources for clusters running External Secrets Operator.
+  enabled: false
+  # -- ExternalSecret apiVersion.
+  apiVersion: external-secrets.io/v1
+  # -- ExternalSecret refresh interval.
+  refreshInterval: "1h"
+  secretStoreRef:
+    # -- SecretStore or ClusterSecretStore name. Required when externalSecrets.enabled=true.
+    name: ""
+    # -- Secret store kind.
+    kind: SecretStore
+  target:
+    # -- ExternalSecret target creation policy.
+    creationPolicy: Owner
+  database:
+    # -- Manage the external database password with External Secrets Operator.
+    enabled: false
+    # -- Target Secret name. Empty defaults to <release>-sonarqube-database.
+    targetName: ""
+    # -- Remote reference for the external database password.
+    passwordRemoteRef:
+      key: ""
+      property: ""
+      version: ""
+      decodingStrategy: ""
+      conversionStrategy: ""
+  monitoringPasscode:
+    # -- Manage the monitoring passcode with External Secrets Operator.
+    enabled: false
+    # -- Target Secret name. Empty defaults to <release>-sonarqube-monitoring.
+    targetName: ""
+    # -- Remote reference for the monitoring passcode.
+    remoteRef:
+      key: ""
+      property: ""
+      version: ""
+      decodingStrategy: ""
+      conversionStrategy: ""
+
+plugins:
+  # -- Download additional SonarQube plugin JARs before the main container starts.
+  enabled: false
+  image:
+    # -- Plugin installer image repository.
+    repository: docker.io/library/busybox
+    # -- Plugin installer image tag.
+    tag: "1.37"
+    # -- Plugin installer image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Resources for the plugin installer init container.
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  # -- List of plugin JARs to download into /opt/sonarqube/extensions/plugins.
+  install: []
+  # - name: sonar-auth-oidc
+  #   url: https://example.com/sonar-auth-oidc.jar
+
+communityBranchPlugin:
+  # -- Install and wire the SonarQube Community Branch Plugin.
+  enabled: false
+  # -- Community Branch Plugin version aligned with the SonarQube Community Build line.
+  version: "26.4.0"
+  # -- Override plugin JAR URL. Empty uses the release URL for communityBranchPlugin.version.
+  jarUrl: ""
+  # -- Override webapp ZIP URL. Empty uses the release URL for communityBranchPlugin.version.
+  webappUrl: ""
+
+waitForDatabase:
+  # -- Wait for bundled PostgreSQL TCP readiness before starting SonarQube.
+  enabled: true
+  image:
+    # -- Wait init container image repository.
+    repository: docker.io/library/busybox
+    # -- Wait init container image tag.
+    tag: "1.37"
+    # -- Wait init container image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Maximum wait time in seconds for PostgreSQL TCP readiness.
+  timeoutSeconds: 180
+  # -- Resources for the wait init container.
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+persistence:
+  data:
+    # -- Enable PVC for /opt/sonarqube/data.
+    enabled: true
+    # -- Existing PVC for /opt/sonarqube/data.
+    existingClaim: ""
+    # -- Storage class for data PVC. Empty uses the cluster default.
+    storageClass: ""
+    # -- Access modes for data PVC.
+    accessModes:
+      - ReadWriteOnce
+    # -- Size for data PVC.
+    size: 10Gi
+  extensions:
+    # -- Enable PVC for /opt/sonarqube/extensions.
+    enabled: true
+    # -- Existing PVC for /opt/sonarqube/extensions.
+    existingClaim: ""
+    # -- Storage class for extensions PVC. Empty uses the cluster default.
+    storageClass: ""
+    # -- Access modes for extensions PVC.
+    accessModes:
+      - ReadWriteOnce
+    # -- Size for extensions PVC.
+    size: 5Gi
+  logs:
+    # -- Enable PVC for /opt/sonarqube/logs.
+    enabled: false
+    # -- Existing PVC for /opt/sonarqube/logs.
+    existingClaim: ""
+    # -- Storage class for logs PVC. Empty uses the cluster default.
+    storageClass: ""
+    # -- Access modes for logs PVC.
+    accessModes:
+      - ReadWriteOnce
+    # -- Size for logs PVC.
+    size: 5Gi
+
+ingress:
+  # -- Render a Kubernetes Ingress.
+  enabled: false
+  # -- Ingress annotations.
+  annotations: {}
+  # -- Ingress class name.
+  ingressClassName: ""
+  # -- Ingress hosts and paths.
+  hosts:
+    - host: sonarqube.local
+      paths:
+        - path: /
+          pathType: Prefix
+  # -- Ingress TLS entries.
+  tls: []
+
+gatewayAPI:
+  # -- Render a Gateway API HTTPRoute. Requires Gateway API CRDs and an existing Gateway.
+  enabled: false
+  # -- HTTPRoute apiVersion.
+  apiVersion: gateway.networking.k8s.io/v1
+  # -- HTTPRoute annotations.
+  annotations: {}
+  # -- HTTPRoute parentRefs.
+  parentRefs: []
+  # -- HTTPRoute hostnames.
+  hostnames: []
+  # -- HTTPRoute matches.
+  matches:
+    - path:
+        type: PathPrefix
+        value: /
+  # -- HTTPRoute filters.
+  filters: []
+
+networkPolicy:
+  # -- Create a NetworkPolicy for the SonarQube pod.
+  enabled: false
+  ingress:
+    # -- Allow ingress from pods in the same namespace.
+    allowSameNamespace: true
+    # -- Additional ingress "from" rules.
+    extraFrom: []
+  egress:
+    # -- Add explicit egress rules. Disabled keeps CNI default egress behavior.
+    enabled: false
+    # -- Allow DNS egress.
+    allowDNS: true
+    # -- Allow HTTP egress for plugin downloads and package endpoints.
+    allowHTTP: true
+    # -- Allow HTTPS egress for plugin downloads and external services.
+    allowHTTPS: true
+    # -- Allow PostgreSQL egress for bundled or external database access.
+    allowPostgreSQL: true
+    # -- PostgreSQL egress port.
+    postgresqlPort: 5432
+    # -- Additional egress "to" rules.
+    extraTo: []
+
+# -- SonarQube container resources.
+resources:
+  requests:
+    cpu: 500m
+    memory: 2Gi
+  limits:
+    cpu: 2
+    memory: 3Gi
+
+# -- Pod-level security context.
+podSecurityContext:
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- SonarQube container security context.
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+startupProbe:
+  # -- Enable startup probe.
+  enabled: true
+  # -- Startup probe HTTP path.
+  path: /api/system/status
+  initialDelaySeconds: 30
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 80
+
+livenessProbe:
+  # -- Enable liveness probe.
+  enabled: true
+  # -- Liveness probe HTTP path.
+  path: /api/system/status
+  initialDelaySeconds: 180
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+readinessProbe:
+  # -- Enable readiness probe.
+  enabled: true
+  # -- Readiness probe HTTP path.
+  path: /api/system/status
+  initialDelaySeconds: 60
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 20
+
+pdb:
+  # -- Render a PodDisruptionBudget.
+  enabled: false
+  # -- Minimum available pods when PDB is enabled.
+  minAvailable: 1
+
+# -- Labels added to the SonarQube pod template.
+podLabels: {}
+# -- Annotations added to the SonarQube pod template.
+podAnnotations: {}
+# -- Annotations added to top-level resources that support annotations.
+annotations: {}
+# -- Node selector for SonarQube pods.
+nodeSelector: {}
+# -- Tolerations for SonarQube pods.
+tolerations: []
+# -- Affinity for SonarQube pods.
+affinity: {}
+# -- Topology spread constraints for SonarQube pods.
+topologySpreadConstraints: []
+# -- Priority class name for SonarQube pods.
+priorityClassName: ""
+# -- Termination grace period for SonarQube pods.
+terminationGracePeriodSeconds: 120
+
+# -- Extra init containers appended to the pod.
+extraInitContainers: []
+# -- Extra sidecar containers appended to the pod.
+extraContainers: []
+# -- Extra volumes appended to the pod.
+extraVolumes: []
+# -- Extra volume mounts appended to the SonarQube container.
+extraVolumeMounts: []
+
+tests:
+  # -- Render Helm test resources.
+  enabled: true
+  image:
+    # -- Helm test image repository.
+    repository: docker.io/library/busybox
+    # -- Helm test image tag.
+    tag: "1.37"
+    # -- Helm test image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Resources for Helm test pods.
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi

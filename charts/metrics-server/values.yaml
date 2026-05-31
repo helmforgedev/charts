@@ -1,0 +1,253 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# Metrics Server Helm Chart - Default Values
+# =============================================================================
+
+# -- Number of Metrics Server replicas
+replicaCount: 1
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+# -- Override the full release name used in resource names
+fullnameOverride: ""
+# -- Labels added to every resource created by this chart
+commonLabels: {}
+
+image:
+  # -- Official Metrics Server image repository
+  repository: registry.k8s.io/metrics-server/metrics-server
+  # -- Metrics Server image tag
+  tag: "v0.8.1"
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+serviceAccount:
+  # -- Create a ServiceAccount for Metrics Server
+  create: true
+  # -- ServiceAccount name override
+  name: ""
+  # -- ServiceAccount annotations
+  annotations: {}
+  # -- Automount the ServiceAccount token. Metrics Server needs Kubernetes API access.
+  automountServiceAccountToken: true
+
+rbac:
+  # -- Create RBAC required for Metrics API aggregation
+  create: true
+  # -- Create legacy PodSecurityPolicy resources when supported by the cluster
+  pspEnabled: false
+  aggregatedMetricsReader:
+    # -- Create the aggregated metrics reader ClusterRole
+    create: true
+
+apiService:
+  # -- Create the v1beta1.metrics.k8s.io APIService
+  create: true
+  # -- APIService annotations
+  annotations: {}
+  # -- Skip APIService backend TLS verification unless caBundle is provided
+  insecureSkipTLSVerify: true
+  # -- APIService CA bundle for backend verification
+  caBundle: ""
+  # -- APIService group priority
+  groupPriorityMinimum: 100
+  # -- APIService version priority
+  versionPriority: 100
+
+# -- Metrics Server secure serving container port
+containerPort: 10250
+hostNetwork:
+  # -- Use host networking for clusters where the API server cannot reach pod IPs
+  enabled: false
+
+# -- Pod DNS policy override. Defaults to ClusterFirstWithHostNet when hostNetwork is enabled.
+dnsPolicy: ""
+# -- PriorityClass assigned to the Metrics Server pod
+priorityClassName: system-cluster-critical
+# -- Deployment revision history limit
+revisionHistoryLimit: 10
+
+# -- Deployment update strategy
+deploymentStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    # -- Max unavailable pods during updates. With hostNetwork enabled, the chart uses 1 when this default is unchanged to avoid host port rollout deadlocks.
+    maxUnavailable: 0
+    # -- Max surge pods during updates. With hostNetwork enabled, the chart uses 0 when this default is unchanged to avoid host port rollout deadlocks.
+    maxSurge: 1
+
+metricsServer:
+  # -- Directory used by Metrics Server for generated serving certificates
+  certDir: /tmp
+  # -- Metrics scrape resolution
+  metricResolution: 15s
+  kubelet:
+    # -- Ordered node address types used to connect to kubelets
+    preferredAddressTypes:
+      - InternalIP
+      - ExternalIP
+      - Hostname
+    # -- Use the kubelet port reported in Node status
+    useNodeStatusPort: true
+    # -- Disable kubelet TLS verification. Intended only for local clusters such as k3d/kind.
+    insecureTLS: false
+    # -- Path to a kubelet certificate authority bundle mounted into the pod
+    certificateAuthority: ""
+    # -- Kubelet request timeout, for example 10s
+    requestTimeout: ""
+  # -- Additional raw Metrics Server arguments
+  extraArgs: []
+
+service:
+  # -- Kubernetes Service type
+  type: ClusterIP
+  # -- Service annotations
+  annotations: {}
+  # -- Extra Service labels
+  labels: {}
+  # -- Service port exposed to the APIService
+  port: 443
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ~
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
+
+# -- Metrics Server resource requests and limits
+resources:
+  requests:
+    cpu: 100m
+    memory: 200Mi
+  limits:
+    cpu: 500m
+    memory: 500Mi
+
+# -- Pod-level security context
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container-level security context
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  capabilities:
+    drop:
+      - ALL
+
+# -- Liveness probe configuration
+livenessProbe:
+  enabled: true
+  path: /livez
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+
+# -- Readiness probe configuration
+readinessProbe:
+  enabled: true
+  path: /readyz
+  initialDelaySeconds: 20
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+
+# -- PodDisruptionBudget configuration
+pdb:
+  enabled: false
+  minAvailable: ""
+  maxUnavailable: 1
+  unhealthyPodEvictionPolicy: ""
+
+# -- NetworkPolicy configuration for Metrics Server traffic
+networkPolicy:
+  enabled: false
+  ingress:
+    allowSameNamespace: true
+    # -- Allow API aggregation traffic from control-plane/node addresses.
+    allowAPIServer: true
+    # -- CIDRs allowed to reach the Metrics Server aggregated API endpoint.
+    apiServerCidrs:
+      - 0.0.0.0/0
+      - ::/0
+    extraFrom: []
+  egress:
+    enabled: false
+    allowKubelet: true
+    kubeletPort: 10250
+    # -- Node CIDRs allowed for kubelet scrapes. Override to cluster node/pod network ranges in restricted environments.
+    kubeletCidrs:
+      - 0.0.0.0/0
+      - ::/0
+    allowAPIServer: true
+    apiServerPort: 443
+    # -- API server/control-plane CIDRs allowed for Kubernetes API watches.
+    apiServerCidrs:
+      - 0.0.0.0/0
+      - ::/0
+    allowDNS: true
+    extraTo: []
+
+# -- Prometheus Operator ServiceMonitor configuration
+serviceMonitor:
+  enabled: false
+  apiVersion: monitoring.coreos.com/v1
+  additionalLabels: {}
+  interval: 1m
+  scrapeTimeout: 10s
+  metricRelabelings: []
+  relabelings: []
+
+# -- Extra pod labels
+podLabels: {}
+# -- Extra pod annotations
+podAnnotations: {}
+# -- Extra Deployment annotations
+deploymentAnnotations: {}
+# -- Node selector for Metrics Server pods
+nodeSelector:
+  kubernetes.io/os: linux
+# -- Pod tolerations
+tolerations: []
+# -- Pod affinity rules
+affinity: {}
+# -- Pod topology spread constraints
+topologySpreadConstraints: []
+# -- Scheduler name override
+schedulerName: ""
+
+# -- Temporary volume used for generated serving certificates
+tmpVolume:
+  emptyDir: {}
+
+# -- Extra pod volumes
+extraVolumes: []
+# -- Extra volume mounts for the Metrics Server container
+extraVolumeMounts: []
+# -- Extra sidecar containers
+extraContainers: []
+
+tests:
+  # -- Enable Helm test pod
+  enabled: true
+  image:
+    # -- Helm test image repository
+    repository: docker.io/library/busybox
+    # -- Helm test image tag
+    tag: "1.37"
+    # -- Helm test image pull policy
+    pullPolicy: IfNotPresent
+  # -- Helm test pod resources
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi

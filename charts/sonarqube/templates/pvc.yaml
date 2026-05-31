@@ -1,0 +1,22 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- range $name, $persistence := dict "data" .Values.persistence.data "extensions" .Values.persistence.extensions "logs" .Values.persistence.logs }}
+{{- if and $persistence.enabled (not $persistence.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "sonarqube.fullname" $ }}-{{ $name }}
+  labels:
+    {{- include "sonarqube.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: sonarqube
+spec:
+  accessModes:
+    {{- toYaml $persistence.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ $persistence.size }}
+  {{- with $persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+{{- end }}
+{{- end }}

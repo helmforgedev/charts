@@ -1,0 +1,285 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/configmap.yaml
+  - templates/secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should use the official image and config-test init container
+    set:
+      auth.clientID: test-client
+      auth.clientSecret: test-secret
+      auth.cookieSecret: "0123456789abcdef0123456789abcdef"
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].args[1]
+          value: --config-test
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: quay.io/oauth2-proxy/oauth2-proxy:v7.15.2
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+        template: templates/deployment.yaml
+
+  - it: should use an existing secret without rendering a chart-managed secret
+    set:
+      auth.existingSecret: oauth2-proxy-existing
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
+          value: oauth2-proxy-existing
+        template: templates/deployment.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/secret.yaml
+
+  - it: should fail when chart-managed credentials are disabled without another source
+    set:
+      auth.createSecret: false
+      auth.existingSecret: ""
+      externalSecrets.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: auth.createSecret=false requires auth.existingSecret or externalSecrets.enabled=true so OAuth2 Proxy credentials are available
+        template: templates/deployment.yaml
+
+  - it: should reject pod labels that override selector labels
+    set:
+      podLabels:
+        app.kubernetes.io/instance: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels cannot override reserved selector label app.kubernetes.io/instance
+        template: templates/deployment.yaml
+
+  - it: should reject pod labels that override selector name
+    set:
+      podLabels:
+        app.kubernetes.io/name: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels cannot override reserved selector label app.kubernetes.io/name
+        template: templates/deployment.yaml
+
+  - it: should allow non-selector pod labels
+    set:
+      podLabels:
+        team: platform
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.team
+          value: platform
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/instance"]
+          value: test
+        template: templates/deployment.yaml
+
+  - it: should mount optional config secrets in config-test init container
+    set:
+      auth.clientID: test-client
+      auth.clientSecret: test-secret
+      auth.cookieSecret: "0123456789abcdef0123456789abcdef"
+      authenticatedEmailsFile.enabled: true
+      authenticatedEmailsFile.emails:
+        - user@example.com
+      auth.createSecret: false
+      externalSecrets.enabled: true
+      alphaConfig.enabled: true
+      alphaConfig.config:
+        injectRequestHeaders: []
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: authenticated-emails
+            mountPath: /etc/oauth2-proxy/authenticated-emails
+            readOnly: true
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: alpha-config
+            mountPath: /etc/oauth2-proxy/alpha
+            readOnly: true
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: --alpha-config=/etc/oauth2-proxy/alpha/alpha-config.yaml
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: --authenticated-emails-file=/etc/oauth2-proxy/authenticated-emails/restricted_user_access
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --authenticated-emails-file=/etc/oauth2-proxy/authenticated-emails/restricted_user_access
+        template: templates/deployment.yaml
+      - notContains:
+          path: spec.template.spec.initContainers[0].args
+          content: --config=/etc/oauth2-proxy/oauth2_proxy.cfg
+        template: templates/deployment.yaml
+      - notContains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: config
+            mountPath: /etc/oauth2-proxy
+            readOnly: true
+        template: templates/deployment.yaml
+      - notContains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: OAUTH2_PROXY_CLIENT_ID
+        template: templates/deployment.yaml
+      - notContains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: OAUTH2_PROXY_CLIENT_SECRET
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: OAUTH2_PROXY_COOKIE_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: test-oauth2-proxy-auth
+                key: cookie-secret
+        template: templates/deployment.yaml
+      - matchRegex:
+          path: stringData["alpha-config.yaml"]
+          pattern: 'bindAddress: 0\.0\.0\.0:4180'
+        template: templates/secret.yaml
+        documentIndex: 1
+      - matchRegex:
+          path: stringData["alpha-config.yaml"]
+          pattern: 'metricsServer:\n\s+bindAddress: 0\.0\.0\.0:44180'
+        template: templates/secret.yaml
+        documentIndex: 1
+
+  - it: should preserve explicit alpha listener config
+    set:
+      auth.createSecret: false
+      externalSecrets.enabled: true
+      alphaConfig.enabled: true
+      alphaConfig.config:
+        server:
+          bindAddress: 0.0.0.0:8080
+        metricsServer:
+          bindAddress: "-"
+    asserts:
+      - matchRegex:
+          path: stringData["alpha-config.yaml"]
+          pattern: 'server:\n\s+bindAddress: 0\.0\.0\.0:8080'
+        template: templates/secret.yaml
+        documentIndex: 0
+      - matchRegex:
+          path: stringData["alpha-config.yaml"]
+          pattern: "metricsServer:\\n\\s+bindAddress: ['\"]-['\"]"
+        template: templates/secret.yaml
+        documentIndex: 0
+
+  - it: should pass reverse proxy trust flags in alpha mode
+    set:
+      auth.createSecret: false
+      externalSecrets.enabled: true
+      alphaConfig.enabled: true
+      alphaConfig.config:
+        providers: []
+        upstreamConfig:
+          upstreams:
+            - id: static
+              path: /
+              static: true
+              staticCode: 200
+      config.reverseProxy.enabled: true
+      config.reverseProxy.realClientIpHeader: X-Forwarded-For
+      config.reverseProxy.trustedProxyIps:
+        - 10.42.0.0/16
+        - fd42::/64
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: --reverse-proxy=true
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: --real-client-ip-header=X-Forwarded-For
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: --trusted-proxy-ip=10.42.0.0/16
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: --trusted-proxy-ip=fd42::/64
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --reverse-proxy=true
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --real-client-ip-header=X-Forwarded-For
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --trusted-proxy-ip=10.42.0.0/16
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --trusted-proxy-ip=fd42::/64
+        template: templates/deployment.yaml
+
+  - it: should mirror runtime escape hatches in config-test init container
+    set:
+      auth.clientID: test-client
+      auth.clientSecret: test-secret
+      auth.cookieSecret: "0123456789abcdef0123456789abcdef"
+      extraArgs:
+        oidc-issuer-url: https://issuer.example.test
+      extraEnv:
+        - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+          value: "true"
+      envFrom:
+        - secretRef:
+            name: oauth2-extra-env
+      extraVolumes:
+        - name: custom-ca
+          secret:
+            secretName: custom-ca
+      extraVolumeMounts:
+        - name: custom-ca
+          mountPath: /etc/ssl/custom
+          readOnly: true
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: --oidc-issuer-url=https://issuer.example.test
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+            value: "true"
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.initContainers[0].envFrom[0].secretRef.name
+          value: oauth2-extra-env
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: custom-ca
+            mountPath: /etc/ssl/custom
+            readOnly: true
+        template: templates/deployment.yaml

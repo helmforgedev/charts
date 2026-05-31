@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Helm Test
+templates:
+  - templates/tests/test-connection.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render root health check by default
+    asserts:
+      - equal:
+          path: spec.automountServiceAccountToken
+          value: false
+      - matchRegex:
+          path: spec.containers[0].command[2]
+          pattern: "http://test-jupyterhub:80/hub/health"
+
+  - it: should prefix health check with hub baseUrl
+    set:
+      hub.baseUrl: /notebooks/
+    asserts:
+      - matchRegex:
+          path: spec.containers[0].command[2]
+          pattern: "http://test-jupyterhub:80/notebooks/hub/health"
+
+  - it: should keep helm test pod name within DNS label length
+    set:
+      fullnameOverride: jupyterhub-with-a-very-long-name-that-fills-the-dns-label-limit
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: "^.{1,63}$"
+      - matchRegex:
+          path: metadata.name
+          pattern: "-test-connection$"

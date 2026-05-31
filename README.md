@@ -102,7 +102,7 @@ Browse the full catalog with descriptions, install commands, and playground conf
 
 Common categories include:
 
-- **Databases and data stores** — PostgreSQL, MySQL, MariaDB, MongoDB, Redis, Kafka, ZooKeeper, RabbitMQ, Elasticsearch, and Druid.
+- **Databases and data stores** — PostgreSQL, MySQL, MariaDB, MongoDB, Redis, Valkey, Kafka, ZooKeeper, RabbitMQ, Elasticsearch, and Druid.
 - **Identity and access** — Keycloak, Authelia, and application charts with ingress/auth integration patterns.
 - **Automation and operations** — n8n, Cronicle, FastMCP Server, Cloudflared, Velero, DDNS Updater, and Envoy Gateway.
 - **Content and community apps** — WordPress, Ghost, Drupal, Gitea, Wallabag, Castopod, Komga, OpenWebUI, and more.

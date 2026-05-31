@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: kibana - config
+templates:
+  - templates/configmap.yaml
+  - templates/secret.yaml
+
+tests:
+  - it: renders kibana.yml with Elasticsearch hosts
+    template: templates/configmap.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["kibana.yml"]
+          pattern: "elasticsearch.hosts:"
+      - matchRegex:
+          path: data["kibana.yml"]
+          pattern: "http://elasticsearch:9200"
+
+  - it: renders TLS configuration
+    template: templates/configmap.yaml
+    set:
+      elasticsearch:
+        hosts:
+          - https://elasticsearch:9200
+        tls:
+          enabled: true
+          verificationMode: certificate
+          certificateAuthoritiesSecret: elasticsearch-ca
+    asserts:
+      - matchRegex:
+          path: data["kibana.yml"]
+          pattern: "elasticsearch.ssl.verificationMode: \"certificate\""
+
+  - it: creates a managed secret for inline auth and encryption keys
+    template: templates/secret.yaml
+    set:
+      elasticsearch:
+        auth:
+          type: basic
+          password: super-secret
+      encryptionKeys:
+        securityKey: "01234567890123456789012345678901"
+        reportingKey: "abcdefghijklmnopqrstuvwxyz123456"
+        encryptedSavedObjectsKey: "savedobjects01234567890123456789"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Secret
+      - equal:
+          path: stringData.elasticsearch-password
+          value: super-secret

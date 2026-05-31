@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+# Production OpenReel Video with Ingress, dual-stack Service, and HA replicas
+
+replicaCount: 2
+
+service:
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+    - IPv4
+    - IPv6
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: openreel.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: openreel-video-tls
+      hosts:
+        - openreel.example.com
+
+networkPolicy:
+  enabled: true
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: openreel-video

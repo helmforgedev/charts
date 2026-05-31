@@ -1,0 +1,20 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sonarqube.configMapName" . }}
+  labels:
+    {{- include "sonarqube.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sonarqube
+data:
+  sonar.properties: |
+    {{- if .Values.sonarqube.context }}
+    sonar.web.context={{ .Values.sonarqube.context }}
+    {{- end }}
+    {{- if .Values.communityBranchPlugin.enabled }}
+    sonar.web.javaAdditionalOpts=-javaagent:/opt/sonarqube/extensions/plugins/{{ include "sonarqube.communityBranchJarName" . }}=web
+    sonar.ce.javaAdditionalOpts=-javaagent:/opt/sonarqube/extensions/plugins/{{ include "sonarqube.communityBranchJarName" . }}=ce
+    {{- end }}
+    {{- range $key, $value := .Values.sonarqube.sonarProperties }}
+    {{ $key }}={{ $value }}
+    {{- end }}

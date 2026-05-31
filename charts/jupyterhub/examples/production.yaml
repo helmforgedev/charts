@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: Apache-2.0
+auth:
+  type: custom
+
+hub:
+  extraConfig: |
+    c.JupyterHub.authenticator_class = "nativeauthenticator.NativeAuthenticator"
+    # Set c.JupyterHub.db_url here before increasing hub.replicaCount.
+  cookieSecret:
+    # Required for HA Hubs when hub.persistence.enabled=false.
+    existingSecret: ""
+  persistence:
+    enabled: true
+    storageClass: fast-retain
+    size: 20Gi
+
+singleuser:
+  storage:
+    enabled: true
+    storageClass: fast-retain
+    capacity: 20Gi
+  profiles:
+    - display_name: Standard Lab
+      slug: standard
+      default: true
+      kubespawner_override:
+        default_url: /lab
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: hub.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: jupyterhub-tls
+      hosts:
+        - hub.example.com
+
+networkPolicy:
+  enabled: true
+
+metrics:
+  authenticatePrometheus: true
+  serviceMonitor:
+    # Enable only after configuring a private scrape path or explicitly
+    # accepting anonymous public /hub/metrics with
+    # metrics.allowPublicUnauthenticatedPrometheus=true.
+    enabled: false
+    labels:
+      release: prometheus

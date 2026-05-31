@@ -1,0 +1,257 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/configmap.yaml
+  - templates/secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a hardened Deployment
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-sonarqube
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/library/sonarqube:26.4.0.121862-community
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+
+  - it: should configure JVM and status probes by default
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SONAR_WEB_PORT
+            value: "9000"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SONAR_ES_BOOTSTRAP_CHECKS_DISABLE
+            value: "true"
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /api/system/status
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /api/system/status
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: 'grep -q ''"status":"UP"'''
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: "curl -fsS"
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: "wget"
+
+  - it: should keep SonarQube web port in sync with the container port
+    template: templates/deployment.yaml
+    set:
+      containerPorts.http: 9100
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 9100
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SONAR_WEB_PORT
+            value: "9100"
+
+  - it: should prefix probes with SonarQube context
+    template: templates/deployment.yaml
+    set:
+      sonarqube.context: /sonar
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /sonar/api/system/status
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /sonar/api/system/status
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: "http://127\\.0\\.0\\.1:\\$\\{SONAR_WEB_PORT\\}/sonar/api/system/status"
+
+  - it: should not duplicate context when probe path already includes it
+    template: templates/deployment.yaml
+    set:
+      sonarqube.context: /sonar
+      startupProbe.path: /sonar/api/system/status
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /sonar/api/system/status
+
+  - it: should reference external database credentials from generated Secret
+    template: templates/deployment.yaml
+    set:
+      sonarqube.databaseMode: external
+      database.external.jdbcUrl: jdbc:postgresql://postgres:5432/sonarqube
+      database.external.username: sonar
+      database.external.password: secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SONAR_JDBC_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                  name: test-sonarqube-secrets
+                  key: jdbc-password
+
+  - it: should configure bundled HelmForge PostgreSQL when enabled
+    template: templates/deployment.yaml
+    set:
+      postgresql.enabled: true
+      postgresql.auth.database: sonarqube
+      postgresql.auth.username: sonar
+      postgresql.auth.password: secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SONAR_JDBC_URL
+            value: jdbc:postgresql://test-postgresql.default.svc.cluster.local:5432/sonarqube
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SONAR_JDBC_USERNAME
+            value: sonar
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SONAR_JDBC_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-postgresql-auth
+                key: user-password
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-database
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: 'nc -z "test-postgresql.default.svc.cluster.local" 5432'
+
+  - it: should honor bundled PostgreSQL fullnameOverride and secret key
+    template: templates/deployment.yaml
+    set:
+      sonarqube.databaseMode: postgresql
+      postgresql.enabled: true
+      postgresql.fullnameOverride: platform-sonar-postgresql
+      postgresql.auth.database: sonar
+      postgresql.auth.username: sonar
+      postgresql.auth.existingSecret: platform-sonar-db
+      postgresql.auth.existingSecretUserPasswordKey: password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SONAR_JDBC_URL
+            value: jdbc:postgresql://platform-sonar-postgresql.default.svc.cluster.local:5432/sonar
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SONAR_JDBC_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: platform-sonar-db
+                key: password
+
+  - it: should use existing PVC names when provided
+    template: templates/deployment.yaml
+    set:
+      persistence.data.existingClaim: sonar-data
+      persistence.extensions.existingClaim: sonar-extensions
+      persistence.logs.enabled: true
+      persistence.logs.existingClaim: sonar-logs
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          value: sonar-data
+      - equal:
+          path: spec.template.spec.volumes[1].persistentVolumeClaim.claimName
+          value: sonar-extensions
+      - equal:
+          path: spec.template.spec.volumes[2].persistentVolumeClaim.claimName
+          value: sonar-logs
+
+  - it: should install plugins and patch webapp when community branch plugin is enabled
+    template: templates/deployment.yaml
+    set:
+      plugins.enabled: true
+      plugins.install:
+        - name: sonar-auth-oidc
+          url: https://example.com/sonar-auth-oidc.jar
+      communityBranchPlugin.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: install-plugins
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: sonarqube-community-branch-plugin-26.4.0.jar
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "rm -f /extensions/plugins/sonarqube-community-branch-plugin-\\*.jar"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: 'chmod g=u "\$\{branch_plugin\}"'
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "find /web -mindepth 1 -exec chmod g=u"
+      - notMatchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "find /extensions/plugins"
+      - notMatchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "chmod -R g=u /extensions /web"
+      - exists:
+          path: spec.template.spec.containers[0].volumeMounts[6]
+
+  - it: should preserve selector labels when podLabels uses selector keys
+    template: templates/deployment.yaml
+    set:
+      podLabels:
+        app.kubernetes.io/component: overridden
+        app.kubernetes.io/name: wrong
+        custom: retained
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/component"]
+          value: sonarqube
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/name"]
+          value: sonarqube
+      - equal:
+          path: spec.template.metadata.labels.custom
+          value: retained
+
+  - it: should render community branch Java agent properties
+    template: templates/configmap.yaml
+    set:
+      communityBranchPlugin.enabled: true
+    asserts:
+      - matchRegex:
+          path: data["sonar.properties"]
+          pattern: sonar\.web\.javaAdditionalOpts=-javaagent:/opt/sonarqube/extensions/plugins/sonarqube-community-branch-plugin-26\.4\.0\.jar=web
+      - matchRegex:
+          path: data["sonar.properties"]
+          pattern: sonar\.ce\.javaAdditionalOpts=-javaagent:/opt/sonarqube/extensions/plugins/sonarqube-community-branch-plugin-26\.4\.0\.jar=ce
