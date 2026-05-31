@@ -60,7 +60,26 @@ tests:
     asserts:
       - equal:
           path: metadata.name
-          value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+  - it: keeps long StatefulSet name stable across ordinal digit boundaries
+    template: statefulset.yaml
+    set:
+      replicaCount: 9
+      fullnameOverride: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    asserts:
+      - equal:
+          path: metadata.name
+          value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+  - it: rejects replica counts that exceed reserved StatefulSet ordinal budget
+    template: statefulset.yaml
+    set:
+      replicaCount: 10001
+      allowEvenReplicas: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCount must be at most 10000 because StatefulSet pod DNS labels reserve room for ordinal suffixes"
 
   - it: mounts auth secret when SASL client auth is enabled
     template: statefulset.yaml

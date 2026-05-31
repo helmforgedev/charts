@@ -72,8 +72,7 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 
 {{- define "zookeeper.statefulSetName" -}}
-{{- $ordinalSuffix := printf "-%d" (sub (.Values.replicaCount | int) 1) -}}
-{{- include "zookeeper.fullname" . | trunc (int (sub 63 (len $ordinalSuffix))) | trimSuffix "-" -}}
+{{- include "zookeeper.fullname" . | trunc 58 | trimSuffix "-" -}}
 {{- end -}}
 
 {{- define "zookeeper.metricsServiceName" -}}
@@ -191,6 +190,9 @@ app.kubernetes.io/part-of: helmforge
 {{- define "zookeeper.validate" -}}
 {{- if lt (.Values.replicaCount | int) 1 -}}
 {{- fail "replicaCount must be at least 1" -}}
+{{- end -}}
+{{- if gt (.Values.replicaCount | int) 10000 -}}
+{{- fail "replicaCount must be at most 10000 because StatefulSet pod DNS labels reserve room for ordinal suffixes" -}}
 {{- end -}}
 {{- if and (not .Values.allowEvenReplicas) (gt (.Values.replicaCount | int) 1) (eq (mod (.Values.replicaCount | int) 2) 0) -}}
 {{- fail "replicaCount must be odd for quorum safety unless allowEvenReplicas=true" -}}
