@@ -1,0 +1,34 @@
+{{- $databaseMode := include "sonarqube.databaseMode" . }}
+SonarQube Community Build has been deployed.
+
+Service:
+  http://{{ include "sonarqube.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.service.port }}{{ .Values.sonarqube.context }}
+
+Database:
+{{- if eq $databaseMode "embedded" }}
+  mode: embedded
+  status: evaluation only; use bundled or external PostgreSQL for durable environments
+{{- else if eq $databaseMode "postgresql" }}
+  mode: bundled HelmForge PostgreSQL
+  jdbc: {{ include "sonarqube.postgresqlJdbcUrl" . }}
+  secret: {{ include "sonarqube.databaseSecretName" . }} / {{ include "sonarqube.databaseSecretKey" . }}
+{{- else }}
+  mode: external PostgreSQL
+  jdbc: {{ .Values.database.external.jdbcUrl }}
+  secret: {{ include "sonarqube.databaseSecretName" . }} / {{ include "sonarqube.databaseSecretKey" . }}
+{{- end }}
+
+Health:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "sonarqube.fullname" . }} 9000:{{ .Values.service.port }}
+  curl -fsS http://127.0.0.1:9000{{ include "sonarqube.probePath" (dict "root" . "path" "/api/system/status") }}
+
+Validation:
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+  kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "sonarqube.fullname" . }}
+
+{{- if .Values.communityBranchPlugin.enabled }}
+Community branch plugin:
+  enabled: true
+  version: {{ .Values.communityBranchPlugin.version }}
+  Keep the plugin version aligned with the SonarQube Community Build version.
+{{- end }}
