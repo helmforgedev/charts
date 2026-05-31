@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "tomcat Helm Chart Values",
+  "description": "Default values for the Apache Tomcat Helm chart.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "replicaCount": { "type": "integer", "minimum": 1 },
+    "nameOverride": { "type": "string" },
+    "fullnameOverride": { "type": "string" },
+    "commonLabels": { "type": "object" },
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": { "type": "string" },
+        "tag": { "type": "string" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "imagePullSecrets": { "type": "array", "items": { "type": "object" } },
+    "containerPorts": {
+      "type": "object",
+      "properties": {
+        "http": { "type": "integer" },
+        "jmx": { "type": "integer" }
+      }
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+        "annotations": { "type": "object" },
+        "ports": {
+          "type": "object",
+          "properties": {
+            "http": { "type": "integer" },
+            "jmx": { "type": "integer" },
+            "jmxRmi": { "type": "integer" }
+          }
+        },
+        "ipFamilyPolicy": {
+          "type": ["string", "null"],
+          "enum": [null, "SingleStack", "PreferDualStack", "RequireDualStack"]
+        },
+        "ipFamilies": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["IPv4", "IPv6"] },
+          "maxItems": 2
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "create": { "type": "boolean" },
+        "name": { "type": "string" },
+        "annotations": { "type": "object" },
+        "automountServiceAccountToken": { "type": "boolean" }
+      }
+    },
+    "tomcat": {
+      "type": "object",
+      "properties": {
+        "catalinaOpts": { "type": "string" },
+        "javaOpts": { "type": "string" },
+        "serverXml": { "type": "string" },
+        "existingServerXmlConfigMap": { "type": "string" },
+        "extraEnv": { "type": "array", "items": { "type": "object" } },
+        "extraEnvFrom": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "webapps": {
+      "type": "object",
+      "properties": {
+        "mountPath": { "type": "string" },
+        "copyImageContent": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" }
+          }
+        },
+        "persistence": { "$ref": "#/definitions/persistence" },
+        "defaultRoot": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "initImage": { "type": "object" },
+            "resources": { "type": "object" },
+            "index": { "type": "string" },
+            "health": { "type": "string" }
+          }
+        }
+      }
+    },
+    "logs": {
+      "type": "object",
+      "properties": {
+        "persistence": { "$ref": "#/definitions/persistence" }
+      }
+    },
+    "jmx": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "port": { "type": "integer" },
+        "rmiPort": { "type": "integer" },
+        "authenticate": { "type": "boolean" },
+        "ssl": { "type": "boolean" },
+        "hostname": { "type": "string" },
+        "extraOpts": { "type": "string" }
+      }
+    },
+    "ingress": { "type": "object" },
+    "gatewayAPI": { "type": "object" },
+    "networkPolicy": { "type": "object" },
+    "resources": { "type": "object" },
+    "podSecurityContext": { "type": "object" },
+    "securityContext": { "type": "object" },
+    "startupProbe": { "$ref": "#/definitions/probe" },
+    "livenessProbe": { "$ref": "#/definitions/probe" },
+    "readinessProbe": { "$ref": "#/definitions/probe" },
+    "autoscaling": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minReplicas": { "type": "integer" },
+        "maxReplicas": { "type": "integer" },
+        "targetCPUUtilizationPercentage": { "type": "integer" }
+      }
+    },
+    "pdb": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minAvailable": { "type": ["integer", "string"] }
+      }
+    },
+    "tests": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "image": { "type": "object" },
+        "resources": { "type": "object" }
+      }
+    }
+  },
+  "definitions": {
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "existingClaim": { "type": "string" },
+        "storageClass": { "type": "string" },
+        "accessModes": { "type": "array", "items": { "type": "string" } },
+        "size": { "type": "string" }
+      }
+    },
+    "probe": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "mode": { "type": "string", "enum": ["http", "tcp"] },
+        "path": { "type": "string" },
+        "initialDelaySeconds": { "type": "integer" },
+        "periodSeconds": { "type": "integer" },
+        "timeoutSeconds": { "type": "integer" },
+        "failureThreshold": { "type": "integer" }
+      }
+    }
+  }
+}

@@ -1,0 +1,229 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "tomcat.validate" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tomcat.fullname" . }}
+  labels:
+    {{- include "tomcat.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tomcat
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "tomcat.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: tomcat
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "tomcat.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: tomcat
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "tomcat.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if or .Values.webapps.copyImageContent.enabled .Values.webapps.defaultRoot.enabled .Values.extraInitContainers }}
+      initContainers:
+        {{- if .Values.webapps.copyImageContent.enabled }}
+        - name: copy-image-webapps
+          image: {{ include "tomcat.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-ec"]
+          args:
+            - |
+              if [ -d "{{ .Values.webapps.mountPath }}" ] && [ ! -f /webapps/.helmforge-image-webapps-seeded ] && [ -z "$(find /webapps -mindepth 1 -maxdepth 1 ! -name lost+found ! -name .helmforge-image-webapps-seeded -print -quit)" ]; then
+                cp -R "{{ .Values.webapps.mountPath }}/." /webapps/
+                touch /webapps/.helmforge-image-webapps-seeded
+              fi
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: webapps
+              mountPath: /webapps
+        {{- end }}
+        {{- if .Values.webapps.defaultRoot.enabled }}
+        - name: seed-default-root
+          image: "{{ .Values.webapps.defaultRoot.initImage.repository }}:{{ .Values.webapps.defaultRoot.initImage.tag }}"
+          imagePullPolicy: {{ .Values.webapps.defaultRoot.initImage.pullPolicy }}
+          command: ["sh", "-ec"]
+          args:
+            - |
+              mkdir -p /webapps/ROOT
+              cp /default-root/* /webapps/ROOT/
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.webapps.defaultRoot.resources | nindent 12 }}
+          volumeMounts:
+            - name: webapps
+              mountPath: /webapps
+            - name: default-root
+              mountPath: /default-root
+              readOnly: true
+        {{- end }}
+        {{- with .Values.extraInitContainers }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- end }}
+      containers:
+        - name: tomcat
+          image: {{ include "tomcat.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            {{- if and .Values.jmx.enabled (not .Values.jmx.hostname) }}
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            {{- end }}
+            - name: CATALINA_OPTS
+              value: {{ printf "%s %s" .Values.tomcat.catalinaOpts (include "tomcat.jmxOpts" .) | trim | quote }}
+            - name: JAVA_OPTS
+              value: {{ .Values.tomcat.javaOpts | quote }}
+            {{- with .Values.tomcat.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.tomcat.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.containerPorts.http }}
+              protocol: TCP
+            {{- if .Values.jmx.enabled }}
+            - name: jmx
+              containerPort: {{ .Values.jmx.port }}
+              protocol: TCP
+            {{- if ne (.Values.jmx.rmiPort | int) (.Values.jmx.port | int) }}
+            - name: jmx-rmi
+              containerPort: {{ .Values.jmx.rmiPort }}
+              protocol: TCP
+            {{- end }}
+            {{- end }}
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            {{- include "tomcat.probe" (dict "probe" .Values.startupProbe) | nindent 12 }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            {{- include "tomcat.probe" (dict "probe" .Values.livenessProbe) | nindent 12 }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            {{- include "tomcat.probe" (dict "probe" .Values.readinessProbe) | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: webapps
+              mountPath: {{ .Values.webapps.mountPath }}
+            - name: logs
+              mountPath: /usr/local/tomcat/logs
+            - name: temp
+              mountPath: /usr/local/tomcat/temp
+            - name: work
+              mountPath: /usr/local/tomcat/work
+            - name: conf-localhost
+              mountPath: /usr/local/tomcat/conf/Catalina/localhost
+            {{- if or .Values.tomcat.serverXml .Values.tomcat.existingServerXmlConfigMap }}
+            - name: server-xml
+              mountPath: /usr/local/tomcat/conf/server.xml
+              subPath: server.xml
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+        - name: webapps
+          {{- if .Values.webapps.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "tomcat.webappsPvcName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: logs
+          {{- if .Values.logs.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "tomcat.logsPvcName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: temp
+          emptyDir: {}
+        - name: work
+          emptyDir: {}
+        - name: conf-localhost
+          emptyDir: {}
+        {{- if or .Values.tomcat.serverXml .Values.tomcat.existingServerXmlConfigMap }}
+        - name: server-xml
+          configMap:
+            name: {{ default (include "tomcat.configMapName" .) .Values.tomcat.existingServerXmlConfigMap }}
+            items:
+              - key: server.xml
+                path: server.xml
+        {{- end }}
+        {{- if .Values.webapps.defaultRoot.enabled }}
+        - name: default-root
+          configMap:
+            name: {{ include "tomcat.defaultRootConfigMapName" . }}
+            items:
+              - key: index.jsp
+                path: index.jsp
+              - key: health.jsp
+                path: health.jsp
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
