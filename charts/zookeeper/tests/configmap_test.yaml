@@ -1,0 +1,147 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: ConfigMap
+templates:
+  - configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: renders ensemble server list and operational defaults
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["start.sh"]
+          pattern: "ZOO_SERVERS=.*server.1=.*server.2=.*server.3="
+      - matchRegex:
+          path: data["start.sh"]
+          pattern: "ZOO_4LW_COMMANDS_WHITELIST"
+      - matchRegex:
+          path: data["zoo-extra.cfg"]
+          pattern: "admin.serverPort=8080"
+      - matchRegex:
+          path: data["zoo-extra.cfg"]
+          pattern: "clientPort=2181"
+      - matchRegex:
+          path: data["start.sh"]
+          pattern: 'ZOO_DATA_LOG_DIR="/data"'
+
+  - it: uses dedicated datalog path only when datalog PVC is enabled
+    set:
+      persistence.dataLogDir.enabled: true
+    asserts:
+      - matchRegex:
+          path: data["start.sh"]
+          pattern: 'ZOO_DATA_LOG_DIR="/datalog"'
+
+  - it: uses ephemeral datalog path when persistence is disabled
+    set:
+      persistence.enabled: false
+    asserts:
+      - matchRegex:
+          path: data["start.sh"]
+          pattern: 'ZOO_DATA_LOG_DIR="/datalog"'
+
+  - it: keeps srvr whitelisted for readiness status checks
+    set:
+      zookeeper.fourLetterWordWhitelist: ruok,mntr
+    asserts:
+      - matchRegex:
+          path: data["start.sh"]
+          pattern: 'ZOO_4LW_COMMANDS_WHITELIST="ruok,mntr,srvr"'
+
+  - it: uses TLS passwordPath files instead of exporting secret values
+    set:
+      tls.client.enabled: true
+      tls.client.existingSecret: zk-tls
+      tls.client.keystorePassword: change-me
+      tls.client.truststorePassword: change-me-too
+    asserts:
+      - notMatchRegex:
+          path: data["start.sh"]
+          pattern: 'ZK_KEYSTORE_PASSWORD\}'
+      - matchRegex:
+          path: data["zoo-extra.cfg"]
+          pattern: 'ssl\.keyStore\.passwordPath=/etc/zookeeper/tls-passwords/keystore-password'
+      - matchRegex:
+          path: data["zoo-extra.cfg"]
+          pattern: 'ssl\.trustStore\.passwordPath=/etc/zookeeper/tls-passwords/truststore-password'
+      - notMatchRegex:
+          path: data["zoo-extra.cfg"]
+          pattern: 'ssl\.keyStore\.password='
+
+  - it: enables Prometheus metrics provider
+    set:
+      metrics.enabled: true
+    asserts:
+      - matchRegex:
+          path: data["zoo-extra.cfg"]
+          pattern: "PrometheusMetricsProvider"
+
+  - it: renders multiline extra config as valid block content
+    set:
+      zookeeper.extraConfig: |
+        foo=bar
+        baz=qux
+    asserts:
+      - matchRegex:
+          path: data["zoo-extra.cfg"]
+          pattern: "foo=bar\nbaz=qux"
+
+  - it: rejects whitespace-sensitive extra config
+    set:
+      zookeeper.extraConfig: "foo=bar baz"
+    asserts:
+      - failedTemplate:
+          errorMessage: "zookeeper.extraConfig cannot contain spaces or tabs because the official entrypoint splits ZOO_CFG_EXTRA on whitespace"
+
+  - it: enables SASL client auth config
+    set:
+      auth.client.enabled: true
+      auth.client.password: chart-testing-password
+    asserts:
+      - matchRegex:
+          path: data["zoo-extra.cfg"]
+          pattern: "requireClientAuthScheme=sasl"
+      - matchRegex:
+          path: data["start.sh"]
+          pattern: "java.security.auth.login.config"
+
+  - it: omits quorum server list in standalone mode
+    set:
+      replicaCount: 1
+    asserts:
+      - notMatchRegex:
+          path: data["start.sh"]
+          pattern: "ZOO_MY_ID"
+      - notMatchRegex:
+          path: data["start.sh"]
+          pattern: "server.1="
+      - matchRegex:
+          path: data["start.sh"]
+          pattern: 'ZOO_SERVERS=" "'
+
+  - it: renders single-node quorum config when standalone mode is disabled
+    set:
+      replicaCount: 1
+      zookeeper.standaloneEnabled: false
+    asserts:
+      - matchRegex:
+          path: data["start.sh"]
+          pattern: 'ZOO_MY_ID="\$\(\(ordinal \+ 1\)\)"'
+      - matchRegex:
+          path: data["start.sh"]
+          pattern: "ZOO_SERVERS=.*server.1="
+      - matchRegex:
+          path: data["start.sh"]
+          pattern: 'ZOO_STANDALONE_ENABLED="false"'
+
+  - it: renders peer hostnames with room for StatefulSet pod ordinals
+    set:
+      replicaCount: 12
+      allowEvenReplicas: true
+      fullnameOverride: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    asserts:
+      - matchRegex:
+          path: data["start.sh"]
+          pattern: 'ZOO_SERVERS=.*server\.12=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-11\.'
