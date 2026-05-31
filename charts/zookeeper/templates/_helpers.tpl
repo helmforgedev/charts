@@ -71,6 +71,11 @@ app.kubernetes.io/part-of: helmforge
 {{- include "zookeeper.fullname" . -}}
 {{- end -}}
 
+{{- define "zookeeper.statefulSetName" -}}
+{{- $ordinalSuffix := printf "-%d" (sub (.Values.replicaCount | int) 1) -}}
+{{- include "zookeeper.fullname" . | trunc (int (sub 63 (len $ordinalSuffix))) | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "zookeeper.metricsServiceName" -}}
 {{- include "zookeeper.suffixedName" (dict "name" (include "zookeeper.fullname" .) "suffix" "-metrics") -}}
 {{- end -}}
@@ -118,7 +123,7 @@ app.kubernetes.io/part-of: helmforge
 {{- $servers := list -}}
 {{- range $i := until (.Values.replicaCount | int) -}}
 {{- $id := add1 $i -}}
-{{- $host := printf "%s-%d.%s" (include "zookeeper.fullname" $root) $i (include "zookeeper.headlessFqdn" $root) -}}
+{{- $host := printf "%s-%d.%s" (include "zookeeper.statefulSetName" $root) $i (include "zookeeper.headlessFqdn" $root) -}}
 {{- $servers = append $servers (printf "server.%d=%s:%d:%d;%d" $id $host ($root.Values.zookeeper.followerPort | int) ($root.Values.zookeeper.electionPort | int) ($root.Values.zookeeper.clientPort | int)) -}}
 {{- end -}}
 {{- join " " $servers -}}
@@ -128,7 +133,7 @@ app.kubernetes.io/part-of: helmforge
 {{- $root := . -}}
 {{- $hosts := list -}}
 {{- range $i := until (.Values.replicaCount | int) -}}
-{{- $hosts = append $hosts (printf "%s-%d.%s" (include "zookeeper.fullname" $root) $i (include "zookeeper.headlessFqdn" $root)) -}}
+{{- $hosts = append $hosts (printf "%s-%d.%s" (include "zookeeper.statefulSetName" $root) $i (include "zookeeper.headlessFqdn" $root)) -}}
 {{- end -}}
 {{- join " " $hosts -}}
 {{- end -}}
