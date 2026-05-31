@@ -1,6 +1,8 @@
 # FastMCP Server
 
-A Helm chart for deploying [FastMCP Server](https://github.com/helmforgedev/fastmcp-server) on Kubernetes using the official [`docker.io/helmforge/fastmcp-server`](https://hub.docker.com/r/helmforge/fastmcp-server) image. Dynamically loads MCP tools, resources, prompts, and knowledge bases from inline ConfigMaps, S3-compatible storage, or Git repositories.
+A Helm chart for deploying [FastMCP Server](https://github.com/helmforgedev/fastmcp-server) on Kubernetes using the
+official [`docker.io/helmforge/fastmcp-server`](https://hub.docker.com/r/helmforge/fastmcp-server) image. Dynamically loads
+MCP tools, resources, prompts, and knowledge bases from inline ConfigMaps, S3-compatible storage, or Git repositories.
 
 ## Features
 
@@ -11,10 +13,13 @@ A Helm chart for deploying [FastMCP Server](https://github.com/helmforgedev/fast
 - Built-in Web UI dashboard at `/ui`
 - Prometheus metrics with ServiceMonitor support
 - Structured JSON logging for log aggregation
-- Dedicated health endpoints (`/healthz`, `/readyz`, `/startupz`)
+- Dedicated health endpoints (`/healthz`, `/readyz`, `/startupz`) with readiness using `/healthz` by default
 - Diagnostic endpoint at `/debug/info`
 - Init container pattern for source pre-sync
 - Strict loading mode for fail-fast on errors
+- Gateway API HTTPRoute support for modern Kubernetes ingress
+- Dual-stack Service options for IPv4/IPv6 clusters
+- Restricted pod defaults with service account token automount disabled
 
 ## Quick Start
 
@@ -156,6 +161,38 @@ server:
   logFormat: json
 ```
 
+### Gateway API
+
+Expose only the MCP endpoint through a Gateway API HTTPRoute:
+
+```yaml
+gatewayAPI:
+  enabled: true
+  parentRefs:
+    - name: public-gateway
+      namespace: gateway-system
+      sectionName: https
+  hostnames:
+    - mcp.example.com
+  paths:
+    - type: PathPrefix
+      value: /mcp
+```
+
+For long-lived streamable HTTP clients behind NGINX-style proxies, keep proxy buffering and caching disabled and use read/send timeouts long enough for MCP sessions.
+
+### Dual-Stack Service
+
+On dual-stack clusters, request both IP families for the Service:
+
+```yaml
+service:
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+    - IPv4
+    - IPv6
+```
+
 ### Init Container Pattern
 
 Pre-sync sources before the server starts:
@@ -215,6 +252,18 @@ ingress:
         - mcp.example.com
       secretName: mcp-tls
 
+gatewayAPI:
+  enabled: true
+  parentRefs:
+    - name: public-gateway
+      namespace: gateway-system
+      sectionName: https
+  hostnames:
+    - mcp.example.com
+  paths:
+    - type: PathPrefix
+      value: /mcp
+
 persistence:
   enabled: true
   size: 5Gi
@@ -230,10 +279,19 @@ resources:
 podSecurityContext:
   runAsUser: 1000
   runAsGroup: 1000
+  runAsNonRoot: true
   fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
 
 securityContext:
   allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsUser: 1000
+  runAsGroup: 1000
   runAsNonRoot: true
 ```
 
@@ -241,8 +299,9 @@ securityContext:
 
 | Key | Default | Description |
 |-----|---------|-------------|
+| `namespaceOverride` | `""` | Override namespace for chart-managed namespaced resources |
 | `image.repository` | `docker.io/helmforge/fastmcp-server` | Container image |
-| `image.tag` | `0.10.10` | Image tag |
+| `image.tag` | `0.11.2` | Image tag |
 | `server.name` | `fastmcp-server` | Server name in MCP responses |
 | `server.port` | `8000` | HTTP port |
 | `server.path` | `/mcp` | MCP endpoint path |
@@ -265,6 +324,10 @@ securityContext:
 | `initSync.enabled` | `false` | Run source sync as init container |
 | `persistence.enabled` | `false` | Enable persistent workspace |
 | `ingress.enabled` | `false` | Enable ingress |
+| `gatewayAPI.enabled` | `false` | Create Gateway API HTTPRoute |
+| `service.ipFamilyPolicy` | `""` | Optional Service IP family policy |
+| `service.ipFamilies` | `[]` | Optional Service IP families |
+| `serviceAccount.automountServiceAccountToken` | `false` | Mount Kubernetes API token into pods |
 | `networkPolicy.enabled` | `false` | Enable NetworkPolicy |
 
 See [`values.yaml`](values.yaml) for the full configuration reference.
@@ -321,18 +384,3 @@ Then use `http://localhost:8000/mcp` as the URL (no auth if `auth.type=none`).
 - [Basic inline tools](examples/basic/)
 - [S3 source with MinIO](examples/s3-minio/)
 - [Production setup](examples/production/)
-
-<!-- @AI-METADATA
-type: chart-readme
-title: fastmcp-server
-description: Helm chart README for FastMCP server with multi-source tool loading
-keywords: mcp, fastmcp, ai, llm, tools, knowledge-base, helm
-purpose: Chart README with installation, configuration, and usage
-scope: Chart
-relations:
-  - charts/fastmcp-server/values.yaml
-  - charts/fastmcp-server/Chart.yaml
-path: charts/fastmcp-server/README.md
-version: 1.2
-date: 2026-04-05
--->

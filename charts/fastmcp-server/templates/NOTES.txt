@@ -1,26 +1,35 @@
 FastMCP Server deployed!
 
   Server:   {{ .Values.server.name }}
-  Endpoint: http://{{ include "fastmcp-server.fullname" . }}:{{ .Values.service.port }}{{ .Values.server.path }}
+  Namespace: {{ include "fastmcp-server.namespace" . }}
+  Endpoint: http://{{ include "fastmcp-server.fullname" . }}.{{ include "fastmcp-server.namespace" . }}.svc:{{ .Values.service.port }}{{ .Values.server.path }}
   Auth:     {{ .Values.auth.type }}
 
 {{- if .Values.ui.enabled }}
-  Web UI:   http://{{ include "fastmcp-server.fullname" . }}:{{ .Values.service.port }}/ui
+  Web UI:   http://{{ include "fastmcp-server.fullname" . }}.{{ include "fastmcp-server.namespace" . }}.svc:{{ .Values.service.port }}/ui
 {{- end }}
 
 {{- if .Values.metrics.enabled }}
-  Metrics:  http://{{ include "fastmcp-server.fullname" . }}:{{ .Values.service.port }}/metrics
+  Metrics:  http://{{ include "fastmcp-server.fullname" . }}.{{ include "fastmcp-server.namespace" . }}.svc:{{ .Values.service.port }}/metrics
 {{- end }}
 
 To access the MCP endpoint:
 
-  kubectl port-forward svc/{{ include "fastmcp-server.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+  kubectl port-forward svc/{{ include "fastmcp-server.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }} -n {{ include "fastmcp-server.namespace" . }}
   curl http://localhost:{{ .Values.service.port }}{{ .Values.server.path }}
 
 {{- if .Values.ingress.enabled }}
 {{- range .Values.ingress.hosts }}
 
   Ingress: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}{{ (first .paths).path }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.gatewayAPI.enabled }}
+
+  HTTPRoute:
+{{- range .Values.gatewayAPI.hostnames }}
+    http{{ if $.Values.ingress.tls }}s{{ end }}://{{ . }}{{ $.Values.server.path }}
 {{- end }}
 {{- end }}
 

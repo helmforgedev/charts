@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: Apache-2.0
+
+suite: httproute
+templates:
+  - templates/httproute.yaml
+tests:
+  - it: should not render when disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render an HTTPRoute when enabled
+    set:
+      gatewayAPI:
+        enabled: true
+        parentRefs:
+          - name: public-gateway
+        hostnames:
+          - mcp.example.com
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: apiVersion
+          value: gateway.networking.k8s.io/v1
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-fastmcp-server
+      - equal:
+          path: spec.parentRefs[0].name
+          value: public-gateway
+      - equal:
+          path: spec.hostnames[0]
+          value: mcp.example.com
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: RELEASE-NAME-fastmcp-server
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 8000
+
+  - it: should support namespace override
+    set:
+      namespaceOverride: fastmcp-runtime
+      gatewayAPI:
+        enabled: true
+        parentRefs:
+          - name: public-gateway
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: fastmcp-runtime
+
+  - it: should omit matches when paths are empty
+    set:
+      gatewayAPI:
+        enabled: true
+        parentRefs:
+          - name: public-gateway
+        paths: []
+    asserts:
+      - notExists:
+          path: spec.rules[0].matches
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: RELEASE-NAME-fastmcp-server
+
+  - it: should fail when enabled without parentRefs
+    set:
+      gatewayAPI:
+        enabled: true
+        parentRefs: []
+    asserts:
+      - failedTemplate:
+          errorMessage: gatewayAPI.parentRefs must contain at least one parentRef when gatewayAPI.enabled is true

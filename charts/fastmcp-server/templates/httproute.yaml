@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+
+{{- if .Values.gatewayAPI.enabled }}
+{{- if not .Values.gatewayAPI.parentRefs }}
+{{- fail "gatewayAPI.parentRefs must contain at least one parentRef when gatewayAPI.enabled is true" }}
+{{- end }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "fastmcp-server.fullname" . }}
+  namespace: {{ include "fastmcp-server.namespace" . }}
+  labels:
+    {{- include "fastmcp-server.labels" . | nindent 4 }}
+  {{- with .Values.gatewayAPI.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- toYaml .Values.gatewayAPI.parentRefs | nindent 4 }}
+  {{- with .Values.gatewayAPI.hostnames }}
+  hostnames:
+    {{- range . }}
+    - {{ . | quote }}
+    {{- end }}
+  {{- end }}
+  rules:
+    - {{- if .Values.gatewayAPI.paths }}
+      matches:
+        {{- range .Values.gatewayAPI.paths }}
+        - path:
+            type: {{ .type | default "PathPrefix" }}
+            value: {{ .value | default "/" | quote }}
+        {{- end }}
+      {{- end }}
+      backendRefs:
+        - name: {{ include "fastmcp-server.fullname" . }}
+          port: {{ .Values.service.port }}
+{{- end }}

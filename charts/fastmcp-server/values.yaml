@@ -1,10 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
-# FastMCP Server Helm Chart — Default Values
+# FastMCP Server Helm Chart - Default Values
 # =============================================================================
 # FastMCP server with multi-source tool, resource, prompt, and knowledge loading
 
 nameOverride: ""
 fullnameOverride: ""
+# -- Override the namespace for chart-managed namespaced resources
+namespaceOverride: ""
 commonLabels: {}
 
 # =============================================================================
@@ -114,7 +117,7 @@ auth:
     jwksUri: ""
 
 # =============================================================================
-# Sources — Inline, S3, Git
+# Sources - Inline, S3, Git
 # =============================================================================
 # Merge precedence: Inline (highest) > S3 > Git (lowest)
 
@@ -215,6 +218,10 @@ service:
   type: ClusterIP
   port: 8000
   annotations: {}
+  # -- Optional IP family policy for dual-stack clusters (SingleStack, PreferDualStack, RequireDualStack)
+  ipFamilyPolicy: ""
+  # -- Optional service IP families, for example ["IPv4", "IPv6"]
+  ipFamilies: []
 
 # =============================================================================
 # Ingress
@@ -238,6 +245,28 @@ ingress:
     # - hosts:
     #     - mcp.example.com
     #   secretName: mcp-server-tls
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gatewayAPI:
+  # -- Create an HTTPRoute for Gateway API based ingress
+  enabled: false
+  # -- HTTPRoute annotations
+  annotations: {}
+  # -- Parent Gateway references
+  parentRefs: []
+    # - name: public-gateway
+    #   namespace: gateway-system
+    #   sectionName: https
+  # -- Optional hostnames served by the route
+  hostnames: []
+    # - mcp.example.com
+  # -- Path matches forwarded to the FastMCP service
+  paths:
+    - type: PathPrefix
+      value: /
 
 # =============================================================================
 # Probes
@@ -265,7 +294,7 @@ probes:
   readiness:
     enabled: true
     httpGet:
-      path: /readyz
+      path: /healthz
       port: http
     initialDelaySeconds: 0
     periodSeconds: 10
@@ -306,6 +335,8 @@ serviceAccount:
   name: ""
   # -- Annotations for the ServiceAccount
   annotations: {}
+  # -- Mount the Kubernetes API token into pods
+  automountServiceAccountToken: false
 
 # =============================================================================
 # Network Policy
@@ -355,11 +386,31 @@ replicaCount: 1
 # Resources and Security
 # =============================================================================
 
-resources: {}
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
 
-podSecurityContext: {}
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
 
 # =============================================================================
 # Scheduling
