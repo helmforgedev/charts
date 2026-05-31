@@ -92,6 +92,8 @@ app.kubernetes.io/part-of: helmforge
 {{- define "zookeeper.tlsPasswordsSecretName" -}}
 {{- if .Values.tls.client.existingPasswordsSecret -}}
 {{- .Values.tls.client.existingPasswordsSecret -}}
+{{- else if and .Values.externalSecrets.enabled .Values.tls.client.enabled .Values.auth.client.enabled (not .Values.externalSecrets.target.name) -}}
+{{- include "zookeeper.authSecretName" . -}}
 {{- else if and .Values.externalSecrets.enabled .Values.tls.client.enabled .Values.externalSecrets.target.name -}}
 {{- .Values.externalSecrets.target.name -}}
 {{- else -}}

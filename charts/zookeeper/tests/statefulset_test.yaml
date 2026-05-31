@@ -134,6 +134,46 @@ tests:
             secret:
               secretName: custom-zookeeper-secret
 
+  - it: mounts the auth ExternalSecret target for combined SASL and TLS passwords
+    template: statefulset.yaml
+    set:
+      auth.client.enabled: true
+      tls.client.enabled: true
+      tls.client.existingSecret: zk-tls
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: platform-secrets
+      externalSecrets.data:
+        - secretKey: jaas.conf
+          remoteRef:
+            key: zookeeper/jaas
+        - secretKey: keystore-password
+          remoteRef:
+            key: zookeeper/tls
+            property: keystore-password
+        - secretKey: truststore-password
+          remoteRef:
+            key: zookeeper/tls
+            property: truststore-password
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: auth
+            secret:
+              secretName: test-zookeeper-auth
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls-passwords
+            secret:
+              secretName: test-zookeeper-auth
+      - equal:
+          path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
+          value: test-zookeeper-auth
+      - equal:
+          path: spec.template.spec.containers[0].env[1].valueFrom.secretKeyRef.name
+          value: test-zookeeper-auth
+
   - it: enables Netty when secure client port is enabled
     template: configmap.yaml
     set:

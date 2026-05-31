@@ -174,6 +174,10 @@ externalSecrets:
         key: zookeeper/jaas
 ```
 
+When SASL client auth and TLS are enabled together, the default ExternalSecret target is the auth Secret.
+Include `jaas.conf`, `keystore-password`, and `truststore-password` in `externalSecrets.data`, or set
+`externalSecrets.target.name` to a shared Secret name.
+
 ## Dual Stack
 
 Dual-stack Service fields are available across headless, client, and metrics Services:
