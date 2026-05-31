@@ -64,7 +64,9 @@ Chart decisions:
 - Avoid ConfigMap for generated config.
 - Avoid printing rendered config in NOTES or examples when credentials are present.
 
-The official Docker entrypoint prints runtime configuration before starting the app. If the chart renders MySQL credentials into `config.json`, runtime validation must confirm whether the entrypoint logs the DSN. If it does, Phase 3 should either:
+The official Docker entrypoint prints runtime configuration before starting the app.
+If the chart renders MySQL credentials into `config.json`, runtime validation must confirm whether the entrypoint logs
+the DSN. If it does, Phase 3 should either:
 
 - bypass the mutating entrypoint with a safer command, or
 - avoid putting sensitive DSNs into files that the entrypoint prints, if technically feasible.
@@ -135,7 +137,7 @@ Chart implication:
 
 Reference:
 
-- https://github.com/advisories/GHSA-rv83-h68q-c4wq
+- <https://github.com/advisories/GHSA-rv83-h68q-c4wq>
 
 ## Existing Chart Gap Analysis
 
@@ -159,28 +161,10 @@ Security gaps HelmForge should address:
 
 ## References
 
-- Gophish release `v0.12.1`: https://github.com/gophish/gophish/releases/tag/v0.12.1
-- Gophish default config: https://raw.githubusercontent.com/gophish/gophish/v0.12.1/config.json
-- Gophish Dockerfile: https://raw.githubusercontent.com/gophish/gophish/v0.12.1/Dockerfile
-- Gophish Docker entrypoint: https://raw.githubusercontent.com/gophish/gophish/v0.12.1/docker/run.sh
-- Gophish installation guide: https://github.com/gophish/user-guide/blob/master/installation.md
-- GitHub advisory: https://github.com/advisories/GHSA-rv83-h68q-c4wq
+- Gophish release `v0.12.1`: <https://github.com/gophish/gophish/releases/tag/v0.12.1>
+- Gophish default config: <https://raw.githubusercontent.com/gophish/gophish/v0.12.1/config.json>
+- Gophish Dockerfile: <https://raw.githubusercontent.com/gophish/gophish/v0.12.1/Dockerfile>
+- Gophish Docker entrypoint: <https://raw.githubusercontent.com/gophish/gophish/v0.12.1/docker/run.sh>
+- Gophish installation guide: <https://github.com/gophish/user-guide/blob/master/installation.md>
+- GitHub advisory: <https://github.com/advisories/GHSA-rv83-h68q-c4wq>
 - HelmForge security baseline MCP resource
-
-<!-- @AI-METADATA
-type: chart-docs
-title: Gophish - Security Research
-description: Security posture and hardening research for the Gophish HelmForge chart
-
-keywords: gophish, security, admin, networkpolicy, tls, kubernetes
-
-purpose: Define security defaults and risks for the Gophish chart
-scope: Chart Research
-
-relations:
-  - charts/gophish/docs/architecture.md
-  - charts/gophish/docs/database.md
-path: charts/gophish/docs/security.md
-version: 1.0
-date: 2026-04-28
--->

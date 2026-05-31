@@ -12,11 +12,11 @@ Gophish is an open-source phishing toolkit for security awareness training, phis
 
 Primary upstream references:
 
-- Official site: https://getgophish.com
-- Source repository: https://github.com/gophish/gophish
-- Release `v0.12.1`: https://github.com/gophish/gophish/releases/tag/v0.12.1
-- Official Docker image: https://hub.docker.com/r/gophish/gophish
-- User guide installation and configuration: https://github.com/gophish/user-guide/blob/master/installation.md
+- Official site: <https://getgophish.com>
+- Source repository: <https://github.com/gophish/gophish>
+- Release `v0.12.1`: <https://github.com/gophish/gophish/releases/tag/v0.12.1>
+- Official Docker image: <https://hub.docker.com/r/gophish/gophish>
+- User guide installation and configuration: <https://github.com/gophish/user-guide/blob/master/installation.md>
 
 ## Version Decision
 
@@ -76,7 +76,9 @@ Supported upstream image environment overrides include:
 - `CONTACT_ADDRESS`
 - `DB_FILE_PATH`
 
-The image does not expose environment overrides for all database modes. In particular, MySQL configuration requires `db_name` and `db_path`, so the chart should render a full `config.json` when database mode is not default SQLite.
+The image does not expose environment overrides for all database modes.
+In particular, MySQL configuration requires `db_name` and `db_path`, so the chart should render a full `config.json`
+when database mode is not default SQLite.
 
 Chart decision:
 
@@ -190,27 +192,9 @@ These are Phase 10 deliverables, but they are recorded here because architecture
 
 ## References
 
-- Gophish release `v0.12.1`: https://github.com/gophish/gophish/releases/tag/v0.12.1
-- Gophish Dockerfile at `v0.12.1`: https://raw.githubusercontent.com/gophish/gophish/v0.12.1/Dockerfile
-- Gophish default config at `v0.12.1`: https://raw.githubusercontent.com/gophish/gophish/v0.12.1/config.json
-- Gophish Docker entrypoint at `v0.12.1`: https://raw.githubusercontent.com/gophish/gophish/v0.12.1/docker/run.sh
-- Gophish installation guide: https://github.com/gophish/user-guide/blob/master/installation.md
-- Docker Hub tag API: https://hub.docker.com/v2/repositories/gophish/gophish/tags/0.12.1
-
-<!-- @AI-METADATA
-type: chart-docs
-title: Gophish - Architecture Research
-description: Phase 1 architecture research for the Gophish HelmForge chart
-
-keywords: gophish, architecture, helm, kubernetes, phishing-awareness
-
-purpose: Capture upstream runtime facts and HelmForge chart architecture decisions
-scope: Chart Research
-
-relations:
-  - charts/gophish/docs/database.md
-  - charts/gophish/docs/security.md
-path: charts/gophish/docs/architecture.md
-version: 1.0
-date: 2026-04-28
--->
+- Gophish release `v0.12.1`: <https://github.com/gophish/gophish/releases/tag/v0.12.1>
+- Gophish Dockerfile at `v0.12.1`: <https://raw.githubusercontent.com/gophish/gophish/v0.12.1/Dockerfile>
+- Gophish default config at `v0.12.1`: <https://raw.githubusercontent.com/gophish/gophish/v0.12.1/config.json>
+- Gophish Docker entrypoint at `v0.12.1`: <https://raw.githubusercontent.com/gophish/gophish/v0.12.1/docker/run.sh>
+- Gophish installation guide: <https://github.com/gophish/user-guide/blob/master/installation.md>
+- Docker Hub tag API: <https://hub.docker.com/v2/repositories/gophish/gophish/tags/0.12.1>
