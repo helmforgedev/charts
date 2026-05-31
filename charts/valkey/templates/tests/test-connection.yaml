@@ -1,0 +1,78 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.tests.enabled }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "valkey.fullname" . }}-test-connection
+  labels:
+    {{- include "valkey.labels" . | nindent 4 }}
+    app.kubernetes.io/component: test
+  {{- include "valkey.renderAnnotations" (dict "root" . "annotations" (dict "helm.sh/hook" "test" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded")) | nindent 2 }}
+spec:
+  restartPolicy: Never
+  serviceAccountName: {{ include "valkey.serviceAccountName" . }}
+  automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+  {{- with .Values.podSecurityContext }}
+  securityContext:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  containers:
+    - name: valkey-cli
+      image: "{{ .Values.tests.image.repository }}:{{ .Values.tests.image.tag }}"
+      imagePullPolicy: {{ .Values.tests.image.pullPolicy }}
+      command: ["sh", "-ec"]
+      args:
+        - |
+          {{- if include "valkey.isCluster" . }}
+          for i in $(seq 1 30); do
+            if valkey-cli $VALKEY_TLS_ARGS -c -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS cluster info | grep -q 'cluster_state:ok'; then
+              exit 0
+            fi
+            echo "waiting for Valkey Cluster to report cluster_state:ok ($i/30)"
+            sleep 2
+          done
+          valkey-cli $VALKEY_TLS_ARGS -c -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS cluster info
+          exit 1
+          {{- else }}
+          valkey-cli $VALKEY_TLS_ARGS -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS ping | grep -q PONG
+          valkey-cli $VALKEY_TLS_ARGS -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS set helmforge:health ok | grep -q OK
+          test "$(valkey-cli $VALKEY_TLS_ARGS -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS get helmforge:health)" = "ok"
+          {{- end }}
+      env:
+        - name: VALKEY_HOST
+          {{- if or (include "valkey.isStandalone" .) (include "valkey.isCluster" .) }}
+          value: {{ include "valkey.clientServiceName" . | quote }}
+          {{- else }}
+          value: {{ include "valkey.primaryServiceName" . | quote }}
+          {{- end }}
+        - name: VALKEY_PORT
+          value: {{ .Values.service.ports.valkey | quote }}
+        - name: VALKEY_TLS_ARGS
+          value: {{ ternary (printf "--tls --cacert /tls/%s" .Values.tls.caFilename) "" .Values.tls.enabled | quote }}
+        {{- if .Values.auth.enabled }}
+        - name: VALKEY_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "valkey.secretName" . }}
+              key: {{ .Values.auth.existingSecretPasswordKey }}
+        - name: VALKEY_AUTH_ARGS
+          value: --no-auth-warning -a $(VALKEY_PASSWORD)
+        {{- else }}
+        - name: VALKEY_AUTH_ARGS
+          value: ""
+        {{- end }}
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+      {{- if .Values.tls.enabled }}
+      volumeMounts:
+        - name: tls
+          mountPath: /tls
+          readOnly: true
+      {{- end }}
+  {{- if .Values.tls.enabled }}
+  volumes:
+    - name: tls
+      secret:
+        secretName: {{ .Values.tls.existingSecret }}
+  {{- end }}
+{{- end }}
