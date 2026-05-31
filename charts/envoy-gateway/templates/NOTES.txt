@@ -4,7 +4,7 @@
 ================================================================================
 
 Release Name: {{ .Release.Name }}
-Namespace:    {{ .Release.Namespace }}
+  Namespace:    {{ include "envoy-gateway.namespace" . }}
 Profile:      {{ .Values.profile | default "custom" }}
 
 --------------------------------------------------------------------------------
@@ -29,7 +29,7 @@ NOTE: Proxy pods are provisioned automatically by the EG operator when a
       Gateway resource is accepted. They are NOT created directly by this chart.
 
 Check deployment status:
-  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl get pods -n {{ include "envoy-gateway.namespace" . }} -l app.kubernetes.io/instance={{ .Release.Name }}
 
 --------------------------------------------------------------------------------
 2. GATEWAY API RESOURCES
@@ -45,14 +45,14 @@ Verify GatewayClass:
 Default Gateway deployed: {{ include "envoy-gateway.gateway.name" . }}
 
 View Gateway status:
-  kubectl get gateway {{ include "envoy-gateway.gateway.name" . }} -n {{ .Release.Namespace }}
+  kubectl get gateway {{ include "envoy-gateway.gateway.name" . }} -n {{ include "envoy-gateway.namespace" . }}
 
 Wait for Gateway to be programmed:
   kubectl wait --for=condition=Programmed gateway/{{ include "envoy-gateway.gateway.name" . }} \
-    -n {{ .Release.Namespace }} --timeout=300s
+    -n {{ include "envoy-gateway.namespace" . }} --timeout=300s
 
 After the Gateway is programmed, get the external IP:
-  kubectl get gateway {{ include "envoy-gateway.gateway.name" . }} -n {{ .Release.Namespace }} \
+  kubectl get gateway {{ include "envoy-gateway.gateway.name" . }} -n {{ include "envoy-gateway.namespace" . }} \
     -o jsonpath='{.status.addresses[0].value}'
 
 {{- else }}
@@ -64,7 +64,7 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: my-gateway
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "envoy-gateway.namespace" . }}
 spec:
   gatewayClassName: {{ .Values.gatewayClass.name }}
   listeners:
@@ -94,10 +94,10 @@ View example resources:
 A pre-install Job (certgen) generates TLS certificates for the EG controller.
 
 Check certgen status:
-  kubectl get job {{ include "envoy-gateway.fullname" . }}-certgen -n {{ .Release.Namespace }}
+  kubectl get job {{ include "envoy-gateway.fullname" . }}-certgen -n {{ include "envoy-gateway.namespace" . }}
 
 Verify certs secret was created:
-  kubectl get secret {{ include "envoy-gateway.fullname" . }}-certs -n {{ .Release.Namespace }}
+  kubectl get secret {{ include "envoy-gateway.fullname" . }}-certs -n {{ include "envoy-gateway.namespace" . }}
 
 --------------------------------------------------------------------------------
 4. MONITORING AND OBSERVABILITY
@@ -111,7 +111,7 @@ Monitoring: Enabled
 Prometheus ServiceMonitor created for controller metrics (port 8081, path /metrics).
 
 View controller metrics:
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "envoy-gateway.fullname" . }}-controller 8081:8081
+  kubectl port-forward -n {{ include "envoy-gateway.namespace" . }} svc/{{ include "envoy-gateway.fullname" . }}-controller 8081:8081
   curl http://localhost:8081/metrics
 {{- end }}
 
@@ -119,7 +119,7 @@ View controller metrics:
 Access Logs: Enabled (format: {{ .Values.monitoring.accessLogs.format }})
 
 View proxy access logs:
-  kubectl logs -n {{ .Release.Namespace }} -l gateway.envoyproxy.io/owning-gateway-name={{ include "envoy-gateway.gateway.name" . }} -f
+  kubectl logs -n {{ include "envoy-gateway.namespace" . }} -l gateway.envoyproxy.io/owning-gateway-name={{ include "envoy-gateway.gateway.name" . }} -f
 {{- end }}
 
 {{- if .Values.monitoring.prometheus.prometheusRule }}
@@ -134,7 +134,7 @@ PrometheusRule created with 6 alerts:
   - Rate limit exceeded
 
 View alerts:
-  kubectl get prometheusrule {{ include "envoy-gateway.fullname" . }} -n {{ .Release.Namespace }}
+  kubectl get prometheusrule {{ include "envoy-gateway.fullname" . }} -n {{ include "envoy-gateway.namespace" . }}
 {{- end }}
 
 {{- if .Values.monitoring.grafana.dashboards }}
@@ -244,13 +244,13 @@ NetworkPolicies: Disabled
 --------------------------------------------------------------------------------
 
 Check controller logs:
-  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=controller -f
+  kubectl logs -n {{ include "envoy-gateway.namespace" . }} -l app.kubernetes.io/component=controller -f
 
 Check Gateway status:
-  kubectl describe gateway {{ include "envoy-gateway.gateway.name" . }} -n {{ .Release.Namespace }}
+  kubectl describe gateway {{ include "envoy-gateway.gateway.name" . }} -n {{ include "envoy-gateway.namespace" . }}
 
 Check EnvoyProxy config:
-  kubectl describe envoyproxy {{ include "envoy-gateway.fullname" . }}-proxy-config -n {{ .Release.Namespace }}
+  kubectl describe envoyproxy {{ include "envoy-gateway.fullname" . }}-proxy-config -n {{ include "envoy-gateway.namespace" . }}
 
 View all EG-managed proxy pods:
   kubectl get pods -A -l gateway.envoyproxy.io/owning-gateway-name={{ include "envoy-gateway.gateway.name" . }}

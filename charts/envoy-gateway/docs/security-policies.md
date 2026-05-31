@@ -32,7 +32,7 @@ securityPolicy:
 
 JWT validation verifies bearer tokens against a remote JWKS endpoint before forwarding the request to the backend.
 
-### Values Configuration
+### JWT Values Configuration
 
 ```yaml
 securityPolicy:
@@ -51,7 +51,7 @@ securityPolicy:
             header: x-user-email
 ```
 
-### Raw CRD Example
+### JWT Raw CRD Example
 
 ```yaml
 apiVersion: gateway.envoyproxy.io/v1alpha1
@@ -95,7 +95,7 @@ spec:
 
 OIDC enables OAuth2 Authorization Code Flow — the proxy handles the redirect to the identity provider and token exchange. Ideal for browser-based access to protected services.
 
-### Values Configuration
+### OIDC Values Configuration
 
 ```yaml
 securityPolicy:
@@ -122,7 +122,7 @@ kubectl create secret generic oidc-client-secret \
   --from-literal=client-secret=<your-oidc-client-secret>
 ```
 
-### Raw CRD Example
+### OIDC Raw CRD Example
 
 ```yaml
 apiVersion: gateway.envoyproxy.io/v1alpha1
@@ -152,7 +152,7 @@ spec:
 
 API Key auth validates a key provided in a request header or query parameter against a set of pre-shared secrets.
 
-### Values Configuration
+### API Key Values Configuration
 
 ```yaml
 securityPolicy:
@@ -174,7 +174,7 @@ kubectl create secret generic api-keys \
   --from-literal=keys=$'key-abc123\nkey-xyz789'
 ```
 
-### Raw CRD Example
+### API Key Raw CRD Example
 
 ```yaml
 apiVersion: gateway.envoyproxy.io/v1alpha1
@@ -199,7 +199,7 @@ spec:
 
 CORS configuration is applied at the Gateway or HTTPRoute level. It controls which origins, methods, and headers are permitted for cross-origin requests.
 
-### Values Configuration
+### CORS Values Configuration
 
 ```yaml
 securityPolicy:
@@ -224,7 +224,7 @@ securityPolicy:
     maxAge: 86400
 ```
 
-### Raw CRD Example
+### CORS Raw CRD Example
 
 ```yaml
 apiVersion: gateway.envoyproxy.io/v1alpha1
@@ -288,6 +288,7 @@ kubectl logs deployment/envoy-gateway-controller | grep security
 ```
 
 Common causes:
+
 - JWKS URI unreachable from proxy pods
 - Token audience mismatch
 - Clock skew between issuer and proxy
@@ -295,22 +296,7 @@ Common causes:
 ### OIDC Redirect Loop
 
 Verify that:
+
 1. `redirectURL` matches the redirect URI configured in your identity provider
 2. The Gateway has an HTTPS listener (OIDC requires HTTPS)
 3. The client secret exists in the same namespace as the SecurityPolicy
-
-<!-- @AI-METADATA
-type: chart-docs
-title: Security Policies Guide
-description: JWT, OIDC, API Key, and CORS authentication with SecurityPolicy CRD for Envoy Gateway
-keywords: security, jwt, oidc, oauth2, api-key, cors, mtls, authentication, authorization, securitypolicy, envoy-gateway
-purpose: Guide for configuring authentication and security policies with the SecurityPolicy CRD
-scope: Chart
-relations:
-  - charts/envoy-gateway/README.md
-  - charts/envoy-gateway/values.yaml
-  - charts/envoy-gateway/docs/architecture.md
-path: charts/envoy-gateway/docs/security-policies.md
-version: 1.0
-date: 2026-04-10
--->
