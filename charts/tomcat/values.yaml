@@ -1,0 +1,327 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# Apache Tomcat Helm Chart - Default Values
+# =============================================================================
+
+# -- Number of Tomcat pods when autoscaling is disabled.
+replicaCount: 1
+
+# -- Override the chart name used in generated resource names.
+nameOverride: ""
+# -- Override the full release name used in generated resource names.
+fullnameOverride: ""
+# -- Labels added to all chart resources.
+commonLabels: {}
+
+image:
+  # -- Tomcat image repository. Uses the official Docker image.
+  repository: docker.io/library/tomcat
+  # -- Tomcat image tag.
+  tag: "11.0.22-jdk17-temurin-noble"
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Optional image pull secrets.
+imagePullSecrets: []
+
+containerPorts:
+  # -- Tomcat HTTP container port.
+  http: 8080
+  # -- Deprecated compatibility value for JMX. The chart exposes jmx.port when JMX is enabled.
+  jmx: 9010
+
+service:
+  # -- Kubernetes Service type.
+  type: ClusterIP
+  # -- Service annotations.
+  annotations: {}
+  ports:
+    # -- Service port for HTTP traffic.
+    http: 80
+    # -- Service port for the JMX registry when JMX is enabled.
+    jmx: 9010
+    # -- Service port for JMX RMI when jmx.rmiPort differs from jmx.port.
+    jmxRmi: 9011
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ~
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: false
+  # -- ServiceAccount name. Empty uses the chart fullname when create=true.
+  name: ""
+  # -- ServiceAccount annotations.
+  annotations: {}
+  # -- Mount Kubernetes API credentials into the Tomcat pod.
+  automountServiceAccountToken: false
+
+tomcat:
+  # -- Extra CATALINA_OPTS appended before JMX options.
+  catalinaOpts: ""
+  # -- Extra JAVA_OPTS.
+  javaOpts: ""
+  # -- Optional server.xml override. Use only when you need connector/proxy customizations.
+  serverXml: ""
+  # -- Existing ConfigMap with key server.xml.
+  existingServerXmlConfigMap: ""
+  # -- Extra environment variables.
+  extraEnv: []
+  # -- Extra envFrom entries.
+  extraEnvFrom: []
+
+webapps:
+  # -- Tomcat webapps directory mount path.
+  mountPath: /usr/local/tomcat/webapps
+  copyImageContent:
+    # -- Copy applications already present in the Tomcat image into the mounted webapps volume when it is empty.
+    enabled: true
+  persistence:
+    # -- Enable PVC for the webapps directory.
+    enabled: false
+    # -- Existing PVC for the webapps directory.
+    existingClaim: ""
+    # -- Storage class for the webapps PVC. Empty uses the cluster default.
+    storageClass: ""
+    # -- Access modes for the webapps PVC.
+    accessModes:
+      - ReadWriteOnce
+    # -- Size for the webapps PVC.
+    size: 8Gi
+  defaultRoot:
+    # -- Render a small ROOT webapp so default installs have deterministic health checks.
+    enabled: true
+    initImage:
+      # -- Default ROOT seeding init container image repository.
+      repository: docker.io/library/busybox
+      # -- Default ROOT seeding init container image tag.
+      tag: "1.37"
+      # -- Default ROOT seeding init container image pull policy.
+      pullPolicy: IfNotPresent
+    # -- Resources for the default ROOT seeding init container.
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+    # -- index.jsp content for the default ROOT webapp.
+    index: |
+      <%@ page contentType="text/plain; charset=UTF-8" %>
+      Apache Tomcat is running on HelmForge.
+    # -- health.jsp content for the default ROOT webapp and default probes.
+    health: |
+      <%@ page contentType="text/plain; charset=UTF-8" %>
+      OK
+
+logs:
+  persistence:
+    # -- Enable PVC for Tomcat logs.
+    enabled: false
+    # -- Existing PVC for Tomcat logs.
+    existingClaim: ""
+    # -- Storage class for the logs PVC. Empty uses the cluster default.
+    storageClass: ""
+    # -- Access modes for the logs PVC.
+    accessModes:
+      - ReadWriteOnce
+    # -- Size for the logs PVC.
+    size: 4Gi
+
+jmx:
+  # -- Enable JMX remote JVM options and Service ports.
+  enabled: false
+  # -- JMX registry port exposed by the Tomcat JVM.
+  port: 9010
+  # -- JMX RMI port exposed by the Tomcat JVM.
+  rmiPort: 9010
+  # -- Enable JMX authentication. Mount required password/access files through extraVolumes and extraVolumeMounts.
+  authenticate: false
+  # -- Enable JMX SSL. Mount required trust/key stores through extraVolumes and extraVolumeMounts.
+  ssl: false
+  # -- Hostname advertised by RMI. Empty uses the pod IP through the Downward API.
+  hostname: ""
+  # -- Extra JMX JVM flags appended to CATALINA_OPTS.
+  extraOpts: ""
+
+ingress:
+  # -- Render a Kubernetes Ingress.
+  enabled: false
+  # -- Ingress annotations.
+  annotations: {}
+  # -- Ingress class name.
+  ingressClassName: ""
+  # -- Ingress hosts and paths.
+  hosts:
+    - host: tomcat.local
+      paths:
+        - path: /
+          pathType: Prefix
+  # -- Ingress TLS entries.
+  tls: []
+
+gatewayAPI:
+  # -- Render a Gateway API HTTPRoute. Requires Gateway API CRDs and an existing Gateway.
+  enabled: false
+  # -- HTTPRoute apiVersion.
+  apiVersion: gateway.networking.k8s.io/v1
+  # -- HTTPRoute annotations.
+  annotations: {}
+  # -- HTTPRoute parentRefs.
+  parentRefs: []
+  # -- HTTPRoute hostnames.
+  hostnames: []
+  # -- HTTPRoute matches.
+  matches:
+    - path:
+        type: PathPrefix
+        value: /
+  # -- HTTPRoute filters.
+  filters: []
+
+networkPolicy:
+  # -- Create a NetworkPolicy for Tomcat pods.
+  enabled: false
+  ingress:
+    # -- Allow ingress from pods in the same namespace.
+    allowSameNamespace: true
+    # -- Additional ingress "from" rules.
+    extraFrom: []
+  egress:
+    # -- Add explicit egress rules. Disabled keeps CNI default egress behavior.
+    enabled: false
+    # -- Allow DNS egress.
+    allowDNS: true
+    # -- Allow HTTP egress.
+    allowHTTP: false
+    # -- Allow HTTPS egress for downloads and external integrations.
+    allowHTTPS: true
+    # -- Additional egress peer rules rendered under egress[].to.
+    extraTo: []
+
+# -- Tomcat container resources.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# -- Pod-level security context.
+podSecurityContext:
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Tomcat container security context.
+securityContext:
+  runAsUser: 1001
+  runAsGroup: 1001
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+startupProbe:
+  # -- Enable startup probe.
+  enabled: true
+  # -- Probe mode: http or tcp.
+  mode: http
+  # -- HTTP probe path when mode=http.
+  path: /health.jsp
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+
+livenessProbe:
+  # -- Enable liveness probe.
+  enabled: true
+  # -- Probe mode: http or tcp.
+  mode: http
+  # -- HTTP probe path when mode=http.
+  path: /health.jsp
+  initialDelaySeconds: 30
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+readinessProbe:
+  # -- Enable readiness probe.
+  enabled: true
+  # -- Probe mode: http or tcp.
+  mode: http
+  # -- HTTP probe path when mode=http.
+  path: /health.jsp
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+autoscaling:
+  # -- Render a HorizontalPodAutoscaler.
+  enabled: false
+  # -- Minimum HPA replicas.
+  minReplicas: 1
+  # -- Maximum HPA replicas.
+  maxReplicas: 5
+  # -- Target average CPU utilization percentage.
+  targetCPUUtilizationPercentage: 80
+
+pdb:
+  # -- Render a PodDisruptionBudget.
+  enabled: false
+  # -- Minimum available pods when PDB is enabled.
+  minAvailable: 1
+
+# -- Labels added to the Tomcat pod template.
+podLabels: {}
+# -- Annotations added to the Tomcat pod template.
+podAnnotations: {}
+# -- Annotations added to top-level resources that support annotations.
+annotations: {}
+# -- Node selector for Tomcat pods.
+nodeSelector: {}
+# -- Tolerations for Tomcat pods.
+tolerations: []
+# -- Affinity for Tomcat pods.
+affinity: {}
+# -- Topology spread constraints for Tomcat pods.
+topologySpreadConstraints: []
+# -- Priority class name for Tomcat pods.
+priorityClassName: ""
+# -- Termination grace period for Tomcat pods.
+terminationGracePeriodSeconds: 60
+
+# -- Extra init containers appended to the pod.
+extraInitContainers: []
+# -- Extra sidecar containers appended to the pod.
+extraContainers: []
+# -- Extra volumes appended to the pod.
+extraVolumes: []
+# -- Extra volume mounts appended to the Tomcat container.
+extraVolumeMounts: []
+
+tests:
+  # -- Render Helm test resources.
+  enabled: true
+  image:
+    # -- Helm test image repository.
+    repository: docker.io/library/busybox
+    # -- Helm test image tag.
+    tag: "1.37"
+    # -- Helm test image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Resources for Helm test pods.
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi

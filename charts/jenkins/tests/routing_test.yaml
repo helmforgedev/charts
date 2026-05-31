@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Routing
+templates:
+  - ingress.yaml
+  - httproute.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render ingress
+    template: ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: nginx
+      ingress.hosts[0].host: jenkins.example.local
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.rules[0].host
+          value: jenkins.example.local
+
+  - it: should render HTTPRoute
+    template: httproute.yaml
+    set:
+      gateway.enabled: true
+      gateway.parentRefs[0].name: public-gateway
+      gateway.hostnames[0]: jenkins.example.local
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.hostnames[0]
+          value: jenkins.example.local

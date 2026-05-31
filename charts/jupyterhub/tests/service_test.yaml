@@ -1,0 +1,115 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Service
+templates:
+  - service.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render proxy and hub services
+    asserts:
+      - hasDocuments:
+          count: 3
+      - equal:
+          path: metadata.name
+          value: test-jupyterhub
+        documentIndex: 0
+      - notContains:
+          path: spec.ports
+          content:
+            name: proxy-api
+            port: 8001
+            targetPort: api
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: test-jupyterhub-proxy-api
+        documentIndex: 1
+      - equal:
+          path: spec.type
+          value: ClusterIP
+        documentIndex: 1
+      - equal:
+          path: metadata.name
+          value: test-jupyterhub-hub
+        documentIndex: 2
+
+  - it: should keep derived service names within DNS label length
+    set:
+      fullnameOverride: jupyterhub-with-a-very-long-name-that-fills-the-dns-label-limit
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: "^.{1,63}$"
+        documentIndex: 0
+      - matchRegex:
+          path: metadata.name
+          pattern: "^.{1,63}$"
+        documentIndex: 1
+      - matchRegex:
+          path: metadata.name
+          pattern: "-proxy-api$"
+        documentIndex: 1
+      - matchRegex:
+          path: metadata.name
+          pattern: "^.{1,63}$"
+        documentIndex: 2
+      - matchRegex:
+          path: metadata.name
+          pattern: "-hub$"
+        documentIndex: 2
+
+  - it: should render dual-stack fields
+    documentIndex: 0
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies:
+        - IPv4
+        - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+
+  - it: should render proxy service annotations
+    documentIndex: 0
+    set:
+      service.annotations:
+        service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    asserts:
+      - equal:
+          path: metadata.annotations["service.beta.kubernetes.io/aws-load-balancer-scheme"]
+          value: internet-facing
+
+  - it: should merge common and service annotations
+    documentIndex: 0
+    set:
+      annotations:
+        reloader.stakater.com/auto: "true"
+        policy.example.com/scope: common
+      service.annotations:
+        policy.example.com/scope: service
+    asserts:
+      - equal:
+          path: metadata.annotations["reloader.stakater.com/auto"]
+          value: "true"
+      - equal:
+          path: metadata.annotations["policy.example.com/scope"]
+          value: service
+      - equal:
+          path: metadata.annotations["reloader.stakater.com/auto"]
+          value: "true"
+        documentIndex: 1
+      - equal:
+          path: metadata.annotations["reloader.stakater.com/auto"]
+          value: "true"
+        documentIndex: 2
+
+  - it: should render common labels on a separate YAML line
+    documentIndex: 0
+    set:
+      commonLabels.foo: bar
+    asserts:
+      - equal:
+          path: metadata.labels.foo
+          value: bar

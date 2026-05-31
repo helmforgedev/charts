@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: PodDisruptionBudget
+templates:
+  - pdb.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not create PDB by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not create PDB in standalone even when enabled
+    set:
+      pdb.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create PDB in replication mode when enabled
+    set:
+      architecture: replication
+      pdb.enabled: true
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+      - notExists:
+          path: spec.minAvailable
+
+  - it: should protect data and sentinel pods in sentinel mode
+    set:
+      architecture: sentinel
+      pdb.enabled: true
+      sentinel.quorum: 2
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: test-valkey
+        documentIndex: 0
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: valkey
+        documentIndex: 0
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: test-valkey-sentinel
+        documentIndex: 1
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: sentinel
+        documentIndex: 1
+      - equal:
+          path: spec.minAvailable
+          value: 2
+        documentIndex: 1
+      - notExists:
+          path: spec.maxUnavailable
+        documentIndex: 1

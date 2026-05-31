@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Service
+templates:
+  - service.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render controller service with http and agent ports
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: test-jenkins
+      - contains:
+          path: spec.ports
+          content:
+            name: http
+            port: 8080
+            targetPort: http
+      - contains:
+          path: spec.ports
+          content:
+            name: agent
+            port: 50000
+            targetPort: agent
+
+  - it: should render dual-stack fields
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies:
+        - IPv4
+        - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+      - equal:
+          path: spec.ipFamilies[1]
+          value: IPv6

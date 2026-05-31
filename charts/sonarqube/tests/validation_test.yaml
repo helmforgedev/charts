@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Validation
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should require JDBC URL for external database mode
+    set:
+      sonarqube.databaseMode: external
+      database.external.password: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: database.external.jdbcUrl is required when sonarqube.databaseMode=external
+
+  - it: should require credentials for external database mode
+    set:
+      sonarqube.databaseMode: external
+      database.external.jdbcUrl: jdbc:postgresql://postgres:5432/sonarqube
+    asserts:
+      - failedTemplate:
+          errorMessage: database.external.password, database.external.existingSecret, or externalSecrets.database.enabled is required when sonarqube.databaseMode=external
+
+  - it: should require postgresql subchart when bundled mode is explicit
+    set:
+      sonarqube.databaseMode: postgresql
+    asserts:
+      - failedTemplate:
+          errorMessage: postgresql.enabled must be true when sonarqube.databaseMode=postgresql
+
+  - it: should reject external database mode while bundled PostgreSQL is enabled
+    set:
+      sonarqube.databaseMode: external
+      database.external.jdbcUrl: jdbc:postgresql://postgres:5432/sonarqube
+      database.external.password: secret
+      postgresql.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: postgresql.enabled must be false when SonarQube is configured for external database mode
+
+  - it: should reject unsupported Community multi-replica deployments
+    set:
+      replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: replicaCount greater than 1 is unsupported for this SonarQube Community chart
+
+  - it: should require Gateway parent refs
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.parentRefs: []
+    asserts:
+      - failedTemplate:
+          errorMessage: gatewayAPI.parentRefs must contain at least one parentRef when gatewayAPI.enabled=true

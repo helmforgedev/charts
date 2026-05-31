@@ -1,0 +1,71 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "zookeeper.validate" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "zookeeper.configMapName" . }}
+  namespace: {{ include "zookeeper.namespace" . | quote }}
+  labels:
+    {{- include "zookeeper.labels" . | nindent 4 }}
+data:
+  start.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    ordinal="${HOSTNAME##*-}"
+    rm -f "${ZOO_CONF_DIR:-/conf}/zoo.cfg"
+    {{- if or (gt (.Values.replicaCount | int) 1) (not .Values.zookeeper.standaloneEnabled) }}
+    export ZOO_MY_ID="$((ordinal + 1))"
+    export ZOO_SERVERS="{{ include "zookeeper.servers" . }}"
+    {{- else }}
+    export ZOO_SERVERS=" "
+    {{- end }}
+    export ZOO_DATA_DIR="/data"
+    {{- if and .Values.persistence.enabled (not .Values.persistence.dataLogDir.enabled) }}
+    export ZOO_DATA_LOG_DIR="/data"
+    {{- else }}
+    export ZOO_DATA_LOG_DIR="/datalog"
+    {{- end }}
+    export ZOO_CLIENT_PORT="{{ .Values.zookeeper.clientPort }}"
+    export ZOO_TICK_TIME="{{ .Values.zookeeper.tickTime }}"
+    export ZOO_INIT_LIMIT="{{ .Values.zookeeper.initLimit }}"
+    export ZOO_SYNC_LIMIT="{{ .Values.zookeeper.syncLimit }}"
+    export ZOO_MAX_CLIENT_CNXNS="{{ .Values.zookeeper.maxClientCnxns }}"
+    export ZOO_STANDALONE_ENABLED="{{ ternary "true" "false" (and .Values.zookeeper.standaloneEnabled (eq (.Values.replicaCount | int) 1)) }}"
+    export ZOO_ADMINSERVER_ENABLED="{{ ternary "true" "false" .Values.zookeeper.adminServerEnabled }}"
+    export ZOO_AUTOPURGE_SNAPRETAINCOUNT="{{ .Values.zookeeper.autopurgeSnapRetainCount }}"
+    export ZOO_AUTOPURGE_PURGEINTERVAL="{{ .Values.zookeeper.autopurgePurgeInterval }}"
+    export ZOO_4LW_COMMANDS_WHITELIST="{{ include "zookeeper.fourLetterWordWhitelist" . }}"
+
+    extra_cfg="$(cat /opt/helmforge/zookeeper/zoo-extra.cfg)"
+    export ZOO_CFG_EXTRA="${extra_cfg}"
+
+    jvm_flags="{{ .Values.zookeeper.jvmFlags }}"
+    {{- if .Values.auth.client.enabled }}
+    jvm_flags="${jvm_flags} -Djava.security.auth.login.config=/etc/zookeeper/auth/{{ .Values.auth.client.existingSecretJaasKey }}"
+    {{- end }}
+    export JVMFLAGS="${JVMFLAGS:-} ${jvm_flags}"
+
+    exec /docker-entrypoint.sh zkServer.sh start-foreground
+  zoo-extra.cfg: |
+    clientPort={{ .Values.zookeeper.clientPort }}
+    admin.serverPort={{ .Values.zookeeper.adminServerPort }}
+    {{- if .Values.metrics.enabled }}
+    metricsProvider.className=org.apache.zookeeper.metrics.prometheus.PrometheusMetricsProvider
+    metricsProvider.httpPort={{ .Values.metrics.port }}
+    {{- end }}
+    {{- if .Values.auth.client.enabled }}
+    authProvider.1=org.apache.zookeeper.server.auth.SASLAuthenticationProvider
+    requireClientAuthScheme=sasl
+    {{- end }}
+    {{- if .Values.tls.client.enabled }}
+    serverCnxnFactory=org.apache.zookeeper.server.NettyServerCnxnFactory
+    secureClientPort={{ .Values.tls.client.port }}
+    ssl.keyStore.location=/etc/zookeeper/tls/{{ .Values.tls.client.keystoreKey }}
+    ssl.trustStore.location=/etc/zookeeper/tls/{{ .Values.tls.client.truststoreKey }}
+    ssl.keyStore.passwordPath=/etc/zookeeper/tls-passwords/{{ .Values.tls.client.existingKeystorePasswordKey }}
+    ssl.trustStore.passwordPath=/etc/zookeeper/tls-passwords/{{ .Values.tls.client.existingTruststorePasswordKey }}
+    {{- end }}
+    {{- with .Values.zookeeper.extraConfig }}
+{{ . | nindent 4 }}
+    {{- end }}

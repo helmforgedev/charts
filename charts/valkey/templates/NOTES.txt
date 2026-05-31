@@ -1,0 +1,190 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+Valkey has been installed.
+
+1. Installation summary
+=======================
+
+- Release: {{ .Release.Name }}
+- Namespace: {{ .Release.Namespace }}
+- Chart: {{ .Chart.Name }} {{ .Chart.Version }}
+- App version: {{ .Chart.AppVersion }}
+- Architecture: {{ .Values.architecture }}
+- Image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+- Cluster domain: {{ include "valkey.clusterDomain" . }}
+- ServiceAccount: {{ include "valkey.serviceAccountName" . }}
+- Authentication enabled: {{ .Values.auth.enabled }}
+- Metrics enabled: {{ .Values.metrics.enabled }}
+- ServiceMonitor enabled: {{ and .Values.metrics.enabled .Values.metrics.serviceMonitor.enabled }}
+- PodDisruptionBudget enabled: {{ .Values.pdb.enabled }}
+- External Secrets enabled: {{ .Values.externalSecrets.enabled }}
+
+2. Access
+=========
+
+Headless service:
+- Name: {{ include "valkey.headlessServiceName" . }}
+- DNS: {{ include "valkey.headlessServiceFqdn" . }}
+- Port: {{ .Values.service.ports.valkey }}
+
+{{- if include "valkey.isStandalone" . }}
+Standalone client service:
+- Name: {{ include "valkey.clientServiceName" . }}
+- Type: {{ .Values.service.type }}
+- DNS: {{ include "valkey.clientServiceFqdn" . }}
+- Port: {{ .Values.service.ports.valkey }}
+{{- end }}
+
+{{- if or (include "valkey.isReplication" .) (include "valkey.isSentinel" .) }}
+Primary service:
+- Name: {{ include "valkey.primaryServiceName" . }}
+- DNS: {{ include "valkey.primaryServiceFqdn" . }}
+- Port: {{ .Values.service.ports.valkey }}
+
+Replica service:
+- Name: {{ include "valkey.replicaServiceName" . }}
+- DNS: {{ include "valkey.replicaServiceFqdn" . }}
+- Port: {{ .Values.service.ports.valkey }}
+{{- end }}
+
+{{- if include "valkey.isSentinel" . }}
+Sentinel service:
+- Name: {{ include "valkey.sentinelServiceName" . }}
+- DNS: {{ include "valkey.sentinelServiceFqdn" . }}
+- Port: {{ .Values.service.ports.sentinel }}
+- Monitored primary: {{ include "valkey.primaryPodFqdn" . }}:{{ .Values.service.ports.valkey }}
+{{- end }}
+
+{{- if include "valkey.isCluster" . }}
+Valkey Cluster client service:
+- Name: {{ include "valkey.clientServiceName" . }}
+- Type: ClusterIP
+- DNS: {{ include "valkey.clientServiceFqdn" . }}
+- Port: {{ .Values.service.ports.valkey }}
+- Nodes: {{ .Values.cluster.nodes }}
+- Replicas per master: {{ .Values.cluster.replicasPerMaster }}
+{{- end }}
+
+{{- if .Values.service.ipFamilyPolicy }}
+Service IP family policy: {{ .Values.service.ipFamilyPolicy }}
+{{- end }}
+{{- if .Values.service.ipFamilies }}
+Service IP families: {{ join ", " .Values.service.ipFamilies }}
+{{- end }}
+
+3. Credentials
+==============
+
+{{- if .Values.auth.enabled }}
+Valkey password:
+
+  kubectl get secret {{ include "valkey.secretName" . }} -n {{ .Release.Namespace }} -o jsonpath="{.data.{{ .Values.auth.existingSecretPasswordKey }}}" | base64 -d
+
+Secret name: {{ include "valkey.secretName" . }}
+Secret key: {{ .Values.auth.existingSecretPasswordKey }}
+{{- else }}
+Authentication is disabled.
+{{- end }}
+
+{{- if .Values.externalSecrets.enabled }}
+ExternalSecret:
+- SecretStore: {{ .Values.externalSecrets.secretStoreRef.name }} ({{ .Values.externalSecrets.secretStoreRef.kind }})
+- Target Secret: {{ include "valkey.secretName" . }}
+- Refresh interval: {{ .Values.externalSecrets.refreshInterval }}
+{{- end }}
+
+4. Getting started
+==================
+
+Wait for Valkey pods:
+
+  kubectl wait --for=condition=Ready pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ include "valkey.name" . }} --timeout=10m
+
+Check release resources:
+
+  kubectl get sts,svc,secret,cm,pdb -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+{{- if include "valkey.isStandalone" . }}
+Check standalone connectivity:
+
+  kubectl run {{ include "valkey.fullname" . }}-check -n {{ .Release.Namespace }} --rm -i --restart=Never --image={{ .Values.image.repository }}:{{ .Values.image.tag }} -- valkey-cli -h {{ include "valkey.clientServiceName" . }} -p {{ .Values.service.ports.valkey }}{{ if .Values.auth.enabled }} -a "$(kubectl get secret {{ include "valkey.secretName" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.{{ .Values.auth.existingSecretPasswordKey }}}' | base64 -d)"{{ end }} ping
+{{- end }}
+
+{{- if include "valkey.isReplication" . }}
+Use the primary service for writes and the replica service for read-only workloads:
+
+  {{ include "valkey.primaryServiceFqdn" . }}:{{ .Values.service.ports.valkey }}
+  {{ include "valkey.replicaServiceFqdn" . }}:{{ .Values.service.ports.valkey }}
+{{- end }}
+
+{{- if include "valkey.isSentinel" . }}
+Use the Sentinel service for Sentinel-aware clients:
+
+  {{ include "valkey.sentinelServiceFqdn" . }}:{{ .Values.service.ports.sentinel }}
+
+Verify Sentinel can see the primary:
+
+  kubectl exec -n {{ .Release.Namespace }} sts/{{ include "valkey.sentinelStatefulSetName" . }} -- valkey-cli -p {{ .Values.service.ports.sentinel }} SENTINEL masters
+{{- end }}
+
+{{- if include "valkey.isCluster" . }}
+Use a Valkey Cluster-compatible client and connect through:
+
+  {{ include "valkey.clientServiceFqdn" . }}:{{ .Values.service.ports.valkey }}
+
+Check cluster state:
+
+  kubectl exec -n {{ .Release.Namespace }} sts/{{ include "valkey.clusterStatefulSetName" . }} -- valkey-cli{{ if .Values.auth.enabled }} -a "$(kubectl get secret {{ include "valkey.secretName" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.{{ .Values.auth.existingSecretPasswordKey }}}' | base64 -d)"{{ end }} cluster info
+{{- end }}
+
+5. Configuration summary
+========================
+
+Persistence:
+- Standalone persistence: {{ .Values.standalone.persistence.enabled }}
+- Primary persistence: {{ .Values.replication.primary.persistence.enabled }}
+- Replica persistence: {{ .Values.replication.replica.persistence.enabled }}
+- Sentinel persistence: {{ .Values.sentinel.persistence.enabled }}
+- Cluster persistence: {{ .Values.cluster.persistence.enabled }}
+
+Networking:
+- Service type: {{ .Values.service.type }}
+- Valkey port: {{ .Values.service.ports.valkey }}
+- Sentinel port: {{ .Values.service.ports.sentinel }}
+- Metrics port: {{ .Values.service.ports.metrics }}
+
+Scheduling:
+- PriorityClass: {{ default "(not configured)" .Values.priorityClassName }}
+- Termination grace period: {{ .Values.terminationGracePeriodSeconds }}s
+
+6. Troubleshooting
+==================
+
+Inspect pods and events:
+
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -o wide
+  kubectl describe pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+
+Inspect logs:
+
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --all-containers --tail=200
+
+Common checks:
+
+- If replicas cannot connect, verify headless Service DNS and `clusterDomain`.
+- If Sentinel does not start, verify the primary pod FQDN and auth Secret.
+- If Valkey Cluster bootstrap is stuck, inspect the cluster init Job logs.
+- If clients cannot authenticate, verify Secret name, key, and password content.
+- If dual-stack fields are rejected, verify the Kubernetes version and cluster network configuration.
+- If metrics are missing, verify `metrics.enabled`, Service ports, and ServiceMonitor labels.
+
+7. Resources
+============
+
+- HelmForge chart docs: https://helmforge.dev/docs/charts/valkey
+- Valkey docs: https://valkey.io/docs/latest/
+- Valkey Sentinel: https://valkey.io/docs/latest/operate/oss_and_stack/management/sentinel/
+- Valkey Cluster: https://valkey.io/docs/latest/operate/oss_and_stack/management/scaling/
+- HelmForge chart issues: https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)

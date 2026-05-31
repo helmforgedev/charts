@@ -1,0 +1,383 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Deployment
+templates:
+  - deployment-hub.yaml
+  - deployment-proxy.yaml
+  - configmap.yaml
+  - secret.yaml
+  - pvc-hub.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render hub deployment
+    template: deployment-hub.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8081
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - exists:
+          path: spec.template.metadata.annotations["checksum/secret"]
+      - equal:
+          path: spec.template.spec.volumes[1].persistentVolumeClaim.claimName
+          value: test-jupyterhub-hub-data
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-proxy-api
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "jupyterhub-proxy-api:8001/api/routes"
+
+  - it: should prefix hub health probes with baseUrl
+    template: deployment-hub.yaml
+    set:
+      hub.baseUrl: /notebooks/
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /notebooks/hub/health
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /notebooks/hub/health
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /notebooks/hub/health
+
+  - it: should render proxy deployment
+    template: deployment-proxy.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8000
+      - exists:
+          path: spec.template.metadata.annotations["checksum/secret"]
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --ip=0.0.0.0
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --api-ip=0.0.0.0
+
+  - it: should keep derived workload and PVC names within DNS label length
+    set:
+      fullnameOverride: jupyterhub-with-a-very-long-name-that-fills-the-dns-label-limit
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: "^.{1,63}$"
+        template: deployment-hub.yaml
+      - matchRegex:
+          path: metadata.name
+          pattern: "-hub$"
+        template: deployment-hub.yaml
+      - matchRegex:
+          path: metadata.name
+          pattern: "^.{1,63}$"
+        template: deployment-proxy.yaml
+      - matchRegex:
+          path: metadata.name
+          pattern: "-proxy$"
+        template: deployment-proxy.yaml
+      - matchRegex:
+          path: metadata.name
+          pattern: "^.{1,63}$"
+        template: pvc-hub.yaml
+      - matchRegex:
+          path: metadata.name
+          pattern: "-hub-data$"
+        template: pvc-hub.yaml
+
+  - it: should bind proxy listeners to IPv6 wildcard for dual-stack services
+    template: deployment-proxy.yaml
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies:
+        - IPv6
+        - IPv4
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: "--ip=::"
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: "--api-ip=::"
+
+  - it: should allow explicit proxy bind addresses
+    template: deployment-proxy.yaml
+    set:
+      proxy.bind.ip: 0.0.0.0
+      proxy.bind.apiIp: 127.0.0.1
+      service.ipFamilyPolicy: PreferDualStack
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --ip=0.0.0.0
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --api-ip=127.0.0.1
+
+  - it: should prefix proxy error target with baseUrl
+    template: deployment-proxy.yaml
+    set:
+      hub.baseUrl: /notebooks/
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --error-target=http://test-jupyterhub-hub:8081/notebooks/hub/error
+
+  - it: should render hub data PVC by default
+    template: pvc-hub.yaml
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: metadata.name
+          value: test-jupyterhub-hub-data
+      - equal:
+          path: spec.resources.requests.storage
+          value: 10Gi
+
+  - it: should use emptyDir when hub persistence is disabled
+    template: deployment-hub.yaml
+    set:
+      hub.persistence.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[1].emptyDir
+          value: {}
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should use existing hub data claim when configured
+    template: deployment-hub.yaml
+    set:
+      hub.persistence.existingClaim: hub-db-existing
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[1].persistentVolumeClaim.claimName
+          value: hub-db-existing
+
+  - it: should reject multiple hub replicas with the default SQLite database
+    template: deployment-hub.yaml
+    set:
+      hub.replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: "hub.replicaCount > 1 requires hub.extraConfig to configure an external c.JupyterHub.db_url; the default SQLite database is single-writer and must run with one Hub replica"
+
+  - it: should reject multiple hub replicas when db_url is only mentioned in a comment
+    template: deployment-hub.yaml
+    set:
+      hub.replicaCount: 2
+      hub.extraConfig: |
+        # c.JupyterHub.db_url = "postgresql+psycopg2://jupyterhub:secret@postgresql/jupyterhub"
+    asserts:
+      - failedTemplate:
+          errorMessage: "hub.replicaCount > 1 requires hub.extraConfig to configure an external c.JupyterHub.db_url; the default SQLite database is single-writer and must run with one Hub replica"
+
+  - it: should reject multiple hub replicas when db_url is only mentioned in a string
+    template: deployment-hub.yaml
+    set:
+      hub.replicaCount: 2
+      hub.extraConfig: |
+        db_url_example = "c.JupyterHub.db_url = postgresql+psycopg2://jupyterhub:secret@postgresql/jupyterhub"
+    asserts:
+      - failedTemplate:
+          errorMessage: "hub.replicaCount > 1 requires hub.extraConfig to configure an external c.JupyterHub.db_url; the default SQLite database is single-writer and must run with one Hub replica"
+
+  - it: should reject multiple hub replicas with external database, disabled persistence, and no shared cookie secret
+    template: deployment-hub.yaml
+    set:
+      hub.replicaCount: 2
+      hub.persistence.enabled: false
+      hub.extraConfig: |
+        c.JupyterHub.db_url = "postgresql+psycopg2://jupyterhub:secret@postgresql/jupyterhub"
+    asserts:
+      - failedTemplate:
+          errorMessage: "hub.replicaCount > 1 with hub.persistence.enabled=false requires hub.cookieSecret.existingSecret so every Hub replica uses the same JupyterHub cookie secret"
+
+  - it: should allow multiple hub replicas with external database and shared cookie secret
+    template: deployment-hub.yaml
+    set:
+      hub.replicaCount: 2
+      hub.persistence.enabled: false
+      hub.cookieSecret.existingSecret: hub-cookie
+      hub.extraConfig: |
+        c.JupyterHub.db_url = "postgresql+psycopg2://jupyterhub:secret@postgresql/jupyterhub"
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: cookie-secret
+            secret:
+              secretName: hub-cookie
+              items:
+                - key: cookie-secret
+                  path: cookie-secret
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: prepare-cookie-secret
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chmod 600 \"/srv/jupyterhub/jupyterhub_cookie_secret\""
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: cookie-secret
+            mountPath: /var/run/jupyterhub-cookie-secret
+            readOnly: true
+
+  - it: should reject multiple hub replicas with external database and RWO hub persistence
+    template: deployment-hub.yaml
+    set:
+      hub.replicaCount: 2
+      hub.extraConfig: |
+        c.JupyterHub.db_url = "postgresql+psycopg2://jupyterhub:secret@postgresql/jupyterhub"
+    asserts:
+      - failedTemplate:
+          errorMessage: "hub.replicaCount > 1 with hub.persistence.enabled=true requires hub.persistence.accessModes without ReadWriteOnce or ReadWriteOncePod, or hub.persistence.enabled=false, to avoid multiple Hub replicas sharing a single-writer PVC"
+
+  - it: should reject multiple hub replicas with external database and ReadWriteOncePod hub persistence
+    template: deployment-hub.yaml
+    set:
+      hub.replicaCount: 2
+      hub.persistence.accessModes:
+        - ReadWriteOncePod
+      hub.extraConfig: |
+        c.JupyterHub.db_url = "postgresql+psycopg2://jupyterhub:secret@postgresql/jupyterhub"
+    asserts:
+      - failedTemplate:
+          errorMessage: "hub.replicaCount > 1 with hub.persistence.enabled=true requires hub.persistence.accessModes without ReadWriteOnce or ReadWriteOncePod, or hub.persistence.enabled=false, to avoid multiple Hub replicas sharing a single-writer PVC"
+
+  - it: should allow multiple hub replicas with external database and RWX hub persistence
+    template: deployment-hub.yaml
+    set:
+      hub.replicaCount: 2
+      hub.persistence.accessModes:
+        - ReadWriteMany
+      hub.extraConfig: |
+        c.JupyterHub.db_url = "postgresql+psycopg2://jupyterhub:secret@postgresql/jupyterhub"
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+      - notExists:
+          path: spec.strategy
+
+  - it: should allow multiple hub replicas with external database and an existing hub claim
+    template: deployment-hub.yaml
+    set:
+      hub.replicaCount: 2
+      hub.persistence.existingClaim: hub-rwx-existing
+      hub.extraConfig: |
+        c.JupyterHub.db_url = "postgresql+psycopg2://jupyterhub:secret@postgresql/jupyterhub"
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+      - equal:
+          path: spec.template.spec.volumes[1].persistentVolumeClaim.claimName
+          value: hub-rwx-existing
+      - notExists:
+          path: spec.strategy
+
+  - it: should render image pull secrets on hub and proxy pods
+    set:
+      imagePullSecrets:
+        - name: private-registry
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: private-registry
+        template: deployment-hub.yaml
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: private-registry
+        template: deployment-proxy.yaml
+
+  - it: should render pod metadata on hub and proxy pods
+    set:
+      podLabels:
+        backup.velero.io/enabled: "true"
+      podAnnotations:
+        reloader.stakater.com/auto: "true"
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels["backup.velero.io/enabled"]
+          value: "true"
+        template: deployment-hub.yaml
+      - equal:
+          path: spec.template.metadata.annotations["reloader.stakater.com/auto"]
+          value: "true"
+        template: deployment-hub.yaml
+      - equal:
+          path: spec.template.metadata.labels["backup.velero.io/enabled"]
+          value: "true"
+        template: deployment-proxy.yaml
+      - equal:
+          path: spec.template.metadata.annotations["reloader.stakater.com/auto"]
+          value: "true"
+        template: deployment-proxy.yaml
+
+  - it: should render extra volumes and mounts on hub pod
+    template: deployment-hub.yaml
+    set:
+      extraVolumes:
+        - name: ca-bundle
+          secret:
+            secretName: ca-bundle
+      extraVolumeMounts:
+        - name: ca-bundle
+          mountPath: /etc/ssl/custom
+          readOnly: true
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: ca-bundle
+            secret:
+              secretName: ca-bundle
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: ca-bundle
+            mountPath: /etc/ssl/custom
+            readOnly: true
+
+  - it: should render scheduling controls on hub and proxy pods
+    set:
+      priorityClassName: notebook-critical
+      nodeSelector:
+        workload: notebooks
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: notebooks
+          effect: NoSchedule
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: notebook-critical
+        template: deployment-hub.yaml
+      - equal:
+          path: spec.template.spec.nodeSelector.workload
+          value: notebooks
+        template: deployment-hub.yaml
+      - equal:
+          path: spec.template.spec.tolerations[0].key
+          value: dedicated
+        template: deployment-proxy.yaml

@@ -1,0 +1,157 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if include "valkey.isSentinel" . }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "valkey.sentinelStatefulSetName" . }}
+  labels:
+    {{- include "valkey.labels" . | nindent 4 }}
+  {{- include "valkey.renderAnnotations" (dict "root" .) | nindent 2 }}
+spec:
+  serviceName: {{ include "valkey.sentinelServiceName" . }}
+  replicas: {{ .Values.sentinel.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "valkey.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: sentinel
+  template:
+    metadata:
+      labels:
+        {{- include "valkey.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: sentinel
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.auth.enabled }}
+        checksum/auth-secret: {{ include "valkey.authChecksum" . }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "valkey.podSpecCommon" . | nindent 6 }}
+      containers:
+        - name: sentinel
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-ec"]
+          args:
+            - |
+              if [ ! -f /data/sentinel.conf ]; then
+                until valkey-cli $VALKEY_TLS_ARGS -h "$VALKEY_PRIMARY_HOST" -p "$VALKEY_PRIMARY_PORT" {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" --no-auth-warning {{- end }} ping >/dev/null 2>&1; do
+                  echo "waiting for primary $VALKEY_PRIMARY_HOST:$VALKEY_PRIMARY_PORT"
+                  sleep 5
+                done
+                cp /etc/valkey-base/sentinel.conf /data/sentinel.conf
+              else
+                persisted_monitor="$(grep '^sentinel monitor mymaster ' /data/sentinel.conf | tail -n 1 || true)"
+                append_sentinel_base() {
+                  if [ -n "$persisted_monitor" ]; then
+                    awk -v monitor="$persisted_monitor" '
+                      /^sentinel monitor mymaster / { print monitor; next }
+                      { print }
+                    ' /etc/valkey-base/sentinel.conf >> /data/sentinel.conf
+                  else
+                    cat /etc/valkey-base/sentinel.conf >> /data/sentinel.conf
+                  fi
+                }
+                if grep -q '^# HelmForge managed sentinel config begin$' /data/sentinel.conf; then
+                  sed -i '/^# HelmForge managed sentinel config begin$/,/^# HelmForge managed sentinel config end$/d' /data/sentinel.conf
+                else
+                  sed -i \
+                    -e '/^port /d' \
+                    -e '/^tls-port /d' \
+                    -e '/^tls-cert-file /d' \
+                    -e '/^tls-key-file /d' \
+                    -e '/^tls-ca-cert-file /d' \
+                    -e '/^tls-auth-clients /d' \
+                    -e '/^tls-replication /d' \
+                    -e '/^dir /d' \
+                    -e '/^sentinel resolve-hostnames /d' \
+                    -e '/^sentinel monitor mymaster /d' \
+                    -e '/^sentinel down-after-milliseconds mymaster /d' \
+                    -e '/^sentinel failover-timeout mymaster /d' \
+                    -e '/^sentinel parallel-syncs mymaster /d' \
+                    /data/sentinel.conf
+                fi
+                append_sentinel_base
+              fi
+              {{- if .Values.auth.enabled }}
+              sed -i '/^sentinel auth-pass mymaster /d' /data/sentinel.conf
+              echo "sentinel auth-pass mymaster ${VALKEY_PASSWORD}" >> /data/sentinel.conf
+              {{- end }}
+              exec valkey-sentinel /data/sentinel.conf
+          ports:
+            - name: sentinel
+              containerPort: {{ .Values.service.ports.sentinel }}
+          {{- if .Values.auth.enabled }}
+          env:
+            - name: VALKEY_PRIMARY_HOST
+              value: {{ include "valkey.primaryPodFqdn" . | quote }}
+            - name: VALKEY_PRIMARY_PORT
+              value: {{ .Values.service.ports.valkey | quote }}
+            - name: VALKEY_TLS_ARGS
+              value: {{ ternary (printf "--tls --cacert /tls/%s" .Values.tls.caFilename) "" .Values.tls.enabled | quote }}
+            - name: VALKEY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "valkey.secretName" . }}
+                  key: {{ .Values.auth.existingSecretPasswordKey }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- else }}
+          env:
+            - name: VALKEY_PRIMARY_HOST
+              value: {{ include "valkey.primaryPodFqdn" . | quote }}
+            - name: VALKEY_PRIMARY_PORT
+              value: {{ .Values.service.ports.valkey | quote }}
+            - name: VALKEY_TLS_ARGS
+              value: {{ ternary (printf "--tls --cacert /tls/%s" .Values.tls.caFilename) "" .Values.tls.enabled | quote }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          {{- with .Values.sentinel.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/valkey-base/sentinel.conf
+              subPath: sentinel.conf
+            - name: data
+              mountPath: /data
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "valkey.configMapName" . }}
+        {{- if not .Values.sentinel.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+        {{- if .Values.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ .Values.tls.existingSecret }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+  {{- if .Values.sentinel.persistence.enabled }}
+  volumeClaimTemplates:
+    {{- include "valkey.volumeClaimTemplate" (dict "root" . "persistence" .Values.sentinel.persistence) | nindent 4 }}
+  {{- end }}
+{{- end }}

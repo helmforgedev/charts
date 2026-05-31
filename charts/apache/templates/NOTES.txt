@@ -1,0 +1,57 @@
+=============================================================================
+Apache HTTP Server deployed successfully!
+=============================================================================
+
+ACCESS:
+   kubectl port-forward svc/{{ include "apache.fullname" . }} -n {{ .Release.Namespace }} 8080:{{ .Values.service.port }}
+   Open: http://localhost:8080/
+
+SERVICE:
+   Internal URL: http://{{ include "apache.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}/
+   Health URL: http://{{ include "apache.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}/healthz
+
+IMAGE:
+   {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+
+CONTENT:
+{{- if .Values.content.existingConfigMap }}
+   Content ConfigMap: {{ .Values.content.existingConfigMap }}
+{{- else }}
+   Content ConfigMap: {{ include "apache.contentConfigMapName" . }}
+   Files: {{ len .Values.content.files }}
+{{- end }}
+
+SECURITY:
+   Non-root runtime: enabled
+   Read-only root filesystem: {{ .Values.securityContext.readOnlyRootFilesystem }}
+   Basic Auth: {{ ternary "enabled" "disabled" .Values.basicAuth.enabled }}
+{{- if .Values.basicAuth.enabled }}
+   Basic Auth Secret: {{ include "apache.basicAuthSecretName" . }}
+{{- end }}
+
+NETWORKING:
+   Ingress: {{ ternary "enabled" "disabled" .Values.ingress.enabled }}
+   Gateway API: {{ ternary "enabled" "disabled" .Values.gateway.enabled }}
+   NetworkPolicy: {{ ternary "enabled" "disabled" .Values.networkPolicy.enabled }}
+
+OBSERVABILITY:
+   Metrics sidecar: {{ ternary "enabled" "disabled" .Values.metrics.enabled }}
+   ServiceMonitor: {{ ternary "enabled" "disabled" .Values.metrics.serviceMonitor.enabled }}
+{{- if .Values.metrics.enabled }}
+   Metrics endpoint: http://{{ include "apache.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.metricsPort }}/metrics
+{{- end }}
+
+OPERATIONS:
+   Run Helm tests:
+     helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+   Inspect pods:
+     kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+     kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "apache.fullname" . }}
+
+DOCUMENTATION:
+   Chart: https://helmforge.dev/docs/charts/apache
+   Source: https://github.com/helmforgedev/charts/tree/main/charts/apache
+   Apache HTTP Server: https://httpd.apache.org
+
+=============================================================================

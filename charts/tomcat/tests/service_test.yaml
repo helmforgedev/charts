@@ -1,0 +1,92 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Service
+templates:
+  - service.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render service on port 80 targeting Tomcat 8080
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: test-tomcat
+      - contains:
+          path: spec.ports
+          content:
+            name: http
+            port: 80
+            targetPort: http
+            protocol: TCP
+
+  - it: should support dual-stack values
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies:
+        - IPv4
+        - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+      - equal:
+          path: spec.ipFamilies
+          value:
+            - IPv4
+            - IPv6
+
+  - it: should expose JMX when enabled
+    set:
+      jmx.enabled: true
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: jmx
+            port: 9010
+            targetPort: jmx
+            protocol: TCP
+
+  - it: should expose separate JMX RMI service port when configured
+    set:
+      jmx.enabled: true
+      jmx.port: 9999
+      jmx.rmiPort: 9011
+      service.ports.jmx: 19010
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: jmx
+            port: 19010
+            targetPort: jmx
+            protocol: TCP
+      - contains:
+          path: spec.ports
+          content:
+            name: jmx-rmi
+            port: 9011
+            targetPort: jmx-rmi
+            protocol: TCP
+
+  - it: should use a dedicated RMI service port when only the JVM JMX port changes
+    set:
+      jmx.enabled: true
+      jmx.port: 9999
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: jmx
+            port: 9010
+            targetPort: jmx
+            protocol: TCP
+      - contains:
+          path: spec.ports
+          content:
+            name: jmx-rmi
+            port: 9011
+            targetPort: jmx-rmi
+            protocol: TCP

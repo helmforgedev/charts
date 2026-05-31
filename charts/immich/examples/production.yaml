@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: Apache-2.0
+# Production Immich with bundled HelmForge PostgreSQL and Redis-compatible cache
+
+server:
+  replicaCount: 1
+  persistence:
+    enabled: true
+    accessModes:
+      - ReadWriteOnce
+    storageClass: fast-retain
+    size: 500Gi
+
+machineLearning:
+  persistence:
+    enabled: true
+    storageClass: fast-retain
+    size: 20Gi
+
+postgresql:
+  auth:
+    # Secret must contain both postgres-password and user-password keys for the PostgreSQL subchart.
+    existingSecret: immich-postgresql-auth
+    existingSecretPostgresPasswordKey: postgres-password
+    existingSecretUserPasswordKey: user-password
+  standalone:
+    persistence:
+      enabled: true
+      storageClass: fast-retain
+      size: 100Gi
+
+valkey:
+  auth:
+    enabled: true
+    existingSecret: immich-cache-auth
+    existingSecretPasswordKey: valkey-password
+  standalone:
+    persistence:
+      enabled: true
+      storageClass: fast-retain
+      size: 10Gi
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: immich.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: immich-tls
+      hosts:
+        - immich.example.com
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 3Gi
+
+networkPolicy:
+  enabled: true

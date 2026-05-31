@@ -1,0 +1,354 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: HA Extension Points
+templates:
+  - replication-primary-statefulset.yaml
+  - replication-replica-statefulset.yaml
+  - sentinel-statefulset.yaml
+  - cluster-statefulset.yaml
+  - configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render extra env and volumes in replication pods
+    set:
+      architecture: replication
+      extraEnv:
+        - name: EXTRA_SETTING
+          value: enabled
+      extraVolumes:
+        - name: extra-config
+          configMap:
+            name: extra-config
+      extraVolumeMounts:
+        - name: extra-config
+          mountPath: /extra
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: EXTRA_SETTING
+            value: enabled
+        template: replication-primary-statefulset.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: extra-config
+            mountPath: /extra
+        template: replication-replica-statefulset.yaml
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: extra-config
+            configMap:
+              name: extra-config
+        template: replication-primary-statefulset.yaml
+
+  - it: should render extra env and volumes in sentinel pods
+    set:
+      architecture: sentinel
+      extraEnv:
+        - name: EXTRA_SETTING
+          value: enabled
+      extraVolumes:
+        - name: extra-config
+          configMap:
+            name: extra-config
+      extraVolumeMounts:
+        - name: extra-config
+          mountPath: /extra
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: EXTRA_SETTING
+            value: enabled
+        template: sentinel-statefulset.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: extra-config
+            mountPath: /extra
+        template: sentinel-statefulset.yaml
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: extra-config
+            configMap:
+              name: extra-config
+        template: sentinel-statefulset.yaml
+
+  - it: should persist sentinel runtime state when enabled
+    set:
+      architecture: sentinel
+      sentinel.persistence.enabled: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "exec valkey-sentinel /data/sentinel.conf"
+        template: sentinel-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "if \\[ ! -f /data/sentinel.conf \\]; then"
+        template: sentinel-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "if \\[ ! -f /data/sentinel.conf \\]; then\\n.*until valkey-cli"
+        template: sentinel-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "sed -i '/\\^sentinel auth-pass mymaster /d' /data/sentinel.conf"
+        template: sentinel-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "HelmForge managed sentinel config begin"
+        template: sentinel-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "sentinel down-after-milliseconds mymaster /d"
+        template: sentinel-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "persisted_monitor=\"\\$\\(grep '\\^sentinel monitor mymaster ' /data/sentinel.conf"
+        template: sentinel-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "append_sentinel_base\\(\\)"
+        template: sentinel-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "awk -v monitor=\"\\$persisted_monitor\""
+        template: sentinel-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "\\^sentinel monitor mymaster / \\{ print monitor; next \\}"
+        template: sentinel-statefulset.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /data
+        template: sentinel-statefulset.yaml
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+        template: sentinel-statefulset.yaml
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: data
+        template: sentinel-statefulset.yaml
+
+  - it: should mark sentinel config as a replaceable managed block
+    set:
+      architecture: sentinel
+      sentinel.quorum: 3
+      sentinel.downAfterMilliseconds: 45000
+      sentinel.failoverTimeout: 240000
+      sentinel.parallelSyncs: 2
+      config.sentinel: |
+        sentinel announce-hostnames yes
+    asserts:
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "# HelmForge managed sentinel config begin"
+        template: configmap.yaml
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "sentinel monitor mymaster test-valkey-primary-0\\.test-valkey-headless\\.default\\.svc\\.cluster\\.local 6379 3"
+        template: configmap.yaml
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "sentinel down-after-milliseconds mymaster 45000"
+        template: configmap.yaml
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "sentinel failover-timeout mymaster 240000"
+        template: configmap.yaml
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "sentinel parallel-syncs mymaster 2"
+        template: configmap.yaml
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "sentinel announce-hostnames yes"
+        template: configmap.yaml
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "# HelmForge managed sentinel config end"
+        template: configmap.yaml
+
+  - it: should reseed sentinel replicas from the current sentinel master on restarts
+    set:
+      architecture: sentinel
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "sentinel get-master-addr-by-name mymaster"
+        template: replication-replica-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "main container will fail closed if the role cannot be confirmed"
+        template: replication-replica-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "sentinel get-master-addr-by-name mymaster"
+        template: replication-replica-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "set -- \"\\$@\" --replicaof \"\\$sentinel_master\""
+        template: replication-replica-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "refusing to start as an unconfirmed master"
+        template: replication-replica-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "Sentinel reports this pod as the current master; starting without replicaof"
+        template: replication-replica-statefulset.yaml
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /data
+        template: replication-replica-statefulset.yaml
+
+  - it: should start old sentinel primary as a replica of the current sentinel master
+    set:
+      architecture: sentinel
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value:
+            - sh
+            - -ec
+        template: replication-primary-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "sentinel get-master-addr-by-name mymaster"
+        template: replication-primary-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "self_ip=\"\\$\\(hostname -i"
+        template: replication-primary-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "set -- \"\\$@\" --replicaof \"\\$sentinel_master\""
+        template: replication-primary-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "helmforge-sentinel-primary-bootstrapped"
+        template: replication-primary-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "refusing to start without role confirmation"
+        template: replication-primary-statefulset.yaml
+
+  - it: should keep fixed replicaof in replication mode
+    set:
+      architecture: replication
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value:
+            - valkey-server
+        template: replication-primary-statefulset.yaml
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "helmforge-sentinel-replica-bootstrapped"
+        template: replication-replica-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "set -- \"\\$@\" --replicaof"
+        template: replication-replica-statefulset.yaml
+
+  - it: should render extra env and volumes in cluster pods
+    set:
+      architecture: cluster
+      extraEnv:
+        - name: EXTRA_SETTING
+          value: enabled
+      extraVolumes:
+        - name: extra-config
+          configMap:
+            name: extra-config
+      extraVolumeMounts:
+        - name: extra-config
+          mountPath: /extra
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: EXTRA_SETTING
+            value: enabled
+        template: cluster-statefulset.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: extra-config
+            mountPath: /extra
+        template: cluster-statefulset.yaml
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: extra-config
+            configMap:
+              name: extra-config
+        template: cluster-statefulset.yaml
+
+  - it: should render metrics resources in replication pods
+    set:
+      architecture: replication
+      metrics.enabled: true
+      metrics.resources:
+        requests:
+          cpu: 20m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].resources.requests.cpu
+          value: 20m
+        template: replication-primary-statefulset.yaml
+      - equal:
+          path: spec.template.spec.containers[1].resources.limits.memory
+          value: 128Mi
+        template: replication-replica-statefulset.yaml
+
+  - it: should render metrics resources in sentinel valkey pods
+    set:
+      architecture: sentinel
+      metrics.enabled: true
+      metrics.resources:
+        requests:
+          cpu: 20m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].resources.requests.memory
+          value: 64Mi
+        template: replication-primary-statefulset.yaml
+      - equal:
+          path: spec.template.spec.containers[1].resources.limits.memory
+          value: 128Mi
+        template: replication-replica-statefulset.yaml
+
+  - it: should render metrics resources in cluster pods
+    set:
+      architecture: cluster
+      metrics.enabled: true
+      metrics.resources:
+        requests:
+          cpu: 20m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].resources.requests.cpu
+          value: 20m
+        template: cluster-statefulset.yaml

@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Cluster Init
+templates:
+  - cluster-init-job.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should add missing nodes during cluster scale-up
+    set:
+      architecture: cluster
+    asserts:
+      - isKind:
+          of: Job
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "cluster nodes"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "node_address_exists\\(\\)"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "refresh_cluster_nodes\\(\\)"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "split\\(\\$2, announced, \",\"\\)"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "announced\\[2\\] == host"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "waiting for new cluster nodes to be visible before rebalance"
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "grep -Fq \"\\$node\""
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "--cluster add-node"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "desired_masters=\\$\\(\\(6 / \\(replicas_per_master \\+ 1\\)\\)\\)"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "--cluster-replica"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "--cluster rebalance"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "--cluster-use-empty-masters"
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "--cluster-use-empty-primaries"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "--cluster-threshold 1"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "--cluster-yes"
+
+  - it: should render image pull secrets on cluster init job
+    set:
+      architecture: cluster
+      imagePullSecrets:
+        - name: private-registry
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: private-registry
+
+  - it: should merge global annotations with hook annotations
+    set:
+      architecture: cluster
+      annotations:
+        argocd.argoproj.io/sync-wave: "1"
+    asserts:
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-wave"]
+          value: "1"
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: post-install,post-upgrade

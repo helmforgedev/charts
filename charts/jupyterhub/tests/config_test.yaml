@@ -1,0 +1,277 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Config
+templates:
+  - configmap.yaml
+  - secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render JupyterHub config
+    template: configmap.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: "KubeSpawner"
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: "c\\.JupyterHub\\.authenticate_prometheus = True"
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: "c\\.JupyterHub\\.cleanup_servers = False"
+
+  - it: should render shared cookie secret file when configured
+    template: configmap.yaml
+    set:
+      hub.cookieSecret.existingSecret: hub-cookie
+    asserts:
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: "c\\.JupyterHub\\.cookie_secret_file = \"/srv/jupyterhub/jupyterhub_cookie_secret\""
+
+  - it: should allow opting into Hub shutdown cleanup of user servers
+    template: configmap.yaml
+    set:
+      hub.cleanupServers: true
+    asserts:
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: "c\\.JupyterHub\\.cleanup_servers = True"
+
+  - it: should render proxy token secret
+    template: secret.yaml
+    asserts:
+      - isKind:
+          of: Secret
+
+  - it: should pass single-user storageClass to KubeSpawner
+    template: configmap.yaml
+    set:
+      singleuser.storage.enabled: true
+      singleuser.storage.storageClass: fast-rwx
+    asserts:
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: "c\\.KubeSpawner\\.storage_class = \"fast-rwx\""
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: 'c\.KubeSpawner\.pvc_name_template = "test-jupyterhub-claim-\{username\}"'
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: '"claimName": "test-jupyterhub-claim-\{username\}"'
+
+  - it: should allow unauthenticated Prometheus metrics when explicitly disabled
+    template: configmap.yaml
+    set:
+      metrics.authenticatePrometheus: false
+    asserts:
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: "c\\.JupyterHub\\.authenticate_prometheus = False"
+
+  - it: should pass imagePullSecrets to KubeSpawner
+    template: configmap.yaml
+    set:
+      imagePullSecrets:
+        - name: private-registry
+    asserts:
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: "c\\.KubeSpawner\\.image_pull_secrets = \\[{\"name\":\"private-registry\"}\\]"
+
+  - it: should render profiles through JSON parsing for Python literals
+    template: configmap.yaml
+    set:
+      singleuser.profiles:
+        - display_name: Lab
+          default: true
+          kubespawner_override:
+            default_url: /lab
+            extra_resource_limits: null
+    asserts:
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: "import json"
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: "c\\.KubeSpawner\\.profile_list = json\\.loads"
+      - notMatchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: "default: true"
+
+  - it: should label spawned notebook pods for NetworkPolicy
+    template: configmap.yaml
+    set:
+      podLabels:
+        backup.velero.io/enabled: "true"
+        team: data-platform
+    asserts:
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: '"app\.kubernetes\.io/component": "singleuser"'
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: '"app\.kubernetes\.io/instance": "test"'
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: '"backup\.velero\.io/enabled": "true"'
+      - matchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: '"team": "data-platform"'
+
+  - it: should reject public ingress with insecure dummy auth
+    template: configmap.yaml
+    set:
+      ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "public exposure with the default dummy authenticator requires auth.dummyPassword or auth.allowInsecureDummy=true"
+
+  - it: should reject pod labels that override selector labels
+    template: configmap.yaml
+    set:
+      podLabels:
+        app.kubernetes.io/component: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: "podLabels cannot override reserved selector label app.kubernetes.io/component"
+
+  - it: should reject common labels that override selector labels
+    template: configmap.yaml
+    set:
+      commonLabels:
+        app.kubernetes.io/instance: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: "commonLabels cannot override reserved selector label app.kubernetes.io/instance"
+
+  - it: should reject public gateway with insecure dummy auth
+    template: configmap.yaml
+    set:
+      gateway.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "public exposure with the default dummy authenticator requires auth.dummyPassword or auth.allowInsecureDummy=true"
+
+  - it: should reject load balancer with insecure dummy auth
+    template: configmap.yaml
+    set:
+      service.type: LoadBalancer
+    asserts:
+      - failedTemplate:
+          errorMessage: "public exposure with the default dummy authenticator requires auth.dummyPassword or auth.allowInsecureDummy=true"
+
+  - it: should reject node port with insecure dummy auth
+    template: configmap.yaml
+    set:
+      service.type: NodePort
+    asserts:
+      - failedTemplate:
+          errorMessage: "public exposure with the default dummy authenticator requires auth.dummyPassword or auth.allowInsecureDummy=true"
+
+  - it: should reject public ingress with unauthenticated metrics unless explicitly accepted
+    template: configmap.yaml
+    set:
+      ingress.enabled: true
+      auth.dummyPassword: chart-testing-password
+      metrics.authenticatePrometheus: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "public exposure with unauthenticated Prometheus metrics requires metrics.allowPublicUnauthenticatedPrometheus=true"
+
+  - it: should allow public ingress with explicit unauthenticated metrics opt-in
+    template: configmap.yaml
+    set:
+      ingress.enabled: true
+      auth.dummyPassword: chart-testing-password
+      metrics.authenticatePrometheus: false
+      metrics.allowPublicUnauthenticatedPrometheus: true
+    asserts:
+      - isKind:
+          of: ConfigMap
+
+  - it: should reject non-auth extra config as dummy auth proof
+    template: configmap.yaml
+    set:
+      ingress.enabled: true
+      hub.extraConfig: |
+        c.JupyterHub.shutdown_on_logout = True
+    asserts:
+      - failedTemplate:
+          errorMessage: "public exposure with the default dummy authenticator requires auth.dummyPassword or auth.allowInsecureDummy=true"
+
+  - it: should require extra config for custom authenticators
+    template: configmap.yaml
+    set:
+      ingress.enabled: true
+      auth.type: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: "public exposure with a custom authenticator requires hub.extraConfig to set authenticator_class"
+
+  - it: should reject custom auth without an authenticator class override
+    template: configmap.yaml
+    set:
+      ingress.enabled: true
+      auth.type: custom
+      hub.extraConfig: |
+        c.JupyterHub.shutdown_on_logout = True
+    asserts:
+      - failedTemplate:
+          errorMessage: "public exposure with a custom authenticator requires hub.extraConfig to set authenticator_class"
+
+  - it: should reject custom auth when authenticator_class is only mentioned in a comment
+    template: configmap.yaml
+    set:
+      ingress.enabled: true
+      auth.type: custom
+      hub.extraConfig: |
+        # c.JupyterHub.authenticator_class = "nativeauthenticator.NativeAuthenticator"
+    asserts:
+      - failedTemplate:
+          errorMessage: "public exposure with a custom authenticator requires hub.extraConfig to set authenticator_class"
+
+  - it: should reject custom auth when authenticator_class is only mentioned in a string
+    template: configmap.yaml
+    set:
+      ingress.enabled: true
+      auth.type: custom
+      hub.extraConfig: |
+        authenticator_example = "c.JupyterHub.authenticator_class = nativeauthenticator.NativeAuthenticator"
+    asserts:
+      - failedTemplate:
+          errorMessage: "public exposure with a custom authenticator requires hub.extraConfig to set authenticator_class"
+
+  - it: should allow public ingress with a custom authenticator config
+    template: configmap.yaml
+    set:
+      ingress.enabled: true
+      auth.type: custom
+      hub.extraConfig: |
+        c.JupyterHub.authenticator_class = "nativeauthenticator.NativeAuthenticator"
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - notMatchRegex:
+          path: data["jupyterhub_config.py"]
+          pattern: "DummyAuthenticator"
+
+  - it: should allow public ingress with explicit dummy opt-in
+    template: configmap.yaml
+    set:
+      ingress.enabled: true
+      auth.allowInsecureDummy: true
+    asserts:
+      - isKind:
+          of: ConfigMap
+
+  - it: should allow public ingress with a dummy password
+    template: configmap.yaml
+    set:
+      ingress.enabled: true
+      auth.dummyPassword: chart-testing-password
+    asserts:
+      - isKind:
+          of: ConfigMap

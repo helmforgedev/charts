@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Exposure
+templates:
+  - ingress.yaml
+  - httproute.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render ingress
+    template: ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: nginx
+      ingress.hosts:
+        - host: tomcat.example.local
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.rules[0].host
+          value: tomcat.example.local
+
+  - it: should render HTTPRoute
+    template: httproute.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.parentRefs:
+        - name: public-gateway
+          namespace: gateway-system
+      gatewayAPI.hostnames:
+        - tomcat.example.local
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: apiVersion
+          value: gateway.networking.k8s.io/v1
+      - equal:
+          path: spec.parentRefs[0].name
+          value: public-gateway
+
+  - it: should require Gateway API parentRefs
+    template: httproute.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.parentRefs: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "gatewayAPI.parentRefs must contain at least one parentRef when gatewayAPI.enabled=true"
