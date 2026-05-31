@@ -1,0 +1,143 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: metrics
+tests:
+  - it: should render hardened Metrics Server deployment
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-metrics-server
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: registry.k8s.io/metrics-server/metrics-server:v0.8.1
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+      - equal:
+          path: spec.template.spec.nodeSelector["kubernetes.io/os"]
+          value: linux
+      - equal:
+          path: spec.strategy.rollingUpdate.maxUnavailable
+          value: 0
+      - equal:
+          path: spec.strategy.rollingUpdate.maxSurge
+          value: 1
+
+  - it: should render default Metrics Server args
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --cert-dir=/tmp
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --secure-port=10250
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --kubelet-use-node-status-port
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --metric-resolution=15s
+
+  - it: should render k3d insecure kubelet TLS flag only when enabled
+    set:
+      metricsServer.kubelet.insecureTLS: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --kubelet-insecure-tls
+
+  - it: should allow metrics endpoint when ServiceMonitor is enabled
+    set:
+      serviceMonitor.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --authorization-always-allow-paths=/livez,/readyz,/metrics
+
+  - it: should enable host network DNS policy
+    set:
+      hostNetwork.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.hostNetwork
+          value: true
+      - equal:
+          path: spec.template.spec.dnsPolicy
+          value: ClusterFirstWithHostNet
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --secure-port=4443
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 4443
+      - equal:
+          path: spec.strategy.rollingUpdate.maxUnavailable
+          value: 1
+      - equal:
+          path: spec.strategy.rollingUpdate.maxSurge
+          value: 0
+
+  - it: should honor explicit hostNetwork containerPort override
+    set:
+      hostNetwork.enabled: true
+      containerPort: 10443
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --secure-port=10443
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 10443
+
+  - it: should honor explicit host network deployment strategy overrides
+    set:
+      hostNetwork.enabled: true
+      deploymentStrategy.rollingUpdate.maxUnavailable: 50%
+      deploymentStrategy.rollingUpdate.maxSurge: 0
+    asserts:
+      - equal:
+          path: spec.strategy.rollingUpdate.maxUnavailable
+          value: 50%
+      - equal:
+          path: spec.strategy.rollingUpdate.maxSurge
+          value: 0
+
+  - it: should omit rollingUpdate when deployment strategy is Recreate
+    set:
+      deploymentStrategy.type: Recreate
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - notExists:
+          path: spec.strategy.rollingUpdate
+
+  - it: should render HA replicas and topology spread constraints
+    set:
+      replicaCount: 2
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].maxSkew
+          value: 1

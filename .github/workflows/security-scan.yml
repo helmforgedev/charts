@@ -60,12 +60,18 @@ jobs:
         run: helm dependency build charts/${{ matrix.chart }}
 
       - name: Install Kubescape
-        run: curl -s https://raw.githubusercontent.com/kubescape/kubescape/master/install.sh | bash
+        run: |
+          KUBESCAPE_VERSION="4.0.9"
+          curl -fsSL \
+            -o /tmp/kubescape.tar.gz \
+            "https://github.com/kubescape/kubescape/releases/download/v${KUBESCAPE_VERSION}/kubescape_${KUBESCAPE_VERSION}_linux_amd64.tar.gz"
+          tar -xzf /tmp/kubescape.tar.gz -C /tmp kubescape
+          install -m 0755 /tmp/kubescape /usr/local/bin/kubescape
+          kubescape version
 
       - name: Run security scan
         id: scan
         run: |
-          export PATH="$PATH:$HOME/.kubescape/bin"
           REPORT="/tmp/${{ matrix.chart }}-scan.json"
 
           kubescape scan framework "MITRE,NSA,SOC2" "charts/${{ matrix.chart }}" \

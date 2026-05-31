@@ -1,6 +1,7 @@
 # Automated Backup
 
-The openHAB chart includes an optional automated backup system that uses a Kubernetes CronJob to create compressed archives of your openHAB data directories and upload them to any S3-compatible object storage.
+The openHAB chart includes an optional automated backup system that uses a Kubernetes CronJob to create compressed
+archives of your openHAB data directories and upload them to any S3-compatible object storage.
 
 ## How It Works
 
@@ -94,7 +95,7 @@ The uploader uses the MinIO client (`mc`), which is compatible with any S3-compa
 
 Archives follow this pattern:
 
-```
+```text
 <archivePrefix>-backup-<YYYY-MM-DD-HHmmss>.tar.gz
 ```
 
@@ -156,19 +157,48 @@ To restore from a backup:
 kubectl scale statefulset openhab -n openhab --replicas=0
 ```
 
-3. Extract the archive into the PVC via a temporary pod:
+1. Extract the archive into the PVC via a temporary pod:
 
 ```bash
+cat > restore-overrides.json <<'EOF'
+{
+  "spec": {
+    "volumes": [
+      {
+        "name": "userdata",
+        "persistentVolumeClaim": {
+          "claimName": "openhab-userdata"
+        }
+      }
+    ],
+    "containers": [
+      {
+        "name": "restore",
+        "image": "alpine",
+        "command": ["sh"],
+        "stdin": true,
+        "tty": true,
+        "volumeMounts": [
+          {
+            "name": "userdata",
+            "mountPath": "/openhab/userdata"
+          }
+        ]
+      }
+    ]
+  }
+}
+EOF
+
 kubectl run restore --rm -it --image=alpine --restart=Never \
-  --overrides='{"spec":{"volumes":[{"name":"userdata","persistentVolumeClaim":{"claimName":"openhab-userdata"}}],"containers":[{"name":"restore","image":"alpine","command":["sh"],"stdin":true,"tty":true,"volumeMounts":[{"name":"userdata","mountPath":"/openhab/userdata"}]}]}}' \
-  -- sh
+  --overrides="$(cat restore-overrides.json)" -- sh
 
 # Inside the pod:
 tar -xzf /path/to/openhab-backup-<timestamp>.tar.gz -C /
 exit
 ```
 
-4. Scale openHAB back to 1:
+1. Scale openHAB back to 1:
 
 ```bash
 kubectl scale statefulset openhab -n openhab --replicas=1

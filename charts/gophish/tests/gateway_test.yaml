@@ -1,0 +1,101 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Gateway API
+templates:
+  - templates/gateway-admin-httproute.yaml
+  - templates/gateway-phish-httproute.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render HTTPRoutes by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render admin HTTPRoute when enabled
+    template: templates/gateway-admin-httproute.yaml
+    set:
+      gateway:
+        enabled: true
+        admin:
+          enabled: true
+          parentRefs:
+            - name: internal-gateway
+              namespace: gateway-system
+          hostnames:
+            - gophish-admin.example.com
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: apiVersion
+          value: gateway.networking.k8s.io/v1
+      - equal:
+          path: metadata.name
+          value: test-gophish-admin
+      - equal:
+          path: spec.parentRefs[0].name
+          value: internal-gateway
+      - equal:
+          path: spec.hostnames[0]
+          value: gophish-admin.example.com
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: test-gophish-admin
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 3333
+
+  - it: should render phishing HTTPRoute when enabled
+    template: templates/gateway-phish-httproute.yaml
+    set:
+      gateway:
+        enabled: true
+        phish:
+          enabled: true
+          parentRefs:
+            - name: public-gateway
+              namespace: gateway-system
+          hostnames:
+            - training.example.com
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: apiVersion
+          value: gateway.networking.k8s.io/v1
+      - equal:
+          path: metadata.name
+          value: test-gophish-phish
+      - equal:
+          path: spec.parentRefs[0].name
+          value: public-gateway
+      - equal:
+          path: spec.hostnames[0]
+          value: training.example.com
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: test-gophish-phish
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 80
+
+  - it: should fail admin route without parentRefs
+    template: templates/gateway-admin-httproute.yaml
+    set:
+      gateway.enabled: true
+      gateway.admin.enabled: true
+      gateway.admin.parentRefs: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.admin.parentRefs is required when gateway.enabled=true and gateway.admin.enabled=true"
+
+  - it: should fail phishing route without parentRefs
+    template: templates/gateway-phish-httproute.yaml
+    set:
+      gateway.enabled: true
+      gateway.phish.enabled: true
+      gateway.phish.parentRefs: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.phish.parentRefs is required when gateway.enabled=true and gateway.phish.enabled=true"

@@ -34,6 +34,30 @@ tests:
           value: custom-sa
         template: serviceaccount.yaml
 
+  - it: should render namespace-scoped RBAC references in namespaceOverride
+    set:
+      namespaceOverride: envoy-system
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: envoy-system
+        template: serviceaccount.yaml
+      - equal:
+          path: subjects[0].namespace
+          value: envoy-system
+        template: rbac.yaml
+        documentIndex: 1
+      - equal:
+          path: metadata.namespace
+          value: envoy-system
+        template: rbac.yaml
+        documentIndex: 2
+      - equal:
+          path: subjects[0].namespace
+          value: envoy-system
+        template: rbac.yaml
+        documentIndex: 3
+
   - it: should create RBAC resources by default
     asserts:
       - hasDocuments:
@@ -158,4 +182,13 @@ tests:
       - equal:
           path: metadata.name
           value: custom-gateway-class
+        template: gatewayclass.yaml
+
+  - it: should point GatewayClass parametersRef at namespaceOverride
+    set:
+      namespaceOverride: envoy-system
+    asserts:
+      - equal:
+          path: spec.parametersRef.namespace
+          value: envoy-system
         template: gatewayclass.yaml

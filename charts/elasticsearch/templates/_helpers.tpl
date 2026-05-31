@@ -43,6 +43,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{/*
+Namespace for chart-managed namespaced resources.
+*/}}
+{{- define "elasticsearch.namespace" -}}
+{{- .Values.namespaceOverride | default .Release.Namespace -}}
+{{- end -}}
+
+{{/*
 Component-specific selector labels.
 Usage: {{ include "elasticsearch.componentSelectorLabels" (dict "root" . "component" "master") }}
 */}}
@@ -743,4 +750,3 @@ TLS secret name for self-signed init Job
 {{- define "elasticsearch.selfSignedSecretName" -}}
 {{- printf "%s-tls" (include "elasticsearch.fullname" .) -}}
 {{- end -}}
-

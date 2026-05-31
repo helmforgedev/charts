@@ -1,0 +1,202 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "jupyterhub.hubName" . }}
+  labels:
+    {{- include "jupyterhub.labels" . | nindent 4 }}
+    app.kubernetes.io/component: hub
+  {{- include "jupyterhub.renderAnnotations" (dict "common" .Values.annotations) | nindent 2 }}
+spec:
+  replicas: {{ .Values.hub.replicaCount }}
+  {{- $hasExternalHubDb := regexMatch "(?m)^\\s*c\\.JupyterHub\\.db_url\\s*=" .Values.hub.extraConfig -}}
+  {{- $haHubWithExternalDb := and (gt (int .Values.hub.replicaCount) 1) $hasExternalHubDb -}}
+  {{- if not $haHubWithExternalDb }}
+  strategy:
+    type: Recreate
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "jupyterhub.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: hub
+  template:
+    metadata:
+      labels:
+        {{- include "jupyterhub.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: hub
+        {{- with .Values.podLabels }}
+        {{- include "jupyterhub.podLabels" $ | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      serviceAccountName: {{ include "jupyterhub.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        {{- with .Values.hub.cookieSecret.existingSecret }}
+        - name: prepare-cookie-secret
+          image: "{{ $.Values.hub.image.repository }}:{{ $.Values.hub.image.tag }}"
+          imagePullPolicy: {{ $.Values.hub.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              umask 077
+              cp "/var/run/jupyterhub-cookie-secret/{{ $.Values.hub.cookieSecret.existingSecretKey }}" "/srv/jupyterhub/{{ $.Values.hub.cookieSecret.fileName }}"
+              chmod 600 "/srv/jupyterhub/{{ $.Values.hub.cookieSecret.fileName }}"
+          resources:
+            {{- toYaml $.Values.hub.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml $.Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /srv/jupyterhub
+            - name: cookie-secret
+              mountPath: /var/run/jupyterhub-cookie-secret
+              readOnly: true
+        {{- end }}
+        - name: wait-for-proxy-api
+          image: docker.io/curlimages/curl:8.17.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -ec
+            - |
+              until code="$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: token ${CONFIGPROXY_AUTH_TOKEN}" "http://{{ include "jupyterhub.proxyApiName" . }}:{{ .Values.service.proxyApiPort }}/api/routes" 2>/dev/null || true)" && [ "$code" = "200" ]; do
+                echo "waiting for proxy api"
+                sleep 2
+              done
+          env:
+            - name: CONFIGPROXY_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "jupyterhub.secretName" . }}
+                  key: {{ .Values.proxy.existingSecretTokenKey }}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+      containers:
+        - name: hub
+          image: "{{ .Values.hub.image.repository }}:{{ .Values.hub.image.tag }}"
+          imagePullPolicy: {{ .Values.hub.image.pullPolicy }}
+          command: ["jupyterhub"]
+          args: ["-f", "/etc/jupyterhub/jupyterhub_config.py"]
+          ports:
+            - name: hub
+              containerPort: 8081
+          env:
+            - name: CONFIGPROXY_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "jupyterhub.secretName" . }}
+                  key: {{ .Values.proxy.existingSecretTokenKey }}
+            {{- if eq .Values.auth.type "dummy" }}
+            - name: DUMMY_PASSWORD
+              value: {{ .Values.auth.dummyPassword | quote }}
+            {{- end }}
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: HOME
+              value: /srv/jupyterhub
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: {{ include "jupyterhub.hubHealthPath" . | quote }}
+              port: hub
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: {{ include "jupyterhub.hubHealthPath" . | quote }}
+              port: hub
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: {{ include "jupyterhub.hubHealthPath" . | quote }}
+              port: hub
+            {{- toYaml .Values.startupProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.hub.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/jupyterhub
+            - name: data
+              mountPath: /srv/jupyterhub
+            - name: tmp
+              mountPath: /tmp
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "jupyterhub.hubName" . }}-config
+        - name: data
+          {{- if .Values.hub.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "jupyterhub.hubDataClaimName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- with .Values.hub.cookieSecret.existingSecret }}
+        - name: cookie-secret
+          secret:
+            secretName: {{ . }}
+            items:
+              - key: {{ $.Values.hub.cookieSecret.existingSecretKey }}
+                path: {{ $.Values.hub.cookieSecret.existingSecretKey }}
+        {{- end }}
+        - name: tmp
+          emptyDir: {}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

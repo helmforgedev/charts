@@ -8,7 +8,7 @@ openHAB configuration declaratively via Helm values or GitOps pipelines.
 
 ## How It Works
 
-```
+```text
 Helm values.yaml
     └─> ConfigMap (K8s)
             └─> Volume mount (subPath) → /openhab/conf/<dir>/<file>
@@ -77,11 +77,13 @@ helm upgrade my-openhab helmforge/openhab -f values.yaml
 ### File not being reloaded
 
 Check if the file exists on the pod:
+
 ```bash
 kubectl exec -n <namespace> <pod> -- ls /openhab/conf/sitemaps/
 ```
 
 Check openHAB logs for errors:
+
 ```bash
 kubectl exec -n <namespace> <pod> -- tail -f /openhab/userdata/logs/openhab.log
 ```

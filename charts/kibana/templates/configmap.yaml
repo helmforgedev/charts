@@ -1,0 +1,30 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "kibana.validate" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kibana.fullname" . }}-config
+  labels:
+    {{- include "kibana.labels" . | nindent 4 }}
+data:
+  kibana.yml: |
+    server.name: {{ include "kibana.fullname" . | quote }}
+    server.host: "0.0.0.0"
+    elasticsearch.hosts:
+      {{- toYaml .Values.elasticsearch.hosts | nindent 6 }}
+    telemetry.enabled: {{ .Values.telemetry.enabled }}
+    {{- if .Values.server.publicBaseUrl }}
+    server.publicBaseUrl: {{ .Values.server.publicBaseUrl | quote }}
+    {{- end }}
+    {{- if .Values.server.basePath }}
+    server.basePath: {{ .Values.server.basePath | quote }}
+    server.rewriteBasePath: {{ .Values.server.rewriteBasePath }}
+    {{- end }}
+    {{- if .Values.elasticsearch.tls.enabled }}
+    elasticsearch.ssl.certificateAuthorities:
+      - /usr/share/kibana/config/certs/{{ .Values.elasticsearch.tls.certificateAuthoritiesKey }}
+    elasticsearch.ssl.verificationMode: {{ .Values.elasticsearch.tls.verificationMode | quote }}
+    {{- end }}
+    {{- with .Values.extraConfig }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}

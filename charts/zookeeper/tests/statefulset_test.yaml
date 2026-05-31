@@ -1,0 +1,315 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: StatefulSet
+templates:
+  - statefulset.yaml
+  - configmap.yaml
+  - secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: renders replicated ensemble with official image
+    template: statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.replicas
+          value: 3
+      - equal:
+          path: spec.serviceName
+          value: test-zookeeper-headless
+      - equal:
+          path: spec.podManagementPolicy
+          value: Parallel
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/library/zookeeper:3.9.5
+      - exists:
+          path: spec.volumeClaimTemplates[0]
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-peer-dns
+
+  - it: supports ephemeral standalone mode
+    template: statefulset.yaml
+    set:
+      replicaCount: 1
+      persistence.enabled: false
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+      - notExists:
+          path: spec.template.spec.initContainers
+
+  - it: reserves room for StatefulSet pod ordinals
+    template: statefulset.yaml
+    set:
+      replicaCount: 12
+      allowEvenReplicas: true
+      fullnameOverride: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    asserts:
+      - equal:
+          path: metadata.name
+          value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+  - it: keeps long StatefulSet name stable across ordinal digit boundaries
+    template: statefulset.yaml
+    set:
+      replicaCount: 9
+      fullnameOverride: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    asserts:
+      - equal:
+          path: metadata.name
+          value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+  - it: rejects replica counts that exceed reserved StatefulSet ordinal budget
+    template: statefulset.yaml
+    set:
+      replicaCount: 10001
+      allowEvenReplicas: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCount must be at most 10000 because StatefulSet pod DNS labels reserve room for ordinal suffixes"
+
+  - it: mounts auth secret when SASL client auth is enabled
+    template: statefulset.yaml
+    set:
+      auth.client.enabled: true
+      auth.client.password: chart-testing-password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: auth
+            mountPath: /etc/zookeeper/auth
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: auth
+            secret:
+              secretName: test-zookeeper-auth
+
+  - it: mounts overridden ExternalSecret target for auth
+    template: statefulset.yaml
+    set:
+      auth.client.enabled: true
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: platform-secrets
+      externalSecrets.target.name: custom-zookeeper-secret
+      externalSecrets.data:
+        - secretKey: jaas.conf
+          remoteRef:
+            key: zookeeper/jaas
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: auth
+            secret:
+              secretName: custom-zookeeper-secret
+
+  - it: mounts TLS material when secure client port is enabled
+    template: statefulset.yaml
+    set:
+      tls.client.enabled: true
+      tls.client.existingSecret: zk-tls
+      tls.client.existingPasswordsSecret: zk-tls-passwords
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: tls-client
+            containerPort: 3181
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls
+            secret:
+              secretName: zk-tls
+
+  - it: mounts overridden ExternalSecret target for TLS passwords
+    template: statefulset.yaml
+    set:
+      tls.client.enabled: true
+      tls.client.existingSecret: zk-tls
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: platform-secrets
+      externalSecrets.target.name: custom-zookeeper-secret
+      externalSecrets.data:
+        - secretKey: keystore-password
+          remoteRef:
+            key: zookeeper/tls
+            property: keystore-password
+        - secretKey: truststore-password
+          remoteRef:
+            key: zookeeper/tls
+            property: truststore-password
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls-passwords
+            secret:
+              secretName: custom-zookeeper-secret
+
+  - it: mounts the auth ExternalSecret target for combined SASL and TLS passwords
+    template: statefulset.yaml
+    set:
+      auth.client.enabled: true
+      tls.client.enabled: true
+      tls.client.existingSecret: zk-tls
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: platform-secrets
+      externalSecrets.data:
+        - secretKey: jaas.conf
+          remoteRef:
+            key: zookeeper/jaas
+        - secretKey: keystore-password
+          remoteRef:
+            key: zookeeper/tls
+            property: keystore-password
+        - secretKey: truststore-password
+          remoteRef:
+            key: zookeeper/tls
+            property: truststore-password
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: auth
+            secret:
+              secretName: test-zookeeper-auth
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls-passwords
+            secret:
+              secretName: test-zookeeper-auth
+      - equal:
+          path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
+          value: test-zookeeper-auth
+      - equal:
+          path: spec.template.spec.containers[0].env[1].valueFrom.secretKeyRef.name
+          value: test-zookeeper-auth
+
+  - it: keeps TLS ExternalSecret target separate when SASL uses an existing Secret
+    template: statefulset.yaml
+    set:
+      auth.client.enabled: true
+      auth.client.existingSecret: external-jaas
+      tls.client.enabled: true
+      tls.client.existingSecret: zk-tls
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: platform-secrets
+      externalSecrets.data:
+        - secretKey: keystore-password
+          remoteRef:
+            key: zookeeper/tls
+            property: keystore-password
+        - secretKey: truststore-password
+          remoteRef:
+            key: zookeeper/tls
+            property: truststore-password
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: auth
+            secret:
+              secretName: external-jaas
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls-passwords
+            secret:
+              secretName: test-zookeeper-tls-passwords
+      - equal:
+          path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
+          value: test-zookeeper-tls-passwords
+      - equal:
+          path: spec.template.spec.containers[0].env[1].valueFrom.secretKeyRef.name
+          value: test-zookeeper-tls-passwords
+
+  - it: enables Netty when secure client port is enabled
+    template: configmap.yaml
+    set:
+      tls.client.enabled: true
+      tls.client.existingSecret: zk-tls
+    asserts:
+      - matchRegex:
+          path: data["zoo-extra.cfg"]
+          pattern: "serverCnxnFactory=org\\.apache\\.zookeeper\\.server\\.NettyServerCnxnFactory"
+      - matchRegex:
+          path: data["zoo-extra.cfg"]
+          pattern: "secureClientPort=3181"
+
+  - it: still waits for peer DNS when multi-replica unpublished addresses are requested off
+    template: statefulset.yaml
+    set:
+      service.headless.publishNotReadyAddresses: false
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-peer-dns
+
+  - it: rolls pods when chart-managed TLS passwords change
+    template: statefulset.yaml
+    set:
+      tls.client.enabled: true
+      tls.client.existingSecret: zk-tls
+      tls.client.keystorePassword: change-me
+      tls.client.truststorePassword: change-me-too
+    asserts:
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/secret"]
+          pattern: "^[a-f0-9]{64}$"
+
+  - it: omits sensitive secret checksum when ExternalSecret owns TLS passwords
+    template: statefulset.yaml
+    set:
+      tls.client.enabled: true
+      tls.client.existingSecret: zk-tls
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: platform-secrets
+      externalSecrets.data:
+        - secretKey: keystore-password
+          remoteRef:
+            key: zookeeper/tls
+            property: keystore-password
+        - secretKey: truststore-password
+          remoteRef:
+            key: zookeeper/tls
+            property: truststore-password
+    asserts:
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/secret"]
+
+  - it: rejects even replica count unless explicitly allowed
+    template: statefulset.yaml
+    set:
+      replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCount must be odd for quorum safety unless allowEvenReplicas=true"
+
+  - it: allows even replica count when explicitly configured
+    template: statefulset.yaml
+    set:
+      replicaCount: 2
+      allowEvenReplicas: true
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2

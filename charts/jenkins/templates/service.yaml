@@ -1,0 +1,32 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "jenkins.fullname" . }}
+  labels:
+    {{- include "jenkins.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: http
+      port: {{ .Values.service.httpPort }}
+      targetPort: http
+    {{- if .Values.agent.enabled }}
+    - name: agent
+      port: {{ .Values.agent.servicePort }}
+      targetPort: agent
+    {{- end }}
+  selector:
+    {{- include "jenkins.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: controller

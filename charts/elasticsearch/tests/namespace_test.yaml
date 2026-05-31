@@ -1,0 +1,99 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: elasticsearch - namespace override
+templates:
+  - templates/statefulset-master.yaml
+  - templates/service.yaml
+  - templates/service-headless.yaml
+  - templates/serviceaccount.yaml
+  - templates/httproute.yaml
+  - templates/externalsecret.yaml
+  - templates/servicemonitor.yaml
+  - templates/prometheusrule.yaml
+  - templates/cronjob-backup.yaml
+tests:
+  - it: renders core resources into namespaceOverride
+    set:
+      namespaceOverride: elastic-system
+      serviceAccount.create: true
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: elastic-system
+        template: templates/statefulset-master.yaml
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+        template: templates/statefulset-master.yaml
+      - equal:
+          path: metadata.namespace
+          value: elastic-system
+        template: templates/service.yaml
+      - equal:
+          path: metadata.namespace
+          value: elastic-system
+        template: templates/service-headless.yaml
+        documentIndex: 0
+      - equal:
+          path: metadata.namespace
+          value: elastic-system
+        template: templates/serviceaccount.yaml
+      - equal:
+          path: automountServiceAccountToken
+          value: false
+        template: templates/serviceaccount.yaml
+
+  - it: renders optional integrations into namespaceOverride
+    set:
+      namespaceOverride: elastic-system
+      gateway:
+        enabled: true
+        parentRefs:
+          - name: shared-gateway
+        skipCRDCheck: true
+      externalSecrets:
+        enabled: true
+        skipCRDCheck: true
+        secretStoreRef:
+          name: cluster-store
+        data:
+          - secretKey: elastic-password
+            remoteRef:
+              key: elasticsearch/elastic
+      security:
+        enabled: true
+        existingTlsSecret: elasticsearch-tls
+        existingCredentialsSecret: elasticsearch-credentials
+      monitoring:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+        prometheusRule:
+          enabled: true
+      backup:
+        enabled: true
+        s3:
+          bucket: es-backups
+          accessKey: minio
+          secretKey: minio123
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: elastic-system
+        template: templates/httproute.yaml
+      - equal:
+          path: metadata.namespace
+          value: elastic-system
+        template: templates/externalsecret.yaml
+      - equal:
+          path: metadata.namespace
+          value: elastic-system
+        template: templates/servicemonitor.yaml
+      - equal:
+          path: metadata.namespace
+          value: elastic-system
+        template: templates/prometheusrule.yaml
+      - equal:
+          path: metadata.namespace
+          value: elastic-system
+        template: templates/cronjob-backup.yaml
+        documentIndex: 0

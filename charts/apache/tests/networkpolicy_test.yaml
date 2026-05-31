@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: NetworkPolicy
+templates:
+  - networkpolicy.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render ingress-only policy when egress is disabled
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: false
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+      - notContains:
+          path: spec.policyTypes
+          content: Egress
+      - notExists:
+          path: spec.egress
+
+  - it: should allow IPv4 and IPv6 internet egress when enabled
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.allowInternet: true
+    asserts:
+      - contains:
+          path: spec.egress[1].to
+          content:
+            ipBlock:
+              cidr: 0.0.0.0/0
+      - contains:
+          path: spec.egress[1].to
+          content:
+            ipBlock:
+              cidr: ::/0
+
+  - it: should render egress-only policy without denying ingress
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.ingress.enabled: false
+      networkPolicy.egress.enabled: true
+    asserts:
+      - notContains:
+          path: spec.policyTypes
+          content: Ingress
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - notExists:
+          path: spec.ingress
+      - exists:
+          path: spec.egress

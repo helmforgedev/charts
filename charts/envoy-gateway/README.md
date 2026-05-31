@@ -146,6 +146,7 @@ highAvailability:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `profile` | `custom` | Profile preset (dev, production-ha, custom) |
+| `namespaceOverride` | `""` | Namespace for chart-managed resources; target namespace must already exist |
 | `nameOverride` | `""` | Override chart name |
 | `fullnameOverride` | `""` | Override full name |
 | `imagePullSecrets` | `[]` | Image pull secrets |
@@ -259,8 +260,9 @@ highAvailability:
 
 | Key | Default | Description |
 |-----|---------|-------------|
+| `gatewayAPI.enabled` | `true` | Enable chart-managed Gateway API helper resources |
 | `gatewayAPI.examples.enabled` | `true` | Create example Gateway, HTTPRoute, and backend |
-| `gatewayAPI.examples.namespace` | `""` | Namespace for examples (defaults to Release.Namespace) |
+| `gatewayAPI.examples.namespace` | `""` | Namespace for examples (defaults to `namespaceOverride` or release namespace) |
 
 ### Rate Limiting
 
@@ -426,22 +428,3 @@ This chart intentionally does not support:
 - **Multiple gateway classes** — Deploy separate releases for multiple GatewayClasses
 - **Built-in cert-manager integration** — Manage application TLS externally; chart only runs certgen for controller certs
 - **Legacy Ingress API** — Use Gateway API for modern routing capabilities
-
-<!-- @AI-METADATA
-type: chart-readme
-title: Envoy Gateway Helm Chart
-description: Deploy Envoy Gateway v1.8.0 on Kubernetes with operator architecture, SecurityPolicy, rate limiting, and comprehensive observability
-keywords: envoy, gateway, gateway-api, helm, kubernetes, rate-limiting, prometheus, grafana, redis, networking, securitypolicy, backendtrafficpolicy, clienttrafficpolicy
-purpose: Installation guide, configuration reference, and operational documentation for the Envoy Gateway Helm chart
-scope: Chart
-relations:
-  - charts/envoy-gateway/docs/architecture.md
-  - charts/envoy-gateway/docs/rate-limiting.md
-  - charts/envoy-gateway/docs/certificates.md
-  - charts/envoy-gateway/docs/observability.md
-  - charts/envoy-gateway/docs/security-policies.md
-  - charts/envoy-gateway/values.yaml
-path: charts/envoy-gateway/README.md
-version: 1.3.0
-date: 2026-04-10
--->

@@ -1,0 +1,132 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Namespace Override
+templates:
+  - statefulset.yaml
+  - service.yaml
+  - serviceaccount.yaml
+  - pvc.yaml
+  - ingress.yaml
+  - httproute.yaml
+  - externalsecret.yaml
+  - servicemonitor.yaml
+  - configmap.yaml
+  - backup-cronjob.yaml
+  - backup-configmap.yaml
+  - backup-secret.yaml
+  - secret.yaml
+tests:
+  - it: should render core resources in namespaceOverride
+    set:
+      namespaceOverride: openhab-system
+      serviceAccount.create: true
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: openhab-system
+        template: statefulset.yaml
+      - equal:
+          path: metadata.namespace
+          value: openhab-system
+        template: service.yaml
+      - equal:
+          path: metadata.namespace
+          value: openhab-system
+        template: serviceaccount.yaml
+      - equal:
+          path: automountServiceAccountToken
+          value: false
+        template: serviceaccount.yaml
+      - equal:
+          path: metadata.namespace
+          value: openhab-system
+        template: pvc.yaml
+        documentIndex: 0
+
+  - it: should render optional exposure resources in namespaceOverride
+    set:
+      namespaceOverride: openhab-system
+      ingress.enabled: true
+      gateway:
+        enabled: true
+        parentRefs:
+          - name: shared-gateway
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: openhab-system
+        template: ingress.yaml
+      - equal:
+          path: metadata.namespace
+          value: openhab-system
+        template: httproute.yaml
+
+  - it: should render config and secret resources in namespaceOverride
+    set:
+      namespaceOverride: openhab-system
+      admin:
+        secretEnabled: true
+        password: changeme
+      configMaps:
+        items:
+          enabled: true
+          files:
+            lights.items: "Switch Light_GF"
+      externalSecrets:
+        enabled: true
+        secretStoreRef:
+          name: cluster-store
+        data:
+          - secretKey: password
+            remoteRef:
+              key: openhab/admin
+      admin.existingSecret: openhab-admin
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: openhab-system
+        template: configmap.yaml
+      - equal:
+          path: metadata.namespace
+          value: openhab-system
+        template: externalsecret.yaml
+
+  - it: should render monitoring namespace selectors against namespaceOverride
+    set:
+      namespaceOverride: openhab-system
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: openhab-system
+        template: servicemonitor.yaml
+      - equal:
+          path: spec.namespaceSelector.matchNames[0]
+          value: openhab-system
+        template: servicemonitor.yaml
+
+  - it: should render backup resources in namespaceOverride
+    set:
+      namespaceOverride: openhab-system
+      backup:
+        enabled: true
+        s3:
+          endpoint: http://minio.minio.svc:9000
+          bucket: openhab
+          accessKey: minio
+          secretKey: minio123
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: openhab-system
+        template: backup-cronjob.yaml
+      - equal:
+          path: metadata.namespace
+          value: openhab-system
+        template: backup-configmap.yaml
+      - equal:
+          path: metadata.namespace
+          value: openhab-system
+        template: backup-secret.yaml

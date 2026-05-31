@@ -1,0 +1,35 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "zookeeper.validate" . }}
+{{- if and .Values.metrics.enabled .Values.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "zookeeper.metricsServiceName" . }}
+  namespace: {{ default (include "zookeeper.namespace" .) .Values.metrics.serviceMonitor.namespace | quote }}
+  labels:
+    {{- include "zookeeper.labels" . | nindent 4 }}
+    {{- with .Values.metrics.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "zookeeper.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: metrics
+  namespaceSelector:
+    matchNames:
+      - {{ include "zookeeper.namespace" . | quote }}
+  endpoints:
+    - port: metrics
+      interval: {{ .Values.metrics.serviceMonitor.interval | quote }}
+      scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout | quote }}
+      path: /metrics
+      {{- with .Values.metrics.serviceMonitor.relabelings }}
+      relabelings:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.metrics.serviceMonitor.metricRelabelings }}
+      metricRelabelings:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

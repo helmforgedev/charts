@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- define "fastmcp-server.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -8,6 +9,10 @@
 {{- else -}}
 {{- printf "%s-%s" .Release.Name (include "fastmcp-server.name" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "fastmcp-server.namespace" -}}
+{{- default .Release.Namespace .Values.namespaceOverride -}}
 {{- end -}}
 
 {{- define "fastmcp-server.chart" -}}

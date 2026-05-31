@@ -1,0 +1,143 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.redisHttp.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "opencut.redisHttpName" . }}
+  labels:
+    {{- include "opencut.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-http
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "opencut.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis-http
+  template:
+    metadata:
+      labels:
+        {{- include "opencut.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: redis-http
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: redis-http
+          image: "{{ .Values.redisHttp.image.repository }}:{{ .Values.redisHttp.image.tag }}"
+          imagePullPolicy: {{ .Values.redisHttp.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              url_encode() {
+                printf '%s' "$1" \
+                  | sed -e 's/%/%25/g' \
+                        -e 's/:/%3A/g' \
+                        -e 's/@/%40/g' \
+                        -e 's#/#%2F#g' \
+                        -e 's/?/%3F/g' \
+                        -e 's/#/%23/g' \
+                        -e 's/ /%20/g' \
+                        -e 's/&/%26/g' \
+                        -e 's/=/%3D/g' \
+                        -e 's/+/%2B/g' \
+                        -e 's/\[/%5B/g' \
+                        -e 's/\]/%5D/g'
+              }
+              if [ -n "${REDIS_PASSWORD:-}" ]; then
+                redis_password="$(url_encode "$REDIS_PASSWORD")"
+                export SRH_CONNECTION_STRING="redis://:${redis_password}@${REDIS_HOST}:${REDIS_PORT}"
+                unset redis_password
+              else
+                export SRH_CONNECTION_STRING="redis://${REDIS_HOST}:${REDIS_PORT}"
+              fi
+              exec _build/prod/rel/prod/bin/prod start
+          env:
+            - name: SRH_MODE
+              value: env
+            - name: SRH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opencut.secretName" . }}
+                  key: redis-rest-token
+            {{- if include "opencut.redisAuthEnabled" . }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opencut.redisSecretName" . }}
+                  key: {{ include "opencut.redisSecretKey" . }}
+            {{- end }}
+            - name: REDIS_HOST
+              value: {{ include "opencut.redisHost" . | quote }}
+            - name: REDIS_PORT
+              value: {{ include "opencut.redisPort" . | quote }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          {{- if .Values.redisHttp.probes.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.redisHttp.probes.startup.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.redisHttp.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.redisHttp.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.redisHttp.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.redisHttp.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.redisHttp.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.redisHttp.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.redisHttp.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.redisHttp.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.redisHttp.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.redisHttp.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.redisHttp.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.redisHttp.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.redisHttp.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.redisHttp.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.redisHttp.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.redisHttp.probes.liveness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.redisHttp.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.redisHttp.securityContext | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "opencut.redisHttpName" . }}
+  labels:
+    {{- include "opencut.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-http
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.redisHttp.service.port }}
+      targetPort: http
+      protocol: TCP
+      appProtocol: http
+  selector:
+    {{- include "opencut.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-http
+{{- end }}

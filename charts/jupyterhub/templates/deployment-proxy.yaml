@@ -1,0 +1,86 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "jupyterhub.proxyDeploymentName" . }}
+  labels:
+    {{- include "jupyterhub.labels" . | nindent 4 }}
+    app.kubernetes.io/component: proxy
+  {{- include "jupyterhub.renderAnnotations" (dict "common" .Values.annotations) | nindent 2 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "jupyterhub.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: proxy
+  template:
+    metadata:
+      labels:
+        {{- include "jupyterhub.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: proxy
+        {{- with .Values.podLabels }}
+        {{- include "jupyterhub.podLabels" $ | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: proxy
+          image: "{{ .Values.proxy.image.repository }}:{{ .Values.proxy.image.tag }}"
+          imagePullPolicy: {{ .Values.proxy.image.pullPolicy }}
+          args:
+            - {{ printf "--ip=%s" (include "jupyterhub.proxyBindIp" .) | quote }}
+            - --port=8000
+            - {{ printf "--api-ip=%s" (include "jupyterhub.proxyApiBindIp" .) | quote }}
+            - --api-port=8001
+            - --default-target=http://{{ include "jupyterhub.hubName" . }}:8081
+            - --error-target=http://{{ include "jupyterhub.hubName" . }}:8081{{ include "jupyterhub.hubErrorPath" . }}
+            - --log-level={{ .Values.proxy.logLevel }}
+          ports:
+            - name: http
+              containerPort: 8000
+            - name: api
+              containerPort: 8001
+          env:
+            - name: CONFIGPROXY_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "jupyterhub.secretName" . }}
+                  key: {{ .Values.proxy.existingSecretTokenKey }}
+          readinessProbe:
+            tcpSocket:
+              port: api
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.proxy.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

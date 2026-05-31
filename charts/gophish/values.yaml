@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
 # Gophish Helm Chart - Default Values
 # =============================================================================
@@ -213,6 +214,15 @@ phishService:
   #   - IPv4
   #   - IPv6
 
+# -- Shared Service defaults applied when a surface-specific Service value is omitted
+service:
+  # -- Shared Service IP family policy. One of SingleStack, PreferDualStack, RequireDualStack. Omit for cluster default.
+  # @default -- omitted
+  ipFamilyPolicy: null
+  # -- Shared ordered list of IP families for Services. Each entry: IPv4 | IPv6. Omit for cluster default.
+  # @default -- omitted
+  ipFamilies: []
+
 # =============================================================================
 # Ingress
 # =============================================================================
@@ -240,6 +250,52 @@ phishIngress:
   hosts: []
   # -- Ingress TLS configuration
   tls: []
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gateway:
+  # -- Enable Gateway API HTTPRoute rendering. Routes remain disabled until their per-surface enabled flag is true.
+  enabled: false
+  admin:
+    # -- Render an HTTPRoute for the admin UI
+    enabled: false
+    # -- HTTPRoute parentRefs for existing Gateway listeners
+    parentRefs: []
+      # - name: internal-gateway
+      #   namespace: gateway-system
+    # -- Admin hostnames attached to the HTTPRoute
+    hostnames: []
+      # - gophish-admin.example.com
+    # -- Additional HTTPRoute annotations
+    annotations: {}
+    # -- Path matches for the admin HTTPRoute
+    matches:
+      - path:
+          type: PathPrefix
+          value: /
+    # -- Optional HTTPRoute filters
+    filters: []
+  phish:
+    # -- Render an HTTPRoute for the phishing listener
+    enabled: false
+    # -- HTTPRoute parentRefs for existing Gateway listeners
+    parentRefs: []
+      # - name: public-gateway
+      #   namespace: gateway-system
+    # -- Phishing hostnames attached to the HTTPRoute
+    hostnames: []
+      # - training.example.com
+    # -- Additional HTTPRoute annotations
+    annotations: {}
+    # -- Path matches for the phishing HTTPRoute
+    matches:
+      - path:
+          type: PathPrefix
+          value: /
+    # -- Optional HTTPRoute filters
+    filters: []
 
 # =============================================================================
 # Network Policy

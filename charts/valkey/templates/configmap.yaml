@@ -1,0 +1,64 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and .Values.tls.enabled (not .Values.tls.existingSecret) }}
+{{- fail "tls.enabled requires tls.existingSecret" }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "valkey.configMapName" . }}
+  labels:
+    {{- include "valkey.labels" . | nindent 4 }}
+  {{- include "valkey.renderAnnotations" (dict "root" .) | nindent 2 }}
+data:
+  valkey-standalone.conf: |
+    {{- include "valkey.commonConfig" . | nindent 4 }}
+    {{- with .Values.config.valkey }}
+    {{ . | nindent 4 }}
+    {{- end }}
+  valkey-primary.conf: |
+    {{- include "valkey.commonConfig" . | nindent 4 }}
+    {{- if .Values.tls.enabled }}
+    tls-replication yes
+    {{- end }}
+    {{- with .Values.config.valkey }}
+    {{ . | nindent 4 }}
+    {{- end }}
+  valkey-replica.conf: |
+    {{- include "valkey.commonConfig" . | nindent 4 }}
+    {{- if .Values.tls.enabled }}
+    tls-replication yes
+    {{- end }}
+    replica-read-only yes
+    {{- with .Values.config.valkey }}
+    {{ . | nindent 4 }}
+    {{- end }}
+  valkey-cluster.conf: |
+    {{- include "valkey.commonConfig" . | nindent 4 }}
+    cluster-enabled yes
+    cluster-config-file nodes.conf
+    cluster-node-timeout 5000
+    {{- if .Values.tls.enabled }}
+    tls-cluster yes
+    tls-replication yes
+    {{- end }}
+    appendonly yes
+    {{- with .Values.config.valkey }}
+    {{ . | nindent 4 }}
+    {{- end }}
+  sentinel.conf: |
+    # HelmForge managed sentinel config begin
+    {{- if .Values.tls.enabled }}
+    {{- include "valkey.sentinelTlsConfig" . | nindent 4 }}
+    {{- else }}
+    port {{ .Values.service.ports.sentinel }}
+    {{- end }}
+    dir /tmp
+    sentinel resolve-hostnames yes
+    sentinel monitor mymaster {{ include "valkey.primaryPodFqdn" . }} {{ .Values.service.ports.valkey }} {{ .Values.sentinel.quorum }}
+    sentinel down-after-milliseconds mymaster {{ .Values.sentinel.downAfterMilliseconds }}
+    sentinel failover-timeout mymaster {{ .Values.sentinel.failoverTimeout }}
+    sentinel parallel-syncs mymaster {{ .Values.sentinel.parallelSyncs }}
+    {{- with .Values.config.sentinel }}
+    {{ . | nindent 4 }}
+    {{- end }}
+    # HelmForge managed sentinel config end

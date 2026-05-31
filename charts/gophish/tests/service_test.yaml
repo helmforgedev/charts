@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 suite: Services
 templates:
   - templates/service-admin.yaml
@@ -81,6 +82,25 @@ tests:
           path: spec.ipFamilies[1]
           value: IPv6
 
+  - it: should use shared dual-stack defaults for the admin Service
+    template: templates/service-admin.yaml
+    set:
+      service:
+        ipFamilyPolicy: PreferDualStack
+        ipFamilies:
+          - IPv4
+          - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv4
+      - equal:
+          path: spec.ipFamilies[1]
+          value: IPv6
+
   - it: should set phishing Service dual-stack fields when configured
     template: templates/service-phish.yaml
     set:
@@ -99,6 +119,26 @@ tests:
       - equal:
           path: spec.ipFamilies[1]
           value: IPv4
+
+  - it: should allow phishing Service dual-stack values to override shared defaults
+    template: templates/service-phish.yaml
+    set:
+      service:
+        ipFamilyPolicy: PreferDualStack
+        ipFamilies:
+          - IPv4
+          - IPv6
+      phishService:
+        ipFamilyPolicy: SingleStack
+        ipFamilies:
+          - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: SingleStack
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv6
 
   - it: should support SingleStack IPv6 on the admin Service
     template: templates/service-admin.yaml

@@ -1,0 +1,201 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Deployment
+templates:
+  - deployment.yaml
+  - configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render deployment with official image and non-root security
+    template: deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/library/tomcat:11.0.22-jdk17-temurin-noble
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop[0]
+          value: ALL
+
+  - it: should mount writable runtime directories
+    template: deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: webapps
+            mountPath: /usr/local/tomcat/webapps
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: logs
+            mountPath: /usr/local/tomcat/logs
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: temp
+            mountPath: /usr/local/tomcat/temp
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: work
+            mountPath: /usr/local/tomcat/work
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: conf-localhost
+            mountPath: /usr/local/tomcat/conf/Catalina/localhost
+
+  - it: should render default root health webapp
+    template: configmap.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: data["health.jsp"]
+          value: |
+            <%@ page contentType="text/plain; charset=UTF-8" %>
+            OK
+
+  - it: should use runtime init image for default root seeding
+    template: deployment.yaml
+    set:
+      tests.image.repository: registry.example.com/private/test-only
+      tests.resources.requests.cpu: 900m
+      webapps.defaultRoot.initImage.repository: docker.io/library/busybox
+      webapps.defaultRoot.initImage.tag: "1.37"
+      webapps.defaultRoot.resources.requests.cpu: 25m
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].image
+          value: docker.io/library/busybox:1.37
+      - equal:
+          path: spec.template.spec.initContainers[1].resources.requests.cpu
+          value: 25m
+
+  - it: should copy image webapps before mounting the shared webapps volume
+    template: deployment.yaml
+    set:
+      image.repository: registry.example.com/apps/custom-tomcat
+      image.tag: "1.2.3"
+      webapps.defaultRoot.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: copy-image-webapps
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: registry.example.com/apps/custom-tomcat:1.2.3
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "cp -R .*/webapps/\\.\" /webapps/"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "! -name lost\\+found"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: ".helmforge-image-webapps-seeded"
+
+  - it: should allow disabling image webapps copy
+    template: deployment.yaml
+    set:
+      webapps.copyImageContent.enabled: false
+      webapps.defaultRoot.enabled: false
+    asserts:
+      - isNull:
+          path: spec.template.spec.initContainers
+
+  - it: should allow user-provided HTTP probes when default root is disabled
+    template: deployment.yaml
+    set:
+      webapps.defaultRoot.enabled: false
+      startupProbe.enabled: true
+      startupProbe.path: /custom/health
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /custom/health
+
+  - it: should allow tcp probes without default root
+    template: deployment.yaml
+    set:
+      webapps.defaultRoot.enabled: false
+      startupProbe.mode: tcp
+      livenessProbe.mode: tcp
+      readinessProbe.mode: tcp
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.tcpSocket.port
+          value: http
+
+  - it: should expose a separate JMX RMI container port when configured
+    template: deployment.yaml
+    set:
+      jmx.enabled: true
+      jmx.port: 9999
+      jmx.rmiPort: 9011
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: jmx
+            containerPort: 9999
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: jmx-rmi
+            containerPort: 9011
+            protocol: TCP
+
+  - it: should advertise pod IP for JMX by default
+    template: deployment.yaml
+    set:
+      jmx.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[1].value
+          pattern: "-Djava\\.rmi\\.server\\.hostname=\\$\\(POD_IP\\)"
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].env[1].value
+          pattern: "-Djava\\.rmi\\.server\\.hostname=127\\.0\\.0\\.1"
+
+  - it: should honor explicit JMX hostname
+    template: deployment.yaml
+    set:
+      jmx.enabled: true
+      jmx.hostname: tomcat-jmx.example.com
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POD_IP
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[0].value
+          pattern: "-Djava\\.rmi\\.server\\.hostname=tomcat-jmx\\.example\\.com"
+
+  - it: should reject duplicate JMX registry and RMI service ports
+    template: deployment.yaml
+    set:
+      jmx.enabled: true
+      jmx.port: 9999
+      service.ports.jmx: 9010
+      service.ports.jmxRmi: 9010
+    asserts:
+      - failedTemplate:
+          errorMessage: "service.ports.jmxRmi must differ from service.ports.jmx when jmx.rmiPort differs from jmx.port"

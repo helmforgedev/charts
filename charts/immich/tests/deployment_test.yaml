@@ -1,0 +1,319 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+  - templates/pvc.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render official Immich image and database env
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/immich-app/immich-server:v2.7.5
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].env[7].name
+          value: DB_HOSTNAME
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].env[7].value
+          value: test-postgresql
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-postgresql-auth
+                key: postgres-password
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-valkey-auth
+                key: valkey-password
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+        template: templates/deployment.yaml
+
+  - it: should omit replicas when autoscaling is enabled
+    set:
+      autoscaling.enabled: true
+      server.persistence.accessModes:
+        - ReadWriteMany
+    asserts:
+      - notExists:
+          path: spec.replicas
+        template: templates/deployment.yaml
+
+  - it: should use Recreate strategy with default RWO uploads persistence
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+        template: templates/deployment.yaml
+
+  - it: should allow strategy override when explicitly configured
+    set:
+      server.strategy.type: RollingUpdate
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+        template: templates/deployment.yaml
+
+  - it: should omit strategy when uploads use RWX and no override is set
+    set:
+      server.persistence.accessModes:
+        - ReadWriteMany
+    asserts:
+      - notExists:
+          path: spec.strategy
+        template: templates/deployment.yaml
+
+  - it: should use the PostgreSQL subchart ExternalSecret auth target for internal database passwords
+    set:
+      postgresql.externalSecrets.enabled: true
+      postgresql.externalSecrets.auth.enabled: true
+      postgresql.externalSecrets.auth.targetName: platform-postgresql-auth
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: platform-postgresql-auth
+                key: postgres-password
+        template: templates/deployment.yaml
+
+  - it: should honor PostgreSQL subchart fullname override
+    set:
+      postgresql.fullnameOverride: pg
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: until nc -z pg 5432; do
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: pg-auth
+                key: postgres-password
+        template: templates/deployment.yaml
+
+  - it: should honor Valkey subchart fullname override
+    set:
+      valkey.fullnameOverride: cache
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: until nc -z cache-client 6379; do
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: cache-auth
+                key: valkey-password
+        template: templates/deployment.yaml
+
+  - it: should reject Redis cluster mode for the internal cache
+    set:
+      valkey.architecture: cluster
+    asserts:
+      - failedTemplate:
+          errorMessage: Immich internal cache supports valkey.architecture=standalone or replication
+        template: templates/deployment.yaml
+
+  - it: should pass external Valkey password to Immich
+    set:
+      valkey.internal.enabled: false
+      valkey.external.host: valkey.example.com
+      valkey.external.password: redis-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-immich-redis
+                key: redis-password
+        template: templates/deployment.yaml
+      - equal:
+          path: stringData["redis-password"]
+          value: redis-secret
+        template: templates/secret.yaml
+
+  - it: should use external Valkey existingSecret for Redis password
+    set:
+      valkey.internal.enabled: false
+      valkey.external.host: valkey.example.com
+      valkey.external.existingSecret: valkey-auth
+      valkey.external.existingSecretPasswordKey: password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: valkey-auth
+                key: password
+        template: templates/deployment.yaml
+
+  - it: should use Redis subchart primary service and port for replicated internal cache
+    set:
+      valkey.architecture: replication
+      valkey.service.ports.redis: 6380
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_HOSTNAME
+            value: test-valkey-primary
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PORT
+            value: "6380"
+        template: templates/deployment.yaml
+
+  - it: should render upload PVC storageClass
+    set:
+      server.persistence.storageClass: media-rwx
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: media-rwx
+        template: templates/pvc.yaml
+        documentIndex: 0
+
+  - it: should fail external database without explicit password or secret
+    set:
+      postgresql.enabled: false
+      database.external.host: postgres.example.com
+      database.external.password: ""
+      database.external.existingSecret: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: external database requires database.external.password or database.external.existingSecret
+        template: templates/deployment.yaml
+
+  - it: should fail external database without host
+    set:
+      postgresql.enabled: false
+      database.external.password: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: external database requires database.external.host
+        template: templates/deployment.yaml
+
+  - it: should fail external cache without host
+    set:
+      valkey.internal.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: external cache requires valkey.external.host
+        template: templates/deployment.yaml
+
+  - it: should create external database password secret only when password is explicit
+    set:
+      postgresql.enabled: false
+      database.external.host: postgres.example.com
+      database.external.password: db-secret
+    asserts:
+      - equal:
+          path: stringData["database-password"]
+          value: db-secret
+        template: templates/secret.yaml
+
+  - it: should reject non-postgres internal database user
+    set:
+      postgresql.auth.username: immich
+    asserts:
+      - failedTemplate:
+          errorMessage: internal PostgreSQL for Immich requires postgresql.auth.username=postgres so the app user owns the database
+        template: templates/deployment.yaml
+
+  - it: should fail scaled server with default RWO uploads PVC
+    set:
+      server.replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: server persistence requires ReadWriteMany accessModes when server replicas or autoscaling are enabled
+        template: templates/deployment.yaml
+
+  - it: should allow scaled server with RWX uploads PVC
+    set:
+      server.replicaCount: 2
+      server.persistence.accessModes:
+        - ReadWriteMany
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.accessModes[0]
+          value: ReadWriteMany
+        template: templates/pvc.yaml
+        documentIndex: 0
+
+  - it: should keep common labels and scheduling values valid
+    set:
+      commonLabels.team: platform
+      nodeSelector.disk: ssd
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: media
+          effect: NoSchedule
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution: []
+      priorityClassName: media-high
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: immich
+    asserts:
+      - equal:
+          path: metadata.labels.team
+          value: platform
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.nodeSelector.disk
+          value: ssd
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.tolerations[0].key
+          value: dedicated
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: media-high
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].topologyKey
+          value: kubernetes.io/hostname
+        template: templates/deployment.yaml

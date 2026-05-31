@@ -1,0 +1,165 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: MachineLearning
+templates:
+  - templates/machine-learning.yaml
+  - templates/pvc.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render machine-learning health probes
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /ping
+        template: templates/machine-learning.yaml
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /ping
+        template: templates/machine-learning.yaml
+        documentIndex: 1
+
+  - it: should use Recreate strategy with default RWO cache persistence
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+        template: templates/machine-learning.yaml
+        documentIndex: 1
+
+  - it: should allow machine learning strategy override
+    set:
+      machineLearning.strategy.type: RollingUpdate
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+        template: templates/machine-learning.yaml
+        documentIndex: 1
+
+  - it: should omit machine learning strategy when cache uses RWX and no override is set
+    set:
+      machineLearning.persistence.accessModes:
+        - ReadWriteMany
+    asserts:
+      - notExists:
+          path: spec.strategy
+        template: templates/machine-learning.yaml
+        documentIndex: 1
+
+  - it: should fail scaled ML with default RWO cache PVC
+    set:
+      machineLearning.replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: machineLearning persistence requires ReadWriteMany accessModes when machineLearning.replicaCount is greater than 1
+        template: templates/machine-learning.yaml
+
+  - it: should allow scaled ML with RWX cache PVC
+    set:
+      machineLearning.replicaCount: 2
+      machineLearning.persistence.accessModes:
+        - ReadWriteMany
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+        template: templates/machine-learning.yaml
+        documentIndex: 1
+      - equal:
+          path: spec.accessModes[0]
+          value: ReadWriteMany
+        template: templates/pvc.yaml
+        documentIndex: 1
+
+  - it: should render machine learning cache PVC storageClass
+    set:
+      machineLearning.persistence.storageClass: model-cache
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: model-cache
+        template: templates/pvc.yaml
+        documentIndex: 1
+
+  - it: should apply image pull secrets to machine learning pods
+    set:
+      imagePullSecrets:
+        - name: registry-auth
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: registry-auth
+        template: templates/machine-learning.yaml
+        documentIndex: 1
+
+  - it: should honor service account token automount for machine learning pods
+    set:
+      serviceAccount.automountServiceAccountToken: true
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: true
+        template: templates/machine-learning.yaml
+        documentIndex: 1
+
+  - it: should apply pod metadata to machine learning pods
+    set:
+      podLabels:
+        sidecar.istio.io/inject: "true"
+      podAnnotations:
+        vault.hashicorp.com/agent-inject: "true"
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels["sidecar.istio.io/inject"]
+          value: "true"
+        template: templates/machine-learning.yaml
+        documentIndex: 1
+      - equal:
+          path: spec.template.metadata.annotations["vault.hashicorp.com/agent-inject"]
+          value: "true"
+        template: templates/machine-learning.yaml
+        documentIndex: 1
+
+  - it: should apply scheduling values to machine learning pods
+    set:
+      priorityClassName: media-high
+      nodeSelector:
+        disk: ssd
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: media
+          effect: NoSchedule
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution: []
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: immich
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: media-high
+        template: templates/machine-learning.yaml
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.nodeSelector.disk
+          value: ssd
+        template: templates/machine-learning.yaml
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.tolerations[0].key
+          value: dedicated
+        template: templates/machine-learning.yaml
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].topologyKey
+          value: kubernetes.io/hostname
+        template: templates/machine-learning.yaml
+        documentIndex: 1

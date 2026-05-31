@@ -73,6 +73,7 @@ All traffic goes through a single Ingress/Service on port 80.
 |-----------|-------------|---------|
 | `mode` | Chart mode: `dev` or `production` | `dev` |
 | `image.tag` | Hoppscotch image tag | `2026.4.1` |
+| `namespaceOverride` | Namespace for chart-managed resources. Use with an external database; bundled PostgreSQL remains in the Helm release namespace. | `""` |
 | `replicaCount` | Number of replicas | `1` |
 | `ingress.enabled` | Enable Ingress | `false` |
 | `ingress.host` | Primary hostname (auto-derives all URLs) | `""` |
@@ -84,10 +85,12 @@ All traffic goes through a single Ingress/Service on port 80.
 | `encryption.key` | 32-char encryption key (auto-generated) | `""` |
 | `signingKey.existingSecret` | Existing Secret that contains `WEBAPP_SERVER_SIGNING_KEY` | `""` |
 | `signingKey.existingSecretKey` | Secret key used for `WEBAPP_SERVER_SIGNING_KEY` | `webapp-server-signing-key` |
+| `serviceAccount.automountServiceAccountToken` | Mount the Kubernetes API token into Hoppscotch pods and hook jobs | `false` |
 | `auth.providers` | Enabled auth providers | `EMAIL` |
 | `mailer.enabled` | Enable SMTP | `false` |
 | `gatewayAPI.enabled` | Enable HTTPRoute | `false` |
 | `externalSecrets.enabled` | Enable ExternalSecret | `false` |
+| `externalSecrets.apiVersion` | ExternalSecret API version | `external-secrets.io/v1` |
 | `networkPolicy.enabled` | Enable NetworkPolicy | `false` |
 | `podDisruptionBudget.enabled` | Enable PDB | `false` |
 

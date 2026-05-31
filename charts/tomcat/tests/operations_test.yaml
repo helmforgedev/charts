@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Operations
+templates:
+  - hpa.yaml
+  - pdb.yaml
+  - networkpolicy.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render HPA
+    template: hpa.yaml
+    set:
+      autoscaling.enabled: true
+    asserts:
+      - isKind:
+          of: HorizontalPodAutoscaler
+      - equal:
+          path: spec.maxReplicas
+          value: 5
+
+  - it: should render PDB
+    template: pdb.yaml
+    set:
+      pdb.enabled: true
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.minAvailable
+          value: 1
+
+  - it: should render NetworkPolicy
+    template: networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+
+  - it: should deny ingress when no ingress peers are configured
+    template: networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.ingress.allowSameNamespace: false
+      networkPolicy.ingress.extraFrom: []
+    asserts:
+      - equal:
+          path: spec.ingress
+          value: []
+
+  - it: should expose JMX RMI port in NetworkPolicy when configured
+    template: networkpolicy.yaml
+    set:
+      jmx.enabled: true
+      jmx.rmiPort: 9011
+      networkPolicy.enabled: true
+    asserts:
+      - contains:
+          path: spec.ingress[0].ports
+          content:
+            protocol: TCP
+            port: jmx-rmi
+
+  - it: should nest extra egress peers under to
+    template: networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.allowDNS: false
+      networkPolicy.egress.allowHTTPS: false
+      networkPolicy.egress.extraTo:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: database
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgresql
+    asserts:
+      - equal:
+          path: spec.egress[0].to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: database
+      - equal:
+          path: spec.egress[0].to[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: postgresql

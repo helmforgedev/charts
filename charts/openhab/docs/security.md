@@ -22,6 +22,7 @@ securityContext:
 ### Why readOnlyRootFilesystem is false
 
 openHAB (OSGi/Karaf) writes to several directories at runtime:
+
 - `/openhab/runtime/` — OSGi framework state
 - `/openhab/userdata/tmp/` — Temporary files
 - `/openhab/userdata/cache/` — Bundle cache

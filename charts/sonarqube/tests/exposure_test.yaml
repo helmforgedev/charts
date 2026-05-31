@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Exposure
+templates:
+  - templates/ingress.yaml
+  - templates/httproute.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render Ingress by default
+    template: templates/ingress.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render Ingress when enabled
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: nginx
+      ingress.hosts:
+        - host: sonarqube.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.rules[0].host
+          value: sonarqube.example.com
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.name
+          value: test-sonarqube
+
+  - it: should not render HTTPRoute by default
+    template: templates/httproute.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render HTTPRoute with filters
+    template: templates/httproute.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.parentRefs:
+        - name: public-gateway
+          namespace: gateway-system
+      gatewayAPI.hostnames:
+        - sonarqube.example.com
+      gatewayAPI.filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: X-Forwarded-Proto
+                value: https
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.parentRefs[0].name
+          value: public-gateway
+      - equal:
+          path: spec.hostnames[0]
+          value: sonarqube.example.com
+      - equal:
+          path: spec.rules[0].filters[0].type
+          value: RequestHeaderModifier
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 9000

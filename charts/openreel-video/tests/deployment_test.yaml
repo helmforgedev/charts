@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should use HelmForge OpenReel Video image and hardened pod settings
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/helmforge/openreel-video:v0.4.0
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: web
+
+  - it: should omit replicas when autoscaling is enabled
+    set:
+      autoscaling.enabled: true
+    asserts:
+      - notExists:
+          path: spec.replicas

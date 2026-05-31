@@ -1,0 +1,99 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: namespace override tests
+templates:
+  - deployment.yaml
+  - secret.yaml
+  - configmap.yaml
+  - service.yaml
+  - serviceaccount.yaml
+  - httproute.yaml
+  - externalsecret.yaml
+  - ingress.yaml
+  - networkpolicy.yaml
+  - pdb.yaml
+  - servicemonitor.yaml
+tests:
+  - it: should render chart-managed resources into namespaceOverride with external database
+    set:
+      namespaceOverride: hoppscotch-system
+      postgresql:
+        enabled: false
+      database:
+        external:
+          enabled: true
+          url: postgresql://hoppscotch:secret@postgresql.database.svc.cluster.local:5432/hoppscotch
+      serviceAccount:
+        create: true
+      ingress:
+        enabled: true
+        host: hoppscotch.example.com
+      gatewayAPI:
+        enabled: true
+        parentRefs:
+          - name: shared-gateway
+      externalSecrets:
+        enabled: true
+        secretStoreRef:
+          name: cluster-store
+          kind: ClusterSecretStore
+        data:
+          - secretKey: data-encryption-key
+            remoteRef:
+              key: hoppscotch/data-encryption-key
+      networkPolicy:
+        enabled: true
+      podDisruptionBudget:
+        enabled: true
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: hoppscotch-system
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+        template: deployment.yaml
+      - equal:
+          path: metadata.namespace
+          value: hoppscotch-system
+        template: secret.yaml
+      - equal:
+          path: metadata.namespace
+          value: hoppscotch-system
+        template: configmap.yaml
+      - equal:
+          path: metadata.namespace
+          value: hoppscotch-system
+        template: service.yaml
+      - equal:
+          path: metadata.namespace
+          value: hoppscotch-system
+        template: serviceaccount.yaml
+      - equal:
+          path: metadata.namespace
+          value: hoppscotch-system
+        template: httproute.yaml
+      - equal:
+          path: metadata.namespace
+          value: hoppscotch-system
+        template: externalsecret.yaml
+      - equal:
+          path: metadata.namespace
+          value: hoppscotch-system
+        template: ingress.yaml
+      - equal:
+          path: metadata.namespace
+          value: hoppscotch-system
+        template: networkpolicy.yaml
+      - equal:
+          path: metadata.namespace
+          value: hoppscotch-system
+        template: pdb.yaml
+      - equal:
+          path: metadata.namespace
+          value: hoppscotch-system
+        template: servicemonitor.yaml

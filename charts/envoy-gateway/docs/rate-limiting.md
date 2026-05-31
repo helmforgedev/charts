@@ -4,7 +4,7 @@ Envoy Gateway supports distributed rate limiting with Redis backend for API prot
 
 ## Architecture
 
-```
+```text
 Client → Gateway (EG Operator provisions Envoy) → Rate Limit Service → Redis
                     ↓
                Backend Service
@@ -39,6 +39,7 @@ rateLimiting:
 ```
 
 The chart automatically:
+
 - Creates Redis StatefulSet with PVC
 - Configures rate limit service to use Redis
 - Sets up headless service for Redis
@@ -81,6 +82,7 @@ rateLimiting:
 ```
 
 Creates `BackendTrafficPolicy` with a `targetRef.kind: Gateway` targeting the active Gateway resource:
+
 - **Limit**: 100 requests per minute
 - **Scope**: Per client IP (x-real-ip header)
 - **Type**: Global (distributed across all proxy instances)
@@ -114,6 +116,7 @@ rateLimiting:
 ```
 
 Creates `BackendTrafficPolicy` with:
+
 - **Limit**: 10 requests per minute
 - **Scope**: Per client IP
 - **Type**: Global
@@ -184,6 +187,7 @@ rateLimiting:
 ```
 
 **Guidelines**:
+
 - **Low traffic** (<1000 req/s): 100m CPU, 128Mi memory
 - **Medium traffic** (1000-10000 req/s): 200m CPU, 256Mi memory
 - **High traffic** (>10000 req/s): 500m CPU, 512Mi memory
@@ -214,6 +218,7 @@ curl http://localhost:8081/metrics | grep ratelimit
 ```
 
 Key metrics:
+
 - `envoy_cluster_ratelimit_over_limit` — requests rejected by rate limiter
 - `envoy_cluster_ratelimit_ok` — requests allowed by rate limiter
 - `envoy_cluster_ratelimit_error` — rate limiter errors
@@ -238,6 +243,7 @@ kubectl get httproute <route-name> -o yaml | grep -A 10 filters
 ```
 
 **Common Causes**:
+
 1. Redis pod not running
 2. Rate limit policy not attached to HTTPRoute
 3. Wrong header selector (x-real-ip vs x-forwarded-for)
@@ -276,19 +282,3 @@ rateLimiting:
 3. **Size Redis appropriately** — Allocate memory based on expected traffic
 4. **Use different limits for different routes** — Apply stricter limits to expensive operations
 5. **Test rate limits** — Validate limits work before production deployment
-
-<!-- @AI-METADATA
-type: chart-docs
-title: Rate Limiting Guide
-description: Distributed rate limiting with Redis backend for Envoy Gateway
-keywords: rate-limiting, redis, api-protection, distributed, envoy-gateway, backendtrafficpolicy
-purpose: Architecture guide and configuration reference for rate limiting with Envoy Gateway
-scope: Chart
-relations:
-  - charts/envoy-gateway/README.md
-  - charts/envoy-gateway/values.yaml
-  - charts/envoy-gateway/examples/rate-limiting.yaml
-path: charts/envoy-gateway/docs/rate-limiting.md
-version: 1.0
-date: 2026-04-09
--->

@@ -188,26 +188,8 @@ The chart should not silently migrate database modes during a normal upgrade.
 
 ## References
 
-- Gophish default config: https://raw.githubusercontent.com/gophish/gophish/v0.12.1/config.json
-- Gophish installation guide: https://github.com/gophish/user-guide/blob/master/installation.md
-- Gophish Docker entrypoint: https://raw.githubusercontent.com/gophish/gophish/v0.12.1/docker/run.sh
+- Gophish default config: <https://raw.githubusercontent.com/gophish/gophish/v0.12.1/config.json>
+- Gophish installation guide: <https://github.com/gophish/user-guide/blob/master/installation.md>
+- Gophish Docker entrypoint: <https://raw.githubusercontent.com/gophish/gophish/v0.12.1/docker/run.sh>
 - HelmForge backup patterns MCP resource
 - HelmForge dependency policy MCP resource
-
-<!-- @AI-METADATA
-type: chart-docs
-title: Gophish - Database Research
-description: Database mode research and decisions for the Gophish HelmForge chart
-
-keywords: gophish, sqlite, mysql, database, helm
-
-purpose: Define database modes, config rendering, and backup boundaries
-scope: Chart Research
-
-relations:
-  - charts/gophish/docs/architecture.md
-  - charts/gophish/docs/security.md
-path: charts/gophish/docs/database.md
-version: 1.0
-date: 2026-04-28
--->

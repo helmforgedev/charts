@@ -1,6 +1,8 @@
 # Gophish
 
-Gophish is an open-source phishing awareness platform for authorized security training. This chart deploys Gophish with separate admin and phishing traffic, safe SQLite defaults, optional HelmForge MySQL, optional external MySQL, NetworkPolicy, and SQLite backup support.
+Gophish is an open-source phishing awareness platform for authorized security training.
+This chart deploys Gophish with separate admin and phishing traffic, safe SQLite defaults, optional HelmForge MySQL,
+optional external MySQL, NetworkPolicy, and SQLite backup support.
 
 ## Install
 
@@ -88,16 +90,43 @@ phishIngress:
           pathType: Prefix
 ```
 
-## Dual-Stack Services
+## Gateway API
 
-Admin and phishing Services can opt into Kubernetes dual-stack fields independently. Leave these values omitted to inherit cluster defaults.
+Gateway API HTTPRoutes are available as an opt-in alongside Ingress. The chart keeps admin and phishing routes separate so operators can attach them to different Gateway listeners.
 
 ```yaml
-adminService:
+gateway:
+  enabled: true
+  admin:
+    enabled: true
+    parentRefs:
+      - name: internal-gateway
+        namespace: gateway-system
+    hostnames:
+      - gophish-admin.example.com
+  phish:
+    enabled: true
+    parentRefs:
+      - name: public-gateway
+        namespace: gateway-system
+    hostnames:
+      - training.example.com
+```
+
+The Gateway API resources target `gateway.networking.k8s.io/v1` and require the Gateway API CRDs and a Gateway controller installed in the cluster.
+
+## Dual-Stack Services
+
+Admin and phishing Services can opt into Kubernetes dual-stack fields independently, or inherit shared defaults from `service`. Leave these values omitted to inherit cluster defaults.
+
+```yaml
+service:
   ipFamilyPolicy: PreferDualStack
 
 phishService:
-  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+    - IPv4
+    - IPv6
 ```
 
 Explicit `ipFamilies` should be used only on clusters that advertise those families.

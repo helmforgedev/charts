@@ -42,6 +42,13 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
+Namespace for chart-managed namespaced resources.
+*/}}
+{{- define "envoy-gateway.namespace" -}}
+{{- .Values.namespaceOverride | default .Release.Namespace }}
+{{- end }}
+
+{{/*
 Selector labels
 */}}
 {{- define "envoy-gateway.selectorLabels" -}}
@@ -180,7 +187,7 @@ Controller image
 Gateway API examples namespace
 */}}
 {{- define "envoy-gateway.examples.namespace" -}}
-{{- .Values.gatewayAPI.examples.namespace | default .Release.Namespace }}
+{{- .Values.gatewayAPI.examples.namespace | default (include "envoy-gateway.namespace" .) }}
 {{- end }}
 
 {{/*

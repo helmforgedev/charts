@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Monitoring
+templates:
+  - servicemonitor.yaml
+  - prometheusrule.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: does not render monitoring CRDs by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders ServiceMonitor when metrics and service monitor are enabled
+    template: servicemonitor.yaml
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+      metrics.serviceMonitor.namespace: "false"
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+      - equal:
+          path: metadata.namespace
+          value: "false"
+      - equal:
+          path: spec.endpoints[0].path
+          value: /metrics
+
+  - it: renders PrometheusRule when enabled
+    template: prometheusrule.yaml
+    set:
+      metrics.enabled: true
+      metrics.prometheusRule.enabled: true
+      metrics.prometheusRule.namespace: "on"
+    asserts:
+      - isKind:
+          of: PrometheusRule
+      - equal:
+          path: metadata.namespace
+          value: "on"
+
+  - it: blocks ServiceMonitor without metrics provider
+    template: servicemonitor.yaml
+    set:
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "metrics.serviceMonitor.enabled requires metrics.enabled=true"

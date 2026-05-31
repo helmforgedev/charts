@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: NetworkPolicy
+templates:
+  - networkpolicy.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: does not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders quorum, client, metrics, and DNS policy
+    set:
+      networkPolicy.enabled: true
+      metrics.enabled: true
+      zookeeper.followerPort: 2889
+      networkPolicy.egress.allowSameNamespace: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - contains:
+          path: spec.ingress[0].ports
+          content:
+            protocol: TCP
+            port: 2889
+      - contains:
+          path: spec.egress[2].ports
+          content:
+            protocol: UDP
+            port: 53

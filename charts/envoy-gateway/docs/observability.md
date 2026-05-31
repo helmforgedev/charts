@@ -4,15 +4,17 @@ Envoy Gateway provides comprehensive observability through Prometheus metrics, G
 
 ## Architecture
 
-```
+```text
 EG-managed Proxy Pods → Metrics (dynamic) ─┐
                                             ├→ Prometheus → Grafana
 Controller → Metrics (8081) ───────────────┘
 
 EG-managed Proxy Pods → Access Logs → stdout
-```
+```text
 
-Proxy pods are created dynamically by the EG operator when a `Gateway` resource exists. They are named `envoy-<namespace>-<gateway-name>-<uid>` and do not have a fixed service name, so proxy scraping must use pod-level service discovery.
+Proxy pods are created dynamically by the EG operator when a `Gateway` resource exists.
+They are named `envoy-<namespace>-<gateway-name>-<uid>` and do not have a fixed service name,
+so proxy scraping must use pod-level service discovery.
 
 ## Components
 
@@ -46,6 +48,7 @@ monitoring:
 ```
 
 Includes 6 production-ready alerts:
+
 - **ProxyHighMemoryUsage** — Proxy memory > 80%
 - **ProxyHighCPUUsage** — Proxy CPU > 80%
 - **ControllerHighMemoryUsage** — Controller memory > 80%
@@ -90,7 +93,10 @@ kubectl get servicemonitor -l app.kubernetes.io/name=envoy-gateway
 
 ### Without Prometheus Operator
 
-Manually configure Prometheus scrape jobs. Because proxy pods are provisioned dynamically by the EG operator (named `envoy-<namespace>-<gateway-name>-<uid>`), only the controller can be scraped via a fixed service name. Proxy metrics should be discovered via pod labels:
+Manually configure Prometheus scrape jobs.
+Because proxy pods are provisioned dynamically by the EG operator,
+only the controller can be scraped via a fixed service name.
+Proxy metrics should be discovered via pod labels:
 
 ```yaml
 scrape_configs:
@@ -107,7 +113,7 @@ scrape_configs:
   - source_labels: [__meta_kubernetes_endpoint_port_name]
     action: keep
     regex: metrics
-```
+```text
 
 ## Metrics
 
@@ -116,6 +122,7 @@ scrape_configs:
 **Endpoint**: `http://envoy-gateway-controller:8081/metrics`
 
 Key metrics:
+
 - `controller_runtime_reconcile_total` — Total reconciliation attempts
 - `controller_runtime_reconcile_errors_total` — Reconciliation failures
 - `workqueue_depth` — Work queue depth
@@ -140,12 +147,14 @@ histogram_quantile(0.99, rate(rest_client_request_duration_seconds_bucket[5m]))
 **Endpoint**: Proxy pods are created dynamically by the EG operator with names like `envoy-<namespace>-<gateway-name>-<uid>`. Access metrics via port-forward to a specific pod on port 9090.
 
 Example:
+
 ```bash
 kubectl port-forward pod/<envoy-pod-name> 9090:9090
 curl http://localhost:9090/stats/prometheus
 ```
 
 Key metrics:
+
 - `envoy_http_downstream_rq_total` — Total requests
 - `envoy_http_downstream_rq_xx` — Requests by status code (2xx, 4xx, 5xx)
 - `envoy_http_downstream_rq_time_bucket` — Request latency histogram
@@ -281,6 +290,7 @@ monitoring:
 ```
 
 The chart creates ConfigMaps with official Envoy Gateway dashboards:
+
 - **Envoy Proxy Dashboard** — Traffic, latency, errors, connections
 - **Envoy Gateway Controller Dashboard** — Reconciliation, API calls, queue depth
 
@@ -289,11 +299,12 @@ The chart creates ConfigMaps with official Envoy Gateway dashboards:
 If not using ConfigMap provisioning:
 
 1. **Export dashboard ConfigMap**:
+
 ```bash
 kubectl get configmap envoy-gateway-grafana-dashboard -o jsonpath='{.data.dashboard\.json}' > dashboard.json
 ```
 
-2. **Import to Grafana**:
+1. **Import to Grafana**:
    - Open Grafana UI
    - Go to Dashboards → Import
    - Upload `dashboard.json`
@@ -301,6 +312,7 @@ kubectl get configmap envoy-gateway-grafana-dashboard -o jsonpath='{.data.dashbo
 ### Dashboard Panels
 
 **Envoy Proxy Dashboard**:
+
 - Request rate (RPS)
 - Error rate (%)
 - P50/P95/P99 latency
@@ -310,6 +322,7 @@ kubectl get configmap envoy-gateway-grafana-dashboard -o jsonpath='{.data.dashbo
 - Rate limit rejections
 
 **Controller Dashboard**:
+
 - Reconciliation rate
 - Reconciliation errors
 - Work queue depth
@@ -364,6 +377,7 @@ Example log entry:
 ```
 
 **Benefits**:
+
 - Structured for log aggregation (Loki, Elasticsearch)
 - Easy to parse and query
 - Machine-readable
@@ -379,7 +393,7 @@ monitoring:
 
 Example log entry:
 
-```
+```text
 [2026-04-09T10:15:30.123Z] "GET /api/users HTTP/1.1" 200 - 0 1234 45 42 "203.0.113.42" "Mozilla/5.0" "abc123" "api.example.com" "10.42.0.15:8080"
 ```
 
@@ -429,6 +443,7 @@ kubectl logs <envoy-pod-name> -c envoy | jq 'select(.path | startswith("/api"))'
 ```
 
 Query examples:
+
 ```logql
 # 5xx errors
 {app="envoy-gateway"} | json | response_code >= 500
@@ -481,8 +496,8 @@ spec:
 3. **Set up Grafana dashboards** — Visual monitoring is essential
 4. **Configure alert notifications** — Integrate with PagerDuty, Slack, etc.
 5. **Track error rates** — Set up SLIs/SLOs for availability
-7. **Use distributed tracing** — Debug complex request flows
-8. **Aggregate logs centrally** — Don't rely on kubectl logs for production
+6. **Use distributed tracing** — Debug complex request flows
+7. **Aggregate logs centrally** — Don't rely on kubectl logs for production
 
 ## Troubleshooting
 
@@ -510,6 +525,7 @@ curl http://localhost:9090/stats/prometheus
 ```
 
 **Common Causes**:
+
 1. ServiceMonitor namespace doesn't match Prometheus Operator config
 2. Prometheus RBAC doesn't allow scraping
 3. Metrics ports not exposed
@@ -532,6 +548,7 @@ kubectl get prometheusrule envoy-gateway-alerts
 ```
 
 **Common Causes**:
+
 1. PrometheusRule not created (`prometheusRule: false`)
 2. Alert expression syntax error
 3. Metrics not available
@@ -556,24 +573,7 @@ kubectl logs deployment/envoy-gateway-controller
 ```
 
 **Common Causes**:
+
 1. Access logs disabled (`enabled: false`)
 2. No traffic to proxy
 3. Wrong container name (use `-c envoy`)
-
-<!-- @AI-METADATA
-type: chart-docs
-title: Observability Guide
-description: Comprehensive monitoring with Prometheus, Grafana, alerts, and access logs for Envoy Gateway
-keywords: observability, prometheus, grafana, metrics, alerts, access-logs, monitoring, tracing, envoy-gateway
-purpose: Guide for configuring monitoring, metrics, alerts, dashboards, and logging
-scope: Chart
-relations:
-  - charts/envoy-gateway/README.md
-  - charts/envoy-gateway/values.yaml
-  - charts/envoy-gateway/examples/production.yaml
-  - charts/envoy-gateway/examples/staging.yaml
-  - charts/envoy-gateway/examples/monitoring-values.yaml
-path: charts/envoy-gateway/docs/observability.md
-version: 1.0
-date: 2026-04-09
--->
