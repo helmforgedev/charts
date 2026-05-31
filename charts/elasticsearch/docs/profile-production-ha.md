@@ -119,21 +119,3 @@ Add `dataTiers.hot` and `dataTiers.warm` when:
 - you want to reduce cost without sacrificing query speed for recent data
 
 See [`docs/profile-dev.md`](profile-dev.md) for the minimum viable starting point.
-
-<!-- @AI-METADATA
-type: chart-docs
-title: Elasticsearch - Production HA Profile
-description: Production high-availability multi-role cluster deployment
-
-keywords: elasticsearch, production, ha, multi-role, pdb, anti-affinity
-
-purpose: Production HA profile guidance for the Elasticsearch Helm chart
-scope: Chart Profile
-
-relations:
-  - charts/elasticsearch/README.md
-  - charts/elasticsearch/docs/security.md
-path: charts/elasticsearch/docs/profile-production-ha.md
-version: 1.0
-date: 2026-04-09
--->

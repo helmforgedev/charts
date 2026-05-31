@@ -109,21 +109,3 @@ curl --cacert /path/to/ca.crt \
 Transport TLS (port 9300) is always configured when `security.enabled=true`.
 Nodes authenticate each other using the same certificate that covers all
 headless service names. This prevents rogue nodes from joining the cluster.
-
-<!-- @AI-METADATA
-type: chart-docs
-title: Elasticsearch - Security and TLS
-description: TLS, cert-manager, authentication and password management
-
-keywords: elasticsearch, tls, cert-manager, security, xpack, authentication
-
-purpose: Security guidance for the Elasticsearch Helm chart
-scope: Chart Security
-
-relations:
-  - charts/elasticsearch/README.md
-  - charts/elasticsearch/docs/profile-production-ha.md
-path: charts/elasticsearch/docs/security.md
-version: 1.0
-date: 2026-04-09
--->

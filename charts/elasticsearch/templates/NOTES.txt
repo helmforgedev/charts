@@ -6,7 +6,8 @@
 {{- $coordReplicas := int (include "elasticsearch.coordinating.replicaCount" .) -}}
 {{- $securityEnabled := include "elasticsearch.security.enabled" . -}}
 {{- $scheme := ternary "https" "http" (eq $securityEnabled "true") -}}
-{{- $namespace := .Release.Namespace -}}
+{{- $namespace := (include "elasticsearch.namespace" .) -}}
+{{- $releaseNamespace := .Release.Namespace -}}
 
 ------------------------------------------------------------------------
 -           Elasticsearch - Deployed via HelmForge                    -
@@ -90,6 +91,7 @@ BACKUP
 {{- else }}
 --  BACKUP DISABLED - enable with:
     helm upgrade {{ .Release.Name }} helmforge/elasticsearch \
+      -n {{ $releaseNamespace }} \
       --set backup.enabled=true \
       --set backup.s3.bucket=<bucket> \
       --set backup.s3.accessKey=<key> \
@@ -136,11 +138,11 @@ KIBANA
 CONFIGURATION
 -------------------------------------------
   View the applied values:
-    helm get values {{ .Release.Name }} -n {{ $namespace }}
+    helm get values {{ .Release.Name }} -n {{ $releaseNamespace }}
 
   Upgrade the release with a values file:
     helm upgrade {{ .Release.Name }} helmforge/elasticsearch \
-      -n {{ $namespace }} -f values.yaml
+      -n {{ $releaseNamespace }} -f values.yaml
 
 GETTING STARTED
 -------------------------------------------
@@ -191,6 +193,7 @@ RESOURCES
 --  Running in DEV profile (single node, no HA)
     For production use:
     helm upgrade {{ .Release.Name }} helmforge/elasticsearch \
+      -n {{ $releaseNamespace }} \
       --set clusterProfile=production-ha
 {{- end }}
 

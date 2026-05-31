@@ -33,6 +33,29 @@ tests:
           of: CronJob
         documentIndex: 1
 
+  - it: configures mc in writable temporary storage
+    set:
+      backup:
+        enabled: true
+        s3:
+          bucket: es-backups
+          accessKey: minio
+          secretKey: minio123
+    template: templates/cronjob-backup.yaml
+    asserts:
+      - matchRegex:
+          path: data["mc-init.sh"]
+          pattern: "MC_CONFIG_DIR"
+        documentIndex: 0
+      - matchRegex:
+          path: data["mc-init.sh"]
+          pattern: "/tmp/.mc"
+        documentIndex: 0
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.automountServiceAccountToken
+          value: false
+        documentIndex: 1
+
   - it: backup CronJob uses configured schedule
     set:
       backup:
