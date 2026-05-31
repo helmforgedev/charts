@@ -30,6 +30,7 @@ helm install redis oci://ghcr.io/helmforgedev/helm/redis -f values.yaml
 - optional Redis exporter sidecar and `ServiceMonitor`
 - optional `PodDisruptionBudget`
 - topology-specific Services, StatefulSets, and Redis Cluster bootstrap Job
+- dedicated metrics Service so Prometheus `ServiceMonitor` targets do not duplicate the headless/client Services
 - `extraEnv`, `extraVolumes`, `extraVolumeMounts`, and `extraManifests` extension points
 
 ## Supported architectures
@@ -167,6 +168,11 @@ Enable the Redis exporter sidecar with:
 metrics:
   enabled: true
 ```
+
+When metrics are enabled, the chart creates a dedicated `<release>-redis-metrics`
+Service with `app.kubernetes.io/component=metrics`. The built-in
+`ServiceMonitor` selects only that Service, which avoids duplicate scrape
+targets from the headless and client-facing Services.
 
 When Prometheus Operator is installed, enable a `ServiceMonitor`:
 
