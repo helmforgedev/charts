@@ -7,6 +7,7 @@ metadata:
   name: {{ include "redis.headlessServiceName" . }}
   labels:
     {{- include "redis.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-headless
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
@@ -24,6 +25,33 @@ spec:
     app.kubernetes.io/component: redis
 {{- end }}
 
+{{- if and .Values.metrics.enabled (or (include "redis.isStandalone" .) (include "redis.isReplication" .) (include "redis.isSentinel" .) (include "redis.isCluster" .)) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "redis.metricsServiceName" . }}
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+    app.kubernetes.io/component: metrics
+spec:
+  type: ClusterIP
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: metrics
+      port: {{ .Values.service.ports.metrics }}
+      targetPort: metrics
+  selector:
+    {{- include "redis.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+{{- end }}
+
 {{- if include "redis.isStandalone" . }}
 ---
 apiVersion: v1
@@ -32,6 +60,7 @@ metadata:
   name: {{ include "redis.clientServiceName" . }}
   labels:
     {{- include "redis.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-client
   {{- with .Values.service.clientAnnotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -68,6 +97,7 @@ metadata:
   name: {{ include "redis.primaryServiceName" . }}
   labels:
     {{- include "redis.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-primary
   {{- with .Values.service.primaryAnnotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -101,6 +131,7 @@ metadata:
   name: {{ include "redis.replicaServiceName" . }}
   labels:
     {{- include "redis.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-replica
   {{- with .Values.service.replicaAnnotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -137,6 +168,7 @@ metadata:
   name: {{ include "redis.sentinelServiceName" . }}
   labels:
     {{- include "redis.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sentinel
   {{- with .Values.service.sentinelAnnotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -167,6 +199,7 @@ metadata:
   name: {{ include "redis.clientServiceName" . }}
   labels:
     {{- include "redis.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-client
   {{- with .Values.service.clusterAnnotations }}
   annotations:
     {{- toYaml . | nindent 4 }}

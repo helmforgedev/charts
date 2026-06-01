@@ -20,6 +20,9 @@ tests:
           path: metadata.name
           value: test-redis-headless
       - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: redis-headless
+      - equal:
           path: spec.clusterIP
           value: None
 
@@ -31,6 +34,9 @@ tests:
       - equal:
           path: metadata.name
           value: test-redis-client
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: redis-client
       - equal:
           path: spec.type
           value: ClusterIP
@@ -44,3 +50,29 @@ tests:
             name: redis
             port: 6379
             targetPort: redis
+
+  - it: should render a dedicated metrics service when metrics are enabled
+    set:
+      metrics.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 3
+      - equal:
+          path: metadata.name
+          value: test-redis-metrics
+        documentIndex: 1
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: metrics
+        documentIndex: 1
+      - equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: redis
+        documentIndex: 1
+      - contains:
+          path: spec.ports
+          content:
+            name: metrics
+            port: 9121
+            targetPort: metrics
+        documentIndex: 1
