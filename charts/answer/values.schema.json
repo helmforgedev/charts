@@ -196,14 +196,10 @@
             "password": {
               "type": "string",
               "description": "Database password (auto-generated if empty)."
-            },
-            "rootPassword": {
-              "type": "string",
-              "description": "Root password (auto-generated if empty)."
             }
           }
         },
-        "primary": {
+        "standalone": {
           "type": "object",
           "properties": {
             "persistence": {
@@ -256,7 +252,7 @@
             }
           }
         },
-        "primary": {
+        "standalone": {
           "type": "object",
           "properties": {
             "persistence": {
@@ -308,15 +304,60 @@
     },
     "resources": {
       "type": "object",
-      "description": "CPU and memory requests/limits for the Answer container."
+      "description": "CPU and memory requests/limits for the Answer container.",
+      "properties": {
+        "requests": {
+          "type": "object",
+          "properties": {
+            "cpu": { "type": "string" },
+            "memory": { "type": "string" }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "cpu": { "type": "string" },
+            "memory": { "type": "string" }
+          }
+        }
+      }
     },
     "podSecurityContext": {
       "type": "object",
-      "description": "Pod-level security context."
+      "description": "Pod-level security context.",
+      "properties": {
+        "seccompProfile": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string" }
+          }
+        }
+      }
     },
     "securityContext": {
       "type": "object",
-      "description": "Container-level security context."
+      "description": "Container-level security context.",
+      "properties": {
+        "allowPrivilegeEscalation": {
+          "type": "boolean",
+          "default": false
+        },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "drop": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": ["ALL"]
+            },
+            "add": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": ["NET_BIND_SERVICE"]
+            }
+          }
+        }
+      }
     },
     "startupProbe": {
       "type": "object",
@@ -370,6 +411,19 @@
         "annotations": {
           "type": "object",
           "description": "Annotations for the service."
+        },
+        "ipFamilyPolicy": {
+          "type": ["string", "null"],
+          "description": "Service IP family policy.",
+          "enum": ["SingleStack", "PreferDualStack", "RequireDualStack", null]
+        },
+        "ipFamilies": {
+          "type": "array",
+          "description": "Service IP families override.",
+          "items": {
+            "type": "string",
+            "enum": ["IPv4", "IPv6"]
+          }
         }
       }
     },
@@ -416,6 +470,27 @@
         "annotations": {
           "type": "object",
           "description": "Annotations for the ServiceAccount."
+        }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "description": "Gateway API HTTPRoute configuration.",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "annotations": { "type": "object" },
+        "parentRefs": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "hostnames": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "path": { "type": "string" },
+        "pathType": {
+          "type": "string",
+          "enum": ["Exact", "PathPrefix", "RegularExpression"]
         }
       }
     },
@@ -589,6 +664,61 @@
       "type": "array",
       "description": "Extra Kubernetes manifests to deploy alongside the chart.",
       "items": { "type": "object" }
+    },
+    "externalSecrets": {
+      "type": "object",
+      "description": "External Secrets Operator integration.",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiVersion": { "type": "string" },
+        "refreshInterval": { "type": "string" },
+        "secretStoreRef": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "kind": {
+              "type": "string",
+              "enum": ["SecretStore", "ClusterSecretStore"]
+            }
+          }
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "creationPolicy": { "type": "string" }
+          }
+        },
+        "admin": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "data": {
+              "type": "array",
+              "items": { "type": "object" }
+            }
+          }
+        },
+        "database": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "data": {
+              "type": "array",
+              "items": { "type": "object" }
+            }
+          }
+        },
+        "backup": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "data": {
+              "type": "array",
+              "items": { "type": "object" }
+            }
+          }
+        }
+      }
     }
   }
 }
