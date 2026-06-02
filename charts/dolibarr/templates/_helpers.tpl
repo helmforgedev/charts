@@ -76,6 +76,9 @@ Database mode detection (auto | external | mysql).
 */}}
 {{- define "dolibarr.databaseMode" -}}
 {{- $mode := .Values.database.mode | default "auto" -}}
+{{- if hasKey .Values.mysql "primary" -}}
+{{- fail "mysql.primary.* is not supported by the HelmForge MySQL 2.x dependency used by this chart. Migrate MySQL values to mysql.standalone.* before upgrading." -}}
+{{- end -}}
 {{- if not (has $mode (list "auto" "external" "mysql")) -}}
 {{- fail (printf "database.mode must be one of: auto, external, mysql (got %s)" $mode) -}}
 {{- end -}}

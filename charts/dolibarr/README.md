@@ -161,6 +161,11 @@ database:
 | `mysql.standalone.persistence.size` | `8Gi` | MySQL PVC size |
 | `mysql.startupProbe.initialDelaySeconds` | `30` | MySQL startup probe delay used to avoid false-positive bootstrap warnings |
 
+When upgrading from chart releases that used `mysql.primary.*`, migrate those
+values to `mysql.standalone.*`. The chart fails fast if `mysql.primary` is still
+present so persistence and resource settings are not silently ignored by the
+HelmForge MySQL 2.x dependency.
+
 ### Persistence
 
 | Key | Default | Description |
