@@ -48,6 +48,32 @@ tests:
           content:
             name: DOLI_DB_USER
             value: "dolibarr"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DOLI_DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-mysql-auth
+                key: mysql-user-password
+
+  - it: should use the bundled MySQL existing auth secret for the database password
+    set:
+      mysql:
+        auth:
+          existingSecret: dolibarr-mysql-auth
+          existingSecretUserPasswordKey: user-password
+          existingSecretRootPasswordKey: root-password
+          existingSecretReplicationPasswordKey: replication-password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DOLI_DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: dolibarr-mysql-auth
+                key: user-password
 
   - it: should set the admin password from the generated secret
     asserts:
@@ -104,7 +130,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].startupProbe.initialDelaySeconds
-          value: 120
+          value: 70
 
   - it: should include the wait-for-db init container
     asserts:

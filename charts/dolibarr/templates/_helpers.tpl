@@ -154,7 +154,11 @@ Database mode detection (auto | external | mysql).
 {{- if and (eq (include "dolibarr.databaseMode" .) "external") .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecret -}}
 {{- else if eq (include "dolibarr.databaseMode" .) "mysql" -}}
+{{- if .Values.mysql.auth.existingSecret -}}
+{{- .Values.mysql.auth.existingSecret -}}
+{{- else -}}
 {{- printf "%s-mysql-auth" .Release.Name -}}
+{{- end -}}
 {{- else -}}
 {{- printf "%s-database" (include "dolibarr.fullname" .) -}}
 {{- end -}}
@@ -164,7 +168,7 @@ Database mode detection (auto | external | mysql).
 {{- if and (eq (include "dolibarr.databaseMode" .) "external") .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecretPasswordKey -}}
 {{- else if eq (include "dolibarr.databaseMode" .) "mysql" -}}
-mysql-user-password
+{{- .Values.mysql.auth.existingSecretUserPasswordKey | default "mysql-user-password" -}}
 {{- else -}}
 database-password
 {{- end -}}
