@@ -200,7 +200,7 @@ externalSecrets:
 | `management.enabled` | Enable management plugin/UI | `true` |
 | `management.ingress.enabled` | Enable management ingress | `false` |
 | `management.ingress.ingressClassName` | Ingress class for the Management UI | `traefik` |
-| `management.ingress.className` | Deprecated alias for `ingressClassName` | `""` |
+| `management.ingress.className` | Deprecated optional alias for `ingressClassName`; empty string omits the field | omitted |
 | `tls.enabled` | Enable TLS listeners | `false` |
 | `singleNode.persistence.enabled` | Enable PVC for single node | `true` |
 | `cluster.replicaCount` | Number of cluster nodes | `3` |
