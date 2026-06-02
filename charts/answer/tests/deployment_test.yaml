@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 suite: Deployment
 templates:
   - templates/deployment.yaml
@@ -20,7 +21,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/apache/answer:2.0.0"
+          value: "docker.io/apache/answer:2.0.1"
 
   - it: should allow custom image tag
     template: templates/deployment.yaml
@@ -89,6 +90,16 @@ tests:
           content:
             name: DB_FILE
             value: /data/answer.db
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SITE_URL
+            value: "http://localhost:80"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: EXTERNAL_CONTENT_DISPLAY
+            value: ask_before_display
 
   - it: should not have init containers in sqlite mode
     template: templates/deployment.yaml
@@ -229,6 +240,22 @@ tests:
             name: SITE_URL
             value: "https://qa.example.com"
 
+  - it: should auto-detect site URL from gateway hostname
+    template: templates/deployment.yaml
+    set:
+      gateway.enabled: true
+      gateway.parentRefs:
+        - name: public-gateway
+          namespace: gateway-system
+      gateway.hostnames:
+        - qa.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SITE_URL
+            value: "https://qa.example.com"
+
   - it: should prefer explicit site URL over ingress
     template: templates/deployment.yaml
     set:
@@ -285,6 +312,38 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].resources.requests.cpu
           value: 100m
+
+  - it: should set default resource requests and limits
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 128Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 500m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 512Mi
+
+  - it: should set baseline security context defaults
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.add
+          content: NET_BIND_SERVICE
 
   - it: should add extra env vars
     template: templates/deployment.yaml

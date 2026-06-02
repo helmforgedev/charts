@@ -37,7 +37,7 @@ postgresql:
     database: answer
     username: answer
     password: "strong-password"
-  primary:
+  standalone:
     persistence:
       size: 20Gi
 ```
@@ -51,7 +51,7 @@ mysql:
     database: answer
     username: answer
     password: "strong-password"
-  primary:
+  standalone:
     persistence:
       size: 20Gi
 ```
