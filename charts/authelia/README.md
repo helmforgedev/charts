@@ -43,10 +43,11 @@ No manual configuration required for direct installs.
 > **GitOps users (Argo CD, Flux):** set `secrets.jwtSecret`, `secrets.sessionSecret`, and `secrets.storageEncryptionKey` explicitly.
 > Client-side rendering cannot perform cluster lookups, so leaving these empty will rotate credentials on every sync.
 
-A **disabled** placeholder `admin` account is shipped. Enable it only after setting a strong password hash. Generate one with:
+A disabled placeholder `admin` account is shipped because Authelia requires a non-empty file users database when the file backend is enabled.
+Enable it only after setting a strong password hash. Generate one with:
 
 ```bash
-docker run authelia/authelia:latest authelia crypto hash generate argon2
+docker run authelia/authelia:4.39.20 authelia crypto hash generate argon2
 ```
 
 ```yaml
@@ -127,7 +128,7 @@ postgresql:
 | `secrets.existingSecret` | `""` | Use existing secret for credentials |
 | `database.type` | `sqlite` | Storage backend: sqlite, postgres, mysql |
 | `usersDatabase.enabled` | `true` | Mount file-based users database |
-| `usersDatabase.users` | disabled admin placeholder | Inline user definitions — enable and set a strong password before use |
+| `usersDatabase.users` | disabled admin placeholder | Inline user definitions. Enable only after setting a strong password hash |
 | `persistence.enabled` | `true` | Enable PVC for /data |
 | `persistence.size` | `1Gi` | PVC size |
 | `ingress.enabled` | `false` | Enable ingress |
@@ -142,6 +143,16 @@ postgresql:
 | `postgresql.enabled` | `false` | Deploy PostgreSQL subchart |
 | `mysql.enabled` | `false` | Deploy MySQL subchart |
 | `redis.enabled` | `false` | Deploy Redis subchart |
+
+## Bundled Dependency Versions
+
+The chart uses HelmForge-maintained subcharts for optional stateful services:
+
+| Dependency | Version | Usage |
+|------------|---------|-------|
+| PostgreSQL | `2.0.2` | Production storage backend |
+| MySQL | `2.0.0` | Production storage backend alternative |
+| Redis | `1.6.16` | Session storage for distributed/HA deployments |
 
 ## Forward Auth Configuration
 

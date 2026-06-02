@@ -2,19 +2,22 @@
 
 ## Overview
 
-Authelia is an authentication and authorization server providing single sign-on (SSO), multi-factor authentication (MFA), and OpenID Connect identity provider capabilities. It works as a forward-auth middleware for reverse proxies like Traefik, nginx, Caddy, and Envoy.
+Authelia is an authentication and authorization server providing single sign-on (SSO), MFA, and OpenID Connect identity provider capabilities.
+It works as a forward-auth middleware for reverse proxies like Traefik, nginx, Caddy, and Envoy.
 
 ## Deployment Model
 
-The chart deploys a single-replica Deployment with `Recreate` strategy. Authelia listens on port **9091** for HTTP and optionally **9959** for Prometheus metrics.
+The chart deploys a single-replica Deployment with `Recreate` strategy.
+Authelia listens on port **9091** for HTTP and optionally **9959** for Prometheus metrics.
 
 ## Configuration
 
-Authelia uses a YAML configuration file (`configuration.yml`) rendered as a Kubernetes Secret. Sensitive values (JWT secret, session secret, storage encryption key, database passwords) are injected via file-based secrets mounted at `/secrets/`.
+Authelia uses a YAML configuration file (`configuration.yml`) rendered as a Kubernetes Secret.
+Sensitive values are injected via file-based secrets mounted at `/secrets/`.
 
 ### Configuration Injection Pattern
 
-```
+```text
 configuration.yml  →  Secret (mounted at /config/configuration.yml)
 Credentials        →  Secret (mounted at /secrets/)
 Users database     →  Secret (mounted at /config/users_database.yml)

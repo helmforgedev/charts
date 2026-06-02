@@ -227,13 +227,14 @@ usersDatabase:
   # -- Key in the existing secret
   existingSecretKey: users_database.yml
   # -- Inline user definitions (rendered as users_database.yml).
-  # A disabled placeholder account is shipped. Enable it only after setting a strong password.
-  # Generate a hash with: docker run authelia/authelia:latest authelia crypto hash generate argon2
+  # A disabled placeholder account is shipped because Authelia requires a non-empty
+  # file users database when the file backend is enabled. Enable it only after
+  # setting a strong password hash. Generate a hash with:
+  # docker run authelia/authelia:4.39.20 authelia crypto hash generate argon2
   users:
     admin:
       disabled: true
       displayname: "Admin"
-      # Replace this hash before enabling the account.
       password: "$argon2id$v=19$m=65536,t=3,p=4$BpLnfgDsc2WD8F2q$o/vpEqEasRicAMBeH6ZmSJLNg9VjUMKqHI8+j3KLdUY"
       email: "admin@example.com"
       groups:
@@ -378,7 +379,13 @@ probes:
 # Resources and Security
 # =============================================================================
 
-resources: {}
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
 
 podSecurityContext:
   fsGroup: 1000
@@ -395,6 +402,16 @@ securityContext:
   capabilities:
     drop:
       - ALL
+
+waitForServices:
+  # -- Resources for dependency wait init containers
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
 
 # =============================================================================
 # Scheduling
@@ -535,6 +552,17 @@ postgresql:
     username: authelia
     # -- Required when using the PostgreSQL subchart
     password: ""
+  standalone:
+    persistence:
+      enabled: true
+      size: 8Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 768Mi
 
 mysql:
   # -- Enable the local MySQL chart
@@ -545,6 +573,17 @@ mysql:
     username: authelia
     # -- Required when using the MySQL subchart
     password: ""
+  standalone:
+    persistence:
+      enabled: true
+      size: 8Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 768Mi
 
 redis:
   # -- Enable the local Redis chart for session storage
@@ -553,3 +592,14 @@ redis:
   auth:
     # -- Required when using the Redis subchart
     password: ""
+  standalone:
+    persistence:
+      enabled: true
+      size: 8Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi

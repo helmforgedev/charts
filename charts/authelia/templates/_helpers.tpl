@@ -288,7 +288,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- $_ := set $cfg.storage "postgres" $pgCfg -}}
 {{- else if eq $dbType "mysql" -}}
   {{- $_ := unset $cfg.storage "local" -}}
-  {{- $myCfg := dict "host" (include "authelia.dbHost" .) "port" (include "authelia.dbPort" . | int) "database" (include "authelia.dbName" .) "username" (include "authelia.dbUsername" .) -}}
+  {{- $myAddress := printf "tcp://%s:%s" (include "authelia.dbHost" .) (include "authelia.dbPort" .) -}}
+  {{- $myCfg := dict "address" $myAddress "database" (include "authelia.dbName" .) "username" (include "authelia.dbUsername" .) -}}
   {{- $_ := set $cfg.storage "mysql" $myCfg -}}
 {{- end -}}
 
