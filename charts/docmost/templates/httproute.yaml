@@ -1,12 +1,17 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- $gateway := .Values.gateway -}}
-{{- if .Values.gateway.enabled }}
+{{- $gatewayBlock := "gateway" -}}
+{{- if and (not .Values.gateway.enabled) (hasKey .Values "gatewayAPI") (dig "enabled" false .Values.gatewayAPI) }}
+{{- $gateway = .Values.gatewayAPI -}}
+{{- $gatewayBlock = "gatewayAPI" -}}
+{{- end }}
+{{- if $gateway.enabled }}
 {{- if not $gateway.parentRefs }}
-  {{- fail "gateway.parentRefs is required when gateway.enabled=true" }}
+  {{- fail (printf "%s.parentRefs is required when %s.enabled=true" $gatewayBlock $gatewayBlock) }}
 {{- end }}
 {{- range $gateway.parentRefs }}
   {{- if not .name }}
-    {{- fail "Each gateway.parentRefs entry must define a 'name' field" }}
+    {{- fail (printf "Each %s.parentRefs entry must define a 'name' field" $gatewayBlock) }}
   {{- end }}
 {{- end }}
 apiVersion: gateway.networking.k8s.io/v1
@@ -29,8 +34,8 @@ spec:
   rules:
     - matches:
         - path:
-            type: {{ $gateway.pathType }}
-            value: {{ $gateway.path | quote }}
+            type: {{ default "PathPrefix" $gateway.pathType }}
+            value: {{ default "/" $gateway.path | quote }}
       backendRefs:
         - name: {{ include "docmost.fullname" . }}
           port: {{ .Values.service.port }}
