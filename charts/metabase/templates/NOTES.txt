@@ -1,102 +1,171 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Metabase has been successfully deployed!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{{- $fullname := include "metabase.fullname" . -}}
+{{- $namespace := .Release.Namespace -}}
+{{- $gateway := default dict .Values.gateway -}}
+{{- $legacyGateway := default dict .Values.gatewayAPI -}}
+{{- $useLegacyGateway := and (not (default false $gateway.enabled)) (default false $legacyGateway.enabled) -}}
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
+1. Metabase has been installed
+------------------------------
+  Release:        {{ .Release.Name }}
+  Namespace:      {{ $namespace }}
+  Version:        {{ .Chart.AppVersion }}
+  Service:        {{ $fullname }}.{{ $namespace }}.svc.cluster.local:{{ .Values.service.port }}
+  Database Host:  {{ include "metabase.dbHost" . }}:{{ include "metabase.dbPort" . }}
+  Database Name:  {{ include "metabase.dbName" . }}
+  Database User:  {{ include "metabase.dbUsername" . }}
+  AI Features:    {{ .Values.metabase.aiFeaturesEnabled }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ACCESS INFORMATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+2. Access
+---------
 {{- if .Values.ingress.enabled }}
-{{- range $host := .Values.ingress.hosts }}
-WEB UI:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
-{{- end }}
-{{- else }}
-Port-forward to access Metabase locally:
-
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "metabase.fullname" . }} 3000:{{ .Values.service.port }}
-
-  WEB UI:   http://localhost:3000/
-{{- end }}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  GETTING STARTED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=metabase -n {{ .Release.Namespace }} --timeout=600s
-2. kubectl get pods -l app.kubernetes.io/name=metabase -n {{ .Release.Namespace }}
-3. kubectl logs -l app.kubernetes.io/name=metabase -n {{ .Release.Namespace }} --all-containers --tail=50 -f
-4. Open the UI and complete the initial setup wizard
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  CONFIGURATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Metabase AI features are disabled by default to avoid background AI jobs
-without a configured provider:
-
-  metabase.aiFeaturesEnabled={{ .Values.metabase.aiFeaturesEnabled }}
-
-To use Gateway API, prefer gatewayAPI.* values. The legacy gateway.* block
-is still accepted as a compatibility alias.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  TROUBLESHOOTING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  kubectl describe pod -l app.kubernetes.io/name=metabase -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/name=metabase -n {{ .Release.Namespace }} --all-containers --tail=100
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-
-{{- if .Values.postgresql.enabled }}
-View PostgreSQL logs:
-  kubectl logs -l app.kubernetes.io/name=postgresql -n {{ .Release.Namespace }} --all-containers --tail=50
-{{- end }}
-{{- if .Values.backup.enabled }}
-Check backup CronJob: kubectl get cronjob -n {{ .Release.Namespace }}
-{{- end }}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  WARNINGS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-{{- $gateway := .Values.gatewayAPI }}
-{{- if and (not .Values.gatewayAPI.enabled) .Values.gateway.enabled }}
-  {{- $gateway = .Values.gateway }}
-{{- end }}
-{{- if or .Values.gatewayAPI.enabled .Values.gateway.enabled }}
-
-NOTE: Gateway API HTTPRoute {{ include "metabase.fullname" . }} is active.
-  Gateway: {{ $gateway.gatewayName }}{{ with $gateway.gatewayNamespace }}.{{ . }}{{ end }}
-  {{- with $gateway.hostnames }}
-  Hostnames: {{ join ", " . }}
+  Ingress is enabled:
+  {{- range $host := .Values.ingress.hosts }}
+    Web UI: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
   {{- end }}
-{{- else if not .Values.ingress.enabled }}
+{{- else if or (default false $gateway.enabled) $useLegacyGateway }}
+  Gateway API HTTPRoute is enabled:
+  {{- if $useLegacyGateway }}
+    Legacy Gateway: {{ $legacyGateway.gatewayName }}
+    {{- with $legacyGateway.hostnames }}
+    Web UI: http://{{ index . 0 }}/
+    {{- end }}
+  {{- else }}
+    ParentRefs:
+{{ toYaml .Values.gateway.parentRefs | indent 6 }}
+    {{- with .Values.gateway.hostnames }}
+    Web UI: http://{{ index . 0 }}/
+    {{- end }}
+  {{- end }}
+{{- else }}
+  Port-forward locally:
+    kubectl port-forward -n {{ $namespace }} svc/{{ $fullname }} 3000:{{ .Values.service.port }}
 
-NOTE: Ingress is not enabled. Access via port-forward (see above).
+  Open:
+    http://localhost:3000/
 {{- end }}
 
-{{- if .Values.externalSecrets.enabled }}
+3. First-time Setup
+-------------------
+  - Open the web UI and complete the Metabase setup wizard.
+  - Add your first analytical database from Admin settings.
+  - Keep the Metabase encryption key stable after first install; changing it can break saved database credentials.
+  - Set `metabase.siteUrl` before production use so links, embeds, and email notifications use the correct URL.
 
-NOTE: ExternalSecrets enabled.
-  SecretStore: {{ .Values.externalSecrets.secretStoreRef.name }} ({{ .Values.externalSecrets.secretStoreRef.kind }})
+4. Configuration Summary
+------------------------
+  Metadata database: {{ if .Values.postgresql.enabled }}HelmForge PostgreSQL subchart{{ else }}external PostgreSQL{{ end }}
+  DB Secret:         {{ include "metabase.dbSecretName" . }} / {{ include "metabase.dbSecretPasswordKey" . }}
+  App Secret:        {{ include "metabase.encryptionSecretName" . }} / {{ include "metabase.encryptionSecretKey" . }}
+  Site URL:          {{ default "not configured" .Values.metabase.siteUrl }}
+  Timezone:          {{ .Values.metabase.javaTimezone }}
+  Backup:            {{ .Values.backup.enabled }}
+  Ingress:           {{ .Values.ingress.enabled }}
+  Gateway API:       {{ or (default false $gateway.enabled) $useLegacyGateway }}
+  External Secrets:  {{ .Values.externalSecrets.enabled }}
+{{- with .Values.service.ipFamilyPolicy }}
+  IP family policy:  {{ . }}{{ with $.Values.service.ipFamilies }} ({{ join ", " . }}){{ end }}
+{{- end }}
+
+5. Validation Commands
+----------------------
+  Wait for Metabase:
+    kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=metabase -n {{ $namespace }} --timeout=600s
+
+  Check pods:
+    kubectl get pods -l app.kubernetes.io/name=metabase -n {{ $namespace }} -o wide
+
+  Check health from inside the cluster:
+    kubectl run metabase-smoke -n {{ $namespace }} --rm -i --restart=Never --image=docker.io/library/busybox:1.37 -- \
+      wget -qO- http://{{ $fullname }}:{{ .Values.service.port }}/api/health
+
+  Inspect release events:
+    kubectl get events -n {{ $namespace }} --sort-by=.lastTimestamp
+
+6. Logs
+-------
+  Metabase logs:
+    kubectl logs -l app.kubernetes.io/name=metabase -n {{ $namespace }} --all-containers --tail=200
+
+  Wait-for-database init logs:
+    kubectl logs -l app.kubernetes.io/name=metabase -n {{ $namespace }} -c wait-for-database --tail=100
+{{- if .Values.postgresql.enabled }}
+
+  Bundled PostgreSQL logs:
+    kubectl logs -l app.kubernetes.io/name=postgresql -n {{ $namespace }} --all-containers --tail=100
+{{- end }}
+
+7. Backup
+---------
+{{- if .Values.backup.enabled }}
+  PostgreSQL metadata backup is enabled:
+    Schedule: {{ .Values.backup.schedule }}
+    Bucket:   {{ .Values.backup.s3.bucket }}
+    Prefix:   {{ .Values.backup.s3.prefix }}
+
+  Check backup jobs:
+    kubectl get cronjob,jobs -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+  Trigger a manual backup:
+    kubectl create job --from=cronjob/{{ $fullname }}-backup metabase-backup-$(date +%s) -n {{ $namespace }}
+{{- else }}
+  Backup is disabled. For production, enable `backup.enabled=true` or back up the PostgreSQL metadata database externally.
+{{- end }}
+
+8. External Integrations
+------------------------
+{{- if .Values.externalSecrets.enabled }}
+  External Secrets Operator is enabled.
+  SecretStore: {{ .Values.externalSecrets.secretStoreRef.kind }}/{{ .Values.externalSecrets.secretStoreRef.name }}
   Target Secret: {{ .Values.metabase.existingSecret }}
   Refresh: {{ .Values.externalSecrets.refreshInterval }}
+{{- else }}
+  External Secrets Operator is disabled.
+{{- end }}
+{{- if or (default false $gateway.enabled) $useLegacyGateway }}
+
+  Gateway API:
+    kubectl get httproute -n {{ $namespace }} {{ $fullname }}
 {{- end }}
 
-NOTE: Metabase can take 2-3 minutes to fully initialize on first start.
+9. Troubleshooting
+------------------
+  Metabase can take 2-3 minutes to initialize on first start.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ADDITIONAL RESOURCES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  UI does not become ready:
+    kubectl describe pod -l app.kubernetes.io/name=metabase -n {{ $namespace }}
+    kubectl logs -l app.kubernetes.io/name=metabase -n {{ $namespace }} --all-containers --tail=300
 
-Documentation:  https://helmforge.dev/docs/charts/metabase
-Metabase:       https://www.metabase.com | https://github.com/metabase/metabase
+  Database connection errors:
+    kubectl get secret {{ include "metabase.dbSecretName" . }} -n {{ $namespace }}
+{{- if .Values.postgresql.enabled }}
+    kubectl get pods -l app.kubernetes.io/name=postgresql -n {{ $namespace }}
+    kubectl logs -l app.kubernetes.io/name=postgresql -n {{ $namespace }} --all-containers --tail=200
+{{- end }}
+
+  Saved database credentials cannot be decrypted:
+    kubectl get secret {{ include "metabase.encryptionSecretName" . }} -n {{ $namespace }}
+    # Do not rotate the encryption secret unless you have planned a credential migration.
+
+  Wrong public URLs in links or embeds:
+    helm get values {{ .Release.Name }} -n {{ $namespace }}
+    # Set metabase.siteUrl to the external URL.
+
+10. Documentation
+-----------------
+  Helm values:
+    helm get values {{ .Release.Name }} -n {{ $namespace }}
+
+  Helm manifest:
+    helm get manifest {{ .Release.Name }} -n {{ $namespace }}
+
+  HelmForge docs:
+    https://helmforge.dev/docs/charts/metabase
+
+  Chart source:
+    https://github.com/helmforgedev/charts/tree/main/charts/metabase
+
+  Upstream docs:
+    https://www.metabase.com/docs/latest/
 
 Happy Helmforging :)

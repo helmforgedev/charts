@@ -18,6 +18,8 @@ tests:
     set:
       queue.enabled: true
       redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
     asserts:
       - isKind:
           of: Deployment
@@ -31,6 +33,8 @@ tests:
       queue.enabled: true
       queue.workers: 3
       redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
     asserts:
       - equal:
           path: spec.replicas
@@ -41,10 +45,33 @@ tests:
     set:
       queue.enabled: true
       redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
     asserts:
       - equal:
           path: spec.template.spec.containers[0].command
           value: ["n8n", "worker", "--concurrency=10"]
+
+  - it: should render hardened worker security defaults and resources
+    template: templates/worker-deployment.yaml
+    set:
+      queue.enabled: true
+      redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop[0]
+          value: ALL
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 512Mi
 
   - it: should set queue env vars
     template: templates/worker-deployment.yaml
@@ -52,6 +79,8 @@ tests:
       queue.enabled: true
       redis.enabled: true
       redis.auth.password: pass
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
@@ -69,6 +98,8 @@ tests:
     set:
       queue.enabled: true
       redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
     asserts:
       - contains:
           path: spec.template.spec.initContainers
@@ -76,12 +107,138 @@ tests:
             name: wait-for-redis
           any: true
 
+  - it: should wait for the main pod before starting workers
+    template: templates/worker-deployment.yaml
+    set:
+      queue.enabled: true
+      redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          content:
+            name: wait-for-main
+          any: true
+
+  - it: should configure external task runner sidecar by default
+    template: templates/worker-deployment.yaml
+    set:
+      queue.enabled: true
+      redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: task-runners
+      - equal:
+          path: spec.template.spec.containers[1].image
+          value: "docker.io/n8nio/runners:2.23.2"
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: N8N_RUNNERS_TASK_BROKER_URI
+            value: "http://127.0.0.1:5679"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: N8N_RUNNERS_MODE
+            value: external
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: N8N_NATIVE_PYTHON_RUNNER
+            value: "false"
+
+  - it: should disable diagnostics by default on workers
+    template: templates/worker-deployment.yaml
+    set:
+      queue.enabled: true
+      redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: N8N_DIAGNOSTICS_ENABLED
+            value: "false"
+
+  - it: should mount the main PVC for worker data by default
+    template: templates/worker-deployment.yaml
+    set:
+      queue.enabled: true
+      redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: test-n8n-data
+
+  - it: should allow graceful worker shutdown during upgrades
+    template: templates/worker-deployment.yaml
+    set:
+      queue.enabled: true
+      redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 75
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: N8N_GRACEFUL_SHUTDOWN_TIMEOUT
+            value: "60"
+
+  - it: should allow worker emptyDir when shared persistence is explicitly disabled
+    template: templates/worker-deployment.yaml
+    set:
+      queue.enabled: true
+      queue.persistence.shareMainVolume: false
+      redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+
   - it: should use worker-specific labels
     template: templates/worker-deployment.yaml
     set:
       queue.enabled: true
       redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
     asserts:
       - equal:
           path: spec.template.metadata.labels["app.kubernetes.io/component"]
           value: worker
+
+  - it: should reject queue mode with SQLite
+    template: templates/worker-deployment.yaml
+    set:
+      queue.enabled: true
+      redis.enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "queue.enabled=true is not supported with SQLite"
+
+  - it: should reject queue mode without Redis
+    template: templates/worker-deployment.yaml
+    set:
+      queue.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
+    asserts:
+      - failedTemplate:
+          errorPattern: "queue.enabled=true requires redis.enabled=true or queue.external.host"

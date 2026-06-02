@@ -15,7 +15,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "ghcr.io/homarr-labs/homarr:v1.62.0"
+          value: "ghcr.io/homarr-labs/homarr:v1.63.0"
 
   - it: should use Recreate strategy for SQLite
     asserts:
@@ -34,6 +34,28 @@ tests:
     asserts:
       - isNull:
           path: spec.strategy
+
+  - it: should fail fast when PostgreSQL primary values are still present
+    set:
+      postgresql:
+        enabled: true
+        primary:
+          persistence:
+            enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "postgresql.primary.* is not supported by the HelmForge PostgreSQL 2.x dependency used by this chart"
+
+  - it: should fail fast when MySQL primary values are still present
+    set:
+      mysql:
+        enabled: true
+        primary:
+          persistence:
+            enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "mysql.primary.* is not supported by the HelmForge MySQL 2.x dependency used by this chart"
 
   - it: should not have initContainers for SQLite
     asserts:
@@ -68,6 +90,25 @@ tests:
           content:
             name: DB_DIALECT
             value: "sqlite"
+
+  - it: should disable Homarr DNS cache by default for Kubernetes service discovery
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ENABLE_DNS_CACHING
+            value: "false"
+
+  - it: should allow enabling Homarr DNS cache explicitly
+    set:
+      homarr:
+        enableDnsCaching: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ENABLE_DNS_CACHING
+            value: "true"
 
   - it: should set DB_DRIVER to node-postgres for PostgreSQL
     set:

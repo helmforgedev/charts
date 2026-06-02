@@ -1,103 +1,173 @@
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Homarr has been successfully deployed!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $fullname := include "homarr.fullname" . -}}
+{{- $namespace := .Release.Namespace -}}
+{{- $databaseMode := include "homarr.databaseMode" . -}}
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
+1. Homarr has been installed
+----------------------------
+  Release:        {{ .Release.Name }}
+  Namespace:      {{ $namespace }}
+  Version:        {{ .Chart.AppVersion }}
+  Service:        {{ $fullname }}.{{ $namespace }}.svc.cluster.local:{{ .Values.service.port | default 7575 }}
+  Database Mode:  {{ $databaseMode }}
+  Log Level:      {{ .Values.homarr.logLevel }}
+  Auth Providers: {{ .Values.homarr.authProviders }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ACCESS INFORMATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+2. Access
+---------
 {{- if .Values.ingress.enabled }}
-{{- range $host := .Values.ingress.hosts }}
-DASHBOARD:  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
-{{- end }}
-{{- else if .Values.gatewayAPI.enabled }}
-Gateway API HTTPRoute has been rendered for Homarr.
-{{- with .Values.gatewayAPI.hostnames }}
-DASHBOARD:  http://{{ index . 0 }}/
-{{- end }}
+  Ingress is enabled:
+  {{- range $host := .Values.ingress.hosts }}
+    Dashboard: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+  {{- end }}
+{{- else if .Values.gateway.enabled }}
+  Gateway API HTTPRoute is enabled:
+  {{- with .Values.gateway.hostnames }}
+    Dashboard: http://{{ index . 0 }}/
+  {{- else }}
+    No gateway.hostnames configured.
+  {{- end }}
 {{- else }}
-Port-forward to access Homarr locally:
+  Port-forward locally:
+    kubectl port-forward -n {{ $namespace }} svc/{{ $fullname }} 7575:{{ .Values.service.port | default 7575 }}
 
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "homarr.fullname" . }} 7575:{{ .Values.service.port | default 7575 }}
-
-  DASHBOARD:  http://localhost:7575/
+  Open:
+    http://localhost:7575/
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  GETTING STARTED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. First-time Setup
+-------------------
+  - Open the dashboard and create the initial administrator account.
+  - Add integrations, calendars, bookmarks, and service widgets from the Homarr UI.
+  - Keep `encryption.key` or `encryption.existingSecret` stable after first install; changing it can make stored integration secrets unreadable.
+{{- if .Values.homarr.enableKubernetes }}
+  - Kubernetes integration is enabled. Confirm the ServiceAccount/RBAC you provide has only the permissions Homarr needs.
+{{- end }}
 
-1. kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=homarr -n {{ .Release.Namespace }} --timeout=300s
-2. kubectl get pods -l app.kubernetes.io/name=homarr -n {{ .Release.Namespace }}
-3. kubectl logs -l app.kubernetes.io/name=homarr -n {{ .Release.Namespace }} --all-containers --tail=50 -f
-4. Open the dashboard, create your admin account and configure your widgets
-
-Database mode:
-  {{ include "homarr.databaseMode" . }}
-
+4. Configuration Summary
+------------------------
+  Persistence:       {{ .Values.persistence.enabled }}
+  Data PVC:          {{ .Values.persistence.existingClaim | default (printf "%s-data" $fullname) }}
+  PostgreSQL:        {{ .Values.postgresql.enabled }}
+  MySQL:             {{ .Values.mysql.enabled }}
+  External Redis:    {{ .Values.redis.external }}
+  Backup:            {{ .Values.backup.enabled }}
+  Ingress:           {{ .Values.ingress.enabled }}
+  Gateway API:       {{ .Values.gateway.enabled }}
+  External Secrets:  {{ .Values.externalSecrets.enabled }}
+  DNS cache:         {{ .Values.homarr.enableDnsCaching }}
 {{- with .Values.service.ipFamilyPolicy }}
-Service IP family policy:
-  {{ . }}{{ with $.Values.service.ipFamilies }} (families: {{ join ", " . }}){{ end }}
+  IP family policy:  {{ . }}{{ with $.Values.service.ipFamilies }} ({{ join ", " . }}){{ end }}
 {{- end }}
 
-{{- if .Values.backup.enabled }}
-S3 backup schedule:
-  {{ .Values.backup.schedule }}
-{{- end }}
+5. Validation Commands
+----------------------
+  Wait for Homarr:
+    kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=homarr -n {{ $namespace }} --timeout=300s
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  TROUBLESHOOTING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Check pods and PVCs:
+    kubectl get pods,pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ $namespace }} -o wide
 
-  kubectl describe pod -l app.kubernetes.io/name=homarr -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/name=homarr -n {{ .Release.Namespace }} --all-containers --tail=100
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+  Check the dashboard from inside the cluster:
+    kubectl run homarr-smoke -n {{ $namespace }} --rm -i --restart=Never --image=docker.io/library/busybox:1.37 -- \
+      wget -qO- http://{{ $fullname }}:{{ .Values.service.port | default 7575 }}/
 
+  Inspect release events:
+    kubectl get events -n {{ $namespace }} --sort-by=.lastTimestamp
+
+6. Logs
+-------
+  Homarr logs:
+    kubectl logs -l app.kubernetes.io/name=homarr -n {{ $namespace }} --all-containers --tail=200
 {{- if .Values.postgresql.enabled }}
-Bundled PostgreSQL upgrade grants:
-  This release can run a pre-upgrade hook that reapplies Homarr database
-  ownership and CREATE privileges on existing bundled PostgreSQL databases
-  before migrations. By default, the hook is rendered only when the bundled
-  PostgreSQL Secret and Service already exist.
-  Inspect it with:
-  kubectl logs job/{{ include "homarr.fullname" . }}-postgresql-upgrade -n {{ .Release.Namespace }} --all-containers --tail=100
 
-View PostgreSQL logs:
-  kubectl logs -l app.kubernetes.io/name=postgresql -n {{ .Release.Namespace }} --all-containers --tail=50
+  PostgreSQL upgrade hook logs:
+    kubectl logs job/{{ $fullname }}-postgresql-upgrade -n {{ $namespace }} --all-containers --tail=100
+
+  Bundled PostgreSQL logs:
+    kubectl logs -l app.kubernetes.io/name=postgresql -n {{ $namespace }} --all-containers --tail=100
 {{- end }}
-
 {{- if .Values.mysql.enabled }}
-View MySQL logs:
-  kubectl logs -l app.kubernetes.io/name=mysql -n {{ .Release.Namespace }} --all-containers --tail=50
+
+  Bundled MySQL logs:
+    kubectl logs -l app.kubernetes.io/name=mysql -n {{ $namespace }} --all-containers --tail=100
 {{- end }}
 
-Check rendered configuration:
-  helm get values {{ .Release.Name }} -n {{ .Release.Namespace }}
-  helm get manifest {{ .Release.Name }} -n {{ .Release.Namespace }}
+7. Database
+-----------
+{{- if eq $databaseMode "sqlite" }}
+  SQLite is active. Back up the Homarr data PVC because the database file lives in:
+    {{ .Values.database.sqlite.path }}
+{{- else }}
+  Database vendor: {{ include "homarr.databaseVendor" . }}
+  Database host:   {{ include "homarr.databaseHost" . }}:{{ include "homarr.databasePort" . }}
+  Database name:   {{ include "homarr.databaseName" . }}
+  Database user:   {{ include "homarr.databaseUsername" . }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  WARNINGS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Verify the database password Secret:
+    kubectl get secret {{ $fullname }}-database -n {{ $namespace }}
+{{- end }}
+{{- if .Values.redis.external }}
 
-{{- if not .Values.ingress.enabled }}
-
-NOTE: Ingress is not enabled. Access via port-forward (see above).
+  External Redis:
+    {{ .Values.redis.host }}:{{ .Values.redis.port }}
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ADDITIONAL RESOURCES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. Backup
+---------
+{{- if .Values.backup.enabled }}
+  S3 backup is enabled:
+    Schedule: {{ .Values.backup.schedule }}
+    Bucket:   {{ .Values.backup.s3.bucket }}
+    Prefix:   {{ .Values.backup.s3.prefix }}
 
-Documentation:  https://helmforge.dev/docs/charts/homarr
-Chart Source:   https://github.com/helmforgedev/charts/tree/main/charts/homarr
-Report Issues:  https://github.com/helmforgedev/charts/issues
-Discussions:    https://github.com/helmforgedev/charts/discussions
-Homarr:         https://homarr.dev | https://github.com/homarr-labs/homarr
+  Check backup jobs:
+    kubectl get cronjob,jobs -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+  Trigger a manual backup:
+    kubectl create job --from=cronjob/{{ $fullname }}-backup homarr-backup-$(date +%s) -n {{ $namespace }}
+{{- else }}
+  Backup is disabled. Enable `backup.enabled=true` for S3 backups.
+  The chart uses the correct backup command for SQLite, PostgreSQL, or MySQL.
+{{- end }}
+
+9. Troubleshooting
+------------------
+  Dashboard does not load:
+    kubectl describe pod -l app.kubernetes.io/name=homarr -n {{ $namespace }}
+    kubectl logs -l app.kubernetes.io/name=homarr -n {{ $namespace }} --all-containers --tail=300
+
+  Database migration or connection issue:
+    helm get values {{ .Release.Name }} -n {{ $namespace }}
+{{- if .Values.postgresql.enabled }}
+    kubectl logs -l app.kubernetes.io/name=postgresql -n {{ $namespace }} --all-containers --tail=200
+{{- else if .Values.mysql.enabled }}
+    kubectl logs -l app.kubernetes.io/name=mysql -n {{ $namespace }} --all-containers --tail=200
+{{- end }}
+
+  Lost widgets, users, or integrations after restart:
+    kubectl get pvc {{ .Values.persistence.existingClaim | default (printf "%s-data" $fullname) }} -n {{ $namespace }}
+    # Use persistence.enabled=true for production.
+
+  External Secrets is enabled but secrets are missing:
+    kubectl get externalsecret -n {{ $namespace }}
+    kubectl describe externalsecret -n {{ $namespace }}
+
+10. Documentation
+-----------------
+  Helm values:
+    helm get values {{ .Release.Name }} -n {{ $namespace }}
+
+  Helm manifest:
+    helm get manifest {{ .Release.Name }} -n {{ $namespace }}
+
+  HelmForge docs:
+    https://helmforge.dev/docs/charts/homarr
+
+  Chart source:
+    https://github.com/helmforgedev/charts/tree/main/charts/homarr
+
+  Upstream docs:
+    https://homarr.dev
 
 Happy Helmforging :)

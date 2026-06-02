@@ -78,6 +78,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $hasExternal := or (ne (.Values.database.external.host | default "") "") (ne (.Values.database.external.existingSecret | default "") "") -}}
 {{- $hasPostgresql := .Values.postgresql.enabled | default false -}}
 {{- $hasMysql := .Values.mysql.enabled | default false -}}
+{{- if and $hasPostgresql (hasKey .Values.postgresql "primary") -}}
+{{- fail "postgresql.primary.* is not supported by the HelmForge PostgreSQL 2.x dependency used by this chart. Migrate PostgreSQL values to postgresql.standalone.* before upgrading." -}}
+{{- end -}}
+{{- if and $hasMysql (hasKey .Values.mysql "primary") -}}
+{{- fail "mysql.primary.* is not supported by the HelmForge MySQL 2.x dependency used by this chart. Migrate MySQL values to mysql.standalone.* before upgrading." -}}
+{{- end -}}
 {{- $vendor := .Values.database.external.vendor | default "postgres" -}}
 {{- if not (has $vendor (list "postgres" "mysql")) -}}
 {{- fail (printf "database.external.vendor must be one of: postgres, mysql (got %s)" $vendor) -}}

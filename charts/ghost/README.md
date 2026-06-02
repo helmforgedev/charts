@@ -12,6 +12,8 @@ for building blogs, newsletters, and membership-based content with built-in mone
 - **Headless CMS** — REST and Content API for headless usage
 - **Memberships** — built-in subscriptions, newsletters, and payments
 - **Ingress support** — TLS with cert-manager
+- **Gateway API support** — optional HTTPRoute for modern ingress stacks
+- **External Secrets support** — optional database password synchronization
 
 ## Installation
 
@@ -63,11 +65,23 @@ database:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `ghost.url` | `""` | Public URL of the Ghost instance |
+| `image.tag` | `6.42.0` | Ghost image tag |
 | `mysql.enabled` | `true` | Deploy MySQL subchart |
+| `mysql.image.tag` | `8.4.7` | MySQL image tag pinned to the Ghost-supported MySQL 8 major |
 | `persistence.enabled` | `true` | Enable content persistence |
 | `persistence.size` | `10Gi` | Content PVC size |
 | `backup.enabled` | `false` | Enable S3 content backups |
 | `ingress.enabled` | `false` | Enable ingress |
+| `gateway.enabled` | `false` | Enable Gateway API HTTPRoute |
+| `externalSecrets.enabled` | `false` | Render ExternalSecret for database password |
+
+## Upgrade Notes
+
+`docker.io/library/ghost:6.42.0` is an upstream image update from `6.39.0`.
+Review the upstream Ghost release notes before upgrading production sites, take
+a content and database backup, and verify themes, custom integrations,
+newsletter flows, comments, and member signup paths in staging before reusing
+existing PVCs.
 
 ## S3 Backup
 
@@ -85,9 +99,11 @@ backup:
 ## Limitations
 
 - **Single instance** — Ghost does not support horizontal scaling out of the box
-- **MySQL only** — Ghost requires MySQL 8; PostgreSQL is not supported
+- **MySQL only** — Ghost requires MySQL 8; PostgreSQL is not supported. The bundled HelmForge MySQL dependency is kept on MySQL 8 through `mysql.image.tag`.
 
 ## More Information
 
+- [Chart design](DESIGN.md)
+- [Database modes](docs/database.md)
 - [Ghost documentation](https://ghost.org/docs/)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/ghost)

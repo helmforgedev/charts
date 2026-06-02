@@ -1,4 +1,5 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "n8n.validate" . }}
 {{- if .Values.queue.enabled }}
 apiVersion: apps/v1
 kind: Deployment
@@ -47,6 +48,10 @@ spec:
         {{- if ne (include "n8n.databaseMode" .) "sqlite" }}
         - name: wait-for-db
           image: docker.io/library/busybox:1.37
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           command:
             - sh
             - -c
@@ -59,6 +64,10 @@ spec:
         {{- end }}
         - name: wait-for-redis
           image: docker.io/library/busybox:1.37
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           command:
             - sh
             - -c
@@ -68,11 +77,30 @@ spec:
                 sleep 2
               done
               echo "Redis is reachable."
+        - name: wait-for-main
+          image: docker.io/library/busybox:1.37
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for n8n main readiness..."
+              until wget -qO- http://{{ include "n8n.fullname" . }}:{{ .Values.service.port }}/healthz/readiness >/dev/null 2>&1; do
+                sleep 2
+              done
+              echo "n8n main is ready."
       containers:
         - name: worker
           image: {{ include "n8n.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["n8n", "worker", "--concurrency={{ .Values.queue.concurrency }}"]
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           env:
             - name: DB_TYPE
               value: {{ include "n8n.dbType" . | quote }}
@@ -102,6 +130,21 @@ spec:
                 secretKeyRef:
                   name: {{ include "n8n.encryptionKeySecretName" . }}
                   key: {{ include "n8n.encryptionKeySecretKey" . }}
+            - name: N8N_DIAGNOSTICS_ENABLED
+              value: {{ .Values.n8n.diagnosticsEnabled | quote }}
+            - name: N8N_GRACEFUL_SHUTDOWN_TIMEOUT
+              value: {{ .Values.n8n.gracefulShutdownTimeout | quote }}
+            - name: N8N_RUNNERS_MODE
+              value: {{ .Values.taskRunners.mode | quote }}
+            {{- if eq (.Values.taskRunners.mode | default "external") "external" }}
+            - name: N8N_RUNNERS_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "n8n.taskRunnerSecretName" . }}
+                  key: {{ include "n8n.taskRunnerSecretKey" . }}
+            {{- end }}
+            - name: N8N_NATIVE_PYTHON_RUNNER
+              value: {{ .Values.taskRunners.nativePython.enabled | quote }}
             - name: EXECUTIONS_MODE
               value: queue
             - name: QUEUE_BULL_REDIS_HOST
@@ -125,9 +168,40 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /home/node/.n8n
+        {{- if eq (.Values.taskRunners.mode | default "external") "external" }}
+        - name: task-runners
+          image: {{ include "n8n.runnerImage" . | quote }}
+          imagePullPolicy: {{ .Values.taskRunners.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: runner-health
+              containerPort: 5680
+              protocol: TCP
+          env:
+            - name: N8N_RUNNERS_TASK_BROKER_URI
+              value: "http://127.0.0.1:5679"
+            - name: N8N_RUNNERS_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "n8n.taskRunnerSecretName" . }}
+                  key: {{ include "n8n.taskRunnerSecretKey" . }}
+            - name: N8N_RUNNERS_LAUNCHER_LOG_LEVEL
+              value: {{ .Values.n8n.logLevel | quote }}
+            - name: N8N_RUNNERS_AUTO_SHUTDOWN_TIMEOUT
+              value: {{ .Values.taskRunners.autoShutdownTimeout | quote }}
+            - name: N8N_RUNNERS_LAUNCHER_HEALTH_CHECK_PORT
+              value: "5680"
+          {{- with .Values.taskRunners.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
       volumes:
         - name: data
-          {{- if .Values.persistence.enabled }}
+          {{- if and .Values.queue.persistence.shareMainVolume .Values.persistence.enabled }}
           persistentVolumeClaim:
             claimName: {{ .Values.persistence.existingClaim | default (printf "%s-data" (include "n8n.fullname" .)) }}
           {{- else }}

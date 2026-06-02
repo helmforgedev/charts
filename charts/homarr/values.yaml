@@ -6,7 +6,7 @@
 # -- Homarr image
 image:
   repository: ghcr.io/homarr-labs/homarr
-  tag: "v1.62.0"
+  tag: "v1.63.0"
   pullPolicy: IfNotPresent
 
 # -- Image pull secrets
@@ -27,6 +27,9 @@ homarr:
 
   # -- Authentication providers (comma-separated): credentials, ldap, oidc
   authProviders: credentials
+
+  # -- Enable Homarr's internal DNS cache. Disabled by default for Kubernetes Service discovery stability.
+  enableDnsCaching: false
 
   # -- Enable Kubernetes integration for workload discovery
   enableKubernetes: false
@@ -114,7 +117,7 @@ postgresql:
         SELECT format('GRANT CREATE ON DATABASE %I TO %I', :'app_database', :'app_username') \gexec
         SQL
         fi
-  primary:
+  standalone:
     persistence:
       # -- Enable persistence for PostgreSQL data
       enabled: true
@@ -176,12 +179,15 @@ mysql:
     password: ""
     # -- Root password (auto-generated if empty)
     rootPassword: ""
-  primary:
+  standalone:
     persistence:
       # -- Enable persistence for MySQL data
       enabled: true
       # -- PVC size for MySQL
       size: 8Gi
+  startupProbe:
+    # -- Delay MySQL startup probing to avoid transient startup Warning events in k3d and slower nodes
+    initialDelaySeconds: 30
 
 # =============================================================================
 # Redis
@@ -237,21 +243,25 @@ persistence:
 # =============================================================================
 
 # -- CPU and memory requests/limits for the Homarr container
-resources: {}
-  # requests:
-  #   cpu: 100m
-  #   memory: 256Mi
-  # limits:
-  #   cpu: 500m
-  #   memory: 512Mi
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 750m
+    memory: 768Mi
 
 # =============================================================================
 # Security Context
 # =============================================================================
 
-podSecurityContext: {}
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
 
 # =============================================================================
 # Probes
@@ -262,7 +272,7 @@ startupProbe:
   enabled: true
   # -- Path for HTTP GET probe
   path: /
-  initialDelaySeconds: 10
+  initialDelaySeconds: 30
   periodSeconds: 5
   timeoutSeconds: 3
   failureThreshold: 30
@@ -343,11 +353,11 @@ ingress:
 # Gateway API
 # =============================================================================
 
-gatewayAPI:
+gateway:
   # -- Enable Gateway API HTTPRoute for Homarr HTTP (requires Gateway API CRDs)
   enabled: false
 
-  # -- Parent Gateway references. Leave empty to attach through controller defaults.
+  # -- Parent Gateway references.
   parentRefs: []
   #   - name: shared-gateway
   #     namespace: gateway-system
@@ -357,10 +367,11 @@ gatewayAPI:
   hostnames: []
   #   - dash.example.com
 
-  # -- HTTPRoute path matches
-  paths:
-    - type: PathPrefix
-      value: /
+  # -- HTTPRoute path
+  path: /
+
+  # -- HTTPRoute path match type
+  pathType: PathPrefix
 
   # -- HTTPRoute annotations
   annotations: {}

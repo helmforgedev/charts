@@ -16,7 +16,7 @@ image:
   # -- Metabase container image
   repository: docker.io/metabase/metabase
   # -- Image tag
-  tag: "v0.61.2"
+  tag: "v0.61.3"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -120,29 +120,15 @@ ingress:
 # Gateway API
 # =============================================================================
 
-gatewayAPI:
-  # -- Enable Gateway API HTTPRoute (alternative to Ingress; requires Gateway API CRDs)
-  enabled: false
-  # -- Gateway name to attach the HTTPRoute to
-  gatewayName: ""
-  # -- Namespace of the gateway
-  gatewayNamespace: ""
-  # -- Hostnames the HTTPRoute matches
-  hostnames: []
-    # - metabase.example.com
-  # -- Path prefix for the HTTPRoute
-  path: /
-  # -- Path match type
-  pathType: PathPrefix
-
-# Deprecated compatibility alias for gatewayAPI. Prefer gatewayAPI for new values.
 gateway:
   # -- Enable Gateway API HTTPRoute (alternative to Ingress; requires Gateway API CRDs)
   enabled: false
-  # -- Gateway name to attach the HTTPRoute to
-  gatewayName: ""
-  # -- Namespace of the gateway
-  gatewayNamespace: ""
+  # -- Annotations for the HTTPRoute
+  annotations: {}
+  # -- parentRefs list pointing to your Gateway resource
+  parentRefs: []
+  #   - name: my-gateway
+  #     namespace: default
   # -- Hostnames the HTTPRoute matches
   hostnames: []
     # - metabase.example.com
@@ -159,7 +145,7 @@ probes:
   startup:
     enabled: true
     path: /api/health
-    initialDelaySeconds: 30
+    initialDelaySeconds: 90
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 30
@@ -182,7 +168,13 @@ probes:
 # Resources and Security
 # =============================================================================
 
-resources: {}
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 2Gi
 
 podSecurityContext: {}
 
@@ -312,3 +304,14 @@ postgresql:
     scripts:
       02-extensions.sql: |
         CREATE EXTENSION IF NOT EXISTS citext;
+  standalone:
+    persistence:
+      enabled: true
+      size: 8Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 768Mi
