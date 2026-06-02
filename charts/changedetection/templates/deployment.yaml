@@ -67,6 +67,16 @@ spec:
             - name: http
               containerPort: {{ .Values.changedetection.port }}
               protocol: TCP
+          {{- if or .Values.externalSecrets.enabled .Values.changedetection.envFrom }}
+          envFrom:
+            {{- if .Values.externalSecrets.enabled }}
+            - secretRef:
+                name: {{ include "changedetection.externalSecretName" . }}
+            {{- end }}
+            {{- with .Values.changedetection.envFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
           env:
             - name: PORT
               value: {{ .Values.changedetection.port | quote }}

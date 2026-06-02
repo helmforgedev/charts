@@ -43,16 +43,20 @@ tests:
             name: data
             mountPath: /datastore
 
-  - it: should set default resource requests without hard limits
+  - it: should set default resource requests and limits
     asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 1000m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 1Gi
       - equal:
           path: spec.template.spec.containers[0].resources.requests.cpu
           value: 100m
       - equal:
           path: spec.template.spec.containers[0].resources.requests.memory
           value: 256Mi
-      - isNull:
-          path: spec.template.spec.containers[0].resources.limits
 
   - it: should drop Linux capabilities by default
     asserts:
@@ -164,3 +168,30 @@ tests:
           content:
             name: PLAYWRIGHT_DRIVER_URL
             value: "ws://localhost:3000/?stealth=1&--disable-web-security=true"
+
+  - it: should render envFrom sources for externalized configuration
+    set:
+      changedetection.envFrom:
+        - secretRef:
+            name: changedetection-env
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].envFrom
+          content:
+            secretRef:
+              name: changedetection-env
+
+  - it: should consume the ExternalSecret target when enabled
+    set:
+      externalSecrets:
+        enabled: true
+        secretStoreRef:
+          name: vault
+        target:
+          name: changedetection-env
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].envFrom
+          content:
+            secretRef:
+              name: changedetection-env

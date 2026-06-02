@@ -50,3 +50,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s-data" (include "changedetection.fullname" .) -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "changedetection.externalSecretName" -}}
+{{- default (printf "%s-env" (include "changedetection.fullname" .)) .Values.externalSecrets.target.name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}

@@ -44,6 +44,9 @@ changedetection:
   # -- Extra environment variables for the container
   # -- @default -- `[]`
   extraEnv: []
+  # -- Additional envFrom sources, commonly Secrets produced by External Secrets Operator
+  # -- @default -- `[]`
+  envFrom: []
 
 # =============================================================================
 # Browser (optional Playwright for JavaScript rendering)
@@ -101,6 +104,10 @@ service:
   port: 80
   # -- Annotations for the Service
   annotations: {}
+  # -- Optional Service IP family policy: SingleStack, PreferDualStack, or RequireDualStack
+  ipFamilyPolicy: ~
+  # -- Optional Service IP families, for example [IPv4, IPv6]
+  ipFamilies: []
 
 # =============================================================================
 # Ingress
@@ -124,6 +131,54 @@ ingress:
     # - hosts:
     #     - changedetection.example.com
     #   secretName: changedetection-tls
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gateway:
+  # -- Enable Gateway API HTTPRoute (alternative to Ingress; requires Gateway API CRDs)
+  enabled: false
+  # -- Annotations for the HTTPRoute
+  annotations: {}
+  # -- parentRefs pointing to your Gateway resource
+  parentRefs: []
+  # -- Hostnames the HTTPRoute matches
+  hostnames: []
+  # -- Path prefix
+  path: /
+  # -- Path match type
+  pathType: PathPrefix
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render an ExternalSecret for environment secrets or integrations.
+  enabled: false
+  # -- ExternalSecret API version.
+  apiVersion: external-secrets.io/v1
+  # -- ExternalSecret refresh interval.
+  refreshInterval: 1h
+  secretStoreRef:
+    # -- SecretStore or ClusterSecretStore name. Required when externalSecrets.enabled=true.
+    name: ""
+    # -- SecretStore reference kind.
+    kind: SecretStore
+  target:
+    # -- Target Secret name. Defaults to "<release>-changedetection-env" when empty.
+    name: ""
+    # -- ExternalSecret target creation policy.
+    creationPolicy: Owner
+  # -- Data entries mapping remote provider keys into environment variable keys.
+  data: []
+  # - secretKey: LOGGER_LEVEL
+  #   remoteRef:
+  #     key: changedetection/app
+  #     property: loggerLevel
+  # -- Optional dataFrom entries for provider-side extraction.
+  dataFrom: []
 
 # =============================================================================
 # Probes
@@ -154,6 +209,9 @@ probes:
 # =============================================================================
 
 resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
   requests:
     cpu: 100m
     memory: 256Mi

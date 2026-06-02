@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: Apache-2.0
+# Example: production-oriented changedetection.io deployment.
+
+changedetection:
+  baseUrl: "https://cd.example.com"
+  fetchWorkers: 10
+  timezone: "America/Sao_Paulo"
+
+persistence:
+  enabled: true
+  size: 20Gi
+
+browser:
+  enabled: true
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  hosts:
+    - host: cd.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - cd.example.com
+      secretName: changedetection-tls
+
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: vault
+    kind: ClusterSecretStore
+  target:
+    name: changedetection-env
+    creationPolicy: Owner
+  data:
+    - secretKey: LOGGER_LEVEL
+      remoteRef:
+        key: changedetection/app
+        property: loggerLevel
