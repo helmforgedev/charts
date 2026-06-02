@@ -55,6 +55,9 @@ n8n:
   # -- Share anonymous diagnostics with n8n. Disabled by default for private clusters.
   diagnosticsEnabled: false
 
+  # -- Graceful shutdown timeout in seconds for main and worker processes
+  gracefulShutdownTimeout: 60
+
   # -- Additional environment variables for the n8n container
   # extraEnv:
   #   - name: GENERIC_TIMEZONE
@@ -120,8 +123,9 @@ queue:
 
   persistence:
     # -- Mount the main n8n data PVC in worker pods.
-    # Keep disabled for RWO storage classes; workers use emptyDir by default.
-    shareMainVolume: false
+    # Keep enabled to preserve persisted community nodes and files on upgrades.
+    # Set false for multi-node RWO scheduling when workers should use emptyDir.
+    shareMainVolume: true
 
   # -- Resources for worker pods
   resources:
@@ -380,7 +384,7 @@ readinessProbe:
   enabled: true
   # -- Path for HTTP GET probe. /healthz/readiness checks database connectivity and migrations.
   path: /healthz/readiness
-  initialDelaySeconds: 0
+  initialDelaySeconds: 30
   periodSeconds: 10
   timeoutSeconds: 5
   failureThreshold: 3
@@ -551,8 +555,8 @@ topologySpreadConstraints: []
 # -- Priority class name
 priorityClassName: ""
 
-# -- Grace period for shutdown (seconds)
-terminationGracePeriodSeconds: 30
+# -- Grace period for shutdown (seconds). Keep higher than n8n.gracefulShutdownTimeout.
+terminationGracePeriodSeconds: 75
 
 # =============================================================================
 # Pod-Level Metadata

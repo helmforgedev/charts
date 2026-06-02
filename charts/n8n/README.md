@@ -10,7 +10,7 @@ Deploy [n8n](https://n8n.io/) on Kubernetes — a workflow automation platform f
 - **External database** — connect to existing PostgreSQL or MySQL
 - **Queue mode** — Redis-backed horizontal scaling with worker pods
 - **Redis subchart** — bundled via HelmForge dependency for queue mode
-- **Worker-safe persistence** — queue workers use ephemeral data by default to avoid RWO PVC contention
+- **Worker-aware persistence** — queue workers keep the main data PVC by default for upgrade compatibility, with an opt-out for RWO scheduling
 - **Scheduled backups** — database-aware CronJob with S3 upload
 - **Ingress support** — TLS with cert-manager, auto-detected webhook URL
 - **Encryption key** — auto-generated and persisted across upgrades
@@ -149,6 +149,7 @@ externalSecrets:
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
 | `n8n.diagnosticsEnabled` | `false` | Share anonymous diagnostics with n8n |
+| `n8n.gracefulShutdownTimeout` | `60` | Graceful shutdown timeout in seconds for main and workers |
 | `database.mode` | `auto` | Database mode (auto, sqlite, external, postgresql, mysql) |
 | `postgresql.enabled` | `false` | Deploy PostgreSQL subchart (`helmforge/postgresql` `2.0.2`) |
 | `postgresql.initdb.scripts` | n8n extension bootstrap | Creates PostgreSQL extensions required by n8n migrations |
@@ -156,7 +157,8 @@ externalSecrets:
 | `queue.enabled` | `false` | Enable queue mode (requires Redis and a non-SQLite database) |
 | `queue.workers` | `1` | Number of worker replicas |
 | `queue.concurrency` | `10` | Concurrent workflows per worker |
-| `queue.persistence.shareMainVolume` | `false` | Mount the main n8n data PVC into worker pods |
+| `queue.persistence.shareMainVolume` | `true` | Mount the main n8n data PVC into worker pods |
+| `terminationGracePeriodSeconds` | `75` | Kubernetes pod shutdown grace period |
 | `redis.enabled` | `false` | Deploy Redis subchart (`helmforge/redis` `1.6.16`) |
 | `taskRunners.mode` | `external` | Task runner mode (`internal` or `external`) |
 | `taskRunners.image.repository` | `docker.io/n8nio/runners` | External task runner sidecar image repository |

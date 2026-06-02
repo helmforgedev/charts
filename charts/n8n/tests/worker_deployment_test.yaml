@@ -165,25 +165,10 @@ tests:
             name: N8N_DIAGNOSTICS_ENABLED
             value: "false"
 
-  - it: should use emptyDir for worker data by default
+  - it: should mount the main PVC for worker data by default
     template: templates/worker-deployment.yaml
     set:
       queue.enabled: true
-      redis.enabled: true
-      postgresql.enabled: true
-      postgresql.auth.password: pgpass
-    asserts:
-      - contains:
-          path: spec.template.spec.volumes
-          content:
-            name: data
-            emptyDir: {}
-
-  - it: should allow sharing the main PVC with workers when explicitly enabled
-    template: templates/worker-deployment.yaml
-    set:
-      queue.enabled: true
-      queue.persistence.shareMainVolume: true
       redis.enabled: true
       postgresql.enabled: true
       postgresql.auth.password: pgpass
@@ -194,6 +179,38 @@ tests:
             name: data
             persistentVolumeClaim:
               claimName: test-n8n-data
+
+  - it: should allow graceful worker shutdown during upgrades
+    template: templates/worker-deployment.yaml
+    set:
+      queue.enabled: true
+      redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 75
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: N8N_GRACEFUL_SHUTDOWN_TIMEOUT
+            value: "60"
+
+  - it: should allow worker emptyDir when shared persistence is explicitly disabled
+    template: templates/worker-deployment.yaml
+    set:
+      queue.enabled: true
+      queue.persistence.shareMainVolume: false
+      redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
 
   - it: should use worker-specific labels
     template: templates/worker-deployment.yaml

@@ -343,6 +343,25 @@ tests:
           path: spec.template.spec.containers[0].startupProbe.httpGet.path
           value: /healthz
 
+  - it: should delay readiness while n8n finishes database bootstrap
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.initialDelaySeconds
+          value: 30
+
+  - it: should allow graceful shutdown during upgrades
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 75
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: N8N_GRACEFUL_SHUTDOWN_TIMEOUT
+            value: "60"
+
   - it: should add extra env vars
     template: templates/deployment.yaml
     set:

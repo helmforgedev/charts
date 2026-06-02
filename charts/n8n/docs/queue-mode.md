@@ -38,18 +38,23 @@ postgresql:
     password: "db-password"
 ```
 
-Workers use `emptyDir` for `/home/node/.n8n` by default. This avoids scheduling
-contention when the main pod uses a `ReadWriteOnce` PVC. If your deployment
-requires workers to share the main data PVC, enable it explicitly:
+Workers mount the main `/home/node/.n8n` PVC by default. This preserves persisted
+community nodes and files for existing queue-mode releases. If your cluster uses
+multi-node `ReadWriteOnce` storage and workers must avoid the main PVC, disable
+the shared worker volume explicitly:
 
 ```yaml
 queue:
   persistence:
-    shareMainVolume: true
+    shareMainVolume: false
 ```
 
 Worker pods wait for the main n8n readiness endpoint before starting. This keeps
 database migrations serialized on fresh PostgreSQL or MySQL subchart installs.
+
+The chart sets `N8N_GRACEFUL_SHUTDOWN_TIMEOUT=60` and keeps the pod
+`terminationGracePeriodSeconds` above that value so workers can stop cleanly
+during queue-mode upgrades.
 
 Queue mode uses external task runners by default. The chart renders a dedicated
 `n8nio/runners` sidecar next to the main pod and each worker so every queue
@@ -97,7 +102,8 @@ database:
 |-----|---------|-------------|
 | `queue.workers` | `1` | Number of worker replicas |
 | `queue.concurrency` | `10` | Concurrent workflows per worker |
-| `queue.persistence.shareMainVolume` | `false` | Mount the main data PVC into workers |
+| `queue.persistence.shareMainVolume` | `true` | Mount the main data PVC into workers |
+| `n8n.gracefulShutdownTimeout` | `60` | n8n graceful shutdown timeout in seconds |
 | `queue.resources.requests.memory` | `512Mi` | Default worker memory request |
 
 <!-- @AI-METADATA
