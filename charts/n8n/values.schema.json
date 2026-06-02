@@ -28,7 +28,7 @@
         "tag": {
           "type": "string",
           "description": "Container image tag",
-          "default": "2.22.3"
+          "default": "2.23.2"
         },
         "pullPolicy": {
           "type": "string",
@@ -70,12 +70,54 @@
           "description": "Log output: console, file",
           "enum": ["console", "file"]
         },
+        "diagnosticsEnabled": {
+          "type": "boolean",
+          "description": "Share anonymous diagnostics with n8n"
+        },
+        "gracefulShutdownTimeout": {
+          "type": "integer",
+          "description": "Graceful shutdown timeout in seconds for main and worker processes",
+          "default": 60
+        },
         "extraEnv": {
           "type": "array",
           "description": "Additional environment variables for the n8n container",
           "items": {
             "type": "object"
           }
+        }
+      }
+    },
+    "taskRunners": {
+      "type": "object",
+      "description": "n8n task runner configuration",
+      "properties": {
+        "nativePython": {
+          "type": "object",
+          "description": "Native Python task runner integration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable native Python runner integration"
+            }
+          }
+        },
+        "mode": {
+          "type": "string",
+          "description": "Task runner mode",
+          "enum": ["internal", "external"]
+        },
+        "authToken": {
+          "type": "string",
+          "description": "Shared auth token for external task runners"
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing secret containing the task runner auth token"
+        },
+        "existingSecretKey": {
+          "type": "string",
+          "description": "Key in the task runner auth token secret"
         }
       }
     },
@@ -94,6 +136,17 @@
         "concurrency": {
           "type": "integer",
           "description": "Worker concurrency (workflows per worker)"
+        },
+        "persistence": {
+          "type": "object",
+          "description": "Worker data volume configuration",
+          "properties": {
+            "shareMainVolume": {
+              "type": "boolean",
+              "description": "Mount the main n8n data PVC in worker pods",
+              "default": true
+            }
+          }
         },
         "resources": {
           "type": "object",
@@ -221,7 +274,7 @@
             "rootPassword": { "type": "string", "description": "Root password (auto-generated if empty)" }
           }
         },
-        "primary": {
+        "standalone": {
           "type": "object",
           "properties": {
             "persistence": {
@@ -266,7 +319,7 @@
             "rootPassword": { "type": "string", "description": "Root password (auto-generated if empty)" }
           }
         },
-        "primary": {
+        "standalone": {
           "type": "object",
           "properties": {
             "persistence": {
@@ -275,6 +328,16 @@
                 "enabled": { "type": "boolean", "description": "Enable persistence for MySQL data" },
                 "size": { "type": "string", "description": "PVC size for MySQL" }
               }
+            }
+          }
+        },
+        "startupProbe": {
+          "type": "object",
+          "description": "MySQL startup probe overrides",
+          "properties": {
+            "initialDelaySeconds": {
+              "type": "integer",
+              "description": "Initial delay before MySQL startup probe checks"
             }
           }
         }
@@ -298,7 +361,7 @@
             "password": { "type": "string", "description": "Redis password (auto-generated if empty)" }
           }
         },
-        "primary": {
+        "standalone": {
           "type": "object",
           "properties": {
             "persistence": {
@@ -361,7 +424,7 @@
       "properties": {
         "enabled": { "type": "boolean", "description": "Enable startup probe" },
         "path": { "type": "string", "description": "Path for HTTP GET probe" },
-        "initialDelaySeconds": { "type": "integer" },
+        "initialDelaySeconds": { "type": "integer", "default": 10 },
         "periodSeconds": { "type": "integer" },
         "timeoutSeconds": { "type": "integer" },
         "failureThreshold": { "type": "integer" }
@@ -373,7 +436,7 @@
       "properties": {
         "enabled": { "type": "boolean", "description": "Enable liveness probe" },
         "path": { "type": "string", "description": "Path for HTTP GET probe" },
-        "initialDelaySeconds": { "type": "integer" },
+        "initialDelaySeconds": { "type": "integer", "default": 0 },
         "periodSeconds": { "type": "integer" },
         "timeoutSeconds": { "type": "integer" },
         "failureThreshold": { "type": "integer" }
@@ -385,7 +448,7 @@
       "properties": {
         "enabled": { "type": "boolean", "description": "Enable readiness probe" },
         "path": { "type": "string", "description": "Path for HTTP GET probe" },
-        "initialDelaySeconds": { "type": "integer" },
+        "initialDelaySeconds": { "type": "integer", "default": 30 },
         "periodSeconds": { "type": "integer" },
         "timeoutSeconds": { "type": "integer" },
         "failureThreshold": { "type": "integer" }
@@ -586,7 +649,8 @@
     },
     "terminationGracePeriodSeconds": {
       "type": "integer",
-      "description": "Grace period for shutdown (seconds)"
+      "description": "Grace period for shutdown (seconds)",
+      "default": 75
     },
     "podLabels": {
       "type": "object",
@@ -611,29 +675,25 @@
       "description": "Extra Kubernetes manifests to deploy alongside the chart",
       "items": { "type": "object" }
     },
-    "gatewayAPI": {
+    "gateway": {
       "type": "object",
       "description": "Gateway API HTTPRoute configuration (GR-060)",
       "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean", "default": false },
         "annotations": { "type": "object" },
-        "gatewayName": { "type": "string", "default": "" },
-        "gatewayNamespace": { "type": "string", "default": "" },
-        "hostnames": { "type": "array", "items": { "type": "string" } },
-        "path": { "type": "string", "default": "/" },
-        "pathType": { "type": "string", "default": "PathPrefix" }
-      }
-    },
-    "gateway": {
-      "type": "object",
-      "description": "Deprecated Gateway API HTTPRoute configuration. Use gatewayAPI instead.",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": { "type": "boolean", "default": false },
-        "annotations": { "type": "object" },
-        "gatewayName": { "type": "string", "default": "" },
-        "gatewayNamespace": { "type": "string", "default": "" },
+        "parentRefs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "name": { "type": "string" },
+              "namespace": { "type": "string" },
+              "sectionName": { "type": "string" }
+            }
+          }
+        },
         "hostnames": { "type": "array", "items": { "type": "string" } },
         "path": { "type": "string", "default": "/" },
         "pathType": { "type": "string", "default": "PathPrefix" }

@@ -48,6 +48,21 @@ app.kubernetes.io/component: worker
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
+{{- define "n8n.runnerImage" -}}
+{{- printf "%s:%s" .Values.taskRunners.image.repository (.Values.taskRunners.image.tag | default .Values.image.tag) -}}
+{{- end -}}
+
+{{- define "n8n.validate" -}}
+{{- $mode := include "n8n.databaseMode" . -}}
+{{- $taskRunnerMode := .Values.taskRunners.mode | default "external" -}}
+{{- if not (has $taskRunnerMode (list "internal" "external")) -}}
+{{- fail (printf "taskRunners.mode must be one of: internal, external (got %s)" $taskRunnerMode) -}}
+{{- end -}}
+{{- if and .Values.taskRunners.nativePython.enabled (ne $taskRunnerMode "external") -}}
+{{- fail "taskRunners.nativePython.enabled=true requires taskRunners.mode=external" -}}
+{{- end -}}
+{{- end -}}
+
 # =============================================================================
 # Database Mode Detection
 # =============================================================================
@@ -60,9 +75,19 @@ app.kubernetes.io/component: worker
 {{- $hasExternal := or (ne (.Values.database.external.host | default "") "") (ne (.Values.database.external.existingSecret | default "") "") -}}
 {{- $hasPostgresql := .Values.postgresql.enabled | default false -}}
 {{- $hasMysql := .Values.mysql.enabled | default false -}}
+{{- $hasRedis := or (.Values.redis.enabled | default false) (ne (.Values.queue.external.host | default "") "") -}}
 {{- $vendor := .Values.database.external.vendor | default "postgres" -}}
 {{- if not (has $vendor (list "postgres" "mysql")) -}}
 {{- fail (printf "database.external.vendor must be one of: postgres, mysql (got %s)" $vendor) -}}
+{{- end -}}
+{{- if and .Values.queue.enabled (not $hasRedis) -}}
+{{- fail "queue.enabled=true requires redis.enabled=true or queue.external.host to be set" -}}
+{{- end -}}
+{{- if and .Values.queue.enabled (eq $mode "sqlite") -}}
+{{- fail "queue.enabled=true is not supported with SQLite; configure PostgreSQL, MySQL, or an external database" -}}
+{{- end -}}
+{{- if and .Values.queue.enabled (eq $mode "auto") (not (or $hasExternal $hasPostgresql $hasMysql)) -}}
+{{- fail "queue.enabled=true is not supported with SQLite; configure PostgreSQL, MySQL, or an external database" -}}
 {{- end -}}
 {{- if eq $mode "auto" -}}
   {{- $count := 0 -}}
@@ -231,6 +256,22 @@ encryption-key
 {{- .Values.database.external.existingSecretPasswordKey -}}
 {{- else -}}
 database-password
+{{- end -}}
+{{- end -}}
+
+{{- define "n8n.taskRunnerSecretName" -}}
+{{- if .Values.taskRunners.existingSecret -}}
+{{- .Values.taskRunners.existingSecret -}}
+{{- else -}}
+{{- printf "%s-task-runners" (include "n8n.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "n8n.taskRunnerSecretKey" -}}
+{{- if .Values.taskRunners.existingSecret -}}
+{{- .Values.taskRunners.existingSecretKey -}}
+{{- else -}}
+auth-token
 {{- end -}}
 {{- end -}}
 

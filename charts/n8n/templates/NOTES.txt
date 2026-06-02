@@ -49,17 +49,23 @@ Ingress is enabled.
 Ingress is disabled.
 {{- end }}
 
-{{- $gatewayAPI := default dict .Values.gatewayAPI }}
-{{- $legacyGateway := default dict .Values.gateway }}
-{{- $gatewayEnabled := or (default false $gatewayAPI.enabled) (default false $legacyGateway.enabled) }}
-{{- $gatewayName := default (default "" $legacyGateway.gatewayName) $gatewayAPI.gatewayName }}
-{{- $gatewayNamespace := default (default "" $legacyGateway.gatewayNamespace) $gatewayAPI.gatewayNamespace }}
-{{- $gatewayHostnames := default (default list $legacyGateway.hostnames) $gatewayAPI.hostnames }}
-{{- if $gatewayEnabled }}
+{{- $gateway := default dict .Values.gateway }}
+{{- $legacyGateway := default dict .Values.gatewayAPI }}
+{{- $useLegacyGateway := and (not (default false $gateway.enabled)) (default false $legacyGateway.enabled) }}
+{{- if or (default false $gateway.enabled) $useLegacyGateway }}
 Gateway API HTTPRoute is enabled.
-  Gateway: {{ $gatewayName }}{{ with $gatewayNamespace }}.{{ . }}{{ end }}
-{{- range $gatewayHostnames }}
+{{- if $useLegacyGateway }}
+- ParentRef: {{ $legacyGateway.gatewayName }}{{ with $legacyGateway.gatewayNamespace }}.{{ . }}{{ end }}
+{{- range $legacyGateway.hostnames }}
 - Hostname: {{ . }}
+{{- end }}
+{{- else }}
+{{- range .Values.gateway.parentRefs }}
+- ParentRef: {{ .name }}{{ with .namespace }}.{{ . }}{{ end }}
+{{- end }}
+{{- range .Values.gateway.hostnames }}
+- Hostname: {{ . }}
+{{- end }}
 {{- end }}
 {{- else }}
 Gateway API HTTPRoute is disabled.
@@ -204,7 +210,7 @@ Inspect n8n logs:
 
 Inspect worker logs:
 
-  kubectl logs deploy/{{ include "n8n.fullname" . }}-worker -n {{ .Release.Namespace }} -c n8n --tail=200
+  kubectl logs deploy/{{ include "n8n.fullname" . }}-worker -n {{ .Release.Namespace }} -c worker --tail=200
 {{- end }}
 
 {{- $dbModeTs := include "n8n.databaseMode" . }}
@@ -221,7 +227,7 @@ Common checks:
 - If workflows fail to execute, verify the encryption key secret is present and not rotated.
 - If webhook triggers do not fire, verify WEBHOOK_URL is set to the public-facing URL with the correct scheme.
 - If queue workers are not picking up jobs, verify Redis connectivity and that EXECUTIONS_MODE=queue is set on both main and workers.
-- If Python Code nodes are required, deploy n8n external task runners; the base n8n image may log a Python runner warning in internal mode.
+- External task runner sidecars are enabled by default. If you switch to taskRunners.mode=internal, verify logs because the upstream image may report missing Python for internal Python runners.
 - If the SQLite database is lost on restart, verify persistence is enabled and the PVC is bound.
 - If backup jobs fail, inspect the backup pod logs and verify S3 credentials and bucket configuration.
 

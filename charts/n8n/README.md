@@ -10,6 +10,7 @@ Deploy [n8n](https://n8n.io/) on Kubernetes — a workflow automation platform f
 - **External database** — connect to existing PostgreSQL or MySQL
 - **Queue mode** — Redis-backed horizontal scaling with worker pods
 - **Redis subchart** — bundled via HelmForge dependency for queue mode
+- **Worker-aware persistence** — queue workers keep the main data PVC by default for upgrade compatibility, with an opt-out for RWO scheduling
 - **Scheduled backups** — database-aware CronJob with S3 upload
 - **Ingress support** — TLS with cert-manager, auto-detected webhook URL
 - **Encryption key** — auto-generated and persisted across upgrades
@@ -102,15 +103,19 @@ service:
 Requires Gateway API CRDs and a compatible controller (e.g. Envoy Gateway).
 
 ```yaml
-gatewayAPI:
+gateway:
   enabled: true
-  gatewayName: envoy-gateway
-  gatewayNamespace: envoy-gateway-system
+  parentRefs:
+    - name: envoy-gateway
+      namespace: envoy-gateway-system
   hostnames:
     - n8n.example.com
 ```
 
-> **Note:** `gatewayAPI.gatewayName` is required when `gatewayAPI.enabled=true`.
+> **Note:** `gateway.parentRefs` is required when `gateway.enabled=true`.
+> Existing releases that still carry `gatewayAPI.enabled`, `gatewayAPI.gatewayName`,
+> and `gatewayAPI.gatewayNamespace` from older chart values remain supported as a
+> deprecated upgrade alias. New configuration should use `gateway.parentRefs`.
 
 ## External Secrets Operator (ESO)
 
@@ -139,29 +144,39 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
-| `image.tag` | `2.22.3` | n8n container image tag |
+| `image.tag` | `2.23.2` | n8n container image tag |
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
+| `n8n.diagnosticsEnabled` | `false` | Share anonymous diagnostics with n8n |
+| `n8n.gracefulShutdownTimeout` | `60` | Graceful shutdown timeout in seconds for main and workers |
 | `database.mode` | `auto` | Database mode (auto, sqlite, external, postgresql, mysql) |
-| `postgresql.enabled` | `false` | Deploy PostgreSQL subchart (`helmforge/postgresql` `1.10.0`) |
+| `postgresql.enabled` | `false` | Deploy PostgreSQL subchart (`helmforge/postgresql` `2.0.2`) |
 | `postgresql.initdb.scripts` | n8n extension bootstrap | Creates PostgreSQL extensions required by n8n migrations |
-| `mysql.enabled` | `false` | Deploy MySQL subchart (`helmforge/mysql` `1.9.1`) |
-| `queue.enabled` | `false` | Enable queue mode (requires Redis) |
+| `mysql.enabled` | `false` | Deploy MySQL subchart (`helmforge/mysql` `2.0.0`) |
+| `queue.enabled` | `false` | Enable queue mode (requires Redis and a non-SQLite database) |
 | `queue.workers` | `1` | Number of worker replicas |
 | `queue.concurrency` | `10` | Concurrent workflows per worker |
-| `redis.enabled` | `false` | Deploy Redis subchart (`helmforge/redis` `1.6.14`) |
+| `queue.persistence.shareMainVolume` | `true` | Mount the main n8n data PVC into worker pods |
+| `terminationGracePeriodSeconds` | `75` | Kubernetes pod shutdown grace period |
+| `redis.enabled` | `false` | Deploy Redis subchart (`helmforge/redis` `1.6.16`) |
+| `taskRunners.mode` | `external` | Task runner mode (`internal` or `external`) |
+| `taskRunners.image.repository` | `docker.io/n8nio/runners` | External task runner sidecar image repository |
+| `taskRunners.image.tag` | `""` | External task runner sidecar tag (defaults to `image.tag`) |
+| `taskRunners.autoShutdownTimeout` | `15` | External runner launcher idle shutdown timeout |
+| `taskRunners.authToken` | `""` | External runner auth token, auto-generated when empty |
+| `taskRunners.nativePython.enabled` | `false` | Enable native Python runner integration |
 | `persistence.enabled` | `true` | Enable persistent storage |
 | `persistence.size` | `5Gi` | PVC size |
+| `resources.requests.memory` | `512Mi` | Default memory request for the main pod |
+| `securityContext.runAsNonRoot` | `true` | Run n8n containers as the upstream non-root node user |
 | `ingress.enabled` | `false` | Enable ingress |
 | `backup.enabled` | `false` | Enable S3 backups |
 | `service.ipFamilyPolicy` | `~` | IP family policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
 | `service.ipFamilies` | `[]` | IP families override (`IPv4`, `IPv6`) |
-| `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute |
-| `gatewayAPI.gatewayName` | `""` | Gateway name (required when `gatewayAPI.enabled=true`) |
-| `gatewayAPI.gatewayNamespace` | `""` | Gateway namespace |
-| `gatewayAPI.hostnames` | `[]` | HTTPRoute hostnames |
-| `gateway.enabled` | `false` | Deprecated legacy alias for `gatewayAPI.enabled` |
+| `gateway.enabled` | `false` | Enable Gateway API HTTPRoute |
+| `gateway.parentRefs` | `[]` | Gateway parentRefs (required when `gateway.enabled=true`) |
+| `gateway.hostnames` | `[]` | HTTPRoute hostnames |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret resource |
 | `externalSecrets.apiVersion` | `external-secrets.io/v1` | ExternalSecret API version |
 | `externalSecrets.refreshInterval` | `"0"` | Refresh interval (`"0"` = one-time sync) |
@@ -171,16 +186,28 @@ externalSecrets:
 
 ## Upgrade Notes
 
-n8n `2.22.3` is an upstream bugfix release. Review the upstream release
-notes before upgrading, back up the database, and keep the encryption key
-stable before upgrading live deployments. When using the bundled PostgreSQL
-subchart on a fresh data directory, the chart bootstraps the `uuid-ossp`
-extension before n8n migrations run.
+n8n `2.23.2` is an upstream bugfix release. It includes fixes for MCP registry
+server identifiers, data-table timestamp columns, production execution pin data,
+and licensed Insights page rendering. Review the upstream release notes before
+upgrading, back up the database, and keep the encryption key stable before
+upgrading live deployments. This chart also refreshes the bundled HelmForge
+PostgreSQL, MySQL, and Redis subchart versions and enables hardened non-root
+container defaults with resource requests and limits. Queue mode now fails fast
+when it resolves to SQLite or when Redis is not configured, because workers must
+share the same PostgreSQL, MySQL, or external database as the main pod. Validate
+database and queue mode in a staging namespace before reusing production PVCs.
 
-Self-hosted n8n `2.x` starts an internal JavaScript task runner by default. The
-base `n8nio/n8n` image may also log a Python runner warning when Python is not
-present; use n8n external task runners when running Python Code nodes in
-production.
+The chart defaults to `N8N_RUNNERS_MODE=external`. It creates a shared auth
+token, opens the broker port, and runs a `docker.io/n8nio/runners` sidecar next
+to the main pod and each queue worker. This avoids the missing-Python warning
+produced by internal runner mode in the upstream `n8nio/n8n` image and gives
+each queue worker its own runner, as required by n8n external task runner
+architecture.
+
+Anonymous diagnostics are disabled by default with
+`N8N_DIAGNOSTICS_ENABLED=false`, which keeps self-hosted clusters private and
+reduces startup log noise. Operators can opt in with
+`n8n.diagnosticsEnabled=true`.
 
 ## Resources Generated
 
@@ -195,7 +222,7 @@ production.
 | Secret (backup) | `backup.enabled` and no `backup.s3.existingSecret` |
 | PVC | `persistence.enabled` and no `persistence.existingClaim` |
 | Ingress | `ingress.enabled` |
-| HTTPRoute | `gatewayAPI.enabled` |
+| HTTPRoute | `gateway.enabled` |
 | ExternalSecret | `externalSecrets.enabled` |
 | ServiceAccount | `serviceAccount.create` |
 | CronJob (backup) | `backup.enabled` |
@@ -206,6 +233,7 @@ production.
 - [Database configuration](docs/database.md)
 - [Queue mode](docs/queue-mode.md)
 - [Backup and restore](docs/backup.md)
+- [Chart design](DESIGN.md)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/n8n)
 
 <!-- @AI-METADATA
@@ -219,11 +247,12 @@ purpose: User-facing chart documentation with install, features, examples, and v
 scope: Chart
 
 relations:
+  - charts/n8n/DESIGN.md
   - charts/n8n/values.yaml
   - charts/n8n/docs/database.md
   - charts/n8n/docs/queue-mode.md
   - charts/n8n/docs/backup.md
 path: charts/n8n/README.md
-version: 1.1
-date: 2026-04-30
+version: 1.2
+date: 2026-06-02
 -->
