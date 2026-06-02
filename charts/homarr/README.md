@@ -5,7 +5,7 @@
 Helm chart for deploying [Homarr](https://homarr.dev/) modern application dashboard on Kubernetes using the official
 [`ghcr.io/homarr-labs/homarr`](https://github.com/homarr-labs/homarr/pkgs/container/homarr) container image.
 
-Current application version: `v1.62.0`.
+Current application version: `v1.63.0`.
 
 ## Features
 
@@ -174,10 +174,11 @@ backup:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `ghcr.io/homarr-labs/homarr` | Container image repository |
-| `image.tag` | `"v1.62.0"` | Homarr image tag |
+| `image.tag` | `"v1.63.0"` | Homarr image tag |
 | `replicaCount` | `1` | Number of replicas |
 | `homarr.logLevel` | `info` | Log level |
 | `homarr.authProviders` | `credentials` | Auth providers (credentials, ldap, oidc) |
+| `homarr.enableDnsCaching` | `false` | Enable Homarr's internal DNS cache. Disabled by default for Kubernetes Service discovery stability |
 | `homarr.enableKubernetes` | `false` | Enable K8s workload discovery |
 | `encryption.key` | `""` | 32-byte hex encryption key (auto-generated) |
 | `encryption.existingSecret` | `""` | Existing secret with encryption key |
@@ -258,12 +259,17 @@ outside this chart.
 
 ## Upgrade Notes
 
-This update moves the default image from `v1.61.0` to `v1.62.0`. Review upstream release notes before upgrading production
-environments. Homarr `v1.62.0` includes feature, bug fix, and performance updates; no breaking changes were identified in
-the upstream release metadata.
+This update moves the default image from `v1.62.0` to `v1.63.0`. Review upstream release notes before upgrading production
+environments. Homarr `v1.63.0` includes authentication, board, management UI, bug fix, and performance updates; no breaking
+changes were identified in the upstream release metadata.
 
 For PostgreSQL and MySQL, the chart sets `DB_DIALECT`, `DB_DRIVER`, and discrete database environment variables instead of
 rendering a full `DB_URL`; this avoids requiring URL-encoded passwords in Kubernetes Secrets.
+
+The chart sets `ENABLE_DNS_CACHING=false` by default. Homarr documents this setting for DNS/IP edge cases, and k3d
+validation showed it avoids transient MySQL connection timeouts when Homarr resolves Kubernetes Services during startup.
+Set `homarr.enableDnsCaching=true` only when your cluster DNS behavior is known to be compatible with Homarr's internal
+cache.
 
 For bundled PostgreSQL, the default `postgresql.initdb.scripts` grants the `homarr` user ownership and `CREATE` permission on
 the `homarr` database for fresh data directories. The `postgresqlUpgradeJob` pre-upgrade hook reapplies those grants before
@@ -281,6 +287,8 @@ kubectl logs -l app.kubernetes.io/name=homarr -n <namespace> --all-containers --
 
 ## More Information
 
+- [Chart design](DESIGN.md)
+- [Database and backup modes](docs/database.md)
 - [Homarr documentation](https://homarr.dev/docs)
 - [Chart source](https://github.com/helmforgedev/charts/tree/main/charts/homarr)
 
@@ -295,6 +303,8 @@ purpose: Chart README with install, config, database, encryption, and values ref
 scope: Chart
 
 relations:
+  - charts/homarr/DESIGN.md
+  - charts/homarr/docs/database.md
   - charts/homarr/values.yaml
 path: charts/homarr/README.md
 version: 1.0
