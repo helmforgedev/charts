@@ -65,10 +65,17 @@ mysql:
     password: ""
     rootPassword: ""
 
-  primary:
+  standalone:
     persistence:
       enabled: true
       size: 8Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 768Mi
 
   startupProbe:
     initialDelaySeconds: 30
@@ -96,10 +103,38 @@ php:
   postMaxSize: ""
   maxExecutionTime: ""
 
-resources: {}
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 768Mi
 
-podSecurityContext: {}
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+# The official Dolibarr image performs first-run file ownership and Apache setup
+# as root. Keep the default empty; operators can harden this after validating
+# their image/runtime combination.
 securityContext: {}
+
+waitForDatabase:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+  securityContext:
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    runAsUser: 65534
+    capabilities:
+      drop:
+        - ALL
 
 startupProbe:
   enabled: true
@@ -130,7 +165,7 @@ service:
   port: 80
   annotations: {}
   # -- Set the ipFamilyPolicy for dual-stack (GR-058)
-  ipFamilyPolicy: ''
+  ipFamilyPolicy: ~
   # -- Set the ipFamilies for dual-stack
   ipFamilies: []
 
@@ -214,11 +249,20 @@ backup:
 
 ## Gateway API configuration (GR-060)
 gateway:
+  # -- Enable Gateway API HTTPRoute (alternative to Ingress; requires Gateway API CRDs).
   enabled: false
-  hostnames: []
+  # -- Annotations for the HTTPRoute.
+  annotations: {}
+  # -- parentRefs list pointing to your Gateway resource.
   parentRefs: []
   #   - name: my-gateway
   #     namespace: default
+  # -- Hostnames the HTTPRoute matches.
+  hostnames: []
+  # -- Path prefix for the HTTPRoute.
+  path: /
+  # -- Path match type.
+  pathType: PathPrefix
 
 ## ExternalSecrets configuration (GR-061)
 externalSecrets:

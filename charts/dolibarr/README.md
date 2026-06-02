@@ -65,7 +65,7 @@ mysql:
   enabled: true
   auth:
     existingSecret: dolibarr-mysql
-  primary:
+  standalone:
     persistence:
       size: 20Gi
 
@@ -158,7 +158,7 @@ database:
 | `mysql.architecture` | `standalone` | MySQL architecture |
 | `mysql.auth.database` | `dolibarr` | Database name |
 | `mysql.auth.username` | `dolibarr` | Database username |
-| `mysql.primary.persistence.size` | `8Gi` | MySQL PVC size |
+| `mysql.standalone.persistence.size` | `8Gi` | MySQL PVC size |
 | `mysql.startupProbe.initialDelaySeconds` | `30` | MySQL startup probe delay used to avoid false-positive bootstrap warnings |
 
 ### Persistence

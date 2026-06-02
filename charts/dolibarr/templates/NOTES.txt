@@ -1,32 +1,111 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Dolibarr has been deployed!
+=============================================================================
+Dolibarr deployed successfully!
+=============================================================================
 
-Web Interface:
+SUMMARY:
+   Release: {{ .Release.Name }}
+   Namespace: {{ .Release.Namespace }}
+   Chart: {{ .Chart.Name }} {{ .Chart.Version }}
+   App version: {{ .Chart.AppVersion }}
+   Image: {{ include "dolibarr.image" . }}
+   Database mode: {{ include "dolibarr.databaseMode" . }}
+   ServiceAccount: {{ include "dolibarr.serviceAccountName" . }}
+
+ACCESS:
 {{- if .Values.ingress.enabled }}
-  {{- range .Values.ingress.hosts }}
-  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
-  {{- end }}
+{{- range .Values.ingress.hosts }}
+   Ingress: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else if .Values.gateway.enabled }}
+{{- range (default list .Values.gateway.hostnames) }}
+   Gateway API: http://{{ . }}
+{{- end }}
 {{- else }}
-  kubectl port-forward svc/{{ include "dolibarr.fullname" . }} -n {{ .Release.Namespace }} 8080:{{ .Values.service.port }}
-  Then visit: http://localhost:8080
+   Port-forward:
+     kubectl port-forward svc/{{ include "dolibarr.fullname" . }} -n {{ .Release.Namespace }} 8080:{{ .Values.service.port }}
+
+   Local URL:
+     http://127.0.0.1:8080
 {{- end }}
 
-Admin Credentials:
-  Login: {{ .Values.admin.login }}
+ADMIN:
+   Login: {{ .Values.admin.login }}
 {{- if .Values.admin.existingSecret }}
-  Password: Using existing secret {{ .Values.admin.existingSecret }}
+   Password secret: {{ .Values.admin.existingSecret }} / {{ .Values.admin.existingSecretPasswordKey }}
 {{- else if .Values.admin.password }}
-  Password: Using the password from values.
+   Password source: inline value
 {{- else }}
-  Password (auto-generated):
-    kubectl get secret {{ include "dolibarr.adminSecretName" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.admin-password}' | base64 -d
+   Password command:
+     kubectl get secret {{ include "dolibarr.adminSecretName" . }} -n {{ .Release.Namespace }} -o jsonpath="{.data.{{ include "dolibarr.adminSecretKey" . }}}" | base64 -d
 {{- end }}
 
-Database:
-  Mode: {{ include "dolibarr.databaseMode" . }}
-  Host: {{ include "dolibarr.databaseHost" . }}:{{ include "dolibarr.databasePort" . }}
-  Name: {{ include "dolibarr.databaseName" . }}
+DATABASE:
+   Mode: {{ include "dolibarr.databaseMode" . }}
+   Host: {{ include "dolibarr.databaseHost" . }}
+   Port: {{ include "dolibarr.databasePort" . }}
+   Name: {{ include "dolibarr.databaseName" . }}
+   Username: {{ include "dolibarr.databaseUsername" . }}
+   Password secret: {{ include "dolibarr.databaseSecretName" . }} / {{ include "dolibarr.databaseSecretKey" . }}
 
-Persistence:
-  Documents PVC: {{ include "dolibarr.documentsPvcName" . }}
-  Custom PVC: {{ include "dolibarr.customPvcName" . }}
+PERSISTENCE:
+   Documents PVC: {{ include "dolibarr.documentsPvcName" . }}
+   Custom PVC: {{ include "dolibarr.customPvcName" . }}
+
+ROUTING:
+   Service: {{ include "dolibarr.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+   Ingress enabled: {{ .Values.ingress.enabled }}
+   Gateway API enabled: {{ .Values.gateway.enabled }}
+{{- with .Values.service.ipFamilyPolicy }}
+   IP family policy: {{ . }}
+{{- end }}
+{{- with .Values.service.ipFamilies }}
+   IP families: {{ join ", " . }}
+{{- end }}
+
+OPTIONAL FEATURES:
+   Backups: {{ .Values.backup.enabled }}
+   External Secrets: {{ .Values.externalSecrets.enabled }}
+{{- if .Values.backup.enabled }}
+   Backup schedule: {{ .Values.backup.schedule }}
+   Backup target: s3://{{ .Values.backup.s3.bucket }}/{{ .Values.backup.s3.prefix }}
+{{- end }}
+{{- if .Values.externalSecrets.enabled }}
+   SecretStore: {{ .Values.externalSecrets.secretStoreRef.name }} ({{ .Values.externalSecrets.secretStoreRef.kind }})
+{{- end }}
+
+VALIDATION:
+   Release status:
+     helm status {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+   Pods:
+     kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+   Wait for readiness:
+     kubectl wait --for=condition=Ready pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ include "dolibarr.name" . }} --timeout=10m
+
+   Health check:
+     kubectl run {{ include "dolibarr.fullname" . }}-health-check -n {{ .Release.Namespace }} --rm -i --restart=Never --image=docker.io/library/busybox:1.37 -- wget -qO- http://{{ include "dolibarr.fullname" . }}:{{ .Values.service.port }}/
+
+TROUBLESHOOTING:
+   Events:
+     kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+
+   Logs:
+     kubectl logs deploy/{{ include "dolibarr.fullname" . }} -n {{ .Release.Namespace }} -c dolibarr --tail=200
+
+   Database wait logs:
+     kubectl logs deploy/{{ include "dolibarr.fullname" . }} -n {{ .Release.Namespace }} -c wait-for-db --tail=100
+
+NOTES:
+   - Keep the admin, runtime, and database secrets stable across upgrades.
+   - Use external MySQL/MariaDB for production HA or managed database operations.
+   - Enable backups before changing storage, database mode, or chart major versions.
+   - Set dolibarr.siteUrl to the externally reachable URL for production installs.
+
+DOCUMENTATION:
+   Chart: https://helmforge.dev/docs/charts/dolibarr
+   Dolibarr: https://www.dolibarr.org
+   Source: https://github.com/helmforgedev/charts/tree/main/charts/dolibarr
+
+=============================================================================

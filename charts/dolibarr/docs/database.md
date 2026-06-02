@@ -41,7 +41,11 @@ The referenced secret must contain the database password key.
 
 ## Why This Chart Does Not Support PostgreSQL
 
-Dolibarr itself can work with PostgreSQL, but the official Docker workflow treats that path differently and may require interactive installation or upgrade handling through `/install`. For this chart, the supported automation contract is MySQL/MariaDB only, because it aligns with the official container's unattended setup flow and with the repository's existing database dependency patterns.
+Dolibarr itself can work with PostgreSQL, but the official Docker workflow treats that path
+differently and may require interactive installation or upgrade handling through `/install`.
+For this chart, the supported automation contract is MySQL/MariaDB only, because it aligns
+with the official container's unattended setup flow and with the repository's existing database
+dependency patterns.
 
 ## Operational Notes
 
