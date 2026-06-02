@@ -4,6 +4,24 @@
 
 Helm chart for deploying [MariaDB](https://mariadb.org/) on Kubernetes using the official [`mariadb`](https://hub.docker.com/_/mariadb) Docker image. Supports standalone and GTID-based replication architectures.
 
+## Breaking Change in 2.0.0
+
+MariaDB now mounts `/var/lib/mysql` from the data volume subdirectory configured
+by `persistence.subPath` instead of the volume root. The default is `mysql`.
+This prevents ext4-backed PVCs from exposing the filesystem-created
+`lost+found` directory to MariaDB as a candidate database.
+
+Existing installations whose data already lives at the volume root must set the
+legacy value during upgrade:
+
+```yaml
+persistence:
+  subPath: ""
+```
+
+Alternatively, migrate the existing volume-root data into the `mysql`
+subdirectory before upgrading.
+
 ## Supported Architectures
 
 | Architecture | Description |
@@ -24,6 +42,7 @@ Helm chart for deploying [MariaDB](https://mariadb.org/) on Kubernetes using the
 - **S3-compatible backup** CronJob with mariadb-dump and minio/mc upload
 - **NetworkPolicy** for ingress traffic control
 - **PodDisruptionBudget** for availability during maintenance
+- **Datadir subPath isolation** to keep ext4 `lost+found` out of MariaDB logs
 - **Password management** auto-generated or from existing Secret
 - **Dual-stack networking** — IPv4/IPv6 service support across all 6 Service objects
 - **External Secrets Operator** — ExternalSecret for Vault, AWS Secrets Manager, and more
@@ -63,7 +82,7 @@ replication:
 |-----|---------|-------------|
 | `architecture` | `standalone` | Deployment mode: standalone or replication |
 | `image.repository` | `mariadb` | MariaDB image |
-| `image.tag` | `11.4` | MariaDB version (LTS) |
+| `image.tag` | `12.2.2` | MariaDB version |
 | `auth.rootPassword` | `""` | Root password (auto-generated if empty) |
 | `auth.database` | `app` | Application database |
 | `auth.username` | `app` | Application user |
@@ -72,9 +91,13 @@ replication:
 | `auth.existingSecret` | `""` | Existing secret with passwords |
 | `config.preset` | `none` | Configuration preset |
 | `config.myCnf` | `""` | Extra my.cnf content |
+| `persistence.subPath` | `mysql` | Data volume subdirectory mounted as `/var/lib/mysql`; set `""` for legacy volume-root installs |
+| `standalone.resourcesPreset` | `small` | Default standalone resource requests and limits |
 | `standalone.persistence.size` | `8Gi` | Standalone PVC size |
+| `replication.source.resourcesPreset` | `small` | Default source resource requests and limits |
 | `replication.source.persistence.size` | `20Gi` | Source PVC size |
 | `replication.readReplicas.replicaCount` | `2` | Number of read replicas |
+| `replication.readReplicas.resourcesPreset` | `small` | Default replica resource requests and limits |
 | `replication.readReplicas.persistence.size` | `20Gi` | Replica PVC size |
 | `replication.binlog.format` | `ROW` | Binlog format |
 | `service.type` | `ClusterIP` | Service type |
@@ -106,6 +129,34 @@ service:
     - IPv4
     - IPv6
 ```
+
+## Datadir SubPath and lost+found
+
+Kubernetes storage classes often format PVCs as ext4. ext4 creates
+`lost+found` at the filesystem root, and MariaDB scans every datadir
+subdirectory as a database. Mounting the PVC root at `/var/lib/mysql` can
+therefore produce this non-fatal but noisy log line:
+
+```text
+Invalid (old?) table or database name 'lost+found'
+```
+
+The chart avoids that on new installs by mounting the `mysql` subdirectory as
+the datadir:
+
+```yaml
+persistence:
+  subPath: mysql
+```
+
+For existing installations with data at the PVC root, keep the legacy behavior:
+
+```yaml
+persistence:
+  subPath: ""
+```
+
+See [docs/datadir-subpath.md](docs/datadir-subpath.md) for upgrade guidance.
 
 ## External Secrets Operator (ESO)
 
@@ -154,6 +205,7 @@ This chart uses MariaDB-native features:
 | `replication-metrics.yaml` | Replication with metrics |
 | `config-preset.yaml` | OLTP config preset |
 | `resources-preset.yaml` | Resource presets for replication |
+| `legacy-volume-root.yaml` | Legacy datadir mount for existing volume-root installs |
 | `tls.yaml` | TLS with existingSecret |
 | `tls-networkpolicy.yaml` | TLS + replication + NetworkPolicy |
 | `backup.yaml` | Backup with S3 |
@@ -164,6 +216,7 @@ This chart uses MariaDB-native features:
 
 - [MariaDB documentation](https://mariadb.com/kb/en/)
 - [Chart source](https://github.com/helmforgedev/charts/tree/main/charts/mariadb)
+- [Datadir subPath migration](docs/datadir-subpath.md)
 
 <!-- @AI-METADATA
 type: chart-readme
@@ -179,6 +232,6 @@ relations:
   - charts/mariadb/values.yaml
   - charts/mysql/README.md
 path: charts/mariadb/README.md
-version: 1.0
-date: 2026-04-30
+version: 2.0
+date: 2026-06-02
 -->

@@ -1,0 +1,337 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: statefulset-replicas
+templates:
+  - templates/statefulset-replicas.yaml
+  - templates/configmap.yaml
+tests:
+  - it: should not render replicas in standalone mode
+    template: templates/statefulset-replicas.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render replicas in replication mode
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-mariadb-replicas
+
+  - it: should mount replica datadirs from the safe default subPath
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: prepare-datadir-subpath
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "mkdir -p \"/mnt/data/mysql\""
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chmod 2770 \"/mnt/data/mysql\""
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chown 999:999 \"/mnt/data/mysql\""
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.add[0]
+          value: CHOWN
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.add[1]
+          value: FOWNER
+      - equal:
+          path: spec.template.spec.initContainers[0].volumeMounts[0]
+          value:
+            name: data
+            mountPath: /mnt/data
+      - equal:
+          path: spec.template.spec.initContainers[1].volumeMounts[0]
+          value:
+            name: data
+            mountPath: /var/lib/mysql
+            subPath: mysql
+
+  - it: should prepare replica subPath with custom runtime ownership
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+      securityContext:
+        runAsUser: 1001
+        runAsGroup: 1002
+      podSecurityContext:
+        fsGroup: 1003
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chmod 2770 \"/mnt/data/mysql\""
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chown 1001:1003 \"/mnt/data/mysql\""
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: clone-source
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0]
+          value:
+            name: data
+            mountPath: /var/lib/mysql
+            subPath: mysql
+
+  - it: should not request mariadbd ownership changes in the non-root clone init container
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - not: true
+        matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "--user=mysql"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "--read-only=OFF"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "--auth-root-authentication-method=normal"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "wait_local_socket\\(\\)"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "mariadb-admin --socket=/tmp/mysql\\.sock ping --silent"
+
+  - it: should preserve root local access for replica probes after cloning
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "CREATE OR REPLACE USER 'root'@'127\\.0\\.0\\.1'"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "GRANT ALL PRIVILEGES ON \\*\\.\\* TO 'root'@'127\\.0\\.0\\.1' WITH GRANT OPTION"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "CREATE OR REPLACE USER 'root'@'%'"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "DELETE FROM mysql\\.global_priv WHERE User = ''"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "DROP USER IF EXISTS ''@'\\$\\{HOSTNAME\\}'"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "DROP USER IF EXISTS 'root'@'\\$\\{HOSTNAME\\}'"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "DELETE FROM mysql\\.proxies_priv WHERE User = '' OR Proxied_user = ''"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "CLONE_MARKER="
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "touch \"\\$\\{CLONE_MARKER\\}\""
+
+  - it: should preserve already initialized replica datadirs during upgrade
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "if \\[ -d \"\\$\\{DATA_DIR\\}/mysql\" \\]; then"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "SHOW SLAVE STATUS"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "grep -Eq \"Master_Host: .\\+\""
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "touch \"\\$\\{CLONE_MARKER\\}\""
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "local_admin_shutdown\\n\\s+exit 0"
+
+  - it: should continue clone completion when an unmarked datadir lacks replication metadata
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "LOCAL_SERVER_STARTED=false"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "LOCAL_ROOT_PASSWORD_REQUIRED=false"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "local_mariadb\\(\\)"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "if \\[ \"\\$\\{LOCAL_SERVER_STARTED\\}\" = \"false\" \\]; then"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "CHANGE MASTER TO"
+
+  - it: should clone all source databases including grant tables from one GTID snapshot
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "--all-databases"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "--master-data=2"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "START SLAVE"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "SHOW DATABASES WHERE"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "--databases \\$\\{DATABASES\\}"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "SHOW DATABASES LIKE '\\$\\{MARIADB_DATABASE\\}'"
+      - equal:
+          path: spec.template.spec.initContainers[1].env[2]
+          value:
+            name: MARIADB_DATABASE
+            value: app
+
+  - it: should recreate chart-managed application grants on cloned replicas
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "CREATE DATABASE IF NOT EXISTS \\\\`\\$\\{MARIADB_DATABASE\\}\\\\`"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "CREATE USER IF NOT EXISTS '\\$\\{MARIADB_USER\\}'@'%' IDENTIFIED BY '\\$\\{MARIADB_PASSWORD\\}'"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "ALTER USER '\\$\\{MARIADB_USER\\}'@'%' IDENTIFIED BY '\\$\\{MARIADB_PASSWORD\\}'"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "GRANT ALL PRIVILEGES ON \\\\`\\$\\{MARIADB_DATABASE\\}\\\\`\\.\\* TO '\\$\\{MARIADB_USER\\}'@'%'"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "--master-data=2"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "sed -n \"s/\\^-- SET GLOBAL gtid_slave_pos="
+      - not: true
+        matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "SELECT @@global\\.gtid_binlog_pos"
+      - equal:
+          path: spec.template.spec.initContainers[1].env[3]
+          value:
+            name: MARIADB_USER
+            value: app
+      - equal:
+          path: spec.template.spec.initContainers[1].env[4]
+          value:
+            name: MARIADB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-mariadb-auth
+                key: mariadb-user-password
+
+  - it: should start replication in the main replica container
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "START SLAVE"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "REPLICATION_READY_MARKER=\"/tmp/helmforge-replication-started\""
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "rm -f \"\\$\\{REPLICATION_READY_MARKER\\}\""
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "touch \"\\$\\{REPLICATION_READY_MARKER\\}\""
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "until mariadb-admin ping -h RELEASE-NAME-mariadb-source"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "docker-entrypoint\\.sh mariadbd &"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "skip_slave_start = ON"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].command[2]
+          pattern: "skip_slave_start = ON"
+
+  - it: should use local socket probes for replicas
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.exec.command[2]
+          value: mariadb-admin ping --socket=/run/mysqld/mysqld.sock -uroot --password="${MARIADB_ROOT_PASSWORD}"
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: "test -f /tmp/helmforge-replication-started"
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: "--socket=/run/mysqld/mysqld\\.sock"
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: "-uroot"
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: "--password=\"\\$\\{MARIADB_ROOT_PASSWORD\\}\""
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: "CAST\\(@@global\\.read_only AS CHAR\\) IN \\('ON', '1'\\)"
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.initialDelaySeconds
+          value: 60
+      - not: true
+        matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: "IF\\(@@global\\.read_only IN"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.containers[0].startupProbe.exec.command[2]
+          pattern: "127\\.0\\.0\\.1"
+
+  - it: should allow legacy volume-root datadir mounts for replicas
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+      persistence:
+        subPath: ""
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].volumeMounts[0].mountPath
+          value: /var/lib/mysql
+      - notExists:
+          path: spec.template.spec.initContainers[0].volumeMounts[0].subPath
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          value: /var/lib/mysql
+      - notExists:
+          path: spec.template.spec.containers[0].volumeMounts[0].subPath
