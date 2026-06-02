@@ -1,70 +1,133 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
---------------------------------------------------------------------
-  Ghost has been successfully deployed!
---------------------------------------------------------------------
+=============================================================================
+Ghost publishing platform deployed successfully!
+=============================================================================
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
+Release:            {{ .Release.Name }}
+Namespace:          {{ .Release.Namespace }}
+Chart Version:      {{ .Chart.Version }}
+App Version:        {{ .Chart.AppVersion }}
+Image:              {{ include "ghost.image" . }}
+Service:            {{ include "ghost.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+Content PVC:        {{ include "ghost.contentClaimName" . }}
+Database Host:      {{ include "ghost.dbHost" . }}:{{ include "ghost.dbPort" . }}
+Database Name:      {{ include "ghost.dbName" . }}
+Database User:      {{ include "ghost.dbUsername" . }}
 
---------------------------------------------------------------------
-  ACCESS INFORMATION
---------------------------------------------------------------------
+=============================================================================
+ACCESS
+=============================================================================
 
 {{- if .Values.ingress.enabled }}
+Ingress is enabled:
 {{- range $host := .Values.ingress.hosts }}
-BLOG:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
-ADMIN:  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/ghost/
+  Blog:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+  Admin:  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/ghost/
+{{- end }}
+{{- else if .Values.gateway.enabled }}
+Gateway API is enabled. Resolve one of the configured HTTPRoute hostnames to
+your Gateway address, then open:
+{{- range .Values.gateway.hostnames }}
+  Blog:   http://{{ . }}/
+  Admin:  http://{{ . }}/ghost/
 {{- end }}
 {{- else }}
-Port-forward to access Ghost locally:
-
+Use port-forward for local access:
   kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "ghost.fullname" . }} 2368:{{ .Values.service.port }}
 
-  BLOG:   http://localhost:2368/
-  ADMIN:  http://localhost:2368/ghost/
+Then open:
+  Blog:   http://localhost:2368/
+  Admin:  http://localhost:2368/ghost/
 {{- end }}
 
---------------------------------------------------------------------
-  GETTING STARTED
---------------------------------------------------------------------
+=============================================================================
+CONFIGURATION
+=============================================================================
 
-1. kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=ghost -n {{ .Release.Namespace }} --timeout=300s
-2. kubectl get pods -l app.kubernetes.io/name=ghost -n {{ .Release.Namespace }}
-3. kubectl logs -l app.kubernetes.io/name=ghost -n {{ .Release.Namespace }} --all-containers --tail=50 -f
-4. Open /ghost/ and complete setup wizard to create your admin account
+{{- if .Values.ghost.url }}
+- Public URL is configured as `{{ .Values.ghost.url }}`.
+{{- else }}
+- `ghost.url` is not set. Set it to the public canonical URL before enabling
+  email, newsletters, memberships, or production SEO workflows.
+{{- end }}
+{{- if .Values.mysql.enabled }}
+- Bundled HelmForge MySQL is enabled as the application database.
+{{- else }}
+- External MySQL is enabled. The chart reads the database password from
+  Secret `{{ include "ghost.dbSecretName" . }}` key `{{ include "ghost.dbSecretPasswordKey" . }}`.
+{{- end }}
+{{- if .Values.persistence.enabled }}
+- Content persistence is enabled. Back up both this PVC and the database before upgrades.
+{{- else }}
+- Content persistence is disabled. Uploaded media and generated assets are ephemeral.
+{{- end }}
+{{- with .Values.service.ipFamilyPolicy }}
+- Service IP family policy: `{{ . }}`{{ with $.Values.service.ipFamilies }} (families: {{ join ", " . }}){{ end }}.
+{{- end }}
+{{- if .Values.gateway.enabled }}
+- Gateway API HTTPRoute is enabled. Ensure Gateway API CRDs and the referenced
+  Gateway parentRefs exist before expecting external traffic.
+{{- end }}
+{{- if .Values.externalSecrets.enabled }}
+- External Secrets Operator is enabled. Ensure the operator and
+  {{ .Values.externalSecrets.secretStoreRef.kind }} `{{ .Values.externalSecrets.secretStoreRef.name }}`
+  exist and populate Secret `{{ include "ghost.dbSecretName" . }}`.
+{{- end }}
+{{- if .Values.backup.enabled }}
+- S3 content backup CronJob is enabled with schedule `{{ .Values.backup.schedule }}`.
+{{- end }}
 
---------------------------------------------------------------------
-  TROUBLESHOOTING
---------------------------------------------------------------------
+=============================================================================
+GETTING STARTED
+=============================================================================
 
-  kubectl describe pod -l app.kubernetes.io/name=ghost -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/name=ghost -n {{ .Release.Namespace }} --all-containers --tail=100
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-  kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+1. Wait for Ghost and dependencies to become ready:
+   kubectl wait --for=condition=ready pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --timeout=600s
+
+2. Check resources and PVCs:
+   kubectl get all,pvc -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+3. Open `/ghost/` and complete the first-user setup wizard.
+
+4. Validate the admin site endpoint:
+   kubectl run ghost-smoke -n {{ .Release.Namespace }} --rm -i --restart=Never --image=docker.io/library/busybox:1.37 -- \
+     wget -qO- http://{{ include "ghost.fullname" . }}:{{ .Values.service.port }}/ghost/api/admin/site/
+
+=============================================================================
+VALIDATION
+=============================================================================
+
+Inspect recent logs from every pod/container in the release:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --all-containers --tail=200
+
+Inspect events for warning or error conditions:
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+
+Check pod restarts:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -o wide
 
 {{- if .Values.mysql.enabled }}
-View MySQL logs:
-  kubectl logs -l app.kubernetes.io/name=mysql -n {{ .Release.Namespace }} --all-containers --tail=50
+Check bundled MySQL logs:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/name=mysql --all-containers --tail=200
 {{- end }}
 
---------------------------------------------------------------------
-  WARNINGS
---------------------------------------------------------------------
-
-{{- if not .Values.ingress.enabled }}
-
-NOTE: Ingress is not enabled. Access via port-forward (see above).
-Ghost requires a public URL to send emails and for SEO.
+{{- if .Values.backup.enabled }}
+Check backup CronJob status:
+  kubectl get cronjob,jobs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
 {{- end }}
 
---------------------------------------------------------------------
-  ADDITIONAL RESOURCES
---------------------------------------------------------------------
+=============================================================================
+UPGRADE REMINDER
+=============================================================================
 
-Documentation:  https://helmforge.dev/docs/charts/ghost
-Ghost:          https://ghost.org | https://github.com/TryGhost/Ghost
+Before upgrading production Ghost sites:
+  - Back up the MySQL database and `/var/lib/ghost/content`.
+  - Validate themes, custom integrations, comments, newsletters, and member signup.
+  - Review upstream Ghost release notes for migration notes.
 
-Happy Helmforging :)
+Documentation:
+  Chart: https://helmforge.dev/docs/charts/ghost
+  Ghost: https://ghost.org/docs/
+  Source: https://github.com/helmforgedev/charts/tree/main/charts/ghost
+
+=============================================================================
