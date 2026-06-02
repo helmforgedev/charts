@@ -56,13 +56,17 @@ spec:
                   mariadb-admin --socket=/tmp/mysql.sock -uroot shutdown
                 fi
               }
+              wait_local_socket() {
+                until [ -S /tmp/mysql.sock ]; do
+                  sleep 2
+                done
+                sleep 2
+              }
               if [ -d "${DATA_DIR}/mysql" ]; then
                 mariadbd --datadir="${DATA_DIR}" --socket=/tmp/mysql.sock --pid-file=/tmp/mariadb.pid --skip-networking --read-only=OFF &
                 LOCAL_SERVER_STARTED=true
 
-                until mariadb-admin --socket=/tmp/mysql.sock ping --silent; do
-                  sleep 2
-                done
+                wait_local_socket
 
                 if mariadb --socket=/tmp/mysql.sock -uroot --password="${MARIADB_ROOT_PASSWORD}" -Nse "SELECT 1" >/dev/null 2>&1; then
                   LOCAL_ROOT_PASSWORD_REQUIRED=true
@@ -105,9 +109,7 @@ spec:
               if [ "${LOCAL_SERVER_STARTED}" = "false" ]; then
                 mariadbd --datadir="${DATA_DIR}" --socket=/tmp/mysql.sock --pid-file=/tmp/mariadb.pid --skip-networking --read-only=OFF &
 
-                until mariadb-admin --socket=/tmp/mysql.sock ping --silent; do
-                  sleep 2
-                done
+                wait_local_socket
               fi
 
               local_mariadb <<EOSQL
@@ -119,46 +121,37 @@ spec:
               DELETE FROM mysql.global_priv WHERE User = '';
               DELETE FROM mysql.proxies_priv WHERE User = '' OR Proxied_user = '';
               DROP USER IF EXISTS 'root'@'${HOSTNAME}';
-              CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY '${MARIADB_ROOT_PASSWORD}';
+              CREATE OR REPLACE USER 'root'@'%' IDENTIFIED BY '${MARIADB_ROOT_PASSWORD}';
               GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
-              CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED BY '${MARIADB_ROOT_PASSWORD}';
+              CREATE OR REPLACE USER 'root'@'127.0.0.1' IDENTIFIED BY '${MARIADB_ROOT_PASSWORD}';
               GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION;
               FLUSH PRIVILEGES;
               EOSQL
               LOCAL_ROOT_PASSWORD_REQUIRED=true
 
-              DATABASES="$(mariadb \
+              GTID_SQL=""
+
+              mariadb-dump \
                 -h {{ include "mariadb.sourceServiceName" . }} \
                 -P {{ .Values.service.port }} \
                 -uroot \
                 --password="${MARIADB_ROOT_PASSWORD}" \
                 {{ include "mariadb.cliTlsArgs" . }} \
-                -Nse "SHOW DATABASES WHERE \`Database\` NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys')")"
-              GTID_SQL=""
+                --single-transaction \
+                --gtid \
+                --master-data=2 \
+                --all-databases \
+                --triggers \
+                --routines \
+                --events \
+                > /tmp/source.sql
 
-              if [ -n "${DATABASES}" ]; then
-                mariadb-dump \
-                  -h {{ include "mariadb.sourceServiceName" . }} \
-                  -P {{ .Values.service.port }} \
-                  -uroot \
-                  --password="${MARIADB_ROOT_PASSWORD}" \
-                  {{ include "mariadb.cliTlsArgs" . }} \
-                  --single-transaction \
-                  --gtid \
-                  --master-data=2 \
-                  --databases ${DATABASES} \
-                  --triggers \
-                  --routines \
-                  --events \
-                  > /tmp/source.sql
-
-                SOURCE_GTID="$(sed -n "s/^-- SET GLOBAL gtid_slave_pos='\([^']*\)'.*/\1/p; s/^SET GLOBAL gtid_slave_pos='\([^']*\)'.*/\1/p" /tmp/source.sql | tail -n 1)"
-                if [ -n "${SOURCE_GTID}" ]; then
-                  GTID_SQL="SET GLOBAL gtid_slave_pos='${SOURCE_GTID}';"
-                fi
-
-                local_mariadb < /tmp/source.sql
+              SOURCE_GTID="$(sed -n "s/^-- SET GLOBAL gtid_slave_pos='\([^']*\)'.*/\1/p; s/^SET GLOBAL gtid_slave_pos='\([^']*\)'.*/\1/p" /tmp/source.sql | tail -n 1)"
+              if [ -n "${SOURCE_GTID}" ]; then
+                GTID_SQL="SET GLOBAL gtid_slave_pos='${SOURCE_GTID}';"
               fi
+
+              local_mariadb < /tmp/source.sql
 
               local_mariadb <<EOSQL
               SET GLOBAL read_only = OFF;
@@ -169,9 +162,9 @@ spec:
               DELETE FROM mysql.global_priv WHERE User = '';
               DELETE FROM mysql.proxies_priv WHERE User = '' OR Proxied_user = '';
               DROP USER IF EXISTS 'root'@'${HOSTNAME}';
-              CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY '${MARIADB_ROOT_PASSWORD}';
+              CREATE OR REPLACE USER 'root'@'%' IDENTIFIED BY '${MARIADB_ROOT_PASSWORD}';
               GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
-              CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED BY '${MARIADB_ROOT_PASSWORD}';
+              CREATE OR REPLACE USER 'root'@'127.0.0.1' IDENTIFIED BY '${MARIADB_ROOT_PASSWORD}';
               GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION;
               CREATE DATABASE IF NOT EXISTS \`${MARIADB_DATABASE}\`;
               CREATE USER IF NOT EXISTS '${MARIADB_USER}'@'%' IDENTIFIED BY '${MARIADB_PASSWORD}';
@@ -233,6 +226,8 @@ spec:
             - sh
             - -ec
             - |
+              REPLICATION_READY_MARKER="/tmp/helmforge-replication-started"
+              rm -f "${REPLICATION_READY_MARKER}"
               ordinal="${HOSTNAME##*-}"
               server_id=$(( {{ .Values.replication.readReplicas.serverIdBase }} + ordinal + 1 ))
               cat /config/my.cnf > /etc/mysql/conf.d/zz-chart.cnf
@@ -261,6 +256,7 @@ spec:
               if ! printf "%s\n" "${status}" | grep -q "Slave_SQL_Running: Yes"; then
                 mariadb --socket=/run/mysqld/mysqld.sock -uroot --password="${MARIADB_ROOT_PASSWORD}" -e "START SLAVE;"
               fi
+              touch "${REPLICATION_READY_MARKER}"
               wait "${pid}"
           ports:
             - name: mariadb
@@ -293,7 +289,7 @@ spec:
                 - sh
                 - -ec
                 - {{ include "mariadb.replicaReadinessCommandString" . | quote }}
-            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            initialDelaySeconds: {{ max 60 (int .Values.readinessProbe.initialDelaySeconds) }}
             periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
             failureThreshold: {{ .Values.readinessProbe.failureThreshold }}

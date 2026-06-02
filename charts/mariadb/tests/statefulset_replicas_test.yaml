@@ -54,6 +54,13 @@ tests:
       - matchRegex:
           path: spec.template.spec.initContainers[0].command[2]
           pattern: "--auth-root-authentication-method=normal"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "wait_local_socket\\(\\)"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "mariadb-admin --socket=/tmp/mysql\\.sock ping --silent"
 
   - it: should preserve root local access for replica probes after cloning
     template: templates/statefulset-replicas.yaml
@@ -62,13 +69,13 @@ tests:
     asserts:
       - matchRegex:
           path: spec.template.spec.initContainers[0].command[2]
-          pattern: "CREATE USER IF NOT EXISTS 'root'@'127\\.0\\.0\\.1'"
+          pattern: "CREATE OR REPLACE USER 'root'@'127\\.0\\.0\\.1'"
       - matchRegex:
           path: spec.template.spec.initContainers[0].command[2]
           pattern: "GRANT ALL PRIVILEGES ON \\*\\.\\* TO 'root'@'127\\.0\\.0\\.1' WITH GRANT OPTION"
       - matchRegex:
           path: spec.template.spec.initContainers[0].command[2]
-          pattern: "CREATE USER IF NOT EXISTS 'root'@'%'"
+          pattern: "CREATE OR REPLACE USER 'root'@'%'"
       - matchRegex:
           path: spec.template.spec.initContainers[0].command[2]
           pattern: "DELETE FROM mysql\\.global_priv WHERE User = ''"
@@ -130,28 +137,29 @@ tests:
           path: spec.template.spec.initContainers[0].command[2]
           pattern: "CHANGE MASTER TO"
 
-  - it: should clone user databases without overwriting local grant tables
+  - it: should clone all source databases including grant tables from one GTID snapshot
     template: templates/statefulset-replicas.yaml
     set:
       architecture: replication
     asserts:
       - matchRegex:
           path: spec.template.spec.initContainers[0].command[2]
-          pattern: "SHOW DATABASES WHERE"
-      - matchRegex:
-          path: spec.template.spec.initContainers[0].command[2]
-          pattern: "'mysql'"
-      - matchRegex:
-          path: spec.template.spec.initContainers[0].command[2]
-          pattern: "--databases \\$\\{DATABASES\\}"
-      - not: true
-        matchRegex:
-          path: spec.template.spec.initContainers[0].command[2]
           pattern: "--all-databases"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "--master-data=2"
       - not: true
         matchRegex:
           path: spec.template.spec.initContainers[0].command[2]
           pattern: "START SLAVE"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "SHOW DATABASES WHERE"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "--databases \\$\\{DATABASES\\}"
       - matchRegex:
           path: spec.template.spec.initContainers[0].command[2]
           pattern: "SHOW DATABASES LIKE '\\$\\{MARIADB_DATABASE\\}'"
@@ -212,6 +220,15 @@ tests:
           pattern: "START SLAVE"
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
+          pattern: "REPLICATION_READY_MARKER=\"/tmp/helmforge-replication-started\""
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "rm -f \"\\$\\{REPLICATION_READY_MARKER\\}\""
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "touch \"\\$\\{REPLICATION_READY_MARKER\\}\""
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
           pattern: "until mariadb-admin ping -h RELEASE-NAME-mariadb-source"
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
@@ -233,6 +250,9 @@ tests:
           value: mariadb-admin ping --socket=/run/mysqld/mysqld.sock -uroot --password="${MARIADB_ROOT_PASSWORD}"
       - matchRegex:
           path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: "test -f /tmp/helmforge-replication-started"
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
           pattern: "--socket=/run/mysqld/mysqld\\.sock"
       - matchRegex:
           path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
@@ -243,6 +263,9 @@ tests:
       - matchRegex:
           path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
           pattern: "CAST\\(@@global\\.read_only AS CHAR\\) IN \\('ON', '1'\\)"
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.initialDelaySeconds
+          value: 60
       - not: true
         matchRegex:
           path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
