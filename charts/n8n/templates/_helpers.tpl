@@ -48,8 +48,19 @@ app.kubernetes.io/component: worker
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
+{{- define "n8n.runnerImage" -}}
+{{- printf "%s:%s" .Values.taskRunners.image.repository (.Values.taskRunners.image.tag | default .Values.image.tag) -}}
+{{- end -}}
+
 {{- define "n8n.validate" -}}
 {{- $mode := include "n8n.databaseMode" . -}}
+{{- $taskRunnerMode := .Values.taskRunners.mode | default "external" -}}
+{{- if not (has $taskRunnerMode (list "internal" "external")) -}}
+{{- fail (printf "taskRunners.mode must be one of: internal, external (got %s)" $taskRunnerMode) -}}
+{{- end -}}
+{{- if and .Values.taskRunners.nativePython.enabled (ne $taskRunnerMode "external") -}}
+{{- fail "taskRunners.nativePython.enabled=true requires taskRunners.mode=external" -}}
+{{- end -}}
 {{- end -}}
 
 # =============================================================================

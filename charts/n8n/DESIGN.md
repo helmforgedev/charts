@@ -45,9 +45,10 @@ flowchart LR
   `ReadWriteOnce` main data PVC during scheduling.
 - Make workers wait for main readiness before starting so fresh installs do not
   race n8n database migrations.
-- Use external task runner mode with a generated shared token by default so n8n
-  does not try to launch the unavailable internal Python runner from the base
-  image.
+- Use external task runner mode by default with a dedicated `n8nio/runners`
+  sidecar on the main pod and each queue worker. The chart generates a shared
+  token and wires the broker port so Code and Python task runner execution does
+  not depend on the Python runtime inside the main `n8nio/n8n` image.
 - Retain the deprecated `gateway` block only as a backward-compatible alias for
   existing releases; new configuration should use `gatewayAPI`.
 - Include database-aware backup scripts for SQLite, PostgreSQL, and MySQL.

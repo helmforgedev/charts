@@ -154,6 +154,9 @@ externalSecrets:
 | `queue.persistence.shareMainVolume` | `false` | Mount the main n8n data PVC into worker pods |
 | `redis.enabled` | `false` | Deploy Redis subchart (`helmforge/redis` `1.6.16`) |
 | `taskRunners.mode` | `external` | Task runner mode (`internal` or `external`) |
+| `taskRunners.image.repository` | `docker.io/n8nio/runners` | External task runner sidecar image repository |
+| `taskRunners.image.tag` | `""` | External task runner sidecar tag (defaults to `image.tag`) |
+| `taskRunners.autoShutdownTimeout` | `15` | External runner launcher idle shutdown timeout |
 | `taskRunners.authToken` | `""` | External runner auth token, auto-generated when empty |
 | `taskRunners.nativePython.enabled` | `false` | Enable native Python runner integration |
 | `persistence.enabled` | `true` | Enable persistent storage |
@@ -189,16 +192,12 @@ when it resolves to SQLite or when Redis is not configured, because workers must
 share the same PostgreSQL, MySQL, or external database as the main pod. Validate
 database and queue mode in a staging namespace before reusing production PVCs.
 
-The chart sets `N8N_RUNNERS_MODE=external` with a generated auth token and
-`N8N_NATIVE_PYTHON_RUNNER=false` by default because the upstream `n8nio/n8n`
-image does not include the separate Python runner runtime. Configure external
-`n8nio/runners` or a compatible custom runner image before enabling native
-Python execution.
-
-Self-hosted n8n `2.x` starts an internal JavaScript task runner by default. The
-base `n8nio/n8n` image may also log a Python runner warning when Python is not
-present; use n8n external task runners when running Python Code nodes in
-production.
+The chart keeps `N8N_RUNNERS_ENABLED=true` and defaults to
+`N8N_RUNNERS_MODE=external`. It creates a shared auth token, opens the broker
+port, and runs a `docker.io/n8nio/runners` sidecar next to the main pod and each
+queue worker. This avoids the missing-Python warning produced by internal runner
+mode in the upstream `n8nio/n8n` image and gives each queue worker its own
+runner, as required by n8n external task runner architecture.
 
 ## Resources Generated
 

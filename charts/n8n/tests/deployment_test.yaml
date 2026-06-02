@@ -222,9 +222,28 @@ tests:
             name: N8N_LOG_LEVEL
             value: debug
 
-  - it: should disable native Python runner by default
+  - it: should configure external task runner sidecar by default
     template: templates/deployment.yaml
     asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: task-runners
+      - equal:
+          path: spec.template.spec.containers[1].image
+          value: "docker.io/n8nio/runners:2.23.2"
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: N8N_RUNNERS_TASK_BROKER_URI
+            value: "http://127.0.0.1:5679"
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: N8N_RUNNERS_AUTH_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: test-n8n-task-runners
+                key: auth-token
       - contains:
           path: spec.template.spec.containers[0].env
           content:
@@ -238,6 +257,11 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
+            name: N8N_RUNNERS_BROKER_LISTEN_ADDRESS
+            value: "0.0.0.0"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
             name: N8N_RUNNERS_AUTH_TOKEN
             valueFrom:
               secretKeyRef:
@@ -248,6 +272,30 @@ tests:
           content:
             name: N8N_NATIVE_PYTHON_RUNNER
             value: "false"
+
+  - it: should disable external task runner sidecar in internal mode
+    template: templates/deployment.yaml
+    set:
+      taskRunners.mode: internal
+    asserts:
+      - hasDocuments:
+          count: 1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: N8N_RUNNERS_MODE
+            value: internal
+      - notExists:
+          path: spec.template.spec.containers[1]
+
+  - it: should reject native Python runner outside external mode
+    template: templates/deployment.yaml
+    set:
+      taskRunners.mode: internal
+      taskRunners.nativePython.enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "taskRunners.nativePython.enabled=true requires taskRunners.mode=external"
 
   - it: should offload manual executions to workers in queue mode
     template: templates/deployment.yaml

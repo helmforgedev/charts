@@ -51,6 +51,10 @@ queue:
 Worker pods wait for the main n8n readiness endpoint before starting. This keeps
 database migrations serialized on fresh PostgreSQL or MySQL subchart installs.
 
+Queue mode uses external task runners by default. The chart renders a dedicated
+`n8nio/runners` sidecar next to the main pod and each worker so every queue
+worker has its own runner, matching upstream n8n external runner guidance.
+
 ### With External Redis
 
 ```yaml

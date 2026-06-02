@@ -121,7 +121,7 @@ tests:
             name: wait-for-main
           any: true
 
-  - it: should disable native Python runner by default
+  - it: should configure external task runner sidecar by default
     template: templates/worker-deployment.yaml
     set:
       queue.enabled: true
@@ -129,6 +129,17 @@ tests:
       postgresql.enabled: true
       postgresql.auth.password: pgpass
     asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: task-runners
+      - equal:
+          path: spec.template.spec.containers[1].image
+          value: "docker.io/n8nio/runners:2.23.2"
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: N8N_RUNNERS_TASK_BROKER_URI
+            value: "http://127.0.0.1:5679"
       - contains:
           path: spec.template.spec.containers[0].env
           content:
@@ -139,14 +150,6 @@ tests:
           content:
             name: N8N_RUNNERS_MODE
             value: external
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: N8N_RUNNERS_AUTH_TOKEN
-            valueFrom:
-              secretKeyRef:
-                name: test-n8n-task-runners
-                key: auth-token
       - contains:
           path: spec.template.spec.containers[0].env
           content:

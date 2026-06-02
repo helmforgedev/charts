@@ -166,6 +166,37 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /home/node/.n8n
+        {{- if eq (.Values.taskRunners.mode | default "external") "external" }}
+        - name: task-runners
+          image: {{ include "n8n.runnerImage" . | quote }}
+          imagePullPolicy: {{ .Values.taskRunners.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: runner-health
+              containerPort: 5680
+              protocol: TCP
+          env:
+            - name: N8N_RUNNERS_TASK_BROKER_URI
+              value: "http://127.0.0.1:5679"
+            - name: N8N_RUNNERS_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "n8n.taskRunnerSecretName" . }}
+                  key: {{ include "n8n.taskRunnerSecretKey" . }}
+            - name: N8N_RUNNERS_LAUNCHER_LOG_LEVEL
+              value: {{ .Values.n8n.logLevel | quote }}
+            - name: N8N_RUNNERS_AUTO_SHUTDOWN_TIMEOUT
+              value: {{ .Values.taskRunners.autoShutdownTimeout | quote }}
+            - name: N8N_RUNNERS_LAUNCHER_HEALTH_CHECK_PORT
+              value: "5680"
+          {{- with .Values.taskRunners.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
       volumes:
         - name: data
           {{- if and .Values.queue.persistence.shareMainVolume .Values.persistence.enabled }}
