@@ -46,3 +46,45 @@ tests:
       - equal:
           path: metadata.name
           value: test-strava-statistics-legacy
+
+  - it: should keep default backend when filters are configured
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - name: web
+          rules:
+            - filters:
+                - type: RequestHeaderModifier
+                  requestHeaderModifier:
+                    add:
+                      - name: X-Forwarded-App
+                        value: strava-statistics
+    asserts:
+      - equal:
+          path: spec.rules[0].filters[0].type
+          value: RequestHeaderModifier
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: test-strava-statistics
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 80
+
+  - it: should allow backend-less redirect rules when explicitly requested
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - name: redirect
+          rules:
+            - omitDefaultBackend: true
+              filters:
+                - type: RequestRedirect
+                  requestRedirect:
+                    scheme: https
+                    statusCode: 301
+    asserts:
+      - equal:
+          path: spec.rules[0].filters[0].type
+          value: RequestRedirect
+      - notExists:
+          path: spec.rules[0].backendRefs

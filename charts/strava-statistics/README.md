@@ -11,6 +11,9 @@ Self-hosted fitness dashboard that visualizes your Strava activities with beauti
 - **Persistent storage** — SQLite database and files on PVC
 - **Timezone support** — configurable timezone for activity display
 - **Ingress support** — TLS with cert-manager
+- **Gateway API support** — optional HTTPRoute rendering for modern ingress controllers
+- **External Secrets support** — optional ExternalSecret resources for Strava credentials
+- **Dual-stack Service support** — optional `ipFamilyPolicy` and `ipFamilies`
 
 ## Installation
 
@@ -55,6 +58,49 @@ strava:
   existingSecretRefreshTokenKey: refresh-token
 ```
 
+## External Secrets
+
+```yaml
+externalSecrets:
+  enabled: true
+  items:
+    - name: strava
+      storeRef:
+        name: platform-secrets
+        kind: ClusterSecretStore
+      targetName: strava-credentials
+      data:
+        - secretKey: client-id
+          remoteRef:
+            key: strava/oauth
+            property: client-id
+        - secretKey: client-secret
+          remoteRef:
+            key: strava/oauth
+            property: client-secret
+        - secretKey: refresh-token
+          remoteRef:
+            key: strava/oauth
+            property: refresh-token
+
+strava:
+  existingSecret: strava-credentials
+```
+
+## Gateway API
+
+```yaml
+gatewayAPI:
+  enabled: true
+  httpRoutes:
+    - name: web
+      parentRefs:
+        - name: public
+          namespace: gateway-system
+      hostnames:
+        - strava.example.com
+```
+
 ## Key Values
 
 | Key | Default | Description |
@@ -73,13 +119,16 @@ strava:
 | `service.port` | `80` | Service port |
 | `service.ipFamilyPolicy` | omitted | Optional Service IP family policy for dual-stack clusters |
 | `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute rendering |
+| `gatewayApi.enabled` | `false` | Deprecated compatibility alias for `gatewayAPI.enabled` |
 | `externalSecrets.enabled` | `false` | Enable ExternalSecret rendering for credential integrations |
+| `externalSecrets.apiVersion` | `external-secrets.io/v1` | ExternalSecret API version |
 
 ## Limitations
 
 - **Single instance only** — SQLite is single-writer, horizontal scaling is not supported
 - **ReadWriteOnce** — PVC must be ReadWriteOnce due to SQLite limitations
 - **Strava API** — requires valid Strava OAuth credentials to fetch activity data
+- **OAuth callback** — `strava.config.general.appUrl` must match the public URL configured in the Strava app
 
 ## More Information
 
@@ -98,7 +147,9 @@ scope: Chart
 
 relations:
   - charts/strava-statistics/values.yaml
+  - charts/strava-statistics/DESIGN.md
+  - charts/strava-statistics/docs/configuration.md
 path: charts/strava-statistics/README.md
-version: 1.0
-date: 2026-04-01
+version: 1.1
+date: 2026-06-02
 -->
