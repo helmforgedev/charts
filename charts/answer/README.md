@@ -89,7 +89,7 @@ database:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `answer.siteName` | `Apache Answer` | Site name |
-| `answer.siteUrl` | `""` | Full external URL (auto-detected from ingress) |
+| `answer.siteUrl` | `""` | Full external URL (auto-detected from Ingress or Gateway hostname) |
 | `answer.language` | `en-US` | Default UI language |
 | `answer.externalContentDisplay` | `ask_before_display` | External content display policy used by auto-install |
 | `answer.autoInstall` | `true` | Enable unattended setup |

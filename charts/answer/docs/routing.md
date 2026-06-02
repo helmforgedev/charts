@@ -19,6 +19,7 @@ ingress:
         - qa.example.com
 ```
 
+When `answer.siteUrl` is empty, the chart uses the first Ingress host as the generated `SITE_URL`.
 Set `answer.siteUrl` to the final public URL when the route is exposed through a proxy or load balancer.
 
 ## Gateway API
@@ -33,6 +34,7 @@ gateway:
     - qa.example.com
 ```
 
+When `answer.siteUrl` is empty and Ingress is disabled, the chart uses the first Gateway hostname as the generated `SITE_URL`.
 The chart renders an `HTTPRoute` only when Gateway API is enabled. It does not install Gateway API CRDs or create Gateway resources.
 
 ## Dual-Stack Services

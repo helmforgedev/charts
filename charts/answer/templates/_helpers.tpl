@@ -42,6 +42,18 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
+{{- define "answer.siteUrl" -}}
+{{- if .Values.answer.siteUrl -}}
+{{- .Values.answer.siteUrl -}}
+{{- else if and .Values.ingress.enabled .Values.ingress.hosts -}}
+{{- printf "https://%s" (index .Values.ingress.hosts 0).host -}}
+{{- else if and .Values.gateway.enabled .Values.gateway.hostnames -}}
+{{- printf "https://%s" (index .Values.gateway.hostnames 0) -}}
+{{- else -}}
+http://localhost:80
+{{- end -}}
+{{- end -}}
+
 # =============================================================================
 # Database Mode Detection
 # =============================================================================
