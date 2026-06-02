@@ -11,7 +11,9 @@ Supported use cases:
 - platform self-service actions with explicitly defined commands
 - read-only dashboards backed by custom OliveTin configuration
 
-The chart defaults to a single Deployment replica because OliveTin stores runtime session data in local files. Operators that need replicated frontends should verify their own configuration, authentication, and session behavior before increasing replicas through custom manifests.
+The chart defaults to a single Deployment replica because OliveTin stores runtime session data in local files.
+Operators that need replicated frontends should verify their own configuration, authentication, and session behavior
+before increasing replicas through custom manifests.
 
 ## Architecture
 
@@ -34,7 +36,8 @@ flowchart LR
 - Mount the chart-managed OliveTin configuration read-only while creating a writable runtime config directory for session and theme files.
 - Use a `Recreate` strategy because the default deployment is single-instance and command execution should stay predictable.
 - Provide Ingress and Gateway API as separate optional exposure paths.
-- Keep ExternalSecret support generic. OliveTin does not require a built-in credential, but users commonly inject command credentials, API tokens, or webhook secrets through `extraEnv`, `extraVolumes`, and `extraVolumeMounts`.
+- Keep ExternalSecret support generic. OliveTin does not require a built-in credential, but users commonly inject
+  command credentials, API tokens, or webhook secrets through `extraEnv`, `extraVolumes`, and `extraVolumeMounts`.
 - Keep Service dual-stack fields opt-in so clusters without dual-stack support keep their default behavior.
 
 ## Security Boundary
