@@ -21,7 +21,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/n8nio/n8n:2.22.3"
+          value: "docker.io/n8nio/n8n:2.23.2"
 
   - it: should set container port to 5678
     template: templates/deployment.yaml
@@ -32,6 +32,35 @@ tests:
             name: http
             containerPort: 5678
             protocol: TCP
+
+  - it: should render hardened pod and container security defaults
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop[0]
+          value: ALL
+
+  - it: should render resource defaults
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 512Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 1Gi
 
   - it: should mount data volume at /home/node/.n8n
     template: templates/deployment.yaml
@@ -188,6 +217,40 @@ tests:
           content:
             name: N8N_LOG_LEVEL
             value: debug
+
+  - it: should disable native Python runner by default
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: N8N_RUNNERS_MODE
+            value: external
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: N8N_RUNNERS_AUTH_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: test-n8n-task-runners
+                key: auth-token
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: N8N_NATIVE_PYTHON_RUNNER
+            value: "false"
+
+  - it: should offload manual executions to workers in queue mode
+    template: templates/deployment.yaml
+    set:
+      queue.enabled: true
+      redis.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS
+            value: "true"
 
   - it: should use PVC when persistence enabled
     template: templates/deployment.yaml

@@ -24,7 +24,7 @@ image:
   # -- Container image repository
   repository: docker.io/n8nio/n8n
   # -- Container image tag
-  tag: "2.22.3"
+  tag: "2.23.2"
   # -- Image pull policy
   pullPolicy: IfNotPresent
 
@@ -61,6 +61,26 @@ n8n:
   extraEnv: []
 
 # =============================================================================
+# Task Runners
+# =============================================================================
+
+taskRunners:
+  # -- Task runner mode: internal or external.
+  # external avoids starting unavailable internal Python runners in the base image.
+  mode: external
+  # -- Shared auth token for external task runners. Auto-generated if empty.
+  authToken: ""
+  # -- Existing secret containing the task runner auth token.
+  existingSecret: ""
+  # -- Key in the task runner auth token secret.
+  existingSecretKey: auth-token
+  nativePython:
+    # -- Enable n8n native Python runner integration.
+    # The upstream n8nio/n8n image does not include the Python runner runtime;
+    # enable this only when using external n8nio/runners or a compatible image.
+    enabled: false
+
+# =============================================================================
 # Queue Mode (Redis)
 # =============================================================================
 # When enabled, n8n runs in queue mode using Redis as the message broker.
@@ -77,8 +97,19 @@ queue:
   # -- Worker concurrency (workflows per worker)
   concurrency: 10
 
+  persistence:
+    # -- Mount the main n8n data PVC in worker pods.
+    # Keep disabled for RWO storage classes; workers use emptyDir by default.
+    shareMainVolume: false
+
   # -- Resources for worker pods
-  resources: {}
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
 
   external:
     # -- Use an external Redis instead of the subchart
@@ -166,7 +197,7 @@ postgresql:
     # -- Database password (auto-generated if empty)
     password: ""
 
-  primary:
+  standalone:
     persistence:
       # -- Enable persistence for PostgreSQL data
       enabled: true
@@ -203,12 +234,16 @@ mysql:
     # -- Root password (auto-generated if empty)
     rootPassword: ""
 
-  primary:
+  standalone:
     persistence:
       # -- Enable persistence for MySQL data
       enabled: true
       # -- PVC size for MySQL
       size: 8Gi
+
+  startupProbe:
+    # -- Delay startup checks until the initial MySQL bootstrap has opened port 3306
+    initialDelaySeconds: 30
 
 # =============================================================================
 # Redis Subchart (for queue mode)
@@ -225,7 +260,7 @@ redis:
     # -- Redis password (auto-generated if empty)
     password: ""
 
-  primary:
+  standalone:
     persistence:
       # -- Enable persistence for Redis data
       enabled: true
@@ -260,21 +295,40 @@ persistence:
 # =============================================================================
 
 # -- CPU and memory requests/limits for the n8n container
-resources: {}
-  # requests:
-  #   cpu: 250m
-  #   memory: 256Mi
-  # limits:
-  #   cpu: "1"
-  #   memory: 1Gi
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
 
 # =============================================================================
 # Security Context
 # =============================================================================
 
-podSecurityContext: {}
+podSecurityContext:
+  # -- Group ID used for writable application storage
+  fsGroup: 1000
+  # -- Avoid recursive ownership changes when the volume already matches
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    # -- Use the Kubernetes RuntimeDefault seccomp profile
+    type: RuntimeDefault
 
-securityContext: {}
+securityContext:
+  # -- Run the upstream image as the node user
+  runAsUser: 1000
+  # -- Run the upstream image as the node group
+  runAsGroup: 1000
+  # -- Require a non-root container user
+  runAsNonRoot: true
+  # -- Prevent privilege escalation
+  allowPrivilegeEscalation: false
+  capabilities:
+    # -- Drop all Linux capabilities by default
+    drop:
+      - ALL
 
 # =============================================================================
 # Probes
@@ -408,7 +462,7 @@ backup:
     # -- Image used for SQLite backup (must have tar)
     sqlite: docker.io/library/alpine:3.22
     # -- Image used for PostgreSQL backup (must have pg_dump)
-    postgresql: docker.io/library/postgres:18.3-alpine
+    postgresql: docker.io/library/postgres:18.4-alpine
     # -- Image used for MySQL backup (must have mysqldump)
     mysql: docker.io/library/mysql:8.4
     # -- Image used for S3 upload (MinIO client)

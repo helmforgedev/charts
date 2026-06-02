@@ -10,6 +10,7 @@ Deploy [n8n](https://n8n.io/) on Kubernetes — a workflow automation platform f
 - **External database** — connect to existing PostgreSQL or MySQL
 - **Queue mode** — Redis-backed horizontal scaling with worker pods
 - **Redis subchart** — bundled via HelmForge dependency for queue mode
+- **Worker-safe persistence** — queue workers use ephemeral data by default to avoid RWO PVC contention
 - **Scheduled backups** — database-aware CronJob with S3 upload
 - **Ingress support** — TLS with cert-manager, auto-detected webhook URL
 - **Encryption key** — auto-generated and persisted across upgrades
@@ -139,20 +140,26 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
-| `image.tag` | `2.22.3` | n8n container image tag |
+| `image.tag` | `2.23.2` | n8n container image tag |
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
 | `database.mode` | `auto` | Database mode (auto, sqlite, external, postgresql, mysql) |
-| `postgresql.enabled` | `false` | Deploy PostgreSQL subchart (`helmforge/postgresql` `1.10.0`) |
+| `postgresql.enabled` | `false` | Deploy PostgreSQL subchart (`helmforge/postgresql` `2.0.2`) |
 | `postgresql.initdb.scripts` | n8n extension bootstrap | Creates PostgreSQL extensions required by n8n migrations |
-| `mysql.enabled` | `false` | Deploy MySQL subchart (`helmforge/mysql` `1.9.1`) |
+| `mysql.enabled` | `false` | Deploy MySQL subchart (`helmforge/mysql` `2.0.0`) |
 | `queue.enabled` | `false` | Enable queue mode (requires Redis) |
 | `queue.workers` | `1` | Number of worker replicas |
 | `queue.concurrency` | `10` | Concurrent workflows per worker |
-| `redis.enabled` | `false` | Deploy Redis subchart (`helmforge/redis` `1.6.14`) |
+| `queue.persistence.shareMainVolume` | `false` | Mount the main n8n data PVC into worker pods |
+| `redis.enabled` | `false` | Deploy Redis subchart (`helmforge/redis` `1.6.16`) |
+| `taskRunners.mode` | `external` | Task runner mode (`internal` or `external`) |
+| `taskRunners.authToken` | `""` | External runner auth token, auto-generated when empty |
+| `taskRunners.nativePython.enabled` | `false` | Enable native Python runner integration |
 | `persistence.enabled` | `true` | Enable persistent storage |
 | `persistence.size` | `5Gi` | PVC size |
+| `resources.requests.memory` | `512Mi` | Default memory request for the main pod |
+| `securityContext.runAsNonRoot` | `true` | Run n8n containers as the upstream non-root node user |
 | `ingress.enabled` | `false` | Enable ingress |
 | `backup.enabled` | `false` | Enable S3 backups |
 | `service.ipFamilyPolicy` | `~` | IP family policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
@@ -171,11 +178,20 @@ externalSecrets:
 
 ## Upgrade Notes
 
-n8n `2.22.3` is an upstream bugfix release. Review the upstream release
-notes before upgrading, back up the database, and keep the encryption key
-stable before upgrading live deployments. When using the bundled PostgreSQL
-subchart on a fresh data directory, the chart bootstraps the `uuid-ossp`
-extension before n8n migrations run.
+n8n `2.23.2` is an upstream bugfix release. It includes fixes for MCP registry
+server identifiers, data-table timestamp columns, production execution pin data,
+and licensed Insights page rendering. Review the upstream release notes before
+upgrading, back up the database, and keep the encryption key stable before
+upgrading live deployments. This chart also refreshes the bundled HelmForge
+PostgreSQL, MySQL, and Redis subchart versions and enables hardened non-root
+container defaults with resource requests and limits; validate database and
+queue mode in a staging namespace before reusing production PVCs.
+
+The chart sets `N8N_RUNNERS_MODE=external` with a generated auth token and
+`N8N_NATIVE_PYTHON_RUNNER=false` by default because the upstream `n8nio/n8n`
+image does not include the separate Python runner runtime. Configure external
+`n8nio/runners` or a compatible custom runner image before enabling native
+Python execution.
 
 Self-hosted n8n `2.x` starts an internal JavaScript task runner by default. The
 base `n8nio/n8n` image may also log a Python runner warning when Python is not
@@ -206,6 +222,7 @@ production.
 - [Database configuration](docs/database.md)
 - [Queue mode](docs/queue-mode.md)
 - [Backup and restore](docs/backup.md)
+- [Chart design](DESIGN.md)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/n8n)
 
 <!-- @AI-METADATA
@@ -219,11 +236,12 @@ purpose: User-facing chart documentation with install, features, examples, and v
 scope: Chart
 
 relations:
+  - charts/n8n/DESIGN.md
   - charts/n8n/values.yaml
   - charts/n8n/docs/database.md
   - charts/n8n/docs/queue-mode.md
   - charts/n8n/docs/backup.md
 path: charts/n8n/README.md
-version: 1.1
-date: 2026-04-30
+version: 1.2
+date: 2026-06-02
 -->

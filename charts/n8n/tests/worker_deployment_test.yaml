@@ -46,6 +46,25 @@ tests:
           path: spec.template.spec.containers[0].command
           value: ["n8n", "worker", "--concurrency=10"]
 
+  - it: should render hardened worker security defaults and resources
+    template: templates/worker-deployment.yaml
+    set:
+      queue.enabled: true
+      redis.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop[0]
+          value: ALL
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 512Mi
+
   - it: should set queue env vars
     template: templates/worker-deployment.yaml
     set:
@@ -75,6 +94,69 @@ tests:
           content:
             name: wait-for-redis
           any: true
+
+  - it: should wait for the main pod before starting workers
+    template: templates/worker-deployment.yaml
+    set:
+      queue.enabled: true
+      redis.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          content:
+            name: wait-for-main
+          any: true
+
+  - it: should disable native Python runner by default
+    template: templates/worker-deployment.yaml
+    set:
+      queue.enabled: true
+      redis.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: N8N_RUNNERS_MODE
+            value: external
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: N8N_RUNNERS_AUTH_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: test-n8n-task-runners
+                key: auth-token
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: N8N_NATIVE_PYTHON_RUNNER
+            value: "false"
+
+  - it: should use emptyDir for worker data by default
+    template: templates/worker-deployment.yaml
+    set:
+      queue.enabled: true
+      redis.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+
+  - it: should allow sharing the main PVC with workers when explicitly enabled
+    template: templates/worker-deployment.yaml
+    set:
+      queue.enabled: true
+      queue.persistence.shareMainVolume: true
+      redis.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: test-n8n-data
 
   - it: should use worker-specific labels
     template: templates/worker-deployment.yaml

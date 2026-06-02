@@ -234,6 +234,22 @@ database-password
 {{- end -}}
 {{- end -}}
 
+{{- define "n8n.taskRunnerSecretName" -}}
+{{- if .Values.taskRunners.existingSecret -}}
+{{- .Values.taskRunners.existingSecret -}}
+{{- else -}}
+{{- printf "%s-task-runners" (include "n8n.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "n8n.taskRunnerSecretKey" -}}
+{{- if .Values.taskRunners.existingSecret -}}
+{{- .Values.taskRunners.existingSecretKey -}}
+{{- else -}}
+auth-token
+{{- end -}}
+{{- end -}}
+
 # =============================================================================
 # Redis / Queue
 # =============================================================================

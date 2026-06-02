@@ -61,6 +61,10 @@ spec:
         {{- if ne $dbMode "sqlite" }}
         - name: wait-for-db
           image: docker.io/library/busybox:1.37
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           command:
             - sh
             - -c
@@ -74,6 +78,10 @@ spec:
         {{- if .Values.queue.enabled }}
         - name: wait-for-redis
           image: docker.io/library/busybox:1.37
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           command:
             - sh
             - -c
@@ -145,9 +153,22 @@ spec:
               value: {{ .Values.n8n.logLevel | quote }}
             - name: N8N_LOG_OUTPUT
               value: {{ .Values.n8n.logOutput | quote }}
+            - name: N8N_RUNNERS_MODE
+              value: {{ .Values.taskRunners.mode | quote }}
+            {{- if eq (.Values.taskRunners.mode | default "external") "external" }}
+            - name: N8N_RUNNERS_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "n8n.taskRunnerSecretName" . }}
+                  key: {{ include "n8n.taskRunnerSecretKey" . }}
+            {{- end }}
+            - name: N8N_NATIVE_PYTHON_RUNNER
+              value: {{ .Values.taskRunners.nativePython.enabled | quote }}
             {{- if .Values.queue.enabled }}
             - name: EXECUTIONS_MODE
               value: queue
+            - name: OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS
+              value: "true"
             - name: QUEUE_BULL_REDIS_HOST
               value: {{ include "n8n.redisHost" . | quote }}
             - name: QUEUE_BULL_REDIS_PORT

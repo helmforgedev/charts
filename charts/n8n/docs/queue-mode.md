@@ -1,10 +1,14 @@
 # Queue Mode
 
-n8n supports a **queue mode** that uses Redis as a message broker, enabling horizontal scaling with separate worker processes.
+n8n supports a **queue mode** that uses Redis as a message broker, enabling
+horizontal scaling with separate worker processes.
 
 ## How It Works
 
-In queue mode, the main n8n instance acts as the web UI and workflow trigger handler. Workflow executions are pushed to a Redis queue and picked up by worker pods. This allows scaling execution capacity independently from the web interface.
+In queue mode, the main n8n instance acts as the web UI and workflow trigger
+handler. Workflow executions are pushed to a Redis queue and picked up by worker
+pods. This allows scaling execution capacity independently from the web
+interface.
 
 ## Enable Queue Mode
 
@@ -29,6 +33,19 @@ postgresql:
     password: "db-password"
 ```
 
+Workers use `emptyDir` for `/home/node/.n8n` by default. This avoids scheduling
+contention when the main pod uses a `ReadWriteOnce` PVC. If your deployment
+requires workers to share the main data PVC, enable it explicitly:
+
+```yaml
+queue:
+  persistence:
+    shareMainVolume: true
+```
+
+Worker pods wait for the main n8n readiness endpoint before starting. This keeps
+database migrations serialized on fresh PostgreSQL or MySQL subchart installs.
+
 ### With External Redis
 
 ```yaml
@@ -43,7 +60,7 @@ queue:
 
 ## Architecture
 
-```
+```text
 ┌──────────┐     ┌───────┐     ┌──────────┐
 │  n8n UI  │────▶│ Redis │◀────│ Worker 1 │
 │ (main)   │     │       │     └──────────┘
@@ -63,7 +80,8 @@ queue:
 |-----|---------|-------------|
 | `queue.workers` | `1` | Number of worker replicas |
 | `queue.concurrency` | `10` | Concurrent workflows per worker |
-| `queue.resources` | `{}` | Resources for worker pods |
+| `queue.persistence.shareMainVolume` | `false` | Mount the main data PVC into workers |
+| `queue.resources.requests.memory` | `512Mi` | Default worker memory request |
 
 <!-- @AI-METADATA
 type: chart-docs
