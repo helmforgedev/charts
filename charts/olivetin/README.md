@@ -55,7 +55,7 @@ kubectl port-forward svc/<release>-olivetin 1337:80
 |-----|---------|-------------|
 | `configInit.enabled` | `true` | Prepare writable OliveTin runtime files before startup |
 | `configInit.securityContext` | non-root | Security context for the config bootstrap init container |
-| `image.tag` | `3000.13.0` | OliveTin image tag |
+| `image.tag` | `3000.14.0` | OliveTin image tag |
 | `securityContext` | non-root | Security context for the OliveTin application container |
 | `olivetin.port` | `1337` | Application port |
 | `config` | `""` | OliveTin YAML configuration. Empty uses the chart-managed default config. |
