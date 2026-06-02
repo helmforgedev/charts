@@ -21,8 +21,8 @@ helm install docmost oci://ghcr.io/helmforgedev/helm/docmost
 ## Features
 
 - **Official Docmost image** based on `docmost/docmost`
-- **PostgreSQL subchart** bundled PostgreSQL `1.10.0` for default installs
-- **Redis subchart** bundled Redis `1.6.14` for default installs
+- **PostgreSQL subchart** bundled PostgreSQL `2.0.2` for default installs
+- **Redis subchart** bundled Redis `1.6.16` for default installs
 - **External services** support for managed PostgreSQL and Redis
 - **Local or S3 storage** for uploaded files
 - **Ingress support** configurable ingress with TLS
@@ -34,11 +34,11 @@ helm install docmost oci://ghcr.io/helmforgedev/helm/docmost
 
 ## Important Notes
 
-- this alpha chart currently supports `replicaCount=1` only
+- this chart currently supports `replicaCount=1` only
 - Docmost requires PostgreSQL and Redis
 - local storage uses `/app/data/storage`
 - S3 mode uses the official `AWS_S3_*` environment variables documented by Docmost
-- the default image tag is `0.90.0`, validated against the published `docmost/docmost:0.90.0` container image
+- the default image tag is `0.90.1`, validated against the published `docmost/docmost:0.90.1` container image
 - upstream telemetry can be disabled with `docmost.disableTelemetry=true`
 - this chart intentionally does not keep `Chart.lock`; dependencies are resolved by the repository release workflow
 
@@ -153,7 +153,7 @@ backup:
 |-----|---------|-------------|
 | `replicaCount` | `1` | Number of Docmost application pods |
 | `image.repository` | `docker.io/docmost/docmost` | Docmost container image repository |
-| `image.tag` | `0.90.0` | Docmost image tag |
+| `image.tag` | `0.90.1` | Docmost image tag |
 | `docmost.appUrl` | `""` | External Docmost URL |
 | `docmost.appSecret` | `""` | Application secret, auto-generated when empty |
 | `docmost.jwtTokenExpiresIn` | `30d` | JWT expiration |
@@ -170,13 +170,14 @@ backup:
 | `storage.s3.bucket` | `""` | S3 bucket name |
 | `backup.enabled` | `false` | Enable the PostgreSQL backup CronJob |
 | `backup.schedule` | `0 3 * * *` | Backup Cron schedule |
+| `resources.requests.memory` | `512Mi` | Docmost memory request |
+| `resources.limits.memory` | `1Gi` | Docmost memory limit |
 | `service.port` | `80` | Service port exposed by Kubernetes |
 | `service.ipFamilyPolicy` | `""` | Kubernetes service IP family policy |
 | `service.ipFamilies` | `[]` | Kubernetes service IP families |
 | `ingress.enabled` | `false` | Enable ingress |
 | `ingress.ingressClassName` | `""` | Ingress class (`traefik`, `nginx`, etc.) |
 | `gateway.enabled` | `false` | Render a Gateway API HTTPRoute |
-| `gatewayAPI.enabled` | `false` | HelmForge-standard Gateway API alias |
 | `externalSecrets.enabled` | `false` | Render an ExternalSecret for application credentials |
 
 ## Operations
@@ -188,6 +189,7 @@ For production upgrades, take a database backup first and verify the secret refe
 ## More Information
 
 - [Architecture Notes](docs/architecture.md)
+- [Chart design](DESIGN.md)
 - [Examples](examples/simple.yaml)
 - [Source code and full values reference](https://github.com/helmforgedev/charts/tree/main/charts/docmost)
 

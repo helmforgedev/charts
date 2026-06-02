@@ -8,13 +8,13 @@ tests:
       - hasDocuments:
           count: 0
 
-  - it: should render HTTPRoute with the HelmForge-standard gatewayAPI block
+  - it: should render HTTPRoute with the standard gateway block
     set:
-      gatewayAPI.enabled: true
-      gatewayAPI.parentRefs:
+      gateway.enabled: true
+      gateway.parentRefs:
         - name: shared-gateway
           namespace: gateway-system
-      gatewayAPI.hostnames:
+      gateway.hostnames:
         - docmost.example.com
     asserts:
       - isKind:
@@ -25,3 +25,30 @@ tests:
       - equal:
           path: spec.hostnames[0]
           value: docmost.example.com
+
+  - it: should render HTTPRoute with legacy gatewayAPI values
+    set:
+      gatewayAPI:
+        enabled: true
+        parentRefs:
+          - name: legacy-gateway
+            namespace: gateway-system
+        hostnames:
+          - legacy.docmost.example.com
+        path: /
+        pathType: PathPrefix
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.parentRefs[0].name
+          value: legacy-gateway
+      - equal:
+          path: spec.hostnames[0]
+          value: legacy.docmost.example.com
+      - equal:
+          path: spec.rules[0].matches[0].path.type
+          value: PathPrefix
+      - equal:
+          path: spec.rules[0].matches[0].path.value
+          value: /

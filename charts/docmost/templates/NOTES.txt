@@ -1,48 +1,146 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Docmost {{ .Chart.AppVersion }} has been deployed.
+{{- $namespace := .Release.Namespace -}}
+{{- $appUrl := include "docmost.appUrl" . -}}
+{{- $gatewayAPIEnabled := false -}}
+{{- if hasKey .Values "gatewayAPI" -}}
+{{- $gatewayAPIEnabled = dig "enabled" false .Values.gatewayAPI -}}
+{{- end -}}
+1. Docmost has been installed
+=============================
+  Release:      {{ .Release.Name }}
+  Namespace:    {{ $namespace }}
+  Chart Version: {{ .Chart.Version }}
+  App Version:  {{ .Chart.AppVersion }}
+  Image:        {{ include "docmost.image" . }}
 
-Access:
-  HTTP: {{ include "docmost.fullname" . }}:{{ .Values.service.port }}
+2. Access
+=========
+[ClusterIP] Port-forward:
+  kubectl port-forward -n {{ $namespace }} svc/{{ include "docmost.fullname" . }} 8080:{{ .Values.service.port }}
+  Open: http://localhost:8080
 
-{{- if include "docmost.appUrl" . }}
-Configured application URL:
-  {{ include "docmost.appUrl" . }}
+{{- if .Values.ingress.enabled }}
+[Ingress]
+{{- range .Values.ingress.hosts }}
+  Host: {{ .host }}
+{{- end }}
+{{- end }}
+
+{{- if or .Values.gateway.enabled $gatewayAPIEnabled }}
+[Gateway API]
+  HTTPRoute: {{ include "docmost.fullname" . }}
+{{- if .Values.gateway.enabled }}
+  Values block: gateway
 {{- else }}
-No external application URL is configured. Set docmost.appUrl or enable ingress for a stable URL.
+  Values block: gatewayAPI (deprecated alias; migrate to gateway.* when possible)
+{{- end }}
 {{- end }}
 
-Runtime:
-  Database mode: {{ include "docmost.databaseMode" . }}
-  PostgreSQL subchart: {{ ternary "enabled" "disabled" .Values.postgresql.enabled }}
-  Redis subchart: {{ ternary "enabled" "disabled" .Values.redis.enabled }}
-  Storage mode: {{ .Values.storage.mode }}
-  Backup CronJob: {{ ternary "enabled" "disabled" .Values.backup.enabled }}
-
-Getting started:
-  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "docmost.fullname" . }} 8080:{{ .Values.service.port }}
-  http://127.0.0.1:8080
-
-Configuration:
-  Image: {{ include "docmost.image" . }}
-  App URL: {{ default "not configured" (include "docmost.appUrl" .) }}
-  Service type: {{ .Values.service.type }}
-
-Resources:
-  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
-  kubectl -n {{ .Release.Namespace }} get svc,pvc -l app.kubernetes.io/instance={{ .Release.Name }}
-
-Troubleshooting:
-  kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "docmost.fullname" . }} --tail=100
-{{- if .Values.postgresql.enabled }}
-  kubectl -n {{ .Release.Namespace }} logs statefulset/{{ .Release.Name }}-postgresql --tail=100
+{{- if $appUrl }}
+Configured application URL:
+  {{ $appUrl }}
+{{- else }}
+No external application URL is configured. Set docmost.appUrl or enable ingress
+with a stable host before production use.
 {{- end }}
-{{- if .Values.redis.enabled }}
-  kubectl -n {{ .Release.Namespace }} logs statefulset/{{ .Release.Name }}-redis --tail=100
-{{- end }}
-  kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
 
-Upgrade notes:
-  Confirm PostgreSQL and Redis backups before upgrading production releases.
-  If using external services, validate database.external.* and redis.external.* secret references before rollout.
+3. First-time Setup
+===================
+  - Open Docmost and create the first workspace owner account.
+  - Keep docmost.appSecret stable across upgrades and pod restarts.
+  - Configure SMTP, identity providers, and workspace settings from the UI.
+  - Use S3 storage for multi-node or durable object-storage backed uploads.
+
+4. Configuration Summary
+========================
+  Database:         {{ include "docmost.databaseMode" . }}{{- if .Values.postgresql.enabled }} (PostgreSQL subchart){{- else if .Values.database.external.host }} (external PostgreSQL){{- end }}
+  Redis:            {{ include "docmost.redisMode" . }}{{- if .Values.redis.enabled }} (Redis subchart){{- else if .Values.redis.external.host }} (external Redis){{- end }}
+  Storage:          {{ .Values.storage.mode }}{{- if and (eq .Values.storage.mode "local") .Values.storage.local.enabled }} (PVC){{- else if eq .Values.storage.mode "s3" }} (S3-compatible){{- end }}
+  Backup CronJob:   {{- if .Values.backup.enabled }} enabled ({{ .Values.backup.schedule }}){{- else }} disabled{{- end }}
+  Ingress:          {{- if .Values.ingress.enabled }} enabled{{- else }} disabled{{- end }}
+  Gateway API:      {{- if or .Values.gateway.enabled $gatewayAPIEnabled }} enabled{{- else }} disabled{{- end }}
+  External Secrets: {{- if .Values.externalSecrets.enabled }} enabled{{- else }} disabled{{- end }}
+  Network Policy:   not managed by this chart
+  Service:          {{ .Values.service.type }} on port {{ .Values.service.port }}
+
+5. Getting Started
+==================
+  Step 1: Access Docmost with the port-forward command from section 2.
+  Step 2: Create the first administrator account and workspace.
+  Step 3: Confirm upload storage by adding a small attachment to a page.
+  Step 4: Configure a stable external URL before inviting users.
+
+Upgrade reminder:
+  Docmost {{ .Chart.AppVersion }} includes upstream feature, security, and
+  bug-fix changes. Back up PostgreSQL and uploaded files before production
+  upgrades. Keep docmost.appSecret and database/Redis credentials stable.
+
+  The `gatewayAPI.*` values block is still accepted as a compatibility alias
+  for existing installations. New values should use `gateway.*`.
+
+6. Validation Commands
+======================
+  # Check pods are ready
+  kubectl get pods -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+  # Check services, PVCs, and optional routes
+  kubectl get svc,pvc -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl get ingress,httproute -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} 2>/dev/null || true
+
+  # Check Docmost logs
+  kubectl logs -n {{ $namespace }} deploy/{{ include "docmost.fullname" . }} -c docmost --tail=100
+
+  # Check dependency init containers when startup is blocked
+  kubectl logs -n {{ $namespace }} deploy/{{ include "docmost.fullname" . }} -c wait-for-postgresql --tail=100
+  kubectl logs -n {{ $namespace }} deploy/{{ include "docmost.fullname" . }} -c wait-for-redis --tail=100
+
+  # Test HTTP health from inside the pod
+  kubectl exec -n {{ $namespace }} deploy/{{ include "docmost.fullname" . }} -- \
+    sh -c "node -e \"fetch('http://127.0.0.1:3000/api/health').then(r=>{console.log(r.status);return r.text()}).then(t=>console.log(t)).catch(e=>{console.error(e);process.exit(1)})\""
+
+7. Troubleshooting
+==================
+  Pod not ready:
+    -> Check init container logs for PostgreSQL and Redis connectivity.
+    -> Verify database.mode, database.external.*, redis.enabled, and redis.external.*.
+
+  Login or session errors after upgrade:
+    -> Ensure docmost.appSecret did not change.
+    -> Prefer an existing Secret for production-grade secret management.
+
+  Uploads disappear after pod replacement:
+    -> Use storage.local.enabled=true with a PVC or configure storage.mode=s3.
+    -> For more than one replica, prefer S3-compatible storage.
+
+  Gateway route missing after upgrade:
+    -> Existing gatewayAPI.* values still render HTTPRoute for compatibility.
+    -> For new values, migrate to gateway.enabled, gateway.parentRefs, and gateway.hostnames.
+
+  Database extension or search issues:
+    -> Bundled PostgreSQL initializes unaccent and pg_trgm on fresh databases.
+    -> Existing external databases should have those extensions enabled before use.
+
+  Backup job failed:
+    -> Check backup.s3.endpoint, bucket, and credentials.
+    -> Inspect job logs:
+       kubectl logs -n {{ $namespace }} job/<backup-job-name>
+
+8. Telemetry
+============
+  Docmost telemetry is controlled by docmost.disableTelemetry.
+  Current value: {{ ternary "disabled" "enabled" .Values.docmost.disableTelemetry }}
+
+9. Upgrading
+============
+  Minor upgrades: update the chart and let the deployment roll out normally.
+  Production upgrades: back up PostgreSQL and uploaded files first.
+  Gateway API values: gatewayAPI.* remains supported for upgrade compatibility,
+  but gateway.* is the preferred block for new configuration.
+
+10. Documentation
+=================
+  HelmForge docs: https://helmforge.dev/docs/charts/docmost
+  Upstream docs:  https://docmost.com/docs
+  GitHub source:  https://github.com/helmforgedev/charts/tree/main/charts/docmost
 
 Happy Helmforging :)
