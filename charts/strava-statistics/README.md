@@ -59,7 +59,7 @@ strava:
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `image.tag` | `v4.8.1` | Statistics for Strava image tag |
+| `image.tag` | `v4.8.5` | Statistics for Strava image tag |
 | `strava.port` | `8080` | Application port |
 | `strava.clientId` | `""` | Strava OAuth Client ID |
 | `strava.clientSecret` | `""` | Strava OAuth Client Secret |
