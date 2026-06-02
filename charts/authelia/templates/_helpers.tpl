@@ -78,6 +78,16 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "authelia.tcpAddress" -}}
+{{- $host := .host | toString | trim -}}
+{{- $port := .port | toString | trim -}}
+{{- if and (contains ":" $host) (not (hasPrefix "[" $host)) -}}
+{{- printf "tcp://[%s]:%s" $host $port -}}
+{{- else -}}
+{{- printf "tcp://%s:%s" $host $port -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "authelia.dbName" -}}
 {{- $type := include "authelia.dbType" . -}}
 {{- if eq $type "postgres" -}}
@@ -283,12 +293,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $dbType := include "authelia.dbType" . -}}
 {{- if eq $dbType "postgres" -}}
   {{- $_ := unset $cfg.storage "local" -}}
-  {{- $pgAddress := printf "tcp://%s:%s" (include "authelia.dbHost" .) (include "authelia.dbPort" .) -}}
+  {{- $pgAddress := include "authelia.tcpAddress" (dict "host" (include "authelia.dbHost" .) "port" (include "authelia.dbPort" .)) -}}
   {{- $pgCfg := dict "address" $pgAddress "database" (include "authelia.dbName" .) "username" (include "authelia.dbUsername" .) "schema" (.Values.database.external.schema | default "public") -}}
   {{- $_ := set $cfg.storage "postgres" $pgCfg -}}
 {{- else if eq $dbType "mysql" -}}
   {{- $_ := unset $cfg.storage "local" -}}
-  {{- $myAddress := printf "tcp://%s:%s" (include "authelia.dbHost" .) (include "authelia.dbPort" .) -}}
+  {{- $myAddress := include "authelia.tcpAddress" (dict "host" (include "authelia.dbHost" .) "port" (include "authelia.dbPort" .)) -}}
   {{- $myCfg := dict "address" $myAddress "database" (include "authelia.dbName" .) "username" (include "authelia.dbUsername" .) -}}
   {{- $_ := set $cfg.storage "mysql" $myCfg -}}
 {{- end -}}
