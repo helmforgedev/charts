@@ -12,6 +12,8 @@ OliveTin gives safe and simple access to predefined shell commands from a web in
 - **Prometheus metrics** — optional /metrics endpoint with ServiceMonitor support
 - **Ingress support** — TLS with cert-manager
 - **Gateway API support** — optional HTTPRoute rendering for modern ingress controllers
+- **External Secrets support** — optional ExternalSecret resources for command credentials
+- **Dual-stack Service support** — optional `ipFamilyPolicy` and `ipFamilies`
 - **Lightweight** — minimal resource usage
 
 ## Installation
@@ -55,7 +57,7 @@ kubectl port-forward svc/<release>-olivetin 1337:80
 |-----|---------|-------------|
 | `configInit.enabled` | `true` | Prepare writable OliveTin runtime files before startup |
 | `configInit.securityContext` | non-root | Security context for the config bootstrap init container |
-| `image.tag` | `3000.13.0` | OliveTin image tag |
+| `image.tag` | `3000.14.0` | OliveTin image tag |
 | `securityContext` | non-root | Security context for the OliveTin application container |
 | `olivetin.port` | `1337` | Application port |
 | `config` | `""` | OliveTin YAML configuration. Empty uses the chart-managed default config. |
@@ -67,6 +69,10 @@ kubectl port-forward svc/<release>-olivetin 1337:80
 | `service.ipFamilyPolicy` | omitted | Optional Service IP family policy for dual-stack clusters |
 | `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute rendering |
 | `gatewayAPI.httpRoutes[].rules[].omitDefaultBackend` | `false` | Omit the default Service backend for redirect-only rules |
+| `externalSecrets.enabled` | `false` | Render ExternalSecret resources for command credentials |
+| `externalSecrets.apiVersion` | `external-secrets.io/v1` | ExternalSecret API version |
+| `externalSecrets.refreshInterval` | `1h` | Default provider sync interval |
+| `externalSecrets.items` | `[]` | ExternalSecret item list with full ESO `spec` blocks |
 | `metrics.enabled` | `false` | Enable Prometheus metrics |
 | `metrics.defaultGoMetrics` | `false` | Expose default Go runtime metrics |
 | `metrics.serviceMonitor.enabled` | `false` | Create ServiceMonitor |
@@ -111,6 +117,48 @@ ingress:
       secretName: olivetin-tls
 ```
 
+## Gateway API Example
+
+```yaml
+gatewayAPI:
+  enabled: true
+  httpRoutes:
+    - name: web
+      parentRefs:
+        - name: public
+          namespace: gateway-system
+      hostnames:
+        - olivetin.example.com
+```
+
+## External Secrets Example
+
+```yaml
+externalSecrets:
+  enabled: true
+  items:
+    - name: command-credentials
+      spec:
+        secretStoreRef:
+          name: platform-secrets
+          kind: ClusterSecretStore
+        target:
+          name: olivetin-command-credentials
+          creationPolicy: Owner
+        data:
+          - secretKey: API_TOKEN
+            remoteRef:
+              key: olivetin/api-token
+
+olivetin:
+  extraEnv:
+    - name: API_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: olivetin-command-credentials
+          key: API_TOKEN
+```
+
 ## More Information
 
 - [OliveTin documentation](https://docs.olivetin.app)
@@ -128,7 +176,9 @@ scope: Chart
 
 relations:
   - charts/olivetin/values.yaml
+  - charts/olivetin/DESIGN.md
+  - charts/olivetin/docs/configuration.md
 path: charts/olivetin/README.md
-version: 1.0
-date: 2026-04-03
+version: 1.1
+date: 2026-06-02
 -->

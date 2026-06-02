@@ -53,6 +53,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "olivetin.externalSecretName" -}}
+{{- $root := index . "root" -}}
+{{- $item := index . "item" -}}
+{{- $fullname := include "olivetin.fullname" $root -}}
+{{- $itemName := $item.name | default "external" | trunc 32 | trimSuffix "-" -}}
+{{- printf "%s-%s" ($fullname | trunc (int (sub 62 (len $itemName))) | trimSuffix "-") $itemName | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "olivetin.image" -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
