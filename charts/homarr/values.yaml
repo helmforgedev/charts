@@ -117,7 +117,7 @@ postgresql:
         SELECT format('GRANT CREATE ON DATABASE %I TO %I', :'app_database', :'app_username') \gexec
         SQL
         fi
-  primary:
+  standalone:
     persistence:
       # -- Enable persistence for PostgreSQL data
       enabled: true
@@ -179,7 +179,7 @@ mysql:
     password: ""
     # -- Root password (auto-generated if empty)
     rootPassword: ""
-  primary:
+  standalone:
     persistence:
       # -- Enable persistence for MySQL data
       enabled: true
@@ -243,21 +243,25 @@ persistence:
 # =============================================================================
 
 # -- CPU and memory requests/limits for the Homarr container
-resources: {}
-  # requests:
-  #   cpu: 100m
-  #   memory: 256Mi
-  # limits:
-  #   cpu: 500m
-  #   memory: 512Mi
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 750m
+    memory: 768Mi
 
 # =============================================================================
 # Security Context
 # =============================================================================
 
-podSecurityContext: {}
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
 
 # =============================================================================
 # Probes
@@ -349,11 +353,11 @@ ingress:
 # Gateway API
 # =============================================================================
 
-gatewayAPI:
+gateway:
   # -- Enable Gateway API HTTPRoute for Homarr HTTP (requires Gateway API CRDs)
   enabled: false
 
-  # -- Parent Gateway references. Leave empty to attach through controller defaults.
+  # -- Parent Gateway references.
   parentRefs: []
   #   - name: shared-gateway
   #     namespace: gateway-system
@@ -363,10 +367,11 @@ gatewayAPI:
   hostnames: []
   #   - dash.example.com
 
-  # -- HTTPRoute path matches
-  paths:
-    - type: PathPrefix
-      value: /
+  # -- HTTPRoute path
+  path: /
+
+  # -- HTTPRoute path match type
+  pathType: PathPrefix
 
   # -- HTTPRoute annotations
   annotations: {}

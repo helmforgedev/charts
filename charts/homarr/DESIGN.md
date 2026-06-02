@@ -70,6 +70,9 @@ failover outside the application chart.
 - Preserve generated encryption/auth secrets across upgrades.
 - Include a PostgreSQL upgrade hook that reapplies Homarr database grants for existing bundled PostgreSQL installations.
 - Render Gateway API and External Secrets only when explicitly enabled.
+- Keep default security hardening compatible with the official image: resource limits, no privilege escalation, and
+  `RuntimeDefault` seccomp are enabled, while writable root filesystem, root UID, and default capabilities remain because
+  nginx writes `/etc/nginx/nginx.conf` and `/var/lib/nginx` at startup.
 
 ## Production Boundary
 

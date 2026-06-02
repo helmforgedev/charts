@@ -11,7 +11,7 @@ Current application version: `v1.63.0`.
 
 - **Official Homarr image** from `ghcr.io/homarr-labs/homarr`
 - **Database backends** SQLite3 (default), PostgreSQL, or MySQL with auto-detection
-- **PostgreSQL and MySQL subcharts** optional bundled database deployments using HelmForge PostgreSQL `1.10.0` and MySQL `1.9.1`
+- **PostgreSQL and MySQL subcharts** optional bundled database deployments using HelmForge PostgreSQL `2.0.2` and MySQL `2.0.0`
 - **Encryption key management** auto-generated or existing secret for `SECRET_ENCRYPTION_KEY`
 - **Kubernetes integration** optional workload discovery via `ENABLE_KUBERNETES`
 - **External Redis** optional external Redis for multi-instance setups
@@ -71,7 +71,7 @@ ingress:
 ### Gateway API HTTPRoute
 
 ```yaml
-gatewayAPI:
+gateway:
   enabled: true
   parentRefs:
     - name: shared-gateway
@@ -79,9 +79,8 @@ gatewayAPI:
       sectionName: https
   hostnames:
     - dash.example.com
-  paths:
-    - type: PathPrefix
-      value: /
+  path: /
+  pathType: PathPrefix
 ```
 
 ### External Secrets Operator
@@ -193,11 +192,11 @@ backup:
 | `postgresql.initdb.scripts` | Homarr grants | PostgreSQL bootstrap grants required for Homarr migrations |
 | `postgresqlUpgradeJob.enabled` | `true` | Run a pre-upgrade hook that reapplies PostgreSQL grants on existing bundled PostgreSQL PVCs |
 | `postgresqlUpgradeJob.requireExistingResources` | `true` | Require an existing bundled PostgreSQL Secret and Service before rendering the pre-upgrade hook |
-| `postgresql.primary.persistence.enabled` | `true` | Enable PostgreSQL persistence |
+| `postgresql.standalone.persistence.enabled` | `true` | Enable PostgreSQL persistence |
 | `mysql.enabled` | `false` | Deploy MySQL subchart |
 | `mysql.auth.database` | `homarr` | MySQL database name |
 | `mysql.auth.username` | `homarr` | MySQL username |
-| `mysql.primary.persistence.enabled` | `true` | Enable MySQL persistence |
+| `mysql.standalone.persistence.enabled` | `true` | Enable MySQL persistence |
 | `redis.external` | `false` | Use external Redis |
 | `redis.host` | `""` | External Redis host |
 | `redis.port` | `6379` | External Redis port |
@@ -209,9 +208,9 @@ backup:
 | `service.ipFamilies` | `[]` | Ordered service IP families |
 | `ingress.enabled` | `false` | Enable ingress |
 | `ingress.ingressClassName` | `""` | Ingress class |
-| `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute |
-| `gatewayAPI.parentRefs` | `[]` | Parent Gateway references |
-| `gatewayAPI.hostnames` | `[]` | HTTPRoute hostnames |
+| `gateway.enabled` | `false` | Enable Gateway API HTTPRoute |
+| `gateway.parentRefs` | `[]` | Parent Gateway references |
+| `gateway.hostnames` | `[]` | HTTPRoute hostnames |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret for the Homarr encryption/auth Secret |
 | `externalSecrets.secretStoreRef.name` | `""` | SecretStore or ClusterSecretStore name |
 | `backup.enabled` | `false` | Enable S3 backup CronJob |
@@ -241,7 +240,7 @@ Then pass it via `encryption.key` or an existing secret.
 ## Gateway API
 
 The chart can render a native Kubernetes Gateway API `HTTPRoute` alongside or instead of Ingress. Set
-`gatewayAPI.enabled=true` and reference an existing shared Gateway with `gatewayAPI.parentRefs`. Gateway API CRDs and a
+`gateway.enabled=true` and reference an existing shared Gateway with `gateway.parentRefs`. Gateway API CRDs and a
 controller such as Envoy Gateway, Cilium, Istio, Traefik, or NGINX Gateway Fabric must be installed separately.
 
 ## Dual-Stack Networking
@@ -256,6 +255,13 @@ Set `externalSecrets.enabled=true` with `encryption.existingSecret` to let Exter
 `SECRET_ENCRYPTION_KEY` and `AUTH_SECRET`. The `externalSecrets.data` entries must include `secret-encryption-key` (or the
 configured `encryption.existingSecretKey`) and `auth-secret`. The External Secrets Operator and SecretStore are managed
 outside this chart.
+
+## Security Defaults
+
+The chart sets resource requests and limits, disables privilege escalation, and applies the `RuntimeDefault` seccomp profile
+by default. The official Homarr image configures nginx during startup, so the chart keeps the container root filesystem
+writable and does not force a non-root UID or dropped capabilities by default. Override `podSecurityContext` and
+`securityContext` only after validating compatible writable mounts for `/etc/nginx` and `/var/lib/nginx`.
 
 ## Upgrade Notes
 
