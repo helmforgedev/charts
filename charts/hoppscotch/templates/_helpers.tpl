@@ -109,6 +109,9 @@ validateAll — fail-fast on misconfigured values
 {{- if eq (int .Values.service.containerPort) 8080 -}}
   {{- fail "service.containerPort must not be 8080 because the Hoppscotch AIO backend already listens on localhost:8080" -}}
 {{- end -}}
+{{- if and .Values.postgresql.enabled (hasKey .Values.postgresql "primary") -}}
+  {{- fail "postgresql.primary.* is no longer supported by the bundled HelmForge PostgreSQL subchart; migrate these overrides to postgresql.standalone.* before upgrading" -}}
+{{- end -}}
 {{- if and .Values.gateway.enabled (not .Values.gateway.parentRefs) -}}
   {{- fail "gateway.parentRefs is required when gateway.enabled=true" -}}
 {{- end -}}

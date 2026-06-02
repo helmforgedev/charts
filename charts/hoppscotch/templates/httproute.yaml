@@ -8,12 +8,20 @@
 {{- $hostnames := default list $gateway.hostnames }}
 {{- $path := default "/" $gateway.path }}
 {{- $pathType := default "PathPrefix" $gateway.pathType }}
+{{- $matches := list (dict "path" $path "pathType" $pathType) }}
 {{- if $useLegacyGateway }}
   {{- $annotations = default dict $legacyGateway.annotations }}
   {{- $parentRefs = default list $legacyGateway.parentRefs }}
   {{- $hostnames = default list $legacyGateway.hostnames }}
   {{- $path = default "/" $legacyGateway.path }}
   {{- $pathType = default "PathPrefix" $legacyGateway.pathType }}
+  {{- $matches = list (dict "path" $path "pathType" $pathType) }}
+  {{- with $legacyGateway.paths }}
+    {{- $matches = list }}
+    {{- range . }}
+      {{- $matches = append $matches (dict "path" (default "/" .path) "pathType" (default "PathPrefix" .pathType)) }}
+    {{- end }}
+  {{- end }}
   {{- if and (not $parentRefs) $legacyGateway.gatewayName }}
     {{- $legacyParentRef := dict "name" $legacyGateway.gatewayName }}
     {{- with $legacyGateway.gatewayNamespace }}
@@ -40,9 +48,11 @@ spec:
   {{- end }}
   rules:
     - matches:
+        {{- range $matches }}
         - path:
-            type: {{ $pathType }}
-            value: {{ $path | quote }}
+            type: {{ .pathType }}
+            value: {{ .path | quote }}
+        {{- end }}
       backendRefs:
         - name: {{ include "hoppscotch.fullname" . }}
           port: {{ .Values.service.port }}
