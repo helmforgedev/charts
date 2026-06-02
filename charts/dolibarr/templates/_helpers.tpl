@@ -76,6 +76,9 @@ Database mode detection (auto | external | mysql).
 */}}
 {{- define "dolibarr.databaseMode" -}}
 {{- $mode := .Values.database.mode | default "auto" -}}
+{{- if hasKey .Values.mysql "primary" -}}
+{{- fail "mysql.primary.* is not supported by the HelmForge MySQL 2.x dependency used by this chart. Migrate MySQL values to mysql.standalone.* before upgrading." -}}
+{{- end -}}
 {{- if not (has $mode (list "auto" "external" "mysql")) -}}
 {{- fail (printf "database.mode must be one of: auto, external, mysql (got %s)" $mode) -}}
 {{- end -}}
@@ -151,7 +154,11 @@ Database mode detection (auto | external | mysql).
 {{- if and (eq (include "dolibarr.databaseMode" .) "external") .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecret -}}
 {{- else if eq (include "dolibarr.databaseMode" .) "mysql" -}}
+{{- if .Values.mysql.auth.existingSecret -}}
+{{- .Values.mysql.auth.existingSecret -}}
+{{- else -}}
 {{- printf "%s-mysql-auth" .Release.Name -}}
+{{- end -}}
 {{- else -}}
 {{- printf "%s-database" (include "dolibarr.fullname" .) -}}
 {{- end -}}
@@ -161,7 +168,7 @@ Database mode detection (auto | external | mysql).
 {{- if and (eq (include "dolibarr.databaseMode" .) "external") .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecretPasswordKey -}}
 {{- else if eq (include "dolibarr.databaseMode" .) "mysql" -}}
-mysql-user-password
+{{- .Values.mysql.auth.existingSecretUserPasswordKey | default "mysql-user-password" -}}
 {{- else -}}
 database-password
 {{- end -}}

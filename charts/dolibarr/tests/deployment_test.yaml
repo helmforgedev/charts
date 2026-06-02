@@ -24,7 +24,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: docker.io/dolibarr/dolibarr:23.0.2
+          value: docker.io/dolibarr/dolibarr:23.0.3
 
   - it: should set database env vars for the MySQL subchart
     asserts:
@@ -48,6 +48,32 @@ tests:
           content:
             name: DOLI_DB_USER
             value: "dolibarr"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DOLI_DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-mysql-auth
+                key: mysql-user-password
+
+  - it: should use the bundled MySQL existing auth secret for the database password
+    set:
+      mysql:
+        auth:
+          existingSecret: dolibarr-mysql-auth
+          existingSecretUserPasswordKey: user-password
+          existingSecretRootPasswordKey: root-password
+          existingSecretReplicationPasswordKey: replication-password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DOLI_DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: dolibarr-mysql-auth
+                key: user-password
 
   - it: should set the admin password from the generated secret
     asserts:
@@ -100,6 +126,12 @@ tests:
             name: DOLI_CRON
             value: "0"
 
+  - it: should delay startup probing until first-run bootstrap can complete
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.initialDelaySeconds
+          value: 70
+
   - it: should include the wait-for-db init container
     asserts:
       - equal:
@@ -108,6 +140,29 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[0].image
           value: docker.io/library/busybox:1.37
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 10m
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.memory
+          value: 64Mi
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+          value: true
+
+  - it: should set default pod security context and container resources
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 768Mi
+      - notExists:
+          path: spec.template.spec.containers[0].securityContext
 
   - it: should mount both Dolibarr PVCs
     asserts:
@@ -171,6 +226,17 @@ tests:
           content:
             name: DOLI_DB_SSL
             value: "1"
+
+  - it: should fail fast when legacy mysql.primary values are used
+    set:
+      mysql:
+        primary:
+          persistence:
+            enabled: true
+            size: 20Gi
+    asserts:
+      - failedTemplate:
+          errorMessage: "mysql.primary.* is not supported by the HelmForge MySQL 2.x dependency used by this chart. Migrate MySQL values to mysql.standalone.* before upgrading."
 
   - it: should auto-detect the ingress host as DOLI_URL_ROOT
     set:

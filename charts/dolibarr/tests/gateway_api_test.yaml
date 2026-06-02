@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Gateway API
+templates:
+  - templates/httproute.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render an HTTPRoute by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render an HTTPRoute when Gateway API is enabled
+    set:
+      gateway.enabled: true
+      gateway.annotations:
+        example.com/route: dolibarr
+      gateway.parentRefs:
+        - name: public-gateway
+          namespace: gateway-system
+      gateway.hostnames:
+        - erp.example.com
+      gateway.path: /dolibarr
+      gateway.pathType: PathPrefix
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: metadata.annotations["example.com/route"]
+          value: dolibarr
+      - equal:
+          path: spec.parentRefs[0].name
+          value: public-gateway
+      - equal:
+          path: spec.parentRefs[0].namespace
+          value: gateway-system
+      - contains:
+          path: spec.hostnames
+          content: erp.example.com
+      - equal:
+          path: spec.rules[0].matches[0].path.value
+          value: /dolibarr
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: test-dolibarr
+
+  - it: should require parentRefs when Gateway API is enabled
+    set:
+      gateway.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.enabled requires gateway.parentRefs to be populated to create a valid HTTPRoute."
+
+  - it: should require a name in each parentRef
+    set:
+      gateway.enabled: true
+      gateway.parentRefs:
+        - namespace: gateway-system
+    asserts:
+      - failedTemplate:
+          errorMessage: "Each gateway.parentRefs entry must define a 'name' field"

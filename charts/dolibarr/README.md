@@ -34,6 +34,8 @@ helm install dolibarr oci://ghcr.io/helmforgedev/helm/dolibarr \
 - **Auto Installation** — unattended setup through `DOLI_*` environment variables
 - **Persistent Storage** — separate PVCs for `/var/www/documents` and `/var/www/html/custom`
 - **Ingress Support** — configurable ingress with TLS for HTTPS access
+- **Gateway API Support** — optional HTTPRoute for clusters using Gateway API
+- **S3 Backups** — optional mysqldump CronJob for S3-compatible storage
 - **Secret Preservation** — admin, runtime, and database secrets preserved across upgrades via `lookup`
 
 ## Configuration
@@ -63,7 +65,7 @@ mysql:
   enabled: true
   auth:
     existingSecret: dolibarr-mysql
-  primary:
+  standalone:
     persistence:
       size: 20Gi
 
@@ -114,7 +116,7 @@ database:
 
 ## Parameters
 
-### Dolibarr
+### Application
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -156,7 +158,13 @@ database:
 | `mysql.architecture` | `standalone` | MySQL architecture |
 | `mysql.auth.database` | `dolibarr` | Database name |
 | `mysql.auth.username` | `dolibarr` | Database username |
-| `mysql.primary.persistence.size` | `8Gi` | MySQL PVC size |
+| `mysql.standalone.persistence.size` | `8Gi` | MySQL PVC size |
+| `mysql.startupProbe.initialDelaySeconds` | `30` | MySQL startup probe delay used to avoid false-positive bootstrap warnings |
+
+When upgrading from chart releases that used `mysql.primary.*`, migrate those
+values to `mysql.standalone.*`. The chart fails fast if `mysql.primary` is still
+present so persistence and resource settings are not silently ignored by the
+HelmForge MySQL 2.x dependency.
 
 ### Persistence
 
@@ -182,10 +190,12 @@ database:
 - PostgreSQL is not included because the official container workflow is not equivalent to the unattended MySQL path
 - persist both `documents` and `custom` if you plan to keep generated artifacts, modules, or themes across upgrades
 - built-in Dolibarr cron is intentionally not enabled by this first chart release because it still needs a stable Kubernetes validation path
+- the default startup probe delay accounts for the initial database import performed by the official container on a fresh deployment
 
 ## More Information
 
 - [Database Modes](docs/database.md)
+- [Chart Design](DESIGN.md)
 - [Source code and full values reference](https://github.com/helmforgedev/charts/tree/main/charts/dolibarr)
 
 <!-- @AI-METADATA
@@ -199,6 +209,7 @@ purpose: User-facing chart documentation with install, examples, and values refe
 scope: Chart
 
 relations:
+  - charts/dolibarr/DESIGN.md
   - charts/dolibarr/docs/database.md
 path: charts/dolibarr/README.md
 version: 1.0
