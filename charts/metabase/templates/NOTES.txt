@@ -65,14 +65,28 @@ Check backup CronJob: kubectl get cronjob -n {{ .Release.Namespace }}
   WARNINGS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-{{- if .Values.gateway.enabled }}
+{{- $gateway := default dict .Values.gateway }}
+{{- $legacyGateway := default dict .Values.gatewayAPI }}
+{{- $useLegacyGateway := and (not (default false $gateway.enabled)) (default false $legacyGateway.enabled) }}
+{{- if or (default false $gateway.enabled) $useLegacyGateway }}
 
 NOTE: Gateway API HTTPRoute {{ include "metabase.fullname" . }} is active.
+{{- if $useLegacyGateway }}
+  ParentRefs:
+    - name: {{ $legacyGateway.gatewayName }}
+      {{- with $legacyGateway.gatewayNamespace }}
+      namespace: {{ . }}
+      {{- end }}
+  {{- with $legacyGateway.hostnames }}
+  Hostnames: {{ join ", " . }}
+  {{- end }}
+{{- else }}
   ParentRefs:
 {{ toYaml .Values.gateway.parentRefs | indent 4 }}
   {{- with .Values.gateway.hostnames }}
   Hostnames: {{ join ", " . }}
   {{- end }}
+{{- end }}
 {{- else if not .Values.ingress.enabled }}
 
 NOTE: Ingress is not enabled. Access via port-forward (see above).

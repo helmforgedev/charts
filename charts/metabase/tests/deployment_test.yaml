@@ -117,6 +117,7 @@ tests:
   - it: should fail fast when legacy postgresql.primary values are used
     set:
       postgresql:
+        enabled: true
         primary:
           persistence:
             enabled: true
@@ -124,6 +125,22 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "postgresql.primary.* is not supported by the HelmForge PostgreSQL 2.x dependency used by this chart. Migrate PostgreSQL values to postgresql.standalone.* before upgrading."
+
+  - it: should ignore stale legacy postgresql.primary values when using an external database
+    set:
+      database.external.host: db.example.com
+      database.external.password: external-password
+      postgresql:
+        enabled: false
+        primary:
+          persistence:
+            size: 20Gi
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MB_DB_HOST
+            value: db.example.com
 
   - it: should set probes on health path
     asserts:

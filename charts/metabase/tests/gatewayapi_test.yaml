@@ -47,3 +47,30 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "Each gateway.parentRefs entry must define a 'name' field"
+
+  - it: should preserve legacy gatewayAPI values during upgrades
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.gatewayName: legacy-gateway
+      gatewayAPI.gatewayNamespace: gateway-system
+      gatewayAPI.hostnames:
+        - legacy-metabase.example.com
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.parentRefs[0].name
+          value: legacy-gateway
+      - equal:
+          path: spec.parentRefs[0].namespace
+          value: gateway-system
+      - equal:
+          path: spec.hostnames[0]
+          value: legacy-metabase.example.com
+
+  - it: should fail legacy gatewayAPI when gatewayName is missing
+    set:
+      gatewayAPI.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "gatewayAPI.gatewayName is required when legacy gatewayAPI.enabled=true"

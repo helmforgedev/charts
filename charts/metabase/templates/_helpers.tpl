@@ -45,7 +45,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/* Database host */}}
 {{- define "metabase.dbHost" -}}
-{{- if hasKey .Values.postgresql "primary" -}}
+{{- if and .Values.postgresql.enabled (hasKey .Values.postgresql "primary") -}}
 {{- fail "postgresql.primary.* is not supported by the HelmForge PostgreSQL 2.x dependency used by this chart. Migrate PostgreSQL values to postgresql.standalone.* before upgrading." -}}
 {{- end -}}
 {{- if .Values.postgresql.enabled -}}
