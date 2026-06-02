@@ -16,7 +16,7 @@ image:
   # -- Ghost container image
   repository: docker.io/library/ghost
   # -- Image tag
-  tag: "6.39.0"
+  tag: "6.42.0"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -200,11 +200,30 @@ probes:
 # Resources and Security
 # =============================================================================
 
-resources: {}
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 768Mi
 
-podSecurityContext: {}
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  privileged: false
+
+waitForDatabase:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
 
 # =============================================================================
 # Scheduling
@@ -237,12 +256,28 @@ extraManifests: []
 mysql:
   # -- Deploy MySQL as a subchart
   enabled: true
+  image:
+    # -- Ghost production supports MySQL 8; keep the HelmForge MySQL dependency on the supported image major.
+    repository: docker.io/library/mysql
+    tag: "8.4.7"
+    pullPolicy: IfNotPresent
   architecture: standalone
   auth:
     database: ghost
     username: ghost
     # -- MySQL password (auto-generated if empty)
     password: ""
+  standalone:
+    persistence:
+      enabled: true
+      size: 8Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 768Mi
 
 # =============================================================================
 # Gateway API
