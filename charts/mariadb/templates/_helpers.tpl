@@ -178,7 +178,7 @@ mariadb-admin ping --socket=/run/mysqld/mysqld.sock -uroot --password="${MARIADB
 
 {{- define "mariadb.sourceReadinessCommandString" -}}
 {{- if and (eq .Values.architecture "replication") .Values.replication.source.probes.requireWritable -}}
-mariadb -h 127.0.0.1 -P {{ .Values.service.port }} -uroot --password="${MARIADB_ROOT_PASSWORD}" -Nse "SELECT IF(@@global.read_only IN ('OFF', '0'), 1, 0)" | grep -qx 1
+mariadb -h 127.0.0.1 -P {{ .Values.service.port }} -uroot --password="${MARIADB_ROOT_PASSWORD}" -Nse "SELECT IF(CAST(@@global.read_only AS CHAR) IN ('OFF', '0'), 1, 0)" | grep -qx 1
 {{- else -}}
 {{ include "mariadb.probeCommandString" . }}
 {{- end -}}
@@ -186,7 +186,7 @@ mariadb -h 127.0.0.1 -P {{ .Values.service.port }} -uroot --password="${MARIADB_
 
 {{- define "mariadb.replicaReadinessCommandString" -}}
 {{- if and (eq .Values.architecture "replication") (or .Values.replication.readReplicas.probes.requireReadOnly .Values.replication.readReplicas.probes.requireRunningReplication) -}}
-mariadb --socket=/run/mysqld/mysqld.sock -uroot --password="${MARIADB_ROOT_PASSWORD}" -Nse "SELECT IF(@@global.read_only IN ('ON', '1'){{- if .Values.replication.readReplicas.probes.requireRunningReplication }} AND EXISTS (SELECT 1 FROM information_schema.processlist WHERE command = 'Binlog Dump') IS NOT NULL{{- end }}, 1, 0)" | grep -qx 1
+mariadb --socket=/run/mysqld/mysqld.sock -uroot --password="${MARIADB_ROOT_PASSWORD}" -Nse "SELECT IF(CAST(@@global.read_only AS CHAR) IN ('ON', '1'){{- if .Values.replication.readReplicas.probes.requireRunningReplication }} AND EXISTS (SELECT 1 FROM information_schema.processlist WHERE command = 'Binlog Dump') IS NOT NULL{{- end }}, 1, 0)" | grep -qx 1
 {{- else -}}
 {{ include "mariadb.replicaProbeCommandString" . }}
 {{- end -}}

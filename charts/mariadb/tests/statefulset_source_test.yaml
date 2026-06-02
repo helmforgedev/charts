@@ -67,6 +67,19 @@ tests:
       - isNotNull:
           path: spec.template.spec.containers[0].startupProbe
 
+  - it: should use explicit textual read_only checks in replication readiness
+    template: templates/statefulset-source.yaml
+    set:
+      architecture: replication
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: "CAST\\(@@global\\.read_only AS CHAR\\) IN \\('OFF', '0'\\)"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: "IF\\(@@global\\.read_only IN"
+
   - it: should have VolumeClaimTemplate with 8Gi default
     template: templates/statefulset-source.yaml
     asserts:
