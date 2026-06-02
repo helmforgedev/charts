@@ -95,14 +95,34 @@ tests:
           count: 1
         template: deployment.yaml
 
-  - it: should fail when gatewayAPI enabled without parentRefs
+  - it: should fail when service containerPort uses the backend reserved port
     set:
-      gatewayAPI:
+      service:
+        containerPort: 8080
+    asserts:
+      - failedTemplate:
+          errorMessage: "service.containerPort must not be 8080 because the Hoppscotch AIO backend already listens on localhost:8080"
+        template: deployment.yaml
+
+  - it: should fail fast when legacy postgresql primary overrides are used
+    set:
+      postgresql:
+        primary:
+          persistence:
+            size: 20Gi
+    asserts:
+      - failedTemplate:
+          errorMessage: "postgresql.primary.* is no longer supported by the bundled HelmForge PostgreSQL subchart; migrate these overrides to postgresql.standalone.* before upgrading"
+        template: deployment.yaml
+
+  - it: should fail when gateway enabled without parentRefs
+    set:
+      gateway:
         enabled: true
         parentRefs: []
     asserts:
       - failedTemplate:
-          errorMessage: "gatewayAPI.parentRefs is required when gatewayAPI.enabled=true"
+          errorMessage: "gateway.parentRefs is required when gateway.enabled=true"
         template: deployment.yaml
 
   - it: should fail when externalSecrets enabled without secretStoreRef.name

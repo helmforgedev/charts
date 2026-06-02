@@ -1,27 +1,61 @@
 # SPDX-License-Identifier: Apache-2.0
-{{- if .Values.gatewayAPI.enabled }}
+{{- $gateway := default dict .Values.gateway }}
+{{- $legacyGateway := default dict .Values.gatewayAPI }}
+{{- $useLegacyGateway := and (not (default false $gateway.enabled)) (default false $legacyGateway.enabled) }}
+{{- if or (default false $gateway.enabled) $useLegacyGateway }}
+{{- $annotations := default dict $gateway.annotations }}
+{{- $parentRefs := default list $gateway.parentRefs }}
+{{- $hostnames := default list $gateway.hostnames }}
+{{- $path := default "/" $gateway.path }}
+{{- $pathType := default "PathPrefix" $gateway.pathType }}
+{{- $matches := list (dict "path" $path "pathType" $pathType) }}
+{{- if $useLegacyGateway }}
+  {{- $annotations = default dict $legacyGateway.annotations }}
+  {{- $parentRefs = default list $legacyGateway.parentRefs }}
+  {{- $hostnames = default list $legacyGateway.hostnames }}
+  {{- $path = default "/" $legacyGateway.path }}
+  {{- $pathType = default "PathPrefix" $legacyGateway.pathType }}
+  {{- $matches = list (dict "path" $path "pathType" $pathType) }}
+  {{- with $legacyGateway.paths }}
+    {{- $matches = list }}
+    {{- range . }}
+      {{- $legacyPath := default (default "/" .value) .path }}
+      {{- $legacyPathType := default (default "PathPrefix" .type) .pathType }}
+      {{- $matches = append $matches (dict "path" $legacyPath "pathType" $legacyPathType) }}
+    {{- end }}
+  {{- end }}
+  {{- if and (not $parentRefs) $legacyGateway.gatewayName }}
+    {{- $legacyParentRef := dict "name" $legacyGateway.gatewayName }}
+    {{- with $legacyGateway.gatewayNamespace }}
+      {{- $_ := set $legacyParentRef "namespace" . }}
+    {{- end }}
+    {{- $parentRefs = list $legacyParentRef }}
+  {{- end }}
+{{- end }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: {{ include "hoppscotch.fullname" . }}
   namespace: {{ include "hoppscotch.namespace" . }}
   labels: {{ include "hoppscotch.labels" . | nindent 4 }}
-  {{- with .Values.gatewayAPI.annotations }}
+  {{- with $annotations }}
   annotations: {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  parentRefs: {{- toYaml (required "gatewayAPI.parentRefs is required when gatewayAPI.enabled=true" .Values.gatewayAPI.parentRefs) | nindent 4 }}
-  {{- with .Values.gatewayAPI.hostnames }}
+  {{- with $parentRefs }}
+  parentRefs: {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $hostnames }}
   hostnames: {{- toYaml . | nindent 4 }}
   {{- end }}
   rules:
-    {{- range .Values.gatewayAPI.paths }}
     - matches:
+        {{- range $matches }}
         - path:
-            type: {{ .type }}
-            value: {{ .value }}
+            type: {{ .pathType }}
+            value: {{ .path | quote }}
+        {{- end }}
       backendRefs:
-        - name: {{ include "hoppscotch.fullname" $ }}
-          port: {{ $.Values.service.port }}
-    {{- end }}
+        - name: {{ include "hoppscotch.fullname" . }}
+          port: {{ .Values.service.port }}
 {{- end }}

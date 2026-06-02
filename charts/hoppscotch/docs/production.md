@@ -64,7 +64,7 @@ ExternalSecret data, or set `signingKey.existingSecret` and
 ```yaml
 ingress:
   enabled: true
-  className: nginx
+  ingressClassName: nginx
   host: hoppscotch.example.com
   tls:
     - secretName: hoppscotch-tls
@@ -89,6 +89,18 @@ ingress:
 ```
 
 For Traefik, use middleware with websocket passthrough configured.
+
+## Default Proxy URL
+
+Hoppscotch `2026.5.0` can read a default proxy URL from `PROXY_APP_URL`. Set it when you run a self-hosted proxy and want
+new users to inherit a default without configuring it individually:
+
+```yaml
+proxy:
+  appUrl: https://proxy.example.com
+```
+
+Leave `proxy.appUrl` empty when the default should be managed from the Admin Dashboard instead.
 
 ## Multi-Replica Deployment
 
@@ -144,3 +156,10 @@ containerSecurityContext:
 ```
 
 `readOnlyRootFilesystem` is set to `false` because Hoppscotch writes temporary files at runtime.
+
+The Hoppscotch AIO image serves the frontend, admin dashboard, and backend
+through Caddy. The chart sets `HOPP_AIO_ALTERNATE_PORT=8081` by default so that
+Caddy can bind while the container runs as non-root and all Linux capabilities
+remain dropped. The Service still exposes port `80` and routes to the named
+container port. The upstream backend process remains on the image's internal
+`localhost:8080` listener.

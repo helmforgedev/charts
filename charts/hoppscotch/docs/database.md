@@ -13,7 +13,7 @@ postgresql:
     database: hoppscotch
     username: hoppscotch
     password: ""        # auto-generated if empty
-  primary:
+  standalone:
     persistence:
       enabled: true
       size: 10Gi
