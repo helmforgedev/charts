@@ -13,6 +13,9 @@ Self-hosted monitoring with HTTP/TCP/DNS/Ping checks, 90+ notification services,
 - **External database** — connect to existing MariaDB instances
 - **Scheduled backups** — SQLite tar or mysqldump with S3 upload
 - **Ingress support** — TLS with cert-manager
+- **Gateway API support** — optional HTTPRoute rendering for dashboard and status pages
+- **External Secrets support** — optional ExternalSecret resources for database, backup, or integration credentials
+- **Dual-stack Service support** — optional `ipFamilyPolicy` and `ipFamilies`
 - **2FA** — built-in two-factor authentication
 
 ## Installation
@@ -47,7 +50,7 @@ kubectl port-forward svc/<release>-uptime-kuma 3001:80
 
 ## MariaDB Mode
 
-The optional local database path uses the HelmForge MySQL subchart `1.9.1`
+The optional local database path uses the HelmForge MySQL subchart `2.0.0`
 as a MariaDB-compatible backend.
 
 ```yaml
@@ -75,33 +78,80 @@ mysql:
   enabled: false
 ```
 
+## Gateway API
+
+```yaml
+gatewayAPI:
+  enabled: true
+  httpRoutes:
+    - name: web
+      parentRefs:
+        - name: public
+          namespace: gateway-system
+      hostnames:
+        - status.example.com
+```
+
+## External Secrets
+
+Use External Secrets Operator to materialize Secrets, then point chart values at those target Secrets.
+
+```yaml
+database:
+  type: mariadb
+  external:
+    host: mariadb.example.com
+    existingSecret: uptime-kuma-db
+
+externalSecrets:
+  enabled: true
+  items:
+    - name: database
+      spec:
+        secretStoreRef:
+          name: platform-secrets
+          kind: ClusterSecretStore
+        target:
+          name: uptime-kuma-db
+          creationPolicy: Owner
+        data:
+          - secretKey: password
+            remoteRef:
+              key: uptime-kuma/database
+              property: password
+```
+
 ## Key Values
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/louislam/uptime-kuma` | Uptime Kuma container image |
-| `image.tag` | `2.3.2` | Uptime Kuma image tag |
+| `image.tag` | `2.4.0` | Uptime Kuma image tag |
 | `uptimeKuma.port` | `3001` | Application port |
 | `database.type` | `sqlite` | Database type (sqlite, mariadb) |
-| `mysql.enabled` | `false` | Deploy MySQL subchart (`helmforge/mysql` `1.9.1`) |
+| `mysql.enabled` | `false` | Deploy MySQL subchart (`helmforge/mysql` `2.0.0`) |
 | `persistence.enabled` | `true` | Enable persistence for /app/data |
 | `persistence.size` | `2Gi` | PVC size |
 | `ingress.enabled` | `false` | Enable ingress |
 | `backup.enabled` | `false` | Enable S3 backups |
 | `service.port` | `80` | Service port |
+| `service.ipFamilyPolicy` | omitted | Optional Service IP family policy for dual-stack clusters |
+| `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute rendering |
+| `externalSecrets.enabled` | `false` | Render ExternalSecret resources |
 
 ## Upgrade Notes
 
-Uptime Kuma `2.3.2` is an upstream bugfix release. The release reverts SQLite
-to single-connection behavior by default, so the default `database.type=sqlite`
-path remains aligned with upstream behavior. Keep persistence enabled for
-production SQLite deployments and back up `/app/data` before upgrading live
-instances.
+Uptime Kuma `2.4.0` adds notification providers, incident RSS support, monitor
+improvements, bug fixes, and an authenticated admin security fix. The default
+`database.type=sqlite` path remains aligned with upstream behavior. Keep
+persistence enabled for production SQLite deployments and back up `/app/data`
+before upgrading live instances.
 
 ## More Information
 
 - [Database configuration](docs/database.md)
 - [Backup configuration](docs/backup.md)
+- [Chart design](DESIGN.md)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/uptime-kuma)
 
 <!-- @AI-METADATA
@@ -112,6 +162,7 @@ instances.
 @date: 2026-03-23
 @relations:
   - charts/uptime-kuma/values.yaml
+  - charts/uptime-kuma/DESIGN.md
   - charts/uptime-kuma/docs/database.md
   - charts/uptime-kuma/docs/backup.md
 -->

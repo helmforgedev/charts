@@ -18,7 +18,7 @@ persistence:
 
 ## MariaDB via MySQL Subchart
 
-Use the HelmForge MySQL subchart `1.9.1` as a MariaDB-compatible backend:
+Use the HelmForge MySQL subchart `2.0.0` as a MariaDB-compatible backend:
 
 ```yaml
 database:
@@ -60,6 +60,38 @@ Create the secret beforehand:
 kubectl create secret generic uptime-kuma-db-credentials \
   --from-literal=password=your-password
 ```
+
+## External Secrets
+
+External Secrets Operator can reconcile the same Secret:
+
+```yaml
+database:
+  type: mariadb
+  external:
+    host: mariadb.example.com
+    existingSecret: uptime-kuma-db
+    existingSecretPasswordKey: password
+
+externalSecrets:
+  enabled: true
+  items:
+    - name: database
+      spec:
+        secretStoreRef:
+          name: platform-secrets
+          kind: ClusterSecretStore
+        target:
+          name: uptime-kuma-db
+          creationPolicy: Owner
+        data:
+          - secretKey: password
+            remoteRef:
+              key: uptime-kuma/database
+              property: password
+```
+
+Keep `database.external.existingSecret` pointed at the same target Secret to avoid credential drift.
 
 ## Migration
 

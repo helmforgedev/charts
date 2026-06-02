@@ -1,77 +1,99 @@
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Uptime Kuma has been successfully deployed!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{{- $namespace := .Release.Namespace -}}
+1. Uptime Kuma has been installed
+=================================
+  Release:   {{ .Release.Name }}
+  Namespace: {{ $namespace }}
+  Version:   {{ .Chart.AppVersion }}
+  Image:     {{ include "uptime-kuma.image" . }}
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ACCESS INFORMATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. Access
+=========
+[ClusterIP] Port-forward:
+  kubectl port-forward svc/{{ include "uptime-kuma.fullname" . }} 3001:{{ .Values.service.port }} -n {{ $namespace }}
+  Open: http://localhost:3001
 
 {{- if .Values.ingress.enabled }}
-{{- range $host := .Values.ingress.hosts }}
-DASHBOARD:    http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
-STATUS PAGE:  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/status/
+[Ingress]
+{{- range .Values.ingress.hosts }}
+  Dashboard: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}/
+  Status:    http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}/status/
 {{- end }}
-{{- else }}
-Port-forward to access Uptime Kuma locally:
-
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "uptime-kuma.fullname" . }} 3001:{{ .Values.service.port | default 3001 }}
-
-  DASHBOARD:    http://localhost:3001/
-  STATUS PAGE:  http://localhost:3001/status/
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  GETTING STARTED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=uptime-kuma -n {{ .Release.Namespace }} --timeout=300s
-2. kubectl get pods -l app.kubernetes.io/name=uptime-kuma -n {{ .Release.Namespace }}
-3. kubectl logs -l app.kubernetes.io/name=uptime-kuma -n {{ .Release.Namespace }} --all-containers --tail=50 -f
-4. Create your admin account on first access and add monitors
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  TROUBLESHOOTING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  kubectl describe pod -l app.kubernetes.io/name=uptime-kuma -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/name=uptime-kuma -n {{ .Release.Namespace }} --all-containers --tail=100
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-  kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  WARNINGS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-{{- if not .Values.persistence.enabled }}
-
-WARNING: Persistence is disabled! All monitors and data will be lost on restart.
+{{- if .Values.gatewayAPI.enabled }}
+[Gateway API]
+  HTTPRoutes:
+{{- range .Values.gatewayAPI.httpRoutes }}
+    - {{ include "uptime-kuma.httpRouteName" (dict "root" $ "route" .) }}
 {{- end }}
-{{- if eq .Values.database.type "sqlite" }}
-
-NOTE: SQLite mode stores application state under /app/data. Keep persistence enabled and back up the full data directory before upgrades.
-{{- else if .Values.mysql.enabled }}
-
-NOTE: The local MySQL subchart is enabled as the MariaDB-compatible backend. Keep mysql.auth.password set explicitly and validate database backups before production use.
-{{- else }}
-
-NOTE: External MariaDB mode is enabled. Confirm connectivity, credentials, and backup coverage outside this release.
-{{- end }}
-{{- if not .Values.ingress.enabled }}
-
-NOTE: Ingress is not enabled. Access via port-forward (see above).
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ADDITIONAL RESOURCES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Configuration Summary
+========================
+  Database:           {{- if .Values.mysql.enabled }} MySQL subchart{{- else }} {{ .Values.database.type }}{{- end }}
+  Persistence:        {{- if .Values.persistence.enabled }} enabled ({{ .Values.persistence.size }}){{- else }} disabled{{- end }}
+  Backup CronJob:     {{- if .Values.backup.enabled }} enabled{{- else }} disabled{{- end }}
+  Ingress:            {{- if .Values.ingress.enabled }} enabled{{- else }} disabled{{- end }}
+  Gateway API:        {{- if .Values.gatewayAPI.enabled }} enabled{{- else }} disabled{{- end }}
+  External Secrets:   {{- if .Values.externalSecrets.enabled }} enabled{{- else }} disabled{{- end }}
+  Service dual-stack: {{- if .Values.service.ipFamilyPolicy }} {{ .Values.service.ipFamilyPolicy }}{{- else }} cluster default{{- end }}
 
-Documentation:  https://helmforge.dev/docs/charts/uptime-kuma
-Uptime Kuma:    https://uptime.kuma.pet | https://github.com/louislam/uptime-kuma
+4. Getting Started
+==================
+  Step 1: Wait for the pod to become ready:
+    kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=uptime-kuma -n {{ $namespace }} --timeout=300s
+
+  Step 2: Open the dashboard and create the first admin account.
+
+  Step 3: Add monitors, notification channels, and public status pages.
+
+Upgrade reminder:
+  Back up /app/data for SQLite deployments or the MariaDB database before
+  production upgrades. Keep database and backup credentials stable across
+  releases.
+
+5. Validation Commands
+======================
+  # Check pods, services, PVCs, and jobs
+  kubectl get pods,svc,pvc,job,cronjob -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+  # Inspect application logs
+  kubectl logs -n {{ $namespace }} -l app.kubernetes.io/name=uptime-kuma --all-containers --tail=100
+
+  # Smoke test through the Service
+  kubectl run uptime-kuma-smoke -n {{ $namespace }} --rm -i --restart=Never --image=curlimages/curl:8.11.1 -- \
+    curl -fsS -o /dev/null -w '%{http_code}' http://{{ include "uptime-kuma.fullname" . }}:{{ .Values.service.port }}/
+
+6. Troubleshooting
+==================
+  Pod is not ready:
+    -> Check application logs and probes
+    -> Verify PVC mount and permissions for SQLite mode
+    -> Verify database host, password Secret, and MySQL subchart readiness for MariaDB mode
+
+  Dashboard loads but setup fails:
+    -> Confirm /app/data is writable
+    -> Check database migration logs
+    -> Ensure only one pod writes to the same SQLite data directory
+
+  Backup job fails:
+    -> Confirm S3 endpoint, bucket, and credential Secret
+    -> Check backup CronJob pod logs
+    -> Verify database mode matches the backup path
+
+  Gateway or ingress does not route:
+    -> Check HTTPRoute or Ingress status
+    -> Confirm parentRefs or ingressClassName match the installed controller
+
+  ExternalSecret is not creating credentials:
+    -> Confirm External Secrets Operator and SecretStore exist
+    -> Check ExternalSecret status and target Secret keys
+
+7. Documentation
+================
+  HelmForge docs: https://helmforge.dev/docs/charts/uptime-kuma
+  Chart design:   https://github.com/helmforgedev/charts/tree/main/charts/uptime-kuma/DESIGN.md
+  Upstream docs:  https://github.com/louislam/uptime-kuma/wiki
+  GitHub source:  https://github.com/helmforgedev/charts/tree/main/charts/uptime-kuma
 
 Happy Helmforging :)

@@ -39,6 +39,38 @@ backup:
     existingSecretSecretKeyKey: secret-key
 ```
 
+## External Secrets
+
+External Secrets Operator can create the backup credential Secret:
+
+```yaml
+backup:
+  enabled: true
+  s3:
+    existingSecret: uptime-kuma-s3
+
+externalSecrets:
+  enabled: true
+  items:
+    - name: backup-s3
+      spec:
+        secretStoreRef:
+          name: platform-secrets
+          kind: ClusterSecretStore
+        target:
+          name: uptime-kuma-s3
+          creationPolicy: Owner
+        data:
+          - secretKey: access-key
+            remoteRef:
+              key: uptime-kuma/s3
+              property: access-key
+          - secretKey: secret-key
+            remoteRef:
+              key: uptime-kuma/s3
+              property: secret-key
+```
+
 <!-- @AI-METADATA
 @description: Backup configuration guide for the Uptime Kuma Helm chart
 @type: chart-docs

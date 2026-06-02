@@ -16,7 +16,7 @@ image:
   # -- Uptime Kuma container image
   repository: docker.io/louislam/uptime-kuma
   # -- Image tag
-  tag: "2.3.2"
+  tag: "2.4.0"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -95,6 +95,14 @@ service:
   port: 80
   # -- Annotations for the Service
   annotations: {}
+  # -- IP family policy. One of: SingleStack | PreferDualStack | RequireDualStack. Omit for cluster default.
+  # @default -- omitted
+  # ipFamilyPolicy: PreferDualStack
+  # -- Ordered list of IP families for the Service. Each entry: IPv4 | IPv6. Omit for cluster default.
+  # @default -- omitted
+  # ipFamilies:
+  #   - IPv4
+  #   - IPv6
 
 # =============================================================================
 # Ingress
@@ -155,6 +163,17 @@ resources: {}
 podSecurityContext: {}
 
 securityContext: {}
+
+# -- Container lifecycle hooks. The default preStop gives Kubernetes time to
+# drain the terminating pod before Uptime Kuma exits, avoiding transient
+# readiness probe warnings during rollouts.
+lifecycle:
+  preStop:
+    exec:
+      command:
+        - sh
+        - -c
+        - sleep 5
 
 # =============================================================================
 # Scheduling
@@ -229,6 +248,45 @@ extraVolumeMounts: []
 
 # -- Extra manifests to deploy alongside the chart
 extraManifests: []
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gatewayAPI:
+  # -- Render Gateway API HTTPRoute resources
+  enabled: false
+  # -- HTTPRoute definitions routed to the Uptime Kuma Service by default
+  # @default -- `[]`
+  httpRoutes: []
+
+# =============================================================================
+# External Secrets
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret resources for database, backup, or integration credentials
+  enabled: false
+  # -- ExternalSecret API version
+  apiVersion: external-secrets.io/v1
+  # -- Default provider sync interval for ExternalSecret items that do not set spec.refreshInterval
+  refreshInterval: 1h
+  # -- ExternalSecret definitions. Each item requires a full `spec`.
+  # @default -- `[]`
+  items: []
+    # - name: database
+    #   spec:
+    #     secretStoreRef:
+    #       name: platform-secrets
+    #       kind: ClusterSecretStore
+    #     target:
+    #       name: uptime-kuma-db
+    #       creationPolicy: Owner
+    #     data:
+    #       - secretKey: password
+    #         remoteRef:
+    #           key: uptime-kuma/database
+    #           property: password
 
 # =============================================================================
 # Subcharts
