@@ -284,6 +284,12 @@ Homarr starts when an existing bundled PostgreSQL Secret and Service are present
 are created before the upgrade hook runs. Existing external PostgreSQL databases must provide equivalent permissions before the
 first Homarr startup because Homarr creates the `drizzle` schema during migration.
 
+When upgrading from older dependency layouts, move legacy `postgresql.primary.*`
+and `mysql.primary.*` overrides to `postgresql.standalone.*` and
+`mysql.standalone.*`. The chart fails fast when those legacy blocks are still
+present with the corresponding subchart enabled so database persistence settings
+are not silently ignored.
+
 After changing database mode or credentials, verify the application pod and selected database backend:
 
 ```bash

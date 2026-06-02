@@ -44,3 +44,59 @@ tests:
       - equal:
           path: spec.rules[0].backendRefs[0].port
           value: 7575
+
+  - it: should preserve legacy gatewayAPI values during upgrades
+    set:
+      gatewayAPI:
+        enabled: true
+        parentRefs:
+          - name: legacy-gateway
+            namespace: gateway-system
+        hostnames:
+          - legacy.example.com
+        paths:
+          - type: PathPrefix
+            value: /
+          - type: Exact
+            value: /health
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.parentRefs[0].name
+          value: legacy-gateway
+      - equal:
+          path: spec.parentRefs[0].namespace
+          value: gateway-system
+      - equal:
+          path: spec.hostnames[0]
+          value: legacy.example.com
+      - equal:
+          path: spec.rules[0].matches[0].path.value
+          value: /
+      - equal:
+          path: spec.rules[1].matches[0].path.type
+          value: Exact
+      - equal:
+          path: spec.rules[1].matches[0].path.value
+          value: /health
+
+  - it: should preserve legacy gatewayAPI gatewayName values during upgrades
+    set:
+      gatewayAPI:
+        enabled: true
+        gatewayName: legacy-gateway
+        gatewayNamespace: gateway-system
+        hostnames:
+          - legacy.example.com
+        path: /
+        pathType: PathPrefix
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.parentRefs[0].name
+          value: legacy-gateway
+      - equal:
+          path: spec.parentRefs[0].namespace
+          value: gateway-system

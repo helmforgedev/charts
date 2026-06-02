@@ -43,6 +43,10 @@ postgresql:
 The chart includes bootstrap grants and a pre-upgrade hook that reapplies ownership and `CREATE` permissions for existing
 bundled PostgreSQL databases.
 
+Legacy `postgresql.primary.*` values from older dependency layouts are not
+accepted when the bundled PostgreSQL subchart is enabled. Move those overrides to
+`postgresql.standalone.*` before upgrading.
+
 ## Bundled MySQL
 
 ```yaml
@@ -59,6 +63,10 @@ mysql:
 ```
 
 Use MySQL when it better matches your platform standards or migration plan.
+
+Legacy `mysql.primary.*` values from older dependency layouts are not accepted
+when the bundled MySQL subchart is enabled. Move those overrides to
+`mysql.standalone.*` before upgrading.
 
 The chart disables Homarr's internal DNS cache by default (`homarr.enableDnsCaching=false`) so MySQL and other Kubernetes
 Services are resolved through cluster DNS during startup and background jobs. Local k3d validation showed this prevents a
