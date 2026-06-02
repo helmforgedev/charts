@@ -1,133 +1,167 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-=============================================================================
-Ghost publishing platform deployed successfully!
-=============================================================================
+{{- $fullname := include "ghost.fullname" . -}}
+{{- $namespace := .Release.Namespace -}}
 
-Release:            {{ .Release.Name }}
-Namespace:          {{ .Release.Namespace }}
-Chart Version:      {{ .Chart.Version }}
-App Version:        {{ .Chart.AppVersion }}
-Image:              {{ include "ghost.image" . }}
-Service:            {{ include "ghost.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
-Content PVC:        {{ include "ghost.contentClaimName" . }}
-Database Host:      {{ include "ghost.dbHost" . }}:{{ include "ghost.dbPort" . }}
-Database Name:      {{ include "ghost.dbName" . }}
-Database User:      {{ include "ghost.dbUsername" . }}
+1. Ghost has been installed
+---------------------------
+  Release:        {{ .Release.Name }}
+  Namespace:      {{ $namespace }}
+  Version:        {{ .Chart.AppVersion }}
+  Image:          {{ include "ghost.image" . }}
+  Service:        {{ $fullname }}.{{ $namespace }}.svc.cluster.local:{{ .Values.service.port }}
+  Content PVC:    {{ include "ghost.contentClaimName" . }}
+  Database Host:  {{ include "ghost.dbHost" . }}:{{ include "ghost.dbPort" . }}
+  Database Name:  {{ include "ghost.dbName" . }}
+  Database User:  {{ include "ghost.dbUsername" . }}
 
-=============================================================================
-ACCESS
-=============================================================================
-
+2. Access
+---------
 {{- if .Values.ingress.enabled }}
-Ingress is enabled:
-{{- range $host := .Values.ingress.hosts }}
-  Blog:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
-  Admin:  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/ghost/
-{{- end }}
+  Ingress is enabled:
+  {{- range $host := .Values.ingress.hosts }}
+    Blog:  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+    Admin: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/ghost/
+  {{- end }}
 {{- else if .Values.gateway.enabled }}
-Gateway API is enabled. Resolve one of the configured HTTPRoute hostnames to
-your Gateway address, then open:
-{{- range .Values.gateway.hostnames }}
-  Blog:   http://{{ . }}/
-  Admin:  http://{{ . }}/ghost/
-{{- end }}
+  Gateway API HTTPRoute is enabled. Point the configured hostname to the Gateway address:
+  {{- range .Values.gateway.hostnames }}
+    Blog:  http://{{ . }}/
+    Admin: http://{{ . }}/ghost/
+  {{- else }}
+    No gateway.hostnames configured.
+  {{- end }}
 {{- else }}
-Use port-forward for local access:
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "ghost.fullname" . }} 2368:{{ .Values.service.port }}
+  Port-forward locally:
+    kubectl port-forward -n {{ $namespace }} svc/{{ $fullname }} 2368:{{ .Values.service.port }}
 
-Then open:
-  Blog:   http://localhost:2368/
-  Admin:  http://localhost:2368/ghost/
+  Open:
+    Blog:  http://localhost:2368/
+    Admin: http://localhost:2368/ghost/
 {{- end }}
 
-=============================================================================
-CONFIGURATION
-=============================================================================
+3. First-time Setup
+-------------------
+  - Open `/ghost/` and complete the owner account setup wizard.
+  - Set `ghost.url` to the final public URL before enabling newsletters, memberships, email, or SEO-sensitive production traffic.
+  - Configure SMTP with `ghost.extraEnv` before sending member or staff email.
 
-{{- if .Values.ghost.url }}
-- Public URL is configured as `{{ .Values.ghost.url }}`.
-{{- else }}
-- `ghost.url` is not set. Set it to the public canonical URL before enabling
-  email, newsletters, memberships, or production SEO workflows.
-{{- end }}
-{{- if .Values.mysql.enabled }}
-- Bundled HelmForge MySQL is enabled as the application database.
-{{- else }}
-- External MySQL is enabled. The chart reads the database password from
-  Secret `{{ include "ghost.dbSecretName" . }}` key `{{ include "ghost.dbSecretPasswordKey" . }}`.
-{{- end }}
-{{- if .Values.persistence.enabled }}
-- Content persistence is enabled. Back up both this PVC and the database before upgrades.
-{{- else }}
-- Content persistence is disabled. Uploaded media and generated assets are ephemeral.
-{{- end }}
+4. Configuration Summary
+------------------------
+  Public URL:       {{ default "not configured" .Values.ghost.url }}
+  Database:         {{ if .Values.mysql.enabled }}HelmForge MySQL subchart{{ else }}external MySQL{{ end }}
+  DB Secret:        {{ include "ghost.dbSecretName" . }} / {{ include "ghost.dbSecretPasswordKey" . }}
+  Persistence:      {{ .Values.persistence.enabled }}
+  Backup:           {{ .Values.backup.enabled }}
+  Ingress:          {{ .Values.ingress.enabled }}
+  Gateway API:      {{ .Values.gateway.enabled }}
+  External Secrets: {{ .Values.externalSecrets.enabled }}
 {{- with .Values.service.ipFamilyPolicy }}
-- Service IP family policy: `{{ . }}`{{ with $.Values.service.ipFamilies }} (families: {{ join ", " . }}){{ end }}.
+  IP family policy: {{ . }}{{ with $.Values.service.ipFamilies }} ({{ join ", " . }}){{ end }}
+{{- end }}
+
+5. Validation Commands
+----------------------
+  Wait for Ghost and dependencies:
+    kubectl wait --for=condition=Ready pod -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --timeout=600s
+
+  Check resources:
+    kubectl get all,pvc -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+  Check pod restarts:
+    kubectl get pods -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -o wide
+
+  Validate the admin site endpoint from inside the cluster:
+    kubectl run ghost-smoke -n {{ $namespace }} --rm -i --restart=Never --image=docker.io/library/busybox:1.37 -- \
+      wget -qO- http://{{ $fullname }}:{{ .Values.service.port }}/ghost/api/admin/site/
+
+  Inspect release events:
+    kubectl get events -n {{ $namespace }} --sort-by=.lastTimestamp
+
+6. Logs
+-------
+  Ghost logs:
+    kubectl logs -n {{ $namespace }} deploy/{{ $fullname }} --tail=200
+
+  Init container logs:
+    kubectl logs -n {{ $namespace }} deploy/{{ $fullname }} -c wait-for-database --tail=100
+{{- if .Values.mysql.enabled }}
+
+  Bundled MySQL logs:
+    kubectl logs -n {{ $namespace }} -l app.kubernetes.io/name=mysql --all-containers --tail=200
+{{- end }}
+
+7. Backup
+---------
+{{- if .Values.backup.enabled }}
+  S3 content backup is enabled:
+    Schedule: {{ .Values.backup.schedule }}
+    Bucket:   {{ .Values.backup.s3.bucket }}
+    Prefix:   {{ .Values.backup.s3.prefix }}
+
+  Check backup CronJobs:
+    kubectl get cronjob,jobs -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+  Trigger a manual backup:
+    kubectl create job --from=cronjob/{{ $fullname }}-backup ghost-backup-$(date +%s) -n {{ $namespace }}
+{{- else }}
+  Backup is disabled. For production, back up both:
+    - MySQL database `{{ include "ghost.dbName" . }}`
+    - Content PVC `{{ include "ghost.contentClaimName" . }}`
+
+  Enable scheduled S3 content backups with `backup.enabled=true` and S3 credentials.
+{{- end }}
+
+8. External Integrations
+------------------------
+{{- if .Values.externalSecrets.enabled }}
+  External Secrets Operator is enabled.
+  SecretStore: {{ .Values.externalSecrets.secretStoreRef.kind }}/{{ .Values.externalSecrets.secretStoreRef.name }}
+  Target Secret: {{ include "ghost.dbSecretName" . }}
+{{- else }}
+  External Secrets Operator is disabled.
 {{- end }}
 {{- if .Values.gateway.enabled }}
-- Gateway API HTTPRoute is enabled. Ensure Gateway API CRDs and the referenced
-  Gateway parentRefs exist before expecting external traffic.
-{{- end }}
-{{- if .Values.externalSecrets.enabled }}
-- External Secrets Operator is enabled. Ensure the operator and
-  {{ .Values.externalSecrets.secretStoreRef.kind }} `{{ .Values.externalSecrets.secretStoreRef.name }}`
-  exist and populate Secret `{{ include "ghost.dbSecretName" . }}`.
-{{- end }}
-{{- if .Values.backup.enabled }}
-- S3 content backup CronJob is enabled with schedule `{{ .Values.backup.schedule }}`.
+
+  Gateway API is enabled. Confirm Gateway API CRDs and parentRefs exist:
+    kubectl get gateway -A
+    kubectl get httproute -n {{ $namespace }}
 {{- end }}
 
-=============================================================================
-GETTING STARTED
-=============================================================================
+9. Troubleshooting
+------------------
+  Ghost stays unavailable:
+    kubectl describe pod -n {{ $namespace }} -l app.kubernetes.io/name=ghost
+    kubectl logs -n {{ $namespace }} deploy/{{ $fullname }} --tail=300
 
-1. Wait for Ghost and dependencies to become ready:
-   kubectl wait --for=condition=ready pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --timeout=600s
-
-2. Check resources and PVCs:
-   kubectl get all,pvc -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
-
-3. Open `/ghost/` and complete the first-user setup wizard.
-
-4. Validate the admin site endpoint:
-   kubectl run ghost-smoke -n {{ .Release.Namespace }} --rm -i --restart=Never --image=docker.io/library/busybox:1.37 -- \
-     wget -qO- http://{{ include "ghost.fullname" . }}:{{ .Values.service.port }}/ghost/api/admin/site/
-
-=============================================================================
-VALIDATION
-=============================================================================
-
-Inspect recent logs from every pod/container in the release:
-  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --all-containers --tail=200
-
-Inspect events for warning or error conditions:
-  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
-
-Check pod restarts:
-  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -o wide
-
+  Database connection errors:
+    kubectl get secret {{ include "ghost.dbSecretName" . }} -n {{ $namespace }}
+    kubectl logs -n {{ $namespace }} deploy/{{ $fullname }} -c wait-for-database --tail=200
 {{- if .Values.mysql.enabled }}
-Check bundled MySQL logs:
-  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/name=mysql --all-containers --tail=200
+    kubectl get pods -n {{ $namespace }} -l app.kubernetes.io/name=mysql
 {{- end }}
 
-{{- if .Values.backup.enabled }}
-Check backup CronJob status:
-  kubectl get cronjob,jobs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
-{{- end }}
+  Media uploads disappear after restart:
+    kubectl get pvc {{ include "ghost.contentClaimName" . }} -n {{ $namespace }}
+    # Ensure persistence.enabled=true for production.
 
-=============================================================================
-UPGRADE REMINDER
-=============================================================================
+  Public links or email URLs are wrong:
+    helm get values {{ .Release.Name }} -n {{ $namespace }}
+    # Set ghost.url to the canonical external URL.
 
-Before upgrading production Ghost sites:
-  - Back up the MySQL database and `/var/lib/ghost/content`.
-  - Validate themes, custom integrations, comments, newsletters, and member signup.
-  - Review upstream Ghost release notes for migration notes.
+10. Documentation
+-----------------
+  HelmForge docs:
+    https://helmforge.dev/docs/charts/ghost
 
-Documentation:
-  Chart: https://helmforge.dev/docs/charts/ghost
-  Ghost: https://ghost.org/docs/
-  Source: https://github.com/helmforgedev/charts/tree/main/charts/ghost
+  Chart source:
+    https://github.com/helmforgedev/charts/tree/main/charts/ghost
 
-=============================================================================
+  Upstream docs:
+    https://ghost.org/docs/
+
+Upgrade reminder:
+  Back up the MySQL database and `/var/lib/ghost/content`, then review upstream
+  Ghost release notes for migrations that affect themes, integrations, members,
+  newsletters, or custom email configuration.
+
+Happy Helmforging :)
