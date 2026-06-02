@@ -103,15 +103,16 @@ service:
 Requires Gateway API CRDs and a compatible controller (e.g. Envoy Gateway).
 
 ```yaml
-gatewayAPI:
+gateway:
   enabled: true
-  gatewayName: envoy-gateway
-  gatewayNamespace: envoy-gateway-system
+  parentRefs:
+    - name: envoy-gateway
+      namespace: envoy-gateway-system
   hostnames:
     - n8n.example.com
 ```
 
-> **Note:** `gatewayAPI.gatewayName` is required when `gatewayAPI.enabled=true`.
+> **Note:** `gateway.parentRefs` is required when `gateway.enabled=true`.
 
 ## External Secrets Operator (ESO)
 
@@ -144,6 +145,7 @@ externalSecrets:
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
+| `n8n.diagnosticsEnabled` | `false` | Share anonymous diagnostics with n8n |
 | `database.mode` | `auto` | Database mode (auto, sqlite, external, postgresql, mysql) |
 | `postgresql.enabled` | `false` | Deploy PostgreSQL subchart (`helmforge/postgresql` `2.0.2`) |
 | `postgresql.initdb.scripts` | n8n extension bootstrap | Creates PostgreSQL extensions required by n8n migrations |
@@ -167,11 +169,9 @@ externalSecrets:
 | `backup.enabled` | `false` | Enable S3 backups |
 | `service.ipFamilyPolicy` | `~` | IP family policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
 | `service.ipFamilies` | `[]` | IP families override (`IPv4`, `IPv6`) |
-| `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute |
-| `gatewayAPI.gatewayName` | `""` | Gateway name (required when `gatewayAPI.enabled=true`) |
-| `gatewayAPI.gatewayNamespace` | `""` | Gateway namespace |
-| `gatewayAPI.hostnames` | `[]` | HTTPRoute hostnames |
-| `gateway.enabled` | `false` | Deprecated legacy alias for `gatewayAPI.enabled` |
+| `gateway.enabled` | `false` | Enable Gateway API HTTPRoute |
+| `gateway.parentRefs` | `[]` | Gateway parentRefs (required when `gateway.enabled=true`) |
+| `gateway.hostnames` | `[]` | HTTPRoute hostnames |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret resource |
 | `externalSecrets.apiVersion` | `external-secrets.io/v1` | ExternalSecret API version |
 | `externalSecrets.refreshInterval` | `"0"` | Refresh interval (`"0"` = one-time sync) |
@@ -192,12 +192,17 @@ when it resolves to SQLite or when Redis is not configured, because workers must
 share the same PostgreSQL, MySQL, or external database as the main pod. Validate
 database and queue mode in a staging namespace before reusing production PVCs.
 
-The chart keeps `N8N_RUNNERS_ENABLED=true` and defaults to
-`N8N_RUNNERS_MODE=external`. It creates a shared auth token, opens the broker
-port, and runs a `docker.io/n8nio/runners` sidecar next to the main pod and each
-queue worker. This avoids the missing-Python warning produced by internal runner
-mode in the upstream `n8nio/n8n` image and gives each queue worker its own
-runner, as required by n8n external task runner architecture.
+The chart defaults to `N8N_RUNNERS_MODE=external`. It creates a shared auth
+token, opens the broker port, and runs a `docker.io/n8nio/runners` sidecar next
+to the main pod and each queue worker. This avoids the missing-Python warning
+produced by internal runner mode in the upstream `n8nio/n8n` image and gives
+each queue worker its own runner, as required by n8n external task runner
+architecture.
+
+Anonymous diagnostics are disabled by default with
+`N8N_DIAGNOSTICS_ENABLED=false`, which keeps self-hosted clusters private and
+reduces startup log noise. Operators can opt in with
+`n8n.diagnosticsEnabled=true`.
 
 ## Resources Generated
 
@@ -212,7 +217,7 @@ runner, as required by n8n external task runner architecture.
 | Secret (backup) | `backup.enabled` and no `backup.s3.existingSecret` |
 | PVC | `persistence.enabled` and no `persistence.existingClaim` |
 | Ingress | `ingress.enabled` |
-| HTTPRoute | `gatewayAPI.enabled` |
+| HTTPRoute | `gateway.enabled` |
 | ExternalSecret | `externalSecrets.enabled` |
 | ServiceAccount | `serviceAccount.create` |
 | CronJob (backup) | `backup.enabled` |

@@ -1,16 +1,12 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-{{- $gatewayAPI := default dict .Values.gatewayAPI }}
-{{- $legacyGateway := default dict .Values.gateway }}
-{{- if or .Values.gatewayAPI.enabled .Values.gateway.enabled }}
-{{- $activeGateway := ternary $gatewayAPI $legacyGateway .Values.gatewayAPI.enabled }}
-{{- $gatewayName := default "" $activeGateway.gatewayName }}
-{{- $gatewayNamespace := default "" $activeGateway.gatewayNamespace }}
-{{- $gatewayAnnotations := default dict $activeGateway.annotations }}
-{{- $gatewayHostnames := default list $activeGateway.hostnames }}
-{{- $gatewayPath := default "/" $activeGateway.path }}
-{{- $gatewayPathType := default "PathPrefix" $activeGateway.pathType }}
-{{- if not $gatewayName }}
-  {{- fail "gatewayAPI.gatewayName is required when gatewayAPI.enabled=true" }}
+{{- if .Values.gateway.enabled }}
+{{- if not .Values.gateway.parentRefs }}
+  {{- fail "gateway.enabled requires gateway.parentRefs to be populated to create a valid HTTPRoute." }}
+{{- end }}
+{{- range .Values.gateway.parentRefs }}
+  {{- if not .name }}
+    {{- fail "Each gateway.parentRefs entry must define a 'name' field" }}
+  {{- end }}
 {{- end }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -18,25 +14,22 @@ metadata:
   name: {{ include "n8n.fullname" . }}
   labels:
     {{- include "n8n.labels" . | nindent 4 }}
-  {{- with $gatewayAnnotations }}
+  {{- with .Values.gateway.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
   parentRefs:
-    - name: {{ $gatewayName }}
-      {{- with $gatewayNamespace }}
-      namespace: {{ . }}
-      {{- end }}
-  {{- with $gatewayHostnames }}
+    {{- toYaml .Values.gateway.parentRefs | nindent 4 }}
+  {{- with .Values.gateway.hostnames }}
   hostnames:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   rules:
     - matches:
         - path:
-            type: {{ $gatewayPathType }}
-            value: {{ $gatewayPath }}
+            type: {{ .Values.gateway.pathType }}
+            value: {{ .Values.gateway.path | quote }}
       backendRefs:
         - name: {{ include "n8n.fullname" . }}
           port: {{ .Values.service.port }}

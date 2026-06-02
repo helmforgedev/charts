@@ -37,6 +37,8 @@ flowchart LR
   subcharts, while still allowing explicit `database.mode` overrides.
 - Keep the encryption key in a Kubernetes Secret and support External Secrets as
   the single source of truth when `encryptionKey.existingSecret` is set.
+- Disable anonymous diagnostics by default for privacy-focused self-hosted
+  clusters, while allowing operators to opt in explicitly.
 - Run n8n containers as the upstream non-root node user with dropped Linux
   capabilities, RuntimeDefault seccomp, and resource requests/limits by default.
 - Model queue mode as a separate worker Deployment so the main UI/webhook pod
@@ -49,8 +51,8 @@ flowchart LR
   sidecar on the main pod and each queue worker. The chart generates a shared
   token and wires the broker port so Code and Python task runner execution does
   not depend on the Python runtime inside the main `n8nio/n8n` image.
-- Retain the deprecated `gateway` block only as a backward-compatible alias for
-  existing releases; new configuration should use `gatewayAPI`.
+- Use a single `gateway` block with Gateway API `parentRefs`, matching the
+  consolidated HelmForge routing pattern and avoiding competing aliases.
 - Include database-aware backup scripts for SQLite, PostgreSQL, and MySQL.
 
 ## Production Boundary
