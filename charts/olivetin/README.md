@@ -70,6 +70,8 @@ kubectl port-forward svc/<release>-olivetin 1337:80
 | `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute rendering |
 | `gatewayAPI.httpRoutes[].rules[].omitDefaultBackend` | `false` | Omit the default Service backend for redirect-only rules |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret resources for command credentials |
+| `externalSecrets.apiVersion` | `external-secrets.io/v1` | ExternalSecret API version |
+| `externalSecrets.refreshInterval` | `1h` | Default provider sync interval |
 | `externalSecrets.items` | `[]` | ExternalSecret item list with full ESO `spec` blocks |
 | `metrics.enabled` | `false` | Enable Prometheus metrics |
 | `metrics.defaultGoMetrics` | `false` | Expose default Go runtime metrics |
