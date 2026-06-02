@@ -16,7 +16,7 @@ helm install hoppscotch helmforge/hoppscotch
 
 ```bash
 helm install hoppscotch oci://ghcr.io/helmforgedev/helm/hoppscotch \
-  --version 0.1.0
+  --version 1.1.2
 ```
 
 ## Quick Start
@@ -35,7 +35,7 @@ helm install hoppscotch helmforge/hoppscotch \
 helm install hoppscotch helmforge/hoppscotch \
   --set mode=production \
   --set ingress.enabled=true \
-  --set ingress.className=nginx \
+  --set ingress.ingressClassName=nginx \
   --set ingress.host=hoppscotch.example.com \
   --set "ingress.tls[0].secretName=hoppscotch-tls" \
   --set "ingress.tls[0].hosts[0]=hoppscotch.example.com" \
@@ -49,6 +49,7 @@ helm install hoppscotch helmforge/hoppscotch \
 - **Prisma migrations** — automatic via init container on every deploy
 - **OAuth providers** — GitHub, Google, Microsoft, EMAIL (magic links)
 - **SMTP support** — URL mode or field-by-field
+- **Proxy URL bootstrap** — optional `PROXY_APP_URL` default for self-hosted deployments
 - **ExternalSecrets Operator** — native support
 - **Gateway API** — HTTPRoute support
 - **Dual-stack networking** — `ipFamilyPolicy` and `ipFamilies` on Service
@@ -72,7 +73,7 @@ All traffic goes through a single Ingress/Service on port 80.
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `mode` | Chart mode: `dev` or `production` | `dev` |
-| `image.tag` | Hoppscotch image tag | `2026.4.1` |
+| `image.tag` | Hoppscotch image tag | `2026.5.0` |
 | `namespaceOverride` | Namespace for chart-managed resources. Use with an external database; bundled PostgreSQL remains in the Helm release namespace. | `""` |
 | `replicaCount` | Number of replicas | `1` |
 | `ingress.enabled` | Enable Ingress | `false` |
@@ -88,6 +89,7 @@ All traffic goes through a single Ingress/Service on port 80.
 | `serviceAccount.automountServiceAccountToken` | Mount the Kubernetes API token into Hoppscotch pods and hook jobs | `false` |
 | `auth.providers` | Enabled auth providers | `EMAIL` |
 | `mailer.enabled` | Enable SMTP | `false` |
+| `proxy.appUrl` | Default proxy URL exposed as `PROXY_APP_URL` | `""` |
 | `gatewayAPI.enabled` | Enable HTTPRoute | `false` |
 | `externalSecrets.enabled` | Enable ExternalSecret | `false` |
 | `externalSecrets.apiVersion` | ExternalSecret API version | `external-secrets.io/v1` |
@@ -96,11 +98,9 @@ All traffic goes through a single Ingress/Service on port 80.
 
 ## Upgrade Notes
 
-Hoppscotch `2026.4.1` includes the latest upstream Hoppscotch fixes after
-the `2026.4.0` release, which added collection-level pre-request and test scripts,
-API documentation publishing refinements, self-hosted SMTP OAuth2 support,
-desktop settings improvements, security patches, and bug fixes. Back up the
-PostgreSQL database and keep `DATA_ENCRYPTION_KEY` stable before upgrading.
+Hoppscotch `2026.5.0` adds OpenAPI 3.1 collection export, configurable proxy URLs through environment/admin settings,
+Mongolian language support, security patches, and fixes that prevent secret variable values from leaking to the backend.
+Back up the PostgreSQL database and keep `DATA_ENCRYPTION_KEY` stable before upgrading.
 The bundled PostgreSQL path now derives `DATABASE_URL` from the PostgreSQL
 user password Secret, bootstraps `pg_trgm` on fresh data directories, and runs
 a pre-upgrade hook to apply `pg_trgm` to existing bundled PostgreSQL PVCs before
@@ -124,6 +124,7 @@ separately managed Secret.
 - [Authentication](docs/authentication.md)
 - [SMTP](docs/smtp.md)
 - [Production Hardening](docs/production.md)
+- [Chart Design](DESIGN.md)
 
 ## Connecting
 
