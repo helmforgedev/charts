@@ -11,10 +11,7 @@
   {{- $annotations = default dict $legacyGateway.annotations }}
   {{- $hostnames = default list $legacyGateway.hostnames }}
   {{- $parentRefs = default list $legacyGateway.parentRefs }}
-  {{- if not $parentRefs }}
-    {{- if not $legacyGateway.gatewayName }}
-      {{- fail "gatewayAPI.parentRefs or gatewayAPI.gatewayName is required when legacy gatewayAPI.enabled=true" }}
-    {{- end }}
+  {{- if and (not $parentRefs) $legacyGateway.gatewayName }}
     {{- $legacyParentRef := dict "name" $legacyGateway.gatewayName }}
     {{- with $legacyGateway.gatewayNamespace }}
       {{- $_ := set $legacyParentRef "namespace" . }}
@@ -29,9 +26,6 @@
   {{- else }}
     {{- $paths = list (dict "type" (default "PathPrefix" $legacyGateway.pathType) "value" (default "/" $legacyGateway.path)) }}
   {{- end }}
-{{- end }}
-{{- if not $parentRefs }}
-  {{- fail "gateway.enabled requires gateway.parentRefs to be populated to create a valid HTTPRoute." }}
 {{- end }}
 {{- range $parentRefs }}
   {{- if not .name }}
@@ -49,8 +43,10 @@ metadata:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
+  {{- with $parentRefs }}
   parentRefs:
-    {{- toYaml $parentRefs | nindent 4 }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   {{- with $hostnames }}
   hostnames:
     {{- toYaml . | nindent 4 }}

@@ -45,6 +45,26 @@ tests:
           path: spec.rules[0].backendRefs[0].port
           value: 7575
 
+  - it: should render gateway HTTPRoute without parentRefs for controller defaults
+    set:
+      gateway:
+        enabled: true
+        hostnames:
+          - dash.example.com
+        path: /
+        pathType: PathPrefix
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - notExists:
+          path: spec.parentRefs
+      - equal:
+          path: spec.hostnames[0]
+          value: dash.example.com
+      - equal:
+          path: spec.rules[0].matches[0].path.value
+          value: /
+
   - it: should preserve legacy gatewayAPI values during upgrades
     set:
       gatewayAPI:
@@ -80,6 +100,32 @@ tests:
       - equal:
           path: spec.rules[1].matches[0].path.value
           value: /health
+
+  - it: should preserve legacy gatewayAPI without parentRefs during upgrades
+    set:
+      gatewayAPI:
+        enabled: true
+        hostnames:
+          - legacy.example.com
+        paths:
+          - type: PathPrefix
+            value: /
+          - type: Exact
+            value: /health
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - notExists:
+          path: spec.parentRefs
+      - equal:
+          path: spec.hostnames[0]
+          value: legacy.example.com
+      - equal:
+          path: spec.rules[0].matches[0].path.value
+          value: /
+      - equal:
+          path: spec.rules[1].matches[0].path.type
+          value: Exact
 
   - it: should preserve legacy gatewayAPI gatewayName values during upgrades
     set:
