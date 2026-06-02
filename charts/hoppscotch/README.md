@@ -78,7 +78,7 @@ All traffic goes through a single Ingress/Service on port 80.
 | `replicaCount` | Number of replicas | `1` |
 | `ingress.enabled` | Enable Ingress | `false` |
 | `ingress.host` | Primary hostname (auto-derives all URLs) | `""` |
-| `postgresql.enabled` | Enable PostgreSQL subchart (`helmforge/postgresql` `1.10.0`) | `true` |
+| `postgresql.enabled` | Enable PostgreSQL subchart (`helmforge/postgresql` `2.0.2`) | `true` |
 | `postgresql.initdb.scripts` | Bootstrap Hoppscotch PostgreSQL extensions | `pg_trgm` |
 | `postgresqlExtensionsJob.enabled` | Run the pre-upgrade hook that ensures `pg_trgm` exists on bundled PostgreSQL PVCs before Prisma migrations | `true` |
 | `postgresqlExtensionsJob.requireExistingResources` | Only render the `pg_trgm` pre-upgrade hook when bundled PostgreSQL resources already exist | `true` |
@@ -90,7 +90,7 @@ All traffic goes through a single Ingress/Service on port 80.
 | `auth.providers` | Enabled auth providers | `EMAIL` |
 | `mailer.enabled` | Enable SMTP | `false` |
 | `proxy.appUrl` | Default proxy URL exposed as `PROXY_APP_URL` | `""` |
-| `gatewayAPI.enabled` | Enable HTTPRoute | `false` |
+| `gateway.enabled` | Enable HTTPRoute | `false` |
 | `externalSecrets.enabled` | Enable ExternalSecret | `false` |
 | `externalSecrets.apiVersion` | ExternalSecret API version | `external-secrets.io/v1` |
 | `networkPolicy.enabled` | Enable NetworkPolicy | `false` |

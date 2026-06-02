@@ -106,8 +106,8 @@ validateAll — fail-fast on misconfigured values
 {{- if and .Values.mailer.enabled (not .Values.mailer.useCustomConfigs) (not .Values.mailer.smtpUrl) (not .Values.mailer.existingSecret) -}}
   {{- fail "mailer.smtpUrl is required when mailer.enabled=true and mailer.useCustomConfigs=false (or set mailer.existingSecret)" -}}
 {{- end -}}
-{{- if and .Values.gatewayAPI.enabled (not .Values.gatewayAPI.parentRefs) -}}
-  {{- fail "gatewayAPI.parentRefs is required when gatewayAPI.enabled=true" -}}
+{{- if and .Values.gateway.enabled (not .Values.gateway.parentRefs) -}}
+  {{- fail "gateway.parentRefs is required when gateway.enabled=true" -}}
 {{- end -}}
 {{- if and .Values.externalSecrets.enabled (not .Values.externalSecrets.secretStoreRef.name) -}}
   {{- fail "externalSecrets.secretStoreRef.name is required when externalSecrets.enabled=true" -}}

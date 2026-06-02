@@ -36,7 +36,7 @@ endpoint, and admin dashboard.
 - Run Prisma migrations in an init container before the application starts.
 - Bootstrap `pg_trgm` on fresh bundled PostgreSQL databases and keep a pre-upgrade hook for existing PVCs.
 - Persist `DATA_ENCRYPTION_KEY` and `WEBAPP_SERVER_SIGNING_KEY` through Kubernetes Secrets.
-- Prefer `ingress.ingressClassName` while keeping `ingress.className` as a legacy compatibility alias.
+- Use the HelmForge-standard `ingress.ingressClassName` field for Ingress class selection.
 - Expose `proxy.appUrl` as an optional `PROXY_APP_URL` bootstrap value for self-hosted proxy defaults.
 
 ## Production Boundary
