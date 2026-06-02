@@ -156,3 +156,10 @@ containerSecurityContext:
 ```
 
 `readOnlyRootFilesystem` is set to `false` because Hoppscotch writes temporary files at runtime.
+
+The Hoppscotch AIO image serves the frontend, admin dashboard, and backend
+through Caddy. The chart sets `HOPP_AIO_ALTERNATE_PORT=8081` by default so that
+Caddy can bind while the container runs as non-root and all Linux capabilities
+remain dropped. The Service still exposes port `80` and routes to the named
+container port. The upstream backend process remains on the image's internal
+`localhost:8080` listener.

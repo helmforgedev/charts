@@ -67,6 +67,10 @@ Hoppscotch AIO uses subpath-based routing (`ENABLE_SUBPATH_BASED_ACCESS=true`):
 | `/admin` | Admin Dashboard |
 
 All traffic goes through a single Ingress/Service on port 80.
+Inside the pod, the AIO Caddy server listens on non-root port `8081` via
+`HOPP_AIO_ALTERNATE_PORT`; the Kubernetes Service maps external port `80` to
+that named container port. Port `8080` remains reserved for the Hoppscotch
+backend process inside the AIO image.
 
 ## Configuration
 
@@ -90,6 +94,7 @@ All traffic goes through a single Ingress/Service on port 80.
 | `auth.providers` | Enabled auth providers | `EMAIL` |
 | `mailer.enabled` | Enable SMTP | `false` |
 | `proxy.appUrl` | Default proxy URL exposed as `PROXY_APP_URL` | `""` |
+| `service.containerPort` | Internal non-root Hoppscotch AIO HTTP port | `8081` |
 | `gateway.enabled` | Enable HTTPRoute | `false` |
 | `externalSecrets.enabled` | Enable ExternalSecret | `false` |
 | `externalSecrets.apiVersion` | ExternalSecret API version | `external-secrets.io/v1` |
