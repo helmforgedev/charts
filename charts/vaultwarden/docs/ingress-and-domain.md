@@ -54,9 +54,17 @@ ingress:
 
 ## WebSocket note
 
-WebSocket notifications use the same HTTP service and ingress path in this chart. No separate websocket service is required in v1.
+WebSocket notifications use the same HTTP service and ingress path in this chart. No separate websocket service is required.
 
 For most ingress controllers, the normal HTTP ingress path is enough. If operators use aggressive idle timeouts or proxy buffering defaults, they should validate websocket behavior explicitly after deployment.
+
+The pod binds Vaultwarden/Rocket to `service.targetPort` and the Service exposes it through `service.port`. By default that means:
+
+- `ROCKET_ADDRESS=0.0.0.0`
+- `ROCKET_PORT=8085`
+- Service port `80`
+
+This keeps the container compatible with `runAsNonRoot` and dropped Linux capabilities while preserving the normal Service and ingress backend port.
 
 ## Reverse proxy note
 

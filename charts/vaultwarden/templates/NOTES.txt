@@ -1,35 +1,132 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Vaultwarden has been deployed.
+{{- $name := include "vaultwarden.fullname" . -}}
+{{- $namespace := .Release.Namespace -}}
+1. Vaultwarden has been installed
+==================================
+  Release:        {{ .Release.Name }}
+  Namespace:      {{ $namespace }}
+  Version:        {{ .Chart.AppVersion }}
+  Database Mode:  {{ include "vaultwarden.databaseMode" . }}
+
+2. Access
+=========
+[ClusterIP] Port-forward:
+  kubectl port-forward svc/{{ $name }} 8080:{{ .Values.service.port }} -n {{ $namespace }}
+  Open: http://localhost:8080
 
 {{- if .Values.ingress.enabled }}
-Access URL(s):
+[Ingress]
 {{- range .Values.ingress.hosts }}
-- https://{{ .host }}
+  URL: {{ include "vaultwarden.domain" $ | default (printf "https://%s" .host) }}
 {{- end }}
-{{- else }}
-Service:
-- kubectl port-forward svc/{{ include "vaultwarden.fullname" . }} 8080:{{ .Values.service.port }}
-- http://127.0.0.1:8080
+{{- else if include "vaultwarden.domain" . }}
+[Configured Domain]
+  URL: {{ include "vaultwarden.domain" . }}
 {{- end }}
 
-Operational notes:
-- Vaultwarden v1 in this repository is designed for a single replica with persistent `/data`
-- database mode selected for this release: {{ include "vaultwarden.databaseMode" . }}
-{{- if .Values.postgresql.enabled }}
-- local PostgreSQL subchart is enabled; keep `postgresql.auth.password` set explicitly and validate migrations before moving live data
-{{- else if .Values.mysql.enabled }}
-- local MySQL subchart is enabled; keep `mysql.auth.password` set explicitly and validate migrations before moving live data
-{{- else if .Values.database.external.existingSecret }}
-- external database mode uses an existing secret; confirm the configured key contains a complete `DATABASE_URL`
-{{- else if .Values.database.external.host }}
-- external database mode is enabled; confirm connectivity, TLS requirements, and backup credentials outside this release
+NOTE: WebSocket notifications use the same HTTP Service and ingress route.
+If clients do not receive live updates, verify that your ingress controller
+allows WebSocket connection upgrades and uses suitable idle timeouts.
+
+3. First-time Setup
+===================
+  - Create the first user only if signups are allowed or invite users through the admin flow.
+  - Keep `vaultwarden.signupsAllowed=false` for public instances unless self-service signup is intended.
+{{- if include "vaultwarden.adminEnabled" . }}
+  - Admin panel: {{ include "vaultwarden.domain" . | default "http://localhost:8080" }}/admin
+  - Use the configured ADMIN_TOKEN and rotate it if it was created only for bootstrap.
 {{- else }}
-- SQLite is selected; treat the full `/data` directory as the backup and restore boundary
+  - Admin panel is disabled because no admin token or admin existingSecret is configured.
 {{- end }}
-- if you enable SMTP, verify mail delivery from the admin settings and invitation flows
-- if you use the admin panel, prefer an Argon2-based `ADMIN_TOKEN`
-- if backup is enabled, validate that the S3 endpoint, bucket, and storage mode match the generated backup behavior for this release
-- if you use an existing PVC, validate restore procedures before treating the instance as production-ready
-- if you reattach restored storage, confirm whether the release is using `existingClaim` or PVC selector labels and validate the `/data` contents before reopening traffic
-- back up the full `/data` set, including `db.sqlite3`, `config.json`, `rsa_key*`, `attachments/`, and `sends/`
-- remember that admin-interface changes may persist effective runtime configuration in `/data/config.json`
+  - Configure SMTP before relying on invitations, verification, password reset, or emergency access email flows.
+
+4. Configuration Summary
+========================
+  Service:          {{ .Values.service.type }} {{ .Values.service.port }} -> container {{ .Values.service.targetPort }}
+  Rocket Bind:      0.0.0.0:{{ .Values.service.targetPort }}
+  WebSocket:        {{- if .Values.vaultwarden.websocket.enabled }} enabled{{- else }} disabled{{- end }}
+  Persistence:      {{- if .Values.data.persistence.enabled }} enabled{{- else }} disabled{{- end }}
+  SMTP:             {{- if .Values.smtp.enabled }} enabled{{- else }} disabled{{- end }}
+  Admin Panel:      {{- if include "vaultwarden.adminEnabled" . }} enabled{{- else }} disabled{{- end }}
+  Network Policy:   {{- if .Values.networkPolicy.enabled }} enabled{{- else }} disabled{{- end }}
+  Gateway API:      {{- if .Values.gateway.enabled }} enabled{{- else }} disabled{{- end }}
+  External Secrets: {{- if .Values.externalSecrets.enabled }} enabled{{- else }} disabled{{- end }}
+{{- if .Values.postgresql.enabled }}
+  Database Detail:  HelmForge PostgreSQL subchart
+{{- else if .Values.mysql.enabled }}
+  Database Detail:  HelmForge MySQL subchart
+{{- else if .Values.database.external.existingSecret }}
+  Database Detail:  External database from existing DATABASE_URL secret
+{{- else if .Values.database.external.host }}
+  Database Detail:  External {{ .Values.database.external.vendor }} database
+{{- else }}
+  Database Detail:  SQLite stored under /data
+{{- end }}
+
+5. Validation Commands
+======================
+  # Check pods are ready
+  kubectl get pods -n {{ $namespace }} -l app.kubernetes.io/name=vaultwarden
+
+  # Check rendered runtime port
+  kubectl exec -n {{ $namespace }} deploy/{{ $name }} -- \
+    sh -c 'echo "ROCKET_ADDRESS=$ROCKET_ADDRESS ROCKET_PORT=$ROCKET_PORT"'
+
+  # Check health endpoint through the Service
+  kubectl run {{ $name }}-health --rm -i --restart=Never -n {{ $namespace }} \
+    --image=docker.io/curlimages/curl:8.11.1 --command -- \
+    sh -c 'curl -fsS -o /dev/null -w "%{http_code}\n" http://{{ $name }}/alive'
+
+  # Review recent application logs
+  kubectl logs -n {{ $namespace }} deploy/{{ $name }} -c vaultwarden --tail=100
+
+  # Review namespace events
+  kubectl get events -n {{ $namespace }} --sort-by=.lastTimestamp
+
+6. Backup and Restore
+=====================
+  - Back up the full /data directory for SQLite mode.
+  - Include db.sqlite3, config.json, rsa_key*, attachments/, sends/, and icon cache state.
+  - For PostgreSQL/MySQL modes, back up the database and still preserve Vaultwarden runtime files under /data.
+  - If `backup.enabled=true`, validate the object storage destination after the first scheduled run.
+  - When restoring, use an existing PVC or selector labels deliberately and validate data before reopening traffic.
+
+7. Troubleshooting
+==================
+  Rocket bind permission denied:
+    -> The container runs as non-root and cannot bind privileged port 80.
+    -> Keep service.targetPort at 8085 or another port >= 1024.
+    -> Do not override ROCKET_PORT to 80 unless you also change security settings intentionally.
+
+  WebSocket not connecting:
+    -> Confirm vaultwarden.websocket.enabled=true.
+    -> Check ingress support for WebSocket upgrade.
+    -> Validate proxy idle timeouts and buffering behavior.
+
+  Login or attachment URLs are wrong:
+    -> Set domain to the exact external HTTPS URL.
+    -> Keep ingress host/path aligned with domain.
+
+  Invitations or verification emails fail:
+    -> Enable smtp.enabled and validate host, port, sender, credentials, and TLS mode.
+    -> Check logs for SMTP provider errors.
+
+  Database connection refused:
+    -> Check the selected database mode in section 4.
+    -> For bundled databases, check the subchart pod and Secret values.
+    -> For external databases, verify host, port, TLS, credentials, and DATABASE_URL content.
+
+8. Upgrading
+============
+  - Back up /data and the selected database before upgrading production.
+  - Keep ADMIN_TOKEN, database credentials, and SMTP secrets stable across upgrades.
+  - Review upstream Vaultwarden release notes when changing image.tag.
+  - If switching database modes, follow the chart migration documentation first.
+
+9. Documentation
+================
+  HelmForge docs: https://helmforge.dev/docs/charts/vaultwarden
+  Upstream app:   https://github.com/dani-garcia/vaultwarden
+  Chart source:   https://github.com/helmforgedev/charts/tree/main/charts/vaultwarden
+
+Happy Helmforging :)

@@ -27,6 +27,7 @@ helm install vaultwarden oci://ghcr.io/helmforgedev/helm/vaultwarden -f values.y
 - optional SMTP configuration
 - optional admin token through inline value or `existingSecret`
 - websocket notifications on the same HTTP service
+- explicit Rocket bind settings for secure non-root containers
 
 ## Architecture guides
 
@@ -52,6 +53,7 @@ helm install vaultwarden oci://ghcr.io/helmforgedev/helm/vaultwarden -f values.y
 - built-in backup can archive `/data` for SQLite or run database dumps for DB-backed modes
 - ingress and `domain` should be aligned for attachment links and client behavior
 - websocket traffic uses the same HTTP service and ingress path as the web vault
+- the pod binds Vaultwarden/Rocket to non-privileged container port `8085` by default while keeping the Kubernetes Service on port `80`
 
 ## Official product references
 
@@ -81,7 +83,7 @@ helm install vaultwarden oci://ghcr.io/helmforgedev/helm/vaultwarden -f values.y
 ### Database selection
 
 - for production, prefer `database.external` or one of the optional subcharts
-- optional local database subcharts are vendored from HelmForge dependencies: PostgreSQL chart `1.10.0` and MySQL chart `1.9.1`
+- optional local database subcharts are vendored from HelmForge dependencies: PostgreSQL chart `2.0.2` and MySQL chart `2.0.0`
 - `database.mode=auto` uses this precedence:
 - `database.external.host` or `database.external.existingSecret`
 - `postgresql.enabled=true`
@@ -100,6 +102,16 @@ helm install vaultwarden oci://ghcr.io/helmforgedev/helm/vaultwarden -f values.y
 - if Vaultwarden is exposed behind a path or non-default HTTPS port, keep that full external URL in `domain`
 - keep `vaultwarden.proxy.ipHeader` aligned with your ingress controller or reverse proxy behavior
 - review ingress/controller timeouts if websocket notifications are important for your users
+
+### Runtime port and websocket notifications
+
+- Vaultwarden is built on Rocket and reads bind settings from `ROCKET_ADDRESS` and `ROCKET_PORT`
+- the upstream container defaults to port `80`, but this chart runs the container as non-root and drops Linux capabilities
+- binding to port `80` inside a non-root container can fail with `PermissionDenied`
+- the chart therefore sets `ROCKET_ADDRESS=0.0.0.0` and `ROCKET_PORT` from `service.targetPort`
+- keep `service.targetPort` at the default `8085` unless your platform has a concrete reason to use another non-privileged port
+- `service.port` remains `80`, so in-cluster clients and ingress backends do not need to target `8085` directly
+- websocket notifications use the same HTTP listener and Service; no separate websocket Service is required
 
 ### SQLite and runtime database settings
 
@@ -140,6 +152,8 @@ This chart intentionally maps the most important operational settings from the o
 - `PASSWORD_HINTS_ALLOWED`
 - `SHOW_PASSWORD_HINT`
 - `ENABLE_WEBSOCKET`
+- `ROCKET_ADDRESS`
+- `ROCKET_PORT`
 - `IP_HEADER`
 - `ENABLE_DB_WAL`
 - `DB_CONNECTION_RETRIES`
@@ -207,8 +221,8 @@ Official reference:
 | `database.external.username` | External database username | `vaultwarden` |
 | `database.external.existingSecret` | Existing secret containing a complete `DATABASE_URL` | `""` |
 | `database.external.existingSecretUrlKey` | Secret key containing the `DATABASE_URL` value | `database-url` |
-| `postgresql.enabled` | Enable the local PostgreSQL subchart (`helmforge/postgresql` `1.10.0`) | `false` |
-| `mysql.enabled` | Enable the local MySQL subchart (`helmforge/mysql` `1.9.1`) | `false` |
+| `postgresql.enabled` | Enable the local PostgreSQL subchart (`helmforge/postgresql` `2.0.2`) | `false` |
+| `mysql.enabled` | Enable the local MySQL subchart (`helmforge/mysql` `2.0.0`) | `false` |
 | `vaultwarden.signupsAllowed` | Allow new user signups | `false` |
 | `vaultwarden.signupsVerify` | Require email verification for new signups | `false` |
 | `vaultwarden.signupsVerifyResendTime` | Seconds before another verification email can be sent | `3600` |
@@ -241,6 +255,8 @@ Official reference:
 | `data.persistence.existingClaim` | Existing PVC for `/data` | `""` |
 | `data.persistence.selectorLabels` | PVC selector labels for restore or pre-bound PV flows | `{}` |
 | `data.persistence.size` | PVC size | `5Gi` |
+| `service.port` | Kubernetes Service HTTP port | `80` |
+| `service.targetPort` | Non-privileged Vaultwarden/Rocket container port and `ROCKET_PORT` value | `8085` |
 | `backup.enabled` | Enable built-in backup CronJob | `false` |
 | `backup.schedule` | Backup schedule | `"0 0 * * *"` |
 | `backup.s3.endpoint` | S3-compatible endpoint URL | `""` |

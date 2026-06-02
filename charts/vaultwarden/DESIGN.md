@@ -29,6 +29,7 @@ For the v1 scope in this repository:
 - the default database model is SQLite
 - WebSocket notifications ride through the same HTTP service
 - TLS termination is expected at ingress or reverse proxy level
+- Rocket binds to a non-privileged container port so the default non-root security posture works without extra Linux capabilities
 
 ## v1 Scope
 
@@ -42,15 +43,15 @@ For the v1 scope in this repository:
 - optional admin token with `existingSecret`
 - security-focused defaults for container and pod context
 - explicit docs for SQLite limitations
+- optional local HelmForge PostgreSQL and MySQL subcharts
+- optional backup CronJob for SQLite archives and database dumps
 
 ### Excluded
 
 - HA claims
 - multi-replica scaling
 - automatic failover
-- embedded backup job
 - operator-like lifecycle control
-- external database mode unless later implementation proves it can stay small and clear
 - split websocket Service unless a real product need appears
 
 ## Architecture Decision
@@ -109,6 +110,17 @@ Reasoning:
 - aligns with common reverse-proxy setups
 - avoids extra manifests unless the product truly needs them
 
+### Rocket bind port
+
+Set `ROCKET_ADDRESS=0.0.0.0` and derive `ROCKET_PORT` from `service.targetPort`.
+
+The upstream container is commonly configured for port 80, but this chart runs Vaultwarden as UID 1000,
+requires `runAsNonRoot`, and drops all Linux capabilities.
+
+Binding Rocket to a privileged port inside that container causes a runtime `PermissionDenied` bind failure.
+Keeping the Service on port 80 while binding the container to non-privileged port 8085 preserves the public
+Kubernetes contract and keeps the pod security defaults intact.
+
 ### SMTP
 
 SMTP should be fully optional.
@@ -157,6 +169,7 @@ data:
 service:
   type: ClusterIP
   port: 80
+  targetPort: 8085
   annotations: {}
 
 ingress:
@@ -212,6 +225,11 @@ The chart should validate at least these scenarios:
 - `ci/smtp.yaml`
 - `ci/existing-secret.yaml`
 - `ci/ingress.yaml`
+- `ci/database-postgresql.yaml`
+- `ci/database-mysql.yaml`
+- `ci/backup-sqlite.yaml`
+- `ci/gateway-api.yaml`
+- `ci/external-secrets.yaml`
 
 ## Documentation Set
 
@@ -227,6 +245,7 @@ The docs must explain:
 - why multi-replica is out of scope
 - why `/data` persistence is essential
 - how websocket traffic behaves behind ingress
+- why Rocket binds to a non-privileged container port
 - how to secure the admin interface
 
 ## Security Direction

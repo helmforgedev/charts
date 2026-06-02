@@ -93,3 +93,34 @@ tests:
           content:
             name: ENABLE_WEBSOCKET
             value: "true"
+
+  - it: should bind Rocket to a non-privileged port by default
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8085
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ROCKET_ADDRESS
+            value: "0.0.0.0"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ROCKET_PORT
+            value: "8085"
+
+  - it: should use service.targetPort as the Rocket port
+    template: deployment.yaml
+    set:
+      service.targetPort: 8080
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ROCKET_PORT
+            value: "8080"
