@@ -33,6 +33,9 @@ Common cases:
 - enable `pdb.enabled=true`
 - spread pods with affinity or topology spread constraints
 - monitor memory, disk, queues, alarms, and connections
+- keep `auth.existingSecret` stable across upgrades
+- prefer External Secrets Operator for production credentials
+- use Gateway API or Ingress only for the Management UI, not AMQP traffic
 
 ## Base example
 
@@ -55,6 +58,23 @@ metrics:
   enabled: true
 ```
 
+## Management UI via Gateway API
+
+```yaml
+management:
+  enabled: true
+
+gateway:
+  enabled: true
+  parentRefs:
+    - name: public
+      namespace: gateway-system
+  hostnames:
+    - rabbitmq.example.com
+```
+
+AMQP clients should continue to connect through the RabbitMQ Service ports.
+
 <!-- @AI-METADATA
 type: chart-docs
 title: RabbitMQ - Cluster
@@ -68,6 +88,6 @@ scope: Chart Architecture
 relations:
   - charts/rabbitmq/README.md
 path: charts/rabbitmq/docs/cluster.md
-version: 1.0
-date: 2026-03-20
+version: 1.1
+date: 2026-06-02
 -->

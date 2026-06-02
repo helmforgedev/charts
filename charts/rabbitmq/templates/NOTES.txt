@@ -1,17 +1,121 @@
-{{/* SPDX-License-Identifier: Apache-2.0 */}}
-RabbitMQ release: {{ include "rabbitmq.fullname" . }}
+{{- $fullname := include "rabbitmq.fullname" . -}}
+{{- $namespace := .Release.Namespace -}}
+1. RabbitMQ has been installed
+==============================
+  Release:      {{ .Release.Name }}
+  Namespace:    {{ $namespace }}
+  Architecture: {{ .Values.architecture }}
+  Version:      {{ .Chart.AppVersion }}
+  Image:        {{ .Values.image.repository }}:{{ .Values.image.tag }}
 
-AMQP endpoint:
-  {{ include "rabbitmq.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.service.amqpPort }}
+2. Access
+=========
+[AMQP]
+  Internal endpoint:
+    {{ $fullname }}.{{ $namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.service.amqpPort }}
+
+{{- if .Values.tls.enabled }}
+[AMQPS]
+  Internal endpoint:
+    {{ $fullname }}.{{ $namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.service.amqpsPort }}
+{{- end }}
 
 {{- if .Values.management.enabled }}
-Management UI:
-  http://{{ include "rabbitmq.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.service.managementPort }}
+[Management UI] Port-forward:
+  kubectl port-forward svc/{{ $fullname }} 15672:{{ .Values.service.managementPort }} -n {{ $namespace }}
+  Open: http://localhost:15672
 {{- end }}
 
 {{- if and .Values.management.enabled .Values.management.ingress.enabled }}
-Ingress hosts:
+[Ingress]
 {{- range .Values.management.ingress.hosts }}
-  - {{ .host }}
+  URL: http{{ if $.Values.management.ingress.tls }}s{{ end }}://{{ .host }}/
 {{- end }}
 {{- end }}
+
+{{- if and .Values.management.enabled .Values.gateway.enabled }}
+[Gateway API]
+  HTTPRoute: {{ $fullname }}
+{{- with .Values.gateway.hostnames }}
+  Hostnames:
+{{- range . }}
+    - {{ . }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+3. Configuration Summary
+========================
+  Queue default type: {{ .Values.queueDefaults.type }}
+  Management UI:      {{- if .Values.management.enabled }} enabled{{- else }} disabled{{- end }}
+  TLS listeners:      {{- if .Values.tls.enabled }} enabled{{- else }} disabled{{- end }}
+  Metrics:            {{- if .Values.metrics.enabled }} enabled{{- else }} disabled{{- end }}
+  ServiceMonitor:     {{- if .Values.metrics.serviceMonitor.enabled }} enabled{{- else }} disabled{{- end }}
+  PDB:                {{- if .Values.pdb.enabled }} enabled{{- else }} disabled{{- end }}
+  Gateway API:        {{- if and .Values.management.enabled .Values.gateway.enabled }} enabled{{- else }} disabled{{- end }}
+  External Secrets:   {{- if .Values.externalSecrets.enabled }} enabled{{- else }} disabled{{- end }}
+  Service dual-stack: {{- if .Values.service.ipFamilyPolicy }} {{ .Values.service.ipFamilyPolicy }}{{- else }} cluster default{{- end }}
+
+4. Getting Started
+==================
+  Step 1: Wait for RabbitMQ to become ready:
+    kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=rabbitmq -n {{ $namespace }} --timeout=300s
+
+  Step 2: Check broker status:
+    kubectl exec -n {{ $namespace }} statefulset/{{ $fullname }} -- rabbitmq-diagnostics status
+
+  Step 3: Check listener exposure:
+    kubectl exec -n {{ $namespace }} statefulset/{{ $fullname }} -- rabbitmq-diagnostics listeners
+
+Credential reminder:
+  Keep username, password, and Erlang cookie stable across upgrades. In
+  production, prefer auth.existingSecret or External Secrets Operator.
+
+5. Validation Commands
+======================
+  # Check pods, services, and PVCs
+  kubectl get pods,svc,pvc -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+  # Inspect broker logs
+  kubectl logs -n {{ $namespace }} -l app.kubernetes.io/name=rabbitmq --all-containers --tail=100
+
+  # Run broker diagnostics
+  kubectl exec -n {{ $namespace }} statefulset/{{ $fullname }} -- rabbitmq-diagnostics ping
+  kubectl exec -n {{ $namespace }} statefulset/{{ $fullname }} -- rabbitmq-diagnostics status
+  kubectl exec -n {{ $namespace }} statefulset/{{ $fullname }} -- rabbitmq-diagnostics listeners
+
+{{- if .Values.management.enabled }}
+  # Query Management API with the configured credentials after port-forwarding
+  kubectl port-forward svc/{{ $fullname }} 15672:{{ .Values.service.managementPort }} -n {{ $namespace }}
+{{- end }}
+
+6. Troubleshooting
+==================
+  Pod is not ready:
+    -> Check RabbitMQ logs and readiness probe output
+    -> Verify the auth Secret contains username, password, and Erlang cookie
+    -> Confirm persistence permissions and available disk space
+
+  Cluster nodes do not join:
+    -> Keep the Erlang cookie identical across all pods
+    -> Check the headless Service and peer discovery plugin
+    -> Verify DNS resolution inside the namespace
+
+  Management UI does not route:
+    -> Confirm management.enabled=true
+    -> Check Ingress or HTTPRoute status and controller logs
+    -> Ensure TLS routing uses the expected management port
+
+  ExternalSecret is not creating credentials:
+    -> Confirm External Secrets Operator and the referenced SecretStore exist
+    -> Check ExternalSecret status and target Secret name
+    -> Ensure all required keys are mapped
+
+7. Documentation
+================
+  HelmForge docs: https://helmforge.dev/docs/charts/rabbitmq
+  Chart design:   https://github.com/helmforgedev/charts/tree/main/charts/rabbitmq/DESIGN.md
+  Upstream docs:  https://www.rabbitmq.com/docs
+  GitHub source:  https://github.com/helmforgedev/charts/tree/main/charts/rabbitmq
+
+Happy Helmforging :)

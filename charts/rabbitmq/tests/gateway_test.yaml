@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Gateway API
+templates:
+  - httproute.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: does not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders an HTTPRoute for the Management UI
+    set:
+      management.enabled: true
+      gateway.enabled: true
+      gateway.parentRefs:
+        - name: public
+          namespace: gateway-system
+      gateway.hostnames:
+        - rabbitmq.example.com
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: apiVersion
+          value: gateway.networking.k8s.io/v1
+      - equal:
+          path: spec.parentRefs[0].name
+          value: public
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: test-rabbitmq
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 15672
+
+  - it: requires parentRefs when enabled
+    set:
+      management.enabled: true
+      gateway.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.parentRefs is required when gateway.enabled=true"
+
+  - it: does not render when management UI is disabled
+    set:
+      management.enabled: false
+      gateway.enabled: true
+      gateway.parentRefs:
+        - name: public
+    asserts:
+      - hasDocuments:
+          count: 0
+

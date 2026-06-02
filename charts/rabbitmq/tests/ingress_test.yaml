@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Management Ingress
+templates:
+  - ingress.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: does not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders ingressClassName from the standard value
+    set:
+      management.enabled: true
+      management.ingress.enabled: true
+      management.ingress.ingressClassName: nginx
+      management.ingress.hosts:
+        - host: rabbitmq.example.com
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.rules[0].host
+          value: rabbitmq.example.com
+
+  - it: preserves the deprecated className alias
+    set:
+      management.enabled: true
+      management.ingress.enabled: true
+      management.ingress.ingressClassName: ""
+      management.ingress.className: legacy
+      management.ingress.hosts:
+        - host: rabbitmq.example.com
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: legacy
