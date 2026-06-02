@@ -262,6 +262,9 @@ test -f /tmp/helmforge-replication-started && mariadb --socket=/run/mysqld/mysql
 
 {{- define "mariadb.prepareDataSubPathInitContainer" -}}
 {{- with .Values.persistence.subPath }}
+{{- $runAsUser := int (default 999 $.Values.securityContext.runAsUser) }}
+{{- $runAsGroup := int (default $runAsUser $.Values.securityContext.runAsGroup) }}
+{{- $fsGroup := int (default $runAsGroup $.Values.podSecurityContext.fsGroup) }}
 - name: prepare-datadir-subpath
   image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
   imagePullPolicy: {{ $.Values.image.pullPolicy }}
@@ -270,7 +273,8 @@ test -f /tmp/helmforge-replication-started && mariadb --socket=/run/mysqld/mysql
     - -ec
     - |
       mkdir -p "/mnt/data/{{ . }}"
-      chown 999:999 "/mnt/data/{{ . }}"
+      chmod 2770 "/mnt/data/{{ . }}"
+      chown {{ $runAsUser }}:{{ $fsGroup }} "/mnt/data/{{ . }}"
   securityContext:
     runAsUser: 0
     runAsGroup: 0
@@ -280,6 +284,7 @@ test -f /tmp/helmforge-replication-started && mariadb --socket=/run/mysqld/mysql
     capabilities:
       add:
         - CHOWN
+        - FOWNER
       drop:
         - ALL
   volumeMounts:

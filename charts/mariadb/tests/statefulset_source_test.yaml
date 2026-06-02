@@ -104,6 +104,9 @@ tests:
           pattern: "mkdir -p \"/mnt/data/mysql\""
       - matchRegex:
           path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chmod 2770 \"/mnt/data/mysql\""
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "chown 999:999 \"/mnt/data/mysql\""
       - equal:
           path: spec.template.spec.initContainers[0].securityContext.runAsUser
@@ -115,10 +118,29 @@ tests:
           path: spec.template.spec.initContainers[0].securityContext.capabilities.add[0]
           value: CHOWN
       - equal:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.add[1]
+          value: FOWNER
+      - equal:
           path: spec.template.spec.initContainers[0].volumeMounts[0]
           value:
             name: data
             mountPath: /mnt/data
+
+  - it: should prepare default subPath with custom runtime ownership
+    template: templates/statefulset-source.yaml
+    set:
+      securityContext:
+        runAsUser: 1001
+        runAsGroup: 1002
+      podSecurityContext:
+        fsGroup: 1003
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chmod 2770 \"/mnt/data/mysql\""
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chown 1001:1003 \"/mnt/data/mysql\""
 
   - it: should allow legacy volume-root datadir mounts for existing installs
     template: templates/statefulset-source.yaml
