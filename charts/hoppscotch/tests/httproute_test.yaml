@@ -1,0 +1,97 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: httproute tests
+templates:
+  - httproute.yaml
+tests:
+  - it: should not create HTTPRoute by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create HTTPRoute when gateway is enabled
+    set:
+      gateway:
+        enabled: true
+        parentRefs:
+          - name: shared-gateway
+            namespace: gateway-system
+            sectionName: https
+        hostnames:
+          - hoppscotch.example.com
+        path: /
+        pathType: PathPrefix
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.parentRefs[0].name
+          value: shared-gateway
+      - equal:
+          path: spec.parentRefs[0].namespace
+          value: gateway-system
+      - equal:
+          path: spec.hostnames[0]
+          value: hoppscotch.example.com
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 80
+
+  - it: should preserve legacy gatewayAPI values during upgrades
+    set:
+      gatewayAPI:
+        enabled: true
+        parentRefs:
+          - name: legacy-gateway
+            namespace: gateway-system
+        hostnames:
+          - legacy.example.com
+        path: /hoppscotch
+        pathType: PathPrefix
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.parentRefs[0].name
+          value: legacy-gateway
+      - equal:
+          path: spec.parentRefs[0].namespace
+          value: gateway-system
+      - equal:
+          path: spec.hostnames[0]
+          value: legacy.example.com
+      - equal:
+          path: spec.rules[0].matches[0].path.value
+          value: /hoppscotch
+
+  - it: should preserve legacy gatewayAPI gatewayName values during upgrades
+    set:
+      gatewayAPI:
+        enabled: true
+        gatewayName: legacy-gateway
+        gatewayNamespace: gateway-system
+        hostnames:
+          - legacy.example.com
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.parentRefs[0].name
+          value: legacy-gateway
+      - equal:
+          path: spec.parentRefs[0].namespace
+          value: gateway-system
+
+  - it: should preserve legacy gatewayAPI without parentRefs during upgrades
+    set:
+      gatewayAPI:
+        enabled: true
+        hostnames:
+          - legacy.example.com
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - notExists:
+          path: spec.parentRefs
+      - equal:
+          path: spec.hostnames[0]
+          value: legacy.example.com

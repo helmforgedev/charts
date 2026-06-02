@@ -106,6 +106,9 @@ validateAll — fail-fast on misconfigured values
 {{- if and .Values.mailer.enabled (not .Values.mailer.useCustomConfigs) (not .Values.mailer.smtpUrl) (not .Values.mailer.existingSecret) -}}
   {{- fail "mailer.smtpUrl is required when mailer.enabled=true and mailer.useCustomConfigs=false (or set mailer.existingSecret)" -}}
 {{- end -}}
+{{- if eq (int .Values.service.containerPort) 8080 -}}
+  {{- fail "service.containerPort must not be 8080 because the Hoppscotch AIO backend already listens on localhost:8080" -}}
+{{- end -}}
 {{- if and .Values.gateway.enabled (not .Values.gateway.parentRefs) -}}
   {{- fail "gateway.parentRefs is required when gateway.enabled=true" -}}
 {{- end -}}
