@@ -248,10 +248,13 @@ mods:
 
 ## Upgrade Notes
 
-`docker.io/itzg/minecraft-server:2026.5.2` is an upstream image update from
-`2026.4.2`. Review the upstream release notes before upgrading production
-servers, take a world backup, and verify plugins, mods, datapacks, and pinned
-`server.version` values in a staging environment before reusing existing PVCs.
+`docker.io/itzg/minecraft-server:2026.5.4` updates the upstream server image from
+`2026.5.2`. The upstream releases include env-file loading at startup, server
+library cleanup on Paper installs, helper/monitor/RCON dependency updates, and a
+fix for deriving `MC_IMAGE_HELPER_OPTS` from `PROXY_*` variables. Review the
+upstream release notes before upgrading production servers, take a world backup,
+and verify plugins, mods, datapacks, proxy settings, and pinned `server.version`
+values in a staging environment before reusing existing PVCs.
 
 ### Mods & Plugins
 
@@ -356,6 +359,7 @@ externalSecrets:
 - [Production](examples/production.yaml) — Paper with whitelist, metrics, backup, and affinity
 - [Modded](examples/modded.yaml) — Forge server for mods
 - [Cross-play](examples/crossplay.yaml) — Paper with GeyserMC for Bedrock clients
+- [Chart design](DESIGN.md)
 
 ## Architecture Guides
 
@@ -393,6 +397,7 @@ keywords: minecraft, helm, kubernetes, paper, forge, fabric, geyser, bedrock, ga
 purpose: Installation guide, configuration reference, and operational documentation for the minecraft Helm chart
 scope: Chart
 relations:
+  - charts/minecraft/DESIGN.md
   - charts/minecraft/docs/vanilla-and-paper.md
   - charts/minecraft/docs/modded.md
   - charts/minecraft/docs/crossplay.md
