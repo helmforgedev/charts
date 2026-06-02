@@ -1,72 +1,132 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-MariaDB has been installed.
+{{- $namespace := .Release.Namespace -}}
+{{- $datadirSubPath := .Values.persistence.subPath -}}
+1. MariaDB has been installed
+=============================
+  Release:         {{ .Release.Name }}
+  Namespace:       {{ $namespace }}
+  Architecture:    {{ .Values.architecture }}
+  Chart Version:   {{ .Chart.Version }}
+  App Version:     {{ .Chart.AppVersion }}
+  Datadir subPath: {{- if $datadirSubPath }} {{ $datadirSubPath }}{{- else }} volume root (legacy){{- end }}
 
-Useful Services:
-
-- Client Service: {{ include "mariadb.clientServiceName" . }}
-{{- if .Values.metrics.enabled }}
-- Metrics Service: {{ include "mariadb.metricsServiceName" . }}
-{{- end }}
+2. Services
+===========
+  Client Service: {{ include "mariadb.clientServiceName" . }}:{{ .Values.service.port }}
 {{- if eq .Values.architecture "replication" }}
-- Source Service: {{ include "mariadb.sourceServiceName" . }}
-- Replicas Service: {{ include "mariadb.replicasServiceName" . }}
+  Source Service: {{ include "mariadb.sourceServiceName" . }}:{{ .Values.service.port }}
+  Read Service:   {{ include "mariadb.replicasServiceName" . }}:{{ .Values.service.port }}
+{{- end }}
 {{- if .Values.metrics.enabled }}
-- Source Metrics Service: {{ include "mariadb.sourceMetricsServiceName" . }}
-- Replicas Metrics Service: {{ include "mariadb.replicasMetricsServiceName" . }}
+  Metrics Service: {{ include "mariadb.metricsServiceName" . }}:{{ .Values.service.metricsPort }}
+{{- if eq .Values.architecture "replication" }}
+  Source Metrics:  {{ include "mariadb.sourceMetricsServiceName" . }}:{{ .Values.service.metricsPort }}
+  Replica Metrics: {{ include "mariadb.replicasMetricsServiceName" . }}:{{ .Values.service.metricsPort }}
 {{- end }}
 {{- end }}
 
+3. Credentials
+==============
 Root password:
+  kubectl get secret {{ include "mariadb.secretName" . }} -n {{ $namespace }} \
+    -o jsonpath="{.data.{{ .Values.auth.existingSecretRootPasswordKey }}}" | base64 -d
 
-  kubectl get secret {{ include "mariadb.secretName" . }} -n {{ .Release.Namespace }} -o jsonpath="{.data.{{ .Values.auth.existingSecretRootPasswordKey }}}" | base64 -d
+Application password:
+  kubectl get secret {{ include "mariadb.secretName" . }} -n {{ $namespace }} \
+    -o jsonpath="{.data.{{ .Values.auth.existingSecretUserPasswordKey }}}" | base64 -d
+
+4. Connect
+==========
+Port-forward:
+  kubectl port-forward -n {{ $namespace }} svc/{{ include "mariadb.clientServiceName" . }} 3306:{{ .Values.service.port }}
+
+Connect as application user:
+  mariadb -h 127.0.0.1 -P 3306 -u {{ .Values.auth.username }} -p {{ .Values.auth.database }}
+
+Connect as root:
+  mariadb -h 127.0.0.1 -P 3306 -uroot -p
+
+{{- if eq .Values.architecture "replication" }}
+Read-only workloads should use:
+  mariadb -h {{ include "mariadb.replicasServiceName" . }} -P {{ .Values.service.port }} -u {{ .Values.auth.username }} -p {{ .Values.auth.database }}
+
+Writable workloads should use:
+  mariadb -h {{ include "mariadb.sourceServiceName" . }} -P {{ .Values.service.port }} -u {{ .Values.auth.username }} -p {{ .Values.auth.database }}
+{{- end }}
+
+5. Configuration Summary
+========================
+  TLS:              {{- if .Values.tls.enabled }} enabled{{- else }} disabled{{- end }}
+  Metrics:          {{- if .Values.metrics.enabled }} enabled{{- else }} disabled{{- end }}
+  Backup:           {{- if .Values.backup.enabled }} enabled{{- else }} disabled{{- end }}
+  NetworkPolicy:    {{- if .Values.networkPolicy.enabled }} enabled{{- else }} disabled{{- end }}
+  External Secrets: {{- if .Values.externalSecrets.enabled }} enabled{{- else }} disabled{{- end }}
+  PDB:              {{- if include "mariadb.pdbEnabled" . }} enabled{{- else }} disabled{{- end }}
+
+{{- if .Values.externalSecrets.enabled }}
+ExternalSecret:
+  SecretStore:   {{ .Values.externalSecrets.secretStoreRef.name }} ({{ .Values.externalSecrets.secretStoreRef.kind }})
+  Target Secret: {{ include "mariadb.secretName" . }}
+  Refresh:       {{ .Values.externalSecrets.refreshInterval }}
+{{- end }}
+
 {{- if .Values.tls.enabled }}
-
 TLS secret:
-
   {{ include "mariadb.tlsSecretName" . }}
 {{- end }}
 
-Connection examples:
+6. Breaking Change: Datadir subPath
+===================================
+MariaDB now mounts the data volume subdirectory configured by
+`persistence.subPath` as `/var/lib/mysql`. The default is `mysql`, which keeps
+ext4 `lost+found` out of the MariaDB datadir on new installs.
 
-  mariadb -h {{ include "mariadb.clientServiceName" . }} -P {{ .Values.service.port }} -u {{ .Values.auth.username }} -p
+Existing installs whose data already lives at the volume root must set:
+  persistence.subPath: ""
+
+Alternatively, migrate the existing volume-root data into the configured
+subdirectory before upgrading.
+
+7. Validation Commands
+======================
+Check pods:
+  kubectl get pods -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Check logs:
+  kubectl logs -n {{ $namespace }} {{ include "mariadb.sourceStatefulSetName" . }}-0 -c mariadb --tail=100
 {{- if eq .Values.architecture "replication" }}
-
-Read-only workloads should use:
-
-  mariadb -h {{ include "mariadb.replicasServiceName" . }} -P {{ .Values.service.port }} -u {{ .Values.auth.username }} -p
-
-Writable workloads should use:
-
-  mariadb -h {{ include "mariadb.sourceServiceName" . }} -P {{ .Values.service.port }} -u {{ .Values.auth.username }} -p
+  kubectl logs -n {{ $namespace }} {{ include "mariadb.replicaStatefulSetName" . }}-0 -c mariadb --tail=100
 {{- end }}
-
-Initial troubleshooting:
-
-  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
-  kubectl logs -n {{ .Release.Namespace }} {{ include "mariadb.sourceStatefulSetName" . }}-0
 {{- if .Values.metrics.enabled }}
-  kubectl logs -n {{ .Release.Namespace }} {{ include "mariadb.sourceStatefulSetName" . }}-0 -c mysqld-exporter
-{{- end }}
-{{- if eq .Values.architecture "replication" }}
-  kubectl logs -n {{ .Release.Namespace }} {{ include "mariadb.replicaStatefulSetName" . }}-0
-{{- if .Values.metrics.enabled }}
-  kubectl logs -n {{ .Release.Namespace }} {{ include "mariadb.replicaStatefulSetName" . }}-0 -c mysqld-exporter
-{{- end }}
+  kubectl logs -n {{ $namespace }} {{ include "mariadb.sourceStatefulSetName" . }}-0 -c mysqld-exporter --tail=100
 {{- end }}
 
-{{- if .Values.externalSecrets.enabled }}
+Check readiness from inside the source pod:
+  kubectl exec -n {{ $namespace }} {{ include "mariadb.sourceStatefulSetName" . }}-0 -c mariadb -- \
+    sh -ec 'mariadb-admin ping -h 127.0.0.1 -P {{ .Values.service.port }} -uroot --password="$MARIADB_ROOT_PASSWORD"'
 
-ExternalSecrets:
+8. Troubleshooting
+==================
+  lost+found log entry:
+    -> New installs should use persistence.subPath=mysql (default).
+    -> Existing installs should set persistence.subPath="" until data is migrated.
 
-  SecretStore: {{ .Values.externalSecrets.secretStoreRef.name }} ({{ .Values.externalSecrets.secretStoreRef.kind }})
-  Target Secret: {{ include "mariadb.secretName" . }}
-  Refresh: {{ .Values.externalSecrets.refreshInterval }}
-{{- end }}
+  Database appears empty after upgrade:
+    -> The data probably remains at the PVC root while persistence.subPath=mysql is active.
+    -> Roll back or set persistence.subPath="" before investigating migration.
 
-Important:
+  Pod not ready:
+    -> Check MariaDB logs and events:
+       kubectl describe pod -n {{ $namespace }} {{ include "mariadb.sourceStatefulSetName" . }}-0
 
-- replication mode provides one fixed source and asynchronous read replicas
-- the chart does not implement automatic source promotion or operator-style HA
-- default values are suitable for development; production installs should provide external credentials, persistence, TLS, NetworkPolicy, resources, backups, and operational runbooks
+  Replication not catching up:
+    -> Check source and replica logs.
+    -> Verify the replication user password is stable across upgrades.
+
+9. Documentation
+================
+  HelmForge docs: https://helmforge.dev/docs/charts/mariadb
+  Chart source:   https://github.com/helmforgedev/charts/tree/main/charts/mariadb
+  MariaDB docs:   https://mariadb.com/kb/en/
 
 Happy Helmforging :)

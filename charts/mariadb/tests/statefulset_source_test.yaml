@@ -74,6 +74,28 @@ tests:
           path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
           value: 8Gi
 
+  - it: should mount the datadir from the safe default subPath
+    template: templates/statefulset-source.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0]
+          value:
+            name: data
+            mountPath: /var/lib/mysql
+            subPath: mysql
+
+  - it: should allow legacy volume-root datadir mounts for existing installs
+    template: templates/statefulset-source.yaml
+    set:
+      persistence:
+        subPath: ""
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          value: /var/lib/mysql
+      - notExists:
+          path: spec.template.spec.containers[0].volumeMounts[0].subPath
+
   - it: should render metrics sidecar when enabled
     template: templates/statefulset-source.yaml
     set:

@@ -36,7 +36,8 @@ spec:
             - -ec
             - |
               DATA_DIR="/var/lib/mysql"
-              if [ -d "${DATA_DIR}/mysql" ]; then
+              CLONE_MARKER="${DATA_DIR}/.helmforge-cloned"
+              if [ -f "${CLONE_MARKER}" ]; then
                 exit 0
               fi
 
@@ -53,38 +54,77 @@ spec:
               slave_parallel_workers = {{ .Values.replication.replicaTuning.parallelWorkers }}
               EOF
 
-              until MYSQL_PWD="${MARIADB_ROOT_PASSWORD}" mariadb-admin ping -h {{ include "mariadb.sourceServiceName" . }} -P {{ .Values.service.port }} -uroot {{ include "mariadb.cliTlsArgs" . }} --silent; do
+              until mariadb-admin ping -h {{ include "mariadb.sourceServiceName" . }} -P {{ .Values.service.port }} -uroot --password="${MARIADB_ROOT_PASSWORD}" {{ include "mariadb.cliTlsArgs" . }} --silent; do
                 sleep 5
               done
 
-              mariadb-install-db --user=mysql --datadir="${DATA_DIR}"
-              mariadbd --user=mysql --datadir="${DATA_DIR}" --socket=/tmp/mysql.sock --pid-file=/tmp/mariadb.pid --skip-networking &
+              until mariadb -h {{ include "mariadb.sourceServiceName" . }} -P {{ .Values.service.port }} -uroot --password="${MARIADB_ROOT_PASSWORD}" {{ include "mariadb.cliTlsArgs" . }} -Nse "SHOW DATABASES LIKE '${MARIADB_DATABASE}'" | grep -qx "${MARIADB_DATABASE}"; do
+                sleep 5
+              done
+
+              if [ ! -d "${DATA_DIR}/mysql" ]; then
+                mariadb-install-db --datadir="${DATA_DIR}" --auth-root-authentication-method=normal
+              fi
+
+              mariadbd --datadir="${DATA_DIR}" --socket=/tmp/mysql.sock --pid-file=/tmp/mariadb.pid --skip-networking --read-only=OFF &
 
               until mariadb-admin --socket=/tmp/mysql.sock ping --silent; do
                 sleep 2
               done
 
               mariadb --socket=/tmp/mysql.sock -uroot <<EOSQL
+              SET GLOBAL read_only = OFF;
               ALTER USER 'root'@'localhost' IDENTIFIED BY '${MARIADB_ROOT_PASSWORD}';
+              DROP USER IF EXISTS ''@'localhost';
+              DROP USER IF EXISTS ''@'${HOSTNAME}';
+              DROP USER IF EXISTS ''@'%';
+              DELETE FROM mysql.global_priv WHERE User = '';
+              DELETE FROM mysql.proxies_priv WHERE User = '' OR Proxied_user = '';
+              CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY '${MARIADB_ROOT_PASSWORD}';
+              GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
+              CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED BY '${MARIADB_ROOT_PASSWORD}';
+              GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION;
               FLUSH PRIVILEGES;
               EOSQL
 
-              MYSQL_PWD="${MARIADB_ROOT_PASSWORD}" mariadb-dump \
+              DATABASES="$(mariadb \
                 -h {{ include "mariadb.sourceServiceName" . }} \
                 -P {{ .Values.service.port }} \
                 -uroot \
+                --password="${MARIADB_ROOT_PASSWORD}" \
                 {{ include "mariadb.cliTlsArgs" . }} \
-                --single-transaction \
-                --gtid \
-                --all-databases \
-                --triggers \
-                --routines \
-                --events \
-                > /tmp/source.sql
+                -Nse "SHOW DATABASES WHERE \`Database\` NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys')")"
 
-              MYSQL_PWD="${MARIADB_ROOT_PASSWORD}" mariadb --socket=/tmp/mysql.sock -uroot < /tmp/source.sql
+              if [ -n "${DATABASES}" ]; then
+                mariadb-dump \
+                  -h {{ include "mariadb.sourceServiceName" . }} \
+                  -P {{ .Values.service.port }} \
+                  -uroot \
+                  --password="${MARIADB_ROOT_PASSWORD}" \
+                  {{ include "mariadb.cliTlsArgs" . }} \
+                  --single-transaction \
+                  --gtid \
+                  --databases ${DATABASES} \
+                  --triggers \
+                  --routines \
+                  --events \
+                  > /tmp/source.sql
 
-              MYSQL_PWD="${MARIADB_ROOT_PASSWORD}" mariadb --socket=/tmp/mysql.sock -uroot <<EOSQL
+                mariadb --socket=/tmp/mysql.sock -uroot --password="${MARIADB_ROOT_PASSWORD}" < /tmp/source.sql
+              fi
+
+              mariadb --socket=/tmp/mysql.sock -uroot --password="${MARIADB_ROOT_PASSWORD}" <<EOSQL
+              SET GLOBAL read_only = OFF;
+              ALTER USER 'root'@'localhost' IDENTIFIED BY '${MARIADB_ROOT_PASSWORD}';
+              DROP USER IF EXISTS ''@'localhost';
+              DROP USER IF EXISTS ''@'${HOSTNAME}';
+              DROP USER IF EXISTS ''@'%';
+              DELETE FROM mysql.global_priv WHERE User = '';
+              DELETE FROM mysql.proxies_priv WHERE User = '' OR Proxied_user = '';
+              CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY '${MARIADB_ROOT_PASSWORD}';
+              GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
+              CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED BY '${MARIADB_ROOT_PASSWORD}';
+              GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION;
               CHANGE MASTER TO
                 MASTER_HOST='{{ include "mariadb.sourceServiceName" . }}',
                 MASTER_PORT={{ .Values.service.port }},
@@ -92,9 +132,9 @@ spec:
                 MASTER_PASSWORD='${REPLICATION_PASSWORD}',
                 {{ include "mariadb.replicationTlsClause" . | nindent 16 }}
                 MASTER_USE_GTID=slave_pos;
-              START SLAVE;
               EOSQL
 
+              touch "${CLONE_MARKER}"
               mariadb-admin --socket=/tmp/mysql.sock -uroot -p"${MARIADB_ROOT_PASSWORD}" shutdown
           env:
             - name: MARIADB_ROOT_PASSWORD
@@ -107,11 +147,12 @@ spec:
                 secretKeyRef:
                   name: {{ include "mariadb.secretName" . }}
                   key: {{ .Values.auth.existingSecretReplicationPasswordKey }}
+            - name: MARIADB_DATABASE
+              value: {{ .Values.auth.database | quote }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           volumeMounts:
-            - name: data
-              mountPath: /var/lib/mysql
+            {{- include "mariadb.dataVolumeMount" . | nindent 12 }}
             - name: config
               mountPath: /config
             - name: mariadb-conf
@@ -143,7 +184,19 @@ spec:
               log_slave_updates = ON
               slave_parallel_workers = {{ .Values.replication.replicaTuning.parallelWorkers }}
               EOF
-              exec docker-entrypoint.sh mariadbd
+              docker-entrypoint.sh mariadbd &
+              pid="$!"
+              trap 'kill -TERM "${pid}"; wait "${pid}"' TERM INT
+
+              until mariadb-admin ping --socket=/run/mysqld/mysqld.sock -uroot --password="${MARIADB_ROOT_PASSWORD}" --silent; do
+                sleep 2
+              done
+
+              status="$(mariadb --socket=/run/mysqld/mysqld.sock -uroot --password="${MARIADB_ROOT_PASSWORD}" -Nse "SHOW SLAVE STATUS\\G" 2>/dev/null || true)"
+              if ! printf "%s\n" "${status}" | grep -q "Slave_SQL_Running: Yes"; then
+                mariadb --socket=/run/mysqld/mysqld.sock -uroot --password="${MARIADB_ROOT_PASSWORD}" -e "START SLAVE;"
+              fi
+              wait "${pid}"
           ports:
             - name: mariadb
               containerPort: {{ .Values.service.port }}
@@ -162,7 +215,7 @@ spec:
               command:
                 - sh
                 - -ec
-                - {{ include "mariadb.probeCommandString" . | quote }}
+                - {{ include "mariadb.replicaProbeCommandString" . | quote }}
             initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
@@ -186,7 +239,7 @@ spec:
               command:
                 - sh
                 - -ec
-                - {{ include "mariadb.probeCommandString" . | quote }}
+                - {{ include "mariadb.replicaProbeCommandString" . | quote }}
             initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.startupProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
@@ -201,8 +254,7 @@ spec:
             {{- include "mariadb.resourcesPreset" (dict "preset" .Values.replication.readReplicas.resourcesPreset) | nindent 12 }}
             {{- end }}
           volumeMounts:
-            - name: data
-              mountPath: /var/lib/mysql
+            {{- include "mariadb.dataVolumeMount" . | nindent 12 }}
             - name: config
               mountPath: /config
             - name: mariadb-conf

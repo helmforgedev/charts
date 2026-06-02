@@ -169,12 +169,16 @@ app.kubernetes.io/role: {{ .role }}
 {{- end -}}
 
 {{- define "mariadb.probeCommandString" -}}
-MYSQL_PWD="${MARIADB_ROOT_PASSWORD}" mariadb-admin ping -h 127.0.0.1 -P {{ .Values.service.port }} -uroot
+mariadb-admin ping -h 127.0.0.1 -P {{ .Values.service.port }} -uroot --password="${MARIADB_ROOT_PASSWORD}"
+{{- end -}}
+
+{{- define "mariadb.replicaProbeCommandString" -}}
+mariadb-admin ping --socket=/run/mysqld/mysqld.sock -uroot --password="${MARIADB_ROOT_PASSWORD}"
 {{- end -}}
 
 {{- define "mariadb.sourceReadinessCommandString" -}}
 {{- if and (eq .Values.architecture "replication") .Values.replication.source.probes.requireWritable -}}
-MYSQL_PWD="${MARIADB_ROOT_PASSWORD}" mariadb -h 127.0.0.1 -P {{ .Values.service.port }} -uroot -Nse "SELECT IF(@@global.read_only = 0, 1, 0)" | grep -qx 1
+mariadb -h 127.0.0.1 -P {{ .Values.service.port }} -uroot --password="${MARIADB_ROOT_PASSWORD}" -Nse "SELECT IF(@@global.read_only IN ('OFF', '0'), 1, 0)" | grep -qx 1
 {{- else -}}
 {{ include "mariadb.probeCommandString" . }}
 {{- end -}}
@@ -182,9 +186,9 @@ MYSQL_PWD="${MARIADB_ROOT_PASSWORD}" mariadb -h 127.0.0.1 -P {{ .Values.service.
 
 {{- define "mariadb.replicaReadinessCommandString" -}}
 {{- if and (eq .Values.architecture "replication") (or .Values.replication.readReplicas.probes.requireReadOnly .Values.replication.readReplicas.probes.requireRunningReplication) -}}
-MYSQL_PWD="${MARIADB_ROOT_PASSWORD}" mariadb -h 127.0.0.1 -P {{ .Values.service.port }} -uroot -Nse "SELECT IF(@@global.read_only = 1{{- if .Values.replication.readReplicas.probes.requireRunningReplication }} AND EXISTS (SELECT 1 FROM information_schema.processlist WHERE command = 'Binlog Dump') IS NOT NULL{{- end }}, 1, 0)" | grep -qx 1
+mariadb --socket=/run/mysqld/mysqld.sock -uroot --password="${MARIADB_ROOT_PASSWORD}" -Nse "SELECT IF(@@global.read_only IN ('ON', '1'){{- if .Values.replication.readReplicas.probes.requireRunningReplication }} AND EXISTS (SELECT 1 FROM information_schema.processlist WHERE command = 'Binlog Dump') IS NOT NULL{{- end }}, 1, 0)" | grep -qx 1
 {{- else -}}
-{{ include "mariadb.probeCommandString" . }}
+{{ include "mariadb.replicaProbeCommandString" . }}
 {{- end -}}
 {{- end -}}
 
@@ -246,6 +250,14 @@ MYSQL_PWD="${MARIADB_ROOT_PASSWORD}" mariadb -h 127.0.0.1 -P {{ .Values.service.
   mountPath: /tls
   readOnly: true
 {{- end }}
+{{- end -}}
+
+{{- define "mariadb.dataVolumeMount" -}}
+- name: data
+  mountPath: /var/lib/mysql
+  {{- with .Values.persistence.subPath }}
+  subPath: {{ . | quote }}
+  {{- end }}
 {{- end -}}
 
 {{- define "mariadb.tlsClientEnabled" -}}

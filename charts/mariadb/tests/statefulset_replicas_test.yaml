@@ -1,0 +1,172 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: statefulset-replicas
+templates:
+  - templates/statefulset-replicas.yaml
+  - templates/configmap.yaml
+tests:
+  - it: should not render replicas in standalone mode
+    template: templates/statefulset-replicas.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render replicas in replication mode
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-mariadb-replicas
+
+  - it: should mount replica datadirs from the safe default subPath
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].volumeMounts[0]
+          value:
+            name: data
+            mountPath: /var/lib/mysql
+            subPath: mysql
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0]
+          value:
+            name: data
+            mountPath: /var/lib/mysql
+            subPath: mysql
+
+  - it: should not request mariadbd ownership changes in the non-root clone init container
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - not: true
+        matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "--user=mysql"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "--read-only=OFF"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "--auth-root-authentication-method=normal"
+
+  - it: should preserve root local access for replica probes after cloning
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "CREATE USER IF NOT EXISTS 'root'@'127\\.0\\.0\\.1'"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "GRANT ALL PRIVILEGES ON \\*\\.\\* TO 'root'@'127\\.0\\.0\\.1' WITH GRANT OPTION"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "CREATE USER IF NOT EXISTS 'root'@'%'"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "DELETE FROM mysql\\.global_priv WHERE User = ''"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "DROP USER IF EXISTS ''@'\\$\\{HOSTNAME\\}'"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "DELETE FROM mysql\\.proxies_priv WHERE User = '' OR Proxied_user = ''"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "CLONE_MARKER="
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "touch \"\\$\\{CLONE_MARKER\\}\""
+
+  - it: should clone user databases without overwriting local grant tables
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "SHOW DATABASES WHERE"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "'mysql'"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "--databases \\$\\{DATABASES\\}"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "--all-databases"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "START SLAVE"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "SHOW DATABASES LIKE '\\$\\{MARIADB_DATABASE\\}'"
+      - equal:
+          path: spec.template.spec.initContainers[0].env[2]
+          value:
+            name: MARIADB_DATABASE
+            value: app
+
+  - it: should start replication in the main replica container
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "START SLAVE"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "docker-entrypoint\\.sh mariadbd &"
+
+  - it: should use local socket probes for replicas
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.exec.command[2]
+          value: mariadb-admin ping --socket=/run/mysqld/mysqld.sock -uroot --password="${MARIADB_ROOT_PASSWORD}"
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: "--socket=/run/mysqld/mysqld\\.sock"
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: "-uroot"
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: "--password=\"\\$\\{MARIADB_ROOT_PASSWORD\\}\""
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: "@@global\\.read_only IN \\('ON', '1'\\)"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.containers[0].startupProbe.exec.command[2]
+          pattern: "127\\.0\\.0\\.1"
+
+  - it: should allow legacy volume-root datadir mounts for replicas
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+      persistence:
+        subPath: ""
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].volumeMounts[0].mountPath
+          value: /var/lib/mysql
+      - notExists:
+          path: spec.template.spec.initContainers[0].volumeMounts[0].subPath
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          value: /var/lib/mysql
+      - notExists:
+          path: spec.template.spec.containers[0].volumeMounts[0].subPath
