@@ -36,7 +36,10 @@ helm install rabbitmq oci://ghcr.io/helmforgedev/helm/rabbitmq -f values.yaml
 - optional metrics through the native RabbitMQ Prometheus plugin
 - optional `ServiceMonitor`
 - optional `PodDisruptionBudget`
-- ingress support for the Management UI with configurable `ingressClassName`
+- Ingress support for the Management UI with configurable `ingressClassName`
+- Gateway API HTTPRoute support for the Management UI
+- dual-stack Service fields through `service.ipFamilyPolicy` and `service.ipFamilies`
+- External Secrets Operator support for RabbitMQ credentials
 
 ## How to choose the architecture
 
@@ -106,12 +109,53 @@ Management UI ingress example:
 management:
   ingress:
     enabled: true
-    className: traefik
+    ingressClassName: traefik
     hosts:
       - host: rabbitmq.example.com
         paths:
           - path: /
             pathType: Prefix
+```
+
+Management UI Gateway API example:
+
+```yaml
+management:
+  enabled: true
+
+gateway:
+  enabled: true
+  parentRefs:
+    - name: public
+      namespace: gateway-system
+  hostnames:
+    - rabbitmq.example.com
+```
+
+External Secrets example:
+
+```yaml
+auth:
+  existingSecret: rabbitmq-credentials
+
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: platform-secrets
+    kind: ClusterSecretStore
+  data:
+    - secretKey: rabbitmq-username
+      remoteRef:
+        key: rabbitmq/auth
+        property: username
+    - secretKey: rabbitmq-password
+      remoteRef:
+        key: rabbitmq/auth
+        property: password
+    - secretKey: rabbitmq-erlang-cookie
+      remoteRef:
+        key: rabbitmq/auth
+        property: erlang-cookie
 ```
 
 ## Best practices
@@ -147,7 +191,7 @@ management:
 |-----------|-------------|---------|
 | `architecture` | `single-node` or `cluster` | `single-node` |
 | `image.repository` | RabbitMQ image repository | `rabbitmq` |
-| `image.tag` | RabbitMQ image tag | `4.2.4-management` |
+| `image.tag` | RabbitMQ image tag | `4.3.1-management` |
 | `auth.username` | Application username | `user` |
 | `auth.password` | Application password | `""` |
 | `auth.erlangCookie` | Erlang cookie | `""` |
@@ -155,7 +199,8 @@ management:
 | `queueDefaults.type` | `quorum` or `classic` | `quorum` |
 | `management.enabled` | Enable management plugin/UI | `true` |
 | `management.ingress.enabled` | Enable management ingress | `false` |
-| `management.ingress.className` | Ingress class for the Management UI | `traefik` |
+| `management.ingress.ingressClassName` | Ingress class for the Management UI | `traefik` |
+| `management.ingress.className` | Deprecated optional alias for `ingressClassName`; empty string omits the field | omitted |
 | `tls.enabled` | Enable TLS listeners | `false` |
 | `singleNode.persistence.enabled` | Enable PVC for single node | `true` |
 | `cluster.replicaCount` | Number of cluster nodes | `3` |
@@ -163,6 +208,9 @@ management:
 | `metrics.enabled` | Enable RabbitMQ Prometheus plugin | `false` |
 | `metrics.serviceMonitor.enabled` | Enable ServiceMonitor | `false` |
 | `pdb.enabled` | Enable PodDisruptionBudget | `false` |
+| `service.ipFamilyPolicy` | Service IP family policy for dual-stack clusters | `""` |
+| `gateway.enabled` | Render Gateway API HTTPRoute for the Management UI | `false` |
+| `externalSecrets.enabled` | Render ExternalSecret for credentials | `false` |
 
 ## CI scenarios
 
@@ -173,6 +221,9 @@ The `ci/` scenarios validate the main chart behaviors:
 - `secure.yaml`
 - `existing-secret.yaml`
 - `metrics.yaml`
+- `dual-stack.yaml`
+- `gateway-api.yaml`
+- `external-secrets.yaml`
 
 ## Examples
 
@@ -181,13 +232,16 @@ See `examples/`:
 - `single-node.yaml`
 - `cluster-ha.yaml`
 - `management-tls.yaml`
+- `gateway-api.yaml`
+- `external-secrets.yaml`
 
 ## Important notes
 
 - `cluster` is not magical HA abstraction; queues, consumers, and reconnect behavior remain application and operations concerns
 - quorum queues are the recommended production direction in this chart
 - this chart does not attempt to orchestrate federation, shovel, or advanced policy management in v1
-- `management.ingress.className` can be set to `traefik`, `nginx`, or any ingress class available in the target cluster
+- `management.ingress.ingressClassName` can be set to `traefik`, `nginx`, or any ingress class available in the target cluster
+- `externalSecrets.enabled=true` requires `auth.existingSecret` so the chart does not generate credentials that drift from the operator-managed Secret
 
 <!-- @AI-METADATA
 type: chart-readme
@@ -204,6 +258,6 @@ relations:
   - charts/rabbitmq/docs/single-node.md
   - charts/rabbitmq/docs/cluster.md
 path: charts/rabbitmq/README.md
-version: 1.0
-date: 2026-03-20
+version: 1.1
+date: 2026-06-02
 -->

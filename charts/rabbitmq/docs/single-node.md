@@ -32,6 +32,7 @@ Common cases:
 - keep persistence enabled when messages cannot be lost
 - do not expose the Management UI unnecessarily
 - enable metrics in monitored environments
+- prefer External Secrets Operator for production credentials
 
 ## Base example
 
@@ -47,6 +48,17 @@ singleNode:
     size: 10Gi
 ```
 
+## Credential management
+
+For production-like single-node installs, prefer a stable Secret:
+
+```yaml
+auth:
+  existingSecret: rabbitmq-credentials
+```
+
+When External Secrets Operator reconciles that Secret, set `externalSecrets.enabled=true` and keep `auth.existingSecret` pointed at the same target Secret.
+
 <!-- @AI-METADATA
 type: chart-docs
 title: RabbitMQ - Single Node
@@ -60,6 +72,6 @@ scope: Chart Architecture
 relations:
   - charts/rabbitmq/README.md
 path: charts/rabbitmq/docs/single-node.md
-version: 1.0
-date: 2026-03-20
+version: 1.1
+date: 2026-06-02
 -->
