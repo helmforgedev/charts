@@ -33,6 +33,8 @@ User or automation
 - External Secrets support is generic and disabled by default. It is intended
   for environment secrets or notification integration credentials consumed via
   `changedetection.envFrom` or `changedetection.extraEnv`.
+- The upstream `EXTRA_PACKAGES` hook is supported without running the container
+  as root by using a Python user install path under `/datastore`.
 - Service dual-stack fields are optional and rendered only when explicitly set.
 
 ## Security Model

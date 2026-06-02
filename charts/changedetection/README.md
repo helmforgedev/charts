@@ -190,6 +190,18 @@ Use `changedetection.extraEnv` for upstream-supported environment variables that
 are not exposed as first-class chart values, and `changedetection.envFrom` for
 pre-created or externally materialized Secrets.
 
+The chart keeps the container non-root by default and sets `PIP_USER=true` with
+`PYTHONUSERBASE=/datastore/.python-userbase`. This gives the upstream
+`EXTRA_PACKAGES` entrypoint hook a writable Python user install path without
+requiring root privileges:
+
+```yaml
+changedetection:
+  extraEnv:
+    - name: EXTRA_PACKAGES
+      value: "chardet==5.2.0"
+```
+
 ## Security And Scheduling
 
 The chart exposes standard Kubernetes controls for production placement and

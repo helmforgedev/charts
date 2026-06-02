@@ -96,6 +96,20 @@ browser:
 Browser rendering materially increases CPU and memory usage. Tune pod resources
 from observed workload behavior.
 
+## Extra Python Packages
+
+changedetection.io supports the upstream `EXTRA_PACKAGES` environment variable
+for installing additional Python packages at container startup. The chart keeps
+the main container non-root and provides a writable Python user install path
+under `/datastore/.python-userbase`, so this hook can run without root:
+
+```yaml
+changedetection:
+  extraEnv:
+    - name: EXTRA_PACKAGES
+      value: "chardet==5.2.0"
+```
+
 ## Operations
 
 Useful checks after deployment:
