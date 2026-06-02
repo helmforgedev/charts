@@ -85,6 +85,21 @@ tests:
           path: spec.template.spec.initContainers[0].command[2]
           pattern: "touch \"\\$\\{CLONE_MARKER\\}\""
 
+  - it: should preserve already initialized replica datadirs during upgrade
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "if \\[ -d \"\\$\\{DATA_DIR\\}/mysql\" \\]; then"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "touch \"\\$\\{CLONE_MARKER\\}\""
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "touch \"\\$\\{CLONE_MARKER\\}\"\\n\\s+exit 0"
+
   - it: should clone user databases without overwriting local grant tables
     template: templates/statefulset-replicas.yaml
     set:
