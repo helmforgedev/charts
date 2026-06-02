@@ -96,6 +96,29 @@ tests:
             name: data
             mountPath: /var/lib/mysql
             subPath: mysql
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: prepare-datadir-subpath
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "mkdir -p \"/mnt/data/mysql\""
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chown 999:999 \"/mnt/data/mysql\""
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsUser
+          value: 0
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.drop[0]
+          value: ALL
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.add[0]
+          value: CHOWN
+      - equal:
+          path: spec.template.spec.initContainers[0].volumeMounts[0]
+          value:
+            name: data
+            mountPath: /mnt/data
 
   - it: should allow legacy volume-root datadir mounts for existing installs
     template: templates/statefulset-source.yaml
@@ -130,10 +153,10 @@ tests:
             mountPath: /etc/mysqld-exporter
             readOnly: true
       - equal:
-          path: spec.template.spec.initContainers[0].name
+          path: spec.template.spec.initContainers[1].name
           value: mysqld-exporter-config
       - contains:
-          path: spec.template.spec.initContainers[0].env
+          path: spec.template.spec.initContainers[1].env
           content:
             name: MARIADB_ROOT_PASSWORD
           any: true

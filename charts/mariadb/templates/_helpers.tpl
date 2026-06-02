@@ -260,6 +260,34 @@ test -f /tmp/helmforge-replication-started && mariadb --socket=/run/mysqld/mysql
   {{- end }}
 {{- end -}}
 
+{{- define "mariadb.prepareDataSubPathInitContainer" -}}
+{{- with .Values.persistence.subPath }}
+- name: prepare-datadir-subpath
+  image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+  imagePullPolicy: {{ $.Values.image.pullPolicy }}
+  command:
+    - sh
+    - -ec
+    - |
+      mkdir -p "/mnt/data/{{ . }}"
+      chown 999:999 "/mnt/data/{{ . }}"
+  securityContext:
+    runAsUser: 0
+    runAsGroup: 0
+    runAsNonRoot: false
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      add:
+        - CHOWN
+      drop:
+        - ALL
+  volumeMounts:
+    - name: data
+      mountPath: /mnt/data
+{{- end }}
+{{- end -}}
+
 {{- define "mariadb.tlsClientEnabled" -}}
 {{- if or .Values.tls.client.enabled .Values.tls.requireSecureTransport -}}true{{- end -}}
 {{- end -}}
