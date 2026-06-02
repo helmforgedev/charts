@@ -10,6 +10,7 @@ Open-source BI platform with visual data exploration, SQL editor, and shareable 
 - **SQL editor** — native SQL with autocomplete and snippets
 - **60+ database connectors** — PostgreSQL, MySQL, BigQuery, Redshift, and more
 - **PostgreSQL metadata store** — bundled subchart or external database
+- **Backups** — optional PostgreSQL dump CronJob for S3-compatible object storage
 - **Auto-generated encryption key** — protects saved database credentials
 - **JVM tuning** — configurable JAVA_OPTS for memory optimization
 - **Ingress support** — TLS with cert-manager
@@ -126,14 +127,14 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/metabase/metabase` | Metabase container image repository |
-| `image.tag` | `v0.61.2` | Metabase container image tag |
+| `image.tag` | `v0.61.3` | Metabase container image tag |
 | `metabase.port` | `3000` | Application port |
 | `metabase.encryptionSecretKey` | `""` | Encryption key (auto-generated) |
 | `metabase.siteUrl` | `""` | Public site URL |
 | `metabase.aiFeaturesEnabled` | `false` | Enable Metabase AI features after configuring a supported provider |
 | `metabase.javaTimezone` | `UTC` | Java timezone |
 | `metabase.javaOpts` | `""` | JVM memory options |
-| `postgresql.enabled` | `true` | Deploy PostgreSQL subchart |
+| `postgresql.enabled` | `true` | Deploy HelmForge PostgreSQL subchart (`1.10.0`) |
 | `ingress.enabled` | `false` | Enable ingress |
 | `service.port` | `80` | Service port |
 | `service.ipFamilyPolicy` | `~` | IP family policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
@@ -153,12 +154,22 @@ externalSecrets:
 
 ## Upgrade Notes
 
-Metabase `v0.61.2` is a stable upstream maintenance release. Back up the Metabase
-application database before upgrading and validate the `/api/health` endpoint
-after rollout.
+Metabase `v0.61.3` is an upstream maintenance release with backported fixes for database connection handling, migrations,
+SDK/embedding behavior, serialization, notifications, Metabot, and query/cache edge cases. Back up the Metabase
+application database before upgrading, keep the encryption key stable, and validate the `/api/health` endpoint after
+rollout.
+
+## Examples
+
+- [Production](examples/production.yaml)
+- [External PostgreSQL](examples/external-db.yaml)
+- [S3 backup](examples/backup.yaml)
 
 ## More Information
 
+- [Chart design](DESIGN.md)
+- [Database and backups](docs/database.md)
+- [Production operations](docs/production.md)
 - [Metabase documentation](https://www.metabase.com/docs/latest/)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/metabase)
 
@@ -173,8 +184,14 @@ purpose: Chart installation, configuration, and usage documentation
 scope: Chart
 
 relations:
+  - charts/metabase/DESIGN.md
+  - charts/metabase/docs/database.md
+  - charts/metabase/docs/production.md
+  - charts/metabase/examples/production.yaml
+  - charts/metabase/examples/external-db.yaml
+  - charts/metabase/examples/backup.yaml
   - charts/metabase/values.yaml
 path: charts/metabase/README.md
-version: 1.1
-date: 2026-04-30
+version: 1.2
+date: 2026-06-02
 -->
