@@ -13,6 +13,9 @@ Self-hosted monitoring with HTTP/TCP/DNS/Ping checks, 90+ notification services,
 - **External database** — connect to existing MariaDB instances
 - **Scheduled backups** — SQLite tar or mysqldump with S3 upload
 - **Ingress support** — TLS with cert-manager
+- **Gateway API support** — optional HTTPRoute rendering for dashboard and status pages
+- **External Secrets support** — optional ExternalSecret resources for database, backup, or integration credentials
+- **Dual-stack Service support** — optional `ipFamilyPolicy` and `ipFamilies`
 - **2FA** — built-in two-factor authentication
 
 ## Installation
@@ -75,6 +78,49 @@ mysql:
   enabled: false
 ```
 
+## Gateway API
+
+```yaml
+gatewayAPI:
+  enabled: true
+  httpRoutes:
+    - name: web
+      parentRefs:
+        - name: public
+          namespace: gateway-system
+      hostnames:
+        - status.example.com
+```
+
+## External Secrets
+
+Use External Secrets Operator to materialize Secrets, then point chart values at those target Secrets.
+
+```yaml
+database:
+  type: mariadb
+  external:
+    host: mariadb.example.com
+    existingSecret: uptime-kuma-db
+
+externalSecrets:
+  enabled: true
+  items:
+    - name: database
+      spec:
+        secretStoreRef:
+          name: platform-secrets
+          kind: ClusterSecretStore
+        target:
+          name: uptime-kuma-db
+          creationPolicy: Owner
+        data:
+          - secretKey: password
+            remoteRef:
+              key: uptime-kuma/database
+              property: password
+```
+
 ## Key Values
 
 | Key | Default | Description |
@@ -89,6 +135,9 @@ mysql:
 | `ingress.enabled` | `false` | Enable ingress |
 | `backup.enabled` | `false` | Enable S3 backups |
 | `service.port` | `80` | Service port |
+| `service.ipFamilyPolicy` | omitted | Optional Service IP family policy for dual-stack clusters |
+| `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute rendering |
+| `externalSecrets.enabled` | `false` | Render ExternalSecret resources |
 
 ## Upgrade Notes
 
@@ -102,6 +151,7 @@ before upgrading live instances.
 
 - [Database configuration](docs/database.md)
 - [Backup configuration](docs/backup.md)
+- [Chart design](DESIGN.md)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/uptime-kuma)
 
 <!-- @AI-METADATA
@@ -112,6 +162,7 @@ before upgrading live instances.
 @date: 2026-03-23
 @relations:
   - charts/uptime-kuma/values.yaml
+  - charts/uptime-kuma/DESIGN.md
   - charts/uptime-kuma/docs/database.md
   - charts/uptime-kuma/docs/backup.md
 -->

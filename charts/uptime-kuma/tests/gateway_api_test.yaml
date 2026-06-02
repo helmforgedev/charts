@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Gateway API
+templates:
+  - gateway-httproute.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: does not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders HTTPRoute when enabled
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - name: web
+          parentRefs:
+            - name: public
+              namespace: gateway-system
+          hostnames:
+            - status.example.com
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: apiVersion
+          value: gateway.networking.k8s.io/v1
+      - equal:
+          path: metadata.name
+          value: test-uptime-kuma-web
+      - equal:
+          path: spec.parentRefs[0].name
+          value: public
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: test-uptime-kuma
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 80
+
+  - it: keeps default backend with filters
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - name: web
+          rules:
+            - filters:
+                - type: RequestHeaderModifier
+                  requestHeaderModifier:
+                    add:
+                      - name: X-Forwarded-App
+                        value: uptime-kuma
+    asserts:
+      - equal:
+          path: spec.rules[0].filters[0].type
+          value: RequestHeaderModifier
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: test-uptime-kuma
+
+  - it: allows backend-less redirect rules when requested
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - name: redirect
+          rules:
+            - omitDefaultBackend: true
+              filters:
+                - type: RequestRedirect
+                  requestRedirect:
+                    scheme: https
+    asserts:
+      - notExists:
+          path: spec.rules[0].backendRefs
+

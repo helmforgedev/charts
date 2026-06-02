@@ -43,6 +43,26 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
+{{- define "uptime-kuma.httpRouteName" -}}
+{{- $root := index . "root" -}}
+{{- $route := index . "route" -}}
+{{- $fullname := include "uptime-kuma.fullname" $root -}}
+{{- $routeName := $route.name | default "" | trunc 32 | trimSuffix "-" -}}
+{{- if $routeName -}}
+{{- printf "%s-%s" ($fullname | trunc (int (sub 62 (len $routeName))) | trimSuffix "-") $routeName | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $fullname -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "uptime-kuma.externalSecretName" -}}
+{{- $root := index . "root" -}}
+{{- $item := index . "item" -}}
+{{- $fullname := include "uptime-kuma.fullname" $root -}}
+{{- $itemName := $item.name | default "external" | trunc 32 | trimSuffix "-" -}}
+{{- printf "%s-%s" ($fullname | trunc (int (sub 62 (len $itemName))) | trimSuffix "-") $itemName | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{/* Database type */}}
 {{- define "uptime-kuma.dbType" -}}
 {{- .Values.database.type | default "sqlite" -}}

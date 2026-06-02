@@ -61,6 +61,38 @@ kubectl create secret generic uptime-kuma-db-credentials \
   --from-literal=password=your-password
 ```
 
+## External Secrets
+
+External Secrets Operator can reconcile the same Secret:
+
+```yaml
+database:
+  type: mariadb
+  external:
+    host: mariadb.example.com
+    existingSecret: uptime-kuma-db
+    existingSecretPasswordKey: password
+
+externalSecrets:
+  enabled: true
+  items:
+    - name: database
+      spec:
+        secretStoreRef:
+          name: platform-secrets
+          kind: ClusterSecretStore
+        target:
+          name: uptime-kuma-db
+          creationPolicy: Owner
+        data:
+          - secretKey: password
+            remoteRef:
+              key: uptime-kuma/database
+              property: password
+```
+
+Keep `database.external.existingSecret` pointed at the same target Secret to avoid credential drift.
+
 ## Migration
 
 Uptime Kuma does not provide built-in migration between SQLite and MariaDB. Choose your database backend before first deployment.
