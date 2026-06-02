@@ -24,7 +24,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "ghcr.io/dgtlmoon/changedetection.io:0.55.5"
+          value: "ghcr.io/dgtlmoon/changedetection.io:0.55.7"
 
   - it: should expose port 5000
     asserts:
@@ -57,7 +57,28 @@ tests:
   - it: should drop Linux capabilities by default
     asserts:
       - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.securityContext.fsGroupChangePolicy
+          value: OnRootMismatch
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
           path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
           value: false
       - contains:
           path: spec.template.spec.containers[0].securityContext.capabilities.drop
@@ -84,6 +105,28 @@ tests:
             name: data
             persistentVolumeClaim:
               claimName: test-changedetection-data
+
+  - it: should initialize datastore without upstream sample watches by default
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: initialize-datastore
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: "ghcr.io/dgtlmoon/changedetection.io:0.55.7"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "include_default_watches=False"
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+          value: true
+
+  - it: should allow upstream sample watches when explicitly enabled
+    set:
+      changedetection.defaultWatches.enabled: true
+    asserts:
+      - isNull:
+          path: spec.template.spec.initContainers
 
   - it: should use emptyDir when persistence disabled
     set:
