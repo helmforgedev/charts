@@ -113,6 +113,9 @@ gateway:
 ```
 
 > **Note:** `gateway.parentRefs` is required when `gateway.enabled=true`.
+> Existing releases that still carry `gatewayAPI.enabled`, `gatewayAPI.gatewayName`,
+> and `gatewayAPI.gatewayNamespace` from older chart values remain supported as a
+> deprecated upgrade alias. New configuration should use `gateway.parentRefs`.
 
 ## External Secrets Operator (ESO)
 

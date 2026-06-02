@@ -67,3 +67,30 @@ tests:
       - equal:
           path: spec.rules[0].matches[0].path.value
           value: /automation
+
+  - it: should preserve legacy gatewayAPI values during upgrades
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.gatewayName: legacy-gateway
+      gatewayAPI.gatewayNamespace: gateway-system
+      gatewayAPI.hostnames:
+        - legacy.example.com
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.parentRefs[0].name
+          value: legacy-gateway
+      - equal:
+          path: spec.parentRefs[0].namespace
+          value: gateway-system
+      - contains:
+          path: spec.hostnames
+          content: legacy.example.com
+
+  - it: should fail legacy gatewayAPI when gatewayName is missing
+    set:
+      gatewayAPI.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "gatewayAPI.gatewayName is required when legacy gatewayAPI.enabled=true"
