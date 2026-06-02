@@ -60,7 +60,7 @@ and users are supported without editing SQL manually.
 
 ## Version Pinning Note
 
-The chart pins the upstream application image through `image.tag` and `appVersion`. For this release, `docmost/docmost:0.90.0` was verified as available on Docker Hub before updating the chart.
+The chart pins the upstream application image through `image.tag` and `appVersion`. For this release, `docmost/docmost:0.90.1` was verified as available on Docker Hub before updating the chart.
 
 ## Telemetry
 
