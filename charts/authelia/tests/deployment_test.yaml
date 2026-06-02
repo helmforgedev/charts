@@ -28,7 +28,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/authelia/authelia:4.39.19"
+          value: "docker.io/authelia/authelia:4.39.20"
 
   - it: should use custom image tag
     template: templates/deployment.yaml
@@ -38,6 +38,50 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].image
           value: "docker.io/authelia/authelia:4.40.0"
+
+  - it: should run with hardened non-root defaults
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.securityContext.fsGroupChangePolicy
+          value: OnRootMismatch
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop[0]
+          value: ALL
+
+  - it: should set default container resources
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 128Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 500m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 512Mi
 
   - it: should expose port 9091
     template: templates/deployment.yaml
@@ -131,6 +175,12 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[0].name
           value: wait-for-db
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 10m
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.memory
+          value: 64Mi
 
   - it: should add wait-for-db init container with Redis check in postgres+redis mode
     template: templates/deployment.yaml
@@ -146,6 +196,12 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[0].name
           value: wait-for-db
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 10m
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.memory
+          value: 64Mi
 
   - it: should add wait-for-redis init container in sqlite+redis mode
     template: templates/deployment.yaml
@@ -158,6 +214,12 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[0].name
           value: wait-for-redis
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 10m
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.memory
+          value: 64Mi
 
   - it: should inject postgres password env var
     template: templates/deployment.yaml
