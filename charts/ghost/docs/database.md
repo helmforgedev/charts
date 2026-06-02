@@ -7,12 +7,17 @@ The default configuration deploys Ghost with the HelmForge MySQL dependency:
 ```yaml
 mysql:
   enabled: true
+  image:
+    tag: "8.4.7"
   auth:
     database: ghost
     username: ghost
 ```
 
-This mode is useful for self-contained deployments and local validation. Size the MySQL PVC explicitly for real sites.
+This mode is useful for self-contained deployments and local validation. Ghost
+production supports MySQL 8, so this chart keeps the bundled HelmForge MySQL
+dependency on a MySQL 8 image tag by default. Size the MySQL PVC explicitly for
+real sites.
 
 ## External MySQL
 
@@ -62,7 +67,7 @@ externalSecrets:
 
 ## Notes
 
-- Ghost production mode requires MySQL.
+- Ghost production mode requires MySQL 8.
 - SQLite is only a development-mode option in the official image and is intentionally not part of this chart contract.
 - Back up both the database and `/var/lib/ghost/content` before upgrades.
 

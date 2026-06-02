@@ -67,6 +67,7 @@ database:
 | `ghost.url` | `""` | Public URL of the Ghost instance |
 | `image.tag` | `6.42.0` | Ghost image tag |
 | `mysql.enabled` | `true` | Deploy MySQL subchart |
+| `mysql.image.tag` | `8.4.7` | MySQL image tag pinned to the Ghost-supported MySQL 8 major |
 | `persistence.enabled` | `true` | Enable content persistence |
 | `persistence.size` | `10Gi` | Content PVC size |
 | `backup.enabled` | `false` | Enable S3 content backups |
@@ -98,7 +99,7 @@ backup:
 ## Limitations
 
 - **Single instance** — Ghost does not support horizontal scaling out of the box
-- **MySQL only** — Ghost requires MySQL 8; PostgreSQL is not supported
+- **MySQL only** — Ghost requires MySQL 8; PostgreSQL is not supported. The bundled HelmForge MySQL dependency is kept on MySQL 8 through `mysql.image.tag`.
 
 ## More Information
 

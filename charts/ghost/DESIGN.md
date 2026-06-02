@@ -55,6 +55,9 @@ failover for MySQL.
 
 - Use the official Ghost image.
 - Use the HelmForge MySQL subchart by default.
+- Keep the bundled MySQL image on MySQL 8 because Ghost production support is
+  tied to MySQL 8 even when the HelmForge MySQL dependency supports newer
+  MySQL majors.
 - Keep Ghost single-instance by default.
 - Persist `/var/lib/ghost/content` because it contains themes, images, media, and uploaded files.
 - Keep database credentials in Secrets and allow External Secrets for platform-managed credentials.
