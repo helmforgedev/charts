@@ -24,7 +24,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/metabase/metabase:v0.61.2"
+          value: "docker.io/metabase/metabase:v0.61.3"
 
   - it: should set custom image tag
     set:
@@ -114,11 +114,42 @@ tests:
             name: MB_DB_PORT
             value: "5433"
 
+  - it: should fail fast when legacy postgresql.primary values are used
+    set:
+      postgresql:
+        enabled: true
+        primary:
+          persistence:
+            enabled: true
+            size: 20Gi
+    asserts:
+      - failedTemplate:
+          errorMessage: "postgresql.primary.* is not supported by the HelmForge PostgreSQL 2.x dependency used by this chart. Migrate PostgreSQL values to postgresql.standalone.* before upgrading."
+
+  - it: should ignore stale legacy postgresql.primary values when using an external database
+    set:
+      database.external.host: db.example.com
+      database.external.password: external-password
+      postgresql:
+        enabled: false
+        primary:
+          persistence:
+            size: 20Gi
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MB_DB_HOST
+            value: db.example.com
+
   - it: should set probes on health path
     asserts:
       - equal:
           path: spec.template.spec.containers[0].startupProbe.httpGet.path
           value: /api/health
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.initialDelaySeconds
+          value: 90
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.httpGet.path
           value: /api/health
@@ -153,3 +184,18 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].resources.requests.cpu
           value: 500m
+
+  - it: should set practical default resource requests and limits
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 250m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 512Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 1000m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 2Gi

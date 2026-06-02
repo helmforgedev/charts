@@ -1,11 +1,34 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-{{- $gateway := .Values.gatewayAPI }}
-{{- if and (not .Values.gatewayAPI.enabled) .Values.gateway.enabled }}
-  {{- $gateway = .Values.gateway }}
+{{- $gateway := default dict .Values.gateway }}
+{{- $legacyGateway := default dict .Values.gatewayAPI }}
+{{- $useLegacyGateway := and (not (default false $gateway.enabled)) (default false $legacyGateway.enabled) }}
+{{- if or (default false $gateway.enabled) $useLegacyGateway }}
+{{- $parentRefs := default list $gateway.parentRefs }}
+{{- $annotations := default dict $gateway.annotations }}
+{{- $hostnames := default list $gateway.hostnames }}
+{{- $path := default "/" $gateway.path }}
+{{- $pathType := default "PathPrefix" $gateway.pathType }}
+{{- if $useLegacyGateway }}
+  {{- if not $legacyGateway.gatewayName }}
+    {{- fail "gatewayAPI.gatewayName is required when legacy gatewayAPI.enabled=true" }}
+  {{- end }}
+  {{- $legacyParentRef := dict "name" $legacyGateway.gatewayName }}
+  {{- with $legacyGateway.gatewayNamespace }}
+    {{- $_ := set $legacyParentRef "namespace" . }}
+  {{- end }}
+  {{- $parentRefs = list $legacyParentRef }}
+  {{- $annotations = default dict $legacyGateway.annotations }}
+  {{- $hostnames = default list $legacyGateway.hostnames }}
+  {{- $path = default "/" $legacyGateway.path }}
+  {{- $pathType = default "PathPrefix" $legacyGateway.pathType }}
 {{- end }}
-{{- if or .Values.gatewayAPI.enabled .Values.gateway.enabled }}
-{{- if not $gateway.gatewayName }}
-  {{- fail "gatewayAPI.gatewayName is required when gatewayAPI.enabled=true" }}
+{{- if not $parentRefs }}
+  {{- fail "gateway.enabled requires gateway.parentRefs to be populated to create a valid HTTPRoute." }}
+{{- end }}
+{{- range $parentRefs }}
+  {{- if not .name }}
+    {{- fail "Each gateway.parentRefs entry must define a 'name' field" }}
+  {{- end }}
 {{- end }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -13,21 +36,22 @@ metadata:
   name: {{ include "metabase.fullname" . }}
   labels:
     {{- include "metabase.labels" . | nindent 4 }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   parentRefs:
-    - name: {{ $gateway.gatewayName }}
-      {{- with $gateway.gatewayNamespace }}
-      namespace: {{ . }}
-      {{- end }}
-  {{- with $gateway.hostnames }}
+    {{- toYaml $parentRefs | nindent 4 }}
+  {{- with $hostnames }}
   hostnames:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   rules:
     - matches:
         - path:
-            type: {{ $gateway.pathType }}
-            value: {{ $gateway.path }}
+            type: {{ $pathType }}
+            value: {{ $path | quote }}
       backendRefs:
         - name: {{ include "metabase.fullname" . }}
           port: {{ .Values.service.port }}

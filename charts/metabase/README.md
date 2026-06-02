@@ -10,6 +10,7 @@ Open-source BI platform with visual data exploration, SQL editor, and shareable 
 - **SQL editor** — native SQL with autocomplete and snippets
 - **60+ database connectors** — PostgreSQL, MySQL, BigQuery, Redshift, and more
 - **PostgreSQL metadata store** — bundled subchart or external database
+- **Backups** — optional PostgreSQL dump CronJob for S3-compatible object storage
 - **Auto-generated encryption key** — protects saved database credentials
 - **JVM tuning** — configurable JAVA_OPTS for memory optimization
 - **Ingress support** — TLS with cert-manager
@@ -89,16 +90,19 @@ service:
 Requires Gateway API CRDs and a compatible controller (e.g. Envoy Gateway).
 
 ```yaml
-gatewayAPI:
+gateway:
   enabled: true
-  gatewayName: envoy-gateway
-  gatewayNamespace: envoy-gateway-system
+  parentRefs:
+    - name: envoy-gateway
+      namespace: envoy-gateway-system
   hostnames:
     - metabase.example.com
 ```
 
-> **Note:** `gatewayAPI.gatewayName` is required when `gatewayAPI.enabled=true`. The older `gateway` block remains
-> supported as a compatibility alias.
+> **Note:** `gateway.parentRefs` is required when `gateway.enabled=true`.
+> Existing releases that still carry `gatewayAPI.enabled`, `gatewayAPI.gatewayName`,
+> and `gatewayAPI.gatewayNamespace` from older chart values remain supported as a
+> deprecated upgrade alias. New configuration should use `gateway.parentRefs`.
 
 ## External Secrets Operator (ESO)
 
@@ -126,24 +130,27 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/metabase/metabase` | Metabase container image repository |
-| `image.tag` | `v0.61.2` | Metabase container image tag |
+| `image.tag` | `v0.61.3` | Metabase container image tag |
 | `metabase.port` | `3000` | Application port |
 | `metabase.encryptionSecretKey` | `""` | Encryption key (auto-generated) |
 | `metabase.siteUrl` | `""` | Public site URL |
 | `metabase.aiFeaturesEnabled` | `false` | Enable Metabase AI features after configuring a supported provider |
 | `metabase.javaTimezone` | `UTC` | Java timezone |
 | `metabase.javaOpts` | `""` | JVM memory options |
-| `postgresql.enabled` | `true` | Deploy PostgreSQL subchart |
+| `probes.startup.initialDelaySeconds` | `90` | Startup probe delay for first-run migrations and PostgreSQL bootstrap |
+| `postgresql.enabled` | `true` | Deploy HelmForge PostgreSQL subchart (`2.0.2`) |
+| `postgresql.standalone.persistence.size` | `8Gi` | PostgreSQL standalone PVC size |
+| `resources.requests.memory` | `512Mi` | Metabase memory request |
+| `resources.limits.memory` | `2Gi` | Metabase memory limit |
 | `ingress.enabled` | `false` | Enable ingress |
 | `service.port` | `80` | Service port |
 | `service.ipFamilyPolicy` | `~` | IP family policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
 | `service.ipFamilies` | `[]` | IP families override (`IPv4`, `IPv6`) |
-| `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute |
-| `gatewayAPI.gatewayName` | `""` | Gateway name (required when `gatewayAPI.enabled=true`) |
-| `gatewayAPI.gatewayNamespace` | `""` | Gateway namespace |
-| `gatewayAPI.hostnames` | `[]` | HTTPRoute hostnames |
-| `gatewayAPI.path` | `/` | HTTPRoute path match value |
-| `gatewayAPI.pathType` | `PathPrefix` | HTTPRoute path match type |
+| `gateway.enabled` | `false` | Enable Gateway API HTTPRoute |
+| `gateway.parentRefs` | `[]` | Gateway parentRefs (required when `gateway.enabled=true`) |
+| `gateway.hostnames` | `[]` | HTTPRoute hostnames |
+| `gateway.path` | `/` | HTTPRoute path match value |
+| `gateway.pathType` | `PathPrefix` | HTTPRoute path match type |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret resource |
 | `externalSecrets.apiVersion` | `external-secrets.io/v1` | ExternalSecret API version |
 | `externalSecrets.refreshInterval` | `"0"` | Refresh interval (`"0"` = one-time sync) |
@@ -153,12 +160,22 @@ externalSecrets:
 
 ## Upgrade Notes
 
-Metabase `v0.61.2` is a stable upstream maintenance release. Back up the Metabase
-application database before upgrading and validate the `/api/health` endpoint
-after rollout.
+Metabase `v0.61.3` is an upstream maintenance release with backported fixes for database connection handling, migrations,
+SDK/embedding behavior, serialization, notifications, Metabot, and query/cache edge cases. Back up the Metabase
+application database before upgrading, keep the encryption key stable, and validate the `/api/health` endpoint after
+rollout.
+
+## Examples
+
+- [Production](examples/production.yaml)
+- [External PostgreSQL](examples/external-db.yaml)
+- [S3 backup](examples/backup.yaml)
 
 ## More Information
 
+- [Chart design](DESIGN.md)
+- [Database and backups](docs/database.md)
+- [Production operations](docs/production.md)
 - [Metabase documentation](https://www.metabase.com/docs/latest/)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/metabase)
 
@@ -173,8 +190,14 @@ purpose: Chart installation, configuration, and usage documentation
 scope: Chart
 
 relations:
+  - charts/metabase/DESIGN.md
+  - charts/metabase/docs/database.md
+  - charts/metabase/docs/production.md
+  - charts/metabase/examples/production.yaml
+  - charts/metabase/examples/external-db.yaml
+  - charts/metabase/examples/backup.yaml
   - charts/metabase/values.yaml
 path: charts/metabase/README.md
-version: 1.1
-date: 2026-04-30
+version: 1.2
+date: 2026-06-02
 -->
