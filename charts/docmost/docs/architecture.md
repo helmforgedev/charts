@@ -1,6 +1,6 @@
 # Docmost Architecture Notes
 
-This chart packages Docmost as a single application Deployment backed by PostgreSQL and Redis. It is designed as an alpha chart
+This chart packages Docmost as a single application Deployment backed by PostgreSQL and Redis. It is designed
 with clear defaults, local validation, explicit external-service support, and optional S3-compatible object storage.
 
 ## Supported Model
@@ -19,7 +19,7 @@ This first chart release intentionally keeps `replicaCount=1`.
 
 - upstream runtime documentation clearly requires PostgreSQL, Redis, and shared file storage
 - local storage with multiple application replicas can create inconsistent file visibility unless operators provide shared external object storage and validate the runtime behavior carefully
-- the alpha chart therefore favors predictable installs over premature horizontal-scaling claims
+- the chart therefore favors predictable installs over premature horizontal-scaling claims
 
 ## Storage Modes
 

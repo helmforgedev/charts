@@ -3,7 +3,7 @@
 # Docmost Helm Chart
 # =============================================================================
 # Open-source collaborative wiki and documentation platform.
-# Requires PostgreSQL and Redis. This alpha chart currently targets a single
+# Requires PostgreSQL and Redis. This chart currently targets a single
 # Docmost application replica for predictable shared-storage semantics.
 # =============================================================================
 
@@ -16,7 +16,7 @@ fullnameOverride: ""
 # -- Labels added to every resource created by this chart
 commonLabels: {}
 
-# -- Number of Docmost application replicas. This alpha chart currently supports only 1.
+# -- Number of Docmost application replicas. This chart currently supports only 1.
 replicaCount: 1
 
 image:
@@ -99,6 +99,13 @@ postgresql:
       enabled: true
       # -- PVC size for PostgreSQL
       size: 8Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
 
 # -- Deploy Redis as a subchart
 redis:
@@ -115,6 +122,13 @@ redis:
       enabled: true
       # -- PVC size for Redis
       size: 1Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
   external:
     # -- External Redis hostname
     host: ""
@@ -269,13 +283,45 @@ readinessProbe:
   failureThreshold: 3
 
 # -- CPU and memory requests/limits for the Docmost container
-resources: {}
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
 
 # -- Pod-level security context
-podSecurityContext: {}
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
 
 # -- Container-level security context
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+waitForServices:
+  # -- Resources for wait-for-postgresql and wait-for-redis init containers
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+  # -- Security context for wait-for-postgresql and wait-for-redis init containers
+  securityContext:
+    runAsUser: 65534
+    runAsGroup: 65534
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
 
 serviceAccount:
   # -- Create a dedicated ServiceAccount
@@ -321,15 +367,6 @@ extraManifests: []
 
 gateway:
   # -- Enable Gateway API HTTPRoute for Docmost HTTP (requires Gateway API CRDs)
-  enabled: false
-  annotations: {}
-  parentRefs: []
-  hostnames: []
-  path: /
-  pathType: PathPrefix
-
-# -- HelmForge-standard Gateway API alias. When enabled, this block overrides gateway.* for HTTPRoute rendering.
-gatewayAPI:
   enabled: false
   annotations: {}
   parentRefs: []
