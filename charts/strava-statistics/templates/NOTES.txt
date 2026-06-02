@@ -1,64 +1,97 @@
-{{/* SPDX-License-Identifier: Apache-2.0 */}}
----------------------------------------------------------------------
-  Strava Statistics has been successfully deployed!
----------------------------------------------------------------------
+{{- $namespace := .Release.Namespace -}}
+{{- $gatewayAPI := .Values.gatewayAPI -}}
+{{- if and (not $gatewayAPI.enabled) .Values.gatewayApi.enabled -}}
+{{- $gatewayAPI = .Values.gatewayApi -}}
+{{- end -}}
+1. Statistics for Strava has been installed
+===========================================
+  Release:   {{ .Release.Name }}
+  Namespace: {{ $namespace }}
+  Version:   {{ .Chart.AppVersion }}
+  Image:     {{ include "strava-statistics.image" . }}
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
-
----------------------------------------------------------------------
-  ACCESS INFORMATION
----------------------------------------------------------------------
+2. Access
+=========
+[ClusterIP] Port-forward:
+  kubectl port-forward svc/{{ include "strava-statistics.fullname" . }} 8080:{{ .Values.service.port }} -n {{ $namespace }}
+  Open: http://localhost:8080
 
 {{- if .Values.ingress.enabled }}
-{{- range $host := .Values.ingress.hosts }}
-WEB UI:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+[Ingress]
+{{- range .Values.ingress.hosts }}
+  URL: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}/
 {{- end }}
-{{- else }}
-Port-forward to access Strava Statistics locally:
-
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "strava-statistics.fullname" . }} 8080:{{ .Values.service.port }}
-
-  WEB UI:   http://localhost:8080/
 {{- end }}
 
----------------------------------------------------------------------
-  GETTING STARTED
----------------------------------------------------------------------
-
-1. kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=strava-statistics -n {{ .Release.Namespace }} --timeout=300s
-2. kubectl get pods -l app.kubernetes.io/name=strava-statistics -n {{ .Release.Namespace }}
-3. kubectl logs -l app.kubernetes.io/name=strava-statistics -n {{ .Release.Namespace }} --all-containers --tail=50 -f
-4. Authorize with your Strava account on first access
-
----------------------------------------------------------------------
-  TROUBLESHOOTING
----------------------------------------------------------------------
-
-  kubectl describe pod -l app.kubernetes.io/name=strava-statistics -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/name=strava-statistics -n {{ .Release.Namespace }} --all-containers --tail=100
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-  kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-
----------------------------------------------------------------------
-  WARNINGS
----------------------------------------------------------------------
-
-{{- if not .Values.ingress.enabled }}
-
-NOTE: Ingress is not enabled. Access via port-forward (see above).
-Strava OAuth requires a public callback URL. Configure your Strava API
-app with your public URL for proper OAuth authorization flow.
+{{- if $gatewayAPI.enabled }}
+[Gateway API]
+  HTTPRoutes:
+{{- range $gatewayAPI.httpRoutes }}
+    - {{ trunc 63 (printf "%s-%s" (include "strava-statistics.fullname" $) (.name | default "")) | trimSuffix "-" }}
+{{- end }}
 {{- end }}
 
----------------------------------------------------------------------
-  ADDITIONAL RESOURCES
----------------------------------------------------------------------
+3. Configuration Summary
+========================
+  Credentials:        {{- if .Values.strava.existingSecret }} existing Secret ({{ .Values.strava.existingSecret }}){{- else }} chart-managed Secret{{- end }}
+  Timezone:           {{ .Values.strava.timezone }}
+  Persistence:        {{- if .Values.persistence.enabled }} enabled ({{ .Values.persistence.size }}){{- else }} disabled{{- end }}
+  Ingress:            {{- if .Values.ingress.enabled }} enabled{{- else }} disabled{{- end }}
+  Gateway API:        {{- if $gatewayAPI.enabled }} enabled{{- else }} disabled{{- end }}
+  External Secrets:   {{- if .Values.externalSecrets.enabled }} enabled{{- else }} disabled{{- end }}
+  Service dual-stack: {{- if .Values.service.ipFamilyPolicy }} {{ .Values.service.ipFamilyPolicy }}{{- else }} cluster default{{- end }}
 
-Documentation:      https://helmforge.dev/docs/charts/strava-statistics
-strava-statistics:  https://github.com/robiningelbrecht/statistics-for-strava
+4. Getting Started
+==================
+  Step 1: Wait for the pod to become ready:
+    kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=strava-statistics -n {{ $namespace }} --timeout=300s
+
+  Step 2: Confirm the configured public URL:
+    strava.config.general.appUrl must match the URL registered in the Strava OAuth application.
+
+  Step 3: Open the UI and authorize the application with your Strava account.
+
+Upgrade reminder:
+  The chart stores SQLite data and generated files under /data. Back up the PVC
+  before production upgrades and keep Strava credentials stable across releases.
+
+5. Validation Commands
+======================
+  # Check pods, services, and PVC
+  kubectl get pods,svc,pvc -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+  # Inspect application logs
+  kubectl logs -n {{ $namespace }} -l app.kubernetes.io/name=strava-statistics --all-containers --tail=100
+
+  # Smoke test the web endpoint from inside the cluster
+  kubectl run strava-statistics-smoke -n {{ $namespace }} --rm -i --restart=Never --image=curlimages/curl:8.11.1 -- \
+    curl -fsS http://{{ include "strava-statistics.fullname" . }}:{{ .Values.service.port }}/
+
+6. Troubleshooting
+==================
+  Pod is not ready:
+    -> Check Strava credential Secret keys
+    -> Verify SQLite PVC mount and permissions
+    -> Inspect application logs for config parsing issues
+
+  OAuth flow fails:
+    -> Confirm strava.config.general.appUrl matches the public URL
+    -> Confirm the Strava app callback URL matches ingress or Gateway URL
+    -> Verify client ID, client secret, and refresh token
+
+  Gateway or ingress does not route:
+    -> Check HTTPRoute or Ingress status
+    -> Confirm parentRefs or ingressClassName match the installed controller
+
+  ExternalSecret is not creating credentials:
+    -> Confirm External Secrets Operator and SecretStore exist
+    -> Check ExternalSecret status and target Secret keys
+
+7. Documentation
+================
+  HelmForge docs: https://helmforge.dev/docs/charts/strava-statistics
+  Chart design:   https://github.com/helmforgedev/charts/tree/main/charts/strava-statistics/DESIGN.md
+  Upstream docs:  https://github.com/robiningelbrecht/statistics-for-strava
+  GitHub source:  https://github.com/helmforgedev/charts/tree/main/charts/strava-statistics
 
 Happy Helmforging :)
