@@ -43,8 +43,7 @@ without a configured provider:
 
   metabase.aiFeaturesEnabled={{ .Values.metabase.aiFeaturesEnabled }}
 
-To use Gateway API, prefer gatewayAPI.* values. The legacy gateway.* block
-is still accepted as a compatibility alias.
+To use Gateway API, configure gateway.enabled=true and provide gateway.parentRefs.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   TROUBLESHOOTING
@@ -66,15 +65,12 @@ Check backup CronJob: kubectl get cronjob -n {{ .Release.Namespace }}
   WARNINGS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-{{- $gateway := .Values.gatewayAPI }}
-{{- if and (not .Values.gatewayAPI.enabled) .Values.gateway.enabled }}
-  {{- $gateway = .Values.gateway }}
-{{- end }}
-{{- if or .Values.gatewayAPI.enabled .Values.gateway.enabled }}
+{{- if .Values.gateway.enabled }}
 
 NOTE: Gateway API HTTPRoute {{ include "metabase.fullname" . }} is active.
-  Gateway: {{ $gateway.gatewayName }}{{ with $gateway.gatewayNamespace }}.{{ . }}{{ end }}
-  {{- with $gateway.hostnames }}
+  ParentRefs:
+{{ toYaml .Values.gateway.parentRefs | indent 4 }}
+  {{- with .Values.gateway.hostnames }}
   Hostnames: {{ join ", " . }}
   {{- end }}
 {{- else if not .Values.ingress.enabled }}

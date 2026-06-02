@@ -1,11 +1,12 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-{{- $gateway := .Values.gatewayAPI }}
-{{- if and (not .Values.gatewayAPI.enabled) .Values.gateway.enabled }}
-  {{- $gateway = .Values.gateway }}
+{{- if .Values.gateway.enabled }}
+{{- if not .Values.gateway.parentRefs }}
+  {{- fail "gateway.enabled requires gateway.parentRefs to be populated to create a valid HTTPRoute." }}
 {{- end }}
-{{- if or .Values.gatewayAPI.enabled .Values.gateway.enabled }}
-{{- if not $gateway.gatewayName }}
-  {{- fail "gatewayAPI.gatewayName is required when gatewayAPI.enabled=true" }}
+{{- range .Values.gateway.parentRefs }}
+  {{- if not .name }}
+    {{- fail "Each gateway.parentRefs entry must define a 'name' field" }}
+  {{- end }}
 {{- end }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -13,21 +14,22 @@ metadata:
   name: {{ include "metabase.fullname" . }}
   labels:
     {{- include "metabase.labels" . | nindent 4 }}
+  {{- with .Values.gateway.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   parentRefs:
-    - name: {{ $gateway.gatewayName }}
-      {{- with $gateway.gatewayNamespace }}
-      namespace: {{ . }}
-      {{- end }}
-  {{- with $gateway.hostnames }}
+    {{- toYaml .Values.gateway.parentRefs | nindent 4 }}
+  {{- with .Values.gateway.hostnames }}
   hostnames:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   rules:
     - matches:
         - path:
-            type: {{ $gateway.pathType }}
-            value: {{ $gateway.path }}
+            type: {{ .Values.gateway.pathType }}
+            value: {{ .Values.gateway.path }}
       backendRefs:
         - name: {{ include "metabase.fullname" . }}
           port: {{ .Values.service.port }}

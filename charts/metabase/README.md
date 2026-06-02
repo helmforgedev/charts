@@ -90,16 +90,16 @@ service:
 Requires Gateway API CRDs and a compatible controller (e.g. Envoy Gateway).
 
 ```yaml
-gatewayAPI:
+gateway:
   enabled: true
-  gatewayName: envoy-gateway
-  gatewayNamespace: envoy-gateway-system
+  parentRefs:
+    - name: envoy-gateway
+      namespace: envoy-gateway-system
   hostnames:
     - metabase.example.com
 ```
 
-> **Note:** `gatewayAPI.gatewayName` is required when `gatewayAPI.enabled=true`. The older `gateway` block remains
-> supported as a compatibility alias.
+> **Note:** `gateway.parentRefs` is required when `gateway.enabled=true`.
 
 ## External Secrets Operator (ESO)
 
@@ -134,17 +134,20 @@ externalSecrets:
 | `metabase.aiFeaturesEnabled` | `false` | Enable Metabase AI features after configuring a supported provider |
 | `metabase.javaTimezone` | `UTC` | Java timezone |
 | `metabase.javaOpts` | `""` | JVM memory options |
-| `postgresql.enabled` | `true` | Deploy HelmForge PostgreSQL subchart (`1.10.0`) |
+| `probes.startup.initialDelaySeconds` | `90` | Startup probe delay for first-run migrations and PostgreSQL bootstrap |
+| `postgresql.enabled` | `true` | Deploy HelmForge PostgreSQL subchart (`2.0.2`) |
+| `postgresql.standalone.persistence.size` | `8Gi` | PostgreSQL standalone PVC size |
+| `resources.requests.memory` | `512Mi` | Metabase memory request |
+| `resources.limits.memory` | `2Gi` | Metabase memory limit |
 | `ingress.enabled` | `false` | Enable ingress |
 | `service.port` | `80` | Service port |
 | `service.ipFamilyPolicy` | `~` | IP family policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
 | `service.ipFamilies` | `[]` | IP families override (`IPv4`, `IPv6`) |
-| `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute |
-| `gatewayAPI.gatewayName` | `""` | Gateway name (required when `gatewayAPI.enabled=true`) |
-| `gatewayAPI.gatewayNamespace` | `""` | Gateway namespace |
-| `gatewayAPI.hostnames` | `[]` | HTTPRoute hostnames |
-| `gatewayAPI.path` | `/` | HTTPRoute path match value |
-| `gatewayAPI.pathType` | `PathPrefix` | HTTPRoute path match type |
+| `gateway.enabled` | `false` | Enable Gateway API HTTPRoute |
+| `gateway.parentRefs` | `[]` | Gateway parentRefs (required when `gateway.enabled=true`) |
+| `gateway.hostnames` | `[]` | HTTPRoute hostnames |
+| `gateway.path` | `/` | HTTPRoute path match value |
+| `gateway.pathType` | `PathPrefix` | HTTPRoute path match type |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret resource |
 | `externalSecrets.apiVersion` | `external-secrets.io/v1` | ExternalSecret API version |
 | `externalSecrets.refreshInterval` | `"0"` | Refresh interval (`"0"` = one-time sync) |
