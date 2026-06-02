@@ -1,88 +1,172 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Minecraft Server has been deployed!
+{{- $fullname := include "minecraft.fullname" . -}}
+{{- $namespace := .Release.Namespace -}}
 
-Server Type: {{ .Values.server.type }}
-Version:     {{ .Values.server.version }}
-Game Mode:   {{ .Values.server.gameMode }}
-Difficulty:  {{ .Values.server.difficulty }}
-Max Players: {{ .Values.server.maxPlayers }}
+1. Minecraft server has been installed
+--------------------------------------
+  Release:        {{ .Release.Name }}
+  Namespace:      {{ $namespace }}
+  Image:          {{ include "minecraft.image" . }}
+  Server Type:    {{ .Values.server.type }}
+  Version:        {{ .Values.server.version }}
+  Game Mode:      {{ .Values.server.gameMode }}
+  Difficulty:     {{ .Values.server.difficulty }}
+  Max Players:    {{ .Values.server.maxPlayers }}
+  Java Port:      {{ .Values.service.port }}
+  RCON:           {{ .Values.rcon.enabled }}
+  Persistence:    {{ .Values.persistence.enabled }}
 
+2. Connect
+----------
 {{- if eq .Values.service.type "LoadBalancer" }}
-
-To get the server address, run:
-
-  export SERVER_IP=$(kubectl get svc {{ include "minecraft.fullname" . }} \
-    --namespace {{ .Release.Namespace }} \
-    -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-  echo "Connect to: ${SERVER_IP}:{{ .Values.service.port }}"
-
+  Get the LoadBalancer address:
+    export SERVER_IP=$(kubectl get svc {{ $fullname }} -n {{ $namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+    echo "Connect to: ${SERVER_IP}:{{ .Values.service.port }}"
 {{- else if eq .Values.service.type "NodePort" }}
-
-To get the server address, run:
-
-  export NODE_PORT=$(kubectl get svc {{ include "minecraft.fullname" . }} \
-    --namespace {{ .Release.Namespace }} \
-    -o jsonpath='{.spec.ports[?(@.name=="minecraft")].nodePort}')
-  export NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="ExternalIP")].address}')
-  echo "Connect to: ${NODE_IP}:${NODE_PORT}"
-
+  Get the NodePort address:
+    export NODE_PORT=$(kubectl get svc {{ $fullname }} -n {{ $namespace }} -o jsonpath='{.spec.ports[?(@.name=="minecraft")].nodePort}')
+    export NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="ExternalIP")].address}')
+    echo "Connect to: ${NODE_IP}:${NODE_PORT}"
 {{- else }}
-
-The server is available within the cluster at:
-
-  {{ include "minecraft.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
-
+  In-cluster endpoint:
+    {{ $fullname }}.{{ $namespace }}.svc.cluster.local:{{ .Values.service.port }}
 {{- end }}
-
 {{- if .Values.geyser.enabled }}
 
-GeyserMC Cross-Play (Bedrock):
-
-  Bedrock clients can connect on UDP port {{ .Values.geyser.port }}.
+  GeyserMC Bedrock cross-play:
+    UDP port: {{ .Values.geyser.port }}
 {{- end }}
 
+3. First-time Setup
+-------------------
+  - EULA accepted: {{ .Values.server.eula }}
+  - World name: {{ .Values.server.worldSaveName }}
+  - MOTD: {{ .Values.server.motd }}
+  - Online mode: {{ .Values.auth.onlineMode }}
+  - Whitelist enforced: {{ .Values.auth.enforceWhitelist }}
+  - Operators configured: {{ if .Values.auth.ops }}yes{{ else }}no{{ end }}
+
+4. Configuration Summary
+------------------------
+  Service type:       {{ .Values.service.type }}
+  JVM memory:         {{ .Values.jvm.memory }}
+  Aikar flags:        {{ .Values.jvm.useAikarFlags }}
+  View distance:      {{ .Values.server.viewDistance }}
+  Simulation distance: {{ .Values.server.simulationDistance }}
+  Geyser:             {{ .Values.geyser.enabled }}
+  Metrics:            {{ .Values.metrics.enabled }}
+  Backup:             {{ .Values.backup.enabled }}
+  External Secrets:   {{ .Values.externalSecrets.enabled }}
+{{- with .Values.service.ipFamilyPolicy }}
+  IP family policy:   {{ . }}{{ with $.Values.service.ipFamilies }} ({{ join ", " . }}){{ end }}
+{{- end }}
+
+5. Validation Commands
+----------------------
+  Wait for the server pod:
+    kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=minecraft -n {{ $namespace }} --timeout=600s
+
+  Check pod and service:
+    kubectl get pods,svc,pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ $namespace }} -o wide
+
+  Check recent events:
+    kubectl get events -n {{ $namespace }} --sort-by=.lastTimestamp
+
+  Check server logs:
+    kubectl logs -l app.kubernetes.io/name=minecraft -n {{ $namespace }} --tail=200
+
+  Confirm Minecraft health checks are running:
+    kubectl describe pod -l app.kubernetes.io/name=minecraft -n {{ $namespace }} | grep -A5 -E 'Startup|Liveness|Readiness'
+
+6. RCON
+-------
 {{- if .Values.rcon.enabled }}
+  Read the RCON password:
+    export RCON_PASSWORD=$(kubectl get secret {{ include "minecraft.secretName" . }} -n {{ $namespace }} -o jsonpath='{.data.{{ include "minecraft.secretKey" . }}}' | base64 -d)
 
-RCON:
-
-  To retrieve the RCON password:
-
-    kubectl get secret {{ include "minecraft.secretName" . }} \
-      --namespace {{ .Release.Namespace }} \
-      -o jsonpath='{.data.{{ include "minecraft.secretKey" . }}}' | base64 -d
-
-  To connect via RCON from inside the cluster:
-
-    kubectl run rcon-cli --rm -it --restart=Never \
-      --image=itzg/rcon-cli -- \
-      --host {{ include "minecraft.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local \
+  Run a console command from inside the cluster:
+    kubectl run rcon-cli -n {{ $namespace }} --rm -it --restart=Never --image=docker.io/itzg/rcon-cli -- \
+      --host {{ $fullname }}.{{ $namespace }}.svc.cluster.local \
       --port {{ .Values.rcon.port }} \
-      --password <RCON_PASSWORD>
+      --password "${RCON_PASSWORD}" list
+{{- if .Values.rcon.serviceEnabled }}
+
+  Dedicated RCON Service:
+    {{ $fullname }}-rcon.{{ $namespace }}.svc.cluster.local:{{ .Values.rcon.port }}
+{{- end }}
+{{- else }}
+  RCON is disabled. Enable `rcon.enabled=true` for remote console access and coordinated backups.
 {{- end }}
 
+7. Metrics
+----------
 {{- if .Values.metrics.enabled }}
-
-Metrics:
-
-  Prometheus metrics are available on port {{ .Values.metrics.port }} at /metrics.
-  {{- if .Values.metrics.serviceMonitor.enabled }}
-  A ServiceMonitor has been created for Prometheus Operator auto-discovery.
-  {{- end }}
+  Prometheus metrics are exposed on port {{ .Values.metrics.port }} at `/metrics`.
+  ServiceMonitor: {{ .Values.metrics.serviceMonitor.enabled }}
+{{- else }}
+  Metrics are disabled. Enable `metrics.enabled=true` to run mc-monitor.
 {{- end }}
 
+8. Backup
+---------
 {{- if .Values.backup.enabled }}
+  S3 backup is enabled:
+    Schedule: {{ .Values.backup.schedule }}
+    Bucket:   {{ .Values.backup.s3.bucket }}
+    Prefix:   {{ .Values.backup.s3.prefix }}
 
-Backup:
+  Backups use RCON to run save-all/save-off before archive creation and save-on afterwards.
 
-  Backups are scheduled via CronJob: {{ .Values.backup.schedule }}
-  Target: s3://{{ .Values.backup.s3.bucket }}/{{ .Values.backup.s3.prefix }}/
+  Check backup jobs:
+    kubectl get cronjob,jobs -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+  Trigger a manual backup:
+    kubectl create job --from=cronjob/{{ $fullname }}-backup minecraft-backup-$(date +%s) -n {{ $namespace }}
+{{- else }}
+  Backup is disabled. For production worlds, enable `backup.enabled=true` with S3 credentials.
+  Backup requires `persistence.enabled=true` and `rcon.enabled=true`.
 {{- end }}
 
-{{- if .Values.externalSecrets.enabled }}
+9. Troubleshooting
+------------------
+  Server does not become ready:
+    kubectl describe pod -l app.kubernetes.io/name=minecraft -n {{ $namespace }}
+    kubectl logs -l app.kubernetes.io/name=minecraft -n {{ $namespace }} --tail=300
 
-ExternalSecrets:
-
-  SecretStore: {{ .Values.externalSecrets.secretStoreRef.name }} ({{ .Values.externalSecrets.secretStoreRef.kind }})
-  Target Secret: {{ default (include "minecraft.fullname" .) .Values.rcon.existingSecret }}
-  Refresh: {{ .Values.externalSecrets.refreshInterval }}
+  Players cannot connect:
+    kubectl get svc {{ $fullname }} -n {{ $namespace }} -o wide
+    # Confirm firewall/load balancer rules allow TCP {{ .Values.service.port }}.
+{{- if .Values.geyser.enabled }}
+    # For Bedrock, also confirm UDP {{ .Values.geyser.port }} is reachable.
 {{- end }}
+
+  World data is missing after restart:
+    kubectl get pvc {{ default $fullname .Values.persistence.existingClaim }} -n {{ $namespace }}
+    # Use persistence.enabled=true for production worlds.
+
+  RCON password mismatch:
+    kubectl get secret {{ include "minecraft.secretName" . }} -n {{ $namespace }}
+    helm get values {{ .Release.Name }} -n {{ $namespace }}
+
+  Modpack or plugin startup issue:
+    kubectl logs -l app.kubernetes.io/name=minecraft -n {{ $namespace }} --tail=500
+    # Check server.type, mods.*, and resourcePack.* values.
+
+10. Documentation
+-----------------
+  Helm values:
+    helm get values {{ .Release.Name }} -n {{ $namespace }}
+
+  Helm manifest:
+    helm get manifest {{ .Release.Name }} -n {{ $namespace }}
+
+  HelmForge docs:
+    https://helmforge.dev/docs/charts/minecraft
+
+  Chart source:
+    https://github.com/helmforgedev/charts/tree/main/charts/minecraft
+
+  Upstream image docs:
+    https://docker-minecraft-server.readthedocs.io/
+
+Happy Helmforging :)
