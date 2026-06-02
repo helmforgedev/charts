@@ -137,6 +137,8 @@ postgresql:
 | `service.ipFamilies` | `[]` | Dual-stack IP families: IPv4, IPv6 |
 | `metrics.enabled` | `false` | Enable metrics service |
 | `backup.enabled` | `false` | Enable S3 backups |
+| `podSecurityContext.fsGroup` | `1000` | Run with a non-root writable group for persistent data |
+| `securityContext.runAsNonRoot` | `true` | Run Authelia without root privileges by default |
 | `postgresql.enabled` | `false` | Deploy PostgreSQL subchart |
 | `mysql.enabled` | `false` | Deploy MySQL subchart |
 | `redis.enabled` | `false` | Deploy Redis subchart |

@@ -283,7 +283,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $dbType := include "authelia.dbType" . -}}
 {{- if eq $dbType "postgres" -}}
   {{- $_ := unset $cfg.storage "local" -}}
-  {{- $pgCfg := dict "host" (include "authelia.dbHost" .) "port" (include "authelia.dbPort" . | int) "database" (include "authelia.dbName" .) "username" (include "authelia.dbUsername" .) "schema" (.Values.database.external.schema | default "public") -}}
+  {{- $pgAddress := printf "tcp://%s:%s" (include "authelia.dbHost" .) (include "authelia.dbPort" .) -}}
+  {{- $pgCfg := dict "address" $pgAddress "database" (include "authelia.dbName" .) "username" (include "authelia.dbUsername" .) "schema" (.Values.database.external.schema | default "public") -}}
   {{- $_ := set $cfg.storage "postgres" $pgCfg -}}
 {{- else if eq $dbType "mysql" -}}
   {{- $_ := unset $cfg.storage "local" -}}

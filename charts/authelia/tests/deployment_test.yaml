@@ -28,7 +28,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/authelia/authelia:4.39.19"
+          value: "docker.io/authelia/authelia:4.39.20"
 
   - it: should use custom image tag
     template: templates/deployment.yaml
@@ -38,6 +38,34 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].image
           value: "docker.io/authelia/authelia:4.40.0"
+
+  - it: should run with hardened non-root defaults
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.securityContext.fsGroupChangePolicy
+          value: OnRootMismatch
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop[0]
+          value: ALL
 
   - it: should expose port 9091
     template: templates/deployment.yaml
