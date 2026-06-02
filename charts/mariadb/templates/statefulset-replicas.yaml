@@ -134,17 +134,7 @@ spec:
                 --password="${MARIADB_ROOT_PASSWORD}" \
                 {{ include "mariadb.cliTlsArgs" . }} \
                 -Nse "SHOW DATABASES WHERE \`Database\` NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys')")"
-              SOURCE_GTID="$(mariadb \
-                -h {{ include "mariadb.sourceServiceName" . }} \
-                -P {{ .Values.service.port }} \
-                -uroot \
-                --password="${MARIADB_ROOT_PASSWORD}" \
-                {{ include "mariadb.cliTlsArgs" . }} \
-                -Nse "SELECT @@global.gtid_binlog_pos")"
               GTID_SQL=""
-              if [ -n "${SOURCE_GTID}" ]; then
-                GTID_SQL="SET GLOBAL gtid_slave_pos='${SOURCE_GTID}';"
-              fi
 
               if [ -n "${DATABASES}" ]; then
                 mariadb-dump \
@@ -155,11 +145,17 @@ spec:
                   {{ include "mariadb.cliTlsArgs" . }} \
                   --single-transaction \
                   --gtid \
+                  --master-data=2 \
                   --databases ${DATABASES} \
                   --triggers \
                   --routines \
                   --events \
                   > /tmp/source.sql
+
+                SOURCE_GTID="$(sed -n "s/^-- SET GLOBAL gtid_slave_pos='\([^']*\)'.*/\1/p; s/^SET GLOBAL gtid_slave_pos='\([^']*\)'.*/\1/p" /tmp/source.sql | tail -n 1)"
+                if [ -n "${SOURCE_GTID}" ]; then
+                  GTID_SQL="SET GLOBAL gtid_slave_pos='${SOURCE_GTID}';"
+                fi
 
                 local_mariadb < /tmp/source.sql
               fi
