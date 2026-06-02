@@ -88,6 +88,7 @@ database:
 | `answer.siteName` | `Apache Answer` | Site name |
 | `answer.siteUrl` | `""` | Full external URL (auto-detected from ingress) |
 | `answer.language` | `en-US` | Default UI language |
+| `answer.externalContentDisplay` | `ask_before_display` | External content display policy used by auto-install |
 | `answer.autoInstall` | `true` | Enable unattended setup |
 | `answer.logLevel` | `INFO` | Log level (DEBUG, INFO, WARN, ERROR) |
 | `admin.name` | `admin` | Admin username |
