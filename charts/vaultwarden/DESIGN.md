@@ -114,7 +114,12 @@ Reasoning:
 
 Set `ROCKET_ADDRESS=0.0.0.0` and derive `ROCKET_PORT` from `service.targetPort`.
 
-The upstream container is commonly configured for port 80, but this chart runs Vaultwarden as UID 1000, requires `runAsNonRoot`, and drops all Linux capabilities. Binding Rocket to a privileged port inside that container causes a runtime `PermissionDenied` bind failure. Keeping the Service on port 80 while binding the container to non-privileged port 8085 preserves the public Kubernetes contract and keeps the pod security defaults intact.
+The upstream container is commonly configured for port 80, but this chart runs Vaultwarden as UID 1000,
+requires `runAsNonRoot`, and drops all Linux capabilities.
+
+Binding Rocket to a privileged port inside that container causes a runtime `PermissionDenied` bind failure.
+Keeping the Service on port 80 while binding the container to non-privileged port 8085 preserves the public
+Kubernetes contract and keeps the pod security defaults intact.
 
 ### SMTP
 
