@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- define "changedetection.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -49,4 +50,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- else -}}
 {{- printf "%s-data" (include "changedetection.fullname" .) -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "changedetection.externalSecretName" -}}
+{{- default (printf "%s-env" (include "changedetection.fullname" .)) .Values.externalSecrets.target.name | trunc 63 | trimSuffix "-" -}}
 {{- end -}}

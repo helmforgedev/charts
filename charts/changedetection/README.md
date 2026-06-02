@@ -14,6 +14,9 @@ Discord, Telegram, webhooks, and 90+ Apprise services.
 - **SQLite storage** — zero external database dependencies
 - **Persistent storage** — snapshots and history on PVC
 - **Ingress support** — TLS with cert-manager
+- **Gateway API support** — optional HTTPRoute for platform Gateway deployments
+- **Dual-stack Service support** — optional `ipFamilyPolicy` and `ipFamilies`
+- **External Secrets integration** — render ESO resources for environment-backed configuration
 - **Configurable probes** — startup, readiness, and liveness checks
 - **Runtime tuning** — fetch workers, recheck interval, timezone, labels, annotations, resources, scheduling, and extra manifests
 
@@ -109,6 +112,64 @@ ingress:
 Set `changedetection.baseUrl` to the public URL used by users and notification
 links.
 
+## Gateway API
+
+Use Gateway API when your platform routes applications through shared Gateway
+resources:
+
+```yaml
+changedetection:
+  baseUrl: "https://cd.example.com"
+
+gateway:
+  enabled: true
+  parentRefs:
+    - name: shared-gateway
+      namespace: ingress
+  hostnames:
+    - cd.example.com
+```
+
+The chart renders a single `HTTPRoute` named after the release and points it to
+the chart Service. Keep Ingress and Gateway API disabled by default and enable
+only the routing path managed by the cluster.
+
+## External Secrets
+
+The chart can render ExternalSecret resources for upstream-supported
+environment variables and automatically consume the produced Secret:
+
+```yaml
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: vault
+    kind: ClusterSecretStore
+  target:
+    name: changedetection-env
+    creationPolicy: Owner
+  data:
+    - secretKey: LOGGER_LEVEL
+      remoteRef:
+        key: changedetection/app
+        property: loggerLevel
+```
+
+Use this for notification credentials or other sensitive values that should be
+owned by External Secrets Operator instead of committed into values files.
+
+## Dual-Stack Service
+
+Clusters with IPv4/IPv6 networking can opt into Kubernetes Service dual-stack:
+
+```yaml
+service:
+  ipFamilyPolicy: PreferDualStack
+  ipFamilies:
+    - IPv4
+    - IPv6
+```
+
 ## Runtime Configuration
 
 ```yaml
@@ -117,13 +178,29 @@ changedetection:
   minimumSecondsRecheckTime: "180"
   timezone: "America/Sao_Paulo"
   locale: C
+  envFrom:
+    - secretRef:
+        name: changedetection-env
   extraEnv:
     - name: LOGGER_LEVEL
       value: INFO
 ```
 
 Use `changedetection.extraEnv` for upstream-supported environment variables that
-are not exposed as first-class chart values.
+are not exposed as first-class chart values, and `changedetection.envFrom` for
+pre-created or externally materialized Secrets.
+
+The chart keeps the container non-root by default and sets `PIP_USER=true` with
+`PYTHONUSERBASE=/datastore/.python-userbase`. This gives the upstream
+`EXTRA_PACKAGES` entrypoint hook a writable Python user install path without
+requiring root privileges:
+
+```yaml
+changedetection:
+  extraEnv:
+    - name: EXTRA_PACKAGES
+      value: "chardet==5.2.0"
+```
 
 ## Security And Scheduling
 
@@ -166,7 +243,7 @@ probes:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `ghcr.io/dgtlmoon/changedetection.io` | changedetection.io image repository |
-| `image.tag` | `0.55.5` | changedetection.io image tag |
+| `image.tag` | `0.55.7` | changedetection.io image tag |
 | `image.pullPolicy` | `IfNotPresent` | Image pull policy |
 | `changedetection.port` | `5000` | Application port |
 | `changedetection.baseUrl` | `""` | Public base URL |
@@ -174,7 +251,9 @@ probes:
 | `changedetection.minimumSecondsRecheckTime` | `""` | Minimum seconds between checks |
 | `changedetection.timezone` | `""` | Container timezone via `TZ` |
 | `changedetection.locale` | `C` | Locale assigned to `LANG` and `LC_ALL` |
+| `changedetection.defaultWatches.enabled` | `false` | Let upstream create sample watches on a fresh datastore |
 | `changedetection.extraEnv` | `[]` | Extra environment variables |
+| `changedetection.envFrom` | `[]` | Extra envFrom sources |
 | `browser.enabled` | `false` | Enable Playwright browser sidecar |
 | `browser.image.repository` | `ghcr.io/browserless/chromium` | Browser sidecar image repository |
 | `browser.image.tag` | `v2.46.0` | Browser sidecar image tag |
@@ -184,23 +263,32 @@ probes:
 | `persistence.existingClaim` | `""` | Existing PVC name |
 | `service.type` | `ClusterIP` | Kubernetes Service type |
 | `service.port` | `80` | HTTP Service port |
+| `service.ipFamilyPolicy` | unset | Optional Service IP family policy |
+| `service.ipFamilies` | `[]` | Optional Service IP families |
 | `ingress.enabled` | `false` | Enable ingress |
+| `gateway.enabled` | `false` | Enable Gateway API HTTPRoute |
+| `externalSecrets.enabled` | `false` | Render ExternalSecret resources |
+| `externalSecrets.secretStoreRef.name` | `""` | Required SecretStore name when ExternalSecrets is enabled |
+| `externalSecrets.target.name` | `""` | Target Secret name, defaults to release-derived name |
 | `probes.*.enabled` | `true` | Enable startup, readiness, and liveness probes |
 | `resources.requests.cpu` | `100m` | Main container CPU request |
 | `resources.requests.memory` | `256Mi` | Main container memory request |
-| `resources.limits` | unset | Optional main container resource limits |
+| `resources.limits.cpu` | `1000m` | Main container CPU limit |
+| `resources.limits.memory` | `1Gi` | Main container memory limit |
+| `podSecurityContext.fsGroup` | `1000` | Writable group for the `/datastore` volume |
+| `securityContext.runAsNonRoot` | `true` | Run the main container without root privileges |
 | `securityContext.allowPrivilegeEscalation` | `false` | Prevent privilege escalation |
 | `securityContext.capabilities.drop` | `[ALL]` | Drop Linux capabilities by default |
 | `extraManifests` | `[]` | Additional manifests rendered with the release |
 
 ## Upgrade Notes
 
-For this release the application image is updated to `0.55.5`. The upstream
-`0.55.4` and `0.55.5` releases include API, notification, LLM, localization,
-and security-related fixes, including an SSRF guard for the LLM `api_base`
-setting and a shared diff access fix. Review the upstream changelog before
-production rollout and test restores from the `/datastore` backup when upgrading
-long-lived instances.
+For this release the application image is updated to `0.55.7`. The upstream
+`0.55.6` release includes a security fix for an SSRF parser differential,
+notification and preview fixes, plus an `LLM_FEATURES_DISABLED` flag. The
+`0.55.7` release fixes the LLM settings UI path. Review the upstream changelog
+before production rollout and test restores from the `/datastore` backup when
+upgrading long-lived instances.
 
 ## Limitations
 
@@ -213,4 +301,6 @@ long-lived instances.
 
 - [changedetection.io documentation](https://changedetection.io)
 - [changedetection.io releases](https://github.com/dgtlmoon/changedetection.io/releases)
+- [Production guide](docs/production.md)
+- [Chart design](DESIGN.md)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/changedetection)

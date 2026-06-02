@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Gateway API HTTPRoute
+templates:
+  - templates/httproute.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render an HTTPRoute when enabled
+    set:
+      gateway:
+        enabled: true
+        parentRefs:
+          - name: shared-gateway
+            namespace: ingress
+        hostnames:
+          - cd.example.com
+        path: /
+        pathType: PathPrefix
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: apiVersion
+          value: gateway.networking.k8s.io/v1
+      - equal:
+          path: spec.parentRefs[0].name
+          value: shared-gateway
+      - equal:
+          path: spec.hostnames[0]
+          value: cd.example.com
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: test-changedetection
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 80
+
+  - it: should fail when enabled without parentRefs
+    set:
+      gateway.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.enabled requires gateway.parentRefs to be populated to create a valid HTTPRoute."
