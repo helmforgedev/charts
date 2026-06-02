@@ -67,12 +67,92 @@ tests:
       - isNotNull:
           path: spec.template.spec.containers[0].startupProbe
 
+  - it: should use explicit textual read_only checks in replication readiness
+    template: templates/statefulset-source.yaml
+    set:
+      architecture: replication
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: "CAST\\(@@global\\.read_only AS CHAR\\) IN \\('OFF', '0'\\)"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: "IF\\(@@global\\.read_only IN"
+
   - it: should have VolumeClaimTemplate with 8Gi default
     template: templates/statefulset-source.yaml
     asserts:
       - equal:
           path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
           value: 8Gi
+
+  - it: should mount the datadir from the safe default subPath
+    template: templates/statefulset-source.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0]
+          value:
+            name: data
+            mountPath: /var/lib/mysql
+            subPath: mysql
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: prepare-datadir-subpath
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "mkdir -p \"/mnt/data/mysql\""
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chmod 2770 \"/mnt/data/mysql\""
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chown 999:999 \"/mnt/data/mysql\""
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsUser
+          value: 0
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.drop[0]
+          value: ALL
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.add[0]
+          value: CHOWN
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.add[1]
+          value: FOWNER
+      - equal:
+          path: spec.template.spec.initContainers[0].volumeMounts[0]
+          value:
+            name: data
+            mountPath: /mnt/data
+
+  - it: should prepare default subPath with custom runtime ownership
+    template: templates/statefulset-source.yaml
+    set:
+      securityContext:
+        runAsUser: 1001
+        runAsGroup: 1002
+      podSecurityContext:
+        fsGroup: 1003
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chmod 2770 \"/mnt/data/mysql\""
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "chown 1001:1003 \"/mnt/data/mysql\""
+
+  - it: should allow legacy volume-root datadir mounts for existing installs
+    template: templates/statefulset-source.yaml
+    set:
+      persistence:
+        subPath: ""
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          value: /var/lib/mysql
+      - notExists:
+          path: spec.template.spec.containers[0].volumeMounts[0].subPath
 
   - it: should render metrics sidecar when enabled
     template: templates/statefulset-source.yaml
@@ -95,10 +175,10 @@ tests:
             mountPath: /etc/mysqld-exporter
             readOnly: true
       - equal:
-          path: spec.template.spec.initContainers[0].name
+          path: spec.template.spec.initContainers[1].name
           value: mysqld-exporter-config
       - contains:
-          path: spec.template.spec.initContainers[0].env
+          path: spec.template.spec.initContainers[1].env
           content:
             name: MARIADB_ROOT_PASSWORD
           any: true

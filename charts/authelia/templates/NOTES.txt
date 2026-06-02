@@ -1,107 +1,137 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+=============================================================================
+Authelia authentication gateway deployed successfully!
+=============================================================================
 
-  Authelia has been successfully deployed!
+Release:            {{ .Release.Name }}
+Namespace:          {{ .Release.Namespace }}
+Chart Version:      {{ .Chart.Version }}
+App Version:        {{ .Chart.AppVersion }}
+Image:              {{ include "authelia.image" . }}
+Service:            {{ include "authelia.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+Forward Auth:       http://{{ include "authelia.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local/api/authz/forward-auth
+Storage Backend:    {{ include "authelia.dbType" . }}
+Session Redis:      {{ if .Values.redis.enabled }}enabled{{ else }}disabled{{ end }}
 
-
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
-
-
-  ACCESS INFORMATION
-
+=============================================================================
+ACCESS
+=============================================================================
 
 {{- if .Values.ingress.enabled }}
+Ingress is enabled:
 {{- range $host := .Values.ingress.hosts }}
-AUTH PORTAL:  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+  Portal: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+{{- end }}
+{{- else if .Values.gateway.enabled }}
+Gateway API is enabled. Resolve one of the configured HTTPRoute hostnames to
+your Gateway address, then open:
+{{- range .Values.gateway.hostnames }}
+  Portal: http://{{ . }}/
 {{- end }}
 {{- else }}
-Port-forward to access Authelia locally:
+Use port-forward for local access:
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "authelia.fullname" . }} 9091:{{ .Values.service.port }}
 
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "authelia.fullname" . }} 9091:80
-
-  AUTH PORTAL:  http://localhost:9091/
-  HEALTH:       http://localhost:9091/api/health
-
+Then open:
+  Portal: http://localhost:9091/
+  Health: http://localhost:9091/api/health
 {{- end }}
 
-Internal cluster endpoint:
-  http://{{ include "authelia.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local/api/authz/forward-auth
+=============================================================================
+CONFIGURATION
+=============================================================================
 
+- Authelia configuration is rendered into Secret `{{ include "authelia.fullname" . }}-config`.
+- Runtime secrets are read from Secret `{{ include "authelia.secretName" . }}`.
+{{- if .Values.usersDatabase.enabled }}
+- File authentication is enabled through Secret `{{ include "authelia.usersDbSecretName" . }}`.
+{{- else }}
+- File authentication users Secret is disabled.
+{{- end }}
+{{- if eq (include "authelia.dbType" .) "sqlite" }}
+- SQLite storage is enabled. Keep `/data` persistent and back up the PVC before upgrades.
+{{- else }}
+- {{ include "authelia.dbType" . }} storage is enabled at {{ include "authelia.dbHost" . }}:{{ include "authelia.dbPort" . }}.
+{{- end }}
+{{- if .Values.redis.enabled }}
+- Redis session storage is enabled at {{ include "authelia.redisHost" . }}:6379.
+{{- end }}
+{{- with .Values.service.ipFamilyPolicy }}
+- Service IP family policy: `{{ . }}`{{ with $.Values.service.ipFamilies }} (families: {{ join ", " . }}){{ end }}.
+{{- end }}
+{{- if .Values.gateway.enabled }}
+- Gateway API HTTPRoute is enabled. Ensure Gateway API CRDs and referenced parentRefs exist.
+{{- end }}
+{{- if .Values.externalSecrets.enabled }}
+- External Secrets Operator is enabled. Ensure the operator and
+  {{ .Values.externalSecrets.secretStoreRef.kind }} `{{ .Values.externalSecrets.secretStoreRef.name }}`
+  exist and populate Secret `{{ .Values.secrets.existingSecret }}`.
+{{- end }}
+{{- if .Values.backup.enabled }}
+- S3 backup CronJob is enabled with schedule `{{ .Values.backup.schedule }}`.
+{{- end }}
 
-  GETTING STARTED
+=============================================================================
+GETTING STARTED
+=============================================================================
 
+1. Wait for Authelia to become ready:
+   kubectl wait --for=condition=ready pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --timeout=600s
 
-1. Wait for Authelia to be ready:
-   kubectl wait --for=condition=ready pod \
-     -l app.kubernetes.io/name=authelia \
-     -n {{ .Release.Namespace }} --timeout=300s
+2. Check resources and PVCs:
+   kubectl get all,pvc -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
 
-2. Check pod status:
-   kubectl get pods -l app.kubernetes.io/name=authelia -n {{ .Release.Namespace }}
+3. Validate the health endpoint:
+   kubectl run authelia-smoke -n {{ .Release.Namespace }} --rm -i --restart=Never --image=docker.io/library/busybox:1.37 -- \
+     wget -qO- http://{{ include "authelia.fullname" . }}:{{ .Values.service.port }}/api/health
 
-3. View startup logs:
-   kubectl logs -l app.kubernetes.io/name=authelia \
-     -n {{ .Release.Namespace }} --all-containers --tail=50 -f
-
-4. Configure your reverse proxy to forward auth to:
+4. Configure your reverse proxy forward-auth integration to:
    http://{{ include "authelia.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local/api/authz/forward-auth
 
+=============================================================================
+VALIDATION
+=============================================================================
 
-  TROUBLESHOOTING
+Inspect recent logs from every pod/container in the release:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --all-containers --tail=200
 
+Inspect events for warning or error conditions:
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
 
-Check pod status:
-  kubectl get pods -l app.kubernetes.io/name=authelia -n {{ .Release.Namespace }}
+Check pod restarts:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -o wide
 
-Describe pod (events and errors):
-  kubectl describe pod -l app.kubernetes.io/name=authelia -n {{ .Release.Namespace }}
-
-View application logs:
-  kubectl logs -l app.kubernetes.io/name=authelia \
-    -n {{ .Release.Namespace }} --all-containers --tail=100
-
-Check service endpoints:
-  kubectl get endpoints -n {{ .Release.Namespace }} | grep {{ include "authelia.fullname" . }}
-
-View all chart resources:
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-
-Execute shell in pod:
-  kubectl exec -n {{ .Release.Namespace }} \
-    -it deploy/{{ include "authelia.fullname" . }} -- /bin/sh
-
-
-  WARNINGS
-
-
-{{- if not .Values.ingress.enabled }}
-
-NOTE: Ingress is not enabled. Configure your reverse proxy to route
-to the Authelia service using the forward-auth endpoint.
+{{- if .Values.postgresql.enabled }}
+Check bundled PostgreSQL logs:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/name=postgresql --all-containers --tail=200
+{{- end }}
+{{- if .Values.mysql.enabled }}
+Check bundled MySQL logs:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/name=mysql --all-containers --tail=200
+{{- end }}
+{{- if .Values.redis.enabled }}
+Check bundled Redis logs:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/name=redis --all-containers --tail=200
+{{- end }}
+{{- if .Values.backup.enabled }}
+Check backup CronJob status:
+  kubectl get cronjob,jobs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
 {{- end }}
 
-IMPORTANT: Authelia requires proper configuration of:
-  - SMTP server for email notifications
-  - Session domain and cookie configuration
-  - At least one authentication backend (LDAP, file, or database)
-  - Trusted proxies for forward-auth to work correctly
+=============================================================================
+PRODUCTION REMINDERS
+=============================================================================
 
+- Set stable GitOps secrets through `secrets.existingSecret` or explicit secret values.
+- Replace the disabled placeholder user with a real password hash before login.
+- Configure the session cookie domain and trusted reverse proxy headers.
+- Configure SMTP for production notifications and password reset workflows.
+- Prefer PostgreSQL plus Redis for production or multi-pod operational models.
+- Back up SQLite data or database state before upgrades.
 
-  ADDITIONAL RESOURCES
+Documentation:
+  Chart: https://helmforge.dev/docs/charts/authelia
+  Authelia: https://www.authelia.com/docs/
+  Source: https://github.com/helmforgedev/charts/tree/main/charts/authelia
 
-
-Documentation:     https://helmforge.dev/docs/charts/authelia
-Chart Repository:  https://github.com/helmforgedev/charts/tree/main/charts/authelia
-Report Issues:     https://github.com/helmforgedev/charts/issues
-
-Authelia Website:  https://www.authelia.com
-Authelia Docs:     https://www.authelia.com/docs/
-Authelia GitHub:   https://github.com/authelia/authelia
-
-For questions or feedback about this chart, please visit:
-  https://github.com/helmforgedev/charts/discussions
-
-Happy Helmforging :)
+=============================================================================

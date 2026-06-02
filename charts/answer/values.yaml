@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
 # Apache Answer Helm Chart
 # =============================================================================
@@ -23,7 +24,7 @@ image:
   # -- Container image repository
   repository: docker.io/apache/answer
   # -- Container image tag
-  tag: "2.0.0"
+  tag: "2.0.1"
   # -- Image pull policy
   pullPolicy: IfNotPresent
 
@@ -35,7 +36,7 @@ imagePullSecrets: []
 # =============================================================================
 
 answer:
-  # -- Full external URL of the site (auto-detected from ingress if empty)
+  # -- Full external URL of the site (auto-detected from Ingress or Gateway hostname if empty)
   # Examples: "https://qa.example.com", "http://localhost:9080"
   siteUrl: ""
 
@@ -47,6 +48,10 @@ answer:
 
   # -- Contact email shown in the site footer and admin
   contactEmail: admin@example.com
+
+  # -- External content display policy used by Answer auto-install
+  # Options: always_display | ask_before_display
+  externalContentDisplay: ask_before_display
 
   # -- Enable automatic installation via environment variables
   # When true, the first boot runs unattended setup using the values below.
@@ -87,10 +92,10 @@ admin:
 # Apache Answer supports SQLite, MySQL, and PostgreSQL.
 #
 # Mode detection (when mode is auto):
-# 1. database.external.host or database.external.existingSecret → external
-# 2. postgresql.enabled → PostgreSQL subchart
-# 3. mysql.enabled → MySQL subchart
-# 4. Fallback → SQLite (default, zero configuration)
+# 1. database.external.host or database.external.existingSecret -> external
+# 2. postgresql.enabled -> PostgreSQL subchart
+# 3. mysql.enabled -> MySQL subchart
+# 4. Fallback -> SQLite (default, zero configuration)
 # =============================================================================
 
 database:
@@ -145,7 +150,7 @@ postgresql:
     # -- Database password (auto-generated if empty)
     password: ""
 
-  primary:
+  standalone:
     persistence:
       # -- Enable persistence for PostgreSQL data
       enabled: true
@@ -173,7 +178,7 @@ mysql:
     # -- Root password (auto-generated if empty)
     rootPassword: ""
 
-  primary:
+  standalone:
     persistence:
       # -- Enable persistence for MySQL data
       enabled: true
@@ -208,21 +213,29 @@ persistence:
 # =============================================================================
 
 # -- CPU and memory requests/limits for the Answer container
-resources: {}
-  # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
-  # limits:
-  #   cpu: 500m
-  #   memory: 512Mi
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
 
 # =============================================================================
 # Security Context
 # =============================================================================
 
-podSecurityContext: {}
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - NET_BIND_SERVICE
 
 # =============================================================================
 # Probes
@@ -272,6 +285,12 @@ service:
   # -- Annotations for the service
   annotations: {}
 
+  # -- Service IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ~
+
+  # -- Service IP families override. Empty uses cluster default.
+  ipFamilies: []
+
 # =============================================================================
 # Ingress
 # =============================================================================
@@ -303,6 +322,27 @@ ingress:
   #     hosts:
   #       - qa.example.com
   tls: []
+
+# =============================================================================
+# Gateway API
+# =============================================================================
+
+gateway:
+  # -- Enable Gateway API HTTPRoute (alternative to Ingress; requires Gateway API CRDs)
+  enabled: false
+  # -- Annotations for the HTTPRoute
+  annotations: {}
+  # -- parentRefs list pointing to your Gateway resource.
+  parentRefs: []
+  #   - name: public-gateway
+  #     namespace: gateway-system
+  # -- Hostnames the HTTPRoute matches
+  hostnames: []
+  #   - qa.example.com
+  # -- Path prefix for the HTTPRoute
+  path: /
+  # -- Path match type
+  pathType: PathPrefix
 
 # =============================================================================
 # Service Account
@@ -354,7 +394,7 @@ backup:
     # -- Image used for SQLite backup (must have tar)
     sqlite: docker.io/library/alpine:3.22
     # -- Image used for PostgreSQL backup (must have pg_dump)
-    postgresql: docker.io/library/postgres:18.3-alpine
+    postgresql: docker.io/library/postgres:18.4-alpine
     # -- Image used for MySQL backup (must have mysqldump)
     mysql: docker.io/library/mysql:8.4
     # -- Image used for S3 upload (MinIO client)
@@ -456,3 +496,36 @@ extraVolumes: []
 
 # -- Extra Kubernetes manifests to deploy alongside the chart
 extraManifests: []
+
+# =============================================================================
+# External Secrets Operator
+# =============================================================================
+
+externalSecrets:
+  # -- Render ExternalSecret resources for clusters running External Secrets Operator.
+  enabled: false
+  # -- ExternalSecret apiVersion.
+  apiVersion: external-secrets.io/v1
+  # -- Refresh interval.
+  refreshInterval: "0"
+  secretStoreRef:
+    # -- Existing SecretStore or ClusterSecretStore name.
+    name: ""
+    kind: SecretStore
+  target:
+    creationPolicy: Owner
+  admin:
+    # -- Render an ExternalSecret for admin.existingSecret.
+    enabled: false
+    # -- ExternalSecret data entries for the admin secret. Must include admin.existingSecretPasswordKey.
+    data: []
+  database:
+    # -- Render an ExternalSecret for database.external.existingSecret.
+    enabled: false
+    # -- ExternalSecret data entries for the external database secret. Must include database.external.existingSecretPasswordKey.
+    data: []
+  backup:
+    # -- Render an ExternalSecret for backup.s3.existingSecret.
+    enabled: false
+    # -- ExternalSecret data entries for S3 credentials. Must include access and secret key entries.
+    data: []

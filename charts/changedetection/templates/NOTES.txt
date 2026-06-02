@@ -16,6 +16,10 @@ Namespace:  {{ .Release.Namespace }}
 {{- range $host := .Values.ingress.hosts }}
 WEB UI:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
 {{- end }}
+{{- else if .Values.gateway.enabled }}
+{{- range .Values.gateway.hostnames }}
+WEB UI:   https://{{ . }}/
+{{- end }}
 {{- else }}
 Port-forward to access changedetection.io locally:
 
@@ -68,6 +72,33 @@ Browser rendering:
   JavaScript-heavy pages.
 {{- end }}
 
+{{- with .Values.service.ipFamilyPolicy }}
+
+Networking:
+  Service IP family policy: {{ . }}{{ with $.Values.service.ipFamilies }} (families: {{ join ", " . }}){{ end }}.
+{{- end }}
+
+{{- if .Values.gateway.enabled }}
+
+Gateway API:
+  HTTPRoute: {{ include "changedetection.fullname" . }}
+  ParentRefs:
+{{ toYaml .Values.gateway.parentRefs | indent 4 }}
+{{- end }}
+
+{{- if .Values.externalSecrets.enabled }}
+
+External Secrets:
+  ExternalSecret resources were rendered for this release.
+  Confirm the External Secrets Operator reconciled them:
+
+    kubectl get externalsecret -n {{ .Release.Namespace }} \
+      -l app.kubernetes.io/instance={{ .Release.Name }}
+
+  When using changedetection.envFrom, confirm the target Secret exists before
+  troubleshooting the application pod.
+{{- end }}
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   TROUBLESHOOTING
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -76,6 +107,7 @@ Browser rendering:
   kubectl logs -l app.kubernetes.io/name=changedetection -n {{ .Release.Namespace }} --all-containers --tail=100
   kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
   kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   ADDITIONAL RESOURCES

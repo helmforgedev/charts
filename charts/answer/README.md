@@ -5,12 +5,15 @@ Deploy [Apache Answer](https://answer.apache.org/) on Kubernetes — an open-sou
 ## Features
 
 - **SQLite by default** — zero database configuration needed
-- **PostgreSQL subchart** — bundled via HelmForge dependency
-- **MySQL subchart** — bundled via HelmForge dependency
+- **PostgreSQL subchart** — bundled via HelmForge dependency (`2.0.2`)
+- **MySQL subchart** — bundled via HelmForge dependency (`2.0.0`)
 - **External database** — connect to existing PostgreSQL or MySQL
 - **Auto-install** — unattended setup via environment variables
 - **Scheduled backups** — database-aware CronJob with S3 upload
 - **Ingress support** — TLS with cert-manager
+- **Gateway API support** — optional HTTPRoute for clusters using Gateway API
+- **External Secrets support** — optional ExternalSecret resources for admin, database, and backup credentials
+- **Dual-stack service support** — optional `ipFamilyPolicy` and `ipFamilies`
 - **Persistence** — PVC for `/data` (uploads, config, SQLite)
 
 ## Installation
@@ -86,8 +89,9 @@ database:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `answer.siteName` | `Apache Answer` | Site name |
-| `answer.siteUrl` | `""` | Full external URL (auto-detected from ingress) |
+| `answer.siteUrl` | `""` | Full external URL (auto-detected from Ingress or Gateway hostname) |
 | `answer.language` | `en-US` | Default UI language |
+| `answer.externalContentDisplay` | `ask_before_display` | External content display policy used by auto-install |
 | `answer.autoInstall` | `true` | Enable unattended setup |
 | `answer.logLevel` | `INFO` | Log level (DEBUG, INFO, WARN, ERROR) |
 | `admin.name` | `admin` | Admin username |
@@ -101,7 +105,11 @@ database:
 | `mysql.enabled` | `false` | Deploy MySQL subchart |
 | `persistence.enabled` | `true` | Enable persistent storage |
 | `persistence.size` | `5Gi` | PVC size |
+| `service.ipFamilyPolicy` | `~` | Service IP family policy |
+| `service.ipFamilies` | `[]` | Service IP families override |
 | `ingress.enabled` | `false` | Enable ingress |
+| `gateway.enabled` | `false` | Enable Gateway API HTTPRoute |
+| `externalSecrets.enabled` | `false` | Enable External Secrets Operator resources |
 | `backup.enabled` | `false` | Enable S3 backups |
 | `backup.schedule` | `0 3 * * *` | Backup cron schedule |
 
@@ -116,6 +124,8 @@ database:
 | Secret (backup) | `backup.enabled` and no `backup.s3.existingSecret` |
 | PVC | `persistence.enabled` and no `persistence.existingClaim` |
 | Ingress | `ingress.enabled` |
+| HTTPRoute | `gateway.enabled` |
+| ExternalSecret | `externalSecrets.enabled` with an enabled child secret type |
 | ServiceAccount | `serviceAccount.create` |
 | CronJob (backup) | `backup.enabled` |
 | ConfigMap (backup scripts) | `backup.enabled` |
@@ -124,6 +134,8 @@ database:
 
 - [Database configuration](docs/database.md)
 - [Backup and restore](docs/backup.md)
+- [Routing](docs/routing.md)
+- [External Secrets](docs/external-secrets.md)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/answer)
 
 <!-- @AI-METADATA

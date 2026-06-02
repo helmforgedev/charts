@@ -39,6 +39,26 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if not .Values.changedetection.defaultWatches.enabled }}
+      initContainers:
+        - name: initialize-datastore
+          image: {{ include "changedetection.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              if [ ! -f /datastore/changedetection.json ]; then
+                python -c 'import os; from changedetectionio.store import ChangeDetectionStore; os.makedirs("/datastore", exist_ok=True); ChangeDetectionStore(datastore_path="/datastore", include_default_watches=False, version_tag="{{ .Chart.AppVersion }}")'
+              fi
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /datastore
+      {{- end }}
       containers:
         - name: changedetection
           image: {{ include "changedetection.image" . | quote }}
@@ -47,6 +67,16 @@ spec:
             - name: http
               containerPort: {{ .Values.changedetection.port }}
               protocol: TCP
+          {{- if or .Values.externalSecrets.enabled .Values.changedetection.envFrom }}
+          envFrom:
+            {{- if .Values.externalSecrets.enabled }}
+            - secretRef:
+                name: {{ include "changedetection.externalSecretName" . }}
+            {{- end }}
+            {{- with .Values.changedetection.envFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
           env:
             - name: PORT
               value: {{ .Values.changedetection.port | quote }}
@@ -64,6 +94,14 @@ spec:
               value: {{ .Values.changedetection.locale | quote }}
             - name: LC_ALL
               value: {{ .Values.changedetection.locale | quote }}
+            - name: HOME
+              value: /datastore
+            - name: PYTHONUSERBASE
+              value: /datastore/.python-userbase
+            - name: PIP_USER
+              value: "true"
+            - name: PATH
+              value: /datastore/.python-userbase/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
             {{- with .Values.changedetection.timezone }}
             - name: TZ
               value: {{ . | quote }}
