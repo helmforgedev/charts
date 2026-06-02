@@ -18,6 +18,8 @@ tests:
     set:
       queue.enabled: true
       redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
     asserts:
       - isKind:
           of: Deployment
@@ -31,6 +33,8 @@ tests:
       queue.enabled: true
       queue.workers: 3
       redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
     asserts:
       - equal:
           path: spec.replicas
@@ -41,6 +45,8 @@ tests:
     set:
       queue.enabled: true
       redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
     asserts:
       - equal:
           path: spec.template.spec.containers[0].command
@@ -51,6 +57,8 @@ tests:
     set:
       queue.enabled: true
       redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
     asserts:
       - equal:
           path: spec.template.spec.securityContext.fsGroup
@@ -71,6 +79,8 @@ tests:
       queue.enabled: true
       redis.enabled: true
       redis.auth.password: pass
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
@@ -88,6 +98,8 @@ tests:
     set:
       queue.enabled: true
       redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
     asserts:
       - contains:
           path: spec.template.spec.initContainers
@@ -100,6 +112,8 @@ tests:
     set:
       queue.enabled: true
       redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
     asserts:
       - contains:
           path: spec.template.spec.initContainers
@@ -112,6 +126,8 @@ tests:
     set:
       queue.enabled: true
       redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
@@ -142,6 +158,8 @@ tests:
     set:
       queue.enabled: true
       redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
     asserts:
       - contains:
           path: spec.template.spec.volumes
@@ -155,6 +173,8 @@ tests:
       queue.enabled: true
       queue.persistence.shareMainVolume: true
       redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
     asserts:
       - contains:
           path: spec.template.spec.volumes
@@ -168,7 +188,28 @@ tests:
     set:
       queue.enabled: true
       redis.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
     asserts:
       - equal:
           path: spec.template.metadata.labels["app.kubernetes.io/component"]
           value: worker
+
+  - it: should reject queue mode with SQLite
+    template: templates/worker-deployment.yaml
+    set:
+      queue.enabled: true
+      redis.enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "queue.enabled=true is not supported with SQLite"
+
+  - it: should reject queue mode without Redis
+    template: templates/worker-deployment.yaml
+    set:
+      queue.enabled: true
+      postgresql.enabled: true
+      postgresql.auth.password: pgpass
+    asserts:
+      - failedTemplate:
+          errorPattern: "queue.enabled=true requires redis.enabled=true or queue.external.host"

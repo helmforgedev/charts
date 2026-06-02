@@ -148,7 +148,7 @@ externalSecrets:
 | `postgresql.enabled` | `false` | Deploy PostgreSQL subchart (`helmforge/postgresql` `2.0.2`) |
 | `postgresql.initdb.scripts` | n8n extension bootstrap | Creates PostgreSQL extensions required by n8n migrations |
 | `mysql.enabled` | `false` | Deploy MySQL subchart (`helmforge/mysql` `2.0.0`) |
-| `queue.enabled` | `false` | Enable queue mode (requires Redis) |
+| `queue.enabled` | `false` | Enable queue mode (requires Redis and a non-SQLite database) |
 | `queue.workers` | `1` | Number of worker replicas |
 | `queue.concurrency` | `10` | Concurrent workflows per worker |
 | `queue.persistence.shareMainVolume` | `false` | Mount the main n8n data PVC into worker pods |
@@ -184,8 +184,10 @@ and licensed Insights page rendering. Review the upstream release notes before
 upgrading, back up the database, and keep the encryption key stable before
 upgrading live deployments. This chart also refreshes the bundled HelmForge
 PostgreSQL, MySQL, and Redis subchart versions and enables hardened non-root
-container defaults with resource requests and limits; validate database and
-queue mode in a staging namespace before reusing production PVCs.
+container defaults with resource requests and limits. Queue mode now fails fast
+when it resolves to SQLite or when Redis is not configured, because workers must
+share the same PostgreSQL, MySQL, or external database as the main pod. Validate
+database and queue mode in a staging namespace before reusing production PVCs.
 
 The chart sets `N8N_RUNNERS_MODE=external` with a generated auth token and
 `N8N_NATIVE_PYTHON_RUNNER=false` by default because the upstream `n8nio/n8n`

@@ -1,7 +1,7 @@
 # Queue Mode
 
-n8n supports a **queue mode** that uses Redis as a message broker, enabling
-horizontal scaling with separate worker processes.
+n8n supports a **queue mode** that uses Redis as a message broker and a shared
+non-SQLite database, enabling horizontal scaling with separate worker processes.
 
 ## How It Works
 
@@ -9,6 +9,11 @@ In queue mode, the main n8n instance acts as the web UI and workflow trigger
 handler. Workflow executions are pushed to a Redis queue and picked up by worker
 pods. This allows scaling execution capacity independently from the web
 interface.
+
+Queue mode is intentionally rejected when the chart resolves to SQLite. SQLite
+stores state on the main pod volume and cannot safely back multiple worker pods.
+Use the PostgreSQL subchart, the MySQL subchart, or an external PostgreSQL/MySQL
+database before enabling `queue.enabled`.
 
 ## Enable Queue Mode
 
@@ -56,6 +61,14 @@ queue:
     host: redis.example.com
     port: 6379
     password: "redis-password"
+
+database:
+  external:
+    vendor: postgres
+    host: postgres.example.com
+    name: n8n
+    username: n8n
+    password: "db-password"
 ```
 
 ## Architecture
