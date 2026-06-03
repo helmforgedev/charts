@@ -18,6 +18,15 @@ permissions:
 
 jobs:
   standards-check:
+    # GR-079 enforcement needs the private helmforge-ops checkout, which requires
+    # OPS_AUTOMATION_TOKEN. GitHub withholds repository secrets from fork and
+    # Dependabot pull_request runs, so the private checkout could not authenticate
+    # there. Skip those runs instead of failing valid external contributions —
+    # the guard still enforces GR-079 on every same-repo PR (where the secret is
+    # available), and maintainers re-run the gate on the merge/sync branch.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout helmforge-ops (private)
