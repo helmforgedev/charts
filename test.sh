@@ -16,12 +16,19 @@ RUN_KUBESCAPE=1
 RUN_UNITTEST=1
 RUN_RUNTIME=0
 KEEP_NAMESPACE=0
+AUTO_INSTALL_TOOLS=1
 
 RELEASE_NAME="hf-test"
 NAMESPACE=""
 EXPECTED_CONTEXT_PREFIX="k3d-"
 RUNTIME_TIMEOUT="120s"
 KUBESCAPE_MIN_SCORE=50
+TOOL_BIN_DIR="${HELMFORGE_TOOLS_DIR:-$HOME/.local/bin}"
+HELM_VERSION="${HELM_VERSION:-v4.1.4}"
+KUBECONFORM_VERSION="${KUBECONFORM_VERSION:-v0.7.0}"
+AH_VERSION="${AH_VERSION:-1.22.0}"
+KUBESCAPE_VERSION="${KUBESCAPE_VERSION:-4.0.9}"
+KUBECTL_VERSION="${KUBECTL_VERSION:-stable}"
 VALUES_FILES=()
 CHARTS_TO_CHECK=()
 
@@ -33,6 +40,7 @@ ARTIFACTHUB_OK=1
 KUBESCAPE_OK=1
 RUNTIME_OK=1
 CONTEXT_OK=0
+UNITTEST_RAN=0
 
 usage() {
   cat <<'EOF'
@@ -76,6 +84,13 @@ Options:
   --skip-kubescape            Skip Kubescape scan
   --skip-unittest             Skip helm-unittest
   --keep-namespace            Keep runtime namespace after validation
+  --no-install                Fail when a required tool is missing instead of installing it
+
+Tool bootstrap:
+  Missing helm, kubectl, kubeconform, ah, kubescape, and helm-unittest are installed
+  before validation when the selected gates need them. CLI tools are installed into
+  ${HELMFORGE_TOOLS_DIR:-$HOME/.local/bin} by default. Override versions with
+  HELM_VERSION, KUBECTL_VERSION, KUBECONFORM_VERSION, AH_VERSION, and KUBESCAPE_VERSION.
 EOF
 }
 
@@ -90,6 +105,181 @@ require_command() {
     fail "Required command not found: $cmd"
     exit 1
   fi
+}
+
+ensure_tool_path() {
+  mkdir -p "$TOOL_BIN_DIR"
+  case ":$PATH:" in
+    *":$TOOL_BIN_DIR:"*) ;;
+    *) export PATH="$TOOL_BIN_DIR:$PATH" ;;
+  esac
+}
+
+require_bootstrap_command() {
+  local cmd="$1"
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    fail "Cannot install missing tools because '$cmd' is not available"
+    exit 1
+  fi
+}
+
+platform_os() {
+  local os
+  os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  case "$os" in
+    linux|darwin) printf '%s\n' "$os" ;;
+    msys*|mingw*|cygwin*) printf 'windows\n' ;;
+    *) fail "Unsupported OS for tool bootstrap: $os"; exit 1 ;;
+  esac
+}
+
+platform_arch() {
+  local arch
+  arch="$(uname -m)"
+  case "$arch" in
+    x86_64|amd64) printf 'amd64\n' ;;
+    aarch64|arm64) printf 'arm64\n' ;;
+    *) fail "Unsupported architecture for tool bootstrap: $arch"; exit 1 ;;
+  esac
+}
+
+download_file() {
+  local url="$1"
+  local output="$2"
+
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$url" -o "$output"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q "$url" -O "$output"
+  else
+    fail "Cannot download tools because neither curl nor wget is available"
+    exit 1
+  fi
+}
+
+install_binary_from_archive() {
+  local url="$1"
+  local binary_name="$2"
+  local archive
+  local extract_dir
+  archive="$(mktemp)"
+  extract_dir="$(mktemp -d)"
+
+  require_bootstrap_command tar
+  info "Downloading $binary_name from $url"
+  download_file "$url" "$archive"
+  tar -xzf "$archive" -C "$extract_dir"
+
+  local found
+  found="$(find "$extract_dir" -type f -name "$binary_name" -o -name "$binary_name.exe" | head -1)"
+  if [[ -z "$found" ]]; then
+    rm -rf "$archive" "$extract_dir"
+    fail "Could not find $binary_name in downloaded archive"
+    exit 1
+  fi
+
+  cp "$found" "$TOOL_BIN_DIR/$binary_name"
+  chmod +x "$TOOL_BIN_DIR/$binary_name"
+  rm -rf "$archive" "$extract_dir"
+}
+
+install_kubectl() {
+  local os
+  local arch
+  local version
+  os="$(platform_os)"
+  arch="$(platform_arch)"
+  version="$KUBECTL_VERSION"
+
+  if [[ "$version" == "stable" ]]; then
+    local version_file
+    version_file="$(mktemp)"
+    download_file "https://dl.k8s.io/release/stable.txt" "$version_file"
+    version="$(tr -d '\r\n' < "$version_file")"
+    rm -f "$version_file"
+  fi
+
+  local suffix=""
+  [[ "$os" == "windows" ]] && suffix=".exe"
+  info "Downloading kubectl $version"
+  download_file "https://dl.k8s.io/release/$version/bin/$os/$arch/kubectl$suffix" "$TOOL_BIN_DIR/kubectl"
+  chmod +x "$TOOL_BIN_DIR/kubectl"
+}
+
+install_tool() {
+  local cmd="$1"
+  local os
+  local arch
+  os="$(platform_os)"
+  arch="$(platform_arch)"
+
+  ensure_tool_path
+  case "$cmd" in
+    helm)
+      install_binary_from_archive "https://get.helm.sh/helm-${HELM_VERSION}-${os}-${arch}.tar.gz" helm
+      ;;
+    kubectl)
+      install_kubectl
+      ;;
+    kubeconform)
+      install_binary_from_archive "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-${os}-${arch}.tar.gz" kubeconform
+      ;;
+    ah)
+      local ah_os="$os"
+      [[ "$ah_os" == "darwin" ]] && ah_os="macos"
+      install_binary_from_archive "https://github.com/artifacthub/hub/releases/download/v${AH_VERSION}/ah_${AH_VERSION}_${ah_os}_${arch}.tar.gz" ah
+      ;;
+    kubescape)
+      install_binary_from_archive "https://github.com/kubescape/kubescape/releases/download/v${KUBESCAPE_VERSION}/kubescape_${KUBESCAPE_VERSION}_${os}_${arch}.tar.gz" kubescape
+      ;;
+    *)
+      fail "No bootstrap recipe is defined for: $cmd"
+      exit 1
+      ;;
+  esac
+}
+
+ensure_command() {
+  local cmd="$1"
+  if command -v "$cmd" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if [[ "$AUTO_INSTALL_TOOLS" -eq 0 ]]; then
+    fail "Required command not found: $cmd"
+    exit 1
+  fi
+
+  warn "Required command not found: $cmd; installing into $TOOL_BIN_DIR"
+  install_tool "$cmd"
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    fail "Installed $cmd, but it is still not available in PATH"
+    exit 1
+  fi
+}
+
+selected_charts_have_tests() {
+  local chart
+  for chart in "${CHARTS_TO_CHECK[@]}"; do
+    if [[ -d "$CHARTS_DIR/$chart/tests" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+ensure_helm_unittest() {
+  if helm plugin list 2>/dev/null | awk 'NR > 1 {print $1}' | grep -qx "unittest"; then
+    return 0
+  fi
+
+  if [[ "$AUTO_INSTALL_TOOLS" -eq 0 ]]; then
+    fail "helm-unittest plugin is missing. Install with: helm plugin install https://github.com/helm-unittest/helm-unittest"
+    exit 1
+  fi
+
+  info "Installing helm-unittest plugin"
+  helm plugin install https://github.com/helm-unittest/helm-unittest --verify=false
 }
 
 run_check() {
@@ -372,6 +562,7 @@ validate_chart() {
 
   if [[ "$RUN_UNITTEST" -eq 1 ]]; then
     if [[ -d "$chart_path/tests" ]]; then
+      UNITTEST_RAN=1
       if ! run_check "[$chart] helm unittest --with-subchart=false" run_quiet helm_unittest "$chart_path"; then
         UNITTEST_OK=0
       fi
@@ -408,6 +599,12 @@ print_checklist_snippet() {
   local kubescape_box="[x]"
   local runtime_box="[x]"
   local context_box="[x]"
+  local context_note=""
+  local unittest_note=""
+  local kubeconform_note=""
+  local artifacthub_note=""
+  local kubescape_note=""
+  local runtime_note=""
 
   [[ "$LINT_OK" -eq 1 ]] || lint_box="[ ]"
   [[ "$TEMPLATE_OK" -eq 1 ]] || template_box="[ ]"
@@ -418,16 +615,49 @@ print_checklist_snippet() {
   [[ "$RUNTIME_OK" -eq 1 ]] || runtime_box="[ ]"
   [[ "$CONTEXT_OK" -eq 1 || "$RUN_RUNTIME" -eq 0 ]] || context_box="[ ]"
 
+  if [[ "$RUN_RUNTIME" -eq 0 ]]; then
+    runtime_box="[ ]"
+    runtime_note=" (not run; add --runtime when runtime validation is required)"
+  fi
+
+  if [[ "$RUN_UNITTEST" -eq 0 ]]; then
+    unittest_box="[ ]"
+    unittest_note=" (skipped by --skip-unittest)"
+  elif [[ "$UNITTEST_RAN" -eq 0 ]]; then
+    unittest_box="[ ]"
+    unittest_note=" (not applicable: no tests/ directory)"
+  fi
+
+  if [[ "$RUN_KUBECONFORM" -eq 0 ]]; then
+    kubeconform_box="[ ]"
+    kubeconform_note=" (skipped by --skip-kubeconform)"
+  fi
+
+  if [[ "$RUN_ARTIFACTHUB" -eq 0 ]]; then
+    artifacthub_box="[ ]"
+    artifacthub_note=" (skipped by --skip-artifacthub)"
+  fi
+
+  if [[ "$RUN_KUBESCAPE" -eq 0 ]]; then
+    kubescape_box="[ ]"
+    kubescape_note=" (skipped by --skip-kubescape)"
+  fi
+
+  if [[ "$RUN_RUNTIME" -eq 0 ]]; then
+    context_box="[ ]"
+    context_note=" (not required without --runtime)"
+  fi
+
   echo
   echo "PR checklist snippet:"
-  echo "- $context_box I confirmed \`kubectl config current-context\` before local installs/upgrades/uninstalls"
+  echo "- $context_box I confirmed \`kubectl config current-context\` before local installs/upgrades/uninstalls$context_note"
   echo "- $lint_box \`helm lint charts/<chart-name> --strict\` passed"
   echo "- $template_box \`helm template\` passed for default values and relevant \`ci/*.yaml\` scenarios"
-  echo "- $unittest_box \`helm unittest --with-subchart=false charts/<chart-name>\` passed when tests exist"
-  echo "- $kubeconform_box \`kubeconform -strict\` passed without \`--ignore-missing-schema\`"
-  echo "- $artifacthub_box \`ah lint -p charts/<chart-name>\` passed"
-  echo "- $kubescape_box \`kubescape scan framework \"MITRE,NSA,SOC2\"\` passed the minimum score gate"
-  echo "- $runtime_box local k3d runtime validation passed when required, including pod status, events, and logs"
+  echo "- $unittest_box \`helm unittest --with-subchart=false charts/<chart-name>\` passed when tests exist$unittest_note"
+  echo "- $kubeconform_box \`kubeconform -strict\` passed without \`--ignore-missing-schema\`$kubeconform_note"
+  echo "- $artifacthub_box \`ah lint -p charts/<chart-name>\` passed$artifacthub_note"
+  echo "- $kubescape_box \`kubescape scan framework \"MITRE,NSA,SOC2\"\` passed the minimum score gate$kubescape_note"
+  echo "- $runtime_box local k3d runtime validation passed when required, including pod status, events, and logs$runtime_note"
   echo "- [ ] I updated chart docs and the site repo when public behavior changed"
   echo "- [ ] I linked or created the required GitHub issue for this PR"
 }
@@ -462,6 +692,9 @@ parse_args() {
         ;;
       --keep-namespace)
         KEEP_NAMESPACE=1
+        ;;
+      --no-install)
+        AUTO_INSTALL_TOOLS=0
         ;;
       --values|-f)
         shift
@@ -536,15 +769,15 @@ main() {
   parse_args "$@"
   validate_args
 
-  require_command helm
-  require_command kubectl
-  [[ "$RUN_KUBECONFORM" -eq 0 ]] || require_command kubeconform
-  [[ "$RUN_ARTIFACTHUB" -eq 0 ]] || require_command ah
-  [[ "$RUN_KUBESCAPE" -eq 0 ]] || require_command kubescape
+  ensure_tool_path
+  ensure_command helm
+  ensure_command kubectl
+  [[ "$RUN_KUBECONFORM" -eq 0 ]] || ensure_command kubeconform
+  [[ "$RUN_ARTIFACTHUB" -eq 0 ]] || ensure_command ah
+  [[ "$RUN_KUBESCAPE" -eq 0 ]] || ensure_command kubescape
 
-  if [[ "$RUN_UNITTEST" -eq 1 ]] && ! helm plugin list 2>/dev/null | awk 'NR > 1 {print $1}' | grep -qx "unittest"; then
-    fail "helm-unittest plugin is missing. Install with: helm plugin install https://github.com/helm-unittest/helm-unittest"
-    exit 1
+  if [[ "$RUN_UNITTEST" -eq 1 ]] && selected_charts_have_tests; then
+    ensure_helm_unittest
   fi
 
   if [[ "$RUN_RUNTIME" -eq 1 ]]; then

@@ -42,6 +42,13 @@ The helper mirrors the active PR gates:
 - Runs Kubescape and applies the minimum score gate.
 - Prints a PR checklist snippet with the evidence expected in review.
 
+Before running those gates, the helper verifies the tools required by the
+selected options. Missing `helm`, `kubectl`, `kubeconform`, `ah`, and
+`kubescape` binaries are installed into `~/.local/bin` by default, or into
+`HELMFORGE_TOOLS_DIR` when set. If selected charts include `tests/`, the helper
+also verifies and installs the `helm-unittest` plugin. Use `--no-install` to
+disable this bootstrap and fail fast on missing tools.
+
 To validate all charts without runtime installs:
 
 ```bash

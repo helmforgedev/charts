@@ -32,8 +32,15 @@ Runtime validation is mandatory for new charts, release updates, startup fixes, 
 | kubescape | current CLI | security scanning |
 | jq | current CLI | local score parsing and JSON inspection |
 
-The local helper expects these tools to be installed permanently on the workstation.
-Do not download them ad hoc for each PR.
+The local helper verifies the tools it will use before running validation.
+When a selected gate needs a missing CLI, `test.sh` installs it into
+`~/.local/bin` by default, or into `HELMFORGE_TOOLS_DIR` when that variable is set.
+This bootstrap covers `helm`, `kubectl`, `kubeconform`, `ah`, `kubescape`, and the
+`helm-unittest` plugin when selected charts include tests.
+
+Use `--no-install` when you want the helper to fail fast instead of preparing a
+clean workstation. Docker, k3d, network access, and the local cluster remain
+external prerequisites for runtime validation.
 
 ## Cluster Standard
 

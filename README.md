@@ -215,6 +215,11 @@ kubectl config current-context
 
 `test.sh` intentionally does not use `kubeconform --ignore-missing-schema`.
 If a chart renders a CRD-backed resource, install the CRD locally and make sure schema validation can resolve the API.
+The helper checks the tools needed by the selected gates before running.
+Missing `helm`, `kubectl`, `kubeconform`, `ah`, and `kubescape` binaries are
+installed into `~/.local/bin` by default, and the `helm-unittest` plugin is
+installed when selected charts include tests. Set `HELMFORGE_TOOLS_DIR` to use a
+different tool directory, or pass `--no-install` to fail fast on missing tools.
 
 Every chart PR should have a linked GitHub issue, complete PR checklist evidence, passing CI, and no unresolved review comments before merge.
 
