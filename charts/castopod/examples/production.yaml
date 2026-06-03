@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+# Production-leaning Castopod: public ingress+TLS (required for feeds/player),
+# Redis cache, generous media PVC. Single app replica (RWO media volume).
+#
+#   helm install castopod helmforge/castopod -f production.yaml
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: podcast.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - podcast.example.com
+      secretName: castopod-tls
+
+# Optional cache.
+redis:
+  enabled: true
+
+# Media payloads (audio + artwork) — size generously.
+persistence:
+  enabled: true
+  size: 50Gi
+
+# Bundled MariaDB is fine for small instances; for scale use managed MariaDB
+# (mariadb.enabled=false + database.external.*).
+mariadb:
+  enabled: true

@@ -137,6 +137,15 @@ backup:
 - [Castopod Documentation](https://docs.castopod.org)
 - [Castopod Source](https://code.castopod.org/adaures/castopod)
 - [Docker Hub](https://hub.docker.com/r/castopod/castopod)
+- [Chart design](DESIGN.md) · [Configuration](docs/configuration.md)
+
+### 🟢 Security Scan: `castopod`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **79.29293%** |
+
+> ✅ Security posture acceptable.
 
 <!-- @AI-METADATA
 type: chart-readme
