@@ -17,6 +17,28 @@
 {{- end -}}
 {{- end -}}
 
+{{/*
+Effective Elasticsearch hosts. When the bundled Elasticsearch subchart is
+enabled, point Kibana at its in-cluster Service (`<release>-bundled-elasticsearch`)
+so the chart is self-sufficient with ANY release name — no need to hardcode the
+host. Otherwise use the configured external `elasticsearch.hosts`.
+*/}}
+{{- define "kibana.elasticsearchHosts" -}}
+{{- if .Values.bundledElasticsearch.enabled -}}
+{{- list (printf "http://%s-bundled-elasticsearch:9200" .Release.Name) | toYaml -}}
+{{- else -}}
+{{- .Values.elasticsearch.hosts | toYaml -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "kibana.elasticsearchFirstHost" -}}
+{{- if .Values.bundledElasticsearch.enabled -}}
+{{- printf "http://%s-bundled-elasticsearch:9200" .Release.Name -}}
+{{- else -}}
+{{- .Values.elasticsearch.hosts | first -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "kibana.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
