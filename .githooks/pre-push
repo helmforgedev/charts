@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# GR-079 pre-push guard: every changed chart must fully pass standards-check.
+# Enable once with:  git config core.hooksPath .githooks
+#
+# Runs the helmforge-ops standards-guard against this checkout. The ops repo is
+# resolved from $HELMFORGE_OPS_DIR or the sibling ../helmforge-ops. If it can't be
+# found the hook warns (does not block) — CI (.github/workflows/standards-check.yml)
+# is the server-side guarantee.
+set -euo pipefail
+
+charts_dir="$(git rev-parse --show-toplevel)"
+ops_dir="${HELMFORGE_OPS_DIR:-$(cd "$charts_dir/.." && pwd)/helmforge-ops}"
+guard="$ops_dir/scripts/charts/standards-guard.js"
+
+if [ ! -f "$guard" ]; then
+  echo "[pre-push] WARN: helmforge-ops not found ($guard) — skipping standards-guard." >&2
+  echo "[pre-push] Set HELMFORGE_OPS_DIR or place helmforge-ops as a sibling. CI still enforces GR-079." >&2
+  exit 0
+fi
+
+base="origin/main"
+echo "[pre-push] GR-079: running standards-guard (changed charts vs ${base})..."
+if HELMFORGE_CHARTS_DIR="$charts_dir" node "$guard" --base "$base"; then
+  exit 0
+fi
+echo "[pre-push] BLOCKED: a changed chart does not fully pass standards-check (GR-079)." >&2
+echo "[pre-push] Fix the findings above, or override once with: git push --no-verify" >&2
+exit 1

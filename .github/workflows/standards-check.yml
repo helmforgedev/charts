@@ -1,0 +1,87 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Standards Check
+
+# GR-079: every chart a PR touches must FULLY pass standards-check (zero
+# BLOCKER/HIGH findings — SPDX, required structure incl. DESIGN.md/docs/examples,
+# README Security-Scan section, deps, className, Chart.lock). Runs the ops
+# standards guard over the charts changed vs the PR base and comments the
+# findings on the PR. Requires secret OPS_AUTOMATION_TOKEN (read on helmforge-ops).
+
+on:
+  pull_request:
+    paths:
+      - 'charts/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  standards-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout helmforge-ops (private)
+        uses: actions/checkout@v6
+        with:
+          repository: helmforgedev/helmforge-ops
+          token: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+          path: ops
+
+      - name: Checkout charts (full history for base diff)
+        uses: actions/checkout@v6
+        with:
+          path: charts
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install ops dependencies
+        working-directory: ops
+        run: npm ci
+
+      - name: Run standards guard (full-pass over changed charts)
+        id: guard
+        working-directory: ops
+        env:
+          HELMFORGE_CHARTS_DIR: ${{ github.workspace }}/charts
+        run: |
+          set +e
+          node scripts/charts/standards-guard.js --base "origin/${{ github.event.pull_request.base.ref }}" --json > "$RUNNER_TEMP/guard.json"
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+          cat "$RUNNER_TEMP/guard.json"
+
+      - name: Comment findings on the PR
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let r;
+            try { r = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/guard.json', 'utf8')); }
+            catch { return; }
+            const marker = '<!-- standards-check -->';
+            let body;
+            if (r.ok) {
+              body = `${marker}\n### Standards Check (GR-079) — PASS\nEvery changed chart fully passes standards-check.`;
+            } else {
+              const lines = (r.offenders || []).map(o =>
+                `<details><summary><b>${o.chart}</b> — ${o.findings.length} finding(s)</summary>\n\n` +
+                o.findings.map(f => `- ${f}`).join('\n') + `\n</details>`).join('\n');
+              body = `${marker}\n### Standards Check (GR-079) — FAIL\n` +
+                `Every chart this PR touches must fully pass standards-check (zero BLOCKER/HIGH). ` +
+                `Fix the findings below (SPDX, DESIGN.md/docs/examples, README Security-Scan section, ...):\n\n${lines}`;
+            }
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const existing = (await github.rest.issues.listComments({ owner, repo, issue_number }))
+              .data.find(c => c.body && c.body.includes(marker));
+            if (existing) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+
+      - name: Fail if standards guard found violations
+        if: steps.guard.outputs.exit != '0'
+        run: |
+          echo "standards-guard reported violations on changed charts (GR-079)." >&2
+          exit 1
