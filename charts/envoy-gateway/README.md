@@ -442,3 +442,11 @@ This chart intentionally does not support:
 - **Multiple gateway classes** — Deploy separate releases for multiple GatewayClasses
 - **Built-in cert-manager integration** — Manage application TLS externally; chart only runs certgen for controller certs
 - **Legacy Ingress API** — Use Gateway API for modern routing capabilities
+
+### 🟢 Security Scan: `envoy-gateway`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **72.22223%** |
+
+> ✅ Security posture acceptable.
