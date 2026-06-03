@@ -53,7 +53,7 @@ helm install flowise oci://ghcr.io/helmforgedev/helm/flowise
 
 ## Quick Start
 
-### Standalone
+### Standalone Mode
 
 ```bash
 helm install flowise oci://ghcr.io/helmforgedev/helm/flowise \
@@ -100,6 +100,14 @@ helm install flowise oci://ghcr.io/helmforgedev/helm/flowise \
 - [Standalone Example](examples/standalone.yaml)
 - [Queue Example](examples/queue-s3.yaml)
 - [Source code and full values reference](https://github.com/helmforgedev/charts/tree/main/charts/flowise)
+
+### 🟢 Security Scan: `flowise`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **78.78788%** |
+
+> ✅ Security posture acceptable.
 
 <!-- @AI-METADATA
 type: chart-readme

@@ -1,6 +1,9 @@
 # Automatisch Helm Chart
 
-Deploy [Automatisch](https://automatisch.io) on Kubernetes using the official [automatischio/automatisch](https://hub.docker.com/r/automatischio/automatisch) container image. Open-source business automation platform — self-hosted Zapier alternative with visual workflow builder, PostgreSQL, and Redis.
+Deploy [Automatisch](https://automatisch.io) on Kubernetes using the official
+[automatischio/automatisch](https://hub.docker.com/r/automatischio/automatisch) container image.
+Open-source business automation platform — a self-hosted Zapier alternative with a visual
+workflow builder, backed by PostgreSQL and Redis.
 
 ## Features
 
@@ -102,6 +105,15 @@ ingress:
 
 - [Automatisch documentation](https://automatisch.io/docs)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/automatisch)
+- [Chart design](DESIGN.md) · [Configuration](docs/configuration.md)
+
+### 🟢 Security Scan: `automatisch`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **79.29293%** |
+
+> ✅ Security posture acceptable.
 
 <!-- @AI-METADATA
 type: chart-readme

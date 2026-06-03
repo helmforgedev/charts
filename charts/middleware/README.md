@@ -92,6 +92,15 @@ externalRedis:
 
 - [Middleware documentation](https://docs.middlewarehq.com)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/middleware)
+- [Chart design](DESIGN.md) · [Configuration](docs/configuration.md) · [Managed datastores](docs/external-datastores.md)
+
+### 🟢 Security Scan: `middleware`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **79.29292%** |
+
+> ✅ Security posture acceptable.
 
 <!-- @AI-METADATA
 type: chart-readme

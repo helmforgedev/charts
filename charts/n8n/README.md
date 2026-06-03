@@ -236,6 +236,14 @@ reduces startup log noise. Operators can opt in with
 - [Chart design](DESIGN.md)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/n8n)
 
+### 🟢 Security Scan: `n8n`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **85.774414%** |
+
+> ✅ Security posture acceptable.
+
 <!-- @AI-METADATA
 type: chart-readme
 title: n8n Helm Chart

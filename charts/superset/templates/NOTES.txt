@@ -1,13 +1,76 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Apache Superset has been installed.
+============================================================
+  Apache Superset has been successfully deployed!
+============================================================
 
+Superset is a BI / data-exploration platform (SQL Lab, dashboards, charts),
+running as web + Celery worker + Celery beat, backed by PostgreSQL and Redis.
+
+Chart:      {{ .Chart.Name }}
+Version:    {{ .Chart.Version }}
+AppVersion: {{ .Chart.AppVersion }}
+Release:    {{ .Release.Name }}
+Namespace:  {{ .Release.Namespace }}
+
+============================================================
+  ACCESS INFORMATION
+============================================================
 {{- if .Values.ingress.enabled }}
 {{- range .Values.ingress.hosts }}
-  Web UI: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+  Web UI:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}/
 {{- end }}
 {{- else }}
-  kubectl port-forward svc/{{ include "superset.fullname" . }} 8088:{{ .Values.service.port }}
-  Web UI: http://localhost:8088
+  Port-forward to access Superset locally:
+
+    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "superset.fullname" . }} 8088:{{ .Values.service.port }}
+
+  Web UI:   http://localhost:8088/
 {{- end }}
 
-Default credentials: {{ .Values.superset.adminUsername }} / (check secret {{ include "superset.secretName" . }})
+  Admin user:     {{ .Values.superset.adminUsername }}
+  Admin password: kubectl get secret {{ include "superset.secretName" . }} -n {{ .Release.Namespace }} \
+                    -o jsonpath='{.data.admin-password}' | base64 -d
+
+============================================================
+  CONFIGURATION SUMMARY
+============================================================
+
+  Database (metadata): {{ .Values.database.mode }}{{ if eq .Values.database.mode "external" }} at {{ .Values.database.external.host }}{{ end }}
+  Redis (broker/cache): {{ .Values.redisConfig.mode }}
+  Tiers:    web + {{ if .Values.worker.enabled }}worker{{ else }}no worker{{ end }} + {{ if .Values.beat.enabled }}beat{{ else }}no beat{{ end }}
+  Init Job: {{ if .Values.init.enabled }}enabled (db upgrade + superset init + admin; web/worker/beat wait for it){{ else }}DISABLED — run migrations/admin out of band{{ end }}
+
+============================================================
+  GETTING STARTED
+============================================================
+
+1. Wait for the workloads to be ready (they wait for the init Job first):
+   kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }} --timeout=600s
+
+2. Validate the web health endpoint (port-forward from ACCESS INFORMATION first):
+   curl -sf http://localhost:8088/health && echo " <- Superset OK"
+
+3. Log in with the admin user above, then connect a database in SQL Lab and
+   build your first dashboard.
+
+============================================================
+  TROUBLESHOOTING
+============================================================
+
+  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+  kubectl logs -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }} --all-containers --tail=100
+{{- if .Values.init.enabled }}
+
+  Init Job (migrations/admin) status and logs:
+  kubectl get jobs -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+  kubectl logs job/$(kubectl get job -l app.kubernetes.io/component=init -n {{ .Release.Namespace }} -o jsonpath='{.items[0].metadata.name}') -n {{ .Release.Namespace }}
+{{- end }}
+
+============================================================
+  ADDITIONAL RESOURCES
+============================================================
+
+  Chart docs:   https://helmforge.dev/docs/charts/superset
+  Project:      https://superset.apache.org | https://github.com/apache/superset
+
+Happy Helmforging :)
