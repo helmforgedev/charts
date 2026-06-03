@@ -1,7 +1,11 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+============================================================
   Middleware has been successfully deployed!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+============================================================
+
+Middleware is an open-source DORA metrics platform. The app image bundles the
+frontend (Next.js), the analytics API and the sync server in one container,
+backed by PostgreSQL (DORA data) and Redis (cache/queues).
 
 Chart:      {{ .Chart.Name }}
 Version:    {{ .Chart.Version }}
@@ -9,52 +13,67 @@ AppVersion: {{ .Chart.AppVersion }}
 Release:    {{ .Release.Name }}
 Namespace:  {{ .Release.Namespace }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+============================================================
   ACCESS INFORMATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+============================================================
 {{- if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
-WEB UI:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+  Web UI:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
 {{- end }}
 {{- else }}
-Port-forward to access Middleware locally:
+  Port-forward to access Middleware locally:
 
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "middleware.fullname" . }} 3000:{{ .Values.service.port }}
+    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "middleware.fullname" . }} 3000:{{ .Values.service.port }}
 
-  WEB UI:   http://localhost:3000/
+  Web UI:   http://localhost:3000/
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+============================================================
+  CONFIGURATION SUMMARY
+============================================================
+
+  PostgreSQL (DORA data): {{ if .Values.postgresql.enabled }}bundled subchart ({{ .Release.Name }}-postgresql, db "{{ .Values.postgresql.auth.database }}"){{ else if .Values.externalDatabase.enabled }}external at {{ .Values.externalDatabase.host }}:{{ .Values.externalDatabase.port }}{{ else }}NOT configured — set postgresql.enabled or externalDatabase.enabled{{ end }}
+  Redis (cache/queues):   {{ if .Values.redis.enabled }}bundled subchart ({{ .Release.Name }}-redis){{ else if .Values.externalRedis.enabled }}external at {{ .Values.externalRedis.host }}:{{ .Values.externalRedis.port }}{{ else }}NOT configured — set redis.enabled or externalRedis.enabled{{ end }}
+  Encryption keys:        {{ if .Values.persistence.enabled }}persisted on a {{ .Values.persistence.size }} PVC at /app/keys{{ else }}EPHEMERAL (persistence.enabled=false) — keys are lost on restart{{ end }}
+  Ports:                  frontend {{ .Values.middleware.frontendPort }} / analytics {{ .Values.middleware.analyticsPort }} / sync {{ .Values.middleware.syncPort }}
+
+============================================================
   GETTING STARTED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+============================================================
 
-1. kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=middleware -n {{ .Release.Namespace }} --timeout=300s
-2. kubectl get pods -l app.kubernetes.io/name=middleware -n {{ .Release.Namespace }}
-3. kubectl logs -l app.kubernetes.io/name=middleware -n {{ .Release.Namespace }} --all-containers --tail=50 -f
+1. Wait for the workload to be ready:
+   kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=middleware -n {{ .Release.Namespace }} --timeout=300s
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. Validate the platform responds (port-forward from ACCESS INFORMATION first):
+   curl -sf http://localhost:3000/ >/dev/null && echo "Middleware UI is serving"
+
+3. Open the Web UI and connect your Git provider (GitHub/GitLab) to start
+   collecting the four DORA metrics (deployment frequency, lead time, change
+   failure rate, MTTR).
+
+============================================================
   TROUBLESHOOTING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+============================================================
 
   kubectl describe pod -l app.kubernetes.io/name=middleware -n {{ .Release.Namespace }}
   kubectl logs -l app.kubernetes.io/name=middleware -n {{ .Release.Namespace }} --all-containers --tail=100
   kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-
 {{- if .Values.postgresql.enabled }}
-View PostgreSQL logs:
+
+  PostgreSQL logs (DORA data store):
   kubectl logs -l app.kubernetes.io/name=postgresql -n {{ .Release.Namespace }} --all-containers --tail=50
 {{- end }}
 {{- if .Values.redis.enabled }}
-View Redis logs:
+
+  Redis logs (cache/queues):
   kubectl logs -l app.kubernetes.io/name=redis -n {{ .Release.Namespace }} --all-containers --tail=50
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+============================================================
   ADDITIONAL RESOURCES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+============================================================
 
-Documentation:  https://helmforge.dev/docs/charts/middleware
-Middleware:     https://middleware.io | https://github.com/middlewarehq/middleware
+  Chart docs:   https://helmforge.dev/docs/charts/middleware
+  Project:      https://middleware.io | https://github.com/middlewarehq/middleware
 
 Happy Helmforging :)
