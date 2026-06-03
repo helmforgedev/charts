@@ -49,5 +49,5 @@ interpolation, never written to a ConfigMap.
 
 ## References
 
-- Project: https://superset.apache.org · https://github.com/apache/superset
+- Project: <https://superset.apache.org> · <https://github.com/apache/superset>
 - See [`docs/`](docs/) and [`examples/`](examples/).

@@ -56,5 +56,5 @@ startup until resources free up; give the platform adequate CPU/memory.
 
 ## References
 
-- Project: https://appwrite.io · https://github.com/appwrite/appwrite
+- Project: <https://appwrite.io> · <https://github.com/appwrite/appwrite>
 - See [`docs/`](docs/) and [`examples/`](examples/).

@@ -1,6 +1,9 @@
 # Automatisch Helm Chart
 
-Deploy [Automatisch](https://automatisch.io) on Kubernetes using the official [automatischio/automatisch](https://hub.docker.com/r/automatischio/automatisch) container image. Open-source business automation platform — self-hosted Zapier alternative with visual workflow builder, PostgreSQL, and Redis.
+Deploy [Automatisch](https://automatisch.io) on Kubernetes using the official
+[automatischio/automatisch](https://hub.docker.com/r/automatischio/automatisch) container image.
+Open-source business automation platform — a self-hosted Zapier alternative with a visual
+workflow builder, backed by PostgreSQL and Redis.
 
 ## Features
 

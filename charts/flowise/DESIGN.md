@@ -42,5 +42,5 @@ first), never templated into ConfigMaps. The app serves on port 3000.
 
 ## References
 
-- Project: https://flowiseai.com · https://github.com/FlowiseAI/Flowise
+- Project: <https://flowiseai.com> · <https://github.com/FlowiseAI/Flowise>
 - See [`docs/`](docs/) and [`examples/`](examples/).

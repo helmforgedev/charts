@@ -42,5 +42,5 @@ data resilience.
 
 ## References
 
-- Project: https://count.ly · https://github.com/Countly/countly-server
+- Project: <https://count.ly> · <https://github.com/Countly/countly-server>
 - See [`docs/`](docs/) and [`examples/`](examples/).

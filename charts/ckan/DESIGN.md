@@ -47,5 +47,5 @@ values; passwords are never templated into ConfigMaps.
 
 ## References
 
-- Project: https://ckan.org · https://github.com/ckan/ckan
+- Project: <https://ckan.org> · <https://github.com/ckan/ckan>
 - See [`docs/`](docs/) and [`examples/`](examples/).

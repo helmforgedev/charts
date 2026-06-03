@@ -48,6 +48,6 @@ the operator provisions/sizes the Envoy fleet accordingly.
 
 ## References
 
-- Envoy Gateway: https://gateway.envoyproxy.io
-- Gateway API: https://gateway-api.sigs.k8s.io
+- Envoy Gateway: <https://gateway.envoyproxy.io>
+- Gateway API: <https://gateway-api.sigs.k8s.io>
 - See [`docs/`](docs/) and [`examples/`](examples/).

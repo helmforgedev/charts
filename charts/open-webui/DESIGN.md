@@ -48,5 +48,5 @@ secrets/values; never templated into a ConfigMap.
 
 ## References
 
-- Project: https://openwebui.com · https://github.com/open-webui/open-webui
+- Project: <https://openwebui.com> · <https://github.com/open-webui/open-webui>
 - See [`docs/`](docs/) and [`examples/`](examples/).

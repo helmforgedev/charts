@@ -53,7 +53,7 @@ helm install flowise oci://ghcr.io/helmforgedev/helm/flowise
 
 ## Quick Start
 
-### Standalone
+### Standalone Mode
 
 ```bash
 helm install flowise oci://ghcr.io/helmforgedev/helm/flowise \

@@ -63,5 +63,5 @@ cover first-boot schema setup; liveness/readiness are tight once up.
 
 ## References
 
-- Project: https://github.com/wallabag/wallabag · https://wallabag.org
+- Project: <https://github.com/wallabag/wallabag> · <https://wallabag.org>
 - See [`docs/`](docs/) and [`examples/`](examples/).

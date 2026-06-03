@@ -18,14 +18,36 @@
 {{- end -}}
 
 {{/*
+Service name of the bundled Elasticsearch subchart. Mirrors the subchart's own
+`elasticsearch.fullname` (charts/elasticsearch/templates/_helpers.tpl) against the
+aliased `bundled-elasticsearch` values so Kibana resolves the SAME Service the
+subchart renders — including long release-name truncation (trunc 63) and any
+`nameOverride`/`fullnameOverride` set on the subchart. The dependency alias is
+`bundled-elasticsearch`, so the subchart's default name is that alias.
+*/}}
+{{- define "kibana.bundledElasticsearchFullname" -}}
+{{- $es := index .Values "bundled-elasticsearch" | default dict -}}
+{{- if $es.fullnameOverride -}}
+{{- $es.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default "bundled-elasticsearch" $es.nameOverride -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Effective Elasticsearch hosts. When the bundled Elasticsearch subchart is
-enabled, point Kibana at its in-cluster Service (`<release>-bundled-elasticsearch`)
-so the chart is self-sufficient with ANY release name — no need to hardcode the
-host. Otherwise use the configured external `elasticsearch.hosts`.
+enabled, point Kibana at its in-cluster Service (derived to match the subchart's
+fullname) so the chart is self-sufficient with ANY release name or subchart name
+override. Otherwise use the configured external `elasticsearch.hosts`.
 */}}
 {{- define "kibana.elasticsearchHosts" -}}
 {{- if .Values.bundledElasticsearch.enabled -}}
-{{- list (printf "http://%s-bundled-elasticsearch:9200" .Release.Name) | toYaml -}}
+{{- list (printf "http://%s:9200" (include "kibana.bundledElasticsearchFullname" .)) | toYaml -}}
 {{- else -}}
 {{- .Values.elasticsearch.hosts | toYaml -}}
 {{- end -}}
@@ -33,7 +55,7 @@ host. Otherwise use the configured external `elasticsearch.hosts`.
 
 {{- define "kibana.elasticsearchFirstHost" -}}
 {{- if .Values.bundledElasticsearch.enabled -}}
-{{- printf "http://%s-bundled-elasticsearch:9200" .Release.Name -}}
+{{- printf "http://%s:9200" (include "kibana.bundledElasticsearchFullname" .) -}}
 {{- else -}}
 {{- .Values.elasticsearch.hosts | first -}}
 {{- end -}}

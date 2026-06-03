@@ -42,5 +42,5 @@ first), never templated into a ConfigMap.
 
 ## References
 
-- Project: https://castopod.org · https://code.castopod.org/adaures/castopod
+- Project: <https://castopod.org> · <https://code.castopod.org/adaures/castopod>
 - See [`docs/`](docs/) and [`examples/`](examples/).

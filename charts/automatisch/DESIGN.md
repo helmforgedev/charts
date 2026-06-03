@@ -45,5 +45,5 @@ The app encryption/secret keys and the database/Redis passwords come from secret
 
 ## References
 
-- Project: https://automatisch.io · https://github.com/automatisch/automatisch
+- Project: <https://automatisch.io> · <https://github.com/automatisch/automatisch>
 - See [`docs/`](docs/) and [`examples/`](examples/).

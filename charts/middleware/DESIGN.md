@@ -84,5 +84,5 @@ and key generation; liveness/readiness are tight once the app is up.
 
 ## References
 
-- Project: https://github.com/middlewarehq/middleware
+- Project: <https://github.com/middlewarehq/middleware>
 - Chart docs: see [`docs/`](docs/) and [`examples/`](examples/).
