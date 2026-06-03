@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+# Superset against managed PostgreSQL and Redis (no bundled subcharts).
+#
+#   kubectl create secret generic superset-db --from-literal=database-password=<pass>
+#   kubectl create secret generic superset-redis-ext --from-literal=redis-password=<pass>
+#   helm install superset helmforge/superset -f external-datastores.yaml
+
+database:
+  mode: external
+  external:
+    host: pg.internal.example.com
+    port: 5432
+    name: superset
+    username: superset
+    existingSecret: superset-db
+    existingSecretPasswordKey: database-password
+
+redisConfig:
+  mode: external
+  external:
+    host: redis.internal.example.com
+    port: 6379
+    existingSecret: superset-redis-ext
+    existingSecretPasswordKey: redis-password
+
+# Scale Celery workers for async query/thumbnail throughput.
+worker:
+  replicaCount: 2

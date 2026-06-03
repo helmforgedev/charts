@@ -133,6 +133,18 @@ superset:
     ROW_LIMIT = 50000
 ```
 
+## More Information
+
+- [Chart design](DESIGN.md) · [Configuration](docs/configuration.md) · [External datastores](examples/external-datastores.yaml)
+
+### 🟢 Security Scan: `superset`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **76.46465%** |
+
+> ✅ Security posture acceptable.
+
 <!-- @AI-METADATA
 type: chart-readme
 title: Apache Superset Helm Chart
