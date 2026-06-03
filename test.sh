@@ -771,7 +771,6 @@ main() {
 
   ensure_tool_path
   ensure_command helm
-  ensure_command kubectl
   [[ "$RUN_KUBECONFORM" -eq 0 ]] || ensure_command kubeconform
   [[ "$RUN_ARTIFACTHUB" -eq 0 ]] || ensure_command ah
   [[ "$RUN_KUBESCAPE" -eq 0 ]] || ensure_command kubescape
@@ -780,9 +779,12 @@ main() {
     ensure_helm_unittest
   fi
 
+  # kubectl is only required for runtime validation; static-only runs (lint,
+  # template, kubeconform, ...) must work on a workstation without it.
   if [[ "$RUN_RUNTIME" -eq 1 ]]; then
+    ensure_command kubectl
     require_runtime_context || exit 1
-  else
+  elif command -v kubectl >/dev/null 2>&1; then
     local context
     context="$(current_context)"
     if [[ -n "$context" ]]; then
