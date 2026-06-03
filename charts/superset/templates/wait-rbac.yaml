@@ -1,0 +1,33 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.init.enabled }}
+{{- /*
+Minimal RBAC so the web/worker/beat pods' wait-for-init initContainer can watch
+the init Job until it completes (kubectl wait --for=condition=complete).
+Scoped to this release's namespace and to read-only access on Jobs only.
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "superset.fullname" . }}-wait-init
+  labels:
+    {{- include "superset.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "superset.fullname" . }}-wait-init
+  labels:
+    {{- include "superset.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "superset.fullname" . }}-wait-init
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "superset.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
