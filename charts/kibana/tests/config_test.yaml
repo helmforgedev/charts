@@ -17,6 +17,26 @@ tests:
           path: data["kibana.yml"]
           pattern: "http://elasticsearch:9200"
 
+  - it: derives the bundled Elasticsearch http host from the subchart fullname
+    template: templates/configmap.yaml
+    set:
+      bundledElasticsearch.enabled: true
+    asserts:
+      # bundled mode (dev profile) is plain HTTP; host matches the subchart Service
+      # (<release>-bundled-elasticsearch), not a hardcoded value.
+      - matchRegex:
+          path: data["kibana.yml"]
+          pattern: "http://.*-bundled-elasticsearch:9200"
+
+  - it: rejects bundled Elasticsearch with security enabled (unsupported)
+    template: templates/configmap.yaml
+    set:
+      bundledElasticsearch.enabled: true
+      bundled-elasticsearch.security.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "bundled Elasticsearch with security enabled (bundled-elasticsearch.security.enabled=true or clusterProfile=production-ha) is not supported in bundled mode: this chart wires only the plain-HTTP Service URL, not TLS CA verification or auth, so Kibana would connect to the wrong (https) endpoint. Use external mode instead — set bundledElasticsearch.enabled=false and configure elasticsearch.hosts + elasticsearch.tls + elasticsearch.auth against your secured cluster."
+
   - it: renders TLS configuration
     template: templates/configmap.yaml
     set:

@@ -40,6 +40,19 @@ subchart renders — including long release-name truncation (trunc 63) and any
 {{- end -}}
 
 {{/*
+Whether the bundled Elasticsearch subchart runs with security enabled. Mirrors
+the subchart's `elasticsearch.security.enabled` (explicit `security.enabled` OR
+`clusterProfile=production-ha`). In that mode the subchart serves HTTPS on 9200
+with self-signed TLS and auth — which bundled mode here does NOT wire (it only
+points Kibana at the plain-HTTP Service URL). validate() rejects that combo.
+*/}}
+{{- define "kibana.bundledElasticsearchSecured" -}}
+{{- $es := index .Values "bundled-elasticsearch" | default dict -}}
+{{- $sec := $es.security | default dict -}}
+{{- if or $sec.enabled (eq ($es.clusterProfile | default "dev") "production-ha") -}}true{{- else -}}false{{- end -}}
+{{- end -}}
+
+{{/*
 Effective Elasticsearch hosts. When the bundled Elasticsearch subchart is
 enabled, point Kibana at its in-cluster Service (derived to match the subchart's
 fullname) so the chart is self-sufficient with ANY release name or subchart name
@@ -150,6 +163,9 @@ app.kubernetes.io/part-of: helmforge
 
 {{- define "kibana.validate" -}}
 {{- $auth := .Values.elasticsearch.auth.type -}}
+{{- if and .Values.bundledElasticsearch.enabled (eq (include "kibana.bundledElasticsearchSecured" .) "true") -}}
+{{- fail "bundled Elasticsearch with security enabled (bundled-elasticsearch.security.enabled=true or clusterProfile=production-ha) is not supported in bundled mode: this chart wires only the plain-HTTP Service URL, not TLS CA verification or auth, so Kibana would connect to the wrong (https) endpoint. Use external mode instead — set bundledElasticsearch.enabled=false and configure elasticsearch.hosts + elasticsearch.tls + elasticsearch.auth against your secured cluster." -}}
+{{- end -}}
 {{- if not (has $auth (list "none" "basic" "serviceAccountToken")) -}}
 {{- fail "elasticsearch.auth.type must be one of: none, basic, serviceAccountToken" -}}
 {{- end -}}
