@@ -112,3 +112,11 @@ helm template opencut charts/opencut -f charts/opencut/ci/ci-values.yaml
 helm unittest charts/opencut
 kubeconform -strict -summary rendered.yaml
 ```
+
+### 🟢 Security Scan: `opencut`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **92.85354%** |
+
+> ✅ Security posture acceptable.
