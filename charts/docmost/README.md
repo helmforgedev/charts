@@ -193,6 +193,14 @@ For production upgrades, take a database backup first and verify the secret refe
 - [Examples](examples/simple.yaml)
 - [Source code and full values reference](https://github.com/helmforgedev/charts/tree/main/charts/docmost)
 
+### 🟢 Security Scan: `docmost`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **87.87879%** |
+
+> ✅ Security posture acceptable.
+
 <!-- @AI-METADATA
 type: chart-readme
 title: Docmost
