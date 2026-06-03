@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Automation - Org Consistency
+
+# Keeps the org profile counts and chart<->site parity correct.
+# Opens an auto-fix PR for the profile counts (in helmforgedev/.github) and a
+# tracking issue for parity gaps that need manual work. Manual merge.
+#
+# Requires repo/org secret OPS_AUTOMATION_TOKEN: a PAT (or GitHub App token)
+# with contents+issues+pull_requests write on helmforgedev/{.github,site} and
+# read on the private helmforgedev/helmforge-ops. See helmforge-ops README.
+
+on:
+  schedule:
+    - cron: '0 7 * * 1' # Monday 07:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  org-consistency:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout helmforge-ops (private)
+        uses: actions/checkout@v4
+        with:
+          repository: helmforgedev/helmforge-ops
+          token: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+          path: ops
+
+      - name: Checkout charts
+        uses: actions/checkout@v4
+        with:
+          repository: helmforgedev/charts
+          token: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+          path: charts
+
+      - name: Checkout site
+        uses: actions/checkout@v4
+        with:
+          repository: helmforgedev/site
+          token: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+          path: site
+
+      - name: Checkout .github profile
+        uses: actions/checkout@v4
+        with:
+          repository: helmforgedev/.github
+          token: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+          path: github-profile
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install ops dependencies
+        working-directory: ops
+        run: npm ci
+
+      - name: Configure git auth for pushes
+        run: gh auth setup-git
+        env:
+          GH_TOKEN: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+
+      - name: Run org-consistency reporter
+        working-directory: ops
+        env:
+          GH_TOKEN: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+          HELMFORGE_CHARTS_DIR: ${{ github.workspace }}/charts
+          HELMFORGE_SITE_DIR: ${{ github.workspace }}/site
+          HELMFORGE_GITHUB_DIR: ${{ github.workspace }}/github-profile
+        run: node scripts/ci/auto-report.js --check org-consistency

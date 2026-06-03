@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Automation - SPDX Backfill (one-time)
+
+# One-time catalog-wide SPDX header backfill (GR-076). Manual dispatch only —
+# opens a single large auto-fix PR inserting SPDX headers into every chart
+# YAML/tpl/sh/NOTES.txt file that lacks one. Runs on Linux so line endings
+# stay LF (do not run this locally on Windows — it would rewrite CRLF).
+#
+# Requires secret OPS_AUTOMATION_TOKEN (see automation-org-consistency.yml).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  spdx-migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout helmforge-ops (private)
+        uses: actions/checkout@v4
+        with:
+          repository: helmforgedev/helmforge-ops
+          token: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+          path: ops
+
+      - name: Checkout charts
+        uses: actions/checkout@v4
+        with:
+          repository: helmforgedev/charts
+          token: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+          path: charts
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install ops dependencies
+        working-directory: ops
+        run: npm ci
+
+      - name: Configure git auth for pushes
+        run: gh auth setup-git
+        env:
+          GH_TOKEN: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+
+      - name: Run SPDX backfill reporter
+        working-directory: ops
+        env:
+          GH_TOKEN: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+          HELMFORGE_CHARTS_DIR: ${{ github.workspace }}/charts
+        run: node scripts/ci/auto-report.js --check spdx-migrate
