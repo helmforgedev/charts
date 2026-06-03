@@ -1,7 +1,10 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+============================================================
   Wallabag has been successfully deployed!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+============================================================
+
+Wallabag is a self-hosted read-it-later app: save web articles and read them
+later (web UI, REST API, browser extensions), backed by PostgreSQL.
 
 Chart:      {{ .Chart.Name }}
 Version:    {{ .Chart.Version }}
@@ -9,71 +12,72 @@ AppVersion: {{ .Chart.AppVersion }}
 Release:    {{ .Release.Name }}
 Namespace:  {{ .Release.Namespace }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+============================================================
   ACCESS INFORMATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+============================================================
 {{- if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
-WEB UI:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+  Web UI:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
 {{- end }}
 {{- else }}
-Port-forward to access Wallabag locally:
+  Port-forward to access Wallabag locally:
 
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "wallabag.fullname" . }} 8080:{{ .Values.service.port }}
+    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "wallabag.fullname" . }} 8080:{{ .Values.service.port }}
 
-  WEB UI:   http://localhost:8080/
+  Web UI:   http://localhost:8080/
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+============================================================
   CREDENTIALS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+============================================================
 
-Admin credentials:
-  kubectl get secret {{ include "wallabag.fullname" . }} \
-    -n {{ .Release.Namespace }} \
-    -o jsonpath='{.data.wallabag-password}' | base64 -d
+  Admin password:
+    kubectl get secret {{ include "wallabag.fullname" . }} -n {{ .Release.Namespace }} \
+      -o jsonpath='{.data.wallabag-password}' | base64 -d
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+============================================================
+  CONFIGURATION SUMMARY
+============================================================
+
+  Database: {{ if .Values.postgresql.enabled }}bundled PostgreSQL ({{ .Release.Name }}-postgresql, db "{{ .Values.postgresql.auth.database }}"){{ else }}external PostgreSQL at {{ .Values.database.external.host }}:{{ .Values.database.external.port }}{{ end }}
+  Redis:    {{ if .Values.redis.enabled }}bundled (async import/annotation queues){{ else }}disabled (synchronous imports){{ end }}
+  Storage:  {{ if .Values.persistence.enabled }}persisted on a {{ .Values.persistence.size }} PVC (article images/data){{ else }}EPHEMERAL (persistence.enabled=false){{ end }}
+  Backup:   {{ if .Values.backup.enabled }}CronJob enabled (schedule {{ .Values.backup.schedule }}){{ else }}disabled (set backup.enabled=true){{ end }}
+
+============================================================
   GETTING STARTED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+============================================================
 
-1. kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=wallabag -n {{ .Release.Namespace }} --timeout=300s
-2. kubectl get pods -l app.kubernetes.io/name=wallabag -n {{ .Release.Namespace }}
-3. kubectl logs -l app.kubernetes.io/name=wallabag -n {{ .Release.Namespace }} --all-containers --tail=50 -f
-4. Log in and start saving articles for offline reading
+1. Wait for the workload to be ready:
+   kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=wallabag -n {{ .Release.Namespace }} --timeout=300s
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. Validate Wallabag responds (port-forward from ACCESS INFORMATION first):
+   curl -sf http://localhost:8080/ >/dev/null && echo "Wallabag is serving"
+
+3. Log in with the admin credentials above and start saving articles.
+
+============================================================
   TROUBLESHOOTING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+============================================================
 
   kubectl describe pod -l app.kubernetes.io/name=wallabag -n {{ .Release.Namespace }}
   kubectl logs -l app.kubernetes.io/name=wallabag -n {{ .Release.Namespace }} --all-containers --tail=100
   kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-
 {{- if .Values.postgresql.enabled }}
-View PostgreSQL logs:
+
+  PostgreSQL logs:
   kubectl logs -l app.kubernetes.io/name=postgresql -n {{ .Release.Namespace }} --all-containers --tail=50
 {{- end }}
-{{- if .Values.redis.enabled }}
-View Redis logs:
-  kubectl logs -l app.kubernetes.io/name=redis -n {{ .Release.Namespace }} --all-containers --tail=50
-{{- end }}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  WARNINGS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 {{- if not .Values.ingress.enabled }}
 
-NOTE: Ingress is not enabled. Access via port-forward (see above).
+  Note: Ingress is disabled — access via the port-forward above.
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+============================================================
   ADDITIONAL RESOURCES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+============================================================
 
-Documentation:  https://helmforge.dev/docs/charts/wallabag
-Wallabag:       https://wallabag.org | https://github.com/wallabag/wallabag
+  Chart docs:   https://helmforge.dev/docs/charts/wallabag
+  Project:      https://wallabag.org | https://github.com/wallabag/wallabag
 
 Happy Helmforging :)
