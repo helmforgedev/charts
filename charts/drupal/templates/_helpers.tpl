@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{/*
 Chart name, truncated to 63 characters.
 */}}
