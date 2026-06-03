@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Automation - Standards Sweep
+
+# Sweeps all charts for standards drift (className, tracked Chart.lock, SPDX
+# headers, required structure). Opens an auto-fix PR for the mechanical fixes
+# (SPDX insertion, Chart.lock untracking) and a tracking issue for the rest
+# (structure, className). Manual merge.
+#
+# Requires secret OPS_AUTOMATION_TOKEN (see automation-org-consistency.yml).
+
+on:
+  schedule:
+    - cron: '0 8 * * 1' # Monday 08:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  standards-sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout helmforge-ops (private)
+        uses: actions/checkout@v4
+        with:
+          repository: helmforgedev/helmforge-ops
+          token: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+          path: ops
+
+      - name: Checkout charts
+        uses: actions/checkout@v4
+        with:
+          repository: helmforgedev/charts
+          token: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+          path: charts
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install ops dependencies
+        working-directory: ops
+        run: npm ci
+
+      - name: Configure git auth for pushes
+        run: gh auth setup-git
+        env:
+          GH_TOKEN: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+
+      - name: Run standards-sweep reporter
+        working-directory: ops
+        env:
+          GH_TOKEN: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+          HELMFORGE_CHARTS_DIR: ${{ github.workspace }}/charts
+        run: node scripts/ci/auto-report.js --check standards-sweep

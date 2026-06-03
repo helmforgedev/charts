@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Automation - Subchart Dependency Freshness
+
+# Detects HelmForge subchart dependencies behind the latest published version
+# (GR-074). Opens an auto-fix PR bumping minor/patch versions and a tracking
+# issue for major bumps (which need manual upgrade + k3d validation). Manual merge.
+#
+# Requires secret OPS_AUTOMATION_TOKEN (see automation-org-consistency.yml).
+
+on:
+  schedule:
+    - cron: '30 7 * * 1' # Monday 07:30 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  subchart-deps:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout helmforge-ops (private)
+        uses: actions/checkout@v4
+        with:
+          repository: helmforgedev/helmforge-ops
+          token: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+          path: ops
+
+      - name: Checkout charts
+        uses: actions/checkout@v4
+        with:
+          repository: helmforgedev/charts
+          token: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+          path: charts
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install ops dependencies
+        working-directory: ops
+        run: npm ci
+
+      - name: Configure git auth for pushes
+        run: gh auth setup-git
+        env:
+          GH_TOKEN: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+
+      - name: Run subchart-deps reporter
+        working-directory: ops
+        env:
+          GH_TOKEN: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+          HELMFORGE_CHARTS_DIR: ${{ github.workspace }}/charts
+        run: node scripts/ci/auto-report.js --check subchart-deps
