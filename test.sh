@@ -226,6 +226,17 @@ runtime_namespace_for_chart() {
   fi
 }
 
+cleanup_runtime_namespace() {
+  local ns="$1"
+
+  if [[ "$KEEP_NAMESPACE" -eq 0 ]]; then
+    helm uninstall "$RELEASE_NAME" --namespace "$ns" >/dev/null 2>&1 || true
+    kubectl delete namespace "$ns" --wait=false >/dev/null 2>&1 || true
+  else
+    warn "Keeping namespace '$ns' because --keep-namespace was set"
+  fi
+}
+
 current_context() {
   kubectl config current-context 2>/dev/null || true
 }
@@ -268,19 +279,22 @@ runtime_install() {
     --wait \
     --timeout "$RUNTIME_TIMEOUT"; then
     collect_runtime_evidence "$ns"
+    cleanup_runtime_namespace "$ns"
     return 1
   fi
 
   collect_runtime_evidence "$ns"
-  validate_runtime_events "$ns" || return 1
-  validate_runtime_logs "$ns" || return 1
-
-  if [[ "$KEEP_NAMESPACE" -eq 0 ]]; then
-    helm uninstall "$RELEASE_NAME" --namespace "$ns" >/dev/null 2>&1 || true
-    kubectl delete namespace "$ns" --wait=false >/dev/null 2>&1 || true
-  else
-    warn "Keeping namespace '$ns' because --keep-namespace was set"
+  if ! validate_runtime_events "$ns"; then
+    cleanup_runtime_namespace "$ns"
+    return 1
   fi
+
+  if ! validate_runtime_logs "$ns"; then
+    cleanup_runtime_namespace "$ns"
+    return 1
+  fi
+
+  cleanup_runtime_namespace "$ns"
 }
 
 collect_runtime_evidence() {
