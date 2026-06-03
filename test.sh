@@ -1,60 +1,88 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
 
-set -u
+set -uo pipefail
 
-SCRIPT_NAME="$(basename "$0")"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHARTS_DIR="$ROOT_DIR/charts"
 
 TOTAL_CHECKS=0
 FAILED_CHECKS=0
 
-KUBECTL_CONTEXT_OK=0
-LINT_OK=1
-UNITTEST_OK=1
-CI_TEMPLATE_OK=1
+RUN_ALL=0
+RUN_KUBECONFORM=1
+RUN_ARTIFACTHUB=1
+RUN_KUBESCAPE=1
+RUN_UNITTEST=1
+RUN_RUNTIME=0
+KEEP_NAMESPACE=0
 
-HAS_UNITTEST_PLUGIN=0
+RELEASE_NAME="hf-test"
+NAMESPACE=""
+EXPECTED_CONTEXT_PREFIX="k3d-"
+RUNTIME_TIMEOUT="120s"
+KUBESCAPE_MIN_SCORE=50
+VALUES_FILES=()
+CHARTS_TO_CHECK=()
+
+LINT_OK=1
+TEMPLATE_OK=1
+UNITTEST_OK=1
+KUBECONFORM_OK=1
+ARTIFACTHUB_OK=1
+KUBESCAPE_OK=1
+RUNTIME_OK=1
+CONTEXT_OK=0
 
 usage() {
   cat <<'EOF'
 HelmForge charts validation helper.
 
 Usage:
-  ./test.sh <chart-name>
-  ./test.sh --all
+  ./test.sh <chart-name> [options]
+  ./test.sh --all [options]
   ./test.sh --help
 
-Examples:
-  ./test.sh mosquitto
-  ./test.sh --all
+Common examples:
+  ./test.sh redis
+  ./test.sh uptime-kuma --values charts/uptime-kuma/ci/mysql-values.yaml --runtime
+  ./test.sh generic --skip-kubescape
+  ./test.sh --all --skip-runtime
 
-What it checks per chart:
+What it checks by default:
   1) helm dependency build
   2) helm lint --strict
-  3) helm template (default values)
+  3) helm template with default values
   4) helm template for every charts/<chart>/ci/*.yaml file
-  5) helm unittest (requires helm-unittest plugin)
+  5) kubeconform for default values and every ci/*.yaml file
+  6) helm unittest --with-subchart=false when tests/ exists
+  7) Artifact Hub lint
+  8) Kubescape MITRE, NSA, and SOC2 scan with a minimum score gate
 
-It also prints the current kubectl context and a PR checklist snippet at the end.
+Runtime validation:
+  --runtime installs the chart into the current k3d context with helm --wait --timeout 120s,
+  checks workloads, events, and pod logs, then removes the namespace unless --keep-namespace is set.
+
+Options:
+  --all                       Validate all charts under charts/
+  --values <file>             Extra values file for runtime install. Can be repeated.
+  --release <name>            Runtime Helm release name. Default: hf-test
+  --namespace <name>          Runtime namespace. Default: hf-test-<chart>
+  --kube-context <prefix>     Required context prefix for runtime checks. Default: k3d-
+  --runtime                   Run local k3d install validation
+  --skip-runtime              Do not run runtime validation (default)
+  --skip-kubeconform          Skip kubeconform validation
+  --skip-artifacthub          Skip Artifact Hub lint
+  --skip-kubescape            Skip Kubescape scan
+  --skip-unittest             Skip helm-unittest
+  --keep-namespace            Keep runtime namespace after validation
 EOF
 }
 
-info() {
-  echo "[INFO] $*"
-}
-
-ok() {
-  echo "[PASS] $*"
-}
-
-warn() {
-  echo "[WARN] $*"
-}
-
-fail() {
-  echo "[FAIL] $*"
-}
+info() { echo "[INFO] $*"; }
+ok() { echo "[PASS] $*"; }
+warn() { echo "[WARN] $*"; }
+fail() { echo "[FAIL] $*"; }
 
 require_command() {
   local cmd="$1"
@@ -97,7 +125,17 @@ discover_all_charts() {
   done
 }
 
-run_ci_templates() {
+helm_dependency_build() {
+  local chart_path="$1"
+  helm dependency build "$chart_path"
+}
+
+template_default() {
+  local chart_path="$1"
+  helm template test-release "$chart_path"
+}
+
+template_ci_values() {
   local chart="$1"
   local chart_path="$CHARTS_DIR/$chart"
   local ci_file
@@ -106,9 +144,8 @@ run_ci_templates() {
   shopt -s nullglob
   for ci_file in "$chart_path"/ci/*.yaml; do
     ci_found=1
-    if ! helm template test-release "$chart_path" -f "$ci_file" >/dev/null; then
-      return 1
-    fi
+    info "Rendering $chart with $ci_file"
+    helm template test-release "$chart_path" -f "$ci_file" >/dev/null || return 1
   done
   shopt -u nullglob
 
@@ -119,6 +156,176 @@ run_ci_templates() {
   return 0
 }
 
+kubeconform_render() {
+  kubeconform -strict -summary \
+    -schema-location default \
+    -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+    -exit-on-error
+}
+
+kubeconform_default() {
+  local chart_path="$1"
+  helm template test-release "$chart_path" | kubeconform_render
+}
+
+kubeconform_ci_values() {
+  local chart="$1"
+  local chart_path="$CHARTS_DIR/$chart"
+  local ci_file
+  local ci_found=0
+
+  shopt -s nullglob
+  for ci_file in "$chart_path"/ci/*.yaml; do
+    ci_found=1
+    info "Kubeconform validating $chart with $ci_file"
+    helm template test-release "$chart_path" -f "$ci_file" | kubeconform_render || return 1
+  done
+  shopt -u nullglob
+
+  if [[ "$ci_found" -eq 0 ]]; then
+    warn "No ci/*.yaml files found for '$chart' (skipping scenario kubeconform)"
+  fi
+
+  return 0
+}
+
+helm_unittest() {
+  local chart_path="$1"
+  helm unittest --with-subchart=false "$chart_path"
+}
+
+artifacthub_lint() {
+  local chart="$1"
+  (cd "$ROOT_DIR" && ah lint -p "charts/$chart")
+}
+
+kubescape_scan() {
+  local chart="$1"
+  local report
+  report="$(mktemp)"
+
+  (cd "$ROOT_DIR" && kubescape scan framework "MITRE,NSA,SOC2" "charts/$chart") 2>&1 | tee "$report"
+
+  local score
+  local score_int
+  score="$(grep -E 'Overall compliance-score|Resource Summary' "$report" | grep -Eo '[0-9]+([.][0-9]+)?%' | tail -1 | tr -d '%' || true)"
+  score="${score:-0}"
+  score_int="$(printf '%s\n' "$score" | awk '{print int($1)}')"
+  rm -f "$report"
+
+  info "Kubescape score for $chart: $score%"
+  [[ "$score_int" -ge "$KUBESCAPE_MIN_SCORE" ]]
+}
+
+runtime_namespace_for_chart() {
+  local chart="$1"
+  if [[ -n "$NAMESPACE" ]]; then
+    printf '%s\n' "$NAMESPACE"
+  else
+    printf 'hf-test-%s\n' "$chart"
+  fi
+}
+
+current_context() {
+  kubectl config current-context 2>/dev/null || true
+}
+
+require_runtime_context() {
+  local context
+  context="$(current_context)"
+  if [[ -z "$context" ]]; then
+    fail "Cannot read kubectl context"
+    return 1
+  fi
+
+  info "kubectl context: $context"
+  if [[ "$context" != "$EXPECTED_CONTEXT_PREFIX"* ]]; then
+    fail "Runtime validation requires a local context matching '$EXPECTED_CONTEXT_PREFIX*'"
+    return 1
+  fi
+
+  CONTEXT_OK=1
+}
+
+runtime_install() {
+  local chart="$1"
+  local chart_path="$CHARTS_DIR/$chart"
+  local ns
+  ns="$(runtime_namespace_for_chart "$chart")"
+  local -a value_args=()
+  local value_file
+
+  for value_file in "${VALUES_FILES[@]}"; do
+    value_args+=(--values "$value_file")
+  done
+
+  kubectl create namespace "$ns" >/dev/null 2>&1 || true
+  info "Installing $chart as release '$RELEASE_NAME' in namespace '$ns'"
+
+  if ! helm upgrade --install "$RELEASE_NAME" "$chart_path" \
+    --namespace "$ns" \
+    "${value_args[@]}" \
+    --wait \
+    --timeout "$RUNTIME_TIMEOUT"; then
+    collect_runtime_evidence "$ns"
+    return 1
+  fi
+
+  collect_runtime_evidence "$ns"
+  validate_runtime_events "$ns" || return 1
+  validate_runtime_logs "$ns" || return 1
+
+  if [[ "$KEEP_NAMESPACE" -eq 0 ]]; then
+    helm uninstall "$RELEASE_NAME" --namespace "$ns" >/dev/null 2>&1 || true
+    kubectl delete namespace "$ns" --wait=false >/dev/null 2>&1 || true
+  else
+    warn "Keeping namespace '$ns' because --keep-namespace was set"
+  fi
+}
+
+collect_runtime_evidence() {
+  local ns="$1"
+  echo
+  info "Runtime resources in namespace $ns"
+  kubectl get all,pvc,ingress,httproute,externalsecret -n "$ns" 2>/dev/null || kubectl get all,pvc,ingress -n "$ns" 2>/dev/null || true
+  echo
+  info "Recent namespace events"
+  kubectl get events -n "$ns" --sort-by=.lastTimestamp 2>/dev/null | tail -40 || true
+}
+
+validate_runtime_events() {
+  local ns="$1"
+  local events
+  events="$(kubectl get events -n "$ns" --sort-by=.lastTimestamp 2>/dev/null || true)"
+  if printf '%s\n' "$events" | grep -Eiq 'Warning|Failed|BackOff|Unhealthy|FailedMount|FailedScheduling|ImagePullBackOff|ErrImagePull|CrashLoopBackOff'; then
+    fail "Runtime events contain warnings or failures"
+    return 1
+  fi
+
+  return 0
+}
+
+validate_runtime_logs() {
+  local ns="$1"
+  local pods
+  pods="$(kubectl get pods -n "$ns" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)"
+  local pod
+  local bad=0
+
+  while IFS= read -r pod; do
+    [[ -n "$pod" ]] || continue
+    info "Checking logs for pod $pod"
+    local logs
+    logs="$(kubectl logs -n "$ns" "$pod" --all-containers --tail=120 2>&1 || true)"
+    if printf '%s\n' "$logs" | grep -Eiq 'panic|fatal|traceback|permission denied|CrashLoopBackOff|Error:|ERROR'; then
+      printf '%s\n' "$logs" | tail -80
+      bad=1
+    fi
+  done <<< "$pods"
+
+  [[ "$bad" -eq 0 ]]
+}
+
 validate_chart() {
   local chart="$1"
   local chart_path="$CHARTS_DIR/$chart"
@@ -126,113 +333,222 @@ validate_chart() {
   echo
   info "Validating chart: $chart"
 
-  run_check "[$chart] helm dependency build" run_quiet helm dependency build "$chart_path"
+  run_check "[$chart] helm dependency build" run_quiet helm_dependency_build "$chart_path"
 
   if ! run_check "[$chart] helm lint --strict" run_quiet helm lint "$chart_path" --strict; then
     LINT_OK=0
   fi
 
-  run_check "[$chart] helm template (default values)" run_quiet helm template test-release "$chart_path"
-
-  if ! run_check "[$chart] helm template for ci/*.yaml scenarios" run_ci_templates "$chart"; then
-    CI_TEMPLATE_OK=0
+  if ! run_check "[$chart] helm template (default values)" run_quiet template_default "$chart_path"; then
+    TEMPLATE_OK=0
   fi
 
-  if [[ "$HAS_UNITTEST_PLUGIN" -eq 1 ]]; then
-    if ! run_check "[$chart] helm unittest" run_quiet helm unittest "$chart_path"; then
-      UNITTEST_OK=0
+  if ! run_check "[$chart] helm template for ci/*.yaml scenarios" template_ci_values "$chart"; then
+    TEMPLATE_OK=0
+  fi
+
+  if [[ "$RUN_KUBECONFORM" -eq 1 ]]; then
+    if ! run_check "[$chart] kubeconform (default values)" run_quiet kubeconform_default "$chart_path"; then
+      KUBECONFORM_OK=0
     fi
-  else
-    TOTAL_CHECKS=$((TOTAL_CHECKS + 1))
-    FAILED_CHECKS=$((FAILED_CHECKS + 1))
-    UNITTEST_OK=0
-    fail "[$chart] helm unittest (helm-unittest plugin not installed)"
+    if ! run_check "[$chart] kubeconform for ci/*.yaml scenarios" kubeconform_ci_values "$chart"; then
+      KUBECONFORM_OK=0
+    fi
+  fi
+
+  if [[ "$RUN_UNITTEST" -eq 1 ]]; then
+    if [[ -d "$chart_path/tests" ]]; then
+      if ! run_check "[$chart] helm unittest --with-subchart=false" run_quiet helm_unittest "$chart_path"; then
+        UNITTEST_OK=0
+      fi
+    else
+      warn "[$chart] no tests/ directory found (helm unittest skipped)"
+    fi
+  fi
+
+  if [[ "$RUN_ARTIFACTHUB" -eq 1 ]]; then
+    if ! run_check "[$chart] Artifact Hub lint" artifacthub_lint "$chart"; then
+      ARTIFACTHUB_OK=0
+    fi
+  fi
+
+  if [[ "$RUN_KUBESCAPE" -eq 1 ]]; then
+    if ! run_check "[$chart] Kubescape MITRE,NSA,SOC2" kubescape_scan "$chart"; then
+      KUBESCAPE_OK=0
+    fi
+  fi
+
+  if [[ "$RUN_RUNTIME" -eq 1 ]]; then
+    if ! run_check "[$chart] k3d runtime install and log/event validation" runtime_install "$chart"; then
+      RUNTIME_OK=0
+    fi
   fi
 }
 
 print_checklist_snippet() {
   local lint_box="[x]"
+  local template_box="[x]"
   local unittest_box="[x]"
-  local ci_box="[x]"
+  local kubeconform_box="[x]"
+  local artifacthub_box="[x]"
+  local kubescape_box="[x]"
+  local runtime_box="[x]"
   local context_box="[x]"
 
   [[ "$LINT_OK" -eq 1 ]] || lint_box="[ ]"
+  [[ "$TEMPLATE_OK" -eq 1 ]] || template_box="[ ]"
   [[ "$UNITTEST_OK" -eq 1 ]] || unittest_box="[ ]"
-  [[ "$CI_TEMPLATE_OK" -eq 1 ]] || ci_box="[ ]"
-  [[ "$KUBECTL_CONTEXT_OK" -eq 1 ]] || context_box="[ ]"
+  [[ "$KUBECONFORM_OK" -eq 1 ]] || kubeconform_box="[ ]"
+  [[ "$ARTIFACTHUB_OK" -eq 1 ]] || artifacthub_box="[ ]"
+  [[ "$KUBESCAPE_OK" -eq 1 ]] || kubescape_box="[ ]"
+  [[ "$RUNTIME_OK" -eq 1 ]] || runtime_box="[ ]"
+  [[ "$CONTEXT_OK" -eq 1 || "$RUN_RUNTIME" -eq 0 ]] || context_box="[ ]"
 
   echo
   echo "PR checklist snippet:"
   echo "- $context_box I confirmed \`kubectl config current-context\` before local installs/upgrades/uninstalls"
   echo "- $lint_box \`helm lint charts/<chart-name> --strict\` passed"
-  echo "- $unittest_box \`helm unittest charts/<chart-name>\` passed"
-  echo "- $ci_box All relevant \`ci/*.yaml\` scenarios rendered successfully"
-  echo "- [ ] I validated this change on a local \`k3d\` cluster when required"
-  echo "- [ ] I validated the default install"
-  echo "- [ ] I validated at least one main non-default scenario for this change"
+  echo "- $template_box \`helm template\` passed for default values and relevant \`ci/*.yaml\` scenarios"
+  echo "- $unittest_box \`helm unittest --with-subchart=false charts/<chart-name>\` passed when tests exist"
+  echo "- $kubeconform_box \`kubeconform -strict\` passed without \`--ignore-missing-schema\`"
+  echo "- $artifacthub_box \`ah lint -p charts/<chart-name>\` passed"
+  echo "- $kubescape_box \`kubescape scan framework \"MITRE,NSA,SOC2\"\` passed the minimum score gate"
+  echo "- $runtime_box local k3d runtime validation passed when required, including pod status, events, and logs"
+  echo "- [ ] I updated chart docs and the site repo when public behavior changed"
+  echo "- [ ] I linked or created the required GitHub issue for this PR"
+}
+
+parse_args() {
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      --all)
+        RUN_ALL=1
+        ;;
+      --runtime)
+        RUN_RUNTIME=1
+        ;;
+      --skip-runtime)
+        RUN_RUNTIME=0
+        ;;
+      --skip-kubeconform)
+        RUN_KUBECONFORM=0
+        ;;
+      --skip-artifacthub)
+        RUN_ARTIFACTHUB=0
+        ;;
+      --skip-kubescape)
+        RUN_KUBESCAPE=0
+        ;;
+      --skip-unittest)
+        RUN_UNITTEST=0
+        ;;
+      --keep-namespace)
+        KEEP_NAMESPACE=1
+        ;;
+      --values|-f)
+        shift
+        [[ "${1:-}" ]] || { fail "--values requires a file path"; exit 1; }
+        VALUES_FILES+=("$1")
+        ;;
+      --release)
+        shift
+        [[ "${1:-}" ]] || { fail "--release requires a name"; exit 1; }
+        RELEASE_NAME="$1"
+        ;;
+      --namespace|-n)
+        shift
+        [[ "${1:-}" ]] || { fail "--namespace requires a name"; exit 1; }
+        NAMESPACE="$1"
+        ;;
+      --kube-context)
+        shift
+        [[ "${1:-}" ]] || { fail "--kube-context requires a context prefix"; exit 1; }
+        EXPECTED_CONTEXT_PREFIX="$1"
+        ;;
+      --*)
+        fail "Unknown option: $1"
+        usage
+        exit 1
+        ;;
+      *)
+        CHARTS_TO_CHECK+=("$1")
+        ;;
+    esac
+    shift
+  done
+}
+
+validate_args() {
+  if [[ "$RUN_ALL" -eq 1 && "${#CHARTS_TO_CHECK[@]}" -gt 0 ]]; then
+    fail "Use either --all or explicit chart names, not both."
+    exit 1
+  fi
+
+  if [[ "$RUN_ALL" -eq 1 ]]; then
+    mapfile -t CHARTS_TO_CHECK < <(discover_all_charts)
+  fi
+
+  if [[ "${#CHARTS_TO_CHECK[@]}" -eq 0 ]]; then
+    usage
+    exit 0
+  fi
+
+  local chart
+  for chart in "${CHARTS_TO_CHECK[@]}"; do
+    if ! chart_exists "$chart"; then
+      fail "Chart '$chart' not found in '$CHARTS_DIR'."
+      exit 1
+    fi
+  done
+
+  local value_file
+  for value_file in "${VALUES_FILES[@]}"; do
+    if [[ ! -f "$value_file" ]]; then
+      fail "Values file not found: $value_file"
+      exit 1
+    fi
+  done
+
+  if [[ "$RUN_RUNTIME" -eq 1 && "$RUN_ALL" -eq 1 ]]; then
+    warn "--runtime with --all can be slow and destructive. Use explicit chart names for runtime validation when possible."
+  fi
 }
 
 main() {
-  local -a charts_to_check=()
-  case "${1:-}" in
-    "")
-      usage
-      exit 0
-      ;;
-    --help|-h)
-      usage
-      exit 0
-      ;;
-    --all)
-      if [[ "$#" -ne 1 ]]; then
-        fail "Use only --all, without extra arguments."
-        usage
-        exit 1
-      fi
-      mapfile -t charts_to_check < <(discover_all_charts)
-      if [[ "${#charts_to_check[@]}" -eq 0 ]]; then
-        fail "No charts found under '$CHARTS_DIR'."
-        exit 1
-      fi
-      ;;
-    *)
-      if [[ "$#" -ne 1 ]]; then
-        fail "Expected exactly one chart name, or --all."
-        usage
-        exit 1
-      fi
-
-      if ! chart_exists "$1"; then
-        fail "Chart '$1' not found in '$CHARTS_DIR'."
-        exit 1
-      fi
-      charts_to_check=("$1")
-      ;;
-  esac
+  parse_args "$@"
+  validate_args
 
   require_command helm
   require_command kubectl
+  [[ "$RUN_KUBECONFORM" -eq 0 ]] || require_command kubeconform
+  [[ "$RUN_ARTIFACTHUB" -eq 0 ]] || require_command ah
+  [[ "$RUN_KUBESCAPE" -eq 0 ]] || require_command kubescape
 
-  local context
-  context="$(kubectl config current-context 2>/dev/null || true)"
-  if [[ -n "$context" ]]; then
-    KUBECTL_CONTEXT_OK=1
-    info "kubectl context: $context"
-  else
-    warn "Could not read kubectl context"
+  if [[ "$RUN_UNITTEST" -eq 1 ]] && ! helm plugin list 2>/dev/null | awk 'NR > 1 {print $1}' | grep -qx "unittest"; then
+    fail "helm-unittest plugin is missing. Install with: helm plugin install https://github.com/helm-unittest/helm-unittest"
+    exit 1
   fi
 
-  if helm plugin list 2>/dev/null | awk 'NR > 1 {print $1}' | grep -qx "unittest"; then
-    HAS_UNITTEST_PLUGIN=1
+  if [[ "$RUN_RUNTIME" -eq 1 ]]; then
+    require_runtime_context || exit 1
   else
-    warn "helm-unittest plugin is missing. Install with:"
-    warn "  helm plugin install https://github.com/helm-unittest/helm-unittest --verify=false"
+    local context
+    context="$(current_context)"
+    if [[ -n "$context" ]]; then
+      info "kubectl context: $context"
+    else
+      warn "Could not read kubectl context"
+    fi
   fi
 
-  info "Charts selected: ${charts_to_check[*]}"
+  info "Charts selected: ${CHARTS_TO_CHECK[*]}"
 
   local chart
-  for chart in "${charts_to_check[@]}"; do
+  for chart in "${CHARTS_TO_CHECK[@]}"; do
     validate_chart "$chart"
   done
 

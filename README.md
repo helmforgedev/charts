@@ -71,7 +71,8 @@ Check each chart's README and [git tags](../../tags) for available versions.
 
 ### Verify a packaged chart
 
-Every published chart package is signed with GPG provenance, and OCI artifacts are signed with Cosign by the release workflow. Import the HelmForge public key before using Helm provenance verification.
+Every published chart package is signed with GPG provenance, and OCI artifacts are signed with Cosign by the release workflow.
+Import the HelmForge public key before using Helm provenance verification.
 
 ```bash
 # HTTPS repository provenance verification
@@ -91,10 +92,11 @@ HelmForge is built on a simple principle: **use what upstream ships, make the Ku
 - **Official upstream images** — charts prefer images published by the application maintainers. No proprietary rebuild layer or vendor-specific runtime wrapper.
 - **Pinned version tags** — charts reference explicit, immutable image tags. No `:latest`, no floating tags, no surprises after a pull.
 - **Apache-2.0 licensed** — the charts, tests, and docs use a CNCF-aligned permissive license. No open-core, no paid tiers, no license traps.
-- **GPG + Cosign signed** — every release includes GPG provenance files for Helm verification and [Sigstore Cosign](https://www.sigstore.dev/) keyless signatures on OCI artifacts via GitHub Actions OIDC.
+- **GPG + Cosign signed** — every release includes GPG provenance files for Helm verification and [Sigstore Cosign](https://www.sigstore.dev/) keyless signatures on OCI artifacts.
 - **No vendor lock-in** — standard Helm, standard Kubernetes APIs, standard images. If you stop using HelmForge tomorrow, nothing breaks.
 - **Explicit values contracts** — product-oriented `values.yaml` files map directly to application and Kubernetes configuration, with schemas and validations where they prevent bad releases.
-- **HelmForge-native dependencies** — charts that need databases, caches, queues, or coordination services use HelmForge subcharts when available, keeping dependency behavior consistent across the catalog.
+- **HelmForge-native dependencies** — charts that need databases, caches, queues, or coordination services use HelmForge subcharts when available.
+  This keeps dependency behavior consistent across the catalog.
 - **Operator-first docs** — chart READMEs, site docs, examples, and test values are kept close to the release surface.
 
 ## Support and Star Tracking
@@ -153,7 +155,7 @@ The repository is governed by a comprehensive suite of GitHub Actions workflows 
 
 | Workflow | Trigger | Purpose |
 |----------|---------|----------|
-| **[ci.yml](../../actions/workflows/ci.yml)** | PR | Dependency build, lint, template, unit test, kubeconform, ArtifactHub lint |
+| **[ci.yml](../../actions/workflows/ci.yml)** | PR | Dependency build, strict lint, default and CI scenario rendering, unit tests, kubeconform, Artifact Hub lint |
 | **[publish.yml](../../actions/workflows/publish.yml)** | Push to main | Semver bump, package, sign, publish to GHCR + Pages |
 | **[code-quality.yml](../../actions/workflows/code-quality.yml)** | PR | Markdown lint, values quality checks, SPDX license headers |
 | **[security-scan.yml](../../actions/workflows/security-scan.yml)** | PR | Kubescape MITRE + NSA + SOC2 compliance scanning |
@@ -162,15 +164,15 @@ The repository is governed by a comprehensive suite of GitHub Actions workflows 
 | **[community.yml](../../actions/workflows/community.yml)** | Daily | Stale issue/PR management |
 | **[repo-health.yml](../../actions/workflows/repo-health.yml)** | Daily | Helm index, OCI registry, and badge endpoint monitoring |
 
-## Tests and Publishing
+## Validation and Publishing
 
 Charts are automatically tested and published via GitHub Actions.
 
 ```text
-PR        --> ci.yml           --> [Lint] [Template] [Unit Test] [Kubeconform] [ArtifactHub Lint]
+PR        --> ci.yml            --> [Dependency Build] [Strict Lint] [Template] [Unit Test] [Kubeconform] [Artifact Hub Lint]
           --> code-quality.yml --> [Markdown Lint] [Values Quality] [License Headers]
           --> security-scan.yml --> [Kubescape MITRE+NSA+SOC2]
-          --> pr-governance.yml --> [Conventional Commits] [Auto Labels]
+          --> pr-governance.yml --> [Conventional PR Title] [Scope Labels]
 Push main --> publish.yml      --> Detect --> Semver --> Package --> Sign --> Publish --> Git tag
 Weekly    --> upstream-watch.yml --> Scan all charts --> Create issues for outdated images
 ```
@@ -187,15 +189,34 @@ from chart tests and release publishing.
 
 Quality gates include:
 
-- `helm dependency build` for charts with subcharts.
-- `helm lint` and `helm lint --strict`.
+- `helm dependency build` for every changed chart, including HelmForge OCI subcharts.
+- `helm lint --strict`.
 - `helm template` with default values and every `ci/*.yaml` scenario.
 - `helm unittest` when a chart has a test suite.
 - `kubeconform` against Kubernetes schemas and CRD schemas from the Datree CRDs catalog.
+- `ah lint -p` for Artifact Hub metadata.
 - Kubescape security compliance scanning (MITRE, NSA, SOC2 frameworks).
-- Markdown linting and SPDX license header enforcement on changed files.
-- Artifact Hub package lint before release metadata is published.
+- Markdown linting, values quality checks, and SPDX license header enforcement on changed YAML, template, and shell files.
 - Signed package publishing to GHCR and the HTTPS Helm repository.
+
+Local validation should use the repository helper:
+
+```bash
+# Static validation matching the current PR gates
+./test.sh <chart-name>
+
+# Validate a runtime scenario on the local k3d cluster
+kubectl config current-context
+./test.sh <chart-name> --runtime -f charts/<chart-name>/ci/<scenario>.yaml
+
+# Validate every chart without runtime installs
+./test.sh --all --skip-runtime
+```
+
+`test.sh` intentionally does not use `kubeconform --ignore-missing-schema`.
+If a chart renders a CRD-backed resource, install the CRD locally and make sure schema validation can resolve the API.
+
+Every chart PR should have a linked GitHub issue, complete PR checklist evidence, passing CI, and no unresolved review comments before merge.
 
 ### Versioning
 
@@ -220,7 +241,7 @@ Every chart release automatically creates a [GitHub Release](https://github.com/
 
 Each release includes install instructions for both OCI and Helm repository.
 
-### Testing
+### Chart Testing
 
 Each chart can include a `ci/` directory with test values files. The pipeline runs `helm template`
 and kubeconform against every `ci/*.yaml` file automatically, in addition to default values, lint,
@@ -229,22 +250,15 @@ Artifact Hub lint, and chart unit tests when present.
 For local chart work:
 
 ```bash
-# For charts with HelmForge OCI subcharts, authenticate to GHCR if your environment is not already logged in.
+# For charts with HelmForge OCI subcharts, authenticate to GHCR if your environment is not already logged in
 echo "$GHCR_TOKEN" | helm registry login ghcr.io -u "$GHCR_USERNAME" --password-stdin
-helm dependency build charts/<chart-name>
-helm lint charts/<chart-name> --strict
-helm template test-release charts/<chart-name>
-helm unittest charts/<chart-name>
-helm template test-release charts/<chart-name> \
-  | kubeconform -strict -summary \
-      -schema-location default \
-      -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
-      -exit-on-error
-ah lint -p charts/<chart-name>
-kubescape scan framework "MITRE,NSA,SOC2" charts/<chart-name>
+
+./test.sh <chart-name>
 ```
 
-For runtime validation, use a local k3d cluster instead of a production Kubernetes context.
+For runtime validation, use the local `k3d-helmforge-tests-wsl` cluster instead of any production Kubernetes context.
+Helm installs should use `--wait --timeout 120s`.
+Validation must check pod readiness, recent namespace events, and pod logs before the namespace is removed.
 
 ### Kubernetes Compatibility
 
@@ -293,11 +307,11 @@ Apache License 2.0
 <!-- @AI-METADATA
 type: overview
 title: HelmForge Charts
-description: Helm chart repository overview, installation, charts list, tests, and publishing
+description: Helm chart repository overview, installation, charts list, validation, and publishing
 
 keywords: helm, charts, oci, ghcr, repository, install
 
-purpose: Repository overview with charts list, installation, tests, publishing, and contributing guide
+purpose: Repository overview with charts list, installation, validation, publishing, and contributing guide
 scope: Repository
 
 relations:
@@ -310,7 +324,7 @@ relations:
   - ADOPTERS.md
   - SECURITY.md
 path: README.md
-version: 1.2
+version: 1.3
 date: 2026-04-01
-updated: 2026-04-29
+updated: 2026-06-02
 -->
