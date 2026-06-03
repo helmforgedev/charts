@@ -102,6 +102,15 @@ ingress:
 
 - [Automatisch documentation](https://automatisch.io/docs)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/automatisch)
+- [Chart design](DESIGN.md) · [Configuration](docs/configuration.md)
+
+### 🟢 Security Scan: `automatisch`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **79.29293%** |
+
+> ✅ Security posture acceptable.
 
 <!-- @AI-METADATA
 type: chart-readme
