@@ -55,8 +55,17 @@ spec:
             - -c
             - |
               pip install psycopg2-binary redis --quiet --disable-pip-version-check
+              {{- if not .Values.init.enabled }}
+              {{- /* No managed init Job: this pod must initialize the DB itself.
+                     Keep web.replicaCount=1 to avoid a Flask-AppBuilder schema race. */}}
               superset db upgrade
               superset init
+              {{- else }}
+              {{- /* The managed init Job already ran `db upgrade`/`superset init`
+                     and the wait-for-init initContainer blocked until it finished,
+                     so web pods go straight to gunicorn — never re-running schema
+                     writes (which would deadlock with web.replicaCount > 1). */}}
+              {{- end }}
               gunicorn \
                 --bind 0.0.0.0:8088 \
                 --workers {{ .Values.web.workers }} \
