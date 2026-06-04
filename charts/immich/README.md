@@ -83,3 +83,11 @@ helm lint --strict charts/immich
 helm unittest --with-subchart=false charts/immich
 helm template immich charts/immich -f charts/immich/ci/ci-values.yaml
 ```
+
+### 🟢 Security Scan: `immich`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **88.61111%** |
+
+> ✅ Security posture acceptable.

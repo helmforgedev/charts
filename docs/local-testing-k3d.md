@@ -1,53 +1,59 @@
 # Local Testing with k3d
 
-This guide covers how to run Helm charts locally using [k3d](https://k3d.io), a lightweight Kubernetes distribution
-that runs k3s inside Docker containers. Use this for integration testing beyond what `helm template` and `helm-unittest` can validate.
+Use local k3d validation when a chart change needs proof beyond static rendering.
+Static validation catches template and schema issues.
+k3d validation proves that the chart installs, workloads become ready, services work, events are clean, and logs do not show runtime problems.
 
 ## When to Use Local Testing
 
-| Scenario | Tool |
-|----------|------|
+| Scenario | Required tool |
+|----------|---------------|
 | YAML syntax and template rendering | `helm lint`, `helm template` |
-| Assert template output | `helm-unittest` |
-| Validate against K8s schemas | `kubeconform` |
-| **Verify pods start and become ready** | **k3d** |
-| **Test persistence, networking, ingress** | **k3d** |
-| **Validate init containers, probes, env vars** | **k3d** |
-| **End-to-end chart behavior** | **k3d** |
+| Template output assertions | `helm-unittest` |
+| Kubernetes API schema validation | `kubeconform` |
+| Artifact Hub metadata validation | `ah` |
+| Security compliance scan | `kubescape` |
+| Pod readiness, probes, init containers, env vars, and persistence | `k3d`, `helm`, `kubectl` |
+| Service, ingress, Gateway API, and application smoke tests | `k3d`, `curl`, chart-specific clients |
 
-Static validation (lint, template, unittest, kubeconform) catches most issues. Use k3d when you need to verify runtime behavior.
+Runtime validation is mandatory for new charts, release updates, startup fixes, dependency changes, persistence changes, networking changes, and fixes that previously failed only after installation.
 
 ## Prerequisites
 
-| Tool | Minimum Version | Install |
-|------|----------------|---------|
-| Docker | 20.10+ | [docs.docker.com](https://docs.docker.com/get-docker/) |
-| k3d | 5.x | `choco install k3d` or `brew install k3d` |
-| kubectl | 1.28+ | `choco install kubernetes-cli` or `brew install kubectl` |
-| Helm | 3.14+ | `choco install kubernetes-helm` or `brew install helm` |
+| Tool | Expected baseline | Purpose |
+|------|-------------------|---------|
+| Docker | 20.10+ | k3d runtime |
+| k3d | 5.x | local Kubernetes cluster |
+| kubectl | 1.28+ | Kubernetes inspection |
+| Helm | 4.x | chart validation and install |
+| helm-unittest | current plugin | chart unit tests |
+| kubeconform | current CLI | rendered manifest schema validation |
+| ah | current CLI | Artifact Hub lint |
+| kubescape | current CLI | security scanning |
+| jq | current CLI | local score parsing and JSON inspection |
 
-## Cluster Management
+The local helper verifies the tools it will use before running validation.
+When a selected gate needs a missing CLI, `test.sh` installs it into
+`~/.local/bin` by default, or into `HELMFORGE_TOOLS_DIR` when that variable is set.
+This bootstrap covers `helm`, `kubectl`, `kubeconform`, `ah`, `kubescape`, and the
+`helm-unittest` plugin when selected charts include tests.
 
-### Create a Cluster
+Use `--no-install` when you want the helper to fail fast instead of preparing a
+clean workstation. Docker, k3d, network access, and the local cluster remain
+external prerequisites for runtime validation.
 
-```bash
-# Standard single-node cluster for chart testing
-k3d cluster create helmforge-test \
-  --agents 0 \
-  --servers 1 \
-  --port "8080:80@loadbalancer" \
-  --port "8443:443@loadbalancer" \
-  --wait
+## Cluster Standard
+
+The default local cluster used by HelmForge validation is:
+
+```text
+k3d-helmforge-tests-wsl
 ```
 
-Port mapping exposes the traefik ingress at `localhost:8080` (HTTP) and `localhost:8443` (HTTPS).
-
-### Multi-node Cluster
-
-For testing anti-affinity, PDBs, and replication:
+Create it when needed:
 
 ```bash
-k3d cluster create helmforge-test \
+k3d cluster create helmforge-tests-wsl \
   --agents 2 \
   --servers 1 \
   --port "8080:80@loadbalancer" \
@@ -55,229 +61,192 @@ k3d cluster create helmforge-test \
   --wait
 ```
 
-### Delete a Cluster
+Confirm context before every install, upgrade, or uninstall:
 
 ```bash
-k3d cluster delete helmforge-test
+kubectl config current-context
 ```
 
-### List Clusters
+The context must be clearly local and should start with `k3d-`.
+Never run runtime validation against production, staging, shared development clusters, or unclear contexts.
+
+## CRDs
+
+Install required CRDs before validating charts that render CRD-backed resources.
+Do not bypass validation with `kubeconform --ignore-missing-schema`.
+
+Common examples:
 
 ```bash
-k3d cluster list
+# Gateway API
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.3.0/standard-install.yaml
+
+# External Secrets Operator CRDs
+kubectl apply -f https://raw.githubusercontent.com/external-secrets/external-secrets/main/deploy/crds/bundle.yaml
 ```
 
-## Testing Workflow
+Use the current official CRD release when validating a specific chart.
+The commands above are examples for common local setup.
 
-### 1. Create Cluster
+## Standard Workflow
+
+Run static validation first:
 
 ```bash
-k3d cluster create helmforge-test --wait
+./test.sh <chart-name>
 ```
 
-### 2. Verify Connectivity
+Run runtime validation with a representative scenario:
 
 ```bash
-kubectl cluster-info
-kubectl get nodes
+kubectl config current-context
+./test.sh <chart-name> --runtime -f charts/<chart-name>/ci/<scenario>.yaml
 ```
 
-### 3. Install Chart
+The helper installs with:
 
 ```bash
-# From local source
-helm install test-release charts/<chart-name> -f charts/<chart-name>/ci/<values-file>.yaml
-
-# From OCI registry (to test published charts)
-helm install test-release oci://ghcr.io/helmforgedev/helm/<chart-name>
+helm upgrade --install hf-test charts/<chart-name> \
+  --namespace hf-test-<chart-name> \
+  --wait \
+  --timeout 120s
 ```
 
-### 4. Verify Deployment
+If rollout is not progressing, inspect status after roughly 60 seconds.
+Do not wait for long-running broken installs when events or logs already show the cause.
+
+## Manual Runtime Checks
+
+When you need to inspect a chart manually:
 
 ```bash
-# Wait for pods to become ready
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=test-release --timeout=120s
+ns=hf-test-<chart-name>
+release=hf-test
 
-# Check all resources
-kubectl get all -l app.kubernetes.io/instance=test-release
-
-# Check pod logs
-kubectl logs -l app.kubernetes.io/instance=test-release --tail=50
-
-# Describe pod (useful for debugging startup failures)
-kubectl describe pod -l app.kubernetes.io/instance=test-release
+kubectl get all,pvc,ingress -n "$ns"
+kubectl get events -n "$ns" --sort-by=.lastTimestamp
+kubectl get pods -n "$ns" -o wide
+kubectl logs -n "$ns" -l app.kubernetes.io/instance="$release" --all-containers --tail=120
 ```
 
-### 5. Validate Functionality
+For Deployments:
 
 ```bash
-# Port-forward to test the application directly
-kubectl port-forward svc/test-release-<chart-name> 8080:<service-port>
-
-# Test with curl
-curl -s http://localhost:8080/
+kubectl rollout status deployment -n "$ns" -l app.kubernetes.io/instance="$release" --timeout=120s
+kubectl rollout restart deployment -n "$ns" -l app.kubernetes.io/instance="$release"
+kubectl rollout status deployment -n "$ns" -l app.kubernetes.io/instance="$release" --timeout=120s
 ```
 
-### 6. Cleanup
+For StatefulSets:
 
 ```bash
-helm uninstall test-release
-# Or delete the entire cluster
-k3d cluster delete helmforge-test
+kubectl rollout status statefulset -n "$ns" -l app.kubernetes.io/instance="$release" --timeout=120s
+kubectl rollout restart statefulset -n "$ns" -l app.kubernetes.io/instance="$release"
+kubectl rollout status statefulset -n "$ns" -l app.kubernetes.io/instance="$release" --timeout=120s
 ```
 
-## Chart-Specific Testing
+## Functional Smoke Tests
 
-### Databases (PostgreSQL, MySQL, MongoDB, Redis)
+Use chart-specific checks after readiness passes.
 
-Databases need persistence and readiness probes to pass:
+HTTP applications:
 
 ```bash
-# Install with standalone ci values
-helm install test-db charts/postgresql -f charts/postgresql/ci/standalone.yaml
-
-# Wait for StatefulSet to be ready
-kubectl rollout status statefulset/test-db-postgresql --timeout=120s
-
-# Test connectivity
-kubectl exec -it test-db-postgresql-0 -- pg_isready
+kubectl port-forward -n "$ns" svc/<service-name> 8080:<service-port>
+curl -fsS http://127.0.0.1:8080/
 ```
 
-### Stateful Applications (Vaultwarden, Keycloak)
-
-These require persistence and may need specific environment variables:
+Databases:
 
 ```bash
-# Install with minimal ci values
-helm install test-vault charts/vaultwarden -f charts/vaultwarden/ci/minimal.yaml
-
-# Wait and verify
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=test-vault --timeout=180s
-kubectl logs -l app.kubernetes.io/instance=test-vault --tail=20
+kubectl exec -n "$ns" <pod-name> -- <native-readiness-command>
 ```
 
-### Replication and Clustering (Redis, RabbitMQ, PostgreSQL, MySQL)
-
-Test with multi-node cluster and replication values:
+Queues, caches, and coordinators:
 
 ```bash
-# Create multi-node cluster
-k3d cluster create helmforge-test --agents 2 --wait
-
-# Install replication config
-helm install test-redis charts/redis -f charts/redis/ci/replication.yaml
-
-# Wait for all replicas
-kubectl rollout status statefulset/test-redis-primary --timeout=120s
-kubectl rollout status statefulset/test-redis-replicas --timeout=120s
-
-# Verify replication
-kubectl exec test-redis-primary-0 -- redis-cli INFO replication | grep connected_slaves
+kubectl exec -n "$ns" <pod-name> -- <native-cli> <health-or-info-command>
 ```
 
-### Ingress Testing
+## Required Evidence
 
-k3d ships with traefik by default:
+A PR that includes runtime validation should record:
+
+- Current Kubernetes context.
+- Exact `./test.sh` command.
+- Values scenario used.
+- Workload rollout result.
+- Functional smoke test performed.
+- Confirmation that events and logs were clean.
+- Confirmation that the namespace was removed.
+
+## Cleanup
+
+The helper removes the runtime namespace by default.
+If you used `--keep-namespace` or manual commands, clean up explicitly:
 
 ```bash
-# Create cluster with port mapping
-k3d cluster create helmforge-test --port "8080:80@loadbalancer" --wait
-
-# Install chart with ingress enabled
-helm install test-vault charts/vaultwarden \
-  --set domain="http://vault.localhost:8080" \
-  --set ingress.enabled=true \
-  --set ingress.ingressClassName=traefik \
-  --set "ingress.hosts[0].host=vault.localhost" \
-  --set "ingress.hosts[0].paths[0].path=/" \
-  --set "ingress.hosts[0].paths[0].pathType=Prefix"
-
-# Test (vault.localhost resolves to 127.0.0.1 on most systems)
-curl -s http://vault.localhost:8080/
+helm uninstall hf-test -n hf-test-<chart-name>
+kubectl delete namespace hf-test-<chart-name>
 ```
 
-## Using CI Values for Testing
-
-Every chart has `ci/*.yaml` files designed for template validation. These files also work as starting points for local testing:
+Verify no leftover namespaces:
 
 ```bash
-# List available CI values for a chart
-ls charts/<chart-name>/ci/
-
-# Install with a specific CI values file
-helm install test charts/<chart-name> -f charts/<chart-name>/ci/<values>.yaml
+kubectl get ns | grep hf-test || true
 ```
-
-CI values files cover different configurations (standalone, replication, TLS, metrics, etc.) and are a good baseline for integration tests.
 
 ## Troubleshooting
 
-### Pod stuck in CrashLoopBackOff
+CrashLoopBackOff:
 
 ```bash
-kubectl logs <pod-name> --previous   # logs from the crashed container
-kubectl describe pod <pod-name>       # events and conditions
+kubectl logs -n "$ns" <pod-name> --all-containers --previous
+kubectl describe pod -n "$ns" <pod-name>
+kubectl get events -n "$ns" --sort-by=.lastTimestamp
 ```
 
-### Pod stuck in Pending
+Pending pods:
 
 ```bash
-kubectl describe pod <pod-name>       # check for scheduling issues
-kubectl get pvc                       # check if PVC is bound
-kubectl get events --sort-by=.lastTimestamp
+kubectl describe pod -n "$ns" <pod-name>
+kubectl get pvc -n "$ns"
+kubectl get events -n "$ns" --sort-by=.lastTimestamp
 ```
 
-### Service not reachable
+Service not reachable:
 
 ```bash
-kubectl get svc                       # verify service exists and has endpoints
-kubectl get endpoints <svc-name>      # verify endpoints are populated
-kubectl port-forward svc/<svc-name> <local-port>:<svc-port>  # bypass ingress
+kubectl get svc,endpoints,endpointslice -n "$ns"
+kubectl port-forward -n "$ns" svc/<service-name> 8080:<service-port>
+curl -v http://127.0.0.1:8080/
 ```
 
-### Ingress not routing
+Permission denied at startup:
 
 ```bash
-kubectl get ingress                   # check ingress resource
-kubectl get pods -n kube-system       # check traefik is running
-kubectl logs -n kube-system -l app.kubernetes.io/name=traefik --tail=20
+kubectl get pod -n "$ns" <pod-name> -o yaml
+kubectl logs -n "$ns" <pod-name> --all-containers --tail=120
+kubectl describe pod -n "$ns" <pod-name>
 ```
 
-## Standard Validation Checklist
-
-Before pushing changes, after local testing passes:
-
-```bash
-# Static validation (always required)
-helm lint charts/<name> --strict
-helm template test charts/<name>
-helm unittest charts/<name>
-for f in charts/<name>/ci/*.yaml; do helm template test charts/<name> -f "$f"; done
-
-# Local integration test (when testing runtime behavior)
-k3d cluster create helmforge-test --wait
-helm install test charts/<name> -f charts/<name>/ci/<values>.yaml
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=test --timeout=120s
-kubectl get all -l app.kubernetes.io/instance=test
-helm uninstall test
-k3d cluster delete helmforge-test
-```
+Check container user, security context, service target ports, environment variables, mounted volume ownership, and upstream application bind addresses.
 
 <!-- @AI-METADATA
 type: guide
 title: Local Testing with k3d
-description: Guide for local integration testing of Helm charts using k3d (k3s in Docker)
+description: Local k3d validation guide for HelmForge charts covering cluster setup, CRDs, runtime checks, logs, events, and cleanup
 
-keywords: k3d, k3s, local-testing, integration, kubernetes, docker, validation
+keywords: k3d, kubernetes, helm, runtime validation, logs, events, kubeconform, crds
 
-purpose: Document local integration testing workflow using k3d for Helm chart validation
+purpose: Explain how to validate HelmForge charts locally before opening or updating a PR
 scope: Testing
 
 relations:
-  - docs/testing-strategy.md
-  - .claude/CLAUDE.md
-  - .claude/AGENTS.md
+  - testing-strategy.md
+  - ../CONTRIBUTING.md
+  - ../test.sh
 path: docs/local-testing-k3d.md
-version: 1.0
-date: 2026-03-20
+version: 1.1
+date: 2026-06-02
 -->

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 suite: Web Deployment
 templates:
   - templates/deployment.yaml
@@ -53,9 +54,48 @@ tests:
   - it: should have init containers
     template: templates/deployment.yaml
     asserts:
+      # wait-for-postgresql, wait-for-redis, wait-for-init
+      - lengthEqual:
+          path: spec.template.spec.initContainers
+          count: 3
+
+  - it: should not add wait-for-init when the init job is disabled
+    template: templates/deployment.yaml
+    set:
+      init.enabled: false
+    asserts:
+      # only wait-for-postgresql and wait-for-redis — no wait-for-init, since the
+      # init Job is not rendered (else the pod would wait forever for it)
       - lengthEqual:
           path: spec.template.spec.initContainers
           count: 2
+
+  - it: should NOT re-run db upgrade/init in web when the managed init job is enabled
+    template: templates/deployment.yaml
+    asserts:
+      # init.enabled defaults to true → the init Job owns schema init; web goes
+      # straight to gunicorn (no concurrent schema writes when replicaCount > 1).
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "superset db upgrade"
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "superset init"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "gunicorn"
+
+  - it: should run db upgrade/init in web as fallback when the init job is disabled
+    template: templates/deployment.yaml
+    set:
+      init.enabled: false
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "superset db upgrade"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "superset init"
 
   - it: should have health probes
     template: templates/deployment.yaml

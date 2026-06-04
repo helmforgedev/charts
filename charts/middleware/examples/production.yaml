@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+# Production-leaning Middleware install: ingress + TLS, persisted keys, resource
+# requests/limits. Single app replica by design (RWO keys volume — see DESIGN.md).
+#
+#   helm install middleware helmforge/middleware -f production.yaml
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: middleware.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - middleware.example.com
+      secretName: middleware-tls
+
+persistence:
+  enabled: true
+  size: 5Gi
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+# Bundled datastores are fine for small teams; for scale, point at managed
+# PostgreSQL/Redis (see external-datastores.yaml).
+postgresql:
+  enabled: true
+redis:
+  enabled: true

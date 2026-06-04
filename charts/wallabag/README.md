@@ -83,6 +83,15 @@ database:
 
 - [Wallabag documentation](https://doc.wallabag.org)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/wallabag)
+- [Chart design](DESIGN.md) · [Configuration](docs/configuration.md) · [Backup & restore](docs/backup-restore.md)
+
+### 🟢 Security Scan: `wallabag`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **79.29292%** |
+
+> ✅ Security posture acceptable.
 
 <!-- @AI-METADATA
 type: chart-readme

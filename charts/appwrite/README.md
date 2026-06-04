@@ -136,6 +136,14 @@ workers:
 - [Standalone with ingress](examples/standalone.yaml)
 - [External database](examples/external-database.yaml)
 
+### 🟢 Security Scan: `appwrite`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **79.31097%** |
+
+> ✅ Security posture acceptable.
+
 <!-- @AI-METADATA
 type: chart-readme
 path: charts/appwrite/README.md

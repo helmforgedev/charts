@@ -284,6 +284,15 @@ Back up PostgreSQL before upgrading live deployments, especially when migrating 
 - [Umami documentation](https://umami.is/docs)
 - [Umami environment variables](https://umami.is/docs/environment-variables)
 - [HelmForge chart source](https://github.com/helmforgedev/charts/tree/main/charts/umami)
+- [Configuration guide](docs/configuration.md)
+
+### 🟢 Security Scan: `umami`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **81.818184%** |
+
+> ✅ Security posture acceptable.
 
 <!-- @AI-METADATA
 type: chart-readme

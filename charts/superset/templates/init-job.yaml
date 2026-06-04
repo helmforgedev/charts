@@ -1,15 +1,18 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- if .Values.init.enabled }}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "superset.fullname" . }}-init
+  # Managed Job (NOT a post-install hook): it must run CONCURRENTLY with the
+  # workloads so the wait-for-init initContainers below can block on its
+  # completion. As a post-install hook it ran AFTER --wait, so the web/worker/beat
+  # pods raced each other on Flask-AppBuilder schema creation and deadlocked in
+  # Postgres. The release-revision suffix keeps the (immutable) Job unique across
+  # `helm upgrade`.
+  name: {{ include "superset.fullname" . }}-init-{{ .Release.Revision }}
   labels:
     {{- include "superset.labels" . | nindent 4 }}
     app.kubernetes.io/component: init
-  annotations:
-    "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-weight": "1"
-    "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   backoffLimit: 3
   template:

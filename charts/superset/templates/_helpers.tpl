@@ -1,3 +1,4 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- define "superset.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -246,6 +247,33 @@ redis-password
         sleep 2
       done
       echo "Redis is reachable."
+{{- end -}}
+
+{{/*
+wait-for-init initContainer: blocks the web/worker/beat pods until the init Job
+(db upgrade + superset init) has completed, so they never race each other on
+Flask-AppBuilder schema creation (which deadlocks in Postgres). Used ONLY by the
+workload pods — never by the init Job itself.
+*/}}
+{{- define "superset.waitForInit" -}}
+{{- if .Values.init.enabled -}}
+- name: wait-for-init
+  image: {{ .Values.init.waitImage | quote }}
+  command:
+    - sh
+    - -c
+    - |
+      job="{{ include "superset.fullname" . }}-init-{{ .Release.Revision }}"
+      echo "Waiting for init job ${job} to be created..."
+      until kubectl get job "${job}" >/dev/null 2>&1; do sleep 3; done
+      echo "Waiting for init job ${job} to complete..."
+      kubectl wait --for=condition=complete --timeout=600s job/"${job}"
+      echo "Init job complete."
+  {{- with .Values.resources }}
+  resources:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end -}}
 {{- end -}}
 
 {{/* Backup — S3 secret name */}}

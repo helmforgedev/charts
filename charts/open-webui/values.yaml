@@ -1,5 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
 # =============================================================================
-# Open WebUI Helm Chart — Default Values
+# Open WebUI Helm Chart - Default Values
 # =============================================================================
 # Focus: self-hosted AI chat platform with Ollama/OpenAI, RAG, and multi-model
 
@@ -160,10 +161,15 @@ probes:
   startup:
     enabled: true
     path: /health
-    initialDelaySeconds: 10
-    periodSeconds: 5
-    timeoutSeconds: 3
-    failureThreshold: 30
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    # ~10 min budget (initialDelay + periodSeconds*failureThreshold). Open WebUI
+    # downloads its RAG embedding model from the HuggingFace Hub on FIRST boot,
+    # which can take several minutes on slow links / arm64. The startup probe must
+    # tolerate that one-time download (the model is then cached on the data PVC),
+    # otherwise the container is killed mid-download and never becomes ready.
+    timeoutSeconds: 5
+    failureThreshold: 60
   liveness:
     enabled: true
     path: /health

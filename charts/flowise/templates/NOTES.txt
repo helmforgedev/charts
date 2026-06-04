@@ -1,11 +1,74 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Flowise has been deployed.
+============================================================
+  Flowise has been successfully deployed!
+============================================================
 
-Service:
-  HTTP: {{ include "flowise.fullname" . }}:{{ .Values.service.port }}
+Flowise is a visual builder for LLM/AI orchestration (chains, agents, RAG).
+
+Chart:      {{ .Chart.Name }}
+Version:    {{ .Chart.Version }}
+AppVersion: {{ .Chart.AppVersion }}
+Release:    {{ .Release.Name }}
+Namespace:  {{ .Release.Namespace }}
+
+============================================================
+  ACCESS INFORMATION
+============================================================
 {{- if include "flowise.appUrl" . }}
-Configured application URL:
-  {{ include "flowise.appUrl" . }}
+  Application URL: {{ include "flowise.appUrl" . }}
 {{- else }}
-Set flowise.appUrl or enable ingress for a stable external URL.
+  Port-forward to access Flowise locally:
+
+    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "flowise.fullname" . }} 3000:{{ .Values.service.port }}
+
+  Web UI:   http://localhost:3000/
+  (set flowise.appUrl or enable ingress for a stable external URL)
 {{- end }}
+
+============================================================
+  CONFIGURATION SUMMARY
+============================================================
+
+  Mode:    {{ if .Values.postgresql.enabled }}queue mode (PostgreSQL + Redis, scalable){{ else }}standalone (embedded SQLite on the data volume){{ end }}
+  Storage: {{ if .Values.persistence.enabled }}persisted on a {{ .Values.persistence.size }} PVC at /root/.flowise (flows, credentials{{ if not .Values.postgresql.enabled }}, SQLite DB{{ end }}){{ else }}EPHEMERAL (persistence.enabled=false){{ end }}
+{{- if .Values.postgresql.enabled }}
+  Database: bundled PostgreSQL ({{ .Release.Name }}-postgresql)
+{{- end }}
+{{- if .Values.redis.enabled }}
+  Queue:    bundled Redis ({{ .Release.Name }}-redis)
+{{- end }}
+
+============================================================
+  GETTING STARTED
+============================================================
+
+1. Wait for the workload to be ready:
+   kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=flowise -n {{ .Release.Namespace }} --timeout=300s
+
+2. Validate the API responds (port-forward from ACCESS INFORMATION first):
+   curl -sf http://localhost:3000/api/v1/ping && echo " <- Flowise API OK"
+
+3. Open the Web UI, create your first chatflow, and add your model provider
+   credentials (OpenAI, Azure, local models, ...).
+
+============================================================
+  TROUBLESHOOTING
+============================================================
+
+  kubectl describe pod -l app.kubernetes.io/name=flowise -n {{ .Release.Namespace }}
+  kubectl logs -l app.kubernetes.io/name=flowise -n {{ .Release.Namespace }} --all-containers --tail=100
+  kubectl get all,pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+{{- if .Values.postgresql.enabled }}
+
+  PostgreSQL logs (queue mode):
+  kubectl logs -l app.kubernetes.io/name=postgresql -n {{ .Release.Namespace }} --all-containers --tail=50
+{{- end }}
+
+============================================================
+  ADDITIONAL RESOURCES
+============================================================
+
+  Chart docs:   https://helmforge.dev/docs/charts/flowise
+  Project:      https://flowiseai.com | https://github.com/FlowiseAI/Flowise
+
+Happy Helmforging :)

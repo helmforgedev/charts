@@ -252,6 +252,11 @@ localhost
     secretKeyRef:
       name: {{ include "appwrite.databaseSecretName" . }}
       key: {{ include "appwrite.databaseSecretKey" . }}
+- name: _APP_DB_ADAPTER
+  # Appwrite 1.9+ defaults this to "mongodb"; this chart provisions MariaDB, so it
+  # MUST be set to "mariadb" or Appwrite speaks the Mongo wire protocol to MariaDB
+  # ("Could not read document from BSON reader"). Possible values: mariadb, mongodb.
+  value: {{ .Values.database.adapter | default "mariadb" | quote }}
 - name: _APP_DB_HOST
   value: {{ include "appwrite.databaseHost" . | quote }}
 - name: _APP_DB_PORT

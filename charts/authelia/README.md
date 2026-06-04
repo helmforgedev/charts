@@ -191,6 +191,14 @@ auth_request_set $user $upstream_http_remote_user;
 - [Authelia Documentation](https://www.authelia.com/configuration/prologue/introduction/)
 - [Source Code](https://github.com/helmforgedev/charts/tree/main/charts/authelia)
 
+### 🟢 Security Scan: `authelia`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **90.31987%** |
+
+> ✅ Security posture acceptable.
+
 <!-- @AI-METADATA
 @description: README for the Authelia Helm chart
 @type: chart-readme
