@@ -128,3 +128,11 @@ helm template kibana-test charts/kibana | kubeconform -strict -summary
 - [Elasticsearch connectivity](./docs/elasticsearch.md)
 - [Networking](./docs/networking.md)
 - [External Secrets](./docs/external-secrets.md)
+
+### 🟢 Security Scan: `kibana`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **88.333336%** |
+
+> ✅ Security posture acceptable.

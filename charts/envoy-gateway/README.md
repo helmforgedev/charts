@@ -22,9 +22,23 @@ helm install envoy-gateway oci://ghcr.io/helmforgedev/helm/envoy-gateway
 
 ## Quick Start
 
+The Envoy Gateway operator CRDs (`gateway.envoyproxy.io/*`: `EnvoyProxy`,
+`ClientTrafficPolicy`, `BackendTrafficPolicy`, `SecurityPolicy`, ...) ship in this
+chart's `crds/` directory, so Helm installs them automatically on first install
+when they are absent (and skips them if already present). Only the upstream
+**Gateway API** CRDs (`gateway.networking.k8s.io/*`) are a separate cluster
+prerequisite, installed once below. Envoy Gateway v1.8.0 requires the Gateway API
+**experimental** channel (v1.5.1) — it watches `ListenerSet`, which only ships in
+the experimental channel; the standard channel is not sufficient. These CRDs are
+cluster-scoped and shared, so they are NOT bundled in the chart (Helm's release
+secret has a 1 MiB limit and server-side apply would conflict with platform-managed
+CRDs, e.g. Argo CD).
+
 ```bash
-# Install Gateway API CRDs
-kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
+# Install Gateway API CRDs — experimental channel (cluster prerequisite; provides
+# ListenerSet, required by the controller). The envoy-gateway operator CRDs are
+# bundled in this chart's crds/ and installed automatically.
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.5.1/experimental-install.yaml
 
 # Install with development profile (creates Gateway, example HTTPRoute, and backend)
 helm install envoy-gateway oci://ghcr.io/helmforgedev/helm/envoy-gateway \
@@ -428,3 +442,11 @@ This chart intentionally does not support:
 - **Multiple gateway classes** — Deploy separate releases for multiple GatewayClasses
 - **Built-in cert-manager integration** — Manage application TLS externally; chart only runs certgen for controller certs
 - **Legacy Ingress API** — Use Gateway API for modern routing capabilities
+
+### 🟢 Security Scan: `envoy-gateway`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **72.22223%** |
+
+> ✅ Security posture acceptable.

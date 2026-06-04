@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+# Production-leaning Wallabag: ingress+TLS, Redis async queues, daily DB backup,
+# persisted assets, resource requests/limits. Single app replica by design.
+#
+#   helm install wallabag helmforge/wallabag -f production-with-redis-and-backup.yaml
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: wallabag.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - wallabag.example.com
+      secretName: wallabag-tls
+
+# Async imports/annotations.
+redis:
+  enabled: true
+
+# Daily database backup to S3 (fill the S3 destination in backup.* per values.yaml).
+backup:
+  enabled: true
+  schedule: "0 3 * * *"
+
+persistence:
+  enabled: true
+  size: 10Gi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 768Mi

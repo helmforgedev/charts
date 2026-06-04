@@ -127,6 +127,18 @@ ckan:
   plugins: "envvars image_view text_view recline_view datastore datapusher spatial_metadata spatial_query"
 ```
 
+## More Information
+
+- [Chart design](DESIGN.md) · [Configuration](docs/configuration.md) · [External datastores](examples/external-datastores.yaml)
+
+### 🟢 Security Scan: `ckan`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **76.893936%** |
+
+> ✅ Security posture acceptable.
+
 <!-- @AI-METADATA
 type: chart-readme
 title: CKAN Helm Chart

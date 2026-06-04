@@ -121,6 +121,15 @@ When using external MongoDB, prefer `externalMongodb.existingSecret` so credenti
 
 - [Countly documentation](https://support.count.ly)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/countly)
+- [Chart design](DESIGN.md) · [Configuration](docs/configuration.md)
+
+### 🟢 Security Scan: `countly`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **72.72727%** |
+
+> ✅ Security posture acceptable.
 
 <!-- @AI-METADATA
 type: chart-readme

@@ -149,6 +149,18 @@ backup:
 
 See [`values.yaml`](values.yaml) for the full configuration reference.
 
+## More Information
+
+- [Chart design](DESIGN.md) · [Configuration](docs/configuration.md) · [PostgreSQL multi-user example](examples/postgresql-multiuser.yaml)
+
+### 🟢 Security Scan: `open-webui`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **79.29293%** |
+
+> ✅ Security posture acceptable.
+
 <!-- @AI-METADATA
 type: chart-readme
 path: charts/open-webui/README.md

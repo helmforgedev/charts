@@ -13,16 +13,18 @@ tests:
     asserts:
       - isKind:
           of: Job
-      - equal:
+      - matchRegex:
           path: metadata.name
-          value: test-superset-init
+          pattern: ^test-superset-init-\d+$
 
-  - it: should have helm hook annotations
+  - it: should be a managed Job, not a helm hook
     template: templates/init-job.yaml
     asserts:
-      - equal:
+      # Runs concurrently with the workloads (which wait on it via a wait-for-init
+      # initContainer). As a post-install hook it ran too late and the web/worker/
+      # beat pods deadlocked racing Flask-AppBuilder schema init.
+      - notExists:
           path: metadata.annotations["helm.sh/hook"]
-          value: post-install,post-upgrade
 
   - it: should not render when disabled
     template: templates/init-job.yaml
