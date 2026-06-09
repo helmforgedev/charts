@@ -34,7 +34,8 @@ flowchart TB
 - Keep the default path small: one `Deployment`, one `Service`, and a pinned nginx image.
 - Treat the first container as the default probe target while allowing per-container overrides.
 - Render one primary Service by default and support additional Services through `services[]`.
-- Keep CRD-backed integrations opt-in. ExternalSecret, SealedSecret, ServiceMonitor, PodMonitor, PrometheusRule, KEDA, VPA, and Gateway API resources require their operators or CRDs to exist before users enable them.
+- Keep CRD-backed integrations opt-in. ExternalSecret, SealedSecret, ServiceMonitor, PodMonitor, PrometheusRule, KEDA,
+  VPA, and Gateway API resources require their operators or CRDs to exist before users enable them.
 - Render ExternalSecret resources with `external-secrets.io/v1`, matching the current External Secrets Operator API.
 - Validate unsafe combinations at render time, including HPA with DaemonSet, incomplete PDB configuration, and routes that would point to a disabled primary Service.
 - Avoid time-based pod annotations. Intentional rollouts use `rollout.restartAt` or checksum-driven ConfigMap and Secret changes.
