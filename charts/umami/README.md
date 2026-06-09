@@ -252,7 +252,7 @@ For production, test restore procedures outside Helm. Backups without restore va
 | --- | --- | --- |
 | `replicaCount` | `1` | Number of Umami pods. |
 | `image.repository` | `ghcr.io/umami-software/umami` | Umami image repository. |
-| `image.tag` | `3.0.3` | Umami image tag. |
+| `image.tag` | `3.1.0` | Umami image tag. |
 | `service.type` | `ClusterIP` | Kubernetes service type. |
 | `service.ipFamilyPolicy` | `""` | Optional service IP family policy. |
 | `service.ipFamilies` | `[]` | Optional service IP families. |
