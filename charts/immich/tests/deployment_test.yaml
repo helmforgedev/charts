@@ -205,6 +205,65 @@ tests:
         template: templates/pvc.yaml
         documentIndex: 0
 
+  - it: should render extra server volumes and mounts
+    set:
+      extraVolumes:
+        - name: immich-config
+          configMap:
+            name: immich-config
+        - name: external-media
+          persistentVolumeClaim:
+            claimName: external-media
+      extraVolumeMounts:
+        - name: immich-config
+          mountPath: /config/immich
+          readOnly: true
+        - name: external-media
+          mountPath: /mnt/external-media
+          readOnly: true
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: uploads
+            persistentVolumeClaim:
+              claimName: test-immich-uploads
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: immich-config
+            configMap:
+              name: immich-config
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: external-media
+            persistentVolumeClaim:
+              claimName: external-media
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: uploads
+            mountPath: /data
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: immich-config
+            mountPath: /config/immich
+            readOnly: true
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: external-media
+            mountPath: /mnt/external-media
+            readOnly: true
+        template: templates/deployment.yaml
+
   - it: should fail external database without explicit password or secret
     set:
       postgresql.enabled: false
