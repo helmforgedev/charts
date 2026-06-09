@@ -265,6 +265,28 @@ The chart now includes opt-in primitives for common platform needs:
   ScaledObjects target the chart workload and require `workload.enabled=true`; use ScaledJobs for batch-only releases.
 - `persistence.persistentVolumeClaims[]` and explicit opt-in `persistence.persistentVolumes[]` for clearer storage ownership.
 
+### External Secrets
+
+`externalSecrets.items[].name` keeps the standard chart naming behavior and renders as `<releaseName>-<name>`.
+Use `externalSecrets.items[].fullnameOverride` when the ExternalSecret must use a literal Kubernetes name.
+When `spec.target.name` is omitted, the chart defaults it to the rendered ExternalSecret name, matching External
+Secrets Operator behavior and avoiding duplicated names in values.
+
+```yaml
+externalSecrets:
+  enabled: true
+  items:
+    - fullnameOverride: beesense-gateway-env
+      spec:
+        refreshInterval: 1m
+        secretStoreRef:
+          name: vault-qa
+          kind: ClusterSecretStore
+        dataFrom:
+          - extract:
+              key: qa/deskbee/beesense-gateway/v2
+```
+
 ### Breaking-change migration notes
 
 - The default image is now pinned to `docker.io/library/nginx:1.27.5` with `IfNotPresent` instead of relying on `latest`.
@@ -433,6 +455,7 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | **Security** | | |
 | `secrets` | Declarative Secret resources | `[]` |
 | `externalSecrets.enabled` | Enable ExternalSecret resources | `false` |
+| `externalSecrets.items[].fullnameOverride` | Literal ExternalSecret metadata.name override | `""` |
 | `sealedSecrets.enabled` | Enable SealedSecret resources | `false` |
 | `rbac.create` | Create Role and RoleBinding | `false` |
 | `rbac.clusterRole.create` | Create ClusterRole and ClusterRoleBinding | `false` |
