@@ -1,12 +1,85 @@
 # SPDX-License-Identifier: Apache-2.0
-# CI: external MySQL database
+# CI: external MySQL database.
+# This scenario keeps the Ghost chart's bundled mysql subchart disabled, then
+# creates a small in-namespace MySQL fixture through extraManifests so the k3d
+# behavioral gate validates the external database path with a real endpoint.
+persistence:
+  enabled: false
+
 mysql:
   enabled: false
 
 database:
   external:
-    host: "mysql.example.com"
+    host: "ghost-ci-external-db-values-external-mysql"
     port: "3306"
     name: ghost
     username: ghost
     password: "test-password"
+
+extraManifests:
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: ghost-ci-external-db-values-external-mysql
+      labels:
+        app.kubernetes.io/name: ghost-external-mysql
+        app.kubernetes.io/instance: ghost-ci-external-db-values
+        app.kubernetes.io/component: external-database
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: ghost-external-mysql
+          app.kubernetes.io/instance: ghost-ci-external-db-values
+          app.kubernetes.io/component: external-database
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: ghost-external-mysql
+            app.kubernetes.io/instance: ghost-ci-external-db-values
+            app.kubernetes.io/component: external-database
+        spec:
+          containers:
+            - name: mysql
+              image: docker.io/library/mysql:8.4.7
+              imagePullPolicy: IfNotPresent
+              ports:
+                - name: mysql
+                  containerPort: 3306
+                  protocol: TCP
+              env:
+                - name: MYSQL_ROOT_PASSWORD
+                  value: root-password
+                - name: MYSQL_DATABASE
+                  value: ghost
+                - name: MYSQL_USER
+                  value: ghost
+                - name: MYSQL_PASSWORD
+                  value: test-password
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 512Mi
+                limits:
+                  cpu: 1000m
+                  memory: 1Gi
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: ghost-ci-external-db-values-external-mysql
+      labels:
+        app.kubernetes.io/name: ghost-external-mysql
+        app.kubernetes.io/instance: ghost-ci-external-db-values
+        app.kubernetes.io/component: external-database
+    spec:
+      type: ClusterIP
+      ports:
+        - name: mysql
+          port: 3306
+          targetPort: mysql
+          protocol: TCP
+      selector:
+        app.kubernetes.io/name: ghost-external-mysql
+        app.kubernetes.io/instance: ghost-ci-external-db-values
+        app.kubernetes.io/component: external-database
