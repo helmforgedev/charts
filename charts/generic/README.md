@@ -371,7 +371,7 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | `containers` | List of container specs | 1 container on port 80 |
 | `initContainers` | Init container specs | `[]` |
 | **Environment** | | |
-| `env` | Global env vars for all containers | `[]` |
+| `env` | Global env vars for all containers (`value` supports tpl, e.g. `{{ .Release.Namespace }}`) | `[]` |
 | `envFrom` | Global envFrom for all containers | `[]` |
 | **Service Account** | | |
 | `serviceAccount.create` | Create a ServiceAccount | `false` |
@@ -398,7 +398,7 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | `services` | Additional Service resources | `[]` |
 | `ingress.enabled` | Enable Ingress | `false` |
 | `ingress.ingressClassName` | Ingress class | `traefik` |
-| `ingress.hosts` | Ingress host rules; paths require explicit `backend` when `service.enabled=false` | `[]` |
+| `ingress.hosts` | Ingress host rules; `host` supports tpl (e.g. `{{ .Release.Namespace }}`); paths require explicit `backend` when `service.enabled=false` | `[]` |
 | `ingress.defaultBackend` | Ingress default backend | `{}` |
 | `ingress.tls` | TLS configuration | `[]` |
 | `gatewayApi.enabled` | Enable Gateway API HTTPRoutes | `false` |
