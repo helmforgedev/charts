@@ -42,6 +42,22 @@ spec:
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       initContainers:
+        - name: wait-for-db
+          image: docker.io/library/busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for database at {{ include "umami.dbHost" . }}:{{ include "umami.dbPort" . }}..."
+              until nc -z -w2 {{ include "umami.dbHost" . }} {{ include "umami.dbPort" . }}; do
+                echo "Database not ready, retrying in 2s..."
+                sleep 2
+              done
+              echo "Database is ready."
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
         {{- if .Values.database.external.init.enabled }}
         - name: prepare-external-db
           image: {{ .Values.database.external.init.image | quote }}
@@ -61,34 +77,29 @@ spec:
           args:
             - |
               echo "Preparing external PostgreSQL database {{ include "umami.dbName" . }} at {{ include "umami.dbHost" . }}:{{ include "umami.dbPort" . }}..."
-              printf '%s\n' "${DATABASE_INIT_SQL}" | PGPASSWORD="${DATABASE_ADMIN_PASSWORD}" psql \
-                -h {{ include "umami.dbHost" . | quote }} \
-                -p {{ include "umami.dbPort" . | quote }} \
-                -U {{ .Values.database.external.init.adminUsername | quote }} \
-                -d {{ include "umami.dbName" . | quote }} \
-                -v ON_ERROR_STOP=1
-              echo "External PostgreSQL database is prepared."
+              for attempt in $(seq 1 60); do
+                if printf '%s\n' "${DATABASE_INIT_SQL}" | PGPASSWORD="${DATABASE_ADMIN_PASSWORD}" psql \
+                  -h {{ include "umami.dbHost" . | quote }} \
+                  -p {{ include "umami.dbPort" . | quote }} \
+                  -U {{ .Values.database.external.init.adminUsername | quote }} \
+                  -d {{ include "umami.dbName" . | quote }} \
+                  -v ON_ERROR_STOP=1; then
+                  echo "External PostgreSQL database is prepared."
+                  exit 0
+                fi
+                echo "External PostgreSQL database is not ready for SQL yet, retrying in 2s (${attempt}/60)..."
+                sleep 2
+              done
+              echo "External PostgreSQL database preparation did not complete in time."
+              exit 1
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
         {{- end }}
-        - name: wait-for-db
-          image: docker.io/library/busybox:1.37
-          command:
-            - sh
-            - -c
-            - |
-              echo "Waiting for database at {{ include "umami.dbHost" . }}:{{ include "umami.dbPort" . }}..."
-              until nc -z -w2 {{ include "umami.dbHost" . }} {{ include "umami.dbPort" . }}; do
-                echo "Database not ready, retrying in 2s..."
-                sleep 2
-              done
-              echo "Database is ready."
-          {{- with .Values.resources }}
-          resources:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+        {{- with .Values.extraInitContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       containers:
         - name: umami
           image: {{ include "umami.image" . | quote }}

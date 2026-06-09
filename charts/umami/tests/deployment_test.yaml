@@ -102,6 +102,42 @@ tests:
           path: spec.template.spec.initContainers[0].name
           value: wait-for-db
 
+  - it: should append extra init containers after internal init containers
+    set:
+      extraVolumes:
+        - name: geoip
+          emptyDir: {}
+      extraVolumeMounts:
+        - name: geoip
+          mountPath: /app/geoip
+      extraInitContainers:
+        - name: download-geoip
+          image: docker.io/library/busybox:1.37
+          command:
+            - sh
+            - -ec
+          args:
+            - echo geoip > /geoip/GeoLite2-City.mmdb
+          volumeMounts:
+            - name: geoip
+              mountPath: /geoip
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: download-geoip
+      - equal:
+          path: spec.template.spec.initContainers[1].volumeMounts[0].name
+          value: geoip
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          value: /app/geoip
+      - equal:
+          path: spec.template.spec.volumes[0].name
+          value: geoip
+
   - it: should prepare external database when enabled
     set:
       postgresql.enabled: false
@@ -111,21 +147,21 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+      - equal:
+          path: spec.template.spec.initContainers[1].name
           value: prepare-external-db
       - equal:
-          path: spec.template.spec.initContainers[0].image
+          path: spec.template.spec.initContainers[1].image
           value: docker.io/library/postgres:18-alpine
       - contains:
-          path: spec.template.spec.initContainers[0].env
+          path: spec.template.spec.initContainers[1].env
           content:
             name: DATABASE_ADMIN_PASSWORD
             valueFrom:
               secretKeyRef:
                 name: postgres-admin
                 key: postgres-password
-      - equal:
-          path: spec.template.spec.initContainers[1].name
-          value: wait-for-db
 
   - it: should set external database host when subchart is disabled
     set:

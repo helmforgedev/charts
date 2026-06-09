@@ -5,11 +5,60 @@ postgresql:
 
 database:
   external:
-    host: db.example.com
+    host: umami-external-postgresql
     port: "5432"
     name: umami
     username: umami_user
     password: "ci-password"
     init:
       enabled: true
+      adminUsername: umami_user
       adminExistingSecret: postgres-admin
+
+extraManifests:
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: postgres-admin
+    type: Opaque
+    stringData:
+      postgres-password: ci-password
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: umami-external-postgresql
+    spec:
+      ports:
+        - name: postgresql
+          port: 5432
+          targetPort: postgresql
+      selector:
+        app.kubernetes.io/name: umami-external-postgresql
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: umami-external-postgresql
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: umami-external-postgresql
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: umami-external-postgresql
+        spec:
+          containers:
+            - name: postgresql
+              image: docker.io/library/postgres:18.4-trixie
+              imagePullPolicy: IfNotPresent
+              ports:
+                - name: postgresql
+                  containerPort: 5432
+              env:
+                - name: POSTGRES_DB
+                  value: umami
+                - name: POSTGRES_USER
+                  value: umami_user
+                - name: POSTGRES_PASSWORD
+                  value: ci-password

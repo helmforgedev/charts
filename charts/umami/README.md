@@ -266,6 +266,8 @@ For production, test restore procedures outside Helm. Backups without restore va
 | `pdb.enabled` | `false` | Render PodDisruptionBudget. |
 | `backup.enabled` | `false` | Enable S3-compatible backup CronJob. |
 | `serviceAccount.automountServiceAccountToken` | `false` | Control service account token mounting. |
+| `extraInitContainers` | `[]` | Additional init containers for preparing shared volumes before Umami starts. |
+| `extraVolumes` / `extraVolumeMounts` | `[]` | Additional pod volumes and Umami container mounts, such as GeoIP databases or custom assets. |
 
 ## Examples
 

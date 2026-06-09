@@ -13,13 +13,14 @@ postgresql:
 
 database:
   external:
-    host: postgres-primary.database.svc.cluster.local
+    host: umami-external-postgresql
     name: umami
     username: umami
     existingSecret: umami-db
     existingSecretPasswordKey: database-password
     init:
       enabled: true
+      adminUsername: umami
       adminExistingSecret: postgres-admin
 
 gatewayAPI:
@@ -56,3 +57,65 @@ resources:
     memory: 512Mi
   limits:
     memory: 1Gi
+
+extraManifests:
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: umami-app
+    type: Opaque
+    stringData:
+      app-secret: ci-app-secret
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: umami-db
+    type: Opaque
+    stringData:
+      database-password: ci-password
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: postgres-admin
+    type: Opaque
+    stringData:
+      postgres-password: ci-password
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: umami-external-postgresql
+    spec:
+      ports:
+        - name: postgresql
+          port: 5432
+          targetPort: postgresql
+      selector:
+        app.kubernetes.io/name: umami-external-postgresql
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: umami-external-postgresql
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: umami-external-postgresql
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: umami-external-postgresql
+        spec:
+          containers:
+            - name: postgresql
+              image: docker.io/library/postgres:18.4-trixie
+              imagePullPolicy: IfNotPresent
+              ports:
+                - name: postgresql
+                  containerPort: 5432
+              env:
+                - name: POSTGRES_DB
+                  value: umami
+                - name: POSTGRES_USER
+                  value: umami
+                - name: POSTGRES_PASSWORD
+                  value: ci-password
