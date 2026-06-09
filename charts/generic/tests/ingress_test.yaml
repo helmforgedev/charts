@@ -25,3 +25,28 @@ tests:
       - equal:
           path: spec.ingressClassName
           value: traefik
+
+  - it: should render tpl in host, tls hosts and secretName from .Release.Namespace
+    release:
+      namespace: deskbia
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: "api-{{ .Release.Namespace }}.deskbee.dev"
+          paths:
+            - path: /
+              pathType: Prefix
+      ingress.tls:
+        - hosts:
+            - "api-{{ .Release.Namespace }}.deskbee.dev"
+          secretName: "api-{{ .Release.Namespace }}-tls"
+    asserts:
+      - equal:
+          path: spec.rules[0].host
+          value: api-deskbia.deskbee.dev
+      - equal:
+          path: spec.tls[0].hosts[0]
+          value: api-deskbia.deskbee.dev
+      - equal:
+          path: spec.tls[0].secretName
+          value: api-deskbia-tls

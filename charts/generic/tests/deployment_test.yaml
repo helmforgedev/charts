@@ -132,3 +132,36 @@ tests:
       - equal:
           path: spec.template.metadata.annotations["helmforge.dev/restartedAt"]
           value: "2026-04-27T00:00:00Z"
+
+  - it: should render tpl in env values and preserve valueFrom
+    release:
+      namespace: deskbia
+    set:
+      env:
+        - name: GLOBAL_URL
+          value: "https://app-{{ .Release.Namespace }}.deskbee.dev"
+      containers:
+        - name: app
+          env:
+            - name: APP_URL
+              value: "https://api-{{ .Release.Namespace }}.deskbee.dev"
+            - name: PLAIN
+              value: keepme
+            - name: FROM_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: s
+                  key: k
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[0].value
+          value: https://app-deskbia.deskbee.dev
+      - equal:
+          path: spec.template.spec.containers[0].env[1].value
+          value: https://api-deskbia.deskbee.dev
+      - equal:
+          path: spec.template.spec.containers[0].env[2].value
+          value: keepme
+      - equal:
+          path: spec.template.spec.containers[0].env[3].valueFrom.secretKeyRef.name
+          value: s

@@ -172,13 +172,17 @@ Used by deployment, job, and cronjob templates to avoid duplication.
   {{- with .container.workingDir }}
   workingDir: {{ . }}
   {{- end }}
-  {{- if or .root.Values.env .container.env }}
+  {{- $allEnv := concat (.root.Values.env | default list) (.container.env | default list) }}
+  {{- if $allEnv }}
   env:
-    {{- with .root.Values.env }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-    {{- with .container.env }}
-    {{- toYaml . | nindent 4 }}
+    {{- range $allEnv }}
+    - name: {{ .name }}
+      {{- if hasKey . "value" }}
+      value: {{ tpl (.value | toString) $.root | quote }}
+      {{- else if .valueFrom }}
+      valueFrom:
+        {{- toYaml .valueFrom | nindent 8 }}
+      {{- end }}
     {{- end }}
   {{- end }}
   {{- if or .root.Values.envFrom .container.envFrom }}
