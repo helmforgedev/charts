@@ -37,6 +37,8 @@ flowchart TB
 - Keep CRD-backed integrations opt-in. ExternalSecret, SealedSecret, ServiceMonitor, PodMonitor, PrometheusRule, KEDA,
   VPA, and Gateway API resources require their operators or CRDs to exist before users enable them.
 - Render ExternalSecret resources with `external-secrets.io/v1`, matching the current External Secrets Operator API.
+- Keep ExternalSecret naming backward compatible with suffix-based `name`, while allowing literal resource names through
+  `fullnameOverride`. When `spec.target.name` is omitted, default it to the rendered ExternalSecret name.
 - Validate unsafe combinations at render time, including HPA with DaemonSet, incomplete PDB configuration, and routes that would point to a disabled primary Service.
 - Avoid time-based pod annotations. Intentional rollouts use `rollout.restartAt` or checksum-driven ConfigMap and Secret changes.
 
