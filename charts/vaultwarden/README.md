@@ -317,6 +317,14 @@ See `examples/`:
 - `backup-postgresql.yaml`
 - `backup-mysql.yaml`
 
+### 🟢 Security Scan: `vaultwarden`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **85.137085%** |
+
+> ✅ Security posture acceptable.
+
 <!-- @AI-METADATA
 type: chart-readme
 title: Vaultwarden Helm Chart

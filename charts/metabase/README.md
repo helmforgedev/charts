@@ -179,6 +179,14 @@ rollout.
 - [Metabase documentation](https://www.metabase.com/docs/latest/)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/metabase)
 
+### 🟢 Security Scan: `metabase`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **86.36364%** |
+
+> ✅ Security posture acceptable.
+
 <!-- @AI-METADATA
 type: chart-readme
 title: Metabase Helm Chart

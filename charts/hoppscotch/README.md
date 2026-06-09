@@ -150,6 +150,14 @@ This chart does not:
 - Manage OAuth provider registration (do this in the provider's developer console)
 - Provide built-in backup for PostgreSQL (use the HelmForge PostgreSQL chart with backup enabled)
 
+### 🟢 Security Scan: `hoppscotch`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **87.62626%** |
+
+> ✅ Security posture acceptable.
+
 ## License
 
 Apache-2.0

@@ -138,6 +138,14 @@ database:
 - [External Secrets](docs/external-secrets.md)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/answer)
 
+### 🟢 Security Scan: `answer`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **86.580086%** |
+
+> ✅ Security posture acceptable.
+
 <!-- @AI-METADATA
 type: chart-readme
 title: Apache Answer Helm Chart
