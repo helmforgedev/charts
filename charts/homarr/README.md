@@ -304,6 +304,14 @@ kubectl logs -l app.kubernetes.io/name=homarr -n <namespace> --all-containers --
 - [Homarr documentation](https://homarr.dev/docs)
 - [Chart source](https://github.com/helmforgedev/charts/tree/main/charts/homarr)
 
+### 🟢 Security Scan: `homarr`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **86.580086%** |
+
+> ✅ Security posture acceptable.
+
 <!-- @AI-METADATA
 type: chart-readme
 title: Homarr Helm Chart

@@ -175,3 +175,11 @@ The chart defaults to disabled bootstrap checks for k3d and evaluation; producti
 - [Official SonarQube Docker image](https://hub.docker.com/_/sonarqube)
 - [SonarQube Docker source](https://github.com/SonarSource/docker-sonarqube)
 - [Community branch plugin](https://github.com/mc1arke/sonarqube-community-branch-plugin)
+
+### 🟢 Security Scan: `sonarqube`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **92.42425%** |
+
+> ✅ Security posture acceptable.
