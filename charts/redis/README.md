@@ -230,6 +230,7 @@ Use the generic extension values when platform-specific integration is needed:
 | `standalone.persistence.enabled` | Enable persistence for standalone mode | `true` |
 | `replication.replicaCount` | Number of replica pods in replication and sentinel modes | `2` |
 | `sentinel.replicaCount` | Number of Sentinel pods | `3` |
+| `sentinel.masterSet` | Sentinel master set name used by Sentinel clients | `mymaster` |
 | `sentinel.quorum` | Sentinel quorum | `2` |
 | `cluster.nodes` | Number of Redis Cluster nodes | `6` |
 | `cluster.replicasPerMaster` | Redis Cluster replicas per master | `1` |
@@ -288,6 +289,14 @@ See `examples/`:
 - Redis Sentinel: <https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/>
 - Redis Cluster: <https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/>
 - Redis security: <https://redis.io/docs/latest/operate/oss_and_stack/management/security/>
+
+### 🟢 Security Scan: `redis`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **80.30303%** |
+
+> ✅ Security posture acceptable.
 
 <!-- @AI-METADATA
 type: chart-readme

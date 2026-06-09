@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Sentinel Configuration
+templates:
+  - configmap.yaml
+  - sentinel-statefulset.yaml
+release:
+  name: test
+  namespace: redis-ns
+tests:
+  - it: should keep mymaster as the default Sentinel master set
+    template: configmap.yaml
+    set:
+      architecture: sentinel
+    asserts:
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "sentinel monitor mymaster test-redis-primary-0\\.test-redis-headless\\.redis-ns\\.svc\\.cluster\\.local 6379 2"
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "sentinel down-after-milliseconds mymaster 60000"
+
+  - it: should render a custom Sentinel master set in sentinel.conf
+    template: configmap.yaml
+    set:
+      architecture: sentinel
+      sentinel.masterSet: legacy-master
+    asserts:
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "sentinel monitor legacy-master test-redis-primary-0\\.test-redis-headless\\.redis-ns\\.svc\\.cluster\\.local 6379 2"
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "sentinel down-after-milliseconds legacy-master 60000"
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "sentinel failover-timeout legacy-master 180000"
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "sentinel parallel-syncs legacy-master 1"
+
+  - it: should use the custom Sentinel master set for auth-pass
+    template: sentinel-statefulset.yaml
+    set:
+      architecture: sentinel
+      sentinel.masterSet: legacy-master
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "sentinel auth-pass legacy-master \\$\\{REDIS_PASSWORD\\}"
