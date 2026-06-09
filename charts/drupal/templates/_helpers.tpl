@@ -87,11 +87,15 @@ Validated desired replica count.
 */}}
 {{- define "drupal.replicaCount" -}}
 {{- $replicas := (include "drupal.desiredReplicasRaw" . | int) -}}
+{{- $replicaLimit := $replicas -}}
+{{- if .Values.autoscaling.enabled -}}
+  {{- $replicaLimit = (.Values.autoscaling.maxReplicas | int) -}}
+{{- end -}}
 {{- $dbMode := include "drupal.databaseMode" . -}}
 {{- if and (eq $dbMode "sqlite") (not (hasPrefix "sites/" .Values.drupal.sqlitePath)) -}}
 {{- fail "database.mode=sqlite requires drupal.sqlitePath to stay under sites/ so persistence and backup cover the database file" -}}
 {{- end -}}
-{{- if gt $replicas 1 -}}
+{{- if gt $replicaLimit 1 -}}
   {{- if eq $dbMode "sqlite" -}}
     {{- fail "Multi-replica Drupal requires a MySQL-compatible database. SQLite is supported only for single-replica deployments." -}}
   {{- end -}}
