@@ -31,7 +31,8 @@ Common cases:
 
 ## How to think about this topology
 
-`sentinel` is the right option when you want automatic failover without moving to the Redis Cluster contract. It keeps one active primary at a time and uses Sentinels for election, health observation, and replica promotion.
+`sentinel` is the right option when you want automatic failover without moving to the Redis Cluster contract. It keeps
+one active primary at a time and uses Sentinels for election, health observation, and replica promotion.
 
 ## Common risks
 
@@ -64,6 +65,7 @@ Common cases:
 | `architecture` | Must be `sentinel` |
 | `replication.replicaCount` | Number of Redis replicas |
 | `sentinel.replicaCount` | Number of Sentinel pods |
+| `sentinel.masterSet` | Master set name that Sentinel clients use for primary discovery |
 | `sentinel.quorum` | Quorum for failover decisions |
 | `pdb.enabled` | Protection against planned disruption |
 | `metrics.enabled` | Exporter for monitoring |
@@ -83,6 +85,7 @@ replication:
 
 sentinel:
   replicaCount: 3
+  masterSet: mymaster
   quorum: 2
 ```
 
