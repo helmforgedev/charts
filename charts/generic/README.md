@@ -275,6 +275,13 @@ The chart now includes opt-in primitives for common platform needs:
 
 ## Operational guidance
 
+## Security Scan
+
+🟢 Security Scan: generic
+Framework    Score
+MITRE + NSA + SOC2    75.76%
+✅ Security posture acceptable.
+
 ### When this chart fits well
 
 - internal platforms that deploy many services with the same operational contract
