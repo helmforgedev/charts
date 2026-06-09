@@ -3,6 +3,7 @@ suite: Monitoring and Observability
 templates:
   - servicemonitor.yaml
   - configmap.yaml
+  - envoyproxy-config.yaml
 tests:
   - it: should create one ServiceMonitor when monitoring enabled
     set:
@@ -57,6 +58,46 @@ tests:
           path: data["envoy-gateway.yaml"]
           pattern: "type: JSON"
         template: configmap.yaml
+
+  - it: should configure JSON access logs in EnvoyProxy
+    set:
+      monitoring:
+        enabled: true
+        accessLogs:
+          enabled: true
+          format: json
+    asserts:
+      - equal:
+          path: spec.telemetry.accessLog.settings[0].format.type
+          value: JSON
+        template: envoyproxy-config.yaml
+      - equal:
+          path: spec.telemetry.accessLog.settings[0].format.json.response_code
+          value: "%RESPONSE_CODE%"
+        template: envoyproxy-config.yaml
+      - isNull:
+          path: spec.telemetry.accessLog.settings[0].format.text
+        template: envoyproxy-config.yaml
+
+  - it: should configure text access logs in EnvoyProxy
+    set:
+      monitoring:
+        enabled: true
+        accessLogs:
+          enabled: true
+          format: text
+    asserts:
+      - equal:
+          path: spec.telemetry.accessLog.settings[0].format.type
+          value: Text
+        template: envoyproxy-config.yaml
+      - matchRegex:
+          path: spec.telemetry.accessLog.settings[0].format.text
+          pattern: "%RESPONSE_CODE%"
+        template: envoyproxy-config.yaml
+      - isNull:
+          path: spec.telemetry.accessLog.settings[0].format.json
+        template: envoyproxy-config.yaml
 
   - it: should include rateLimit redis url in configmap when rate limiting enabled
     set:

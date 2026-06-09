@@ -28,7 +28,7 @@ controller:
     # -- Controller image pull policy
     pullPolicy: IfNotPresent
     # -- Controller image tag (defaults to chart appVersion)
-    tag: "v1.8.0"
+    tag: "v1.8.1"
 
   # -- Resources for controller (overridden by profile)
   resources:
@@ -70,7 +70,7 @@ certgen:
     # -- Certgen image pull policy
     pullPolicy: IfNotPresent
     # -- Certgen image tag (defaults to chart appVersion)
-    tag: "v1.8.0"
+    tag: "v1.8.1"
 
 ## Proxy configuration via EnvoyProxy CRD (EG manages the actual proxy pods)
 proxy:
@@ -86,8 +86,17 @@ proxy:
     repository: docker.io/envoyproxy/envoy
     # -- Proxy image pull policy
     pullPolicy: IfNotPresent
-    # -- Envoy image tag for EG v1.8 (distroless)
-    tag: "distroless-v1.37.0"
+    # -- Envoy image tag for EG v1.8 compatibility matrix (distroless)
+    tag: "distroless-v1.38.0"
+
+  shutdownManager:
+    image:
+      # -- Shutdown manager sidecar image repository
+      repository: docker.io/envoyproxy/gateway
+      # -- Shutdown manager sidecar image tag
+      tag: "v1.8.1"
+      # -- Shutdown manager image pull policy
+      pullPolicy: IfNotPresent
 
   # -- Resources for proxy pods (overridden by profile)
   resources:
@@ -126,6 +135,28 @@ gatewayClass:
   name: envoy-gateway
   # -- Create GatewayClass resource
   create: true
+
+## Cleanup hook for chart-managed GatewayClass finalizers on uninstall
+cleanup:
+  # -- Run a pre-delete cleanup Job for chart-managed Gateways and GatewayClass
+  enabled: true
+  image:
+    # -- kubectl image used by the cleanup hook
+    repository: docker.io/helmforge/kubectl
+    # -- kubectl image tag
+    tag: "1.35.3"
+    # -- Cleanup image pull policy
+    pullPolicy: IfNotPresent
+  # -- Timeout in seconds for Gateway and GatewayClass cleanup operations
+  timeoutSeconds: 90
+  # -- Resources for the cleanup hook
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
 
 ## Gateway resource (triggers EG to provision proxy pods)
 gateway:

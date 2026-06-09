@@ -30,11 +30,17 @@ tests:
           path: spec.provider.kubernetes.envoyDeployment.replicas
           value: 1
 
-  - it: should use the Envoy data-plane image compatible with Envoy Gateway v1.7
+  - it: should use the Envoy data-plane image compatible with Envoy Gateway v1.8
     asserts:
       - equal:
           path: spec.provider.kubernetes.envoyDeployment.container.image
-          value: docker.io/envoyproxy/envoy:distroless-v1.37.0
+          value: docker.io/envoyproxy/envoy:distroless-v1.38.0
+      - equal:
+          path: spec.provider.kubernetes.envoyDeployment.patch.value.spec.template.spec.containers[0].name
+          value: shutdown-manager
+      - equal:
+          path: spec.provider.kubernetes.envoyDeployment.patch.value.spec.template.spec.containers[0].image
+          value: docker.io/envoyproxy/gateway:v1.8.1
 
   - it: should configure DaemonSet mode when kind is DaemonSet
     set:
@@ -45,6 +51,9 @@ tests:
           path: spec.provider.kubernetes.envoyDaemonSet
       - isNull:
           path: spec.provider.kubernetes.envoyDeployment
+      - equal:
+          path: spec.provider.kubernetes.envoyDaemonSet.patch.value.spec.template.spec.containers[0].image
+          value: docker.io/envoyproxy/gateway:v1.8.1
 
   - it: should set proxy service type
     set:
