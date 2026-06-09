@@ -261,6 +261,7 @@ test -f /tmp/helmforge-replication-started && mariadb --socket=/run/mysqld/mysql
 {{- end -}}
 
 {{- define "mariadb.prepareDataSubPathInitContainer" -}}
+{{- if and .Values.persistence.subPath .Values.persistence.prepareDataDir.enabled }}
 {{- with .Values.persistence.subPath }}
 {{- $runAsUser := int (default 999 $.Values.securityContext.runAsUser) }}
 {{- $runAsGroup := int (default $runAsUser $.Values.securityContext.runAsGroup) }}
@@ -290,6 +291,7 @@ test -f /tmp/helmforge-replication-started && mariadb --socket=/run/mysqld/mysql
   volumeMounts:
     - name: data
       mountPath: /mnt/data
+{{- end }}
 {{- end }}
 {{- end -}}
 

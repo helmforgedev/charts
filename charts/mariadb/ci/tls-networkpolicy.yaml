@@ -15,3 +15,19 @@ networkPolicy:
     enabled: true
 metrics:
   enabled: true
+replication:
+  readReplicas:
+    replicaCount: 1
+extraObjects:
+  - |
+    {{- $ca := genCA "mariadb-ca" 3650 -}}
+    {{- $cert := genSignedCert "mariadb" nil (list (include "mariadb.clientServiceName" .) (include "mariadb.sourceServiceName" .) (include "mariadb.replicasServiceName" .) "mariadb" "localhost") 3650 $ca -}}
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: mariadb-tls
+    type: Opaque
+    data:
+      ca.crt: {{ $ca.Cert | b64enc | quote }}
+      tls.crt: {{ $cert.Cert | b64enc | quote }}
+      tls.key: {{ $cert.Key | b64enc | quote }}

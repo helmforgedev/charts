@@ -92,6 +92,7 @@ replication:
 | `config.preset` | `none` | Configuration preset |
 | `config.myCnf` | `""` | Extra my.cnf content |
 | `persistence.subPath` | `mysql` | Data volume subdirectory mounted as `/var/lib/mysql`; set `""` for legacy volume-root installs |
+| `persistence.prepareDataDir.enabled` | `false` | Opt-in root initContainer for storage drivers that do not honor `fsGroup`; incompatible with Pod Security `restricted` |
 | `standalone.resourcesPreset` | `small` | Default standalone resource requests and limits |
 | `standalone.persistence.size` | `8Gi` | Standalone PVC size |
 | `replication.source.resourcesPreset` | `small` | Default source resource requests and limits |
@@ -110,6 +111,7 @@ replication:
 | `pdb.enabled` | `false` | Enable PodDisruptionBudget |
 | `service.ipFamilyPolicy` | `~` | IP family policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
 | `service.ipFamilies` | `[]` | IP families override (`IPv4`, `IPv6`) |
+| `extraObjects` | `[]` | Extra Kubernetes manifests rendered with the release |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret resource |
 | `externalSecrets.apiVersion` | `external-secrets.io/v1` | ExternalSecret API version |
 | `externalSecrets.refreshInterval` | `1h` | Refresh interval |
@@ -157,6 +159,14 @@ persistence:
 ```
 
 See [docs/datadir-subpath.md](docs/datadir-subpath.md) for upgrade guidance.
+
+By default, the chart does not render a root initContainer for `persistence.subPath`.
+It relies on `podSecurityContext.fsGroup` and `fsGroupChangePolicy: OnRootMismatch`,
+which keeps the default path compatible with Pod Security `restricted`.
+
+Only enable `persistence.prepareDataDir.enabled=true` for storage drivers that do
+not honor `fsGroup` for subPath directories. That opt-in path runs as root with
+`CHOWN` and `FOWNER` and requires a namespace-level Pod Security exception.
 
 ## External Secrets Operator (ESO)
 
@@ -209,7 +219,7 @@ This chart uses MariaDB-native features:
 | `tls.yaml` | TLS with existingSecret |
 | `tls-networkpolicy.yaml` | TLS + replication + NetworkPolicy |
 | `backup.yaml` | Backup with S3 |
-| `dual-stack.yaml` | Dual-stack IPv4/IPv6 services |
+| `dual-stack.yaml` | Dual-stack service policy |
 | `external-secrets.yaml` | External Secrets Operator integration |
 
 ## More Information
@@ -217,6 +227,14 @@ This chart uses MariaDB-native features:
 - [MariaDB documentation](https://mariadb.com/kb/en/)
 - [Chart source](https://github.com/helmforgedev/charts/tree/main/charts/mariadb)
 - [Datadir subPath migration](docs/datadir-subpath.md)
+
+### 🟢 Security Scan: `mariadb`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **89.898994%** |
+
+> ✅ Security posture acceptable.
 
 <!-- @AI-METADATA
 type: chart-readme

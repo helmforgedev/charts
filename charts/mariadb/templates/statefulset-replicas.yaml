@@ -61,7 +61,17 @@ spec:
                 until [ -S /tmp/mysql.sock ]; do
                   sleep 2
                 done
-                sleep 2
+                while true; do
+                  if mariadb --socket=/tmp/mysql.sock -uroot -Nse "SELECT 1" >/dev/null 2>&1; then
+                    LOCAL_ROOT_PASSWORD_REQUIRED=false
+                    break
+                  fi
+                  if mariadb --socket=/tmp/mysql.sock -uroot --password="${MARIADB_ROOT_PASSWORD}" -Nse "SELECT 1" >/dev/null 2>&1; then
+                    LOCAL_ROOT_PASSWORD_REQUIRED=true
+                    break
+                  fi
+                  sleep 2
+                done
               }
               if [ -d "${DATA_DIR}/mysql" ]; then
                 mariadbd --datadir="${DATA_DIR}" --socket=/tmp/mysql.sock --pid-file=/tmp/mariadb.pid --skip-networking --read-only=OFF &
@@ -102,6 +112,9 @@ spec:
               until mariadb -h {{ include "mariadb.sourceServiceName" . }} -P {{ .Values.service.port }} -uroot --password="${MARIADB_ROOT_PASSWORD}" {{ include "mariadb.cliTlsArgs" . }} -Nse "SHOW DATABASES LIKE '${MARIADB_DATABASE}'" | grep -qx "${MARIADB_DATABASE}"; do
                 sleep 5
               done
+              until mariadb -h {{ include "mariadb.sourceServiceName" . }} -P {{ .Values.service.port }} -uroot --password="${MARIADB_ROOT_PASSWORD}" {{ include "mariadb.cliTlsArgs" . }} -Nse "SHOW MASTER STATUS" | grep -q .; do
+                sleep 5
+              done
 
               if [ ! -d "${DATA_DIR}/mysql" ]; then
                 mariadb-install-db --datadir="${DATA_DIR}" --auth-root-authentication-method=normal
@@ -132,7 +145,8 @@ spec:
 
               GTID_SQL=""
 
-              mariadb-dump \
+              dump_attempt=1
+              until mariadb-dump \
                 -h {{ include "mariadb.sourceServiceName" . }} \
                 -P {{ .Values.service.port }} \
                 -uroot \
@@ -145,7 +159,14 @@ spec:
                 --triggers \
                 --routines \
                 --events \
-                > /tmp/source.sql
+                > /tmp/source.sql; do
+                if [ "${dump_attempt}" -ge 12 ]; then
+                  exit 1
+                fi
+                dump_attempt=$((dump_attempt + 1))
+                rm -f /tmp/source.sql
+                sleep 5
+              done
 
               SOURCE_GTID="$(sed -n "s/^-- SET GLOBAL gtid_slave_pos='\([^']*\)'.*/\1/p; s/^SET GLOBAL gtid_slave_pos='\([^']*\)'.*/\1/p" /tmp/source.sql | tail -n 1)"
               if [ -n "${SOURCE_GTID}" ]; then
@@ -153,8 +174,12 @@ spec:
               fi
 
               local_mariadb < /tmp/source.sql
+              local_admin_shutdown
+              mariadbd --datadir="${DATA_DIR}" --socket=/tmp/mysql.sock --pid-file=/tmp/mariadb.pid --skip-networking --read-only=OFF &
+              LOCAL_ROOT_PASSWORD_REQUIRED=true
+              wait_local_socket
 
-              local_mariadb <<EOSQL
+              cat > /tmp/configure-replication.sql <<EOSQL
               SET GLOBAL read_only = OFF;
               ALTER USER 'root'@'localhost' IDENTIFIED BY '${MARIADB_ROOT_PASSWORD}';
               DROP USER IF EXISTS ''@'localhost';
@@ -180,6 +205,15 @@ spec:
                 {{ include "mariadb.replicationTlsClause" . | nindent 16 }}
                 MASTER_USE_GTID=slave_pos;
               EOSQL
+              configure_attempt=1
+              until local_mariadb < /tmp/configure-replication.sql >/tmp/configure-replication.out 2>/tmp/configure-replication.err; do
+                if [ "${configure_attempt}" -ge 6 ]; then
+                  cat /tmp/configure-replication.err >&2
+                  exit 1
+                fi
+                configure_attempt=$((configure_attempt + 1))
+                sleep 3
+              done
 
               touch "${CLONE_MARKER}"
               local_admin_shutdown
