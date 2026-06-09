@@ -28,6 +28,30 @@ Persistent storage is enabled by default for uploads, PostgreSQL, internal cache
 machine-learning model cache. For local smoke tests, disable persistence with
 the k3d values file.
 
+## Extra Server Volumes
+
+Use `extraVolumes` and `extraVolumeMounts` to mount additional ConfigMaps,
+Secrets, or PVCs into the Immich server container. This is useful for custom
+configuration files and read-only external media locations.
+
+```yaml
+extraVolumes:
+  - name: external-media
+    persistentVolumeClaim:
+      claimName: external-media
+  - name: immich-config
+    configMap:
+      name: immich-config
+
+extraVolumeMounts:
+  - name: external-media
+    mountPath: /mnt/external-media
+    readOnly: true
+  - name: immich-config
+    mountPath: /config/immich
+    readOnly: true
+```
+
 ## External Database
 
 ```yaml
