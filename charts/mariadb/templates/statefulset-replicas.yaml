@@ -61,15 +61,17 @@ spec:
                 until [ -S /tmp/mysql.sock ]; do
                   sleep 2
                 done
-                if [ "${LOCAL_ROOT_PASSWORD_REQUIRED}" = "true" ]; then
-                  until mariadb-admin --socket=/tmp/mysql.sock -uroot -p"${MARIADB_ROOT_PASSWORD}" ping --silent >/dev/null 2>&1; do
-                    sleep 2
-                  done
-                else
-                  until mariadb-admin --socket=/tmp/mysql.sock -uroot ping --silent >/dev/null 2>&1; do
-                    sleep 2
-                  done
-                fi
+                while true; do
+                  if mariadb --socket=/tmp/mysql.sock -uroot -Nse "SELECT 1" >/dev/null 2>&1; then
+                    LOCAL_ROOT_PASSWORD_REQUIRED=false
+                    break
+                  fi
+                  if mariadb --socket=/tmp/mysql.sock -uroot --password="${MARIADB_ROOT_PASSWORD}" -Nse "SELECT 1" >/dev/null 2>&1; then
+                    LOCAL_ROOT_PASSWORD_REQUIRED=true
+                    break
+                  fi
+                  sleep 2
+                done
               }
               if [ -d "${DATA_DIR}/mysql" ]; then
                 mariadbd --datadir="${DATA_DIR}" --socket=/tmp/mysql.sock --pid-file=/tmp/mariadb.pid --skip-networking --read-only=OFF &

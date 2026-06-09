@@ -163,6 +163,21 @@ tests:
           path: spec.template.spec.initContainers[0].command[2]
           pattern: "CHANGE MASTER TO"
 
+  - it: should detect passworded local datadirs before querying replica metadata
+    template: templates/statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "mariadb --socket=/tmp/mysql\\.sock -uroot --password=\"\\$\\{MARIADB_ROOT_PASSWORD\\}\" -Nse \"SELECT 1\""
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "LOCAL_ROOT_PASSWORD_REQUIRED=true\\n\\s+break"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "wait_local_socket\\n\\n\\s+if mariadb --socket=/tmp/mysql\\.sock -uroot --password=\"\\$\\{MARIADB_ROOT_PASSWORD\\}\""
+
   - it: should clone all source databases including grant tables from one GTID snapshot
     template: templates/statefulset-replicas.yaml
     set:
