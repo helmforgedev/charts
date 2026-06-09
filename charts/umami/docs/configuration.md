@@ -44,6 +44,37 @@ Change the default admin password immediately after first login.
 - `backup.enabled=true` schedules `pg_dump` of the analytics DB — the only
   durable state — to S3-compatible storage.
 
+## Custom initialization
+
+Use `extraInitContainers` with `extraVolumes` and `extraVolumeMounts` when Umami
+needs files prepared before the application starts, such as a GeoIP database,
+custom tracker assets, or organization-owned configuration mounted from a
+shared volume:
+
+```yaml
+extraVolumes:
+  - name: geoip
+    emptyDir: {}
+
+extraInitContainers:
+  - name: download-geoip
+    image: docker.io/library/busybox:1.37
+    command: ["sh", "-ec"]
+    args:
+      - wget -O /geoip/GeoLite2-City.mmdb https://example.com/GeoLite2-City.mmdb
+    volumeMounts:
+      - name: geoip
+        mountPath: /geoip
+
+extraVolumeMounts:
+  - name: geoip
+    mountPath: /app/geoip
+```
+
+The chart renders custom init containers after the built-in database readiness
+check and optional external database preparation. Keep external downloads pinned
+to trusted URLs or use an internal artifact mirror for reproducible installs.
+
 ## Scaling
 
 Umami's app tier is stateless (state lives in PostgreSQL), so it can scale behind

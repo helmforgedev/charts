@@ -74,15 +74,15 @@ second case.
 │ postgres-password     │
 └──────────┬───────────┘
            │ valueFrom
+┌──────────▼───────────┐
+│ wait-for-db          │
+└──────────┬───────────┘
+           │ ready
 ┌──────────▼───────────┐       CREATE EXTENSION       ┌──────────────────┐
 │ prepare-external-db  ├─────────────────────────────►│ External Postgres │
 │ postgres client      │                              │ umami database    │
 └──────────┬───────────┘                              └──────────────────┘
            │ success
-┌──────────▼───────────┐
-│ wait-for-db          │
-└──────────┬───────────┘
-           │
 ┌──────────▼───────────┐
 │ Umami container      │
 └──────────────────────┘
@@ -138,6 +138,9 @@ The chart maps common Umami environment variables to structured values. This mak
 - `FORCE_SSL`, `CLIENT_IP_HEADER`, `COLLECT_API_ENDPOINT`, `TRACKER_SCRIPT_NAME`, `ALLOWED_FRAME_URLS`, and related settings are optional structured values.
 
 `extraEnv` remains available for upstream settings that are not modeled yet.
+`extraInitContainers` can prepare shared volumes before Umami starts, and pairs
+with `extraVolumes` and `extraVolumeMounts` for cases such as GeoIP databases or
+organization-owned assets.
 `BASE_PATH` is intentionally not modeled because Umami v3 treats it as a build-time setting for the stock image.
 
 ## Security Posture
