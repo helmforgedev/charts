@@ -39,6 +39,23 @@ The chart mounts the `mysql` subdirectory as `/var/lib/mysql`, so the
 filesystem root and its `lost+found` directory remain outside the MariaDB
 datadir.
 
+The default path relies on Kubernetes `fsGroup` handling for volume ownership
+and does not render a root initContainer. This keeps new installs compatible
+with Pod Security `restricted`.
+
+For storage drivers that do not honor `fsGroup` for subPath directories, enable
+the explicit preparation initContainer:
+
+```yaml
+persistence:
+  subPath: mysql
+  prepareDataDir:
+    enabled: true
+```
+
+That opt-in initContainer runs as root with `CHOWN` and `FOWNER`, so it requires
+a Pod Security exception and should not be enabled in restricted namespaces.
+
 ## Existing Installs
 
 If the existing data lives at the volume root, set:

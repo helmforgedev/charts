@@ -87,7 +87,7 @@ tests:
           path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
           value: 8Gi
 
-  - it: should mount the datadir from the safe default subPath
+  - it: should mount the datadir from the restricted-compatible default subPath
     template: templates/statefulset-source.yaml
     asserts:
       - equal:
@@ -96,6 +96,16 @@ tests:
             name: data
             mountPath: /var/lib/mysql
             subPath: mysql
+      - notExists:
+          path: spec.template.spec.initContainers
+
+  - it: should prepare default subPath only when explicitly enabled
+    template: templates/statefulset-source.yaml
+    set:
+      persistence:
+        prepareDataDir:
+          enabled: true
+    asserts:
       - equal:
           path: spec.template.spec.initContainers[0].name
           value: prepare-datadir-subpath
@@ -129,6 +139,9 @@ tests:
   - it: should prepare default subPath with custom runtime ownership
     template: templates/statefulset-source.yaml
     set:
+      persistence:
+        prepareDataDir:
+          enabled: true
       securityContext:
         runAsUser: 1001
         runAsGroup: 1002
@@ -175,10 +188,10 @@ tests:
             mountPath: /etc/mysqld-exporter
             readOnly: true
       - equal:
-          path: spec.template.spec.initContainers[1].name
+          path: spec.template.spec.initContainers[0].name
           value: mysqld-exporter-config
       - contains:
-          path: spec.template.spec.initContainers[1].env
+          path: spec.template.spec.initContainers[0].env
           content:
             name: MARIADB_ROOT_PASSWORD
           any: true

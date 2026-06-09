@@ -21,36 +21,16 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-mariadb-replicas
 
-  - it: should mount replica datadirs from the safe default subPath
+  - it: should mount replica datadirs from the restricted-compatible default subPath
     template: templates/statefulset-replicas.yaml
     set:
       architecture: replication
     asserts:
       - equal:
           path: spec.template.spec.initContainers[0].name
-          value: prepare-datadir-subpath
-      - matchRegex:
-          path: spec.template.spec.initContainers[0].command[2]
-          pattern: "mkdir -p \"/mnt/data/mysql\""
-      - matchRegex:
-          path: spec.template.spec.initContainers[0].command[2]
-          pattern: "chmod 2770 \"/mnt/data/mysql\""
-      - matchRegex:
-          path: spec.template.spec.initContainers[0].command[2]
-          pattern: "chown 999:999 \"/mnt/data/mysql\""
-      - equal:
-          path: spec.template.spec.initContainers[0].securityContext.capabilities.add[0]
-          value: CHOWN
-      - equal:
-          path: spec.template.spec.initContainers[0].securityContext.capabilities.add[1]
-          value: FOWNER
+          value: clone-source
       - equal:
           path: spec.template.spec.initContainers[0].volumeMounts[0]
-          value:
-            name: data
-            mountPath: /mnt/data
-      - equal:
-          path: spec.template.spec.initContainers[1].volumeMounts[0]
           value:
             name: data
             mountPath: /var/lib/mysql
@@ -60,6 +40,9 @@ tests:
     template: templates/statefulset-replicas.yaml
     set:
       architecture: replication
+      persistence:
+        prepareDataDir:
+          enabled: true
       securityContext:
         runAsUser: 1001
         runAsGroup: 1002
@@ -89,20 +72,20 @@ tests:
     asserts:
       - not: true
         matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "--user=mysql"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "--read-only=OFF"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "--auth-root-authentication-method=normal"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "wait_local_socket\\(\\)"
       - not: true
         matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "mariadb-admin --socket=/tmp/mysql\\.sock ping --silent"
 
   - it: should preserve root local access for replica probes after cloning
@@ -111,31 +94,31 @@ tests:
       architecture: replication
     asserts:
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "CREATE OR REPLACE USER 'root'@'127\\.0\\.0\\.1'"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "GRANT ALL PRIVILEGES ON \\*\\.\\* TO 'root'@'127\\.0\\.0\\.1' WITH GRANT OPTION"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "CREATE OR REPLACE USER 'root'@'%'"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "DELETE FROM mysql\\.global_priv WHERE User = ''"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "DROP USER IF EXISTS ''@'\\$\\{HOSTNAME\\}'"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "DROP USER IF EXISTS 'root'@'\\$\\{HOSTNAME\\}'"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "DELETE FROM mysql\\.proxies_priv WHERE User = '' OR Proxied_user = ''"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "CLONE_MARKER="
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "touch \"\\$\\{CLONE_MARKER\\}\""
 
   - it: should preserve already initialized replica datadirs during upgrade
@@ -144,19 +127,19 @@ tests:
       architecture: replication
     asserts:
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "if \\[ -d \"\\$\\{DATA_DIR\\}/mysql\" \\]; then"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "SHOW SLAVE STATUS"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "grep -Eq \"Master_Host: .\\+\""
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "touch \"\\$\\{CLONE_MARKER\\}\""
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "local_admin_shutdown\\n\\s+exit 0"
 
   - it: should continue clone completion when an unmarked datadir lacks replication metadata
@@ -165,19 +148,19 @@ tests:
       architecture: replication
     asserts:
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "LOCAL_SERVER_STARTED=false"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "LOCAL_ROOT_PASSWORD_REQUIRED=false"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "local_mariadb\\(\\)"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "if \\[ \"\\$\\{LOCAL_SERVER_STARTED\\}\" = \"false\" \\]; then"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "CHANGE MASTER TO"
 
   - it: should clone all source databases including grant tables from one GTID snapshot
@@ -186,28 +169,28 @@ tests:
       architecture: replication
     asserts:
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "--all-databases"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "--master-data=2"
       - not: true
         matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "START SLAVE"
       - not: true
         matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "SHOW DATABASES WHERE"
       - not: true
         matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "--databases \\$\\{DATABASES\\}"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "SHOW DATABASES LIKE '\\$\\{MARIADB_DATABASE\\}'"
       - equal:
-          path: spec.template.spec.initContainers[1].env[2]
+          path: spec.template.spec.initContainers[0].env[2]
           value:
             name: MARIADB_DATABASE
             value: app
@@ -218,34 +201,34 @@ tests:
       architecture: replication
     asserts:
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "CREATE DATABASE IF NOT EXISTS \\\\`\\$\\{MARIADB_DATABASE\\}\\\\`"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "CREATE USER IF NOT EXISTS '\\$\\{MARIADB_USER\\}'@'%' IDENTIFIED BY '\\$\\{MARIADB_PASSWORD\\}'"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "ALTER USER '\\$\\{MARIADB_USER\\}'@'%' IDENTIFIED BY '\\$\\{MARIADB_PASSWORD\\}'"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "GRANT ALL PRIVILEGES ON \\\\`\\$\\{MARIADB_DATABASE\\}\\\\`\\.\\* TO '\\$\\{MARIADB_USER\\}'@'%'"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "--master-data=2"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "sed -n \"s/\\^-- SET GLOBAL gtid_slave_pos="
       - not: true
         matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "SELECT @@global\\.gtid_binlog_pos"
       - equal:
-          path: spec.template.spec.initContainers[1].env[3]
+          path: spec.template.spec.initContainers[0].env[3]
           value:
             name: MARIADB_USER
             value: app
       - equal:
-          path: spec.template.spec.initContainers[1].env[4]
+          path: spec.template.spec.initContainers[0].env[4]
           value:
             name: MARIADB_PASSWORD
             valueFrom:
@@ -280,7 +263,7 @@ tests:
           path: spec.template.spec.containers[0].command[2]
           pattern: "skip_slave_start = ON"
       - matchRegex:
-          path: spec.template.spec.initContainers[1].command[2]
+          path: spec.template.spec.initContainers[0].command[2]
           pattern: "skip_slave_start = ON"
 
   - it: should use local socket probes for replicas

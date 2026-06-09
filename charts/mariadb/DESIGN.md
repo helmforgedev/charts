@@ -60,6 +60,8 @@ Default:
 ```yaml
 persistence:
   subPath: mysql
+  prepareDataDir:
+    enabled: false
 ```
 
 Legacy behavior for existing installations:
@@ -72,6 +74,15 @@ persistence:
 This is intentionally global instead of per-role. A single setting keeps
 standalone, source, and replica data paths consistent and avoids unnecessary API
 surface.
+
+The default path relies on `podSecurityContext.fsGroup` with
+`fsGroupChangePolicy: OnRootMismatch` and does not render a root initContainer.
+This keeps `persistence.subPath` compatible with Pod Security `restricted`.
+
+`persistence.prepareDataDir.enabled=true` is an explicit escape hatch for
+storage drivers that do not honor `fsGroup` on subPath directories. It renders a
+root initContainer with `CHOWN` and `FOWNER`, so it requires a Pod Security
+exception and is not part of the default path.
 
 ## Production Controls
 
