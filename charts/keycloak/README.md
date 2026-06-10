@@ -306,6 +306,7 @@ postgresql:
 | `extraEnvFrom` | Extra envFrom sources injected into the main container | `[]` |
 | `initContainers` | Additional init containers | `[]` |
 | `extraContainers` | Additional sidecars or helper containers | `[]` |
+| `extraManifests` | Additional Kubernetes manifests rendered with the chart | `[]` |
 | `realmImport.enabled` | Enable startup realm import | `false` |
 | `ingress.public.enabled` | Enable public ingress for Keycloak | `false` |
 | `ingress.public.ingressClassName` | Public ingress class name | `traefik` |
