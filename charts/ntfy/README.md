@@ -132,5 +132,15 @@ service:
 
 ## More Information
 
+- [Chart design](DESIGN.md)
+- [Configuration guide](docs/configuration.md)
 - [ntfy documentation](https://docs.ntfy.sh)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/ntfy)
+
+### Security Scan: `ntfy`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **72.72727%** |
+
+> Security posture acceptable.
