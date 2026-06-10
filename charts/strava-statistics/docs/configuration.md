@@ -65,6 +65,23 @@ strava:
 
 This value must match the OAuth callback URL configured in the Strava application.
 
+## Map Settings
+
+Statistics for Strava 4.8.6 and newer configures shared map settings under `appearance.maps`:
+
+```yaml
+strava:
+  config: |
+    appearance:
+      maps:
+        polylineColor: "#fc6719"
+        tileLayerUrl: "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        enableGreyScale: true
+        heatmap:
+          initialCenter: null
+          initialZoom: null
+```
+
 ## Gateway API
 
 ```yaml
