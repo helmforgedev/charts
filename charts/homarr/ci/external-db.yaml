@@ -1,10 +1,78 @@
 # SPDX-License-Identifier: Apache-2.0
-# External PostgreSQL
+# External PostgreSQL.
+# The k3d behavioral gate needs a real endpoint, so this scenario keeps the
+# Homarr chart in external database mode and creates an in-namespace PostgreSQL
+# fixture through extraManifests.
 database:
   external:
     vendor: postgres
-    host: postgres.database.svc
+    host: homarr-ci-external-db-postgresql
     port: 5432
     name: homarr
     username: homarr
     password: testpassword
+
+extraManifests:
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: homarr-ci-external-db-postgresql
+      labels:
+        app.kubernetes.io/name: homarr-external-postgresql
+        app.kubernetes.io/instance: homarr-ci-external-db
+        app.kubernetes.io/component: external-database
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: homarr-external-postgresql
+          app.kubernetes.io/instance: homarr-ci-external-db
+          app.kubernetes.io/component: external-database
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: homarr-external-postgresql
+            app.kubernetes.io/instance: homarr-ci-external-db
+            app.kubernetes.io/component: external-database
+        spec:
+          containers:
+            - name: postgresql
+              image: docker.io/library/postgres:18.3-trixie
+              imagePullPolicy: IfNotPresent
+              ports:
+                - name: postgresql
+                  containerPort: 5432
+                  protocol: TCP
+              env:
+                - name: POSTGRES_DB
+                  value: homarr
+                - name: POSTGRES_USER
+                  value: homarr
+                - name: POSTGRES_PASSWORD
+                  value: testpassword
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 1000m
+                  memory: 1Gi
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: homarr-ci-external-db-postgresql
+      labels:
+        app.kubernetes.io/name: homarr-external-postgresql
+        app.kubernetes.io/instance: homarr-ci-external-db
+        app.kubernetes.io/component: external-database
+    spec:
+      type: ClusterIP
+      ports:
+        - name: postgresql
+          port: 5432
+          targetPort: postgresql
+          protocol: TCP
+      selector:
+        app.kubernetes.io/name: homarr-external-postgresql
+        app.kubernetes.io/instance: homarr-ci-external-db
+        app.kubernetes.io/component: external-database
