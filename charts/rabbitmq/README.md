@@ -40,6 +40,7 @@ helm install rabbitmq oci://ghcr.io/helmforgedev/helm/rabbitmq -f values.yaml
 - Gateway API HTTPRoute support for the Management UI
 - dual-stack Service fields through `service.ipFamilyPolicy` and `service.ipFamilies`
 - External Secrets Operator support for RabbitMQ credentials
+- official Alpine RabbitMQ image by default; plugins are controlled by chart values
 
 ## How to choose the architecture
 
@@ -122,14 +123,13 @@ Management UI Gateway API example:
 ```yaml
 management:
   enabled: true
-
-gateway:
-  enabled: true
-  parentRefs:
-    - name: public
-      namespace: gateway-system
-  hostnames:
-    - rabbitmq.example.com
+  gateway:
+    enabled: true
+    parentRefs:
+      - name: public
+        namespace: gateway-system
+    hostnames:
+      - rabbitmq.example.com
 ```
 
 External Secrets example:
@@ -185,13 +185,20 @@ externalSecrets:
 - use `metrics.serviceMonitor.enabled=true` with Prometheus Operator
 - monitor memory, disk, connections, queues, consumers, and node-local alarms
 
+### Runtime efficiency
+
+- the default image is `docker.io/library/rabbitmq:4.3.1-alpine`; it contains the management, Prometheus, and Kubernetes peer-discovery plugins, and the chart enables only the plugins requested by values
+- `runtime.disableSchedulerBusyWait=true` is enabled by default to reduce idle CPU from Erlang scheduler spin-wait in containers
+- default Kubernetes probes use lightweight TCP checks against the active AMQP listener instead of recurring `rabbitmq-diagnostics` commands
+- use `runtime.additionalErlArgs` for extra Erlang VM flags and reserve `extraEnv` for explicit upstream environment variables or full overrides
+
 ## Main values
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `architecture` | `single-node` or `cluster` | `single-node` |
 | `image.repository` | RabbitMQ image repository | `rabbitmq` |
-| `image.tag` | RabbitMQ image tag | `4.3.1-management` |
+| `image.tag` | RabbitMQ image tag | `4.3.1-alpine` |
 | `auth.username` | Application username | `user` |
 | `auth.password` | Application password | `""` |
 | `auth.erlangCookie` | Erlang cookie | `""` |
@@ -200,16 +207,20 @@ externalSecrets:
 | `management.enabled` | Enable management plugin/UI | `true` |
 | `management.ingress.enabled` | Enable management ingress | `false` |
 | `management.ingress.ingressClassName` | Ingress class for the Management UI | `traefik` |
-| `management.ingress.className` | Deprecated optional alias for `ingressClassName`; empty string omits the field | omitted |
 | `tls.enabled` | Enable TLS listeners | `false` |
 | `singleNode.persistence.enabled` | Enable PVC for single node | `true` |
 | `cluster.replicaCount` | Number of cluster nodes | `3` |
 | `cluster.partitionHandling` | Cluster partition handling | `pause_minority` |
 | `metrics.enabled` | Enable RabbitMQ Prometheus plugin | `false` |
 | `metrics.serviceMonitor.enabled` | Enable ServiceMonitor | `false` |
+| `runtime.disableSchedulerBusyWait` | Disable Erlang scheduler busy-wait for lower idle CPU | `true` |
+| `runtime.additionalErlArgs` | Additional Erlang VM arguments appended to chart defaults | `""` |
+| `startupProbe.enabled` | Enable TCP startup probe | `true` |
+| `livenessProbe.enabled` | Enable TCP liveness probe | `true` |
+| `readinessProbe.enabled` | Enable TCP readiness probe | `true` |
 | `pdb.enabled` | Enable PodDisruptionBudget | `false` |
 | `service.ipFamilyPolicy` | Service IP family policy for dual-stack clusters | `""` |
-| `gateway.enabled` | Render Gateway API HTTPRoute for the Management UI | `false` |
+| `management.gateway.enabled` | Render Gateway API HTTPRoute for the Management UI | `false` |
 | `externalSecrets.enabled` | Render ExternalSecret for credentials | `false` |
 
 ## CI scenarios
@@ -242,6 +253,14 @@ See `examples/`:
 - this chart does not attempt to orchestrate federation, shovel, or advanced policy management in v1
 - `management.ingress.ingressClassName` can be set to `traefik`, `nginx`, or any ingress class available in the target cluster
 - `externalSecrets.enabled=true` requires `auth.existingSecret` so the chart does not generate credentials that drift from the operator-managed Secret
+
+### Security Scan: `rabbitmq`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **74.24%** |
+
+> Security posture acceptable.
 
 <!-- @AI-METADATA
 type: chart-readme

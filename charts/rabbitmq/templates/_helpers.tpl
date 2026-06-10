@@ -123,6 +123,25 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf ".%s.%s.svc.%s" (include "rabbitmq.headlessServiceName" .) .Release.Namespace .Values.clusterDomain -}}
 {{- end -}}
 
+{{- define "rabbitmq.serverAdditionalErlArgs" -}}
+{{- $args := list -}}
+{{- if .Values.runtime.disableSchedulerBusyWait -}}
+{{- $args = append $args "+sbwt none +sbwtdcpu none +sbwtdio none" -}}
+{{- end -}}
+{{- with .Values.runtime.additionalErlArgs -}}
+{{- $args = append $args . -}}
+{{- end -}}
+{{- join " " $args -}}
+{{- end -}}
+
+{{- define "rabbitmq.probePortName" -}}
+{{- if and .Values.tls.enabled .Values.tls.disableNonTLSListeners -}}
+amqps
+{{- else -}}
+amqp
+{{- end -}}
+{{- end -}}
+
 {{- define "rabbitmq.ingressPortName" -}}
 {{- if and .Values.tls.enabled .Values.management.ingress.useTlsPort -}}
 management-tls

@@ -26,7 +26,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/library/rabbitmq:4.3.1-management"
+          value: "docker.io/library/rabbitmq:4.3.1-alpine"
 
   - it: should have 1 replica in single-node mode
     template: statefulset.yaml
@@ -56,10 +56,58 @@ tests:
   - it: should have probes
     template: statefulset.yaml
     asserts:
-      - isNotNull:
-          path: spec.template.spec.containers[0].livenessProbe
-      - isNotNull:
-          path: spec.template.spec.containers[0].readinessProbe
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.tcpSocket.port
+          value: amqp
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+          value: amqp
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.tcpSocket.port
+          value: amqp
+
+  - it: should probe the TLS AMQP listener when non-TLS listeners are disabled
+    template: statefulset.yaml
+    set:
+      tls.enabled: true
+      tls.disableNonTLSListeners: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.tcpSocket.port
+          value: amqps
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+          value: amqps
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.tcpSocket.port
+          value: amqps
+
+  - it: should disable Erlang scheduler busy-wait by default
+    template: statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS
+            value: "+sbwt none +sbwtdcpu none +sbwtdio none"
+
+  - it: should allow extraEnv to override chart-managed Erlang arguments
+    template: statefulset.yaml
+    set:
+      extraEnv:
+        - name: RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS
+          value: "+S 2"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS
+            value: "+S 2"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS
+            value: "+sbwt none +sbwtdcpu none +sbwtdio none"
 
   - it: should create VolumeClaimTemplate with default 8Gi
     template: statefulset.yaml

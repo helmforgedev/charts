@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: ConfigMap
+templates:
+  - configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should enable management plugin by default
+    asserts:
+      - equal:
+          path: data.enabled_plugins
+          value: |
+            [rabbitmq_management].
+
+  - it: should disable management plugin when management is disabled
+    set:
+      management.enabled: false
+    asserts:
+      - equal:
+          path: data.enabled_plugins
+          value: |
+            [].
+
+  - it: should enable metrics plugin when metrics are enabled
+    set:
+      metrics.enabled: true
+    asserts:
+      - equal:
+          path: data.enabled_plugins
+          value: |
+            [rabbitmq_management,rabbitmq_prometheus].
+
+  - it: should enable Kubernetes peer discovery in cluster mode
+    set:
+      architecture: cluster
+    asserts:
+      - equal:
+          path: data.enabled_plugins
+          value: |
+            [rabbitmq_management,rabbitmq_peer_discovery_k8s].
