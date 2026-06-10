@@ -1,9 +1,67 @@
 # SPDX-License-Identifier: Apache-2.0
 # CI: External PostgreSQL database
+persistence:
+  enabled: false
+
 database:
   external:
     vendor: postgres
-    host: postgresql.example.svc
+    host: n8n-external-postgresql
     name: n8n
     username: n8n
     password: external-password
+
+extraManifests:
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: n8n-external-postgresql
+      labels:
+        app.kubernetes.io/name: n8n-external-postgresql
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: n8n-external-postgresql
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: n8n-external-postgresql
+        spec:
+          containers:
+            - name: postgresql
+              image: docker.io/library/postgres:18.4-alpine
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: POSTGRES_DB
+                  value: n8n
+                - name: POSTGRES_USER
+                  value: n8n
+                - name: POSTGRES_PASSWORD
+                  value: external-password
+              ports:
+                - name: postgresql
+                  containerPort: 5432
+                  protocol: TCP
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: n8n-external-postgresql
+      labels:
+        app.kubernetes.io/name: n8n-external-postgresql
+    spec:
+      type: ClusterIP
+      ports:
+        - name: postgresql
+          port: 5432
+          targetPort: postgresql
+          protocol: TCP
+      selector:
+        app.kubernetes.io/name: n8n-external-postgresql
