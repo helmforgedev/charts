@@ -6,7 +6,7 @@ defaults tuned for WebCodecs and WASM workloads.
 
 ## Highlights
 
-- HelmForge-maintained `docker.io/helmforge/openreel-video:v0.4.0` image.
+- HelmForge-maintained `docker.io/helmforge/openreel-video:v0.5.0` image.
 - Non-root NGINX runtime on port `8080`.
 - `/healthz` endpoint for probes and Helm tests.
 - COOP/COEP headers are included in the image for SharedArrayBuffer, WebCodecs,
@@ -62,3 +62,11 @@ helm template openreel-video charts/openreel-video -f charts/openreel-video/ci/c
 helm unittest charts/openreel-video
 kubeconform -strict -summary rendered.yaml
 ```
+
+### Security Scan: `openreel-video`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **86.580086%** |
+
+> Security posture acceptable.
