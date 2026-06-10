@@ -1,7 +1,7 @@
 # Envoy Gateway
 
 A Helm chart for deploying [Envoy Gateway](https://gateway.envoyproxy.io/)
-v1.8.0 on Kubernetes. Envoy Gateway is a **Kubernetes operator** — it manages
+v1.8.1 on Kubernetes. Envoy Gateway is a **Kubernetes operator** — it manages
 Envoy proxy pods automatically in response to Gateway API resources.
 
 ## Installation
@@ -27,7 +27,7 @@ The Envoy Gateway operator CRDs (`gateway.envoyproxy.io/*`: `EnvoyProxy`,
 chart's `crds/` directory, so Helm installs them automatically on first install
 when they are absent (and skips them if already present). Only the upstream
 **Gateway API** CRDs (`gateway.networking.k8s.io/*`) are a separate cluster
-prerequisite, installed once below. Envoy Gateway v1.8.0 requires the Gateway API
+prerequisite, installed once below. Envoy Gateway v1.8.1 requires the Gateway API
 **experimental** channel (v1.5.1) — it watches `ListenerSet`, which only ships in
 the experimental channel; the standard channel is not sufficient. These CRDs are
 cluster-scoped and shared, so they are NOT bundled in the chart (Helm's release
@@ -173,7 +173,7 @@ highAvailability:
 |-----|---------|-------------|
 | `controller.replicaCount` | `1` | Number of controller replicas (overridden by profile) |
 | `controller.image.repository` | `docker.io/envoyproxy/gateway` | Controller image repository |
-| `controller.image.tag` | `v1.8.0` | Controller image tag |
+| `controller.image.tag` | `v1.8.1` | Controller image tag |
 | `controller.image.pullPolicy` | `IfNotPresent` | Image pull policy |
 | `controller.resources.requests.cpu` | `100m` | CPU request (overridden by profile) |
 | `controller.resources.requests.memory` | `128Mi` | Memory request (overridden by profile) |
@@ -191,7 +191,7 @@ highAvailability:
 |-----|---------|-------------|
 | `certgen.enabled` | `true` | Run certgen pre-install/pre-upgrade job for controller TLS certs |
 | `certgen.image.repository` | `docker.io/envoyproxy/gateway` | Certgen image (same as controller) |
-| `certgen.image.tag` | `v1.8.0` | Certgen image tag |
+| `certgen.image.tag` | `v1.8.1` | Certgen image tag |
 | `certgen.resources.requests.cpu` | `10m` | CPU request |
 | `certgen.resources.requests.memory` | `64Mi` | Memory request |
 | `certgen.resources.limits.cpu` | `100m` | CPU limit |
@@ -207,8 +207,11 @@ highAvailability:
 | `proxy.kind` | `Deployment` | Proxy workload kind: `Deployment` or `DaemonSet` |
 | `proxy.replicaCount` | `1` | Number of proxy replicas (Deployment mode only, overridden by profile) |
 | `proxy.image.repository` | `docker.io/envoyproxy/envoy` | Proxy image repository |
-| `proxy.image.tag` | `distroless-v1.37.0` | Proxy image tag |
+| `proxy.image.tag` | `distroless-v1.38.0` | Proxy image tag |
 | `proxy.image.pullPolicy` | `IfNotPresent` | Image pull policy |
+| `proxy.shutdownManager.image.repository` | `docker.io/envoyproxy/gateway` | Shutdown manager sidecar image repository |
+| `proxy.shutdownManager.image.tag` | `v1.8.1` | Shutdown manager sidecar image tag |
+| `proxy.shutdownManager.image.pullPolicy` | `IfNotPresent` | Shutdown manager image pull policy |
 | `proxy.resources.requests.cpu` | `100m` | CPU request (overridden by profile) |
 | `proxy.resources.requests.memory` | `128Mi` | Memory request (overridden by profile) |
 | `proxy.resources.limits.cpu` | `1000m` | CPU limit (overridden by profile) |
@@ -283,13 +286,6 @@ highAvailability:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `rateLimiting.enabled` | `false` | Enable rate limiting |
-| `rateLimiting.redis.enabled` | `false` | Deploy Redis StatefulSet |
-| `rateLimiting.redis.image.repository` | `docker.io/redis` | Redis image repository |
-| `rateLimiting.redis.image.tag` | `8.0.2-alpine` | Redis image tag |
-| `rateLimiting.redis.resources` | See values | Redis resources |
-| `rateLimiting.redis.persistence.enabled` | `true` | Enable Redis persistence |
-| `rateLimiting.redis.persistence.size` | `1Gi` | Redis PVC size |
-| `rateLimiting.redis.persistence.storageClass` | `""` | Storage class for Redis PVC |
 | `rateLimiting.externalRedis.host` | `""` | External Redis host |
 | `rateLimiting.externalRedis.port` | `6379` | External Redis port |
 | `rateLimiting.externalRedis.auth.enabled` | `false` | Enable Redis authentication |
@@ -297,6 +293,11 @@ highAvailability:
 | `rateLimiting.externalRedis.auth.secretKey` | `password` | Secret key for Redis password |
 | `rateLimiting.presets.api` | `false` | Enable API preset (100 req/min per IP) |
 | `rateLimiting.presets.strict` | `false` | Enable strict preset (10 req/min per IP) |
+| `redis.enabled` | `false` | Deploy the helmforge/redis subchart for rate limiting |
+| `redis.architecture` | `standalone` | Redis topology |
+| `redis.auth.enabled` | `true` | Enable Redis password authentication |
+| `redis.standalone.persistence.enabled` | `true` | Enable Redis persistent storage |
+| `redis.standalone.persistence.size` | `1Gi` | Redis PVC size |
 
 ### Monitoring
 
@@ -338,6 +339,26 @@ highAvailability:
 |-----|---------|-------------|
 | `gatewayClass.name` | `envoy-gateway` | GatewayClass name |
 | `gatewayClass.create` | `true` | Create GatewayClass resource |
+
+### Cleanup
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `cleanup.enabled` | `true` | Run a pre-delete cleanup Job for chart-managed Gateways and GatewayClass |
+| `cleanup.image.repository` | `docker.io/helmforge/kubectl` | kubectl image used by the cleanup hook |
+| `cleanup.image.tag` | `1.35.3` | kubectl image tag |
+| `cleanup.image.pullPolicy` | `IfNotPresent` | Cleanup image pull policy |
+| `cleanup.timeoutSeconds` | `90` | Timeout in seconds for Gateway and GatewayClass cleanup operations |
+| `cleanup.resources.requests.cpu` | `10m` | CPU request for the cleanup hook |
+| `cleanup.resources.requests.memory` | `32Mi` | Memory request for the cleanup hook |
+| `cleanup.resources.limits.cpu` | `100m` | CPU limit for the cleanup hook |
+| `cleanup.resources.limits.memory` | `128Mi` | Memory limit for the cleanup hook |
+
+The cleanup hook runs before uninstall so chart-managed Gateways are deleted
+while the controller is still present. It then removes the chart-managed
+GatewayClass after verifying that no remaining Gateways reference that class.
+If user-managed Gateways still reference the class, the hook exits with a clear
+error and Helm leaves the release installed for manual cleanup.
 
 ## Examples
 
@@ -424,12 +445,25 @@ Major architectural redesign to align with the EG operator model.
 
 ## Upgrade Notes
 
-`docker.io/envoyproxy/gateway:v1.8.0` is the upstream minor update from
-`v1.7.3`. The automatically generated issue referenced `1.8.0`, but Docker Hub
-publishes the canonical Envoy Gateway image tag with the `v` prefix. Review the
-upstream Envoy Gateway `v1.8.0` release notes, verify Gateway API/Envoy Gateway
-CRDs in staging, and test existing Gateway, HTTPRoute, EnvoyProxy, and policy
-resources before upgrading production controllers.
+`docker.io/envoyproxy/gateway:v1.8.1` is the upstream patch update from
+`v1.8.0`. The automatically generated issue referenced `1.8.1`, but Docker Hub
+publishes the canonical Envoy Gateway image tag with the `v` prefix. This chart
+also updates the managed Envoy proxy image to
+`docker.io/envoyproxy/envoy:distroless-v1.38.0`, matching the upstream v1.8
+compatibility matrix.
+
+Envoy Gateway v1.8.1 includes security fixes for GatewayNamespaceMode xDS
+authentication, Lua validator sandbox path normalization, Wasm HTTP fetch gzip
+decompression limits, ReferenceGrant bypass handling, and related controller
+runtime issues. The chart now also pins the EG-managed `shutdown-manager`
+sidecar to `docker.io/envoyproxy/gateway:v1.8.1` through the EnvoyProxy strategic
+merge patch, avoiding the upstream-generated `gateway-dev:latest` runtime image.
+It also moves Gateway API safe-upgrades ValidatingAdmissionPolicy resources from
+the CRD bundle into the gateway Helm templates upstream. Before upgrading
+production controllers, review ownership of existing
+`safe-upgrades.gateway.networking.k8s.io` ValidatingAdmissionPolicy resources,
+verify Gateway API and Envoy Gateway CRDs in staging, and test existing Gateway,
+HTTPRoute, EnvoyProxy, and policy resources.
 
 ### Version 1.0.0
 
@@ -443,10 +477,10 @@ This chart intentionally does not support:
 - **Built-in cert-manager integration** — Manage application TLS externally; chart only runs certgen for controller certs
 - **Legacy Ingress API** — Use Gateway API for modern routing capabilities
 
-### 🟢 Security Scan: `envoy-gateway`
+### Security Scan: `envoy-gateway`
 
 | Framework | Score |
 |---|---|
 | MITRE + NSA + SOC2 | **72.22223%** |
 
-> ✅ Security posture acceptable.
+> Security posture acceptable.

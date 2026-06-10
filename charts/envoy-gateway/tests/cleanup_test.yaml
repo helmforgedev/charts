@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: GatewayClass Cleanup Hook
+templates:
+  - gatewayclass-cleanup-job.yaml
+tests:
+  - it: should create cleanup hook by default
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: kind
+          value: Job
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-delete
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "-10"
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: RELEASE-NAME-envoy-gateway
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/helmforge/kubectl:1.35.3
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'namespace="NAMESPACE"'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'kubectl delete gateway -n "\$\{namespace\}"'
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "kubectl delete gateway -A"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "Refusing to delete GatewayClass"
+
+  - it: should not create cleanup hook when disabled
+    set:
+      cleanup:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not create cleanup hook without chart-managed GatewayClass
+    set:
+      gatewayClass:
+        create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not create cleanup hook when RBAC is externally managed
+    set:
+      rbac:
+        create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should allow custom cleanup image and timeout
+    set:
+      cleanup:
+        image:
+          repository: docker.io/helmforge/kubectl
+          tag: 1.35.2
+        timeoutSeconds: 45
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/helmforge/kubectl:1.35.2
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "timeout=45"

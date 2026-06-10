@@ -1,0 +1,69 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and .Values.cleanup.enabled .Values.gatewayClass.create .Values.rbac.create }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "envoy-gateway.fullname" . }}-gatewayclass-cleanup
+  namespace: {{ include "envoy-gateway.namespace" . }}
+  labels:
+    {{- include "envoy-gateway.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cleanup
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        {{- include "envoy-gateway.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: cleanup
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "envoy-gateway.serviceAccountName" . }}
+      containers:
+      - name: gatewayclass-cleanup
+        image: {{ .Values.cleanup.image.repository }}:{{ .Values.cleanup.image.tag }}
+        imagePullPolicy: {{ .Values.cleanup.image.pullPolicy }}
+        command:
+        - /bin/sh
+        - -ec
+        - |
+          gateway_class={{ .Values.gatewayClass.name | quote }}
+          namespace={{ include "envoy-gateway.namespace" . | quote }}
+          release={{ .Release.Name | quote }}
+          timeout={{ .Values.cleanup.timeoutSeconds | int }}
+
+          kubectl delete gateway -n "${namespace}" \
+            -l "app.kubernetes.io/instance=${release}" \
+            --wait=true \
+            --timeout="${timeout}s" \
+            --ignore-not-found
+
+          remaining="$(kubectl get gateway -A -o jsonpath='{range .items[?(@.spec.gatewayClassName=="{{ .Values.gatewayClass.name }}")]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}')"
+          if [ -n "$remaining" ]; then
+            echo "Refusing to delete GatewayClass ${gateway_class}; Gateways still reference it:"
+            echo "$remaining"
+            exit 1
+          fi
+
+          kubectl delete gatewayclass "${gateway_class}" --wait=false --ignore-not-found
+
+          i=0
+          while kubectl get gatewayclass "${gateway_class}" >/dev/null 2>&1; do
+            if [ "$i" -ge "$timeout" ]; then
+              kubectl patch gatewayclass "${gateway_class}" --type=merge -p '{"metadata":{"finalizers":[]}}' || true
+              break
+            fi
+            i=$((i + 1))
+            sleep 1
+          done
+
+          kubectl delete gatewayclass "${gateway_class}" \
+            --wait=true \
+            --timeout="${timeout}s" \
+            --ignore-not-found
+        resources:
+          {{- toYaml .Values.cleanup.resources | nindent 10 }}
+{{- end }}
