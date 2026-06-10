@@ -367,6 +367,14 @@ See `examples/`:
 - `relative-path.yaml`
 - `postgres-tls.yaml`
 
+### Security Scan: `keycloak`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **86.580086%** |
+
+> Security posture acceptable.
+
 <!-- @AI-METADATA
 type: chart-readme
 title: Keycloak Helm Chart
