@@ -7,10 +7,64 @@ hostname:
 database:
   external:
     vendor: postgres
-    host: postgresql.example.svc
-    port: 5432
+    host: keycloak-external-postgresql
     name: keycloak
     username: keycloak
-    existingSecret: keycloak-db
+    password: external-password
 
 replicaCount: 1
+
+extraManifests:
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: keycloak-external-postgresql
+      labels:
+        app.kubernetes.io/name: keycloak-external-postgresql
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: keycloak-external-postgresql
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: keycloak-external-postgresql
+        spec:
+          containers:
+            - name: postgresql
+              image: docker.io/library/postgres:18.4-alpine
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: POSTGRES_DB
+                  value: keycloak
+                - name: POSTGRES_USER
+                  value: keycloak
+                - name: POSTGRES_PASSWORD
+                  value: external-password
+              ports:
+                - name: postgresql
+                  containerPort: 5432
+                  protocol: TCP
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: keycloak-external-postgresql
+      labels:
+        app.kubernetes.io/name: keycloak-external-postgresql
+    spec:
+      type: ClusterIP
+      ports:
+        - name: postgresql
+          port: 5432
+          targetPort: postgresql
+          protocol: TCP
+      selector:
+        app.kubernetes.io/name: keycloak-external-postgresql

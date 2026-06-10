@@ -4,25 +4,20 @@ mode: production
 hostname:
   hostname: https://sso.example.com
 
-database:
-  external:
-    vendor: postgres
-    host: postgresql.example.svc
-    name: keycloak
+postgresql:
+  enabled: true
+  auth:
+    database: keycloak
     username: keycloak
-    existingSecret: keycloak-db
+    password: testpassword
 
 extensions:
   providers:
-    existingSecret: keycloak-providers
+    existingConfigMap: keycloak-provider-extension
     rolloutToken: providers-v1
   themes:
-    existingConfigMap: keycloak-themes
+    existingConfigMap: keycloak-theme-extension
     rolloutToken: themes-v1
-
-extraEnvFrom:
-  - configMapRef:
-      name: keycloak-runtime-env
 
 initContainers:
   - name: prepare-themes
@@ -32,10 +27,18 @@ initContainers:
       - -c
       - echo preparing themes
 
-extraContainers:
-  - name: support-sidecar
-    image: docker.io/library/busybox:1.36
-    command:
-      - sh
-      - -c
-      - tail -f /dev/null
+extraManifests:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: keycloak-provider-extension
+      labels:
+        app.kubernetes.io/name: keycloak-provider-extension
+    data: {}
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: keycloak-theme-extension
+      labels:
+        app.kubernetes.io/name: keycloak-theme-extension
+    data: {}

@@ -88,11 +88,11 @@ Recommended reading before installation:
 
 ## Keycloak 26.6.x alignment
 
-This chart tracks the official Keycloak server image `quay.io/keycloak/keycloak:26.6.2`.
+This chart tracks the official Keycloak server image `quay.io/keycloak/keycloak:26.6.3`.
 
 Relevant 26.6.x operational changes to account for during rollout:
 
-- 26.6.2 is a security-focused patch release; prioritize rollout for public or multi-tenant realms and validate custom login/front-channel logout templates
+- 26.6.3 is a security-focused patch release; prioritize rollout for public or multi-tenant realms and validate custom login/front-channel logout templates
 - zero-downtime patch releases are supported within the same minor stream, but still require readiness, proxy, and database validation
 - the HTTP stack supports graceful shutdown, so keep `terminationGracePeriodSeconds` aligned with connection draining at the proxy layer
 - Kubernetes and OpenShift truststore initialization improved upstream; keep custom `truststore` and database CA mounts explicit when the platform uses private CAs
@@ -245,7 +245,7 @@ postgresql:
 |-----------|-------------|---------|
 | `mode` | `dev` or `production` | `dev` |
 | `image.repository` | Keycloak image repository | `quay.io/keycloak/keycloak` |
-| `image.tag` | Keycloak image tag | `26.6.2` |
+| `image.tag` | Keycloak image tag | `26.6.3` |
 | `admin.existingSecret` | Existing secret for bootstrap admin credentials | `""` |
 | `http.port` | Application HTTP port | `8080` |
 | `http.managementPort` | Management port for health and metrics | `9000` |
@@ -306,6 +306,7 @@ postgresql:
 | `extraEnvFrom` | Extra envFrom sources injected into the main container | `[]` |
 | `initContainers` | Additional init containers | `[]` |
 | `extraContainers` | Additional sidecars or helper containers | `[]` |
+| `extraManifests` | Additional Kubernetes manifests rendered with the chart | `[]` |
 | `realmImport.enabled` | Enable startup realm import | `false` |
 | `ingress.public.enabled` | Enable public ingress for Keycloak | `false` |
 | `ingress.public.ingressClassName` | Public ingress class name | `traefik` |
@@ -341,7 +342,7 @@ The `ci/` scenarios validate the main chart behaviors:
 - `production-hardening.yaml`
 - `lifecycle-security.yaml`
 - `networkpolicy-egress.yaml`
-- `multi-replica-observability.yaml`
+- `observability.yaml`
 - `extensions.yaml`
 - `heavy-startup.yaml`
 - `production-capacity.yaml`
@@ -366,6 +367,14 @@ See `examples/`:
 - `realm-import.yaml`
 - `relative-path.yaml`
 - `postgres-tls.yaml`
+
+### Security Scan: `keycloak`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **86.580086%** |
+
+> Security posture acceptable.
 
 <!-- @AI-METADATA
 type: chart-readme
