@@ -5,7 +5,7 @@
 Helm chart for deploying [Homarr](https://homarr.dev/) modern application dashboard on Kubernetes using the official
 [`ghcr.io/homarr-labs/homarr`](https://github.com/homarr-labs/homarr/pkgs/container/homarr) container image.
 
-Current application version: `v1.63.0`.
+Current application version: `v1.64.0`.
 
 ## Features
 
@@ -173,7 +173,7 @@ backup:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `ghcr.io/homarr-labs/homarr` | Container image repository |
-| `image.tag` | `"v1.63.0"` | Homarr image tag |
+| `image.tag` | `"v1.64.0"` | Homarr image tag |
 | `replicaCount` | `1` | Number of replicas |
 | `homarr.logLevel` | `info` | Log level |
 | `homarr.authProviders` | `credentials` | Auth providers (credentials, ldap, oidc) |
@@ -265,8 +265,9 @@ writable and does not force a non-root UID or dropped capabilities by default. O
 
 ## Upgrade Notes
 
-This update moves the default image from `v1.62.0` to `v1.63.0`. Review upstream release notes before upgrading production
-environments. Homarr `v1.63.0` includes authentication, board, management UI, bug fix, and performance updates; no breaking
+This update moves the default image from `v1.63.0` to `v1.64.0`. Review upstream release notes before upgrading production
+environments. Homarr `v1.64.0` includes demo mode, PeaNUT UPS monitoring, Docker UI improvements, onboarding updates,
+media request search, widget editing, authentication fixes, and UI bug fixes; no breaking
 changes were identified in the upstream release metadata.
 
 For PostgreSQL and MySQL, the chart sets `DB_DIALECT`, `DB_DRIVER`, and discrete database environment variables instead of
@@ -304,7 +305,7 @@ kubectl logs -l app.kubernetes.io/name=homarr -n <namespace> --all-containers --
 - [Homarr documentation](https://homarr.dev/docs)
 - [Chart source](https://github.com/helmforgedev/charts/tree/main/charts/homarr)
 
-### 🟢 Security Scan: `homarr`
+### Security Scan: `homarr`
 
 | Framework | Score |
 |---|---|
