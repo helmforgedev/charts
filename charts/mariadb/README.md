@@ -82,7 +82,7 @@ replication:
 |-----|---------|-------------|
 | `architecture` | `standalone` | Deployment mode: standalone or replication |
 | `image.repository` | `mariadb` | MariaDB image |
-| `image.tag` | `12.2.2` | MariaDB version |
+| `image.tag` | `12.3.2` | MariaDB version |
 | `auth.rootPassword` | `""` | Root password (auto-generated if empty) |
 | `auth.database` | `app` | Application database |
 | `auth.username` | `app` | Application user |
