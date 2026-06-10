@@ -35,9 +35,14 @@ To skip the wizard and deploy a pre-configured instance, provide `config.adGuard
 
 ## Upstream Version Notes
 
-AdGuard Home `0.107.76` is an upstream hotfix release for cache behavior after the previous update.
-The release notes also state that YAML duration values now support `d` day units. If you roll back to
-a version below `v0.107.76`, convert any `d` duration values in `config.adGuardHome` back to hours first.
+AdGuard Home `0.107.77` is an upstream security and bugfix release. It fixes a
+GLiNET-mode authorization path traversal issue (CVE-2026-41448), adds the
+`reason` query parameter for query log filtering, and deprecates the older
+`response_status` query parameter.
+
+The `0.107.76` release notes also state that YAML duration values now support
+`d` day units. If you roll back to a version below `v0.107.76`, convert any `d`
+duration values in `config.adGuardHome` back to hours first.
 
 ## Features
 
@@ -183,7 +188,7 @@ backup:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/adguard/adguardhome` | Container image |
-| `image.tag` | `v0.107.76` | Image tag |
+| `image.tag` | `v0.107.77` | Image tag |
 | `image.pullPolicy` | `IfNotPresent` | Pull policy |
 
 ### General Configuration
@@ -382,7 +387,6 @@ externalSecrets:
     - secretKey: AdGuardHome.yaml
       remoteRef:
         key: adguard-home/config
-        property: AdGuardHome.yaml
 ```
 
 ## Examples
@@ -420,6 +424,14 @@ This chart intentionally does not support:
 - **Multi-replica DNS** - AdGuard Home is designed as a single instance; use sync for multi-site setups
 - **Built-in DNS-over-HTTPS proxy** - use a dedicated reverse proxy or ingress controller for TLS termination
 - **Automatic filter list management** - filter lists are managed through the AdGuard Home web UI or config
+
+### Security Scan: `adguard-home`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **72.72727%** |
+
+> Security posture acceptable.
 
 <!-- @AI-METADATA
 type: chart-readme
