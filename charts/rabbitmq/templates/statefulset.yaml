@@ -89,6 +89,17 @@ spec:
                 secretKeyRef:
                   name: {{ include "rabbitmq.secretName" . }}
                   key: {{ .Values.auth.existingSecretErlangCookieKey }}
+            {{- $hasServerAdditionalErlArgs := false }}
+            {{- range .Values.extraEnv }}
+            {{- if eq .name "RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS" }}
+            {{- $hasServerAdditionalErlArgs = true }}
+            {{- end }}
+            {{- end }}
+            {{- $serverAdditionalErlArgs := include "rabbitmq.serverAdditionalErlArgs" . }}
+            {{- if and (not $hasServerAdditionalErlArgs) $serverAdditionalErlArgs }}
+            - name: RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS
+              value: {{ $serverAdditionalErlArgs | quote }}
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -115,36 +126,33 @@ spec:
             - name: metrics
               containerPort: {{ .Values.service.metricsPort }}
             {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
           livenessProbe:
-            exec:
-              command:
-                - sh
-                - -ec
-                - rabbitmq-diagnostics -q ping
-            initialDelaySeconds: 30
-            timeoutSeconds: 10
-            periodSeconds: 20
-            failureThreshold: 6
+            tcpSocket:
+              port: {{ include "rabbitmq.probePortName" . }}
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
           readinessProbe:
-            exec:
-              command:
-                - sh
-                - -ec
-                - rabbitmq-diagnostics -q check_running && rabbitmq-diagnostics -q check_local_alarms
-            initialDelaySeconds: 20
-            timeoutSeconds: 10
-            periodSeconds: 10
-            failureThreshold: 6
+            tcpSocket:
+              port: {{ include "rabbitmq.probePortName" . }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.startupProbe.enabled }}
           startupProbe:
-            exec:
-              command:
-                - sh
-                - -ec
-                - rabbitmq-diagnostics -q ping
-            initialDelaySeconds: 10
-            timeoutSeconds: 10
-            periodSeconds: 10
-            failureThreshold: 30
+            tcpSocket:
+              port: {{ include "rabbitmq.probePortName" . }}
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
           {{- if and (eq .Values.architecture "cluster") .Values.cluster.gracefulShutdown.enabled }}
           lifecycle:
             preStop:

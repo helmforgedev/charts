@@ -52,13 +52,16 @@ Cluster mode uses `rabbitmq_peer_discovery_k8s` and stable StatefulSet pod ident
 
 ## Design Choices
 
-- Use the official `rabbitmq` image with the management flavor.
+- Use the official `rabbitmq` Alpine image and let chart values control enabled plugins.
 - Keep `architecture` explicit instead of inferring topology from replica count.
 - Use quorum queues by default because they are RabbitMQ's production direction for replicated queues.
+- Disable Erlang scheduler busy-wait by default to keep idle CPU low in containerized environments.
+- Use TCP probes against the active AMQP listener by default to avoid recurring `rabbitmq-diagnostics` VM startup cost.
 - Keep generated `rabbitmq.conf` readable and allow controlled appends through `config.extra`.
 - Require a stable Erlang cookie for clustering and upgrades.
 - Require `auth.existingSecret` when `externalSecrets.enabled=true` to avoid drift between chart-generated and operator-reconciled credentials.
 - Keep Gateway API focused on the Management UI. AMQP exposure remains Service-based because HTTPRoute is not the right protocol surface for AMQP.
+- Do not switch image tags based on `management.enabled`; the default Alpine image already contains the management plugin, and `enabled_plugins` is the authoritative plugin surface.
 - Keep dual-stack Service fields opt-in.
 
 ## Production Boundary

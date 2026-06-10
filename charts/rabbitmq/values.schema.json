@@ -107,10 +107,10 @@
           "type": "boolean",
           "description": "Enable the management plugin/UI"
         },
-        "ingress": {
-          "type": "object",
-          "description": "Ingress configuration for the Management UI",
-          "properties": {
+          "ingress": {
+            "type": "object",
+            "description": "Ingress configuration for the Management UI",
+            "properties": {
             "enabled": {
               "type": "boolean",
               "description": "Enable ingress for the Management UI"
@@ -118,10 +118,6 @@
             "ingressClassName": {
               "type": "string",
               "description": "Ingress class name for the Management UI"
-            },
-            "className": {
-              "type": "string",
-              "description": "Deprecated compatibility alias for ingressClassName"
             },
             "annotations": {
               "type": "object",
@@ -144,11 +140,40 @@
             "useTlsPort": {
               "type": "boolean",
               "description": "Route ingress to the TLS management port instead of the plain HTTP port"
+              }
+            }
+          },
+          "gateway": {
+            "type": "object",
+            "description": "Gateway API HTTPRoute configuration for the Management UI (GR-060)",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "description": "Create an HTTPRoute for the Management UI"
+              },
+              "hostnames": {
+                "type": "array",
+                "description": "Allowed hostnames for the HTTPRoute (empty = match all)",
+                "items": { "type": "string" }
+              },
+              "parentRefs": {
+                "type": "array",
+                "description": "Gateway parentRefs. Required when management.gateway.enabled=true",
+                "items": {
+                  "type": "object",
+                  "required": ["name"],
+                  "properties": {
+                    "name": { "type": "string" },
+                    "namespace": { "type": "string" },
+                    "group": { "type": "string" },
+                    "kind": { "type": "string" }
+                  }
+                }
+              }
             }
           }
         }
-      }
-    },
+      },
     "tls": {
       "type": "object",
       "description": "TLS listener configuration",
@@ -361,6 +386,20 @@
         }
       }
     },
+    "runtime": {
+      "type": "object",
+      "description": "RabbitMQ runtime tuning",
+      "properties": {
+        "disableSchedulerBusyWait": {
+          "type": "boolean",
+          "description": "Disable Erlang scheduler busy-wait to reduce idle CPU in containerized deployments"
+        },
+        "additionalErlArgs": {
+          "type": "string",
+          "description": "Additional Erlang VM arguments appended to the chart-managed defaults"
+        }
+      }
+    },
     "serviceAccount": {
       "type": "object",
       "description": "ServiceAccount configuration",
@@ -423,6 +462,39 @@
             }
           }
         }
+      }
+    },
+    "startupProbe": {
+      "type": "object",
+      "description": "Startup probe timing. The chart uses a TCP socket probe against the active AMQP listener.",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable startup probe" },
+        "initialDelaySeconds": { "type": "integer", "description": "Initial delay before startup probing starts" },
+        "timeoutSeconds": { "type": "integer", "description": "Startup probe timeout" },
+        "periodSeconds": { "type": "integer", "description": "Startup probe period" },
+        "failureThreshold": { "type": "integer", "description": "Startup probe failure threshold" }
+      }
+    },
+    "livenessProbe": {
+      "type": "object",
+      "description": "Liveness probe timing. The chart uses a TCP socket probe against the active AMQP listener.",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable liveness probe" },
+        "initialDelaySeconds": { "type": "integer", "description": "Initial delay before liveness probing starts" },
+        "timeoutSeconds": { "type": "integer", "description": "Liveness probe timeout" },
+        "periodSeconds": { "type": "integer", "description": "Liveness probe period" },
+        "failureThreshold": { "type": "integer", "description": "Liveness probe failure threshold" }
+      }
+    },
+    "readinessProbe": {
+      "type": "object",
+      "description": "Readiness probe timing. The chart uses a TCP socket probe against the active AMQP listener.",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Enable readiness probe" },
+        "initialDelaySeconds": { "type": "integer", "description": "Initial delay before readiness probing starts" },
+        "timeoutSeconds": { "type": "integer", "description": "Readiness probe timeout" },
+        "periodSeconds": { "type": "integer", "description": "Readiness probe period" },
+        "failureThreshold": { "type": "integer", "description": "Readiness probe failure threshold" }
       }
     },
     "resources": {
@@ -494,35 +566,6 @@
       "type": "array",
       "description": "Extra manifests rendered with tpl",
       "items": { "type": "object" }
-    },
-    "gateway": {
-      "type": "object",
-      "description": "Gateway API HTTPRoute configuration (GR-060)",
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "description": "Create an HTTPRoute for the management UI"
-        },
-        "hostnames": {
-          "type": "array",
-          "description": "Allowed hostnames for the HTTPRoute (empty = match all)",
-          "items": { "type": "string" }
-        },
-        "parentRefs": {
-          "type": "array",
-          "description": "Gateway parentRefs — required when gateway.enabled=true",
-          "items": {
-            "type": "object",
-            "required": ["name"],
-            "properties": {
-              "name": { "type": "string" },
-              "namespace": { "type": "string" },
-              "group": { "type": "string" },
-              "kind": { "type": "string" }
-            }
-          }
-        }
-      }
     },
     "externalSecrets": {
       "type": "object",

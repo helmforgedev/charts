@@ -25,7 +25,7 @@ image:
   # -- RabbitMQ image repository
   repository: docker.io/library/rabbitmq
   # -- RabbitMQ image tag
-  tag: "4.3.1-management"
+  tag: "4.3.1-alpine"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -72,9 +72,6 @@ management:
     enabled: false
     # -- Ingress class name for the Management UI (for example: traefik, nginx)
     ingressClassName: traefik
-    # -- Deprecated compatibility alias for ingressClassName. If set to an empty
-    # string, spec.ingressClassName is intentionally omitted.
-    # className: ""
     annotations: {}
     # -- Management UI ingress hosts
     hosts: []
@@ -86,6 +83,15 @@ management:
     tls: []
     # -- Route ingress to the TLS management port instead of the plain HTTP port
     useTlsPort: false
+  gateway:
+    # -- Render a Gateway API HTTPRoute for the Management UI
+    enabled: false
+    # -- HTTPRoute hostnames. Empty matches all hostnames.
+    hostnames: []
+    # -- HTTPRoute parentRefs. Required when management.gateway.enabled=true.
+    parentRefs: []
+    #   - name: my-gateway
+    #     namespace: default
 
 # =============================================================================
 # TLS
@@ -201,6 +207,16 @@ config:
   advancedConfig: ""
 
 # =============================================================================
+# Runtime
+# =============================================================================
+
+runtime:
+  # -- Disable Erlang scheduler busy-wait to reduce idle CPU in containerized deployments
+  disableSchedulerBusyWait: true
+  # -- Additional Erlang VM arguments appended to the chart-managed defaults
+  additionalErlArgs: ""
+
+# =============================================================================
 # Service Account
 # =============================================================================
 
@@ -236,6 +252,34 @@ metrics:
     labels: {}
 
 # =============================================================================
+# Health Probes
+# =============================================================================
+
+startupProbe:
+  # -- Enable startup probe
+  enabled: true
+  initialDelaySeconds: 10
+  timeoutSeconds: 3
+  periodSeconds: 10
+  failureThreshold: 30
+
+livenessProbe:
+  # -- Enable liveness probe
+  enabled: true
+  initialDelaySeconds: 30
+  timeoutSeconds: 3
+  periodSeconds: 30
+  failureThreshold: 6
+
+readinessProbe:
+  # -- Enable readiness probe
+  enabled: true
+  initialDelaySeconds: 20
+  timeoutSeconds: 3
+  periodSeconds: 10
+  failureThreshold: 6
+
+# =============================================================================
 # Resources and Security
 # =============================================================================
 
@@ -266,21 +310,6 @@ extraEnv: []
 extraVolumes: []
 extraVolumeMounts: []
 extraManifests: []
-
-
-# =============================================================================
-# Gateway API
-# =============================================================================
-
-gateway:
-  # -- Render a Gateway API HTTPRoute for the Management UI
-  enabled: false
-  # -- HTTPRoute hostnames. Empty matches all hostnames.
-  hostnames: []
-  # -- HTTPRoute parentRefs. Required when gateway.enabled=true.
-  parentRefs: []
-  #   - name: my-gateway
-  #     namespace: default
 
 # =============================================================================
 # External Secrets

@@ -14,11 +14,11 @@ tests:
   - it: renders an HTTPRoute for the Management UI
     set:
       management.enabled: true
-      gateway.enabled: true
-      gateway.parentRefs:
+      management.gateway.enabled: true
+      management.gateway.parentRefs:
         - name: public
           namespace: gateway-system
-      gateway.hostnames:
+      management.gateway.hostnames:
         - rabbitmq.example.com
     asserts:
       - isKind:
@@ -36,21 +36,33 @@ tests:
           path: spec.rules[0].backendRefs[0].port
           value: 15672
 
-  - it: requires parentRefs when enabled
+  - it: fails when top-level gateway values are used
     set:
       management.enabled: true
       gateway.enabled: true
+      gateway.parentRefs:
+        - name: public
+          namespace: gateway-system
+      gateway.hostnames:
+        - rabbitmq.example.com
     asserts:
       - failedTemplate:
-          errorMessage: "gateway.parentRefs is required when gateway.enabled=true"
+          errorMessage: "gateway.* was removed; use management.gateway.* for the Management UI HTTPRoute"
+
+  - it: requires parentRefs when enabled
+    set:
+      management.enabled: true
+      management.gateway.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "management.gateway.parentRefs is required when management.gateway.enabled=true"
 
   - it: does not render when management UI is disabled
     set:
       management.enabled: false
-      gateway.enabled: true
-      gateway.parentRefs:
+      management.gateway.enabled: true
+      management.gateway.parentRefs:
         - name: public
     asserts:
       - hasDocuments:
           count: 0
-

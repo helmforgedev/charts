@@ -63,14 +63,13 @@ metrics:
 ```yaml
 management:
   enabled: true
-
-gateway:
-  enabled: true
-  parentRefs:
-    - name: public
-      namespace: gateway-system
-  hostnames:
-    - rabbitmq.example.com
+  gateway:
+    enabled: true
+    parentRefs:
+      - name: public
+        namespace: gateway-system
+    hostnames:
+      - rabbitmq.example.com
 ```
 
 AMQP clients should continue to connect through the RabbitMQ Service ports.
