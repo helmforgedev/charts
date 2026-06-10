@@ -144,7 +144,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
-| `image.tag` | `2.23.2` | n8n container image tag |
+| `image.tag` | `2.25.6` | n8n container image tag |
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
@@ -159,7 +159,7 @@ externalSecrets:
 | `queue.concurrency` | `10` | Concurrent workflows per worker |
 | `queue.persistence.shareMainVolume` | `true` | Mount the main n8n data PVC into worker pods |
 | `terminationGracePeriodSeconds` | `75` | Kubernetes pod shutdown grace period |
-| `redis.enabled` | `false` | Deploy Redis subchart (`helmforge/redis` `1.6.16`) |
+| `redis.enabled` | `false` | Deploy Redis subchart (`helmforge/redis` `1.6.18`) |
 | `taskRunners.mode` | `external` | Task runner mode (`internal` or `external`) |
 | `taskRunners.image.repository` | `docker.io/n8nio/runners` | External task runner sidecar image repository |
 | `taskRunners.image.tag` | `""` | External task runner sidecar tag (defaults to `image.tag`) |
@@ -186,15 +186,13 @@ externalSecrets:
 
 ## Upgrade Notes
 
-n8n `2.23.2` is an upstream bugfix release. It includes fixes for MCP registry
-server identifiers, data-table timestamp columns, production execution pin data,
-and licensed Insights page rendering. Review the upstream release notes before
-upgrading, back up the database, and keep the encryption key stable before
-upgrading live deployments. This chart also refreshes the bundled HelmForge
-PostgreSQL, MySQL, and Redis subchart versions and enables hardened non-root
-container defaults with resource requests and limits. Queue mode now fails fast
-when it resolves to SQLite or when Redis is not configured, because workers must
-share the same PostgreSQL, MySQL, or external database as the main pod. Validate
+n8n `2.25.6` is an upstream bugfix release. It includes an editor fix for
+copying only the selected markdown editor text. Review the upstream release
+notes before upgrading, back up the database, and keep the encryption key stable
+before upgrading live deployments. This chart keeps the hardened non-root
+container defaults with resource requests and limits. Queue mode fails fast when
+it resolves to SQLite or when Redis is not configured, because workers must share
+the same PostgreSQL, MySQL, or external database as the main pod. Validate
 database and queue mode in a staging namespace before reusing production PVCs.
 
 The chart defaults to `N8N_RUNNERS_MODE=external`. It creates a shared auth
