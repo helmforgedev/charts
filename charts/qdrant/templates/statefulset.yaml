@@ -41,11 +41,28 @@ spec:
         - name: {{ include "qdrant.name" . }}
           image: {{ include "qdrant.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{- if .Values.app.command }}
+          {{- if .Values.cluster.enabled }}
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              set -eu
+              ordinal="${HOSTNAME##*-}"
+              service="{{ include "qdrant.fullname" . }}-headless.{{ .Release.Namespace }}.svc.{{ trimSuffix "." .Values.clusterDomain }}"
+              self_uri="http://${HOSTNAME}.${service}:{{ .Values.cluster.p2pPort }}"
+              first_peer="http://{{ include "qdrant.fullname" . }}-0.${service}:{{ .Values.cluster.p2pPort }}"
+
+              if [ "$ordinal" = "0" ]; then
+                exec /qdrant/qdrant --uri "$self_uri"{{- range .Values.app.args }} {{ . | quote }}{{- end }}
+              fi
+
+              exec /qdrant/qdrant --bootstrap "$first_peer" --uri "$self_uri"{{- range .Values.app.args }} {{ . | quote }}{{- end }}
+          {{- else if .Values.app.command }}
           command:
             {{- toYaml .Values.app.command | nindent 12 }}
           {{- end }}
-          {{- if .Values.app.args }}
+          {{- if and (not .Values.cluster.enabled) .Values.app.args }}
           args:
             {{- toYaml .Values.app.args | nindent 12 }}
           {{- end }}

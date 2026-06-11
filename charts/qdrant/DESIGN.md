@@ -31,6 +31,9 @@ The chart therefore requires:
 - `persistence.enabled=true`
 - no shared `persistence.existingClaim`
 
+When distributed mode is enabled, the chart owns the startup command so it can derive the pod ordinal and pass Qdrant the required first-peer `--uri` and subsequent-peer `--bootstrap` values.
+Operators can still add Qdrant flags through `app.args`.
+
 The headless service gives pods stable peer DNS names and exposes the p2p port internally.
 
 ## Monitoring

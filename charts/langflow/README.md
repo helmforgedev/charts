@@ -32,11 +32,15 @@ replicaCount: 3
 database:
   mode: external
   existingSecret: langflow-database
+persistence:
+  accessModes:
+    - ReadWriteMany
 pdb:
   enabled: true
 ```
 
 The chart refuses `replicaCount > 1` unless `database.url` or `database.existingSecret` is set.
+When persistence stays enabled for multiple replicas, the PVC must be shared safely with `ReadWriteMany`; otherwise disable persistence for ephemeral local config or keep a single replica.
 
 ## Provider Secrets
 

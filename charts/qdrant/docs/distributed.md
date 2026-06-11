@@ -11,6 +11,7 @@ pdb:
 ```
 
 This sets `QDRANT__CLUSTER__ENABLED=true` and exposes the p2p port through a headless Service for stable peer DNS.
+The StatefulSet starts ordinal 0 with a stable `--uri`; later ordinals use that first pod as their `--bootstrap` peer and also publish their own stable `--uri`.
 
 ## Guardrails
 

@@ -55,6 +55,7 @@ pdb:
 ```
 
 The chart fails rendering when `cluster.enabled=true` is combined with one replica, disabled persistence, or a shared `persistence.existingClaim`.
+When enabled, the StatefulSet starts ordinal 0 with a stable `--uri`; later pods join through `--bootstrap` and publish their own stable peer URI.
 
 ## Monitoring
 

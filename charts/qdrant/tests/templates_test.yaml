@@ -63,3 +63,20 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
           value: 9
+  - it: bootstraps peers when cluster mode is enabled
+    template: templates/statefulset.yaml
+    values:
+      - cluster-values.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command[0]
+          value: /bin/sh
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "service=\"RELEASE-NAME-qdrant-headless\\.NAMESPACE\\.svc\\.cluster\\.local\""
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "first_peer=\"http://RELEASE-NAME-qdrant-0\\.\\$\\{service\\}:6335\""
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "exec /qdrant/qdrant --bootstrap \"\\$first_peer\" --uri \"\\$self_uri\" \"--log-level\" \"INFO\""

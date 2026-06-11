@@ -18,6 +18,7 @@ on persistent state or an external database.
 The default single-replica mode is safe with SQLite and a PVC.
 Horizontal scaling is only allowed when a shared external database is configured.
 The chart enforces this because multiple replicas with independent SQLite files would diverge flows and user state.
+When persistence remains enabled for multi-replica releases, the shared config directory must use `ReadWriteMany` storage; the chart rejects the default `ReadWriteOnce` PVC for this topology.
 
 ## Secrets Model
 
