@@ -1,0 +1,84 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kubernetes-mcp-server.fullname" . }}
+  labels:
+    {{- include "kubernetes-mcp-server.labels" . | nindent 4 }}
+spec:
+  
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "kubernetes-mcp-server.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kubernetes-mcp-server.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "kubernetes-mcp-server.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      containers:
+        - name: {{ include "kubernetes-mcp-server.name" . }}
+          image: {{ include "kubernetes-mcp-server.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            {{- if .Values.app.args }}
+            {{- toYaml .Values.app.args | nindent 12 }}
+            {{- else }}
+            - --port
+            - {{ .Values.app.port | quote }}
+            {{- if .Values.mcp.readOnly }}
+            - --read-only
+            {{- end }}
+            {{- if .Values.mcp.disableDestructive }}
+            - --disable-destructive
+            {{- end }}
+            {{- if .Values.mcp.stateless }}
+            - --stateless
+            {{- end }}
+            {{- with .Values.mcp.clusterProvider }}
+            - {{ printf "--cluster-provider=%s" . | quote }}
+            {{- end }}
+            {{- if .Values.mcp.disableMultiCluster }}
+            - --disable-multi-cluster
+            {{- end }}
+            {{- with .Values.mcp.toolsets }}
+            - {{ printf "--toolsets=%s" (join "," .) | quote }}
+            {{- end }}
+            - {{ printf "--log-level=%v" .Values.mcp.logLevel | quote }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.app.port }}
+              protocol: TCP
+
+          env:
+            {{- range .Values.app.env }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
+            
+            {{- with .Values.app.extraEnv }}{{- toYaml . | nindent 12 }}{{- end }}
+          startupProbe:
+            tcpSocket: { port: http }
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+          livenessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+          readinessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.extraVolumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.extraVolumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
