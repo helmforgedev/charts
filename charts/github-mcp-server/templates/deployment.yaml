@@ -1,0 +1,87 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "github-mcp-server.fullname" . }}
+  labels:
+    {{- include "github-mcp-server.labels" . | nindent 4 }}
+spec:
+  
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "github-mcp-server.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "github-mcp-server.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "github-mcp-server.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      containers:
+        - name: {{ include "github-mcp-server.name" . }}
+          image: {{ include "github-mcp-server.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            {{- if .Values.app.args }}
+            {{- toYaml .Values.app.args | nindent 12 }}
+            {{- else }}
+            - http
+            - --port
+            - {{ .Values.app.port | quote }}
+            {{- if .Values.github.readOnly }}
+            - --read-only
+            {{- end }}
+            {{- with .Values.github.toolsets }}
+            - {{ printf "--toolsets=%s" . | quote }}
+            {{- end }}
+            {{- with .Values.github.tools }}
+            - {{ printf "--tools=%s" . | quote }}
+            {{- end }}
+            {{- with .Values.github.excludeTools }}
+            - {{ printf "--exclude-tools=%s" . | quote }}
+            {{- end }}
+            {{- with .Values.github.host }}
+            - {{ printf "--gh-host=%s" . | quote }}
+            {{- end }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.app.port }}
+              protocol: TCP
+
+          env:
+            {{- range .Values.app.env }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
+            {{- if or .Values.github.personalAccessToken .Values.github.existingSecret }}
+            - name: GITHUB_PERSONAL_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "github-mcp-server.fullname" .) .Values.github.existingSecret }}
+                  key: {{ .Values.github.existingSecretKey }}
+            {{- end }}
+            {{- with .Values.app.extraEnv }}{{- toYaml . | nindent 12 }}{{- end }}
+          startupProbe:
+            tcpSocket: { port: http }
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+          livenessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+          readinessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.extraVolumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.extraVolumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
