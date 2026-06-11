@@ -16,3 +16,13 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 {{- define "github-mcp-server.serviceAccountName" -}}{{- if .Values.serviceAccount.create -}}{{- default (include "github-mcp-server.fullname" .) .Values.serviceAccount.name -}}{{- else -}}{{- default "default" .Values.serviceAccount.name -}}{{- end -}}{{- end -}}
 {{- define "github-mcp-server.image" -}}{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}{{- end -}}
+{{- define "github-mcp-server.githubHostArg" -}}
+{{- $host := trim .Values.github.host -}}
+{{- if $host -}}
+{{- if or (hasPrefix "http://" $host) (hasPrefix "https://" $host) -}}
+{{- $host -}}
+{{- else -}}
+{{- printf "https://%s" $host -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}

@@ -15,5 +15,8 @@ For GitHub Enterprise Server, set:
 
 ```yaml
 github:
-  host: https://ghe.example.com
+  host: ghe.example.com
 ```
+
+Use the bare Enterprise hostname in values. The chart passes it to the upstream
+server as an HTTPS API host.
