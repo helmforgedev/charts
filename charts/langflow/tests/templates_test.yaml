@@ -2,6 +2,7 @@
 suite: langflow
 templates:
   - templates/deployment.yaml
+  - templates/pvc.yaml
   - templates/service.yaml
 tests:
   - it: renders workload
@@ -17,3 +18,21 @@ tests:
     asserts:
       - isKind:
           of: Service
+  - it: renders app.env valueFrom entries
+    template: templates/deployment.yaml
+    values:
+      - env-valuefrom-values.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
+          value: langflow-secret
+      - notExists:
+          path: spec.template.spec.containers[0].env[0].value
+  - it: renders persistence storageClass
+    template: templates/pvc.yaml
+    values:
+      - storageclass-values.yaml
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: fast-ssd
