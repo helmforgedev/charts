@@ -1,4 +1,39 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Kubernetes MCP Server has been deployed successfully.
+Kubernetes MCP Server has been deployed.
+
+Access:
+
+- Service: http://{{ include "kubernetes-mcp-server.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+- Port-forward: kubectl port-forward svc/{{ include "kubernetes-mcp-server.fullname" . }} 8080:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+- Local MCP URL: http://127.0.0.1:8080
+
+Safety mode:
+
+- readOnly: {{ .Values.mcp.readOnly }}
+- disableDestructive: {{ .Values.mcp.disableDestructive }}
+- stateless: {{ .Values.mcp.stateless }}
+- clusterProvider: {{ .Values.mcp.clusterProvider }}
+- disableMultiCluster: {{ .Values.mcp.disableMultiCluster }}
+- toolsets: {{ join "," .Values.mcp.toolsets }}
+
+RBAC:
+
+{{- if and .Values.serviceAccount.create .Values.rbac.create }}
+- ServiceAccount: {{ include "kubernetes-mcp-server.serviceAccountName" . }}
+- ClusterRoleBinding target: {{ .Values.rbac.clusterRoleName }}
+{{- else }}
+- Chart-managed RBAC is disabled. Confirm the ServiceAccount can access the intended resources.
+{{- end }}
+
+Troubleshooting:
+
+- kubectl get pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+- kubectl logs deploy/{{ include "kubernetes-mcp-server.fullname" . }} -n {{ .Release.Namespace }}
+- kubectl auth can-i list pods --as=system:serviceaccount:{{ .Release.Namespace }}:{{ include "kubernetes-mcp-server.serviceAccountName" . }}
+
+Resources:
+
+- Chart documentation: https://helmforge.dev/docs/charts/kubernetes-mcp-server
+- Upstream: https://github.com/containers/kubernetes-mcp-server
 
 Happy Helmforging :)

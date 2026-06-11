@@ -1,3 +1,26 @@
 # GitHub MCP Server Operations
 
-Use kubectl logs and service endpoints to validate the release.
+## Access
+
+```bash
+kubectl port-forward svc/github-mcp-server 8082:8082
+```
+
+Point compatible MCP clients at:
+
+```text
+http://127.0.0.1:8082
+```
+
+## Health
+
+The chart uses TCP probes because MCP endpoints are client-protocol specific. Verify readiness with Kubernetes:
+
+```bash
+kubectl get deploy,pod,svc -l app.kubernetes.io/instance=github-mcp-server
+kubectl logs deploy/github-mcp-server
+```
+
+## Upgrades
+
+Before upgrading, check the upstream release notes for renamed tools, changed toolsets, or protocol changes. Keep token scopes minimal and test representative agent workflows against staging first.

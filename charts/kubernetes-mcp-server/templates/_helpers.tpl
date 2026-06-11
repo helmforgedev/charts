@@ -12,7 +12,7 @@ helm.sh/chart: {{ include "kubernetes-mcp-server.chart" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/part-of: helmforge
-{{- with .Values.commonLabels }}{{ toYaml . }}{{- end }}
+{{ with .Values.commonLabels }}{{ toYaml . }}{{- end }}
 {{- end -}}
 {{- define "kubernetes-mcp-server.serviceAccountName" -}}{{- if .Values.serviceAccount.create -}}{{- default (include "kubernetes-mcp-server.fullname" .) .Values.serviceAccount.name -}}{{- else -}}{{- default "default" .Values.serviceAccount.name -}}{{- end -}}{{- end -}}
 {{- define "kubernetes-mcp-server.image" -}}{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}{{- end -}}

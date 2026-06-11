@@ -6,7 +6,6 @@ metadata:
   labels:
     {{- include "github-mcp-server.labels" . | nindent 4 }}
 spec:
-  
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
@@ -15,13 +14,36 @@ spec:
     metadata:
       labels:
         {{- include "github-mcp-server.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
       serviceAccountName: {{ include "github-mcp-server.serviceAccountName" . }}
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName | quote }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       containers:
         - name: {{ include "github-mcp-server.name" . }}
           image: {{ include "github-mcp-server.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.app.command }}
+          command:
+            {{- toYaml .Values.app.command | nindent 12 }}
+          {{- end }}
           args:
             {{- if .Values.app.args }}
             {{- toYaml .Values.app.args | nindent 12 }}
@@ -68,6 +90,10 @@ spec:
                   key: {{ .Values.github.existingSecretKey }}
             {{- end }}
             {{- with .Values.app.extraEnv }}{{- toYaml . | nindent 12 }}{{- end }}
+          {{- with .Values.app.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           startupProbe:
             tcpSocket: { port: http }
             failureThreshold: {{ .Values.probes.startup.failureThreshold }}
@@ -78,15 +104,52 @@ spec:
           readinessProbe:
             tcpSocket: { port: http }
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.extraVolumeMounts }}
+          {{- if or .Values.persistence.enabled .Values.extraVolumeMounts }}
           volumeMounts:
+            {{- if .Values.persistence.enabled }}
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
-      {{- with .Values.extraVolumes }}
-      volumes:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if or .Values.persistence.enabled .Values.extraVolumes }}
+      volumes:
+        {{- if .Values.persistence.enabled }}
+        - name: data
+          {{- if .Values.persistence.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | quote }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}

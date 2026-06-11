@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: qdrant availability
+templates:
+  - templates/pdb.yaml
+  - templates/statefulset.yaml
+tests:
+  - it: renders PDB for multi-replica deployments
+    values:
+      - cluster-values.yaml
+    template: templates/pdb.yaml
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.minAvailable
+          value: 1
+  - it: enables Qdrant distributed mode
+    values:
+      - cluster-values.yaml
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: QDRANT__CLUSTER__ENABLED
+            value: "true"

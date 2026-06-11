@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
-suite: memos
+suite: memos base templates
 templates:
+  - templates/ingress.yaml
   - templates/statefulset.yaml
   - templates/service.yaml
 tests:
-  - it: renders workload
+  - it: renders the official pinned image
     template: templates/statefulset.yaml
     asserts:
       - isKind:
@@ -12,21 +13,33 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].image
           value: docker.io/neosmemo/memos:0.29.1
-  - it: renders service
+  - it: renders the default ClusterIP service
     template: templates/service.yaml
     asserts:
       - isKind:
           of: Service
-  - it: renders app.env valueFrom entries
-    template: templates/statefulset.yaml
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+  - it: renders common labels on a separate line
+    template: templates/service.yaml
     values:
-      - env-valuefrom-values.yaml
+      - common-labels-values.yaml
     asserts:
       - equal:
-          path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
-          value: memos-secret
-      - notExists:
-          path: spec.template.spec.containers[0].env[0].value
+          path: metadata.labels.review
+          value: enabled
+  - it: renders ingress TLS
+    template: templates/ingress.yaml
+    values:
+      - ingress-tls-values.yaml
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: memos-tls
+      - equal:
+          path: spec.tls[0].hosts[0]
+          value: memos.example.com
   - it: uses emptyDir when persistence is disabled
     template: templates/statefulset.yaml
     set:

@@ -12,7 +12,7 @@ helm.sh/chart: {{ include "langflow.chart" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/part-of: helmforge
-{{- with .Values.commonLabels }}{{ toYaml . }}{{- end }}
+{{ with .Values.commonLabels }}{{ toYaml . }}{{- end }}
 {{- end -}}
 {{- define "langflow.serviceAccountName" -}}{{- if .Values.serviceAccount.create -}}{{- default (include "langflow.fullname" .) .Values.serviceAccount.name -}}{{- else -}}{{- default "default" .Values.serviceAccount.name -}}{{- end -}}{{- end -}}
 {{- define "langflow.image" -}}{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}{{- end -}}

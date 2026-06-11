@@ -6,7 +6,7 @@ metadata:
   labels:
     {{- include "qdrant.labels" . | nindent 4 }}
 spec:
-  serviceName: {{ include "qdrant.fullname" . }}
+  serviceName: {{ include "qdrant.fullname" . }}-headless
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
@@ -15,30 +15,80 @@ spec:
     metadata:
       labels:
         {{- include "qdrant.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
       serviceAccountName: {{ include "qdrant.serviceAccountName" . }}
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName | quote }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       containers:
         - name: {{ include "qdrant.name" . }}
           image: {{ include "qdrant.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.app.command }}
+          command:
+            {{- toYaml .Values.app.command | nindent 12 }}
+          {{- end }}
           {{- if .Values.app.args }}
           args:
             {{- toYaml .Values.app.args | nindent 12 }}
-          {{- else }}
-
           {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.app.port }}
               protocol: TCP
             - name: grpc
-              containerPort: 6334
+              containerPort: {{ .Values.app.grpcPort }}
               protocol: TCP
             - name: p2p
-              containerPort: 6335
+              containerPort: {{ .Values.cluster.p2pPort }}
               protocol: TCP
           env:
+            - name: QDRANT__SERVICE__HTTP_PORT
+              value: {{ .Values.app.port | quote }}
+            - name: QDRANT__SERVICE__GRPC_PORT
+              value: {{ .Values.app.grpcPort | quote }}
+            - name: QDRANT__STORAGE__STORAGE_PATH
+              value: {{ .Values.persistence.mountPath | quote }}
+            - name: QDRANT__STORAGE__SNAPSHOTS_PATH
+              value: {{ .Values.snapshots.path | quote }}
+            - name: QDRANT__CLUSTER__P2P__PORT
+              value: {{ .Values.cluster.p2pPort | quote }}
+            {{- if .Values.cluster.enabled }}
+            - name: QDRANT__CLUSTER__ENABLED
+              value: "true"
+            {{- end }}
+            {{- if or .Values.auth.apiKey .Values.auth.existingSecret }}
+            - name: QDRANT__SERVICE__API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "qdrant.fullname" .) .Values.auth.existingSecret }}
+                  key: {{ .Values.auth.apiKeyKey }}
+            {{- end }}
+            {{- if or .Values.auth.readOnlyApiKey .Values.auth.existingSecret }}
+            - name: QDRANT__SERVICE__READ_ONLY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "qdrant.fullname" .) .Values.auth.existingSecret }}
+                  key: {{ .Values.auth.readOnlyApiKeyKey }}
+                  optional: true
+            {{- end }}
             {{- range .Values.app.env }}
             - name: {{ .name }}
               {{- if hasKey . "valueFrom" }}
@@ -60,6 +110,10 @@ spec:
           readinessProbe:
             tcpSocket: { port: http }
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -67,10 +121,31 @@ spec:
           volumeMounts:
             - name: data
               mountPath: {{ .Values.persistence.mountPath }}
+            {{- if .Values.config.localYaml }}
+            - name: config
+              mountPath: /qdrant/config/local.yaml
+              subPath: local.yaml
+            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-      {{- if or (not .Values.persistence.enabled) .Values.persistence.existingClaim .Values.extraVolumes }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if or (not .Values.persistence.enabled) .Values.persistence.existingClaim .Values.config.localYaml .Values.extraVolumes }}
       volumes:
         {{- if .Values.persistence.existingClaim }}
         - name: data
@@ -79,6 +154,11 @@ spec:
         {{- else if not .Values.persistence.enabled }}
         - name: data
           emptyDir: {}
+        {{- end }}
+        {{- if .Values.config.localYaml }}
+        - name: config
+          configMap:
+            name: {{ include "qdrant.fullname" . }}
         {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}

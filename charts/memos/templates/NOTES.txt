@@ -1,4 +1,46 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Memos has been deployed successfully.
+Memos release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+Workload:
+  kubectl get statefulset {{ include "memos.fullname" . }} -n {{ .Release.Namespace }}
+  kubectl rollout status statefulset/{{ include "memos.fullname" . }} -n {{ .Release.Namespace }}
+
+Service:
+  kubectl get svc {{ include "memos.fullname" . }} -n {{ .Release.Namespace }}
+
+Local access:
+  kubectl port-forward svc/{{ include "memos.fullname" . }} 5230:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+  Open http://127.0.0.1:5230
+
+Runtime configuration:
+  Database driver: {{ .Values.database.driver }}
+  Data directory: {{ .Values.persistence.mountPath }}
+  Public instance URL: {{ default "not set" .Values.memos.instanceUrl }}
+  Private webhooks: {{ .Values.memos.allowPrivateWebhooks }}
+
+Persistence:
+{{- if .Values.persistence.enabled }}
+  PVC is enabled. Back up the data volume before upgrades.
+{{- else if .Values.persistence.existingClaim }}
+  Existing PVC {{ .Values.persistence.existingClaim }} is mounted.
+{{- else }}
+  Persistence is disabled and Memos data is stored in an emptyDir.
+{{- end }}
+
+Database notes:
+{{- if eq .Values.database.driver "sqlite" }}
+  SQLite is stored under {{ .Values.persistence.mountPath }}. Keep replicaCount=1 and back up the PVC.
+{{- else }}
+  External {{ .Values.database.driver }} is enabled. Back up both the external database and the Memos data PVC.
+{{- end }}
+
+Troubleshooting:
+  kubectl logs statefulset/{{ include "memos.fullname" . }} -n {{ .Release.Namespace }}
+  kubectl describe pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Validation:
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+  make validate-chart CHART=memos
 
 Happy Helmforging :)

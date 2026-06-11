@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: github-mcp-server runtime
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+tests:
+  - it: renders default HTTP read-only args
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args[0]
+          value: http
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --read-only
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --toolsets=default
+  - it: renders token Secret and env reference
+    values:
+      - token-values.yaml
+    asserts:
+      - equal:
+          path: stringData.token
+          value: ghp_test
+        template: templates/secret.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITHUB_PERSONAL_ACCESS_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-github-mcp-server
+                key: token
+        template: templates/deployment.yaml
+  - it: renders GitHub Enterprise host
+    values:
+      - enterprise-values.yaml
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --gh-host=https://ghe.example.com

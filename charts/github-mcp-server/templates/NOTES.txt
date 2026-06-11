@@ -1,4 +1,42 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-GitHub MCP Server has been deployed successfully.
+GitHub MCP Server has been deployed.
+
+Access:
+
+- Service: http://{{ include "github-mcp-server.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+- Port-forward: kubectl port-forward svc/{{ include "github-mcp-server.fullname" . }} 8082:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+- Local MCP URL: http://127.0.0.1:8082
+
+GitHub runtime:
+
+- Read-only mode: {{ .Values.github.readOnly }}
+- Toolsets: {{ .Values.github.toolsets }}
+{{- if .Values.github.host }}
+- GitHub host: {{ .Values.github.host }}
+{{- else }}
+- GitHub host: github.com
+{{- end }}
+{{- if or .Values.github.personalAccessToken .Values.github.existingSecret }}
+- Token Secret: {{ default (include "github-mcp-server.fullname" .) .Values.github.existingSecret }}
+- Token key: {{ .Values.github.existingSecretKey }}
+{{- else }}
+- No GitHub token is configured; set github.existingSecret for production.
+{{- end }}
+
+Security:
+
+- Keep this service internal or protect Ingress/Gateway with external authentication.
+- Keep github.readOnly=true unless write tools are explicitly required.
+- Restrict token scopes to the enabled toolsets.
+
+Troubleshooting:
+
+- kubectl get pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+- kubectl logs deploy/{{ include "github-mcp-server.fullname" . }} -n {{ .Release.Namespace }}
+
+Resources:
+
+- Chart documentation: https://helmforge.dev/docs/charts/github-mcp-server
+- Upstream: https://github.com/github/github-mcp-server
 
 Happy Helmforging :)

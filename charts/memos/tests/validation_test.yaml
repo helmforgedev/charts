@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: memos validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: fails when scaling SQLite
+    set:
+      replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCount > 1 requires database.driver=mysql or database.driver=postgres because SQLite cannot safely share state across Memos pods"
+  - it: fails when external database is missing a DSN
+    set:
+      database.driver: postgres
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.dsn or database.existingSecret is required when database.driver is mysql or postgres"
+  - it: fails when external database disables the data volume
+    set:
+      database.driver: postgres
+      database.dsn: postgres://memos:secret@postgresql:5432/memos?sslmode=disable
+      persistence.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "persistence.enabled or persistence.existingClaim is required with external databases because Memos still stores local assets in MEMOS_DATA"

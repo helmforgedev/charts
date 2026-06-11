@@ -6,7 +6,6 @@ metadata:
   labels:
     {{- include "langflow.labels" . | nindent 4 }}
 spec:
-  
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
@@ -15,18 +14,39 @@ spec:
     metadata:
       labels:
         {{- include "langflow.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
       serviceAccountName: {{ include "langflow.serviceAccountName" . }}
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName | quote }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       containers:
         - name: {{ include "langflow.name" . }}
           image: {{ include "langflow.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.app.command }}
+          command:
+            {{- toYaml .Values.app.command | nindent 12 }}
+          {{- end }}
           {{- if .Values.app.args }}
           args:
             {{- toYaml .Values.app.args | nindent 12 }}
-          {{- else }}
-
           {{- end }}
           ports:
             - name: http
@@ -34,6 +54,46 @@ spec:
               protocol: TCP
 
           env:
+            - name: LANGFLOW_HOST
+              value: "0.0.0.0"
+            - name: LANGFLOW_PORT
+              value: {{ .Values.app.port | quote }}
+            - name: LANGFLOW_CONFIG_DIR
+              value: {{ .Values.persistence.mountPath | quote }}
+            - name: LANGFLOW_SAVE_DB_IN_CONFIG_DIR
+              value: "true"
+            - name: LANGFLOW_OPEN_BROWSER
+              value: "false"
+            {{- if or .Values.auth.secretKey .Values.auth.existingSecret }}
+            - name: LANGFLOW_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "langflow.fullname" .) .Values.auth.existingSecret }}
+                  key: {{ .Values.auth.secretKeyKey }}
+            {{- end }}
+            {{- if or .Values.auth.superuser .Values.auth.existingSecret }}
+            - name: LANGFLOW_SUPERUSER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "langflow.fullname" .) .Values.auth.existingSecret }}
+                  key: {{ .Values.auth.superuserKey }}
+                  optional: true
+            {{- end }}
+            {{- if or .Values.auth.superuserPassword .Values.auth.existingSecret }}
+            - name: LANGFLOW_SUPERUSER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "langflow.fullname" .) .Values.auth.existingSecret }}
+                  key: {{ .Values.auth.superuserPasswordKey }}
+                  optional: true
+            {{- end }}
+            {{- if or .Values.database.url .Values.database.existingSecret }}
+            - name: LANGFLOW_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-database" (include "langflow.fullname" .)) .Values.database.existingSecret }}
+                  key: {{ .Values.database.urlKey }}
+            {{- end }}
             {{- range .Values.app.env }}
             - name: {{ .name }}
               {{- if hasKey . "valueFrom" }}
@@ -45,6 +105,10 @@ spec:
             {{- end }}
             
             {{- with .Values.app.extraEnv }}{{- toYaml . | nindent 12 }}{{- end }}
+          {{- with .Values.app.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           startupProbe:
             tcpSocket: { port: http }
             failureThreshold: {{ .Values.probes.startup.failureThreshold }}
@@ -55,6 +119,10 @@ spec:
           readinessProbe:
             tcpSocket: { port: http }
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -64,7 +132,23 @@ spec:
               mountPath: {{ .Values.persistence.mountPath }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
-            {{- end }}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
         - name: data
           {{- if .Values.persistence.existingClaim }}

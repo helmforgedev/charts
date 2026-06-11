@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: memos runtime configuration
+templates:
+  - templates/statefulset.yaml
+tests:
+  - it: renders chart-managed upstream environment variables
+    values:
+      - instance-values.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MEMOS_PORT
+            value: "5230"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MEMOS_DATA
+            value: /var/opt/memos
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MEMOS_INSTANCE_URL
+            value: https://memos.example.com
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MEMOS_ALLOW_PRIVATE_WEBHOOKS
+            value: "true"
+  - it: renders app.env valueFrom entries without flattening secrets
+    values:
+      - env-valuefrom-values.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: EXTRA_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: memos-secret
+                key: token
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: EXTRA_TOKEN
+            value: ""
+  - it: renders envFrom sources
+    set:
+      app.envFrom[0].secretRef.name: memos-env
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[0].secretRef.name
+          value: memos-env

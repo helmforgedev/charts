@@ -12,7 +12,7 @@ helm.sh/chart: {{ include "qdrant.chart" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/part-of: helmforge
-{{- with .Values.commonLabels }}{{ toYaml . }}{{- end }}
+{{ with .Values.commonLabels }}{{ toYaml . }}{{- end }}
 {{- end -}}
 {{- define "qdrant.serviceAccountName" -}}{{- if .Values.serviceAccount.create -}}{{- default (include "qdrant.fullname" .) .Values.serviceAccount.name -}}{{- else -}}{{- default "default" .Values.serviceAccount.name -}}{{- end -}}{{- end -}}
 {{- define "qdrant.image" -}}{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}{{- end -}}

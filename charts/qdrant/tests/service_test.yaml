@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: qdrant service
+templates:
+  - templates/service.yaml
+  - templates/service-headless.yaml
+tests:
+  - it: exposes HTTP and gRPC client ports
+    template: templates/service.yaml
+    asserts:
+      - equal:
+          path: spec.ports[0].name
+          value: http
+      - equal:
+          path: spec.ports[1].name
+          value: grpc
+      - notContains:
+          path: spec.ports
+          content:
+            name: p2p
+  - it: exposes p2p only on the headless peer service
+    template: templates/service-headless.yaml
+    asserts:
+      - equal:
+          path: spec.clusterIP
+          value: None
+      - contains:
+          path: spec.ports
+          content:
+            name: p2p
+            port: 6335
+            targetPort: p2p
+            protocol: TCP

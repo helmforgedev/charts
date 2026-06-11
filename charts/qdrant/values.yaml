@@ -1,68 +1,203 @@
 # SPDX-License-Identifier: Apache-2.0
+# -- Override the chart name used in Kubernetes resource names.
 nameOverride: ""
+
+# -- Override the full release name used in Kubernetes resource names.
 fullnameOverride: ""
+
+# -- Labels added to every rendered resource.
 commonLabels: {}
+
 image:
+  # -- Official Qdrant image repository.
   repository: docker.io/qdrant/qdrant
+  # -- Official Qdrant image tag. Do not use a floating tag.
   tag: "v1.18.2"
+  # -- Kubernetes image pull policy.
   pullPolicy: IfNotPresent
+
+# -- Optional image pull secrets.
 imagePullSecrets: []
+
+# -- Number of Qdrant pods. Keep 1 unless cluster.enabled is configured intentionally.
 replicaCount: 1
+
 app:
+  # -- Qdrant HTTP API port.
   port: 6333
+  # -- Qdrant gRPC API port.
+  grpcPort: 6334
+  # -- Optional container command override.
   command: []
+  # -- Optional container args override.
   args: []
-  env:
-    - name: QDRANT__SERVICE__HTTP_PORT
-      value: "6333"
+  # -- Additional Qdrant environment variables. Use QDRANT__ nested keys for config overrides.
+  env: []
+  # -- Extra raw env entries appended after chart-managed variables.
   extraEnv: []
+
+config:
+  # -- Inline content for /qdrant/config/local.yaml. Leave empty to use Qdrant defaults plus env overrides.
+  localYaml: ""
+
+auth:
+  # -- Inline API key. Prefer existingSecret for production.
+  apiKey: ""
+  # -- Inline read-only API key. Prefer existingSecret for production.
+  readOnlyApiKey: ""
+  # -- Existing Secret containing Qdrant API key data.
+  existingSecret: ""
+  # -- Secret key containing the writable Qdrant API key.
+  apiKeyKey: api-key
+  # -- Secret key containing the read-only Qdrant API key.
+  readOnlyApiKeyKey: read-only-api-key
+
+cluster:
+  # -- Enable Qdrant distributed mode. Requires replicaCount >= 2 and generated PVCs.
+  enabled: false
+  # -- Internal peer-to-peer port for Qdrant distributed mode.
+  p2pPort: 6335
+
 persistence:
+  # -- Persist Qdrant storage.
   enabled: true
+  # -- Size of each generated Qdrant data volume.
   size: 10Gi
+  # -- StorageClass for generated PVCs. Empty uses the cluster default.
   storageClass: ""
+  # -- Access modes for generated PVCs.
   accessModes:
     - ReadWriteOnce
+  # -- Existing claim for single-replica deployments. Do not use with cluster.enabled.
   existingClaim: ""
+  # -- Mounted Qdrant storage path.
   mountPath: /qdrant/storage
+
+snapshots:
+  # -- Path used by Qdrant for snapshot files. Defaults under the persistent storage mount.
+  path: /qdrant/storage/snapshots
+
 serviceAccount:
+  # -- Create a dedicated ServiceAccount.
   create: false
+  # -- Override ServiceAccount name.
   name: ""
+  # -- ServiceAccount annotations.
   annotations: {}
+  # -- Mount the Kubernetes API token into the Qdrant pod.
   automountServiceAccountToken: false
+
 service:
+  # -- Kubernetes Service type for Qdrant client traffic.
   type: ClusterIP
+  # -- Service port for the HTTP API.
   port: 6333
+  # -- Service port for the gRPC API.
+  grpcPort: 6334
+  # -- Service annotations.
   annotations: {}
+  # -- Service IP family policy.
   ipFamilyPolicy: ""
+  # -- Service IP families.
   ipFamilies: []
+
 ingress:
+  # -- Create an Ingress for the HTTP API.
   enabled: false
+  # -- IngressClassName for the Ingress.
   ingressClassName: traefik
+  # -- Ingress annotations.
   annotations: {}
+  # -- Ingress hosts and paths.
   hosts: []
+  # -- Ingress TLS configuration.
   tls: []
+
 gateway:
+  # -- Create a Gateway API HTTPRoute for the HTTP API.
   enabled: false
+  # -- HTTPRoute annotations.
   annotations: {}
+  # -- HTTPRoute parentRefs.
   parentRefs: []
+  # -- HTTPRoute hostnames.
   hostnames: []
+  # -- HTTPRoute path match value.
   path: /
+  # -- HTTPRoute path match type.
   pathType: PathPrefix
+
+metrics:
+  serviceMonitor:
+    # -- Create a Prometheus Operator ServiceMonitor for /metrics.
+    enabled: false
+    # -- ServiceMonitor labels.
+    labels: {}
+    # -- Scrape interval.
+    interval: 30s
+    # -- Scrape timeout.
+    scrapeTimeout: 10s
+    # -- Metrics endpoint path.
+    path: /metrics
+
+pdb:
+  # -- Create a PodDisruptionBudget. Recommended when replicaCount > 1.
+  enabled: false
+  # -- Minimum pods available during voluntary disruptions.
+  minAvailable: 1
+
+networkPolicy:
+  # -- Create a NetworkPolicy limiting inbound Qdrant traffic.
+  enabled: false
+  # -- Ingress peers allowed to reach Qdrant. Empty allows all namespaces when policy is enabled.
+  ingressFrom: []
+
 probes:
+  # -- Startup probe settings.
   startup: { enabled: true, initialDelaySeconds: 5, periodSeconds: 10, timeoutSeconds: 3, failureThreshold: 60 }
+  # -- Liveness probe settings.
   liveness: { enabled: true, initialDelaySeconds: 0, periodSeconds: 20, timeoutSeconds: 5, failureThreshold: 3 }
+  # -- Readiness probe settings.
   readiness: { enabled: true, initialDelaySeconds: 0, periodSeconds: 10, timeoutSeconds: 5, failureThreshold: 6 }
+
+# -- Container resources.
 resources: {}
+
+# -- Pod security context.
 podSecurityContext: {}
+
+# -- Container security context.
 securityContext: {}
+
+# -- Node selector.
 nodeSelector: {}
+
+# -- Tolerations.
 tolerations: []
+
+# -- Affinity.
 affinity: {}
+
+# -- Topology spread constraints.
 topologySpreadConstraints: []
+
+# -- PriorityClass name.
 priorityClassName: ""
+
+# -- Pod termination grace period.
 terminationGracePeriodSeconds: 30
+
+# -- Additional pod labels.
 podLabels: {}
+
+# -- Additional pod annotations.
 podAnnotations: {}
+
+# -- Additional volumes.
 extraVolumes: []
+
+# -- Additional volume mounts.
 extraVolumeMounts: []
+
+# -- Additional raw Kubernetes manifests.
 extraManifests: []

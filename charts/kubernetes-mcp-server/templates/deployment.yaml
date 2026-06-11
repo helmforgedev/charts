@@ -6,7 +6,6 @@ metadata:
   labels:
     {{- include "kubernetes-mcp-server.labels" . | nindent 4 }}
 spec:
-  
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
@@ -15,19 +14,46 @@ spec:
     metadata:
       labels:
         {{- include "kubernetes-mcp-server.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
       serviceAccountName: {{ include "kubernetes-mcp-server.serviceAccountName" . }}
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName | quote }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       containers:
         - name: {{ include "kubernetes-mcp-server.name" . }}
           image: {{ include "kubernetes-mcp-server.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.app.command }}
+          command:
+            {{- toYaml .Values.app.command | nindent 12 }}
+          {{- end }}
           args:
             {{- if .Values.app.args }}
             {{- toYaml .Values.app.args | nindent 12 }}
             {{- else }}
             - --port
             - {{ .Values.app.port | quote }}
+            {{- if .Values.mcp.configToml }}
+            - --config
+            - /etc/kubernetes-mcp-server/config.toml
+            {{- end }}
             {{- if .Values.mcp.readOnly }}
             - --read-only
             {{- end }}
@@ -43,6 +69,7 @@ spec:
             {{- if .Values.mcp.disableMultiCluster }}
             - --disable-multi-cluster
             {{- end }}
+            - {{ printf "--list-output=%s" .Values.mcp.listOutput | quote }}
             {{- with .Values.mcp.toolsets }}
             - {{ printf "--toolsets=%s" (join "," .) | quote }}
             {{- end }}
@@ -65,6 +92,10 @@ spec:
             {{- end }}
             
             {{- with .Values.app.extraEnv }}{{- toYaml . | nindent 12 }}{{- end }}
+          {{- with .Values.app.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           startupProbe:
             tcpSocket: { port: http }
             failureThreshold: {{ .Values.probes.startup.failureThreshold }}
@@ -75,15 +106,49 @@ spec:
           readinessProbe:
             tcpSocket: { port: http }
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.extraVolumeMounts }}
+          {{- if or .Values.mcp.configToml .Values.extraVolumeMounts }}
           volumeMounts:
+            {{- if .Values.mcp.configToml }}
+            - name: config
+              mountPath: /etc/kubernetes-mcp-server/config.toml
+              subPath: config.toml
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
-      {{- with .Values.extraVolumes }}
-      volumes:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if or .Values.mcp.configToml .Values.extraVolumes }}
+      volumes:
+        {{- if .Values.mcp.configToml }}
+        - name: config
+          configMap:
+            name: {{ include "kubernetes-mcp-server.fullname" . }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}

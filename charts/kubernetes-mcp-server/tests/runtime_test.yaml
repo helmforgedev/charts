@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: kubernetes-mcp-server runtime
+templates:
+  - templates/configmap.yaml
+  - templates/deployment.yaml
+tests:
+  - it: renders safe default arguments
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --read-only
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --disable-destructive
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --stateless
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --cluster-provider=in-cluster
+  - it: renders TOML config file
+    values:
+      - config-values.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+        template: templates/configmap.yaml
+      - matchRegex:
+          path: data["config.toml"]
+          pattern: "read_only = true"
+        template: templates/configmap.yaml
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --config
+        template: templates/deployment.yaml

@@ -17,16 +17,27 @@ tests:
     asserts:
       - isKind:
           of: Service
+  - it: renders common labels on a separate line
+    template: templates/service.yaml
+    values:
+      - common-labels-values.yaml
+    asserts:
+      - equal:
+          path: metadata.labels.review
+          value: enabled
   - it: renders app.env valueFrom entries
     template: templates/statefulset.yaml
     values:
       - env-valuefrom-values.yaml
     asserts:
-      - equal:
-          path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
-          value: qdrant-secret
-      - notExists:
-          path: spec.template.spec.containers[0].env[0].value
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: QDRANT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: qdrant-secret
+                key: token
   - it: uses emptyDir when persistence is disabled
     template: templates/statefulset.yaml
     set:

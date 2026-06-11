@@ -12,7 +12,7 @@
       "type": "object",
       "properties": {
         "repository": { "type": "string", "default": "docker.io/neosmemo/memos" },
-        "tag": { "type": "string", "default": "0.29.1" },
+        "tag": { "type": "string", "default": "0.29.1", "pattern": "^v?[0-9][0-9A-Za-z._-]*$" },
         "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "default": "IfNotPresent" }
       }
     },
@@ -25,7 +25,27 @@
         "command": { "type": "array", "items": { "type": "string" } },
         "args": { "type": "array", "items": { "type": "string" } },
         "env": { "type": "array", "items": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" }, "value": { "type": "string" }, "valueFrom": { "type": "object" } } } },
+        "envFrom": { "type": "array", "items": { "type": "object" } },
         "extraEnv": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "memos": {
+      "type": "object",
+      "properties": {
+        "addr": { "type": "string", "default": "" },
+        "instanceUrl": { "type": "string", "default": "" },
+        "demo": { "type": "boolean", "default": false },
+        "allowPrivateWebhooks": { "type": "boolean", "default": false },
+        "logLevel": { "type": "string", "enum": ["debug", "info", "warn", "error"], "default": "info" }
+      }
+    },
+    "database": {
+      "type": "object",
+      "properties": {
+        "driver": { "type": "string", "enum": ["sqlite", "mysql", "postgres"], "default": "sqlite" },
+        "dsn": { "type": "string", "default": "" },
+        "existingSecret": { "type": "string", "default": "" },
+        "existingSecretKey": { "type": "string", "default": "dsn" }
       }
     },
     "persistence": {
@@ -47,6 +67,8 @@
     "resources": { "type": "object" },
     "podSecurityContext": { "type": "object" },
     "securityContext": { "type": "object" },
+    "pdb": { "$ref": "#/definitions/pdb" },
+    "networkPolicy": { "$ref": "#/definitions/networkPolicy" },
     "nodeSelector": { "type": "object" },
     "tolerations": { "type": "array", "items": { "type": "object" } },
     "affinity": { "type": "object" },
@@ -116,6 +138,20 @@
         "startup": { "$ref": "#/definitions/probe" },
         "liveness": { "$ref": "#/definitions/probe" },
         "readiness": { "$ref": "#/definitions/probe" }
+      }
+    },
+    "pdb": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "minAvailable": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "string" }] }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "ingressFrom": { "type": "array", "items": { "type": "object" } }
       }
     }
   }

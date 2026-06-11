@@ -1,4 +1,63 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Qdrant has been deployed successfully.
+Qdrant has been deployed.
+
+Access:
+
+Internal service:
+- HTTP API: http://{{ include "qdrant.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+- gRPC API: {{ include "qdrant.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.grpcPort }}
+
+Port-forward:
+- kubectl port-forward svc/{{ include "qdrant.fullname" . }} 6333:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+- curl http://127.0.0.1:6333/readyz
+
+{{- if or .Values.auth.apiKey .Values.auth.existingSecret }}
+Authentication:
+
+API key authentication is enabled. Retrieve the key from:
+- Secret: {{ default (include "qdrant.fullname" .) .Values.auth.existingSecret }}
+- Key: {{ .Values.auth.apiKeyKey }}
+
+Example:
+- kubectl get secret {{ default (include "qdrant.fullname" .) .Values.auth.existingSecret }} -n {{ .Release.Namespace }} -o jsonpath='{.data.{{ .Values.auth.apiKeyKey }}}' | base64 -d
+- curl -H "api-key: $QDRANT_API_KEY" http://127.0.0.1:6333/collections
+{{- end }}
+
+Storage:
+
+- Storage path: {{ .Values.persistence.mountPath }}
+- Snapshot path: {{ .Values.snapshots.path }}
+{{- if .Values.persistence.enabled }}
+- Persistence: enabled
+{{- else }}
+- Persistence: disabled; data uses emptyDir and is lost when the pod is deleted
+{{- end }}
+
+{{- if .Values.cluster.enabled }}
+Distributed mode:
+
+- Replicas: {{ .Values.replicaCount }}
+- P2P service: {{ include "qdrant.fullname" . }}-headless.{{ .Release.Namespace }}.svc:{{ .Values.cluster.p2pPort }}
+- Confirm cluster health with Qdrant collection and cluster APIs after bootstrap
+{{- end }}
+
+{{- if .Values.metrics.serviceMonitor.enabled }}
+Monitoring:
+
+- ServiceMonitor: {{ include "qdrant.fullname" . }}
+- Metrics endpoint: /metrics on port http
+{{- end }}
+
+Troubleshooting:
+
+- kubectl get pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+- kubectl logs statefulset/{{ include "qdrant.fullname" . }} -n {{ .Release.Namespace }}
+- kubectl describe pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Resources:
+
+- Chart documentation: https://helmforge.dev/docs/charts/qdrant
+- Qdrant documentation: https://qdrant.tech/documentation/
+- HelmForge issues: https://github.com/helmforgedev/charts/issues
 
 Happy Helmforging :)
