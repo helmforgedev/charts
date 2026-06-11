@@ -12,6 +12,8 @@ helm install github-mcp-server helmforge/github-mcp-server
 ```
 
 The default deployment starts the server in HTTP mode on port `8082`, read-only mode enabled, and the `default` toolset selected.
+The chart is stateless by default.
+If persistence is enabled and the Deployment is scaled above one replica, use `ReadWriteMany` storage or disable persistence to avoid sharing one `ReadWriteOnce` PVC across pods.
 
 ## Token Configuration
 

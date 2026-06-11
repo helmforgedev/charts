@@ -2,6 +2,7 @@
 
 This chart runs the official GitHub MCP Server in streamable HTTP mode.
 The service is intentionally stateless; persistence remains disabled by default and exists only as an escape hatch for future cache or custom state needs.
+Because the workload is a Deployment, multi-replica releases with persistence enabled require `ReadWriteMany` storage; the chart rejects a shared `ReadWriteOnce` PVC for scaled deployments.
 
 ## Runtime Model
 

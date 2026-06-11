@@ -24,3 +24,7 @@ kubectl logs deploy/github-mcp-server
 ## Upgrades
 
 Before upgrading, check the upstream release notes for renamed tools, changed toolsets, or protocol changes. Keep token scopes minimal and test representative agent workflows against staging first.
+
+## Scaling
+
+The default deployment is stateless and can scale without persistence. If `persistence.enabled=true`, set `persistence.accessModes` to include `ReadWriteMany` before using `replicaCount > 1`.

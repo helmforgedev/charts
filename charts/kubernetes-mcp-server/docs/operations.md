@@ -26,3 +26,7 @@ The second command should be denied with default values.
 - Pod not ready: inspect args and logs.
 - Kubernetes calls fail: verify ServiceAccount token mounting and RBAC.
 - Tools missing: check `mcp.readOnly`, `mcp.disableDestructive`, and `mcp.toolsets`.
+
+## Scaling
+
+The default deployment is stateless and can scale without persistence. If `persistence.enabled=true`, set `persistence.accessModes` to include `ReadWriteMany` before using `replicaCount > 1`.

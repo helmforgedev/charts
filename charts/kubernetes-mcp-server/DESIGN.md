@@ -12,6 +12,9 @@ to its ServiceAccount.
 - Default RBAC: ClusterRoleBinding to `view`.
 - Safety flags: read-only, destructive operations disabled, stateless mode.
 
+Persistence is disabled by default.
+Because the workload is a Deployment, multi-replica releases with persistence enabled require `ReadWriteMany` storage; the chart rejects a shared `ReadWriteOnce` PVC for scaled deployments.
+
 ## Security Model
 
 The chart defaults to inspection-only operation.

@@ -33,6 +33,8 @@ rbac:
 ```
 
 The chart blocks full write plus destructive mode unless `mcp.allowUnsafeWriteAccess=true` is set.
+The chart is stateless by default.
+If persistence is enabled and the Deployment is scaled above one replica, use `ReadWriteMany` storage or disable persistence to avoid sharing one `ReadWriteOnce` PVC across pods.
 
 ## Security Scan: `kubernetes-mcp-server`
 
