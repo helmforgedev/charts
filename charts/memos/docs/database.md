@@ -59,4 +59,6 @@ memos:password@tcp(mysql:3306)/memos
 
 Keep persistence enabled even with an external database. Memos can store local assets and instance data in `MEMOS_DATA`, so database backup alone may not fully protect the instance.
 
-When scaling MySQL or PostgreSQL mode above one replica, set `persistence.existingClaim` to a shared data PVC. The chart blocks scaled external-database releases that would otherwise create one StatefulSet PVC per pod, because those PVCs can hold divergent local assets.
+When scaling MySQL or PostgreSQL mode above one replica, set `persistence.existingClaim` to a shared data PVC.
+The chart blocks scaled external-database releases that would otherwise create one StatefulSet PVC per pod, because those PVCs can hold
+divergent local assets.
