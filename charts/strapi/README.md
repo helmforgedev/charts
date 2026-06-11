@@ -18,9 +18,9 @@ This chart is designed for a prebuilt Strapi project image. It does not build ap
 
 ## HelmForge Base Image
 
-This chart uses the official **HelmForge Strapi base image** (`docker.io/helmforge/strapi-base:0.1.6`) which provides:
+This chart uses the official **HelmForge Strapi base image** (`docker.io/helmforge/strapi-base:5.47.1`) which provides:
 
-- **Strapi 5.42.0** with all official plugins pre-installed
+- **Strapi 5.47.1** with all official plugins pre-installed
 - **Multi-database support** — SQLite, PostgreSQL, MySQL ready to use
 - **Health check endpoint** — HTTP health checks on `/_health` for proper Kubernetes integration
 - **Security hardened** — Non-root user (UID 1000), minimal attack surface
@@ -107,7 +107,7 @@ database:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `helmforge/strapi-base` | Container image for the Strapi project |
-| `image.tag` | `0.1.6` | HelmForge Strapi base image version |
+| `image.tag` | `5.47.1` | HelmForge Strapi base image version |
 | `strapi.url` | `""` | Public URL (auto-detected from ingress if empty) |
 | `strapi.port` | `1337` | Container port |
 | `strapi.telemetryDisabled` | `true` | Disable telemetry |
@@ -141,7 +141,7 @@ database:
 
 ## Notes
 
-- The default image is `helmforge/strapi-base:0.1.6`, HelmForge's production-ready Strapi image. Override it if your deployment uses a custom Strapi build.
+- The default image is `helmforge/strapi-base:5.47.1`, HelmForge's production-ready Strapi image. Override it if your deployment uses a custom Strapi build.
 - SQLite is supported for simple deployments, but server-based databases are recommended for production workloads.
 - Horizontal scaling is intentionally out of scope for this v1 chart because default local uploads persistence is single-writer oriented.
 - For ingress, set `ingress.ingressClassName` to the class used in your cluster, such as `traefik`, `nginx`, or another supported controller.
