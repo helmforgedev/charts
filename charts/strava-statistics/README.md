@@ -105,7 +105,7 @@ gatewayAPI:
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `image.tag` | `v4.8.5` | Statistics for Strava image tag |
+| `image.tag` | `v4.8.7` | Statistics for Strava image tag |
 | `strava.port` | `8080` | Application port |
 | `strava.clientId` | `""` | Strava OAuth Client ID |
 | `strava.clientSecret` | `""` | Strava OAuth Client Secret |
@@ -134,6 +134,14 @@ gatewayAPI:
 
 - [Statistics for Strava documentation](https://github.com/robiningelbrecht/statistics-for-strava)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/strava-statistics)
+
+### Security Scan: `strava-statistics`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **72.72727%** |
+
+> Security posture acceptable.
 
 <!-- @AI-METADATA
 type: chart-readme
