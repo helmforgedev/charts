@@ -43,8 +43,8 @@ to the data directory.
 
 The chart blocks `replicaCount > 1` with SQLite.
 Multiple pods can only be rendered when `database.driver` is `mysql` or `postgres`.
-Even then, operators should verify asset storage and application behavior for their use case before treating the deployment as fully
-horizontally scalable.
+Even then, the chart requires `persistence.existingClaim` so all replicas mount the same `MEMOS_DATA` storage.
+Generated StatefulSet PVCs are per-pod and are not valid for scaled Memos because uploads or local instance data can diverge by ordinal.
 
 PDB support is available but disabled by default because a single replica with SQLite cannot tolerate voluntary disruption without downtime.
 

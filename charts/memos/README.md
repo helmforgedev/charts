@@ -76,12 +76,15 @@ Set `memos.instanceUrl` whenever Memos is exposed through Ingress, Gateway API, 
 ## External Database
 
 SQLite is the safest default for a small single-pod deployment. Use PostgreSQL or MySQL when you need shared database state or want the database managed outside the pod volume.
+For `replicaCount > 1`, provide `persistence.existingClaim` backed by shared storage for `MEMOS_DATA`; generated StatefulSet PVCs are per-pod and can diverge.
 
 ```yaml
 database:
   driver: postgres
   existingSecret: memos-postgres
   existingSecretKey: dsn
+persistence:
+  existingClaim: memos-shared-data
 ```
 
 The Secret must contain a DSN compatible with Memos:
@@ -99,6 +102,7 @@ stringData:
 The chart blocks unsafe topologies:
 
 - `replicaCount > 1` with SQLite
+- `replicaCount > 1` with MySQL/PostgreSQL and no `persistence.existingClaim`
 - MySQL/PostgreSQL without `database.dsn` or `database.existingSecret`
 - external database with no persistent data volume
 
