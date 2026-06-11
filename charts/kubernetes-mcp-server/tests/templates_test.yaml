@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: kubernetes-mcp-server
+templates:
+  - templates/deployment.yaml
+  - templates/httproute.yaml
+  - templates/ingress.yaml
+  - templates/service.yaml
+tests:
+  - it: renders workload
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/containers/kubernetes-mcp-server:v0.0.62
+  - it: renders service
+    template: templates/service.yaml
+    asserts:
+      - isKind:
+          of: Service
+  - it: renders common labels on a separate line
+    template: templates/service.yaml
+    values:
+      - common-labels-values.yaml
+    asserts:
+      - equal:
+          path: metadata.labels.review
+          value: enabled
+  - it: renders ingress TLS
+    template: templates/ingress.yaml
+    values:
+      - ingress-tls-values.yaml
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: kubernetes-mcp-server-tls
+      - equal:
+          path: spec.tls[0].hosts[0]
+          value: kubernetes-mcp-server.example.com
+      - equal:
+          path: metadata.annotations["cert-manager.io/cluster-issuer"]
+          value: letsencrypt
+  - it: renders HTTPRoute hostnames
+    template: templates/httproute.yaml
+    set:
+      gateway.enabled: true
+      gateway.parentRefs[0].name: test-gateway
+      gateway.hostnames[0]: kubernetes-mcp-server.example.com
+    asserts:
+      - equal:
+          path: spec.hostnames[0]
+          value: kubernetes-mcp-server.example.com
+  - it: renders app.env valueFrom entries
+    template: templates/deployment.yaml
+    values:
+      - env-valuefrom-values.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
+          value: kubernetes-mcp-secret
+      - notExists:
+          path: spec.template.spec.containers[0].env[0].value
+  - it: honors probe disable flags and timing values
+    template: templates/deployment.yaml
+    set:
+      probes.startup.enabled: false
+      probes.liveness.timeoutSeconds: 9
+      probes.readiness.enabled: false
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe
+      - notExists:
+          path: spec.template.spec.containers[0].readinessProbe
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
+          value: 9

@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Kubernetes MCP Server Helm Chart Values",
+  "description": "Values for the Kubernetes MCP Server chart with in-cluster RBAC defaults",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "nameOverride": { "type": "string", "default": "" },
+    "fullnameOverride": { "type": "string", "default": "" },
+    "commonLabels": { "type": "object" },
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": { "type": "string", "default": "ghcr.io/containers/kubernetes-mcp-server" },
+        "tag": { "type": "string", "default": "v0.0.62" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "default": "IfNotPresent" }
+      }
+    },
+    "imagePullSecrets": { "type": "array", "items": { "type": "object" } },
+    "replicaCount": { "type": "integer", "minimum": 1, "default": 1 },
+    "app": {
+      "type": "object",
+      "properties": {
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 8080 },
+        "command": { "type": "array", "items": { "type": "string" } },
+        "args": { "type": "array", "description": "Complete argument override. Leave empty to generate arguments from mcp.* values.", "items": { "type": "string" } },
+        "env": { "type": "array", "items": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" }, "value": { "type": "string" }, "valueFrom": { "type": "object" } } } },
+        "envFrom": { "type": "array", "items": { "type": "object" } },
+        "extraEnv": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "description": "Kubernetes MCP Server runtime flags",
+      "properties": {
+        "readOnly": { "type": "boolean", "default": true },
+        "disableDestructive": { "type": "boolean", "default": true },
+        "allowUnsafeWriteAccess": { "type": "boolean", "default": false },
+        "stateless": { "type": "boolean", "default": true },
+        "clusterProvider": { "type": "string", "enum": ["", "disabled", "in-cluster", "kcp", "kubeconfig"], "default": "in-cluster" },
+        "disableMultiCluster": { "type": "boolean", "default": true },
+        "listOutput": { "type": "string", "enum": ["table", "yaml"], "default": "table" },
+        "toolsets": { "type": "array", "items": { "type": "string", "enum": ["config", "core", "helm", "kcp", "kiali", "kubevirt", "tekton"] } },
+        "logLevel": { "type": "integer", "minimum": 0, "maximum": 9, "default": 0 },
+        "configToml": { "type": "string", "default": "" }
+      }
+    },
+    "rbac": {
+      "type": "object",
+      "properties": {
+        "create": { "type": "boolean", "default": true },
+        "clusterRoleName": { "type": "string", "default": "view" }
+      }
+    },
+    "persistence": { "$ref": "#/definitions/persistence" },
+    "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
+    "service": { "$ref": "#/definitions/service" },
+    "ingress": { "$ref": "#/definitions/ingress" },
+    "gateway": { "$ref": "#/definitions/gateway" },
+    "pdb": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "minAvailable": { "type": "integer", "minimum": 0, "default": 1 }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "ingressFrom": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "probes": { "$ref": "#/definitions/probes" },
+    "resources": { "type": "object" },
+    "podSecurityContext": { "type": "object" },
+    "securityContext": { "type": "object" },
+    "nodeSelector": { "type": "object" },
+    "tolerations": { "type": "array", "items": { "type": "object" } },
+    "affinity": { "type": "object" },
+    "topologySpreadConstraints": { "type": "array", "items": { "type": "object" } },
+    "priorityClassName": { "type": "string", "default": "" },
+    "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0, "default": 30 },
+    "podLabels": { "type": "object" },
+    "podAnnotations": { "type": "object" },
+    "extraVolumes": { "type": "array", "items": { "type": "object" } },
+    "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
+    "extraManifests": { "type": "array", "items": { "type": "object" } }
+  },
+  "definitions": {
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "size": { "type": "string", "default": "1Gi" },
+        "storageClass": { "type": "string", "default": "" },
+        "accessModes": { "type": "array", "items": { "type": "string", "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany"] } },
+        "existingClaim": { "type": "string", "default": "" },
+        "mountPath": { "type": "string", "default": "/data" }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "create": { "type": "boolean", "default": true },
+        "name": { "type": "string", "default": "" },
+        "annotations": { "type": "object" },
+        "automountServiceAccountToken": { "type": "boolean", "default": true }
+      }
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"], "default": "ClusterIP" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 8080 },
+        "annotations": { "type": "object" },
+        "ipFamilyPolicy": { "type": "string", "enum": ["", "SingleStack", "PreferDualStack", "RequireDualStack"] },
+        "ipFamilies": { "type": "array", "items": { "type": "string", "enum": ["IPv4", "IPv6"] } }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "ingressClassName": { "type": "string", "default": "traefik" },
+        "annotations": { "type": "object" },
+        "hosts": { "type": "array", "items": { "type": "object" } },
+        "tls": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "annotations": { "type": "object" },
+        "parentRefs": { "type": "array", "items": { "type": "object" } },
+        "hostnames": { "type": "array", "items": { "type": "string" } },
+        "path": { "type": "string", "default": "/" },
+        "pathType": { "type": "string", "enum": ["PathPrefix", "Exact", "RegularExpression"], "default": "PathPrefix" }
+      }
+    },
+    "probe": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "probes": {
+      "type": "object",
+      "properties": {
+        "startup": { "$ref": "#/definitions/probe" },
+        "liveness": { "$ref": "#/definitions/probe" },
+        "readiness": { "$ref": "#/definitions/probe" }
+      }
+    }
+  }
+}

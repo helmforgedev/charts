@@ -1,0 +1,57 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+Langflow has been deployed.
+
+Access:
+
+- Service: http://{{ include "langflow.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+- Port-forward: kubectl port-forward svc/{{ include "langflow.fullname" . }} 7860:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+- Browser: http://127.0.0.1:7860
+
+State:
+
+- Config directory: {{ .Values.persistence.mountPath }}
+{{- if .Values.persistence.enabled }}
+- Persistence: enabled
+{{- else }}
+- Persistence: disabled; local SQLite data and config are lost when the pod is deleted
+{{- end }}
+{{- if or .Values.database.url .Values.database.existingSecret }}
+- Database: external via LANGFLOW_DATABASE_URL
+{{- else }}
+- Database: local SQLite in the config directory
+{{- end }}
+
+{{- if or .Values.auth.secretKey .Values.auth.existingSecret }}
+Authentication:
+
+- Auth Secret: {{ default (include "langflow.fullname" .) .Values.auth.existingSecret }}
+- Secret key entry: {{ .Values.auth.secretKeyKey }}
+- Superuser entry: {{ .Values.auth.superuserKey }}
+- Superuser password entry: {{ .Values.auth.superuserPasswordKey }}
+{{- else }}
+Authentication:
+
+- No chart-managed Langflow auth Secret is configured.
+- Set auth.existingSecret before exposing Langflow to users.
+{{- end }}
+
+{{- if gt (int .Values.replicaCount) 1 }}
+Scaling:
+
+- Replicas: {{ .Values.replicaCount }}
+- Shared database is configured; verify all replicas can read/write the same flows.
+{{- end }}
+
+Troubleshooting:
+
+- kubectl get pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+- kubectl logs deploy/{{ include "langflow.fullname" . }} -n {{ .Release.Namespace }}
+- kubectl describe pvc {{ include "langflow.fullname" . }} -n {{ .Release.Namespace }}
+
+Resources:
+
+- Chart documentation: https://helmforge.dev/docs/charts/langflow
+- Langflow documentation: https://docs.langflow.org/
+- HelmForge issues: https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)

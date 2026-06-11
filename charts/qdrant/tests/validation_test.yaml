@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: qdrant validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: fails when cluster mode has one replica
+    set:
+      cluster.enabled: true
+      replicaCount: 1
+    asserts:
+      - failedTemplate:
+          errorMessage: "cluster.enabled requires replicaCount >= 2"
+  - it: fails when multiple replicas are not clustered
+    set:
+      replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCount > 1 requires cluster.enabled=true so Qdrant pods form one distributed cluster"
+  - it: fails when cluster mode disables persistence
+    set:
+      cluster.enabled: true
+      replicaCount: 3
+      persistence.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "cluster.enabled requires persistence.enabled=true"
+  - it: fails when cluster mode overrides the startup command
+    set:
+      cluster.enabled: true
+      replicaCount: 3
+      app.command[0]: qdrant
+    asserts:
+      - failedTemplate:
+          errorMessage: "cluster.enabled manages the Qdrant startup command for peer bootstrap; use app.args for extra Qdrant flags"

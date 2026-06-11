@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: qdrant auth and config
+templates:
+  - templates/configmap.yaml
+  - templates/secret.yaml
+  - templates/statefulset.yaml
+tests:
+  - it: renders API key secret and wires Qdrant env vars
+    values:
+      - secure-values.yaml
+    asserts:
+      - isKind:
+          of: Secret
+        template: templates/secret.yaml
+      - equal:
+          path: stringData.api-key
+          value: write-key
+        template: templates/secret.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: QDRANT__SERVICE__API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-qdrant
+                key: api-key
+        template: templates/statefulset.yaml
+  - it: renders local configuration as /qdrant/config/local.yaml
+    values:
+      - config-values.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+        template: templates/configmap.yaml
+      - matchRegex:
+          path: data["local.yaml"]
+          pattern: "log_level: DEBUG"
+        template: templates/configmap.yaml
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: config
+            configMap:
+              name: RELEASE-NAME-qdrant
+        template: templates/statefulset.yaml

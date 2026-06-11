@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: kubernetes-mcp-server runtime
+templates:
+  - templates/configmap.yaml
+  - templates/deployment.yaml
+  - templates/pvc.yaml
+tests:
+  - it: renders safe default arguments
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --read-only
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --disable-destructive
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --stateless
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --cluster-provider=in-cluster
+  - it: renders TOML config file
+    values:
+      - config-values.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+        template: templates/configmap.yaml
+      - matchRegex:
+          path: data["config.toml"]
+          pattern: "read_only = true"
+        template: templates/configmap.yaml
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --config
+        template: templates/deployment.yaml
+  - it: renders persistence PVC and data mount
+    set:
+      persistence.enabled: true
+      persistence.storageClass: fast-ssd
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+        template: templates/pvc.yaml
+      - equal:
+          path: spec.storageClassName
+          value: fast-ssd
+        template: templates/pvc.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /data
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME-kubernetes-mcp-server
+        template: templates/deployment.yaml

@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: memos database
+templates:
+  - templates/statefulset.yaml
+  - templates/secret.yaml
+tests:
+  - it: creates a Secret and references MEMOS_DSN for PostgreSQL
+    values:
+      - postgres-values.yaml
+    asserts:
+      - isKind:
+          of: Secret
+        template: templates/secret.yaml
+      - equal:
+          path: stringData.dsn
+          value: postgres://memos:secret@postgresql:5432/memos?sslmode=disable
+        template: templates/secret.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MEMOS_DRIVER
+            value: postgres
+        template: templates/statefulset.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MEMOS_DSN
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-memos-database
+                key: dsn
+        template: templates/statefulset.yaml
+  - it: uses an existing Secret for MySQL DSN
+    values:
+      - mysql-existing-secret-values.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/secret.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MEMOS_DSN
+            valueFrom:
+              secretKeyRef:
+                name: memos-mysql
+                key: database-url
+        template: templates/statefulset.yaml

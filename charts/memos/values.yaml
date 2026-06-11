@@ -1,0 +1,197 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# -- Override the chart name used in Kubernetes object names.
+nameOverride: ""
+
+# -- Override the full release name used in Kubernetes object names.
+fullnameOverride: ""
+
+# -- Extra labels applied to all Kubernetes objects rendered by this chart.
+commonLabels: {}
+
+image:
+  # -- Official Memos container image repository.
+  repository: docker.io/neosmemo/memos
+  # -- Pinned Memos image tag. Floating tags such as latest or stable are not used by default.
+  tag: "0.29.1"
+  # -- Kubernetes image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Optional image pull secrets for private registries or mirrored images.
+imagePullSecrets: []
+
+# -- Number of Memos pods. Keep 1 when using SQLite; scale external database mode only with a shared existing data claim.
+replicaCount: 1
+
+app:
+  # -- HTTP port exposed by Memos inside the container.
+  port: 5230
+  # -- Optional command override. Leave empty to use the upstream image entrypoint.
+  command: []
+  # -- Optional argument override. Leave empty to use the upstream image defaults.
+  args: []
+  # -- Additional environment variables for integrations or advanced upstream flags.
+  env: []
+  # -- Additional envFrom sources such as Secret or ConfigMap references.
+  envFrom: []
+  # -- Backward-compatible extra environment variables appended after app.env.
+  extraEnv: []
+
+memos:
+  # -- Bind address passed to MEMOS_ADDR. Empty means all interfaces, matching upstream defaults.
+  addr: ""
+  # -- Public URL used by Memos when it runs behind Ingress, Gateway API, or another reverse proxy.
+  instanceUrl: ""
+  # -- Enable upstream demo mode. Keep disabled for real instances.
+  demo: false
+  # -- Allow outbound webhooks to private or reserved IP ranges. Enable only for trusted internal targets.
+  allowPrivateWebhooks: false
+  # -- Log verbosity. Options: debug, info, warn, error.
+  logLevel: info
+
+database:
+  # -- Database backend used by Memos. Options: sqlite, mysql, postgres.
+  driver: sqlite
+  # -- Database DSN. Required for mysql/postgres unless database.existingSecret is set.
+  dsn: ""
+  # -- Existing Secret containing the database DSN.
+  existingSecret: ""
+  # -- Key in database.existingSecret containing the database DSN.
+  existingSecretKey: dsn
+
+persistence:
+  # -- Persist the Memos data directory, including the SQLite database and local assets.
+  enabled: true
+  # -- PersistentVolumeClaim size for the Memos data directory.
+  size: 5Gi
+  # -- StorageClass for the generated PersistentVolumeClaim. Empty uses the cluster default.
+  storageClass: ""
+  # -- Access modes for the generated PersistentVolumeClaim.
+  accessModes:
+    - ReadWriteOnce
+  # -- Existing PersistentVolumeClaim to mount instead of creating a new claim. Required for replicaCount > 1 with MySQL/PostgreSQL.
+  existingClaim: ""
+  # -- Container data directory. Upstream Docker images default this path to /var/opt/memos.
+  mountPath: /var/opt/memos
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: false
+  # -- ServiceAccount name. Defaults to the release fullname when create=true.
+  name: ""
+  # -- Annotations for the ServiceAccount.
+  annotations: {}
+  # -- Mount the ServiceAccount token in the pod.
+  automountServiceAccountToken: false
+
+service:
+  # -- Service type.
+  type: ClusterIP
+  # -- Service port.
+  port: 5230
+  # -- Service annotations.
+  annotations: {}
+  # -- Service IP family policy. Options: SingleStack, PreferDualStack, RequireDualStack.
+  ipFamilyPolicy: ""
+  # -- Service IP families, for example ["IPv4", "IPv6"].
+  ipFamilies: []
+
+ingress:
+  # -- Enable Kubernetes Ingress.
+  enabled: false
+  # -- IngressClassName for the generated Ingress.
+  ingressClassName: traefik
+  # -- Ingress annotations.
+  annotations: {}
+  # -- Ingress hosts and paths.
+  hosts: []
+  # -- Ingress TLS blocks.
+  tls: []
+
+gateway:
+  # -- Enable Gateway API HTTPRoute.
+  enabled: false
+  # -- HTTPRoute annotations.
+  annotations: {}
+  # -- Gateway parentRefs. Required when gateway.enabled=true.
+  parentRefs: []
+  # -- Optional HTTPRoute hostnames.
+  hostnames: []
+  # -- Route path.
+  path: /
+  # -- Route path match type. Options: PathPrefix, Exact, RegularExpression.
+  pathType: PathPrefix
+
+probes:
+  # -- Startup probe settings.
+  startup: { enabled: true, initialDelaySeconds: 5, periodSeconds: 10, timeoutSeconds: 3, failureThreshold: 60 }
+  # -- Liveness probe settings.
+  liveness: { enabled: true, initialDelaySeconds: 0, periodSeconds: 20, timeoutSeconds: 5, failureThreshold: 3 }
+  # -- Readiness probe settings.
+  readiness: { enabled: true, initialDelaySeconds: 0, periodSeconds: 10, timeoutSeconds: 5, failureThreshold: 6 }
+
+# -- Container resource requests and limits.
+resources: {}
+
+# -- Pod security context. The upstream image runs as non-root UID/GID 10001.
+podSecurityContext:
+  fsGroup: 10001
+  fsGroupChangePolicy: OnRootMismatch
+
+# -- Container security context.
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+pdb:
+  # -- Create a PodDisruptionBudget. Useful when Memos is scaled with an external database.
+  enabled: false
+  # -- Minimum available pods during voluntary disruptions.
+  minAvailable: 1
+
+networkPolicy:
+  # -- Create a NetworkPolicy that restricts inbound HTTP traffic to Memos.
+  enabled: false
+  # -- Custom ingress peers. Empty allows ingress from any namespace.
+  ingressFrom: []
+
+# -- Node selector for scheduling the pod.
+nodeSelector: {}
+
+# -- Tolerations for scheduling the pod.
+tolerations: []
+
+# -- Affinity rules for scheduling the pod.
+affinity: {}
+
+# -- Topology spread constraints for multi-node scheduling.
+topologySpreadConstraints: []
+
+# -- Optional PriorityClass name.
+priorityClassName: ""
+
+# -- Pod termination grace period in seconds.
+terminationGracePeriodSeconds: 30
+
+# -- Extra labels applied to the pod template.
+podLabels: {}
+
+# -- Extra annotations applied to the pod template.
+podAnnotations: {}
+
+# -- Extra volumes mounted into the pod.
+extraVolumes: []
+
+# -- Extra volume mounts added to the Memos container.
+extraVolumeMounts: []
+
+# -- Additional Kubernetes manifests rendered with the chart.
+extraManifests: []

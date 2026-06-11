@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: qdrant
+templates:
+  - templates/statefulset.yaml
+  - templates/service.yaml
+tests:
+  - it: renders workload
+    template: templates/statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/qdrant/qdrant:v1.18.2
+  - it: renders service
+    template: templates/service.yaml
+    asserts:
+      - isKind:
+          of: Service
+  - it: renders common labels on a separate line
+    template: templates/service.yaml
+    values:
+      - common-labels-values.yaml
+    asserts:
+      - equal:
+          path: metadata.labels.review
+          value: enabled
+  - it: renders app.env valueFrom entries
+    template: templates/statefulset.yaml
+    values:
+      - env-valuefrom-values.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: QDRANT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: qdrant-secret
+                key: token
+  - it: uses emptyDir when persistence is disabled
+    template: templates/statefulset.yaml
+    set:
+      persistence.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].name
+          value: data
+      - equal:
+          path: spec.template.spec.volumes[0].emptyDir
+          value: {}
+  - it: honors probe disable flags and timing values
+    template: templates/statefulset.yaml
+    set:
+      probes.startup.enabled: false
+      probes.liveness.timeoutSeconds: 9
+      probes.readiness.enabled: false
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe
+      - notExists:
+          path: spec.template.spec.containers[0].readinessProbe
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
+          value: 9
+  - it: bootstraps peers when cluster mode is enabled
+    template: templates/statefulset.yaml
+    values:
+      - cluster-values.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command[0]
+          value: /bin/sh
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "service=\"RELEASE-NAME-qdrant-headless\\.NAMESPACE\\.svc\\.cluster\\.local\""
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "first_peer=\"http://RELEASE-NAME-qdrant-0\\.\\$\\{service\\}:6335\""
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "exec /qdrant/qdrant --bootstrap \"\\$first_peer\" --uri \"\\$self_uri\" \"--log-level\" \"INFO\""

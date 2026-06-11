@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: github-mcp-server runtime
+templates:
+  - templates/deployment.yaml
+  - templates/pvc.yaml
+  - templates/secret.yaml
+tests:
+  - it: renders default HTTP read-only args
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args[0]
+          value: http
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --read-only
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --toolsets=default
+  - it: renders token Secret and env reference
+    values:
+      - token-values.yaml
+    asserts:
+      - equal:
+          path: stringData.token
+          value: ghp_test
+        template: templates/secret.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITHUB_PERSONAL_ACCESS_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-github-mcp-server
+                key: token
+        template: templates/deployment.yaml
+  - it: renders GitHub Enterprise host
+    values:
+      - enterprise-values.yaml
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --gh-host=https://ghe.example.com
+  - it: preserves GitHub Enterprise host with explicit scheme
+    set:
+      github.host: http://ghe.example.test:8080
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --gh-host=http://ghe.example.test:8080
+  - it: renders persistence PVC and data mount
+    set:
+      persistence.enabled: true
+      persistence.storageClass: fast-ssd
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+        template: templates/pvc.yaml
+      - equal:
+          path: spec.storageClassName
+          value: fast-ssd
+        template: templates/pvc.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /data
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME-github-mcp-server
+        template: templates/deployment.yaml

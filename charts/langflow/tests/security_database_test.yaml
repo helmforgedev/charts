@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: langflow security and database
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+tests:
+  - it: renders auth secret and wires Langflow secret env vars
+    values:
+      - secure-values.yaml
+    asserts:
+      - isKind:
+          of: Secret
+        template: templates/secret.yaml
+      - equal:
+          path: stringData.secret-key
+          value: test-secret-key
+        template: templates/secret.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LANGFLOW_SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-langflow
+                key: secret-key
+        template: templates/deployment.yaml
+  - it: renders external database URL secret
+    values:
+      - external-database-values.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LANGFLOW_DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-langflow-database
+                key: database-url
+        template: templates/deployment.yaml
