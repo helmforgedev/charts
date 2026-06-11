@@ -152,6 +152,14 @@ database:
 - [Backup and restore](docs/backup.md)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/strapi)
 
+### Security Scan: `strapi`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **72.72727%** |
+
+> Security posture acceptable.
+
 <!-- @AI-METADATA
 type: chart-readme
 title: Strapi Helm Chart
@@ -164,9 +172,10 @@ scope: Chart
 
 relations:
   - charts/strapi/values.yaml
+  - charts/strapi/DESIGN.md
   - charts/strapi/docs/database.md
   - charts/strapi/docs/backup.md
 path: charts/strapi/README.md
 version: 1.0
-date: 2026-03-29
+date: 2026-06-11
 -->
