@@ -1,9 +1,73 @@
 # SPDX-License-Identifier: Apache-2.0
-# CI: External PostgreSQL database
+# CI: External PostgreSQL database.
+#
+# This scenario keeps database.mode external while providing a throwaway
+# PostgreSQL endpoint through extraManifests so the runtime k3d gate can deploy
+# it without relying on infrastructure outside the test namespace.
 database:
+  mode: external
   external:
     vendor: postgres
-    host: postgresql.example.svc
+    host: strapi-external-postgresql
     name: strapi
     username: strapi
     password: external-password
+
+persistence:
+  enabled: false
+
+extraManifests:
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: strapi-external-postgresql
+      labels:
+        app.kubernetes.io/name: strapi-external-postgresql
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: strapi-external-postgresql
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: strapi-external-postgresql
+        spec:
+          containers:
+            - name: postgresql
+              image: docker.io/library/postgres:18.3-alpine
+              imagePullPolicy: IfNotPresent
+              ports:
+                - name: postgresql
+                  containerPort: 5432
+              env:
+                - name: POSTGRES_DB
+                  value: strapi
+                - name: POSTGRES_USER
+                  value: strapi
+                - name: POSTGRES_PASSWORD
+                  value: external-password
+              readinessProbe:
+                exec:
+                  command:
+                    - pg_isready
+                    - -U
+                    - strapi
+                    - -d
+                    - strapi
+                initialDelaySeconds: 5
+                periodSeconds: 5
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: strapi-external-postgresql
+      labels:
+        app.kubernetes.io/name: strapi-external-postgresql
+    spec:
+      type: ClusterIP
+      ports:
+        - name: postgresql
+          port: 5432
+          targetPort: postgresql
+      selector:
+        app.kubernetes.io/name: strapi-external-postgresql
