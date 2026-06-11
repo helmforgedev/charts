@@ -2,6 +2,7 @@
 suite: langflow
 templates:
   - templates/deployment.yaml
+  - templates/httproute.yaml
   - templates/ingress.yaml
   - templates/pvc.yaml
   - templates/service.yaml
@@ -38,6 +39,19 @@ tests:
       - equal:
           path: spec.tls[0].hosts[0]
           value: langflow.example.com
+      - equal:
+          path: metadata.annotations["cert-manager.io/cluster-issuer"]
+          value: letsencrypt
+  - it: renders HTTPRoute hostnames
+    template: templates/httproute.yaml
+    set:
+      gateway.enabled: true
+      gateway.parentRefs[0].name: test-gateway
+      gateway.hostnames[0]: langflow.example.com
+    asserts:
+      - equal:
+          path: spec.hostnames[0]
+          value: langflow.example.com
   - it: renders app.env valueFrom entries
     template: templates/deployment.yaml
     values:
@@ -59,3 +73,19 @@ tests:
       - equal:
           path: spec.storageClassName
           value: fast-ssd
+  - it: renders extra volumes with matching mounts
+    template: templates/deployment.yaml
+    values:
+      - extra-volumes-values.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: custom-config
+            mountPath: /custom
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: custom-config
+            configMap:
+              name: langflow-custom

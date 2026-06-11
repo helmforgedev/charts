@@ -114,8 +114,12 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if or .Values.mcp.configToml .Values.extraVolumeMounts }}
+          {{- if or .Values.persistence.enabled .Values.mcp.configToml .Values.extraVolumeMounts }}
           volumeMounts:
+            {{- if .Values.persistence.enabled }}
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+            {{- end }}
             {{- if .Values.mcp.configToml }}
             - name: config
               mountPath: /etc/kubernetes-mcp-server/config.toml
@@ -141,8 +145,13 @@ spec:
       topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if or .Values.mcp.configToml .Values.extraVolumes }}
+      {{- if or .Values.persistence.enabled .Values.mcp.configToml .Values.extraVolumes }}
       volumes:
+        {{- if .Values.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ default (include "kubernetes-mcp-server.fullname" .) .Values.persistence.existingClaim | quote }}
+        {{- end }}
         {{- if .Values.mcp.configToml }}
         - name: config
           configMap:
