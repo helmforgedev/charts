@@ -6,6 +6,9 @@ Deploy Kubernetes MCP Server on Kubernetes.
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **72.72727%** |
+| Overall | **74.24%** |
+| MITRE | **100.00%** |
+| NSA | **62.50%** |
+| SOC2 | **80.00%** |
 
 > Security posture acceptable.
