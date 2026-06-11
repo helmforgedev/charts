@@ -40,7 +40,9 @@ database:
 
 ## Webhooks
 
-`memos.allowPrivateWebhooks` defaults to false. Enabling it allows webhook URLs that resolve to private or reserved IP ranges. Only use it when the targets are trusted internal services and egress is controlled.
+`memos.allowPrivateWebhooks` defaults to false.
+Enabling it allows webhook URLs that resolve to private or reserved IP ranges.
+Only use it when the targets are trusted internal services and egress is controlled.
 
 ## NetworkPolicy
 
