@@ -276,16 +276,19 @@ Secrets Operator behavior and avoiding duplicated names in values.
 externalSecrets:
   enabled: true
   items:
-    - fullnameOverride: beesense-gateway-env
+    - fullnameOverride: app-env
       spec:
         refreshInterval: 1m
         secretStoreRef:
-          name: vault-qa
+          name: vault
           kind: ClusterSecretStore
         dataFrom:
           - extract:
-              key: qa/deskbee/beesense-gateway/v2
+              key: secret/data/{{ .Release.Namespace }}/app-env
 ```
+
+The `spec` of each item is rendered through `tpl`, so values such as backend keys can be
+templated (e.g. `{{ .Release.Namespace }}`) to derive per-environment paths from a single definition.
 
 ### Breaking-change migration notes
 
