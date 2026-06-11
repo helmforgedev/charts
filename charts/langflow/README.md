@@ -2,7 +2,7 @@
 
 Deploy Langflow on Kubernetes.
 
-### Security Scan: `langflow`
+## Security Scan: `langflow`
 
 | Framework | Score |
 |---|---|

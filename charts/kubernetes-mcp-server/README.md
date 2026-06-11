@@ -2,7 +2,7 @@
 
 Deploy Kubernetes MCP Server on Kubernetes.
 
-### Security Scan: `kubernetes-mcp-server`
+## Security Scan: `kubernetes-mcp-server`
 
 | Framework | Score |
 |---|---|

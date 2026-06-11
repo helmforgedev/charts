@@ -2,7 +2,7 @@
 
 Deploy GitHub MCP Server on Kubernetes.
 
-### Security Scan: `github-mcp-server`
+## Security Scan: `github-mcp-server`
 
 | Framework | Score |
 |---|---|

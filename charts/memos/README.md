@@ -2,7 +2,7 @@
 
 Deploy Memos on Kubernetes.
 
-### Security Scan: `memos`
+## Security Scan: `memos`
 
 | Framework | Score |
 |---|---|

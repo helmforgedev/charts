@@ -2,7 +2,7 @@
 
 Deploy Qdrant on Kubernetes.
 
-### Security Scan: `qdrant`
+## Security Scan: `qdrant`
 
 | Framework | Score |
 |---|---|
