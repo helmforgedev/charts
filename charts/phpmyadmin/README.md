@@ -279,6 +279,10 @@ phpmyadmin:
 
 See [examples/production.yaml](examples/production.yaml).
 
+## Architecture Guides
+
+- [External Secrets](docs/external-secrets.md)
+
 ## Main Parameters
 
 | Key | Default | Description |
@@ -315,6 +319,14 @@ helm template phpmyadmin charts/phpmyadmin -f charts/phpmyadmin/examples/product
 For cluster validation, install into K3D/K3S with a test MySQL/MariaDB target and check pods, logs,
 events, Service endpoints, Ingress or Gateway route, and ExternalSecret reconciliation when ESO is
 enabled.
+
+### Security Scan: `phpmyadmin`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **75.757576%** |
+
+Security posture: acceptable.
 
 ## References
 
