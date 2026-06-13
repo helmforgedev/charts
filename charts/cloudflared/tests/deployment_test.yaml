@@ -9,8 +9,6 @@ release:
 tests:
   - it: should render a Deployment by default
     template: templates/deployment.yaml
-    set:
-      tunnel.token: "test-token"
     asserts:
       - isKind:
           of: Deployment
@@ -18,19 +16,16 @@ tests:
           path: metadata.name
           value: test-cloudflared
 
-  - it: should use 2 replicas by default
+  - it: should use one replica by default
     template: templates/deployment.yaml
-    set:
-      tunnel.token: "test-token"
     asserts:
       - equal:
           path: spec.replicas
-          value: 2
+          value: 1
 
   - it: should set custom replica count
     template: templates/deployment.yaml
     set:
-      tunnel.token: "test-token"
       replicaCount: 3
     asserts:
       - equal:
@@ -39,8 +34,6 @@ tests:
 
   - it: should set the correct image
     template: templates/deployment.yaml
-    set:
-      tunnel.token: "test-token"
     asserts:
       - matchRegex:
           path: spec.template.spec.containers[0].image
@@ -49,7 +42,6 @@ tests:
   - it: should use custom image tag
     template: templates/deployment.yaml
     set:
-      tunnel.token: "test-token"
       image.tag: "2025.1.0"
     asserts:
       - equal:
@@ -59,6 +51,7 @@ tests:
   - it: should set the cloudflared command with default args
     template: templates/deployment.yaml
     set:
+      tunnel.quickTunnel.enabled: false
       tunnel.token: "test-token"
     asserts:
       - contains:
@@ -105,6 +98,7 @@ tests:
   - it: should reference tunnel token from inline secret
     template: templates/deployment.yaml
     set:
+      tunnel.quickTunnel.enabled: false
       tunnel.token: "test-token"
     asserts:
       - equal:
@@ -120,6 +114,7 @@ tests:
   - it: should reference existing secret for tunnel token
     template: templates/deployment.yaml
     set:
+      tunnel.quickTunnel.enabled: false
       tunnel.existingSecret: my-tunnel-secret
       tunnel.existingSecretKey: my-key
     asserts:
@@ -261,8 +256,6 @@ tests:
 
   - it: should support quick tunnel hello-world mode without tunnel token env
     template: templates/deployment.yaml
-    set:
-      tunnel.quickTunnel.enabled: true
     asserts:
       - contains:
           path: spec.template.spec.containers[0].command
@@ -293,7 +286,6 @@ tests:
   - it: should set pod labels and annotations
     template: templates/deployment.yaml
     set:
-      tunnel.token: "test-token"
       podLabels:
         custom: label
       podAnnotations:

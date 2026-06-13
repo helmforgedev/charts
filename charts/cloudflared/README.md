@@ -8,7 +8,8 @@ Secure, outbound-only connections between your cluster and Cloudflare's network 
 
 - **Zero-trust networking** — no inbound firewall rules needed
 - **Remotely-managed** — configure routes in the Cloudflare dashboard
-- **High availability** — 2 replicas with PodDisruptionBudget by default
+- **Quick tunnel default** — installable demo and smoke-test mode without a token
+- **High availability ready** — production values can enable 2+ replicas with PodDisruptionBudget
 - **Prometheus metrics** — `/ready` and `/metrics` on port 2000
 - **ServiceMonitor** — optional Prometheus Operator integration
 - **Existing secrets** — bring your own Secret for the tunnel token
@@ -33,22 +34,28 @@ helm install cloudflared oci://ghcr.io/helmforgedev/helm/cloudflared -f values.y
 
 ## Quick Start
 
-1. Create a tunnel in the [Cloudflare dashboard](https://one.dash.cloudflare.com) under **Networks → Tunnels**.
-2. Copy the tunnel token.
-3. Deploy:
+Default installs run an ephemeral quick tunnel for demos and smoke tests. For a
+managed Cloudflare Tunnel, create a tunnel in the
+[Cloudflare dashboard](https://one.dash.cloudflare.com) under **Networks → Tunnels**,
+copy the tunnel token, and deploy:
 
 ```yaml
 # values.yaml
 tunnel:
+  quickTunnel:
+    enabled: false
   token: "eyJhIjoiY2Y..."
 ```
 
-1. Configure public hostnames in the dashboard to route traffic to your Kubernetes services (for example, `http://my-service.default.svc:80`).
+Then configure public hostnames in the dashboard to route traffic to your
+Kubernetes services (for example, `http://my-service.default.svc:80`).
 
 ## Using an Existing Secret
 
 ```yaml
 tunnel:
+  quickTunnel:
+    enabled: false
   existingSecret: my-tunnel-secret
   existingSecretKey: token
 ```
@@ -67,6 +74,8 @@ for the tunnel token and point the Deployment at the generated Kubernetes Secret
 
 ```yaml
 tunnel:
+  quickTunnel:
+    enabled: false
   existingSecret: cloudflared-tunnel-token
 
 externalSecrets:
@@ -84,7 +93,9 @@ externalSecrets:
 ## Quick Tunnel Mode
 
 Quick tunnel mode runs an ephemeral tunnel without a Cloudflare-managed tunnel token.
-Use it for demos and smoke tests only; production deployments should use `tunnel.token` or `tunnel.existingSecret`.
+It is enabled by default for tokenless installs. Use it for demos and smoke
+tests only; production deployments should set `tunnel.quickTunnel.enabled=false`
+and use `tunnel.token` or `tunnel.existingSecret`.
 
 ```yaml
 tunnel:
@@ -96,6 +107,8 @@ tunnel:
 
 ```yaml
 tunnel:
+  quickTunnel:
+    enabled: false
   existingSecret: cloudflare-tunnel
 
 replicaCount: 2
@@ -132,19 +145,19 @@ topologySpreadConstraints:
 | `tunnel.token` | `""` | Tunnel token from Cloudflare dashboard |
 | `tunnel.existingSecret` | `""` | Existing secret with tunnel token |
 | `tunnel.existingSecretKey` | `token` | Key in the existing secret |
-| `tunnel.quickTunnel.enabled` | `false` | Enable ephemeral quick tunnel mode |
+| `tunnel.quickTunnel.enabled` | `true` | Enable ephemeral quick tunnel mode for demos and smoke tests |
 | `tunnel.quickTunnel.helloWorld` | `true` | Use cloudflared's built-in hello-world origin |
 | `tunnel.quickTunnel.url` | `http://localhost:8080` | Origin URL for quick tunnel URL mode |
 | `externalSecrets.enabled` | `false` | Render an ExternalSecret for the tunnel token |
 | `externalSecrets.secretStoreRef.name` | `""` | SecretStore or ClusterSecretStore name |
 | `externalSecrets.secretStoreRef.kind` | `SecretStore` | Secret store kind |
 | `externalSecrets.data` | `[]` | ExternalSecret data mappings |
-| `replicaCount` | `2` | Number of replicas |
+| `replicaCount` | `1` | Number of replicas |
 | `cloudflared.logLevel` | `info` | Log level |
 | `cloudflared.noAutoupdate` | `true` | Disable auto-update |
 | `cloudflared.metricsPort` | `2000` | Metrics listen port |
 | `cloudflared.extraArgs` | `[]` | Extra cloudflared arguments |
-| `pdb.enabled` | `true` | Create PodDisruptionBudget |
+| `pdb.enabled` | `false` | Create PodDisruptionBudget |
 | `pdb.minAvailable` | `1` | Min available during disruption |
 | `metrics.enabled` | `true` | Expose metrics service |
 | `serviceMonitor.enabled` | `false` | Create Prometheus ServiceMonitor |
@@ -163,19 +176,31 @@ topologySpreadConstraints:
 - **Routing is dashboard-managed** — this chart does not configure ingress rules; use the Cloudflare dashboard to map public hostnames to internal services
 - **No ingress template** — cloudflared replaces traditional ingress controllers
 
+## Security Scan
+
+🟢 Security Scan: `cloudflared`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **87.88%** |
+
+> ✅ Security posture acceptable.
+
+Local details:
+
+| Framework | Score |
+|---|---|
+| MITRE | 100.00% |
+| NSA | 85.00% |
+| SOC2 | 80.00% |
+
+The remaining local scan findings are expected for raw chart scanning and
+platform-level controls: NetworkPolicy is supplied by the platform layer, token
+Secret access is intentionally scoped to the pod, and raw-template static
+analysis does not fully evaluate Helm-rendered non-root defaults.
+
 ## More Information
 
 - [Cloudflare Tunnel documentation](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
 - [Kubernetes deployment guide](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/deploy-tunnels/deployment-guides/kubernetes/)
 - [Architecture overview](docs/architecture.md)
-
-<!-- @AI-METADATA
-@description: README for the Cloudflare Tunnel (cloudflared) Helm chart
-@type: chart-readme
-@chart: cloudflared
-@path: charts/cloudflared/README.md
-@date: 2026-03-23
-@relations:
-  - charts/cloudflared/values.yaml
-  - charts/cloudflared/docs/architecture.md
--->

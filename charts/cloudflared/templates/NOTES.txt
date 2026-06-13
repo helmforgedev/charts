@@ -1,53 +1,98 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  cloudflared has been successfully deployed!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+cloudflared has been installed
+==============================
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
+Installation summary
+--------------------
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Chart version: {{ .Chart.Version }}
+Application version: {{ .Chart.AppVersion }}
+Image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+Replicas: {{ .Values.replicaCount }}
+Quick tunnel: {{ ternary "enabled" "disabled" .Values.tunnel.quickTunnel.enabled }}
+Metrics service: {{ ternary "enabled" "disabled" .Values.metrics.enabled }}
+ServiceMonitor: {{ ternary "enabled" "disabled" .Values.serviceMonitor.enabled }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  TUNNEL STATUS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Tunnel status
+-------------
+cloudflared creates outbound-only connections from this cluster to Cloudflare.
+No inbound Kubernetes Service or LoadBalancer is required for application
+traffic. Public hostnames and origins are configured in the Cloudflare Zero
+Trust dashboard.
 
-cloudflared creates secure outbound-only tunnels to Cloudflare.
-No inbound ports are required.
+Check pod readiness:
 
-Tunnel metrics endpoint (internal):
+  kubectl get pods -l app.kubernetes.io/name=cloudflared -n {{ .Release.Namespace }}
+
+Follow connection logs:
+
+  kubectl logs -l app.kubernetes.io/name=cloudflared -n {{ .Release.Namespace }} --all-containers --tail=50 -f
+
+Look for established tunnel connections:
+
+  kubectl logs -l app.kubernetes.io/name=cloudflared -n {{ .Release.Namespace }} --all-containers | grep -i "connection\|tunnel\|registered"
+
+{{- if .Values.metrics.enabled }}
+
+Metrics
+-------
+Internal metrics endpoint:
+
   http://{{ include "cloudflared.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port | default 2000 }}/metrics
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  GETTING STARTED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Port-forward metrics locally:
 
-1. Check tunnel pod status:
-   kubectl get pods -l app.kubernetes.io/name=cloudflared -n {{ .Release.Namespace }}
+  kubectl port-forward svc/{{ include "cloudflared.fullname" . }} -n {{ .Release.Namespace }} 2000:{{ .Values.service.port | default 2000 }}
+{{- end }}
 
-2. View tunnel connection logs:
-   kubectl logs -l app.kubernetes.io/name=cloudflared \
-     -n {{ .Release.Namespace }} --all-containers --tail=50 -f
+Credentials
+-----------
+{{- if .Values.tunnel.quickTunnel.enabled }}
+Quick tunnel mode does not use a managed tunnel token. Use it only for demos or
+smoke tests.
+{{- else if .Values.externalSecrets.enabled }}
+Tunnel token is expected from External Secrets Operator.
+Target Secret: {{ .Values.tunnel.existingSecret }}
 
-3. Verify tunnel is connected (look for "Connection established"):
-   kubectl logs -l app.kubernetes.io/name=cloudflared \
-     -n {{ .Release.Namespace }} --all-containers | grep -i "connection\|tunnel\|registered"
+Check reconciliation:
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  TROUBLESHOOTING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  kubectl get externalsecret -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl get secret {{ .Values.tunnel.existingSecret }} -n {{ .Release.Namespace }}
+{{- else if .Values.tunnel.existingSecret }}
+Tunnel token is read from existing Secret:
+
+  {{ .Values.tunnel.existingSecret }} / {{ .Values.tunnel.existingSecretKey }}
+{{- else }}
+Tunnel token was provided through chart-managed Secret data. Prefer an existing
+Secret or External Secrets Operator for production.
+{{- end }}
+
+Troubleshooting
+---------------
+Describe pods:
 
   kubectl describe pod -l app.kubernetes.io/name=cloudflared -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/name=cloudflared -n {{ .Release.Namespace }} --all-containers --tail=100
+
+List release resources:
+
   kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ADDITIONAL RESOURCES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Inspect recent events:
 
-Documentation:     https://helmforge.dev/docs/charts/cloudflared
-Cloudflare Tunnel: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
-cloudflared GH:    https://github.com/cloudflare/cloudflared
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+
+Cloudflare routing
+------------------
+Configure Public Hostnames in the Cloudflare Zero Trust dashboard and point
+origins to Kubernetes DNS names such as:
+
+  http://service.namespace.svc.cluster.local:80
+
+Documentation
+-------------
+Chart docs: https://helmforge.dev/docs/charts/cloudflared
+Chart source: https://github.com/helmforgedev/charts/tree/main/charts/cloudflared
+Cloudflare Tunnel docs: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
 
 Happy Helmforging :)
