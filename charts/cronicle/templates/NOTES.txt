@@ -1,17 +1,18 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Cronicle has been successfully deployed!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+====================================================================
+Cronicle has been successfully deployed
+====================================================================
 
 Chart:      {{ .Chart.Name }}
 Version:    {{ .Chart.Version }}
 AppVersion: {{ .Chart.AppVersion }}
 Release:    {{ .Release.Name }}
 Namespace:  {{ .Release.Namespace }}
+Image:      {{ include "cronicle.image" . }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ACCESS INFORMATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+====================================================================
+Access Information
+====================================================================
 
 {{- if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
@@ -26,43 +27,67 @@ Port-forward to access Cronicle locally:
   ADMIN:    http://localhost:3012/#Admin
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  CREDENTIALS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+====================================================================
+Credentials
+====================================================================
 
 Default admin credentials (change after first login!):
   Username: admin
   Password: admin
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  GETTING STARTED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+====================================================================
+Configuration Summary
+====================================================================
+
+Cronicle base URL:      {{ .Values.cronicle.baseUrl }}
+Persistent storage:     {{ if .Values.persistence.enabled }}enabled ({{ .Values.persistence.size }}){{ else }}disabled{{ end }}
+Ingress:                {{ if .Values.ingress.enabled }}enabled{{ else }}disabled{{ end }}
+UDP discovery port:     {{ if .Values.cronicle.discoveryEnabled }}enabled on {{ .Values.cronicle.discoveryPort }}{{ else }}disabled{{ end }}
+Maximum concurrent jobs: {{ .Values.cronicle.maxJobs }}
+Job memory ceiling:     {{ .Values.cronicle.jobMemoryMax }} bytes
+
+====================================================================
+Getting Started
+====================================================================
 
 1. kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=cronicle -n {{ .Release.Namespace }} --timeout=300s
 2. kubectl get pods -l app.kubernetes.io/name=cronicle -n {{ .Release.Namespace }}
 3. kubectl logs -l app.kubernetes.io/name=cronicle -n {{ .Release.Namespace }} --all-containers --tail=50 -f
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  TROUBLESHOOTING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+====================================================================
+Validation Commands
+====================================================================
+
+  kubectl rollout status deploy/{{ include "cronicle.fullname" . }} -n {{ .Release.Namespace }} --timeout=300s
+  kubectl get endpoints {{ include "cronicle.fullname" . }} -n {{ .Release.Namespace }}
+  kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+====================================================================
+Troubleshooting
+====================================================================
 
   kubectl describe pod -l app.kubernetes.io/name=cronicle -n {{ .Release.Namespace }}
   kubectl logs -l app.kubernetes.io/name=cronicle -n {{ .Release.Namespace }} --all-containers --tail=100
   kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
   kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  WARNINGS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+====================================================================
+Warnings
+====================================================================
 
 {{- if not .Values.ingress.enabled }}
 
 NOTE: Ingress is not enabled. Access via port-forward (see above).
 {{- end }}
+{{- if eq (toString .Values.cronicle.maxJobs) "0" }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ADDITIONAL RESOURCES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NOTE: cronicle.maxJobs is 0, which means unlimited concurrent jobs.
+Set a bounded value in production to avoid node saturation.
+{{- end }}
+
+====================================================================
+Additional Resources
+====================================================================
 
 Documentation:  https://helmforge.dev/docs/charts/cronicle
 Cronicle:       https://github.com/jhuckaby/Cronicle
