@@ -40,6 +40,8 @@ surface separation, TLS choices, persistence, and site sync notes.
 
 ## Validation Focus
 
-Use `make validate-chart CHART=gophish` as the required gate. It exercises Helm
-lint, template rendering, unit tests, kubeconform with real schemas, Artifact Hub
-lint, and k3d behavioral validation for every CI values file.
+From `helmforge-ops`, use `make validate-chart CHART=gophish` as the required
+gate. It exercises Helm lint, template rendering, unit tests, kubeconform with
+real schemas, Artifact Hub lint, and k3d behavioral validation for every CI
+values file. From the `charts` repository, `./test.sh gophish` remains the
+repo-local CI parity helper.
