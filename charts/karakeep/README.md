@@ -1,26 +1,26 @@
 # Karakeep Helm Chart
 
-Deploy [Karakeep](https://karakeep.app) (formerly Hoarder) on Kubernetes using the official
-[karakeep-app/karakeep](https://github.com/karakeep-app/karakeep) container image. An AI-powered bookmark manager with
-full-text search, web archiving, and automatic tagging.
+Deploy [Karakeep](https://karakeep.app), formerly Hoarder, on Kubernetes using
+the official `ghcr.io/karakeep-app/karakeep` container image. Karakeep provides
+bookmark management, full-text archive search, web page capture, and optional AI
+tagging in a single-writer application pod.
 
 Current application version: `0.32.0`.
 
 ## Features
 
-- **AI-powered tagging** — automatic categorization of bookmarks using AI
-- **Full-text search** — optional Meilisearch sidecar for fast search across all bookmarks
-- **Web archiving** — optional Chromium sidecar for page screenshots and content preservation
-- **SQLite storage** — no external database required, data stored on PVC
-- **Auto-generated secrets** — NEXTAUTH_SECRET and MEILI_MASTER_KEY are generated automatically and preserved across upgrades
-- **Ingress support** — TLS with cert-manager, supports traefik and nginx
-- **Gateway API support** — optional HTTPRoute for native Kubernetes routing
-- **Dual-stack ready Service** — optional `ipFamilyPolicy` and `ipFamilies`
-- **External Secrets Operator** — optional projection for NEXTAUTH_SECRET and MEILI_MASTER_KEY
+- Official Karakeep image pinned to `0.32.0`
+- Optional Meilisearch sidecar for full-text search
+- Optional browserless Chromium sidecar for screenshots and page archiving
+- SQLite and uploaded content stored on a PersistentVolumeClaim
+- Generated `NEXTAUTH_SECRET` and `MEILI_MASTER_KEY` with lookup-based reuse on
+  upgrades
+- Existing Secret and External Secrets Operator paths for production credentials
+- Ingress, Gateway API, dual-stack Service, scheduling, and resource controls
 
 ## Installation
 
-**HTTPS repository:**
+HTTPS repository:
 
 ```bash
 helm repo add helmforge https://repo.helmforge.dev
@@ -28,71 +28,94 @@ helm repo update
 helm install karakeep helmforge/karakeep -f values.yaml
 ```
 
-**OCI registry:**
+OCI registry:
 
 ```bash
 helm install karakeep oci://ghcr.io/helmforgedev/helm/karakeep -f values.yaml
 ```
 
-## Basic Example
+## Examples
 
-```yaml
-# values.yaml
-karakeep:
-  nextAuthUrl: "https://karakeep.example.com"
-```
+The chart includes example values under `examples/`:
 
-After deploying:
+- `examples/simple.yaml` - local or private-network deployment with explicit
+  resources.
+- `examples/ingress.yaml` - TLS ingress with sidecars enabled.
+- `examples/ai-tagging.yaml` - AI tagging through Secret-backed environment
+  variables.
+- `examples/external-secrets.yaml` - External Secrets Operator projection for
+  auth and search credentials.
+
+Render an example before adapting it:
 
 ```bash
-# Port-forward to test
-kubectl port-forward svc/<release>-karakeep 8080:80
-
-# Access the web UI at http://localhost:8080
+helm template karakeep charts/karakeep -f charts/karakeep/examples/ingress.yaml
 ```
+
+## Architecture Guides
+
+- [Design rationale](DESIGN.md)
+- [Architecture guide](docs/architecture.md)
+- [Operations guide](docs/operations.md)
+
+## Basic Configuration
+
+For local testing through port-forwarding:
+
+```yaml
+karakeep:
+  nextAuthUrl: "http://localhost:3000"
+```
+
+Then access the web UI:
+
+```bash
+kubectl port-forward svc/<release>-karakeep 3000:80
+```
+
+For production, `karakeep.nextAuthUrl` must match the exact external URL users
+open in the browser, including `https://` when TLS is enabled.
 
 ## Sidecars
 
-### Meilisearch (Full-Text Search)
-
-Enabled by default. Provides fast full-text search across all bookmarks.
+Meilisearch and Chromium are enabled by default because they provide Karakeep's
+search and archive capture experience. They also increase pod memory needs. Set
+resources for each container in production:
 
 ```yaml
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
 meilisearch:
-  enabled: true  # default
-  image:
-    repository: docker.io/getmeili/meilisearch
-    tag: "v1.41.0"
   resources:
     requests:
+      cpu: 100m
       memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+chromium:
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
 ```
 
-To disable:
+Disable sidecars only when the workload can operate without their features:
 
 ```yaml
 meilisearch:
   enabled: false
-```
 
-### Chromium (Screenshots)
-
-Enabled by default. Takes screenshots and archives web pages.
-
-```yaml
-chromium:
-  enabled: true  # default
-  image:
-    repository: ghcr.io/browserless/chromium
-    tag: "v2.46.0"
-  resources:
-    requests:
-      memory: 512Mi
-```
-
-To disable:
-
-```yaml
 chromium:
   enabled: false
 ```
@@ -100,73 +123,67 @@ chromium:
 ## Key Values
 
 | Key | Default | Description |
-|-----|---------|-------------|
+| --- | --- | --- |
 | `image.repository` | `ghcr.io/karakeep-app/karakeep` | Main Karakeep image |
 | `image.tag` | `"0.32.0"` | Main Karakeep image tag |
 | `karakeep.nextAuthUrl` | `""` | Public URL of the Karakeep instance |
 | `karakeep.browserConnectOnDemand` | `true` | Connect to Chromium only when crawling needs it |
-| `karakeep.existingSecret` | `""` | Existing secret with `nextauth-secret` and `meili-master-key` |
-| `meilisearch.enabled` | `true` | Enable Meilisearch sidecar for full-text search |
-| `chromium.enabled` | `true` | Enable Chromium sidecar for web page screenshots |
-| `chromium.port` | `9222` | Internal Chromium sidecar HTTP port |
-| `persistence.enabled` | `true` | Enable persistence for application data |
+| `karakeep.existingSecret` | `""` | Existing secret with auth and Meilisearch keys |
+| `karakeep.extraEnv` | `[]` | Extra environment variables for AI and advanced configuration |
+| `meilisearch.enabled` | `true` | Enable the Meilisearch sidecar |
+| `chromium.enabled` | `true` | Enable the Chromium sidecar |
+| `persistence.enabled` | `true` | Enable persistence for SQLite, uploads, and Meilisearch data |
 | `persistence.size` | `10Gi` | PVC size |
-| `ingress.enabled` | `false` | Enable ingress |
-| `ingress.ingressClassName` | `traefik` | Ingress class (traefik, nginx, etc.) |
-| `service.port` | `80` | Service port |
-| `service.ipFamilyPolicy` | `null` | Service IP family policy |
-| `service.ipFamilies` | `[]` | Ordered Service IP families |
+| `ingress.enabled` | `false` | Enable Ingress |
 | `gatewayAPI.enabled` | `false` | Enable Gateway API HTTPRoute |
-| `externalSecrets.enabled` | `false` | Render ExternalSecret for app secrets |
+| `externalSecrets.enabled` | `false` | Render ExternalSecret for app credentials |
 
-## Ingress Example
+## Security Scan
 
-```yaml
-karakeep:
-  nextAuthUrl: "https://karakeep.example.com"
+Security Scan: Kubescape on rendered default manifests.
 
-ingress:
-  enabled: true
-  ingressClassName: traefik  # or nginx
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt
-  hosts:
-    - host: karakeep.example.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - hosts:
-        - karakeep.example.com
-      secretName: karakeep-tls
+| Framework | Score |
+| --- | --- |
+| MITRE | 100.00% |
+| NSA | 60.00% |
+| SOC2 | 80.00% |
+| Aggregate | 80.00% |
+
+Default findings are driven by intentionally unset platform-specific controls:
+resource limits, container hardening context, service account token mounting, and
+NetworkPolicy boundaries. Set `resources`, `securityContext`,
+`podSecurityContext`, and platform NetworkPolicies according to your cluster
+baseline.
+
+## Quality Gates
+
+Before proposing a merge for this chart, run:
+
+```bash
+make validate-chart CHART=karakeep
+make standards-check CHART=karakeep
+make deps-check CHART=karakeep
+make site-sync-check CHART=karakeep
 ```
 
-## Gateway API
+## Persistence
+
+Karakeep stores SQLite, uploads, queue state, and optional sidecar data on the
+PVC mounted at `/data`. The Deployment uses `strategy.type=Recreate` because the
+default storage model is single-writer.
+
+Use an existing PVC when migrating from another release:
 
 ```yaml
-gatewayAPI:
-  enabled: true
-  parentRefs:
-    - name: shared-gateway
-      namespace: gateway-system
-      sectionName: https
-  hostnames:
-    - karakeep.example.com
-  paths:
-    - type: PathPrefix
-      value: /
+persistence:
+  existingClaim: my-karakeep-pvc
 ```
-
-## Dual-Stack Networking
-
-```yaml
-service:
-  ipFamilyPolicy: PreferDualStack
-```
-
-Set `service.ipFamilies` only when the target cluster advertises the requested IP families.
 
 ## External Secrets
+
+Use `externalSecrets.enabled=true` only with `karakeep.existingSecret`. The
+ExternalSecret must populate both `nextauth-secret` and `meili-master-key` when
+Meilisearch is enabled.
 
 ```yaml
 karakeep:
@@ -188,40 +205,17 @@ externalSecrets:
         property: meili-master-key
 ```
 
-The External Secrets Operator and SecretStore are managed outside this chart. `externalSecrets.data` must populate both
-`nextauth-secret` and `meili-master-key`, or the chart fails during template rendering.
-
-## Upgrade Notes
-
-This update moves the default Karakeep image from `0.31.0` to `0.32.0`. Upstream release notes describe mobile app design
-work and application fixes; no breaking chart value changes were identified.
-
-## Persistence
-
-SQLite database and uploaded content are stored under `/data`. A PVC is created by default.
-
-To use an existing PVC:
-
-```yaml
-persistence:
-  existingClaim: my-karakeep-pvc
-```
-
 ## Limitations
 
-- **Single instance** — SQLite does not support concurrent writers
-- **No clustering** — designed as a single-node deployment
+- Single replica by default; SQLite and the shared PVC are not a concurrent
+  writer architecture.
+- Ingress and Gateway API expose HTTP routing only; authentication and network
+  boundaries outside Karakeep are platform responsibilities.
+- AI providers are configured through `karakeep.extraEnv`; this chart does not
+  create provider-specific API key Secrets.
 
 ## More Information
 
 - [Karakeep documentation](https://docs.karakeep.app)
-- [Source code](https://github.com/helmforgedev/charts/tree/main/charts/karakeep)
-
-<!-- @AI-METADATA
-type: chart-readme
-path: charts/karakeep/README.md
-date: 2026-04-03
-relations:
-  - charts/karakeep/values.yaml
-  - charts/karakeep/Chart.yaml
--->
+- [Karakeep source](https://github.com/karakeep-app/karakeep)
+- [HelmForge chart source](https://github.com/helmforgedev/charts/tree/main/charts/karakeep)
