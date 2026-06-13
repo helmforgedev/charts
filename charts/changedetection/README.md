@@ -297,6 +297,29 @@ upgrading long-lived instances.
 - **Browser rendering costs more** — enabling the browser sidecar increases CPU
   and memory consumption
 
+## Security Scan
+
+🟢 Security Scan: `changedetection`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **87.88%** |
+
+> ✅ Security posture acceptable.
+
+Local details:
+
+| Framework | Score |
+|---|---|
+| MITRE | 100.00% |
+| NSA | 85.00% |
+| SOC2 | 80.00% |
+
+The remaining findings are expected for this workload profile: changedetection.io
+needs a writable datastore for SQLite and snapshots, NetworkPolicy is supplied by
+the platform layer, and ServiceAccount token hardening remains configurable by
+cluster policy.
+
 ## More Information
 
 - [changedetection.io documentation](https://changedetection.io)
