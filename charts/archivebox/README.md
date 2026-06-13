@@ -1,15 +1,22 @@
 # ArchiveBox Helm Chart
 
-Deploy [ArchiveBox](https://archivebox.io) on Kubernetes using the official [archivebox/archivebox](https://hub.docker.com/r/archivebox/archivebox) container image. Self-hosted web archiving platform that captures websites in multiple formats (HTML, PDF, PNG, WARC, media) using Chromium headless.
+Deploy [ArchiveBox](https://archivebox.io) on Kubernetes using the official
+[archivebox/archivebox](https://hub.docker.com/r/archivebox/archivebox)
+container image.
+
+ArchiveBox is a self-hosted web archiving platform that captures websites in
+multiple formats, including HTML, PDF, PNG, WARC, and media, using Chromium
+headless.
 
 ## Features
 
-- **Multi-format archiving** — HTML, PDF, screenshot, WARC, media extraction
-- **Chromium headless** — full page rendering with `/dev/shm` memory-backed tmpfs
-- **SQLite embedded** — no external database needed
-- **Persistent storage** — archived content and SQLite database on PVC
-- **Admin credentials** — managed via Kubernetes Secret
-- **Ingress support** — TLS with cert-manager
+- **Multi-format archiving** - HTML, PDF, screenshot, WARC, media extraction
+- **Chromium headless** - full page rendering with `/dev/shm` tmpfs
+- **SQLite embedded** - no external database needed
+- **Persistent storage** - archived content and SQLite database on PVC
+- **Admin credentials** - managed via Kubernetes Secret
+- **Ingress support** - TLS with cert-manager
+- **S3-compatible backups** - optional CronJob for `/data` archives
 
 ## Installation
 
@@ -43,6 +50,18 @@ kubectl port-forward svc/<release>-archivebox 8000:80
 # Open http://localhost:8000
 ```
 
+## Architecture Guides
+
+- [Chart design](DESIGN.md)
+- [Runtime architecture](docs/architecture.md)
+- [Backup guide](docs/backup.md)
+
+## Examples
+
+- [Minimal local installation](examples/simple.yaml)
+- [Ingress with TLS](examples/ingress.yaml)
+- [Scheduled S3 backup](examples/s3-backup.yaml)
+
 ## Using an Existing Secret
 
 ```yaml
@@ -69,13 +88,38 @@ archivebox:
 | `persistence.size` | `50Gi` | PVC size (plan for large archives) |
 | `ingress.enabled` | `false` | Enable ingress |
 | `service.port` | `80` | Service port |
+| `backup.enabled` | `false` | Enable scheduled S3-compatible backup |
+| `backup.schedule` | `0 3 * * *` | Backup CronJob schedule |
+
+## Security Scan
+
+Security Scan:
+
+Kubescape scan for `MITRE,NSA,SOC2` during this standards backfill:
+
+| Framework | Score |
+|-----------|-------|
+| MITRE | 100.00% |
+| NSA | 65.00% |
+| SOC2 | 80.00% |
+| Aggregate resource score | 75.76% |
+
+Expected follow-up hardening is operator-dependent:
+
+- Set explicit CPU and memory requests and limits for the ArchiveBox workload.
+- Add namespace-level NetworkPolicy where the platform requires restricted
+  ingress and egress.
+- Use an existing Secret for admin and S3 credentials in production.
 
 ## Limitations
 
-- **Single instance only** — SQLite is single-writer, horizontal scaling is not supported
-- **Storage-heavy** — each archived snapshot is 2-50MB; plan PVC size accordingly (50-100GB+)
-- **Chromium resources** — requires at least 2Gi RAM for Chromium headless rendering
-- **`/dev/shm`** — automatically mounted as memory-backed tmpfs (1Gi) for Chromium
+- **Single instance only** - SQLite is single-writer; horizontal scaling is not
+  supported
+- **Storage-heavy** - each archived snapshot is commonly 2-50MB; plan PVC size
+  accordingly
+- **Chromium resources** - requires at least 2Gi RAM for Chromium headless
+  rendering
+- **`/dev/shm`** - automatically mounted as memory-backed tmpfs for Chromium
 
 ## More Information
 
