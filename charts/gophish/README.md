@@ -170,3 +170,11 @@ helm unittest charts/gophish
 helm template gophish charts/gophish | kubeconform -strict -kubernetes-version 1.30.0 -schema-location default
 ct lint --target-branch main --charts charts/gophish
 ```
+
+### Security Scan: `gophish`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **88.38384%** |
+
+Security posture: acceptable.
