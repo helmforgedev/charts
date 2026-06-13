@@ -32,13 +32,18 @@ This chart uses the **remotely-managed** tunnel model.
 All routing configuration, including public hostnames and private networks, is managed through the Cloudflare dashboard instead of local config files.
 The chart only needs the tunnel token.
 
-### High Availability
+### Default and High Availability
 
-The chart deploys 2 replicas by default with a PodDisruptionBudget. Each replica establishes independent connections to Cloudflare's edge. Important notes:
+The default chart install uses a single quick tunnel so local smoke tests can
+run without a Cloudflare token. Production managed tunnels should set
+`tunnel.quickTunnel.enabled=false`, configure `tunnel.existingSecret` or
+`tunnel.token`, use 2 or more replicas, and enable a PodDisruptionBudget. Each
+managed-tunnel replica establishes independent connections to Cloudflare's edge.
+Important notes:
 
 - **Do not use HPA** — downscaling breaks active connections
 - Use `topologySpreadConstraints` to spread replicas across nodes
-- The PDB ensures at least 1 replica survives during rolling updates
+- Enable the PDB for multi-replica production deployments so at least 1 replica survives during voluntary disruptions
 
 ### Metrics
 
@@ -54,14 +59,3 @@ The `/ready` endpoint on port 2000 serves as both the health check and the Prome
 | DDoS protection | Built-in | External |
 | Load balancer cost | None | Cloud LB cost |
 | Provider lock-in | Cloudflare | None |
-
-<!-- @AI-METADATA
-@description: Architecture overview of the Cloudflare Tunnel (cloudflared) Helm chart
-@type: chart-docs
-@chart: cloudflared
-@path: charts/cloudflared/docs/architecture.md
-@date: 2026-03-23
-@relations:
-  - charts/cloudflared/README.md
-  - charts/cloudflared/values.yaml
--->
