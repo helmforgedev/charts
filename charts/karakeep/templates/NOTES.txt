@@ -1,61 +1,67 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Karakeep has been successfully deployed!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Karakeep has been deployed.
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
+Release:
+  Chart:      {{ .Chart.Name }}
+  Version:    {{ .Chart.Version }}
+  AppVersion: {{ .Chart.AppVersion }}
+  Release:    {{ .Release.Name }}
+  Namespace:  {{ .Release.Namespace }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ACCESS INFORMATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+Access:
 {{- if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
-WEB UI:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+  Web UI: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
 {{- end }}
 {{- else if .Values.gatewayAPI.enabled }}
-Gateway API HTTPRoute has been rendered for Karakeep.
+  Gateway API HTTPRoute has been rendered for Karakeep.
 {{- with .Values.gatewayAPI.hostnames }}
-WEB UI:   http://{{ index . 0 }}/
+  Web UI: http://{{ index . 0 }}/
 {{- end }}
 {{- else }}
-Port-forward to access Karakeep locally:
+  Port-forward:
+    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "karakeep.fullname" . }} 3000:{{ .Values.service.port }}
 
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "karakeep.fullname" . }} 3000:{{ .Values.service.port }}
-
-  WEB UI:   http://localhost:3000/
+  Web UI: http://localhost:3000/
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  GETTING STARTED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=karakeep -n {{ .Release.Namespace }} --timeout=300s
-2. kubectl get pods -l app.kubernetes.io/name=karakeep -n {{ .Release.Namespace }}
-3. kubectl logs -l app.kubernetes.io/name=karakeep -n {{ .Release.Namespace }} --all-containers --tail=50 -f
-
+Configuration:
+  Karakeep image: {{ include "karakeep.image" . }}
+  Meilisearch enabled: {{ .Values.meilisearch.enabled }}
+  Chromium enabled: {{ .Values.chromium.enabled }}
+  Persistence enabled: {{ .Values.persistence.enabled }}
+{{- with .Values.karakeep.nextAuthUrl }}
+  NEXTAUTH_URL: {{ . }}
+{{- else }}
+  NEXTAUTH_URL: not set
+{{- end }}
 {{- with .Values.service.ipFamilyPolicy }}
-Service IP family policy:
-  {{ . }}{{ with $.Values.service.ipFamilies }} (families: {{ join ", " . }}){{ end }}
+  Service IP family policy: {{ . }}{{ with $.Values.service.ipFamilies }} (families: {{ join ", " . }}){{ end }}
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  TROUBLESHOOTING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Validation:
+  kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=karakeep -n {{ .Release.Namespace }} --timeout=300s
+  kubectl get pods -l app.kubernetes.io/name=karakeep -n {{ .Release.Namespace }}
+  kubectl logs -l app.kubernetes.io/name=karakeep -n {{ .Release.Namespace }} --all-containers --tail=50
 
+Troubleshooting:
   kubectl describe pod -l app.kubernetes.io/name=karakeep -n {{ .Release.Namespace }}
   kubectl logs -l app.kubernetes.io/name=karakeep -n {{ .Release.Namespace }} --all-containers --tail=100
   kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ADDITIONAL RESOURCES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Warnings:
+{{- if not .Values.karakeep.nextAuthUrl }}
+  - karakeep.nextAuthUrl is not set. Set it to the exact URL users open in the browser before production use.
+{{- end }}
+{{- if and .Values.meilisearch.enabled (not .Values.meilisearch.resources) }}
+  - meilisearch.resources is empty. Set resource requests and limits for production.
+{{- end }}
+{{- if and .Values.chromium.enabled (not .Values.chromium.resources) }}
+  - chromium.resources is empty. Set resource requests and limits for production.
+{{- end }}
 
-Documentation:  https://helmforge.dev/docs/charts/karakeep
-Karakeep:       https://karakeep.app | https://github.com/karakeep-app/karakeep
+Documentation:
+  https://helmforge.dev/docs/charts/karakeep
+  https://karakeep.app
 
 Happy Helmforging :)
