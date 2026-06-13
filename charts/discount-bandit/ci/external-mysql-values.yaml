@@ -1,13 +1,82 @@
 # SPDX-License-Identifier: Apache-2.0
-# CI: external MySQL with native Secret
+# CI: external MySQL with native Secret and an in-cluster MySQL fixture
 database:
   mode: external
   external:
     type: mysql
-    host: mysql.example.com
+    host: discount-bandit-external-mysql
     port: 3306
     name: discount_bandit
     username: discount_bandit
     password: change-me
 mysql:
   enabled: false
+extraManifests:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: discount-bandit-external-mysql
+      labels:
+        app.kubernetes.io/name: discount-bandit-external-mysql
+    spec:
+      type: ClusterIP
+      ports:
+        - name: mysql
+          port: 3306
+          targetPort: mysql
+      selector:
+        app.kubernetes.io/name: discount-bandit-external-mysql
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: discount-bandit-external-mysql
+      labels:
+        app.kubernetes.io/name: discount-bandit-external-mysql
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: discount-bandit-external-mysql
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: discount-bandit-external-mysql
+        spec:
+          automountServiceAccountToken: false
+          securityContext:
+            fsGroup: 999
+            fsGroupChangePolicy: OnRootMismatch
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: mysql
+              image: docker.io/library/mysql:9.7.0
+              imagePullPolicy: IfNotPresent
+              ports:
+                - name: mysql
+                  containerPort: 3306
+              env:
+                - name: MYSQL_DATABASE
+                  value: discount_bandit
+                - name: MYSQL_USER
+                  value: discount_bandit
+                - name: MYSQL_PASSWORD
+                  value: change-me
+                - name: MYSQL_ROOT_PASSWORD
+                  value: root-change-me
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: false
+                runAsGroup: 999
+                runAsNonRoot: true
+                runAsUser: 999
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 512Mi
+                limits:
+                  cpu: 1000m
+                  memory: 1Gi

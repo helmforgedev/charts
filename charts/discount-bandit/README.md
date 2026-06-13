@@ -19,6 +19,8 @@ Gotify.
 - Optional persistent logs volume mounted at `/logs`
 - Optional PodDisruptionBudget
 - Kubernetes-safe Supervisor base config that removes the upstream unauthenticated Supervisor HTTP endpoint
+- Conservative runtime defaults with service account token automount disabled, RuntimeDefault seccomp, privilege escalation
+  disabled, and explicit resources
 - Production example with MySQL, Gateway API, NetworkPolicy, and resources
 
 ## Installation
@@ -88,6 +90,7 @@ resources:
     cpu: 250m
     memory: 512Mi
   limits:
+    cpu: 1000m
     memory: 1Gi
 ```
 
@@ -213,6 +216,10 @@ networkPolicy:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `mysql.enabled` | `true` | Deploy HelmForge MySQL as the primary database. |
+| `mysql.standalone.resources.requests.cpu` | `250m` | Default CPU request for the bundled MySQL pod. |
+| `mysql.standalone.resources.requests.memory` | `512Mi` | Default memory request for the bundled MySQL pod. |
+| `mysql.standalone.resources.limits.cpu` | `1000m` | Default CPU limit for the bundled MySQL pod. |
+| `mysql.standalone.resources.limits.memory` | `1Gi` | Default memory limit for the bundled MySQL pod. |
 | `database.mode` | `auto` | Database mode: `auto`, `mysql`, `external`, or `sqlite`. |
 | `database.sqlite.enabled` | `false` | Enables explicit SQLite development mode. |
 | `discountBandit.appUrl` | `""` | Public application URL (`APP_URL`). |
@@ -226,9 +233,29 @@ networkPolicy:
 | `externalSecrets.enabled` | `false` | Enable External Secrets Operator resources. |
 | `networkPolicy.enabled` | `false` | Render NetworkPolicy. |
 | `serviceAccount.automountServiceAccountToken` | `false` | Disable Kubernetes API token mount by default. |
+| `resources.requests.cpu` | `250m` | Default CPU request for the Discount Bandit container. |
+| `resources.requests.memory` | `512Mi` | Default memory request for the Discount Bandit container. |
+| `resources.limits.cpu` | `1000m` | Default CPU limit for the Discount Bandit container. |
+| `resources.limits.memory` | `1Gi` | Default memory limit for the Discount Bandit container. |
+| `podSecurityContext.seccompProfile.type` | `RuntimeDefault` | Use the Kubernetes RuntimeDefault seccomp profile. |
+| `securityContext.allowPrivilegeEscalation` | `false` | Disable privilege escalation for the application container. |
 | `persistence.logs.enabled` | `false` | Persist `/logs` instead of using `emptyDir`. |
 | `supervisor.configMap.enabled` | `true` | Replace the upstream Supervisor base config with a Kubernetes-safe config. |
 | `pdb.enabled` | `false` | Render PodDisruptionBudget. |
+
+## Security Scan
+
+Security Scan: `discount-bandit`
+
+| Framework | Score |
+|-----------|-------|
+| MITRE + NSA + SOC2 | **91.21%** |
+| MITRE | **100.00%** |
+| NSA | **87.50%** |
+| SOC2 | **92.00%** |
+
+The remaining expected findings are tied to the upstream root runtime, writable application filesystem needs, and
+NetworkPolicy/firewall decisions that depend on crawler and notification destinations.
 
 ## Operational Notes
 
@@ -239,6 +266,7 @@ networkPolicy:
 - SQLite is suitable for development and small personal installs only.
 - Production deployments should use the MySQL subchart or external MySQL/MariaDB.
 - Enable NetworkPolicy carefully because product crawling and notifications need outbound internet access.
+- See `docs/operations.md` for runtime, database, crawler egress, routing, and validation guidance.
 
 ## More Information
 

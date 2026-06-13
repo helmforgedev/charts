@@ -142,16 +142,25 @@ The chart separates storage concerns:
 
 ## Security
 
-Defaults avoid mounting the Kubernetes API token:
+Defaults avoid mounting the Kubernetes API token and apply conservative controls that are compatible with the current
+upstream image:
 
 ```yaml
 serviceAccount:
   automountServiceAccountToken: false
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
 ```
 
-The upstream image currently runs Supervisor and worker processes in a way that is not assumed to be non-root safe. For that
-reason the chart exposes `podSecurityContext` and `securityContext` but does not force a restrictive default that could break
-the application before K3D validation.
+The upstream image currently runs Supervisor and worker processes as root and listens on port 80. For that reason the chart
+does not force `runAsNonRoot`, `readOnlyRootFilesystem`, or dropped capabilities by default; those require upstream image
+changes or dedicated runtime validation for FrankenPHP, Supervisor, and Chromium crawlers.
+
+The chart also sets resource requests and limits for both Discount Bandit and the bundled MySQL subchart so the default
+install has explicit scheduler and quota behavior.
 
 ## Production Checklist
 
