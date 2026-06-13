@@ -200,5 +200,5 @@ Each change should be validated with:
 - `helm lint`;
 - `helm unittest`;
 - `helm template` for default and example values;
-- MCP HelmForge validations for ExternalSecrets, Gateway API, values quality, and CI evidence;
+- local HelmForge validations for ExternalSecrets, Gateway API, values quality, and CI evidence;
 - K3D install for default, production, ExternalSecret, Gateway API, NetworkPolicy, and dual-stack scenarios where the local cluster supports them.
