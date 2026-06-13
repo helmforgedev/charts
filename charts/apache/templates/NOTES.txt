@@ -1,58 +1,166 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-=============================================================================
-Apache HTTP Server deployed successfully!
-=============================================================================
+Apache HTTP Server has been installed
+=====================================
 
-ACCESS:
-   kubectl port-forward svc/{{ include "apache.fullname" . }} -n {{ .Release.Namespace }} 8080:{{ .Values.service.port }}
-   Open: http://localhost:8080/
+Installation summary
+--------------------
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Chart version: {{ .Chart.Version }}
+Application version: {{ .Chart.AppVersion }}
+Image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+Replicas: {{ .Values.replicaCount }}
+Service name: {{ include "apache.fullname" . }}
+Service type: {{ .Values.service.type }}
+Service port: {{ .Values.service.port }}
+Container port: {{ .Values.containerPorts.http }}
 
-SERVICE:
-   Internal URL: http://{{ include "apache.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}/
-   Health URL: http://{{ include "apache.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}/healthz
+Access Apache
+-------------
+Port-forward the Service:
 
-IMAGE:
-   {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+  kubectl port-forward svc/{{ include "apache.fullname" . }} -n {{ .Release.Namespace }} 8080:{{ .Values.service.port }}
 
-CONTENT:
+Then open:
+
+  http://localhost:8080/
+
+Cluster-local endpoints:
+
+  http://{{ include "apache.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}/
+  http://{{ include "apache.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}/healthz
+
+Content source
+--------------
 {{- if .Values.content.existingConfigMap }}
-   Content ConfigMap: {{ .Values.content.existingConfigMap }}
+The web root is mounted from this existing ConfigMap:
+
+  {{ .Values.content.existingConfigMap }}
+
+Roll the release when you publish a new immutable content ConfigMap.
 {{- else }}
-   Content ConfigMap: {{ include "apache.contentConfigMapName" . }}
-   Files: {{ len .Values.content.files }}
+The chart rendered an Apache content ConfigMap:
+
+  {{ include "apache.contentConfigMapName" . }}
+
+Rendered content file count:
+
+  {{ len .Values.content.files }}
 {{- end }}
 
-SECURITY:
-   Non-root runtime: enabled
-   Read-only root filesystem: {{ .Values.securityContext.readOnlyRootFilesystem }}
-   Basic Auth: {{ ternary "enabled" "disabled" .Values.basicAuth.enabled }}
+Security summary
+----------------
+Non-root runtime: enabled
+Read-only root filesystem: {{ .Values.securityContext.readOnlyRootFilesystem }}
+Run as user: {{ .Values.securityContext.runAsUser }}
+Run as group: {{ .Values.securityContext.runAsGroup }}
+Seccomp profile: {{ .Values.podSecurityContext.seccompProfile.type }}
+Basic Auth: {{ ternary "enabled" "disabled" .Values.basicAuth.enabled }}
+ExternalSecret: {{ ternary "enabled" "disabled" .Values.externalSecrets.enabled }}
 {{- if .Values.basicAuth.enabled }}
-   Basic Auth Secret: {{ include "apache.basicAuthSecretName" . }}
+Basic Auth Secret:
+
+  {{ include "apache.basicAuthSecretName" . }}
 {{- end }}
 
-NETWORKING:
-   Ingress: {{ ternary "enabled" "disabled" .Values.ingress.enabled }}
-   Gateway API: {{ ternary "enabled" "disabled" .Values.gateway.enabled }}
-   NetworkPolicy: {{ ternary "enabled" "disabled" .Values.networkPolicy.enabled }}
+Routing summary
+---------------
+Ingress: {{ ternary "enabled" "disabled" .Values.ingress.enabled }}
+Gateway API HTTPRoute: {{ ternary "enabled" "disabled" .Values.gateway.enabled }}
+NetworkPolicy: {{ ternary "enabled" "disabled" .Values.networkPolicy.enabled }}
+Service IP family policy: {{ default "cluster default" .Values.service.ipFamilyPolicy }}
+{{- if .Values.ingress.enabled }}
 
-OBSERVABILITY:
-   Metrics sidecar: {{ ternary "enabled" "disabled" .Values.metrics.enabled }}
-   ServiceMonitor: {{ ternary "enabled" "disabled" .Values.metrics.serviceMonitor.enabled }}
+Ingress hosts:
+{{- range .Values.ingress.hosts }}
+  - {{ .host }}
+{{- end }}
+{{- end }}
+{{- if .Values.gateway.enabled }}
+
+Gateway hostnames:
+{{- range .Values.gateway.hostnames }}
+  - {{ . }}
+{{- else }}
+  - not set
+{{- end }}
+{{- end }}
+
+Observability summary
+---------------------
+Metrics sidecar: {{ ternary "enabled" "disabled" .Values.metrics.enabled }}
+ServiceMonitor: {{ ternary "enabled" "disabled" .Values.metrics.serviceMonitor.enabled }}
 {{- if .Values.metrics.enabled }}
-   Metrics endpoint: http://{{ include "apache.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.metricsPort }}/metrics
+Metrics endpoint:
+
+  http://{{ include "apache.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.metricsPort }}/metrics
+
+Apache server-status path:
+
+  {{ .Values.serverStatus.path }}
 {{- end }}
 
-OPERATIONS:
-   Run Helm tests:
-     helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+Validate the deployment
+-----------------------
+Run the Helm test:
 
-   Inspect pods:
-     kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
-     kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "apache.fullname" . }}
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
 
-DOCUMENTATION:
-   Chart: https://helmforge.dev/docs/charts/apache
-   Source: https://github.com/helmforgedev/charts/tree/main/charts/apache
-   Apache HTTP Server: https://httpd.apache.org
+Check pod readiness:
 
-=============================================================================
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl rollout status deployment/{{ include "apache.fullname" . }} -n {{ .Release.Namespace }}
+
+Check the Service and endpoints:
+
+  kubectl get svc,endpoints -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Probe the health endpoint through a temporary curl pod:
+
+  kubectl run {{ .Release.Name }}-curl -n {{ .Release.Namespace }} --rm -i --restart=Never --image=curlimages/curl:8.17.0 -- \
+    curl -fsS http://{{ include "apache.fullname" . }}:{{ .Values.service.port }}/healthz
+
+Troubleshooting
+---------------
+Inspect Apache logs:
+
+  kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "apache.fullname" . }} -c apache --since=10m
+
+{{- if .Values.metrics.enabled }}
+Inspect exporter logs:
+
+  kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "apache.fullname" . }} -c apache-exporter --since=10m
+
+{{- end }}
+Describe pods and events:
+
+  kubectl describe pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+
+Render the final Apache configuration:
+
+  kubectl get configmap {{ include "apache.configMapName" . }} -n {{ .Release.Namespace }} -o jsonpath='{.data.httpd\.conf}'
+
+Common checks:
+
+  1. If `/healthz` fails, confirm custom Apache config still serves the generated health file.
+  2. If Basic Auth is enabled, confirm the Secret contains key `{{ .Values.basicAuth.htpasswdKey }}`.
+  3. If metrics fail, confirm `serverStatus.require` permits the exporter path.
+  4. If Gateway routing fails, check parentRefs, listener hostnames, and GatewayClass readiness.
+  5. If NetworkPolicy is enabled, confirm your CNI enforces policies and selectors match the caller.
+
+Documentation
+-------------
+Chart docs:
+
+  https://helmforge.dev/docs/charts/apache
+
+Chart source:
+
+  https://github.com/helmforgedev/charts/tree/main/charts/apache
+
+Apache HTTP Server:
+
+  https://httpd.apache.org
+
+Happy Helmforging :)
