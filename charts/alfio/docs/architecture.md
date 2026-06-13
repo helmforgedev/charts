@@ -47,4 +47,3 @@ administrative workflows. Run one pod and scale the database independently.
 5. Set CPU and memory requests and limits after load testing expected ticket
    sale traffic.
 6. Store database credentials in an existing Secret for GitOps workflows.
-

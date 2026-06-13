@@ -62,4 +62,3 @@ alf.io stores durable business data in PostgreSQL. The chart does not render an
 application-level backup job. Use the PostgreSQL subchart backup pattern if the
 database is chart-managed, or the platform database backup process when using an
 external PostgreSQL service.
-

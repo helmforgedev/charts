@@ -1,6 +1,9 @@
 # alf.io Helm Chart
 
-Deploy [alf.io](https://alf.io) on Kubernetes using the official [alfio/alf.io](https://hub.docker.com/r/alfio/alf.io) container image. Open-source event management and ticketing platform for conferences, meetups, and exhibitions.
+Deploy [alf.io](https://alf.io) on Kubernetes using the official
+[alfio/alf.io](https://hub.docker.com/r/alfio/alf.io) container image.
+Open-source event management and ticketing platform for conferences, meetups,
+and exhibitions.
 
 ## Features
 
