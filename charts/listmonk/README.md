@@ -1,103 +1,142 @@
 # Listmonk Helm Chart
 
-Self-hosted newsletter and mailing list manager for Kubernetes.
+Deploy [Listmonk](https://listmonk.app), a self-hosted newsletter and mailing
+list manager, on Kubernetes with a PostgreSQL backend, persistent uploads,
+idempotent database bootstrap, optional ingress, and optional S3-compatible
+database backups.
 
-[Listmonk](https://listmonk.app) is a high-performance, self-hosted newsletter and mailing list manager. It comes as a single binary with a built-in web UI for managing subscribers, campaigns, templates, and transactional emails.
+Current application version: `6.1.0`.
 
 ## Features
 
-- Bundled PostgreSQL via HelmForge subchart or external database support
-- Automatic database initialization and migration on startup
-- Persistent storage for media uploads
-- Configurable ingress with TLS support
-- Built-in PostgreSQL backup CronJob with S3 upload
-- First-access setup wizard for Super Admin account creation
-- SMTP configuration through the admin UI after installation
+- Official `docker.io/listmonk/listmonk:v6.1.0` image
+- HelmForge PostgreSQL subchart or external PostgreSQL mode
+- Init containers for `listmonk --install --idempotent` and `--upgrade`
+- Persistent upload storage mounted at `/listmonk/uploads`
+- Ingress with TLS support
+- Optional PostgreSQL backup CronJob using `pg_dump` and S3-compatible upload
+- Existing Secret support for external database and backup credentials
+- Extra environment variables for SMTP and application automation
 
-## Install
+## Installation
+
+HTTPS repository:
 
 ```bash
 helm repo add helmforge https://repo.helmforge.dev
 helm repo update
-helm install listmonk helmforge/listmonk
+helm install listmonk helmforge/listmonk -f values.yaml
 ```
+
+OCI registry:
+
+```bash
+helm install listmonk oci://ghcr.io/helmforgedev/helm/listmonk -f values.yaml
+```
+
+## Examples
+
+The chart includes example values under `examples/`:
+
+- `examples/simple.yaml` - bundled PostgreSQL with persistent uploads.
+- `examples/ingress.yaml` - TLS ingress and explicit resources.
+- `examples/external-db.yaml` - managed external PostgreSQL.
+- `examples/backup.yaml` - S3-compatible PostgreSQL backup CronJob.
+
+Render an example before adapting it:
+
+```bash
+helm template listmonk charts/listmonk -f charts/listmonk/examples/ingress.yaml
+```
+
+## Architecture Guides
+
+- [Design rationale](DESIGN.md)
+- [Architecture guide](docs/architecture.md)
+- [Operations guide](docs/operations.md)
 
 ## Quick Start
 
-### Default install (bundled PostgreSQL)
+Install with bundled PostgreSQL:
 
 ```bash
 helm install listmonk helmforge/listmonk
+kubectl port-forward svc/listmonk 9000:80
 ```
 
-### External PostgreSQL
+Open `http://localhost:9000`, create the first Super Admin user in the setup
+wizard, and configure SMTP from the Listmonk UI under Settings > SMTP.
 
-```bash
-helm install listmonk helmforge/listmonk \
-  --set postgresql.enabled=false \
-  --set database.mode=external \
-  --set database.external.host=pg.example.com \
-  --set database.external.password=changeme
+## Database Modes
+
+Default mode deploys the HelmForge PostgreSQL subchart:
+
+```yaml
+postgresql:
+  enabled: true
+database:
+  mode: auto
 ```
 
-### With ingress
+External PostgreSQL disables the subchart and reads the password from either an
+inline value or an existing Secret:
 
-```bash
-helm install listmonk helmforge/listmonk \
-  --set ingress.enabled=true \
-  --set ingress.ingressClassName=traefik \
-  --set "ingress.hosts[0].host=listmonk.example.com" \
-  --set "ingress.hosts[0].paths[0].path=/" \
-  --set "ingress.hosts[0].paths[0].pathType=Prefix"
+```yaml
+postgresql:
+  enabled: false
+
+database:
+  mode: external
+  external:
+    host: postgres.example.com
+    port: 5432
+    name: listmonk
+    username: listmonk
+    existingSecret: listmonk-db
+    existingSecretPasswordKey: database-password
+    sslMode: require
 ```
 
-## Configuration
+External databases must already allow Listmonk to create required objects and
+must provide the PostgreSQL extensions Listmonk expects.
 
-SMTP and most application settings are configured through the Listmonk admin UI after installation at **Settings > SMTP**. The Helm chart handles infrastructure-level configuration (database, storage, ingress, probes).
+## Key Values
 
-### Admin Setup
+| Key | Default | Description |
+| --- | --- | --- |
+| `replicaCount` | `1` | Number of Listmonk replicas |
+| `image.repository` | `docker.io/listmonk/listmonk` | Listmonk image |
+| `image.tag` | `"v6.1.0"` | Listmonk image tag |
+| `database.mode` | `auto` | Database mode: `auto`, `external`, or `postgresql` |
+| `postgresql.enabled` | `true` | Deploy the PostgreSQL subchart |
+| `storage.enabled` | `true` | Persist uploaded media |
+| `storage.size` | `5Gi` | Uploads PVC size |
+| `backup.enabled` | `false` | Enable PostgreSQL backup CronJob |
+| `backup.schedule` | `"0 3 * * *"` | Backup cron schedule |
+| `backup.s3.existingSecret` | `""` | Existing S3 credential Secret |
+| `ingress.enabled` | `false` | Enable Ingress |
+| `listmonk.extraEnv` | `[]` | Extra Listmonk environment variables |
 
-On first access, Listmonk displays a setup wizard where you create a Super Admin account. This is handled entirely through the web UI — the chart does not manage admin credentials.
+## Security Scan
 
-### Database Initialization
+Security Scan: Kubescape on rendered default manifests.
 
-The chart automatically runs `--install --idempotent --yes` and `--upgrade --yes` as init containers before the main application starts. This handles both fresh installs and upgrades.
+| Framework | Score |
+| --- | --- |
+| MITRE | 100.00% |
+| NSA | 70.00% |
+| SOC2 | 90.00% |
+| Aggregate | 86.67% |
 
-## Values
+Default findings are driven by intentionally unset platform-specific controls:
+resource limits, container hardening context, service account token mounting, and
+NetworkPolicy boundaries. Set `resources`, `securityContext`,
+`podSecurityContext`, and platform NetworkPolicies according to your cluster
+baseline.
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `replicaCount` | int | `1` | Number of replicas |
-| `image.repository` | string | `docker.io/listmonk/listmonk` | Image repository |
-| `image.tag` | string | `""` | Image tag (defaults to appVersion) |
-| `image.pullPolicy` | string | `IfNotPresent` | Pull policy |
-| `listmonk.extraEnv` | list | `[]` | Additional environment variables |
-| `database.mode` | string | `auto` | Database mode: `auto`, `external`, `postgresql` |
-| `database.external.host` | string | `""` | External PostgreSQL hostname |
-| `database.external.port` | int | `5432` | External PostgreSQL port |
-| `database.external.name` | string | `listmonk` | External database name |
-| `database.external.username` | string | `listmonk` | External database username |
-| `database.external.password` | string | `""` | External database password |
-| `database.external.sslMode` | string | `disable` | PostgreSQL SSL mode |
-| `database.external.existingSecret` | string | `""` | Existing secret for database password |
-| `postgresql.enabled` | bool | `true` | Deploy PostgreSQL subchart |
-| `postgresql.auth.database` | string | `listmonk` | PostgreSQL database name |
-| `postgresql.auth.username` | string | `listmonk` | PostgreSQL username |
-| `storage.enabled` | bool | `true` | Enable persistent uploads storage |
-| `storage.size` | string | `5Gi` | Uploads PVC size |
-| `storage.existingClaim` | string | `""` | Use existing PVC |
-| `backup.enabled` | bool | `false` | Enable backup CronJob |
-| `backup.schedule` | string | `0 3 * * *` | Backup cron schedule |
-| `service.type` | string | `ClusterIP` | Service type |
-| `service.port` | int | `80` | Service port |
-| `ingress.enabled` | bool | `false` | Enable ingress |
-| `ingress.ingressClassName` | string | `""` | Ingress class (`traefik`, `nginx`, etc.) |
-| `ingress.hosts` | list | `[]` | Ingress hosts |
-| `ingress.tls` | list | `[]` | Ingress TLS configuration |
+## Backups
 
-## Backup
-
-Enable PostgreSQL backups to S3-compatible storage:
+Backups are opt-in. Use an existing Secret for S3 credentials in production:
 
 ```yaml
 backup:
@@ -105,37 +144,36 @@ backup:
   schedule: "0 3 * * *"
   s3:
     endpoint: https://s3.amazonaws.com
-    bucket: my-backups
+    bucket: listmonk-backups
     prefix: listmonk
-    accessKey: AKIAIOSFODNN7EXAMPLE
-    secretKey: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+    existingSecret: listmonk-s3-credentials
 ```
 
-Or use an existing secret:
+The backup CronJob dumps the configured PostgreSQL database and uploads the
+archive with the configured object prefix.
 
-```yaml
-backup:
-  enabled: true
-  s3:
-    endpoint: https://s3.amazonaws.com
-    bucket: my-backups
-    existingSecret: my-s3-credentials
+## Quality Gates
+
+Before proposing a merge for this chart, run:
+
+```bash
+make deps-check CHART=listmonk
+make standards-check CHART=listmonk
+make validate-chart CHART=listmonk
+make site-sync-check CHART=listmonk
 ```
 
-<!-- @AI-METADATA
-type: chart-readme
-title: Listmonk Helm Chart
-description: Helm chart for deploying Listmonk newsletter and mailing list manager on Kubernetes
+## Limitations
 
-keywords: listmonk, newsletter, mailing-list, email, helm, kubernetes
+- Keep `replicaCount=1` unless the database, uploads storage, sessions, and
+  operational model have been validated for concurrent Listmonk pods.
+- The chart does not manage SMTP credentials as first-class values; use the UI or
+  `listmonk.extraEnv` with Secrets.
+- Built-in backups cover PostgreSQL. Uploaded media on the uploads PVC needs a
+  separate storage backup plan.
 
-purpose: Installation and configuration guide for the Listmonk Helm chart
-scope: Chart Documentation
+## More Information
 
-relations:
-  - charts/listmonk/values.yaml
-  - charts/listmonk/Chart.yaml
-path: charts/listmonk/README.md
-version: 1.0
-date: 2026-04-03
--->
+- [Listmonk documentation](https://listmonk.app/docs)
+- [Listmonk source](https://github.com/knadh/listmonk)
+- [HelmForge chart source](https://github.com/helmforgedev/charts/tree/main/charts/listmonk)
