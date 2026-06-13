@@ -173,7 +173,7 @@ HelmForge differentiation:
 
 ## Site Sync Notes
 
-HelmForge MCP site sync check for a new `gophish` chart requires:
+HelmForge site sync for a new `gophish` chart requires:
 
 - dedicated chart documentation page
 - chart card entry on the charts overview page
@@ -187,8 +187,8 @@ These are Phase 10 deliverables, but they are recorded here because architecture
 
 - Tavily was attempted first for this phase.
 - Tavily detailed research timed out, and a second query returned a plan usage limit error.
-- Context7 MCP was requested by policy during initial research; later implementation used local Helm and Kubernetes references plus HelmForge MCP guardrails.
-- Fallback research used official GitHub, Docker Hub, upstream user guide, and HelmForge MCP resources.
+- Context7 MCP was requested by policy during initial research; later implementation used local Helm and Kubernetes references plus HelmForge guardrails.
+- Fallback research used official GitHub, Docker Hub, upstream user guide, and local HelmForge knowledge.
 
 ## References
 

@@ -2,8 +2,86 @@
 database:
   mode: external
   external:
-    host: mysql.database.svc.cluster.local
+    host: mysql
     name: gophish
     username: gophish
     existingSecret: gophish-db
     existingSecretDsnKey: dsn
+
+extraManifests:
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: gophish-db
+    type: Opaque
+    stringData:
+      dsn: gophish:helmforge-test-password@(mysql:3306)/gophish?charset=utf8&parseTime=True&loc=UTC
+      mysql-root-password: helmforge-root-password
+      mysql-user-password: helmforge-test-password
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: mysql
+      labels:
+        app.kubernetes.io/name: mysql
+        app.kubernetes.io/component: external-db-ci
+    spec:
+      type: ClusterIP
+      ports:
+        - name: mysql
+          port: 3306
+          targetPort: mysql
+      selector:
+        app.kubernetes.io/name: mysql
+        app.kubernetes.io/component: external-db-ci
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: mysql
+      labels:
+        app.kubernetes.io/name: mysql
+        app.kubernetes.io/component: external-db-ci
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: mysql
+          app.kubernetes.io/component: external-db-ci
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: mysql
+            app.kubernetes.io/component: external-db-ci
+        spec:
+          containers:
+            - name: mysql
+              image: docker.io/library/mysql:9.7.0
+              imagePullPolicy: IfNotPresent
+              args:
+                - --sql-mode=NO_ENGINE_SUBSTITUTION
+                - --character-set-server=utf8mb4
+                - --collation-server=utf8mb4_unicode_ci
+              env:
+                - name: MYSQL_ROOT_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: gophish-db
+                      key: mysql-root-password
+                - name: MYSQL_DATABASE
+                  value: gophish
+                - name: MYSQL_USER
+                  value: gophish
+                - name: MYSQL_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: gophish-db
+                      key: mysql-user-password
+              ports:
+                - name: mysql
+                  containerPort: 3306
+              volumeMounts:
+                - name: data
+                  mountPath: /var/lib/mysql
+          volumes:
+            - name: data
+              emptyDir: {}
