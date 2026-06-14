@@ -93,7 +93,8 @@ spec:
             - /bin/sh
             - -ec
             - |
-              cp /opt/bitnami/jmx-exporter/jmx_prometheus_javaagent.jar /jmx/jmx_prometheus_javaagent.jar
+              wget -O /jmx/jmx_prometheus_javaagent.jar {{ .Values.metrics.agent.url | quote }}
+              echo "{{ .Values.metrics.agent.sha256 }}  /jmx/jmx_prometheus_javaagent.jar" | sha256sum -c -
               chmod 0444 /jmx/jmx_prometheus_javaagent.jar
           volumeMounts:
             - name: jmx-agent
@@ -117,7 +118,7 @@ spec:
               value: /var/lib/kafka/controller-data
             {{- if .Values.metrics.enabled }}
             - name: KAFKA_OPTS
-              value: "-javaagent:/opt/bitnami/jmx-exporter/jmx_prometheus_javaagent.jar={{ .Values.metrics.port }}:/etc/jmx-exporter/config.yaml"
+              value: "-javaagent:/opt/jmx-exporter/jmx_prometheus_javaagent.jar={{ .Values.metrics.port }}:/etc/jmx-exporter/config.yaml"
             {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
@@ -174,7 +175,7 @@ spec:
               readOnly: true
             {{- if .Values.metrics.enabled }}
             - name: jmx-agent
-              mountPath: /opt/bitnami/jmx-exporter
+              mountPath: /opt/jmx-exporter
               readOnly: true
             - name: jmx-config
               mountPath: /etc/jmx-exporter
@@ -313,7 +314,8 @@ spec:
             - /bin/sh
             - -ec
             - |
-              cp /opt/bitnami/jmx-exporter/jmx_prometheus_javaagent.jar /jmx/jmx_prometheus_javaagent.jar
+              wget -O /jmx/jmx_prometheus_javaagent.jar {{ .Values.metrics.agent.url | quote }}
+              echo "{{ .Values.metrics.agent.sha256 }}  /jmx/jmx_prometheus_javaagent.jar" | sha256sum -c -
               chmod 0444 /jmx/jmx_prometheus_javaagent.jar
           volumeMounts:
             - name: jmx-agent
@@ -337,7 +339,7 @@ spec:
               value: /var/lib/kafka/data
             {{- if .Values.metrics.enabled }}
             - name: KAFKA_OPTS
-              value: "-javaagent:/opt/bitnami/jmx-exporter/jmx_prometheus_javaagent.jar={{ .Values.metrics.port }}:/etc/jmx-exporter/config.yaml"
+              value: "-javaagent:/opt/jmx-exporter/jmx_prometheus_javaagent.jar={{ .Values.metrics.port }}:/etc/jmx-exporter/config.yaml"
             {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
@@ -366,7 +368,7 @@ spec:
               command:
                 - /bin/sh
                 - -ec
-                - /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:{{ .Values.listeners.client.port }} >/dev/null 2>&1
+                - KAFKA_OPTS= /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:{{ .Values.listeners.client.port }} >/dev/null 2>&1
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 5
@@ -395,7 +397,7 @@ spec:
               readOnly: true
             {{- if .Values.metrics.enabled }}
             - name: jmx-agent
-              mountPath: /opt/bitnami/jmx-exporter
+              mountPath: /opt/jmx-exporter
               readOnly: true
             - name: jmx-config
               mountPath: /etc/jmx-exporter
