@@ -115,7 +115,8 @@ The CI values cover:
 
 - Default PostgreSQL deployment.
 - MySQL deployment.
-- External PostgreSQL documented example and template coverage.
+- External PostgreSQL deployment with an in-cluster fake endpoint for k3d plus
+  a documented operator-owned database example.
 - OIDC with ingress-derived callback behavior.
 - SAML with ingress-derived callback behavior.
 - S3 backup CronJob rendering.
