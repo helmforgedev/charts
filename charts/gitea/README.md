@@ -23,6 +23,21 @@ Helm chart for deploying [Gitea](https://gitea.io/) self-hosted Git service on K
 - **Ingress support** configurable ingress with TLS for HTTP access
 - **Extra environment variables** any `GITEA__SECTION__KEY` for app.ini overrides
 
+## Documentation
+
+- [Chart design](DESIGN.md)
+- [Architecture](docs/architecture.md)
+- [Database modes and secrets](docs/database-modes.md)
+- [Operations and backup](docs/operations-and-backup.md)
+
+### Security Scan: `gitea`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **83.54978%** |
+
+> Security posture acceptable.
+
 ## Installation
 
 ### HTTPS Repository
