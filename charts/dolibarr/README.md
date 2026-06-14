@@ -184,6 +184,20 @@ HelmForge MySQL 2.x dependency.
 | `ingress.hosts` | `[]` | Ingress hosts and paths |
 | `ingress.tls` | `[]` | TLS configuration |
 
+### Security Scan: `dolibarr`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **87.878784%** |
+| MITRE | **100.00%** |
+| NSA | **82.50%** |
+| SOC2 | **90.00%** |
+
+Security posture is acceptable for the HelmForge gate. Remaining findings are
+medium or low severity and reflect the official Dolibarr container's current
+root-based Apache setup, writable application filesystem, and operator-owned
+network boundary choices.
+
 ## Notes
 
 - this chart intentionally supports **MySQL/MariaDB only** for automated setups
