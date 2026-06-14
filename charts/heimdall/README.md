@@ -82,7 +82,7 @@ backup:
 
 ## Parameters
 
-### Heimdall
+### Heimdall Settings
 
 | Key | Default | Description |
 |-----|---------|-------------|
