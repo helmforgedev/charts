@@ -16,6 +16,22 @@ Deploy [Apache Guacamole](https://guacamole.apache.org) on Kubernetes — a clie
 - **Ingress** — TLS with cert-manager
 - **S3 Backup** — scheduled CronJob with pg_dump or mysqldump
 
+## Documentation
+
+- [Chart Design](DESIGN.md)
+- [Database Configuration](docs/database.md)
+- [OIDC with Keycloak](docs/oidc-keycloak.md)
+- [Backup Guide](docs/backup.md)
+- [Guacamole Official Docs](https://guacamole.apache.org/doc/gug/)
+
+### Security Scan: `guacamole`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **78.78788%** |
+
+> Security posture acceptable with operator-provided resource limits, security contexts, and network policy.
+
 ## Installation
 
 ### HTTPS Repository
@@ -153,13 +169,6 @@ Guacamole runs as a single Deployment with two containers:
 
 A post-install Job initializes the database schema. The init job is idempotent and skips schema creation if tables already exist.
 
-## Documentation
-
-- [Database Configuration](docs/database.md)
-- [OIDC with Keycloak](docs/oidc-keycloak.md)
-- [Backup Guide](docs/backup.md)
-- [Guacamole Official Docs](https://guacamole.apache.org/doc/gug/)
-
 <!-- @AI-METADATA
 type: chart-readme
 title: Apache Guacamole Helm Chart
@@ -168,6 +177,7 @@ keywords: guacamole, remote-desktop, rdp, vnc, ssh, oidc, saml, keycloak, helm
 purpose: Installation guide, values reference, and architecture overview
 scope: Chart
 relations:
+  - charts/guacamole/DESIGN.md
   - charts/guacamole/values.yaml
   - charts/guacamole/docs/database.md
   - charts/guacamole/docs/oidc-keycloak.md
