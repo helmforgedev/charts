@@ -6,7 +6,7 @@ analytic applications, BI dashboards, and real-time data exploration.
 
 ## Features
 
-- **6-component architecture** - coordinator, overlord, broker, router, historical, and middlemanager
+- **Modular Druid architecture** - coordinator, broker, and router by default, with optional overlord, historical, and middlemanager
 - **Web console** - router component serves the Druid web console
 - **PostgreSQL subchart** - bundled metadata store with option for external database
 - **Bundled ZooKeeper** - native ZooKeeper StatefulSet with option for external cluster
@@ -19,6 +19,21 @@ analytic applications, BI dashboards, and real-time data exploration.
 - **External Secrets Operator** - optional ExternalSecret projection for metadata and S3 credentials
 - **NetworkPolicy** - optional ingress and egress controls for compatible CNIs
 - **Per-component scaling** - independent replica counts and JVM tuning
+
+## Security Scan
+
+🟢 Security Scan: druid
+
+| Framework | Score |
+|-----------|-------|
+| MITRE + NSA + SOC2 | 83.000000% |
+
+✅ Security posture acceptable.
+
+The default scan keeps Druid writable paths and resource limits configurable
+instead of forcing a one-size-fits-all production profile. For hardened
+deployments, enable NetworkPolicy and set explicit CPU and memory requests and
+limits for every Druid component.
 
 ## Install
 
@@ -58,18 +73,18 @@ StatefulSet: middlemanager (port 8091, PVC: task-storage)
 | `coordinator.enabled` | `true` | Enable coordinator |
 | `coordinator.replicaCount` | `1` | Coordinator replicas |
 | `coordinator.port` | `8081` | Coordinator port |
-| `coordinator.javaOpts` | `-Xms256m -Xmx512m` | Coordinator JVM options |
-| `overlord.enabled` | `true` | Enable overlord |
+| `coordinator.javaOpts` | `-Xms128m -Xmx256m` | Coordinator JVM options |
+| `overlord.enabled` | `false` | Enable overlord for ingestion management |
 | `overlord.port` | `8090` | Overlord port |
 | `broker.enabled` | `true` | Enable broker |
 | `broker.port` | `8082` | Broker port |
-| `broker.javaOpts` | `-Xms512m -Xmx1g` | Broker JVM options |
+| `broker.javaOpts` | `-Xms256m -Xmx512m` | Broker JVM options |
 | `router.enabled` | `true` | Enable router (web console) |
 | `router.port` | `8888` | Router port |
-| `historical.enabled` | `true` | Enable historical |
+| `historical.enabled` | `false` | Enable historical segment serving |
 | `historical.port` | `8083` | Historical port |
 | `historical.persistence.size` | `10Gi` | Segment cache volume size |
-| `middleManager.enabled` | `true` | Enable middle manager |
+| `middleManager.enabled` | `false` | Enable middle manager ingestion workers |
 | `middleManager.port` | `8091` | MiddleManager port |
 | `middleManager.workerCapacity` | `2` | Tasks per middle manager |
 | `middleManager.persistence.size` | `10Gi` | Task storage volume size |
@@ -292,6 +307,20 @@ historical:
   extraProperties: |
     druid.segmentCache.locations=[{"path":"/opt/druid/var/druid/segment-cache","maxSize":10737418240}]
 ```
+
+## Examples
+
+- [Simple development deployment](examples/simple.yaml)
+- [S3-backed production deployment](examples/s3-production.yaml)
+- [External metadata and ZooKeeper services](examples/external-services.yaml)
+- [Gateway API with NetworkPolicy](examples/gateway-networkpolicy.yaml)
+- [External Secrets with S3 deep storage](examples/external-secrets-s3.yaml)
+
+## Architecture Guides
+
+- [Architecture](docs/architecture.md)
+- [Storage and secrets](docs/storage-and-secrets.md)
+- [Networking and security](docs/networking-and-security.md)
 
 <!-- @AI-METADATA
 type: chart-readme
