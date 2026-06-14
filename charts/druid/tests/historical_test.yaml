@@ -4,8 +4,10 @@ templates:
   - templates/historical-statefulset.yaml
   - templates/configmap.yaml
 tests:
-  - it: should render historical statefulset by default
+  - it: should render historical statefulset when enabled
     template: templates/historical-statefulset.yaml
+    set:
+      historical.enabled: true
     asserts:
       - isKind:
           of: StatefulSet
@@ -15,6 +17,8 @@ tests:
 
   - it: should use correct port
     template: templates/historical-statefulset.yaml
+    set:
+      historical.enabled: true
     asserts:
       - equal:
           path: spec.template.spec.containers[0].ports[0].containerPort
@@ -22,6 +26,8 @@ tests:
 
   - it: should have volume claim template with persistence enabled
     template: templates/historical-statefulset.yaml
+    set:
+      historical.enabled: true
     asserts:
       - equal:
           path: spec.volumeClaimTemplates[0].metadata.name
@@ -33,6 +39,7 @@ tests:
   - it: should use emptyDir when persistence is disabled
     template: templates/historical-statefulset.yaml
     set:
+      historical.enabled: true
       historical.persistence.enabled: false
     asserts:
       - contains:
@@ -43,10 +50,8 @@ tests:
       - isNull:
           path: spec.volumeClaimTemplates
 
-  - it: should not render when disabled
+  - it: should not render by default
     template: templates/historical-statefulset.yaml
-    set:
-      historical.enabled: false
     asserts:
       - hasDocuments:
           count: 0
