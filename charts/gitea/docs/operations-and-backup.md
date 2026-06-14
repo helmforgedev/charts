@@ -54,7 +54,7 @@ service:
     nodePort: 30022
 gitea:
   sshDomain: git.example.com
-  sshPort: 2222
+  sshPort: 30022
 ```
 
 Clone URL:
