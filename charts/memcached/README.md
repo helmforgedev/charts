@@ -82,6 +82,9 @@ Start from [examples/production.yaml](examples/production.yaml) and adapt:
 - enable metrics and alerts
 - use topology spread constraints or anti-affinity across nodes
 
+For a production checklist, cache sizing guidance, and operational probes, read
+[docs/production.md](docs/production.md).
+
 ## Authentication
 
 Authentication is disabled by default. Memcached authentication is not a full authorization system; it is a connection gate.
@@ -310,6 +313,20 @@ networkPolicy:
 | `service.ipFamilies` | `[]` | Optional ordered Service IP families. |
 | `externalSecrets.enabled` | `false` | Renders External Secrets Operator v1 resource. |
 | `serviceAccount.automountServiceAccountToken` | `false` | Keeps Kubernetes API token disabled by default. |
+
+## Security Scan
+
+### Security Scan: `memcached`
+
+| Framework | Score |
+|-----------|-------|
+| MITRE + NSA | **80%** |
+
+Security posture: acceptable. Kubescape reported full MITRE coverage and
+expected NSA hardening gaps for development defaults such as unset resource
+limits and optional runtime controls. Production values should enable resource
+requests/limits, NetworkPolicy, authentication or TLS where required, and
+anti-affinity or topology spread constraints.
 
 ## Operations
 
