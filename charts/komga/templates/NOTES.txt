@@ -1,18 +1,54 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Komga has been deployed!
+Komga has been deployed.
 
-  Access Komga via port-forward:
+Access:
 
+  Internal service:
+    http://{{ include "komga.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+
+  Port-forward:
     kubectl port-forward svc/{{ include "komga.fullname" . }} {{ .Values.komga.port }}:{{ .Values.service.port }} -n {{ .Release.Namespace }}
-
-  Then open: http://localhost:{{ .Values.komga.port }}
+    http://localhost:{{ .Values.komga.port }}
 
 {{- if .Values.ingress.enabled }}
+  Ingress:
 {{- range .Values.ingress.hosts }}
-
-  Ingress: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+    http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
 {{- end }}
 {{- end }}
 
-  On first access, create your admin account.
-  Add libraries pointing to subdirectories under /data.
+{{- if .Values.gateway.enabled }}
+  Gateway API:
+{{- range .Values.gateway.hostnames }}
+    http://{{ . }}{{ $.Values.gateway.path }}
+{{- end }}
+{{- end }}
+
+Storage:
+  Config/database volume: {{ if .Values.persistence.config.enabled }}persistent{{ else }}ephemeral{{ end }}
+  Library volume: {{ if .Values.persistence.data.enabled }}persistent{{ else }}ephemeral{{ end }}
+
+Runtime:
+  Timezone: {{ .Values.komga.timezone }}
+  Context path: {{ .Values.komga.contextPath }}
+  Session timeout: {{ .Values.komga.sessionTimeout }}
+{{- $javaToolOptions := .Values.komga.javaToolOptions | default .Values.komga.javaMemory }}
+{{- if $javaToolOptions }}
+  Java options: {{ $javaToolOptions }}
+{{- end }}
+
+Backup:
+{{- if .Values.backup.enabled }}
+  CronJob enabled on schedule {{ .Values.backup.schedule }}.
+  Target bucket: {{ .Values.backup.s3.bucket }}
+  Credential secret: {{ include "komga.backupSecretName" . }}
+{{- else }}
+  Disabled. Enable backup.enabled and configure backup.s3 for S3-compatible backups.
+{{- end }}
+
+Next steps:
+  1. Open Komga and create the first admin account.
+  2. Add libraries that point to subdirectories under /data.
+  3. For production, set resource requests and limits and verify backups.
+
+Happy Helmforging :)

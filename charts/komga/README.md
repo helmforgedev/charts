@@ -9,7 +9,14 @@ Deploy [Komga](https://komga.org) on Kubernetes — a media server for comics, m
 - **Java Tool Options** — configurable JVM tuning via `JAVA_TOOL_OPTIONS`
 - **Timezone Support** — configurable via `TZ` environment variable
 - **Ingress** — optional with TLS and cert-manager support
+- **Gateway API** — optional HTTPRoute for clusters using Gateway API
+- **External Secrets** — optional ExternalSecret for S3 backup credentials
 - **S3 Backup** — scheduled CronJob with consistent SQLite exports and config archive upload
+
+## Design
+
+See [DESIGN.md](DESIGN.md) for the chart architecture, production boundary, and
+explicit non-goals.
 
 ## Installation
 
@@ -90,8 +97,8 @@ backup:
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `image.repository` | `gotson/komga` | Image repository |
-| `image.tag` | `""` (appVersion) | Image tag |
+| `image.repository` | `docker.io/gotson/komga` | Image repository |
+| `image.tag` | `"1.24.4"` | Image tag |
 | `image.pullPolicy` | `IfNotPresent` | Pull policy |
 
 ### Komga Configuration
@@ -123,6 +130,8 @@ backup:
 |-----|---------|-------------|
 | `service.type` | `ClusterIP` | Service type |
 | `service.port` | `80` | Service port |
+| `service.ipFamilyPolicy` | `""` | Optional Service IP family policy |
+| `service.ipFamilies` | `[]` | Optional Service IP families |
 
 ### Ingress
 
@@ -132,6 +141,56 @@ backup:
 | `ingress.ingressClassName` | `traefik` | Ingress class (`traefik`, `nginx`, etc.) |
 | `ingress.hosts` | `[]` | Ingress host rules |
 | `ingress.tls` | `[]` | TLS configuration |
+
+### Gateway API
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `gateway.enabled` | `false` | Create an HTTPRoute |
+| `gateway.parentRefs` | `[]` | Gateway parent references |
+| `gateway.hostnames` | `[]` | HTTPRoute hostnames |
+| `gateway.path` | `/` | HTTPRoute path match |
+| `gateway.pathType` | `PathPrefix` | HTTPRoute path match type |
+
+### External Secrets
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `externalSecrets.enabled` | `false` | Render an ExternalSecret for backup credentials |
+| `externalSecrets.refreshInterval` | `1h` | Default sync interval for items without `spec.refreshInterval` |
+| `externalSecrets.items` | `[]` | ExternalSecret definitions with complete `spec` blocks |
+
+Example projecting S3 backup credentials:
+
+```yaml
+backup:
+  enabled: true
+  s3:
+    endpoint: https://s3.amazonaws.com
+    bucket: my-backups
+    existingSecret: komga-backup-s3
+
+externalSecrets:
+  enabled: true
+  items:
+    - name: backup-s3
+      spec:
+        secretStoreRef:
+          name: platform-secrets
+          kind: ClusterSecretStore
+        target:
+          name: komga-backup-s3
+          creationPolicy: Owner
+        data:
+          - secretKey: access-key
+            remoteRef:
+              key: komga/backup
+              property: access-key
+          - secretKey: secret-key
+            remoteRef:
+              key: komga/backup
+              property: secret-key
+```
 
 ### Backup
 
@@ -150,6 +209,17 @@ backup:
 
 The backup CronJob exports each SQLite database found in `/config` using `sqlite3 VACUUM INTO`, then packages those exported databases together with top-level application config files and optional logs before uploading the archive to S3. Search indexes are intentionally excluded because Komga can rebuild them.
 
+## Security Scan
+
+### Security Scan: `komga`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **73%** |
+
+Security posture: acceptable with follow-up hardening candidates documented in
+[DESIGN.md](DESIGN.md).
+
 ## Architecture
 
 Komga runs as a single Deployment with a Java-based server on port 25600. It uses SQLite for its database (stored in `/config`) and serves comic/manga libraries from `/data`.
@@ -161,6 +231,7 @@ The chart creates two separate PVCs:
 
 ## Documentation
 
+- [Design](DESIGN.md)
 - [Backup Guide](docs/backup.md)
 - [Komga Official Docs](https://komga.org/docs/introduction)
 
