@@ -207,7 +207,11 @@ externalSecrets:
 
 ## Backup Behavior
 
-The backup CronJob exports each SQLite database found in `/config` using `sqlite3 VACUUM INTO`, then packages those exported databases together with top-level application config files and optional logs before uploading the archive to S3. Search indexes are intentionally excluded because Komga can rebuild them.
+The backup CronJob exports each SQLite database found in `/config` using
+`sqlite3 VACUUM INTO`, then packages those exported databases together with
+top-level application config files and optional logs before uploading the
+archive to S3. Search indexes are intentionally excluded because Komga can
+rebuild them.
 
 ## Security Scan
 
