@@ -8,7 +8,7 @@ Allow Bedrock Edition clients (mobile, console, Windows 10/11) to connect to a J
 
 - Java Edition server accessible from both Java and Bedrock clients
 - GeyserMC plugin installed via Modrinth
-- Floodgate plugin for Xbox Live authentication (Bedrock players do not need a Java account)
+- Optional Floodgate plugin for Xbox Live authentication when Bedrock players do not have Java accounts
 - UDP port 19132 exposed for Bedrock clients alongside TCP port 25565 for Java clients
 
 ## How It Works
@@ -20,13 +20,14 @@ Bedrock Client (UDP 19132) ──> GeyserMC ──┘
                                (plugin)
 ```
 
-GeyserMC runs as a Paper/Spigot plugin and translates Bedrock protocol packets into Java protocol packets. Floodgate allows Bedrock
-players to authenticate with their Xbox Live account without needing a separate Java account.
+GeyserMC runs as a Paper/Spigot plugin and translates Bedrock protocol packets into Java protocol packets. Floodgate is optional and
+allows Bedrock players to authenticate with their Xbox Live account without needing a separate Java account.
 
 ## Requirements
 
 - `server.type` must be `PAPER`, `SPIGOT`, or another plugin-compatible server
-- GeyserMC and Floodgate plugins must be installed (via `mods.modrinthProjects`)
+- GeyserMC can be installed via `mods.modrinthProjects`
+- Floodgate for Paper/Spigot must be provided as a platform-specific plugin via `mods.downloadUrls` or another plugin delivery workflow
 - The Kubernetes Service must expose both TCP (Java) and UDP (Bedrock) ports
 
 ## Example Configuration
@@ -35,7 +36,7 @@ players to authenticate with their Xbox Live account without needing a separate 
 server:
   eula: true
   type: PAPER
-  version: LATEST
+  version: "1.21.4"
   motd: "Cross-Play Server"
   maxPlayers: 30
 
@@ -48,7 +49,10 @@ geyser:
   port: 19132
 
 mods:
-  modrinthProjects: "geyser,floodgate"
+  modrinthProjects: "geyser:beta"
+  # Add the platform-specific Floodgate plugin when Bedrock users should join
+  # without Java accounts.
+  # downloadUrls: "https://example.com/path/to/floodgate-spigot.jar"
 
 auth:
   onlineMode: true
@@ -84,18 +88,3 @@ resources:
 - **Firewall rules** — ensure UDP 19132 is allowed through network policies and cloud firewalls
 - **Service type** — `LoadBalancer` services may not support mixed TCP/UDP on the same IP in all environments
 - **Plugin updates** — GeyserMC and Floodgate should be kept updated together
-
-<!-- @AI-METADATA
-type: chart-docs
-title: Cross-Play Guide (GeyserMC)
-description: Guide for enabling Bedrock cross-play on Java Edition servers using GeyserMC
-keywords: minecraft, geyser, geysermc, floodgate, bedrock, crossplay, cross-play
-purpose: Architecture-specific guidance for GeyserMC cross-play deployments
-scope: Chart
-relations:
-  - charts/minecraft/README.md
-  - charts/minecraft/docs/vanilla-and-paper.md
-path: charts/minecraft/docs/crossplay.md
-version: 1.0
-date: 2026-03-23
--->
