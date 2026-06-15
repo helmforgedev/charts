@@ -81,6 +81,25 @@ tests:
             name: node.roles
             value: "master"
 
+  - it: master should stay dedicated when data tiers are enabled without generic data nodes
+    set:
+      clusterProfile: staging
+      data.replicaCount: 0
+      dataTiers.hot.enabled: true
+      dataTiers.warm.enabled: true
+    template: templates/statefulset-master.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: node.roles
+            value: "master"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: discovery.seed_hosts
+            value: RELEASE-NAME-elasticsearch-master-headless
+
   - it: dev profile master should use 1g heap (50% of 2Gi limit)
     set:
       clusterProfile: dev
@@ -182,7 +201,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: node.roles
-            value: ""
+            value: "[]"
 
   - it: production-ha data uses 8g heap (50% of 16Gi)
     set:

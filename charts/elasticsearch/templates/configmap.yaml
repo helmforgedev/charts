@@ -13,8 +13,9 @@ data:
 
     # Discovery
     {{- $masterReplicas := int (include "elasticsearch.master.replicaCount" .) }}
-    {{- $dataReplicas := int (include "elasticsearch.data.replicaCount" .) }}
-    {{- if and (eq $masterReplicas 1) (eq $dataReplicas 0) }}
+    {{- $coordReplicas := int (include "elasticsearch.coordinating.replicaCount" .) }}
+    {{- $hasDedicatedData := eq (include "elasticsearch.hasDedicatedDataNodes" .) "true" }}
+    {{- if and (eq $masterReplicas 1) (eq $coordReplicas 0) (not $hasDedicatedData) }}
     discovery.type: single-node
     {{- else }}
     discovery.seed_hosts: {{ printf "%s-master-headless" (include "elasticsearch.fullname" .) | quote }}

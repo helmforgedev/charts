@@ -1,39 +1,48 @@
 # SPDX-License-Identifier: Apache-2.0
-# CI: production-ha profile with security, backup, ILM, monitoring, Kibana
+# CI: production-ha profile with security, backup, ILM and monitoring
 clusterProfile: production-ha
 
 clusterName: ci-test-cluster
 
+extraEnv:
+  - name: logger.io.opentelemetry.usage
+    value: error
+
 master:
+  heapSize: 512m
   persistence:
     size: 1Gi
   resources:
     requests:
       cpu: 100m
-      memory: 2Gi
+      memory: 256Mi
     limits:
       cpu: "1"
-      memory: 2Gi
+      memory: 1Gi
 
 data:
+  replicaCount: 1
+  heapSize: 512m
   persistence:
     size: 1Gi
   resources:
     requests:
       cpu: 100m
-      memory: 4Gi
+      memory: 256Mi
     limits:
-      cpu: "2"
-      memory: 4Gi
+      cpu: "1"
+      memory: 1Gi
 
 coordinating:
+  replicaCount: 1
+  heapSize: 512m
   resources:
     requests:
       cpu: 100m
-      memory: 2Gi
+      memory: 256Mi
     limits:
       cpu: "1"
-      memory: 2Gi
+      memory: 1Gi
 
 security:
   enabled: true
@@ -50,7 +59,8 @@ backup:
   s3:
     bucket: ci-test-bucket
     region: us-east-1
-    existingSecret: ""
+    accessKey: ci-access-key
+    secretKey: ci-secret-key
   retention:
     days: 7
 
@@ -68,6 +78,10 @@ ilm:
 
 monitoring:
   enabled: true
+  image:
+    repository: docker.io/prometheuscommunity/elasticsearch-exporter
+    tag: "v1.8.0"
+    pullPolicy: IfNotPresent
   serviceMonitor:
     enabled: true
   prometheusRule:
@@ -76,26 +90,7 @@ monitoring:
     dashboards: true
 
 kibana:
-  enabled: true
-  ingress:
-    enabled: true
-    hosts:
-      - host: kibana.ci.example.com
-        paths:
-          - path: /
-            pathType: Prefix
+  enabled: false
 
 sysctlInit:
   enabled: false
-
-# Explicit image config to prevent nil pointer during template in CI
-monitoring:
-  image:
-    repository: docker.io/prometheuscommunity/elasticsearch-exporter
-    tag: "v1.8.0"
-    pullPolicy: IfNotPresent
-
-# Fix CI template: set a fake existingSecret so secret-s3.yaml validation passes
-backup:
-  s3:
-    existingSecret: ci-fake-s3-secret
