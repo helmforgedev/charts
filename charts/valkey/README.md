@@ -220,6 +220,7 @@ Use the generic extension values when platform-specific integration is needed:
 | `auth.existingSecret` | Existing Secret containing the Valkey password | `""` |
 | `auth.existingSecretPasswordKey` | Secret key used for the Valkey password | `valkey-password` |
 | `tls.enabled` | Enable Valkey TLS settings. Requires `tls.existingSecret`. | `false` |
+| `tls.insecureSkipVerify` | Append `--insecure` to chart-rendered `valkey-cli` TLS clients for CI or self-signed test certificates | `false` |
 | `standalone.persistence.enabled` | Enable persistence for standalone mode | `true` |
 | `replication.replicaCount` | Number of replica pods in replication and sentinel modes | `2` |
 | `sentinel.replicaCount` | Number of Sentinel pods | `3` |
