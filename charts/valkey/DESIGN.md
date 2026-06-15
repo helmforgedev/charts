@@ -172,15 +172,13 @@ Services support single-stack and dual-stack clusters through Kubernetes service
 ```yaml
 service:
   ipFamilyPolicy: PreferDualStack
-  ipFamilies:
-    - IPv4
-    - IPv6
 ```
 
 Best practices:
 
 - Leave the defaults empty unless the cluster supports the requested families.
 - Use `PreferDualStack` for portable dual-stack behavior.
+- Set explicit `ipFamilies` only in environment-specific values for clusters that advertise every requested family.
 - Use `RequireDualStack` only when both families are guaranteed.
 - Keep headless and client services aligned so DNS behavior is predictable.
 
@@ -265,22 +263,3 @@ The CI values must cover standalone, replication, sentinel, cluster, metrics, ex
 - [`values.yaml`](values.yaml)
 - [`values.schema.json`](values.schema.json)
 - [`templates/NOTES.txt`](templates/NOTES.txt)
-
-<!-- @AI-METADATA
-type: design
-title: Valkey Chart Design
-description: Architecture and operational design document for the Valkey Helm chart
-
-keywords: Valkey, design, architecture, standalone, replication, sentinel, cluster, dual-stack, clusterDomain
-
-purpose: Document Valkey chart architecture, resource model, diagrams, best practices, and validation expectations
-scope: Chart Design
-
-relations:
-  - charts/valkey/README.md
-  - charts/valkey/values.yaml
-  - charts/valkey/templates/NOTES.txt
-path: charts/valkey/DESIGN.md
-version: 2.0
-date: 2026-05-05
--->
