@@ -7,13 +7,18 @@ metadata:
   labels:
     {{- include "mongodb.labels" . | nindent 4 }}
     app.kubernetes.io/component: sharded-init
+  {{- if .Values.sharded.initJob.asHook }}
   annotations:
     "helm.sh/hook": post-install
     "helm.sh/hook-weight": "5"
     "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+  {{- end }}
 spec:
   backoffLimit: 10
   activeDeadlineSeconds: 900
+  {{- if not .Values.sharded.initJob.asHook }}
+  ttlSecondsAfterFinished: 300
+  {{- end }}
   template:
     metadata:
       labels:
@@ -78,7 +83,7 @@ spec:
               NAMESPACE="{{ .Release.Namespace }}"
               PORT={{ .Values.port }}
               SHARD_COUNT={{ .Values.sharded.shards.count }}
-              SHARD_MEMBERS={{ .Values.sharded.shards.membersPerShard }}
+              SHARD_MEMBER_COUNT={{ .Values.sharded.shards.membersPerShard }}
               CONFIGSVR_COUNT={{ .Values.sharded.configServer.replicaCount }}
               MONGOS_PORT={{ .Values.sharded.mongos.port }}
 
@@ -104,6 +109,7 @@ spec:
               CONFIGSVR_MEMBERS=""
               for i in $(seq 0 $((CONFIGSVR_COUNT - 1))); do
                 HOST="${FULLNAME}-configsvr-${i}.${FULLNAME}-configsvr-headless.${NAMESPACE}.svc.cluster.local:${PORT}"
+                wait_for_host "$HOST"
                 [ -n "$CONFIGSVR_MEMBERS" ] && CONFIGSVR_MEMBERS="${CONFIGSVR_MEMBERS},"
                 CONFIGSVR_MEMBERS="${CONFIGSVR_MEMBERS}{_id:${i},host:'${HOST}'}"
               done
@@ -122,16 +128,17 @@ spec:
                 wait_for_host "$SHARD_PRIMARY"
 
                 echo "Initializing shard${s} replica set..."
-                SHARD_MEMBERS=""
-                for m in $(seq 0 $((SHARD_MEMBERS - 1))); do
+                SHARD_MEMBER_DOCS=""
+                for m in $(seq 0 $((SHARD_MEMBER_COUNT - 1))); do
                   HOST="${FULLNAME}-shard${s}-${m}.${FULLNAME}-shard${s}-headless.${NAMESPACE}.svc.cluster.local:${PORT}"
-                  [ -n "$SHARD_MEMBERS" ] && SHARD_MEMBERS="${SHARD_MEMBERS},"
-                  SHARD_MEMBERS="${SHARD_MEMBERS}{_id:${m},host:'${HOST}'}"
+                  wait_for_host "$HOST"
+                  [ -n "$SHARD_MEMBER_DOCS" ] && SHARD_MEMBER_DOCS="${SHARD_MEMBER_DOCS},"
+                  SHARD_MEMBER_DOCS="${SHARD_MEMBER_DOCS}{_id:${m},host:'${HOST}'}"
                 done
 
                 mongosh --host "$SHARD_PRIMARY" $AUTH_ARGS --quiet --eval "
                   try { rs.status().ok } catch(e) {
-                    rs.initiate({ _id: 'shard${s}RS', members: [${SHARD_MEMBERS}] })
+                    rs.initiate({ _id: 'shard${s}RS', members: [${SHARD_MEMBER_DOCS}] })
                   }
                 " || true
               done
@@ -144,7 +151,7 @@ spec:
 
               for s in $(seq 0 $((SHARD_COUNT - 1))); do
                 SHARD_CONN="shard${s}RS/"
-                for m in $(seq 0 $((SHARD_MEMBERS - 1))); do
+                for m in $(seq 0 $((SHARD_MEMBER_COUNT - 1))); do
                   [ "$m" -gt 0 ] && SHARD_CONN="${SHARD_CONN},"
                   SHARD_CONN="${SHARD_CONN}${FULLNAME}-shard${s}-${m}.${FULLNAME}-shard${s}-headless.${NAMESPACE}.svc.cluster.local:${PORT}"
                 done
