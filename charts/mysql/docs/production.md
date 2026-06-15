@@ -54,22 +54,3 @@ Exact enforcement depends on the cluster CNI.
 The built-in backup is a logical `mysqldump --all-databases` to S3-compatible storage. It does not replace physical backup, binlog archival, or point-in-time recovery tooling for strict recovery objectives.
 
 Validate restores regularly and treat failover, promotion, and rollback as documented operational runbooks.
-
-<!-- @AI-METADATA
-type: chart-docs
-title: MySQL - Production Hardening
-description: Production hardening guidance for the MySQL Helm chart
-
-keywords: mysql, production, tls, networkpolicy, external-secrets, backup
-
-purpose: Explain production-oriented values and operational expectations
-scope: Chart Architecture
-
-relations:
-  - charts/mysql/README.md
-  - charts/mysql/DESIGN.md
-  - charts/mysql/examples/production.yaml
-path: charts/mysql/docs/production.md
-version: 1.0
-date: 2026-05-06
--->
