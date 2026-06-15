@@ -82,7 +82,7 @@ schedules:
 | `image.repository` | `docker.io/velero/velero` | Velero server image |
 | `image.tag` | `v1.18.1` | Velero server image tag |
 | `plugins.aws.tag` | `v1.14.0` | Default AWS/S3 plugin image tag |
-| `credentials.useSecret` | `true` | Mount credentials from a secret |
+| `credentials.useSecret` | `true` | Mount credentials when `existingSecret`, `name`, or `secretContents` is set |
 | `credentials.existingSecret` | `""` | Existing credentials secret |
 | `configuration.backupStorageLocations` | one empty default entry | Backup storage definitions |
 | `configuration.volumeSnapshotLocations` | `[]` | Snapshot storage definitions |
@@ -91,6 +91,12 @@ schedules:
 | `schedules` | `[]` | Schedule resources created by the chart |
 | `service.ipFamilyPolicy` | `""` | Optional metrics Service IP family policy |
 | `metrics.serviceMonitor.enabled` | `false` | Create a ServiceMonitor |
+
+## Architecture Guides
+
+- [Design](DESIGN.md)
+- [S3-compatible storage](docs/s3-compatible.md)
+- [Filesystem backup](docs/filesystem-backup.md)
 
 ## Resources Generated
 
@@ -113,27 +119,18 @@ schedules:
 - for S3-compatible storage, use the AWS plugin with explicit `s3Url` and `s3ForcePathStyle` settings when required by the provider
 - if you enable `nodeAgent`, validate hostPath and Pod Security expectations in your cluster before relying on filesystem backups
 
+## Security Scan
+
+### Security Scan: `velero`
+
+| Framework | Score |
+|-----------|-------|
+| MITRE + NSA + SOC2 | **77.27273%** |
+
+Security posture acceptable.
+
 ## More Information
 
 - [S3-compatible setup](docs/s3-compatible.md)
 - [Filesystem backup](docs/filesystem-backup.md)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/velero)
-
-<!-- @AI-METADATA
-type: chart-readme
-title: Velero Helm Chart
-description: Helm chart for deploying Velero on Kubernetes
-
-keywords: velero, backup, restore, disaster-recovery, s3, kubernetes
-
-purpose: User-facing chart documentation with install, features, examples, and values reference
-scope: Chart
-
-relations:
-  - charts/velero/values.yaml
-  - charts/velero/docs/s3-compatible.md
-  - charts/velero/docs/filesystem-backup.md
-path: charts/velero/README.md
-version: 1.0
-date: 2026-03-31
--->
