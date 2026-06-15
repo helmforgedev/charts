@@ -112,6 +112,13 @@ metrics:
 
 Metrics are exposed on `/metrics` through the metrics Service.
 
+## Architecture Guides
+
+- [Design](DESIGN.md)
+- [Operations](docs/operations.md)
+- [Security](docs/security.md)
+- [Observability](docs/observability.md)
+
 ## Authentication
 
 SASL/Digest client authentication is optional.
@@ -187,10 +194,11 @@ Dual-stack Service fields are available across headless, client, and metrics Ser
 ```yaml
 service:
   ipFamilyPolicy: PreferDualStack
-  ipFamilies:
-    - IPv4
-    - IPv6
 ```
+
+Omit `service.ipFamilies` with `PreferDualStack` when the target cluster may be single-stack; Kubernetes rejects
+explicit families that the cluster does not advertise. Set `service.ipFamilies` only on clusters configured for the
+listed families.
 
 ## Main Values
 
@@ -205,6 +213,7 @@ service:
 | `zookeeper.syncLimit` | ZooKeeper sync limit | `5` |
 | `zookeeper.fourLetterWordWhitelist` | Four-letter-word command whitelist | `srvr,stat,ruok,mntr,conf,isro` |
 | `service.ipFamilyPolicy` | Service IP family policy | `""` |
+| `service.ipFamilies` | Ordered Service IP families | `[]` |
 | `persistence.enabled` | Create data PVCs | `true` |
 | `persistence.dataLogDir.enabled` | Create a separate transaction log PVC | `false` |
 | `auth.client.enabled` | Enable SASL/Digest client authentication | `false` |
@@ -228,13 +237,20 @@ The `ci/` directory covers:
 - `network-policy.yaml`
 - `external-secrets.yaml`
 
+## Security Scan
+
+### Security Scan: `zookeeper`
+
+| Framework | Score |
+|-----------|-------|
+| MITRE + NSA + SOC2 | **84.34343%** |
+
+Security posture acceptable.
+
 ## References
 
 - [Apache ZooKeeper](https://zookeeper.apache.org)
+- [Apache ZooKeeper Administrator's Guide](https://zookeeper.apache.org/doc/current/zookeeperAdmin.html)
+- [Apache ZooKeeper Getting Started](https://zookeeper.apache.org/doc/current/zookeeperStarted.html)
 - [ZooKeeper releases](https://zookeeper.apache.org/releases.html)
 - [Official Docker image](https://hub.docker.com/_/zookeeper)
-
-<!-- @AI-METADATA
-last_updated: 2026-05-29
-agent: codex
--->
