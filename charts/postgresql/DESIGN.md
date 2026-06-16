@@ -9,7 +9,10 @@ Supported architectures:
 - `standalone`: one writable PostgreSQL pod backed by one PVC
 - `replication`: one fixed writable primary plus asynchronous read replicas
 
-The chart intentionally keeps defaults lightweight. Production users should apply explicit values for credentials, persistence, resources, network boundaries, backup, metrics, and scheduling.
+The chart intentionally keeps defaults lightweight with the `small` resource
+presets. Production users should apply explicit values for credentials,
+persistence, workload sizing, network boundaries, backup, metrics, and
+scheduling.
 
 ## Architecture: Standalone
 
@@ -109,22 +112,3 @@ Use an operator when requirements include:
 - continuous physical backup and PITR reconciliation
 - declarative replica lifecycle management
 - synchronous replication policies with failover awareness
-
-<!-- @AI-METADATA
-type: design
-title: PostgreSQL Chart Design
-description: Design document for PostgreSQL Helm chart with standalone, fixed-primary replication, and production hardening architectures
-
-keywords: postgresql, design, architecture, standalone, replication, production, hardening
-
-purpose: Document design decisions, architecture diagrams, production options, and non-goals for the PostgreSQL chart
-scope: Chart Design
-
-relations:
-  - charts/postgresql/README.md
-  - charts/postgresql/docs/production.md
-  - charts/postgresql/docs/replication.md
-path: charts/postgresql/DESIGN.md
-version: 1.1
-date: 2026-05-06
--->

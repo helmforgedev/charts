@@ -125,22 +125,3 @@ Only enable token automounting for a specific integration that needs it.
 This chart does not implement automatic failover, fencing, promotion orchestration,
 PITR, or cluster reconciliation. Use a PostgreSQL operator when production
 requirements include automated HA lifecycle management.
-
-<!-- @AI-METADATA
-type: chart-docs
-title: PostgreSQL Production
-description: Production hardening guide for the PostgreSQL Helm chart
-
-keywords: postgresql, production, hardening, tls, networkpolicy, replication
-
-purpose: Describe production values and operational boundaries for PostgreSQL
-scope: Chart
-
-relations:
-  - charts/postgresql/README.md
-  - charts/postgresql/DESIGN.md
-  - charts/postgresql/examples/production.yaml
-path: charts/postgresql/docs/production.md
-version: 1.0
-date: 2026-05-06
--->

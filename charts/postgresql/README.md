@@ -46,6 +46,15 @@ helm install postgresql oci://ghcr.io/helmforgedev/helm/postgresql -f values.yam
 - optional dual-stack Service fields through `service.ipFamilyPolicy` and `service.ipFamilies`
 - optional `ExternalSecret` resources for clusters that already run External Secrets Operator
 
+### Security Scan: `postgresql`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **93%** |
+
+Security posture: strong. Remaining findings are documented product exceptions
+for opt-in NetworkPolicy and PostgreSQL's writable runtime filesystem.
+
 ## How to choose the architecture
 
 - use `standalone` when operational simplicity matters more than read scaling
@@ -324,7 +333,7 @@ Operational documents:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `architecture` | `standalone` or `replication` | `standalone` |
-| `image.repository` | PostgreSQL image repository | `postgres` |
+| `image.repository` | PostgreSQL image repository | `docker.io/library/postgres` |
 | `image.tag` | PostgreSQL image tag | `18.4-trixie` |
 | `auth.database` | App database created at bootstrap | `app` |
 | `auth.username` | App user created at bootstrap | `app` |
@@ -334,9 +343,9 @@ Operational documents:
 | `config.allowedClientCIDRs` | CIDRs allowed for regular PostgreSQL client connections in generated `pg_hba.conf` | `["0.0.0.0/0", "::/0"]` |
 | `config.allowedReplicationCIDRs` | CIDRs allowed for replica bootstrap, replication slot checks, and streaming replication in generated `pg_hba.conf` | `["0.0.0.0/0", "::/0"]` |
 | `config.pgHbaEntries` | Structured pg_hba entries | `[]` |
-| `standalone.resourcesPreset` | Resource preset for standalone mode | `none` |
-| `replication.primary.resourcesPreset` | Resource preset for the primary pod | `none` |
-| `replication.readReplicas.resourcesPreset` | Resource preset for replica pods | `none` |
+| `standalone.resourcesPreset` | Resource preset for standalone mode | `small` |
+| `replication.primary.resourcesPreset` | Resource preset for the primary pod | `small` |
+| `replication.readReplicas.resourcesPreset` | Resource preset for replica pods | `small` |
 | `initdb.runDefaultScript` | Run the chart-generated first-boot app/replication user script | `true` |
 | `initdb.existingConfigMap` | External ConfigMap for extra init scripts | `""` |
 | `tls.enabled` | Enable PostgreSQL TLS | `false` |
@@ -350,6 +359,7 @@ Operational documents:
 | `externalSecrets.backup.enabled` | Manage backup S3 credentials with External Secrets Operator | `false` |
 | `backup.enabled` | Enable built-in S3 backup CronJob | `false` |
 | `backup.schedule` | Backup schedule | `"0 3 * * *"` |
+| `backup.resources` | Resources applied to backup dump and upload containers | requests `100m/128Mi`, limits `500m/512Mi` |
 | `backup.s3.endpoint` | S3-compatible endpoint URL | `""` |
 | `backup.s3.bucket` | Target bucket name | `""` |
 | `backup.database.pgDumpAllArgs` | Extra `pg_dumpall` flags | `"--clean --if-exists"` |
@@ -375,7 +385,7 @@ Operational documents:
 | `standalone.persistence.enabled` | Enable PVC for standalone | `true` |
 | `replication.readReplicas.replicaCount` | Number of async read replicas | `2` |
 | `metrics.enabled` | Enable `postgres_exporter` sidecar | `false` |
-| `metrics.resourcesPreset` | Resource preset for `postgres_exporter` | `none` |
+| `metrics.resourcesPreset` | Resource preset for `postgres_exporter` | `small` |
 | `metrics.serviceMonitor.enabled` | Enable ServiceMonitor | `false` |
 | `pdb.enabled` | Enable PodDisruptionBudget | `false` |
 | `serviceAccount.automountServiceAccountToken` | Mount Kubernetes API credentials into PostgreSQL and backup pods | `false` |
@@ -425,23 +435,3 @@ See `examples/`:
 - this chart does not implement automatic primary election
 - init scripts run only on first initialization of a fresh data directory
 - for failover-oriented production operations, use an operator instead of trying to turn this chart into one
-
-<!-- @AI-METADATA
-type: chart-readme
-title: PostgreSQL Helm Chart
-description: PostgreSQL chart with standalone/replication, TLS, metrics, resource presets
-
-keywords: postgresql, postgres, database, replication, sql
-
-purpose: Usage guide for the PostgreSQL Helm chart with standalone and replication modes
-scope: Chart
-
-relations:
-  - charts/postgresql/DESIGN.md
-  - charts/postgresql/docs/standalone.md
-  - charts/postgresql/docs/replication.md
-  - charts/postgresql/docs/backup-restore.md
-path: charts/postgresql/README.md
-version: 1.0
-date: 2026-03-31
--->
