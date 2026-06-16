@@ -136,8 +136,15 @@ geyser:
   port: 19132
 
 mods:
-  modrinthProjects: "geyser,floodgate"
+  # GeyserMC is available as a Paper plugin through Modrinth.
+  # Use geyser:beta when upstream has not promoted a compatible release yet.
+  modrinthProjects: "geyser:beta"
 ```
+
+Floodgate is optional for Bedrock players without Java accounts. For Paper or
+Spigot servers, provide the platform-specific Floodgate plugin through
+`mods.downloadUrls` or another plugin delivery workflow rather than
+`mods.modrinthProjects`.
 
 ## Parameters
 
@@ -256,6 +263,10 @@ upstream release notes before upgrading production servers, take a world backup,
 and verify plugins, mods, datapacks, proxy settings, and pinned `server.version`
 values in a staging environment before reusing existing PVCs.
 
+## Security Scan
+
+Security Scan: Kubescape local scan against `MITRE,NSA,SOC2` reports a 78.79% resource summary score.
+
 ### Mods & Plugins
 
 | Key | Default | Description |
@@ -264,7 +275,7 @@ values in a staging environment before reusing existing PVCs.
 | `mods.curseforgeApiKey` | `""` | CurseForge API key |
 | `mods.autoCurseforgeSlug` | `""` | Auto CurseForge modpack slug |
 | `mods.spigetResources` | `""` | Spiget resource IDs |
-| `mods.downloadUrls` | `""` | Direct download URLs |
+| `mods.downloadUrls` | `""` | Direct plugin/mod download URLs, including platform-specific Paper plugins not available through Modrinth |
 
 ### Resource Pack
 
@@ -388,22 +399,3 @@ This chart intentionally does not support:
 - **Bedrock Dedicated Server** — Use itzg/minecraft-bedrock-server separately
 - **Horizontal auto-scaling** — Minecraft servers are single-threaded and cannot scale horizontally
 - **Built-in world download/upload** — Use backup/restore workflows instead
-
-<!-- @AI-METADATA
-type: chart-readme
-title: Minecraft Server Helm Chart
-description: Deploy Minecraft Java Edition servers on Kubernetes with Vanilla, Paper, Forge, Fabric, GeyserMC, S3 backup, and Prometheus monitoring
-keywords: minecraft, helm, kubernetes, paper, forge, fabric, geyser, bedrock, game-server, backup, monitoring
-purpose: Installation guide, configuration reference, and operational documentation for the minecraft Helm chart
-scope: Chart
-relations:
-  - charts/minecraft/DESIGN.md
-  - charts/minecraft/docs/vanilla-and-paper.md
-  - charts/minecraft/docs/modded.md
-  - charts/minecraft/docs/crossplay.md
-  - charts/minecraft/docs/backup.md
-  - charts/minecraft/values.yaml
-path: charts/minecraft/README.md
-version: 1.0
-date: 2026-03-23
--->
