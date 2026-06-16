@@ -200,10 +200,11 @@ tests:
       architecture: cluster
       tls.enabled: true
       tls.existingSecret: valkey-tls
+      tls.insecureSkipVerify: true
     asserts:
       - matchRegex:
           path: spec.template.spec.containers[0].args[0]
-          pattern: "valkey-cli --tls --cacert /tls/ca.crt"
+          pattern: "valkey-cli --tls --cacert /tls/ca.crt --insecure"
       - matchRegex:
           path: spec.template.spec.containers[0].args[0]
           pattern: "-p 6379"
@@ -219,15 +220,28 @@ tests:
     set:
       tls.enabled: true
       tls.existingSecret: valkey-tls
+      tls.insecureSkipVerify: true
     asserts:
       - contains:
           path: spec.containers[0].env
           content:
             name: VALKEY_TLS_ARGS
-            value: --tls --cacert /tls/ca.crt
+            value: --tls --cacert /tls/ca.crt --insecure
       - contains:
           path: spec.containers[0].volumeMounts
           content:
             name: tls
             mountPath: /tls
             readOnly: true
+
+  - it: should keep helm test TLS verification strict by default
+    template: templates/tests/test-connection.yaml
+    set:
+      tls.enabled: true
+      tls.existingSecret: valkey-tls
+    asserts:
+      - contains:
+          path: spec.containers[0].env
+          content:
+            name: VALKEY_TLS_ARGS
+            value: --tls --cacert /tls/ca.crt
