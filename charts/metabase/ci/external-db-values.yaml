@@ -5,8 +5,69 @@ postgresql:
 
 database:
   external:
-    host: db.example.com
+    host: metabase-external-postgresql
     port: "5432"
     name: metabase
-    username: metabase_user
+    username: metabase
     password: "ci-password"
+
+extraManifests:
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: metabase-external-postgresql
+      labels:
+        app.kubernetes.io/name: metabase-external-postgresql
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: metabase-external-postgresql
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: metabase-external-postgresql
+        spec:
+          containers:
+            - name: postgresql
+              image: docker.io/library/postgres:18.4-alpine
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: POSTGRES_DB
+                  value: metabase
+                - name: POSTGRES_USER
+                  value: metabase
+                - name: POSTGRES_PASSWORD
+                  value: ci-password
+              ports:
+                - name: postgresql
+                  containerPort: 5432
+                  protocol: TCP
+              volumeMounts:
+                - name: data
+                  mountPath: /var/lib/postgresql
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+          volumes:
+            - name: data
+              emptyDir: {}
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: metabase-external-postgresql
+      labels:
+        app.kubernetes.io/name: metabase-external-postgresql
+    spec:
+      type: ClusterIP
+      ports:
+        - name: postgresql
+          port: 5432
+          targetPort: postgresql
+          protocol: TCP
+      selector:
+        app.kubernetes.io/name: metabase-external-postgresql
