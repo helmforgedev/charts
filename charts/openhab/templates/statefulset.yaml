@@ -1,6 +1,11 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- include "openhab.validateReplicaCount" . }}
 {{- include "openhab.validateAdmin" . }}
+{{- include "openhab.validateConfigMaps" . }}
+{{- $hasSitemaps := and .Values.configMaps.sitemaps.enabled (gt (len (.Values.configMaps.sitemaps.files | default dict)) 0) }}
+{{- $hasThings := and .Values.configMaps.things.enabled (gt (len (.Values.configMaps.things.files | default dict)) 0) }}
+{{- $hasItems := and .Values.configMaps.items.enabled (gt (len (.Values.configMaps.items.files | default dict)) 0) }}
+{{- $hasConfigMaps := or $hasSitemaps $hasThings $hasItems }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -23,6 +28,9 @@ spec:
         prometheus.io/path: /rest/metrics/prometheus
         prometheus.io/port: {{ .Values.env.OPENHAB_HTTP_PORT | default "8080" | quote }}
         {{- end }}
+        {{- if $hasConfigMaps }}
+        checksum/configmaps: {{ .Values.configMaps | toJson | sha256sum }}
+        {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -40,6 +48,42 @@ spec:
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if $hasConfigMaps }}
+      initContainers:
+        - name: sync-configmaps
+          image: "{{ .Values.configMaps.syncImage.repository }}:{{ .Values.configMaps.syncImage.tag }}"
+          imagePullPolicy: {{ .Values.configMaps.syncImage.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              mkdir -p /openhab/conf/sitemaps /openhab/conf/things /openhab/conf/items
+              if [ -d /config-src/sitemaps ]; then cp -f /config-src/sitemaps/* /openhab/conf/sitemaps/ 2>/dev/null || true; fi
+              if [ -d /config-src/things ]; then cp -f /config-src/things/* /openhab/conf/things/ 2>/dev/null || true; fi
+              if [ -d /config-src/items ]; then cp -f /config-src/items/* /openhab/conf/items/ 2>/dev/null || true; fi
+          resources:
+            {{- toYaml .Values.configMaps.syncResources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: conf
+              mountPath: /openhab/conf
+            {{- if $hasSitemaps }}
+            - name: sitemaps
+              mountPath: /config-src/sitemaps
+              readOnly: true
+            {{- end }}
+            {{- if $hasThings }}
+            - name: things
+              mountPath: /config-src/things
+              readOnly: true
+            {{- end }}
+            {{- if $hasItems }}
+            - name: items
+              mountPath: /config-src/items
+              readOnly: true
+            {{- end }}
+      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
@@ -88,27 +132,6 @@ spec:
             - name: addons
               mountPath: /openhab/addons
             {{- end }}
-            {{- if .Values.configMaps.sitemaps.enabled }}
-            {{- range $filename, $content := .Values.configMaps.sitemaps.files }}
-            - name: sitemaps
-              mountPath: /openhab/conf/sitemaps/{{ $filename }}
-              subPath: {{ $filename }}
-            {{- end }}
-            {{- end }}
-            {{- if .Values.configMaps.things.enabled }}
-            {{- range $filename, $content := .Values.configMaps.things.files }}
-            - name: things
-              mountPath: /openhab/conf/things/{{ $filename }}
-              subPath: {{ $filename }}
-            {{- end }}
-            {{- end }}
-            {{- if .Values.configMaps.items.enabled }}
-            {{- range $filename, $content := .Values.configMaps.items.files }}
-            - name: items
-              mountPath: /openhab/conf/items/{{ $filename }}
-              subPath: {{ $filename }}
-            {{- end }}
-            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -128,17 +151,17 @@ spec:
           persistentVolumeClaim:
             claimName: {{ include "openhab.addonsPvcName" . }}
         {{- end }}
-        {{- if .Values.configMaps.sitemaps.enabled }}
+        {{- if $hasSitemaps }}
         - name: sitemaps
           configMap:
             name: {{ include "openhab.fullname" . }}-sitemaps
         {{- end }}
-        {{- if .Values.configMaps.things.enabled }}
+        {{- if $hasThings }}
         - name: things
           configMap:
             name: {{ include "openhab.fullname" . }}-things
         {{- end }}
-        {{- if .Values.configMaps.items.enabled }}
+        {{- if $hasItems }}
         - name: items
           configMap:
             name: {{ include "openhab.fullname" . }}-items

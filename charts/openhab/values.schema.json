@@ -87,18 +87,44 @@
     },
     "podSecurityContext": {
       "type": "object",
-      "description": "Pod-level security context. Only fsGroup: 9001 should be set. runAsUser/runAsGroup must NOT be set — the openHAB entrypoint starts as root, creates the openhab user/group, then drops privileges via gosu.",
+      "description": "Pod-level security context. runAsUser/runAsGroup must NOT be set — the openHAB entrypoint starts as root, creates the openhab user/group, then drops privileges via gosu.",
       "properties": {
         "fsGroup": {
           "type": "integer",
           "description": "fsGroup ensures PVC directories are group-accessible after the entrypoint drops to UID 9001",
           "default": 9001
+        },
+        "seccompProfile": {
+          "type": "object",
+          "description": "Seccomp profile for the pod",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["RuntimeDefault", "Localhost", "Unconfined"],
+              "default": "RuntimeDefault"
+            },
+            "localhostProfile": {
+              "type": "string"
+            }
+          }
         }
       }
     },
     "securityContext": {
       "type": "object",
-      "description": "Container-level security context. Do not set allowPrivilegeEscalation or capabilities.drop — the entrypoint requires CAP_SETUID, CAP_SETGID, and CAP_CHOWN during initialization."
+      "description": "Container-level security context. Do not set capabilities.drop — the entrypoint requires CAP_SETUID, CAP_SETGID, and CAP_CHOWN during initialization.",
+      "properties": {
+        "allowPrivilegeEscalation": {
+          "type": "boolean",
+          "description": "Prevent gaining more privileges after startup",
+          "default": false
+        },
+        "readOnlyRootFilesystem": {
+          "type": "boolean",
+          "description": "Must remain false because openHAB writes to internal runtime directories",
+          "default": false
+        }
+      }
     },
     "service": {
       "type": "object",
@@ -213,7 +239,7 @@
         },
         "conf": {
           "type": "object",
-          "description": "Configuration files, live-reloaded",
+          "description": "Configuration files synced before startup",
           "properties": {
             "enabled": {
               "type": "boolean",
@@ -291,8 +317,47 @@
     },
     "configMaps": {
       "type": "object",
-      "description": "ConfigMap-based configuration files (live-reloaded)",
+      "description": "ConfigMap-based configuration files copied into the conf PVC before startup",
       "properties": {
+        "syncImage": {
+          "type": "object",
+          "description": "Image used by the init container that copies ConfigMap files into the conf PVC",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "default": "docker.io/library/busybox"
+            },
+            "tag": {
+              "type": "string",
+              "default": "1.37"
+            },
+            "pullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"],
+              "default": "IfNotPresent"
+            }
+          }
+        },
+        "syncResources": {
+          "type": "object",
+          "description": "Resource requests/limits for the ConfigMap sync init container",
+          "properties": {
+            "requests": {
+              "type": "object",
+              "properties": {
+                "cpu": { "type": "string" },
+                "memory": { "type": "string" }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "cpu": { "type": "string" },
+                "memory": { "type": "string" }
+              }
+            }
+          }
+        },
         "sitemaps": {
           "type": "object",
           "properties": {
@@ -584,7 +649,23 @@
         },
         "resources": {
           "type": "object",
-          "description": "Resource requests/limits for backup containers"
+          "description": "Resource requests/limits for backup containers",
+          "properties": {
+            "requests": {
+              "type": "object",
+              "properties": {
+                "cpu": { "type": "string" },
+                "memory": { "type": "string" }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "cpu": { "type": "string" },
+                "memory": { "type": "string" }
+              }
+            }
+          }
         },
         "s3": {
           "type": "object",

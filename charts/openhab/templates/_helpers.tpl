@@ -88,6 +88,18 @@ Validate admin secret configuration.
 {{- end }}
 
 {{/*
+Validate ConfigMap sync configuration.
+*/}}
+{{- define "openhab.validateConfigMaps" -}}
+{{- $hasSitemaps := and .Values.configMaps.sitemaps.enabled (gt (len (.Values.configMaps.sitemaps.files | default dict)) 0) }}
+{{- $hasThings := and .Values.configMaps.things.enabled (gt (len (.Values.configMaps.things.files | default dict)) 0) }}
+{{- $hasItems := and .Values.configMaps.items.enabled (gt (len (.Values.configMaps.items.files | default dict)) 0) }}
+{{- if and (or $hasSitemaps $hasThings $hasItems) (not .Values.persistence.conf.enabled) }}
+{{- fail "configMaps require persistence.conf.enabled=true because files are copied into the writable /openhab/conf PVC before startup." }}
+{{- end }}
+{{- end }}
+
+{{/*
 Resolve the admin secret name.
 */}}
 {{- define "openhab.adminSecretName" -}}

@@ -1,23 +1,27 @@
-# ConfigMaps & Live Reload
+# ConfigMaps & Startup Sync
 
 openHAB monitors its configuration directories using a native file watcher.
-Any file change under `/openhab/conf/` is applied automatically within 2-5 seconds — no pod restart required.
+Any file change under `/openhab/conf/` is applied automatically within 2-5
+seconds after the file exists on the writable filesystem.
 
-This chart exposes three ConfigMap-backed mount points, allowing you to manage
-openHAB configuration declaratively via Helm values or GitOps pipelines.
+This chart exposes three ConfigMap-backed input groups and copies their files
+into the writable `conf` PVC before openHAB starts. Directly mounting ConfigMaps
+under `/openhab/conf` is not used because the official openHAB entrypoint runs
+`chown -R /openhab`, and Kubernetes ConfigMap volumes are read-only.
 
 ## How It Works
 
 ```text
 Helm values.yaml
     └─> ConfigMap (K8s)
-            └─> Volume mount (subPath) → /openhab/conf/<dir>/<file>
-                    └─> openHAB file watcher detects change (~2-5s)
-                            └─> Configuration applied automatically
+            └─> initContainer sync-configmaps
+                    └─> copy to /openhab/conf/<dir>/<file> on the conf PVC
+                            └─> openHAB starts and reads writable files
 ```
 
-Files are mounted using `subPath`, which means they are added alongside any
-existing files in the PVC — existing configurations are preserved.
+The StatefulSet pod template includes a checksum of the rendered ConfigMaps.
+When ConfigMap values change, a Helm upgrade rolls the pod so the initContainer
+copies the new files before openHAB starts again.
 
 ## Supported Directories
 
@@ -54,12 +58,13 @@ configMaps:
 
 ## Applying Changes
 
-After updating values, run `helm upgrade`. Kubernetes will sync the ConfigMap,
-and openHAB will pick up the change automatically:
+After updating values, run `helm upgrade`. The checksum annotation changes,
+Kubernetes rolls the pod, and the initContainer copies the new files into the
+conf PVC:
 
 ```bash
 helm upgrade my-openhab helmforge/openhab -f values.yaml
-# No restart required — openHAB reloads automatically
+# The StatefulSet rolls so ConfigMap files are copied before startup
 ```
 
 ## Important Limitations
@@ -68,13 +73,15 @@ helm upgrade my-openhab helmforge/openhab -f values.yaml
   For large configuration files, use the PVC directly instead.
 - **File naming**: File keys must match openHAB's expected extensions
   (`.sitemap`, `.things`, `.items`).
-- **Sync delay**: Kubernetes syncs ConfigMaps to pods every ~60 seconds by default
-  (controlled by `--sync-frequency` on kubelet). The 2-5s reload refers to
-  openHAB's file watcher after the file appears on disk.
+- **Rollout required**: ConfigMap changes are applied on the next pod start.
+  The chart adds a checksum annotation so Helm upgrades trigger that rollout.
+- **PVC overwrite behavior**: If a managed ConfigMap file has the same filename
+  as an existing PVC file in the target directory, the managed file is copied
+  over it during startup.
 
 ## Troubleshooting
 
-### File not being reloaded
+### File not being synced
 
 Check if the file exists on the pod:
 
@@ -94,6 +101,6 @@ Split your configuration into multiple values files and use `helm upgrade -f`.
 
 ### Conflict with PVC content
 
-Files mounted via ConfigMap `subPath` appear alongside files already in the PVC.
-If the same filename exists in both the ConfigMap and the PVC, the ConfigMap version
-takes precedence (it shadows the PVC file at that specific path).
+ConfigMap files are copied into the same directories used by openHAB. If the
+same filename already exists in the PVC, the ConfigMap-managed version replaces
+it during startup.
