@@ -107,18 +107,3 @@ DNSSEC trust anchor at `/opt/unbound/etc/unbound/var/root.key` and does not
 ship a `root.hints` file, so pointing `auto-trust-anchor-file` at
 `/opt/unbound/etc/unbound/root.key` or referencing `root.hints` will fail
 `unbound-checkconf` and crash the sidecar.
-
-<!-- @AI-METADATA
-type: chart-docs
-title: Unbound Recursive DNS
-description: Privacy-focused recursive DNS resolution with Pi-hole and Unbound sidecar
-keywords: unbound, recursive-dns, privacy, pihole, dnssec
-purpose: Architecture guide for deploying Pi-hole with Unbound recursive DNS sidecar
-scope: Chart
-relations:
-  - charts/pihole/README.md
-  - charts/pihole/values.yaml
-path: charts/pihole/docs/unbound.md
-version: 1.0
-date: 2026-03-23
--->

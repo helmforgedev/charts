@@ -37,6 +37,16 @@ helm install pihole oci://ghcr.io/helmforgedev/helm/pihole \
 - **DHCP Support** — Optional DHCP server with hostNetwork mode
 - **DNSSEC Validation** — Optional DNS Security Extensions
 
+### Security Scan: `pihole`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **86%** |
+
+Security posture: acceptable with documented Pi-hole runtime exceptions for
+required DNS/network capabilities, root bootstrap behavior, writable Pi-hole
+configuration directories, and site-specific NetworkPolicy delegation.
+
 ## Configuration
 
 ### Minimal (Simple Setup)
@@ -161,8 +171,8 @@ metrics:
 |-----|---------|-------------|
 | `gravity.enabled` | `true` | Reconcile Pi-hole gravity schema and Helm-managed lists before Pi-hole starts |
 | `gravity.updateOnInit` | `true` | Run `pihole -g` in a follow-up init container after Helm-managed lists are reconciled |
-| `gravity.resources` | `{}` | Resources for the gravity schema/list init container |
-| `gravity.updateResources` | `{}` | Resources for the gravity update init container |
+| `gravity.resources` | requests `50m/64Mi`, limits `200m/128Mi` | Resources for the gravity schema/list init container |
+| `gravity.updateResources` | requests `100m/128Mi`, limits `500m/512Mi` | Resources for the gravity update init container |
 
 ### Persistence
 
@@ -187,6 +197,16 @@ metrics:
 | `serviceWeb.type` | `ClusterIP` | Web admin service type |
 | `serviceWeb.port` | `80` | Web admin port |
 
+### Security and Resources
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `resources` | requests `100m/128Mi`, limits `500m/512Mi` | CPU and memory resources for the Pi-hole container |
+| `podSecurityContext.seccompProfile.type` | `RuntimeDefault` | Enables the Kubernetes default seccomp profile |
+| `securityContext.allowPrivilegeEscalation` | `false` | Prevents privilege escalation while preserving required Pi-hole capabilities |
+| `securityContext.capabilities.add` | `NET_BIND_SERVICE`, `NET_RAW`, `SYS_NICE`, `CHOWN` | Capabilities required for DNS binding, ICMP, FTL scheduling, and data ownership |
+| `serviceAccount.automountServiceAccountToken` | `false` | Keeps Kubernetes API tokens out of the pod unless explicitly needed |
+
 ### Ingress
 
 | Key | Default | Description |
@@ -203,8 +223,23 @@ metrics:
 | `metrics.enabled` | `false` | Enable pihole-exporter sidecar |
 | `metrics.image.tag` | `v1.2.0` | pihole-exporter version |
 | `metrics.port` | `9617` | Metrics port |
+| `metrics.resources` | requests `25m/64Mi`, limits `100m/128Mi` | Resources for the pihole-exporter sidecar |
 | `metrics.serviceMonitor.enabled` | `false` | Create ServiceMonitor |
 | `metrics.serviceMonitor.interval` | `30s` | Scrape interval |
+
+### Backup
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `backup.enabled` | `false` | Enable scheduled S3-compatible backups |
+| `backup.schedule` | `0 3 * * *` | Backup CronJob schedule |
+| `backup.include.gravity` | `true` | Include the gravity database |
+| `backup.include.customDns` | `true` | Include custom DNS records |
+| `backup.include.dnsmasq` | `true` | Include dnsmasq configuration |
+| `backup.resources` | requests `50m/64Mi`, limits `250m/256Mi` | Resources for backup and upload containers |
+| `backup.s3.endpoint` | `""` | S3-compatible endpoint URL |
+| `backup.s3.bucket` | `""` | Target bucket name |
+| `backup.s3.existingSecret` | `""` | Existing Secret with `access-key` and `secret-key` |
 
 ### Unbound
 
@@ -213,7 +248,7 @@ metrics:
 | `unbound.enabled` | `false` | Enable Unbound sidecar |
 | `unbound.image.tag` | `1.22.0` | Unbound version |
 | `unbound.port` | `5335` | Unbound listening port |
-| `unbound.resources` | `{}` | Resources for Unbound |
+| `unbound.resources` | requests `50m/64Mi`, limits `200m/128Mi` | Resources for Unbound |
 
 ### DHCP
 
@@ -287,18 +322,3 @@ This chart intentionally does not support:
 - **Multi-instance clustering** — Pi-hole does not support clustering natively
 - **Gravity Sync** — Use a separate tool or manual sync for multi-instance setups
 - **Built-in VPN** — Use a dedicated VPN solution (WireGuard, etc.)
-
-<!-- @AI-METADATA
-type: chart-readme
-title: Pi-hole Helm Chart
-description: Deploy Pi-hole DNS sinkhole on Kubernetes with Unbound recursive DNS, Prometheus metrics, and ingress support
-keywords: pihole, dns, ad-blocker, helm, kubernetes, unbound, dnsmasq, metrics
-purpose: Installation guide, configuration reference, and operational documentation for the pihole Helm chart
-scope: Chart
-relations:
-  - charts/pihole/docs/unbound.md
-  - charts/pihole/values.yaml
-path: charts/pihole/README.md
-version: 1.0
-date: 2026-03-23
--->
