@@ -26,6 +26,21 @@ helm install heimdall oci://ghcr.io/helmforgedev/helm/heimdall
 - **Ingress Support** — configurable ingress with TLS for HTTPS access
 - **PUID/PGID** — file ownership control for the container
 
+## Documentation
+
+- [Chart Design](DESIGN.md)
+- [Operations Guide](docs/operations.md)
+- [Backup Guide](docs/backup.md)
+- [Heimdall Source](https://github.com/linuxserver/Heimdall)
+
+### Security Scan: `heimdall`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **72.72727%** |
+
+> Security posture acceptable with operator-provided resource limits, security contexts, and network policy.
+
 ## Configuration
 
 ### Minimal
@@ -67,7 +82,7 @@ backup:
 
 ## Parameters
 
-### Heimdall
+### Heimdall Settings
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -131,7 +146,11 @@ keywords: heimdall, dashboard, homepage, launcher, self-hosted, helm, kubernetes
 purpose: User-facing chart documentation with install, examples, and values reference
 scope: Chart
 
-relations: []
+relations:
+  - charts/heimdall/DESIGN.md
+  - charts/heimdall/docs/operations.md
+  - charts/heimdall/docs/backup.md
+  - charts/heimdall/values.yaml
 path: charts/heimdall/README.md
 version: 1.0
 date: 2026-03-31

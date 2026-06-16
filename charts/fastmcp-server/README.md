@@ -21,6 +21,14 @@ MCP tools, resources, prompts, and knowledge bases from inline ConfigMaps, S3-co
 - Dual-stack Service options for IPv4/IPv6 clusters
 - Restricted pod defaults with service account token automount disabled
 
+### 🟢 Security Scan: `fastmcp-server`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **90.90909%** |
+
+> ✅ Security posture acceptable.
+
 ## Quick Start
 
 ```bash
@@ -331,6 +339,12 @@ securityContext:
 | `networkPolicy.enabled` | `false` | Enable NetworkPolicy |
 
 See [`values.yaml`](values.yaml) for the full configuration reference.
+
+## Architecture and Operations
+
+- [Architecture](docs/architecture.md)
+- [Sources and secrets](docs/sources-and-secrets.md)
+- [Operations and security](docs/operations-and-security.md)
 
 ## Connecting MCP Clients
 

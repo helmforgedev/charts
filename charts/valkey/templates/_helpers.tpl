@@ -293,6 +293,7 @@ valkey-cli TLS flags.
 {{- define "valkey.cliTlsArgs" -}}
 {{- if .Values.tls.enabled -}}
 --tls --cacert /tls/{{ .Values.tls.caFilename }}
+{{- if .Values.tls.insecureSkipVerify }} --insecure{{- end }}
 {{- end -}}
 {{- end -}}
 

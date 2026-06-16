@@ -49,20 +49,3 @@ When `architecture.mode=federated` and `broker.replicaCount > 1`, the chart can 
 - topology spread constraints by node hostname
 
 These defaults are controlled by `broker.multiReplicaDefaults.*` and are skipped automatically when operators provide explicit `affinity` or `topologySpreadConstraints`.
-
-<!-- @AI-METADATA
-type: chart-docs
-title: Mosquitto - Architecture Notes
-description: Architecture and high-availability notes for the Mosquitto Helm chart
-
-keywords: mosquitto, mqtt, architecture, ha, websocket, mqttx
-
-purpose: Explain the supported Mosquitto deployment model and HA limits on Kubernetes
-scope: Chart
-
-relations:
-  - charts/mosquitto/README.md
-path: charts/mosquitto/docs/architecture.md
-version: 1.0
-date: 2026-04-01
--->

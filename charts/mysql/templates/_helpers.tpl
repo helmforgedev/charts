@@ -390,33 +390,33 @@ SOURCE_SSL_CA='/tls/{{ .Values.tls.caFilename }}',
 {{- if eq .Values.config.preset "small" -}}
 max_connections = 100
 innodb_buffer_pool_size = 256M
-innodb_log_file_size = 128M
+innodb_redo_log_capacity = 268435456
 {{- else if eq .Values.config.preset "medium" -}}
 max_connections = 200
 innodb_buffer_pool_size = 512M
-innodb_log_file_size = 256M
+innodb_redo_log_capacity = 536870912
 {{- else if eq .Values.config.preset "large" -}}
 max_connections = 400
 innodb_buffer_pool_size = 1G
-innodb_log_file_size = 512M
+innodb_redo_log_capacity = 1073741824
 {{- else if eq .Values.config.preset "oltp" -}}
 max_connections = 300
 innodb_buffer_pool_size = 1G
-innodb_log_file_size = 512M
+innodb_redo_log_capacity = 1073741824
 innodb_flush_log_at_trx_commit = 1
 sync_binlog = 1
 innodb_io_capacity = 1000
 {{- else if eq .Values.config.preset "read-heavy" -}}
 max_connections = 300
 innodb_buffer_pool_size = 1G
-innodb_log_file_size = 512M
+innodb_redo_log_capacity = 1073741824
 table_open_cache = 4096
 tmp_table_size = 128M
 max_heap_table_size = 128M
 {{- else if eq .Values.config.preset "analytics" -}}
 max_connections = 150
 innodb_buffer_pool_size = 2G
-innodb_log_file_size = 1G
+innodb_redo_log_capacity = 2147483648
 tmp_table_size = 256M
 max_heap_table_size = 256M
 sort_buffer_size = 4M

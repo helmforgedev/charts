@@ -34,6 +34,10 @@ helm install mosquitto oci://ghcr.io/helmforgedev/helm/mosquitto
 - **Service exposure** — optional `externalIPs` and static Kubernetes `nodePort` values per listener (MQTT, WebSocket, MQTTS)
 - **Values Schema** — `values.schema.json` validates user-supplied values and improves ArtifactHub rendering
 
+## Security Scan
+
+Security Scan: Kubescape local scan against MITRE,NSA,SOC2 reports a 74.24% resource summary score.
+
 ## Important Notes
 
 - `architecture.mode=standalone` is the default and requires exactly one broker replica
@@ -183,20 +187,3 @@ broker:
 - [Architecture Notes](docs/architecture.md)
 - [Examples](examples/federated.yaml)
 - [Source code and full values reference](https://github.com/helmforgedev/charts/tree/main/charts/mosquitto)
-
-<!-- @AI-METADATA
-type: chart-readme
-title: Mosquitto
-description: Installation guide, values reference, and operational overview for the Mosquitto Helm chart
-
-keywords: mosquitto, mqtt, websocket, mqttx, helm, kubernetes
-
-purpose: User-facing chart documentation with install, examples, and values reference
-scope: Chart
-
-relations:
-  - charts/mosquitto/docs/architecture.md
-path: charts/mosquitto/README.md
-version: 1.0
-date: 2026-04-01
--->

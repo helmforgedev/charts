@@ -39,6 +39,12 @@ tests:
           path: spec.template.spec.securityContext.fsGroup
           value: 9001
 
+  - it: should use the RuntimeDefault seccomp profile
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+
   - it: should not automount the Kubernetes API token by default
     asserts:
       - equal:
@@ -50,10 +56,11 @@ tests:
       - notExists:
           path: spec.template.spec.containers[0].securityContext.capabilities
 
-  - it: should not disallow privilege escalation (gosu needs it during init)
+  - it: should prevent privilege escalation without dropping required bootstrap capabilities
     asserts:
-      - notExists:
+      - equal:
           path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
 
   - it: should keep readOnlyRootFilesystem false
     asserts:
@@ -151,44 +158,62 @@ tests:
           path: spec.template.spec.containers[0].readinessProbe.httpGet.path
           value: /rest/uuid
 
-  - it: should mount sitemaps configmap with subPath when enabled
+  - it: should sync sitemaps ConfigMap into the conf PVC before startup
     set:
       configMaps.sitemaps.enabled: true
       configMaps.sitemaps.files:
         myhome.sitemap: "sitemap myhome {}"
     asserts:
       - contains:
-          path: spec.template.spec.containers[0].volumeMounts
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: conf
+            mountPath: /openhab/conf
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
           content:
             name: sitemaps
-            mountPath: /openhab/conf/sitemaps/myhome.sitemap
-            subPath: myhome.sitemap
+            mountPath: /config-src/sitemaps
+            readOnly: true
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 10m
 
-  - it: should mount things configmap with subPath when enabled
+  - it: should sync things ConfigMap into the conf PVC before startup
     set:
       configMaps.things.enabled: true
       configMaps.things.files:
         network.things: "Thing network:pingdevice:router []"
     asserts:
       - contains:
-          path: spec.template.spec.containers[0].volumeMounts
+          path: spec.template.spec.initContainers[0].volumeMounts
           content:
             name: things
-            mountPath: /openhab/conf/things/network.things
-            subPath: network.things
+            mountPath: /config-src/things
+            readOnly: true
 
-  - it: should mount items configmap with subPath when enabled
+  - it: should sync items ConfigMap into the conf PVC before startup
     set:
       configMaps.items.enabled: true
       configMaps.items.files:
         lights.items: "Switch Light_GF_Corridor"
     asserts:
       - contains:
-          path: spec.template.spec.containers[0].volumeMounts
+          path: spec.template.spec.initContainers[0].volumeMounts
           content:
             name: items
-            mountPath: /openhab/conf/items/lights.items
-            subPath: lights.items
+            mountPath: /config-src/items
+            readOnly: true
+
+  - it: should fail when ConfigMap sync is enabled without conf persistence
+    set:
+      persistence.conf.enabled: false
+      configMaps.items.enabled: true
+      configMaps.items.files:
+        lights.items: "Switch Light_GF_Corridor"
+    asserts:
+      - failedTemplate:
+          errorMessage: "configMaps require persistence.conf.enabled=true because files are copied into the writable /openhab/conf PVC before startup."
 
   - it: should fail when replicaCount greater than 1
     set:

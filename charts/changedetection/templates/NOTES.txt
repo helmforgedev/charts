@@ -1,119 +1,125 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  changedetection.io has been successfully deployed!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+changedetection.io has been installed
+=====================================
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
-AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
+Installation summary
+--------------------
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Chart version: {{ .Chart.Version }}
+Application version: {{ .Chart.AppVersion }}
+Image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+Service name: {{ include "changedetection.fullname" . }}
+Service type: {{ .Values.service.type }}
+Service port: {{ .Values.service.port }}
+Container port: {{ .Values.changedetection.port }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ACCESS INFORMATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+Access changedetection.io
+-------------------------
 {{- if .Values.ingress.enabled }}
-{{- range $host := .Values.ingress.hosts }}
-WEB UI:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+Ingress routes:
+{{- range .Values.ingress.hosts }}
+  - http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}/
 {{- end }}
 {{- else if .Values.gateway.enabled }}
+Gateway API routes:
 {{- range .Values.gateway.hostnames }}
-WEB UI:   https://{{ . }}/
+  - https://{{ . }}/
+{{- else }}
+  - HTTPRoute hostnames are not set.
 {{- end }}
 {{- else }}
-Port-forward to access changedetection.io locally:
+Port-forward the Service:
 
-  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "changedetection.fullname" . }} 5000:{{ .Values.service.port }}
+  kubectl port-forward svc/{{ include "changedetection.fullname" . }} -n {{ .Release.Namespace }} 5000:{{ .Values.service.port }}
 
-  WEB UI:   http://localhost:5000/
+Then open:
+
+  http://localhost:5000/
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  GETTING STARTED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Cluster-local endpoint:
 
-1. Wait for the pod to be ready:
-   kubectl wait --for=condition=ready pod \
-     -l app.kubernetes.io/name=changedetection \
-     -n {{ .Release.Namespace }} --timeout=300s
+  http://{{ include "changedetection.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}/
 
-2. Check pod status:
-   kubectl get pods -l app.kubernetes.io/name=changedetection -n {{ .Release.Namespace }}
+Operational checks
+------------------
+Wait for the workload:
 
-3. View logs:
-   kubectl logs -l app.kubernetes.io/name=changedetection \
-     -n {{ .Release.Namespace }} --all-containers --tail=50 -f
+  kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=changedetection -n {{ .Release.Namespace }} --timeout=300s
 
-4. Confirm the application responds through the Service:
-   kubectl run {{ .Release.Name }}-curl --rm -i --restart=Never \
-     --image=curlimages/curl:8.11.1 -n {{ .Release.Namespace }} -- \
-     curl -fsS http://{{ include "changedetection.fullname" . }}:{{ .Values.service.port }}/
+Inspect status:
 
-{{- if .Values.persistence.enabled }}
-
-Persistence:
-  Data is stored in PVC {{ include "changedetection.dataClaimName" . }} mounted at /datastore.
-  Keep regular backups before application upgrades.
-{{- else }}
-
-Persistence:
-  persistence.enabled=false, so /datastore uses emptyDir and data is ephemeral.
-{{- end }}
-
-{{- if .Values.browser.enabled }}
-
-Browser rendering:
-  The Playwright browser sidecar is enabled and exposed to changedetection.io
-  through PLAYWRIGHT_DRIVER_URL=ws://localhost:3000/?stealth=1&--disable-web-security=true.
-{{- else }}
-
-Browser rendering:
-  The Playwright browser sidecar is disabled. Enable browser.enabled=true for
-  JavaScript-heavy pages.
-{{- end }}
-
-{{- with .Values.service.ipFamilyPolicy }}
-
-Networking:
-  Service IP family policy: {{ . }}{{ with $.Values.service.ipFamilies }} (families: {{ join ", " . }}){{ end }}.
-{{- end }}
-
-{{- if .Values.gateway.enabled }}
-
-Gateway API:
-  HTTPRoute: {{ include "changedetection.fullname" . }}
-  ParentRefs:
-{{ toYaml .Values.gateway.parentRefs | indent 4 }}
-{{- end }}
-
-{{- if .Values.externalSecrets.enabled }}
-
-External Secrets:
-  ExternalSecret resources were rendered for this release.
-  Confirm the External Secrets Operator reconciled them:
-
-    kubectl get externalsecret -n {{ .Release.Namespace }} \
-      -l app.kubernetes.io/instance={{ .Release.Name }}
-
-  When using changedetection.envFrom, confirm the target Secret exists before
-  troubleshooting the application pod.
-{{- end }}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  TROUBLESHOOTING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  kubectl describe pod -l app.kubernetes.io/name=changedetection -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/name=changedetection -n {{ .Release.Namespace }} --all-containers --tail=100
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-  kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+  kubectl get pods -l app.kubernetes.io/name=changedetection -n {{ .Release.Namespace }}
+  kubectl logs -l app.kubernetes.io/name=changedetection -n {{ .Release.Namespace }} --all-containers --tail=50
   kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ADDITIONAL RESOURCES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Persistence
+-----------
+{{- if .Values.persistence.enabled }}
+Datastore persistence is enabled.
+PVC: {{ include "changedetection.dataClaimName" . }}
+Mount path: /datastore
 
-Documentation:     https://helmforge.dev/docs/charts/changedetection
-Chart Repository:  https://github.com/helmforgedev/charts/tree/main/charts/changedetection
-changedetection.io: https://changedetection.io | https://github.com/dgtlmoon/changedetection.io
+Back up this PVC before upgrades. It stores the SQLite database, watch state,
+snapshots, and any Python user packages installed through EXTRA_PACKAGES.
+{{- else }}
+Datastore persistence is disabled. /datastore uses emptyDir and all watches,
+history, and snapshots are ephemeral.
+{{- end }}
+
+Browser rendering
+-----------------
+{{- if .Values.browser.enabled }}
+Playwright browser rendering is enabled.
+Browser image: {{ .Values.browser.image.repository }}:{{ .Values.browser.image.tag }}
+The application connects through PLAYWRIGHT_DRIVER_URL on localhost.
+{{- else }}
+Playwright browser rendering is disabled.
+Enable browser.enabled=true for JavaScript-heavy pages, SPAs, and rendered
+price or inventory checks.
+{{- end }}
+
+Routing summary
+---------------
+Ingress: {{ ternary "enabled" "disabled" .Values.ingress.enabled }}
+Gateway API HTTPRoute: {{ ternary "enabled" "disabled" .Values.gateway.enabled }}
+Service IP family policy: {{ default "cluster default" .Values.service.ipFamilyPolicy }}
+{{- with .Values.service.ipFamilies }}
+Service IP families: {{ join ", " . }}
+{{- end }}
+
+External Secrets
+----------------
+{{- if .Values.externalSecrets.enabled }}
+ExternalSecret is enabled.
+Target Secret: {{ include "changedetection.externalSecretName" . }}
+
+Check reconciliation:
+
+  kubectl get externalsecret -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl get secret {{ include "changedetection.externalSecretName" . }} -n {{ .Release.Namespace }}
+{{- else }}
+ExternalSecret is disabled.
+Use changedetection.envFrom with a pre-created Secret, or enable
+externalSecrets.enabled to materialize environment-backed credentials through
+External Secrets Operator.
+{{- end }}
+
+Common operations
+-----------------
+Open a shell in the main container:
+
+  kubectl exec -n {{ .Release.Namespace }} deploy/{{ include "changedetection.fullname" . }} -c changedetection -- sh
+
+List rendered resources:
+
+  kubectl get all,pvc -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Documentation
+-------------
+Chart docs: https://helmforge.dev/docs/charts/changedetection
+Chart source: https://github.com/helmforgedev/charts/tree/main/charts/changedetection
+Upstream project: https://changedetection.io
+
+Happy Helmforging :)

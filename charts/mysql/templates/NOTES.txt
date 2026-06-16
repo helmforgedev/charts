@@ -1,22 +1,73 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-MySQL has been installed.
+1. MySQL has been installed
+===========================
 
-Useful Services:
+Release:
+
+  Name:      {{ .Release.Name }}
+  Namespace: {{ .Release.Namespace }}
+  Mode:      {{ .Values.architecture }}
+  Image:     {{ .Values.image.repository }}:{{ .Values.image.tag }}
+
+2. Services
+===========
+
+Client endpoints:
 
 - Client Service: {{ include "mysql.clientServiceName" . }}
 {{- if eq .Values.architecture "replication" }}
-- Source Service: {{ include "mysql.sourceServiceName" . }}
-- Replicas Service: {{ include "mysql.replicasServiceName" . }}
+- Source Service: {{ include "mysql.sourceServiceName" . }} (write traffic)
+- Replicas Service: {{ include "mysql.replicasServiceName" . }} (read-only traffic)
 {{- end }}
+
+Port:
+
+  {{ .Values.service.port }}/TCP
+
+{{- if .Values.service.ipFamilyPolicy }}
+Network family policy:
+
+  {{ .Values.service.ipFamilyPolicy }}{{ with .Values.service.ipFamilies }} ({{ join ", " . }}){{ end }}
+
+{{- end }}
+3. Credentials
+==============
 
 Root password:
 
   kubectl get secret {{ include "mysql.secretName" . }} -n {{ .Release.Namespace }} -o jsonpath="{.data.{{ .Values.auth.existingSecretRootPasswordKey }}}" | base64 -d
+
+Application database:
+
+  {{ .Values.auth.database }}
+
+Application user:
+
+  {{ .Values.auth.username }}
+
+Secret source:
+
+{{- if .Values.auth.existingSecret }}
+  Existing Secret: {{ .Values.auth.existingSecret }}
+{{- else }}
+  Chart-managed Secret: {{ include "mysql.secretName" . }}
+{{- end }}
 {{- if .Values.tls.enabled }}
+
+4. TLS
+======
 
 TLS secret:
 
   {{ include "mysql.tlsSecretName" . }}
+
+Secure transport required:
+
+  {{ .Values.tls.requireSecureTransport }}
+
+Internal chart-managed MySQL clients use TLS:
+
+  {{ .Values.tls.client.enabled }}
 {{- if .Values.tls.volumePermissions.enabled }}
 
 TLS volume permissions:
@@ -26,16 +77,25 @@ TLS volume permissions:
 {{- end }}
 {{- if include "mysql.externalSecretsEnabled" . }}
 
+5. External Secrets
+===================
+
 External Secrets:
 
   ExternalSecret resources are enabled. Confirm the External Secrets Operator and {{ .Values.externalSecrets.secretStoreRef.kind }} `{{ .Values.externalSecrets.secretStoreRef.name }}` are ready before expecting reconciled Kubernetes Secrets.
 {{- end }}
 {{- if .Values.networkPolicy.enabled }}
 
+6. Network Policy
+=================
+
 NetworkPolicy:
 
   Enabled for MySQL pods. Review allowed ingress peers and{{ if .Values.networkPolicy.egress.enabled }} configured egress rules{{ else }} default egress behavior in your CNI{{ end }} before exposing workloads.
 {{- end }}
+
+7. Connection Examples
+======================
 
 Connection examples:
 
@@ -51,6 +111,74 @@ Writable workloads should use:
   mysql -h {{ include "mysql.sourceServiceName" . }} -P {{ .Values.service.port }} -u {{ .Values.auth.username }} -p
 {{- end }}
 
+8. Operational Summary
+======================
+
+{{- if eq .Values.architecture "standalone" }}
+Standalone mode:
+
+  One writable StatefulSet is installed. Use this mode when operational simplicity matters more than read scaling.
+{{- else }}
+Replication mode:
+
+  One fixed source StatefulSet and one read replica StatefulSet are installed. Replication is asynchronous and does not provide automatic source promotion.
+{{- end }}
+
+Persistence:
+
+{{- if eq .Values.architecture "standalone" }}
+  Standalone PVC enabled: {{ .Values.standalone.persistence.enabled }}
+  Standalone PVC size:    {{ .Values.standalone.persistence.size }}
+{{- else }}
+  Source PVC enabled:     {{ .Values.replication.source.persistence.enabled }}
+  Source PVC size:        {{ .Values.replication.source.persistence.size }}
+  Replica count:          {{ .Values.replication.readReplicas.replicaCount }}
+  Replica PVC enabled:    {{ .Values.replication.readReplicas.persistence.enabled }}
+  Replica PVC size:       {{ .Values.replication.readReplicas.persistence.size }}
+{{- end }}
+
+Metrics:
+
+  Enabled: {{ .Values.metrics.enabled }}
+  ServiceMonitor: {{ and .Values.metrics.enabled .Values.metrics.serviceMonitor.enabled }}
+
+Backup:
+
+  Enabled: {{ .Values.backup.enabled }}
+{{- if .Values.backup.enabled }}
+  Schedule: {{ .Values.backup.schedule }}
+  Bucket:   {{ .Values.backup.s3.bucket }}
+{{- end }}
+
+9. Validation Commands
+======================
+
+Check workloads:
+
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl get statefulset,svc,pvc -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Check rendered Services:
+
+  kubectl get svc -n {{ .Release.Namespace }} {{ include "mysql.clientServiceName" . }}
+{{- if eq .Values.architecture "replication" }}
+  kubectl get svc -n {{ .Release.Namespace }} {{ include "mysql.sourceServiceName" . }}
+  kubectl get svc -n {{ .Release.Namespace }} {{ include "mysql.replicasServiceName" . }}
+{{- end }}
+
+Run a simple SQL smoke test from a temporary client pod:
+
+  kubectl run mysql-client -n {{ .Release.Namespace }} --rm -it --restart=Never --image={{ .Values.image.repository }}:{{ .Values.image.tag }} -- mysql -h {{ include "mysql.clientServiceName" . }} -P {{ .Values.service.port }} -u {{ .Values.auth.username }} -p -e "SELECT 1;"
+
+{{- if eq .Values.architecture "replication" }}
+Check replication from a replica pod:
+
+  kubectl exec -n {{ .Release.Namespace }} {{ include "mysql.replicaStatefulSetName" . }}-0 -- mysql -uroot -p -e "SHOW REPLICA STATUS\\G"
+
+{{- end }}
+10. Troubleshooting
+===================
+
 Initial troubleshooting:
 
   kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
@@ -58,12 +186,16 @@ Initial troubleshooting:
 {{- if eq .Values.architecture "replication" }}
   kubectl logs -n {{ .Release.Namespace }} {{ include "mysql.replicaStatefulSetName" . }}-0
 {{- end }}
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
 
 Important:
 
 - replication mode provides one fixed source and asynchronous read replicas
 - the chart does not implement automatic source promotion or operator-style HA
 - default values are suitable for development; production installs should provide external credentials, persistence, TLS, NetworkPolicy, resources, backups, and operational runbooks
-{{- with .Values.service.ipFamilyPolicy }}
-- Service IP family policy: `{{ . }}`{{ with $.Values.service.ipFamilies }} (families: {{ join ", " . }}){{ end }}
-{{- end }}
+
+Documentation:
+
+  https://helmforge.dev/docs/charts/mysql
+
+Happy Helmforging :)

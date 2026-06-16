@@ -1,13 +1,74 @@
 # SPDX-License-Identifier: Apache-2.0
-# CI: external PostgreSQL database
+# CI: external PostgreSQL database with an in-cluster fake endpoint
 postgresql:
   enabled: false
 
 database:
   type: postgresql
   external:
-    host: db.example.com
+    host: guacamole-external-postgresql
     port: "5432"
     name: guacamole_db
     username: guacamole_user
     password: external-password
+
+extraManifests:
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: guacamole-external-postgresql
+      labels:
+        app.kubernetes.io/name: guacamole-external-postgresql
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: guacamole-external-postgresql
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: guacamole-external-postgresql
+        spec:
+          containers:
+            - name: postgresql
+              image: docker.io/library/postgres:17.5-bookworm
+              imagePullPolicy: IfNotPresent
+              ports:
+                - name: postgresql
+                  containerPort: 5432
+              env:
+                - name: POSTGRES_DB
+                  value: guacamole_db
+                - name: POSTGRES_USER
+                  value: guacamole_user
+                - name: POSTGRES_PASSWORD
+                  value: external-password
+              readinessProbe:
+                exec:
+                  command:
+                    - pg_isready
+                    - -U
+                    - guacamole_user
+                    - -d
+                    - guacamole_db
+                initialDelaySeconds: 5
+                periodSeconds: 5
+              volumeMounts:
+                - name: data
+                  mountPath: /var/lib/postgresql/data
+          volumes:
+            - name: data
+              emptyDir: {}
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: guacamole-external-postgresql
+      labels:
+        app.kubernetes.io/name: guacamole-external-postgresql
+    spec:
+      ports:
+        - name: postgresql
+          port: 5432
+          targetPort: postgresql
+      selector:
+        app.kubernetes.io/name: guacamole-external-postgresql

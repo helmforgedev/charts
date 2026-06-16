@@ -17,7 +17,19 @@ tests:
           pattern: "--read-only=OFF --super-read-only=OFF"
       - matchRegex:
           path: spec.template.spec.initContainers[0].command[2]
-          pattern: "MYSQL_PWD=\"\\$\\{MYSQL_ROOT_PASSWORD\\}\" mysql --socket=/tmp/mysql.sock -uroot < /tmp/source.sql[\\s\\S]*SET GLOBAL super_read_only = OFF;[\\s\\S]*CREATE USER IF NOT EXISTS 'root'@'%'"
+          pattern: "MYSQL_PWD=\"\\$\\{MYSQL_ROOT_PASSWORD\\}\" mysql --socket=/tmp/mysql.sock -uroot < /tmp/source.sql[\\s\\S]*MYSQL_PWD=\"\\$\\{MYSQL_ROOT_PASSWORD\\}\" mysql --socket=/tmp/mysql.sock -uroot <<EOSQL[\\s\\S]*SET GLOBAL super_read_only = OFF;[\\s\\S]*CREATE USER IF NOT EXISTS 'root'@'%'"
+
+  - it: should guard replica clone retries with a completion sentinel
+    template: statefulset-replicas.yaml
+    set:
+      architecture: replication
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "CLONE_DONE=\"\\$\\{DATA_DIR\\}/\\.helmforge-clone-complete\""
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "touch \"\\$\\{CLONE_DONE\\}\""
 
   - it: should disable service account token automount by default
     template: statefulset-replicas.yaml

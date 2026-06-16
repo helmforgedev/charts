@@ -77,6 +77,14 @@ gateway:
 This chart is tested with Helm lint, strict lint, Helm unittest, kubeconform,
 Artifact Hub lint, markdown lint, security scans, and k3d runtime validation.
 
+### Security Scan: `jenkins`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **86.111115%** |
+
+> Security posture acceptable with controller security contexts, non-root execution, optional NetworkPolicy, and operator-controlled plugin/JCasC inputs.
+
 ## Documentation
 
 - [Design](./DESIGN.md)

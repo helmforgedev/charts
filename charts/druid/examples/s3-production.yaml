@@ -1,0 +1,90 @@
+# SPDX-License-Identifier: Apache-2.0
+# Production-oriented Druid deployment with S3 deep storage.
+# Use case: durable segment storage and explicit component sizing.
+
+deepStorage:
+  type: s3
+  s3:
+    bucket: druid-segments
+    baseKey: production/segments
+    region: us-east-1
+    existingSecret: druid-s3
+
+coordinator:
+  resources:
+    requests:
+      cpu: 250m
+      memory: 768Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+overlord:
+  enabled: true
+  resources:
+    requests:
+      cpu: 250m
+      memory: 768Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+broker:
+  javaOpts: "-Xms1g -Xmx1g"
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1536Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+router:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 750m
+      memory: 768Mi
+
+historical:
+  enabled: true
+  replicaCount: 2
+  persistence:
+    enabled: true
+    size: 100Gi
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      cpu: "4"
+      memory: 4Gi
+
+middleManager:
+  enabled: true
+  replicaCount: 2
+  workerCapacity: 4
+  persistence:
+    enabled: true
+    size: 50Gi
+  resources:
+    requests:
+      cpu: "1"
+      memory: 1536Mi
+    limits:
+      cpu: "4"
+      memory: 3Gi
+
+networkPolicy:
+  enabled: true
+  ingress:
+    allowSameNamespace: true
+  egress:
+    enabled: true
+    allowDNS: true
+    allowSameNamespace: true
+    allowHTTPS: true

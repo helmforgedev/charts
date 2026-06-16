@@ -1,32 +1,131 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Mosquitto has been deployed.
+{{- $fullname := include "mosquitto.fullname" . -}}
+{{- $namespace := .Release.Namespace -}}
 
-Broker service:
+1. Mosquitto has been deployed
+------------------------------
+  Release:      {{ .Release.Name }}
+  Namespace:    {{ $namespace }}
+  Architecture: {{ .Values.architecture.mode }}
+  Image:        {{ .Values.image.repository }}:{{ .Values.image.tag }}
+  Auth:         {{ .Values.auth.enabled }}
+  ACL:          {{ .Values.acl.enabled }}
+  TLS:          {{ .Values.broker.tls.enabled }}
+  WebSocket:    {{ .Values.broker.listeners.websocketEnabled }}
+  MQTTX Web:    {{ .Values.mqttxWeb.enabled }}
+
+2. Broker Service
+-----------------
 {{- if not .Values.broker.tls.enabled }}
-  MQTT:      {{ include "mosquitto.fullname" . }}:{{ .Values.service.mqttPort }}{{ if ne (int .Values.service.mqttNodePort) 0 }} (node port {{ .Values.service.mqttNodePort }}){{ end }}
+  MQTT:
+    {{ $fullname }}.{{ $namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.service.mqttPort }}{{ if ne (int .Values.service.mqttNodePort) 0 }} (node port {{ .Values.service.mqttNodePort }}){{ end }}
 {{- end }}
-  WebSocket: {{ include "mosquitto.fullname" . }}:{{ .Values.service.websocketPort }}{{ if ne (int .Values.service.websocketNodePort) 0 }} (node port {{ .Values.service.websocketNodePort }}){{ end }}
+{{- if .Values.broker.listeners.websocketEnabled }}
+  WebSocket:
+    ws://{{ $fullname }}.{{ $namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.service.websocketPort }}{{ .Values.mqttxWeb.broker.path }}{{ if ne (int .Values.service.websocketNodePort) 0 }} (node port {{ .Values.service.websocketNodePort }}){{ end }}
+{{- end }}
 {{- if .Values.broker.tls.enabled }}
-  MQTTS:     {{ include "mosquitto.fullname" . }}:{{ .Values.service.mqttsPort }}{{ if ne (int .Values.service.mqttsNodePort) 0 }} (node port {{ .Values.service.mqttsNodePort }}){{ end }}
+  MQTTS:
+    {{ $fullname }}.{{ $namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.service.mqttsPort }}{{ if ne (int .Values.service.mqttsNodePort) 0 }} (node port {{ .Values.service.mqttsNodePort }}){{ end }}
+{{- end }}
 {{- if gt (len .Values.service.externalIPs) 0 }}
   External IPs:
 {{- range .Values.service.externalIPs }}
     - {{ . }}
 {{- end }}
 {{- end }}
+
+3. Authentication and ACL
+-------------------------
+{{- if .Values.auth.enabled }}
+  Username key:
+    {{ .Values.auth.existingSecretUsernameKey }}
+
+  Password key:
+    {{ .Values.auth.existingSecretPasswordKey }}
+
+  Secret:
+    {{ include "mosquitto.authSecretName" . }}
+
+  Read generated username:
+    kubectl get secret -n {{ $namespace }} {{ include "mosquitto.authSecretName" . }} -o jsonpath='{.data.{{ .Values.auth.existingSecretUsernameKey }}}' | base64 -d; echo
+{{- else }}
+  Authentication is disabled. Do not expose this broker outside trusted networks.
+{{- end }}
+{{- if .Values.acl.enabled }}
+
+  ACL ConfigMap:
+    {{ include "mosquitto.aclConfigMapName" . }}
 {{- end }}
 
+4. TLS
+------
+{{- if .Values.broker.tls.enabled }}
+  MQTTS is enabled from Secret:
+    {{ .Values.broker.tls.certSecretName }}
+
+  Certificate keys:
+    cert: {{ .Values.broker.tls.certFile }}
+    key:  {{ .Values.broker.tls.keyFile }}
+{{- if .Values.broker.tls.caFile }}
+    ca:   {{ .Values.broker.tls.caFile }}
+{{- end }}
+{{- if .Values.broker.tls.requireCertificate }}
+
+  Client certificates are required. MQTT usernames are derived from client
+  certificate identity when `broker.tls.useIdentityAsUsername=true`.
+{{- end }}
+{{- else }}
+  TLS is disabled. Enable `broker.tls.enabled=true` and provide
+  `broker.tls.certSecretName` for MQTTS.
+{{- end }}
+
+5. Topology
+-----------
+{{- if eq .Values.architecture.mode "federated" }}
+  Federated mode uses Mosquitto bridge connections between {{ .Values.broker.replicaCount }} brokers.
+  This is not a shared-state MQTT cluster; sessions and retained messages remain
+  broker-local except where bridge topic rules propagate messages.
+{{- else }}
+  Standalone mode runs one broker with predictable local persistence.
+{{- end }}
+
+6. WebSocket Ingress
+--------------------
 {{- if .Values.websocketIngress.enabled }}
-WebSocket ingress hosts:
 {{- range .Values.websocketIngress.hosts }}
   - {{ .host }}
 {{- end }}
+{{- else }}
+  WebSocket Ingress is disabled. Enable `websocketIngress.enabled=true` for
+  browser or MQTTX access through an HTTP/WebSocket ingress controller.
 {{- end }}
 
+7. MQTTX Web
+------------
 {{- if .Values.mqttxWeb.enabled }}
-MQTTX Web service:
-  {{ include "mosquitto.fullname" . }}-mqttx:{{ .Values.mqttxWeb.service.port }}
+  Service:
+    {{ $fullname }}-mqttx.{{ $namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.mqttxWeb.service.port }}
 
-Default browser-visible broker URL:
-  {{ include "mosquitto.websocketUrl" . }}
+  Default browser-visible broker URL:
+    {{ include "mosquitto.websocketUrl" . }}
+{{- else }}
+  MQTTX Web is disabled. Enable `mqttxWeb.enabled=true` to deploy the optional
+  browser MQTT client.
 {{- end }}
+
+8. Validation Commands
+----------------------
+  Check broker pods and services:
+    kubectl get pods,svc,pvc -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -o wide
+
+  Wait for broker readiness:
+    kubectl wait --for=condition=Ready pod -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=broker --timeout=300s
+
+  Inspect generated Mosquitto configuration:
+    kubectl exec -n {{ $namespace }} statefulset/{{ include "mosquitto.statefulsetName" . }} -- cat /mosquitto/config/mosquitto.conf
+
+  Follow broker logs:
+    kubectl logs -n {{ $namespace }} statefulset/{{ include "mosquitto.statefulsetName" . }} -c mosquitto --tail=200
+
+Happy Helmforging :)

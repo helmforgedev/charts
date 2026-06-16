@@ -1,17 +1,107 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Kafka has been installed.
+Kafka deployed successfully.
 
-Useful checks:
-
-  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-  kubectl get svc {{ include "kafka.clientServiceName" . }} -n {{ .Release.Namespace }}
+Access
+======
 
 Internal bootstrap address:
+- {{ include "kafka.clientServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.listeners.client.port }}
 
-  {{ include "kafka.clientServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.listeners.client.port }}
+Services:
+- client: {{ include "kafka.clientServiceName" . }}
+{{- if eq .Values.architecture "single-broker" }}
+- headless: {{ include "kafka.singleHeadlessServiceName" . }}
+{{- else if eq (int .Values.cluster.brokers.replicaCount) 0 }}
+- controller headless: {{ include "kafka.controllerHeadlessServiceName" . }}
+{{- else }}
+- controller headless: {{ include "kafka.controllerHeadlessServiceName" . }}
+- broker headless: {{ include "kafka.brokerHeadlessServiceName" . }}
+{{- end }}
+{{- if .Values.metrics.enabled }}
+{{- if eq .Values.architecture "single-broker" }}
+- metrics: {{ include "kafka.singleMetricsServiceName" . }}
+{{- else if eq (int .Values.cluster.brokers.replicaCount) 0 }}
+- controller metrics: {{ include "kafka.controllerMetricsServiceName" . }}
+{{- else }}
+- controller metrics: {{ include "kafka.controllerMetricsServiceName" . }}
+- broker metrics: {{ include "kafka.brokerMetricsServiceName" . }}
+{{- end }}
+{{- end }}
 
-Important:
+Topology
+========
 
-  - this chart is intentionally KRaft-only
-  - validate topic creation, producer, and consumer flows before promoting the topology
-  - cluster mode is the recommended production path in this chart
+- architecture: {{ .Values.architecture }}
+{{- if eq .Values.architecture "single-broker" }}
+- mode: single KRaft node with broker and controller roles
+- statefulset: {{ include "kafka.singleStatefulSetName" . }}
+{{- else if eq (int .Values.cluster.brokers.replicaCount) 0 }}
+- mode: combined KRaft cluster
+- controllers acting as brokers: {{ .Values.cluster.controllers.replicaCount }}
+- statefulset: {{ include "kafka.controllerStatefulSetName" . }}
+{{- else }}
+- mode: dedicated KRaft controllers and brokers
+- controllers: {{ .Values.cluster.controllers.replicaCount }}
+- brokers: {{ .Values.cluster.brokers.replicaCount }}
+- controller statefulset: {{ include "kafka.controllerStatefulSetName" . }}
+- broker statefulset: {{ include "kafka.brokerStatefulSetName" . }}
+{{- end }}
+
+KRaft
+=====
+
+{{- if .Values.kraft.existingSecret }}
+- KRaft metadata Secret: {{ .Values.kraft.existingSecret }}
+- cluster ID key: {{ .Values.kraft.existingSecretClusterIdKey }}
+{{- else if .Values.kraft.clusterId }}
+- KRaft cluster ID: configured from values
+{{- else }}
+- KRaft cluster ID: generated in the chart-managed Secret
+{{- end }}
+
+Operations
+==========
+
+Inspect release objects:
+- kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+- kubectl get svc -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+- kubectl get pvc -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Run Helm tests:
+- helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Validate broker readiness:
+- kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --tail=100
+
+Metrics
+=======
+
+{{- if .Values.metrics.enabled }}
+- JMX exporter javaagent: enabled
+- metrics port: {{ .Values.metrics.port }}
+{{- if .Values.metrics.serviceMonitor.enabled }}
+- ServiceMonitor: enabled
+{{- else }}
+- ServiceMonitor: disabled
+{{- end }}
+{{- else }}
+- JMX exporter javaagent: disabled
+{{- end }}
+
+Production reminders
+====================
+
+- use architecture=cluster for production workloads
+- keep a stable KRaft cluster ID in kraft.existingSecret before storing data
+- size controller and broker PVCs for retention, partition count, and traffic
+- keep config.autoCreateTopicsEnabled=false in production unless explicitly required
+- validate topic creation, producer, consumer, and pod rescheduling flows before promotion
+
+Resources
+=========
+
+- Chart documentation: https://helmforge.dev/docs/charts/kafka
+- Kafka documentation: https://kafka.apache.org/documentation/
+- HelmForge issues: https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)

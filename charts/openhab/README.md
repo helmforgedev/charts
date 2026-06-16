@@ -79,7 +79,7 @@ helm install my-openhab helmforge/openhab -f values.yaml
 
 - Single-instance StatefulSet with stable PVC attachment
 - Three persistent volumes (userdata, conf, addons) with configurable sizes
-- ConfigMap-based live configuration reload (sitemaps, things, items)
+- ConfigMap-based startup sync for sitemaps, things, and items into the writable conf PVC
 - Correct security context (`fsGroup: 9001`; `runAsUser`/`runAsGroup` intentionally unset — entrypoint manages privilege drop via gosu)
 - Startup/liveness/readiness probes via `/rest/uuid` (returns 200, no auth required)
 - Optional Ingress with websocket annotation guidance for `/rest/events`
@@ -108,6 +108,9 @@ Use feature flags instead to enable optional components.
 | `namespaceOverride` | Namespace for chart-managed resources | `""` |
 | `serviceAccount.automountServiceAccountToken` | Mount Kubernetes API token into the pod | `false` |
 | `podSecurityContext.fsGroup` | fsGroup for PVC ownership after privilege drop | `9001` |
+| `podSecurityContext.seccompProfile.type` | Pod seccomp profile | `RuntimeDefault` |
+| `securityContext.allowPrivilegeEscalation` | Prevent privilege escalation in the application container | `false` |
+| `securityContext.readOnlyRootFilesystem` | Remains writable for openHAB OSGi/Karaf runtime state | `false` |
 | `service.type` | Service type | `ClusterIP` |
 | `service.port` | HTTP port | `8080` |
 | `service.ipFamilyPolicy` | HTTP Service dual-stack policy | `""` |
@@ -152,6 +155,8 @@ Use feature flags instead to enable optional components.
 | `configMaps.things.files` | Map of filename → content | `{}` |
 | `configMaps.items.enabled` | Enable items ConfigMap | `false` |
 | `configMaps.items.files` | Map of filename → content | `{}` |
+| `configMaps.syncImage.tag` | BusyBox tag used by the ConfigMap sync init container | `1.37` |
+| `configMaps.syncResources` | Resource guardrails for the ConfigMap sync init container | requests/limits set |
 
 ### Metrics Parameters
 
@@ -183,7 +188,7 @@ Use feature flags instead to enable optional components.
 | `backup.images.utility.tag` | Backup utility tag | `3.22` |
 | `backup.images.uploader.repository` | S3 uploader image | `docker.io/helmforge/mc` |
 | `backup.images.uploader.tag` | S3 uploader tag | `1.0.0` |
-| `backup.resources` | Resource requests/limits for backup containers | `{}` |
+| `backup.resources` | Resource requests/limits for backup containers | requests/limits set |
 | `backup.s3.endpoint` | S3-compatible endpoint URL | `""` |
 | `backup.s3.bucket` | Target bucket name | `""` |
 | `backup.s3.prefix` | Key prefix within the bucket | `openhab` |
@@ -230,6 +235,15 @@ rule executions, threadpool statistics, JVM metrics (memory, GC, threads).
 
 See [Prometheus Metrics Guide](docs/metrics.md) for full details.
 
+### Security Scan: openhab
+
+| Framework          | Score   |
+| ------------------ | ------- |
+| MITRE + NSA + SOC2 | **88%** |
+
+Security posture: acceptable with documented openHAB runtime exceptions for
+root bootstrap, writable runtime filesystem, and network policy delegation.
+
 ## Examples
 
 - [Simple Deployment](examples/simple.yaml)
@@ -268,7 +282,7 @@ See [Automated Backup Guide](docs/backup.md) for full details including restore 
 
 ## Architecture Guides
 
-- [ConfigMaps & Live Reload](docs/configmaps-live-reload.md)
+- [ConfigMaps & Startup Sync](docs/configmaps-startup-sync.md)
 - [Storage](docs/storage.md)
 - [Security](docs/security.md)
 - [Prometheus Metrics](docs/metrics.md)
@@ -289,7 +303,7 @@ openHAB loads OSGi bundles at startup. Expect:
 - **First boot**: 60-120 seconds
 - **Subsequent starts**: 30-60 seconds (warm cache)
 
-The chart configures a startup probe with a 5-minute window to accommodate this.
+The chart configures a startup probe with a 10-minute window to accommodate this.
 
 ## Ingress & WebSocket
 

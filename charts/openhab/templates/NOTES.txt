@@ -83,7 +83,7 @@ App       : {{ .Chart.AppVersion }}
 {{- end }}
 
 {{- if .Values.persistence.conf.enabled }}
-  conf ({{ .Values.persistence.conf.size }}): Configuration files (live-reloaded)
+  conf ({{ .Values.persistence.conf.size }}): Configuration files synced before startup
     PVC: {{ include "openhab.confPvcName" . }}
     Mount: /openhab/conf
 {{- else }}
@@ -98,12 +98,12 @@ App       : {{ .Chart.AppVersion }}
 {{- end }}
 
 ================================================================================
-5. CONFIGURATION - LIVE RELOAD
+5. CONFIGURATION - STARTUP SYNC
 ================================================================================
 
 {{- if or .Values.configMaps.sitemaps.enabled .Values.configMaps.things.enabled .Values.configMaps.items.enabled }}
-  ConfigMap-managed files are mounted into /openhab/conf/ and automatically
-  detected by openHAB's file watcher (no restart required, ~2-5 second delay).
+  ConfigMap-managed files are copied into the writable /openhab/conf PVC by
+  the sync-configmaps initContainer before openHAB starts.
 
   Active ConfigMaps:
   {{- if .Values.configMaps.sitemaps.enabled }}
@@ -123,7 +123,8 @@ App       : {{ .Chart.AppVersion }}
   {{- end }}
 
   To update a configuration file, edit the values and run helm upgrade.
-  openHAB will pick up the change automatically.
+  The StatefulSet rolls through a checksum annotation and syncs the new files
+  before startup.
 {{- else }}
   No ConfigMaps configured. Manage configuration files directly via:
     kubectl exec --namespace {{ include "openhab.namespace" . }} \
@@ -191,7 +192,7 @@ App       : {{ .Chart.AppVersion }}
     - Pod stuck in Init: startup probe not yet passing (normal for 60-120s)
     - CrashLoopBackOff: check UID/GID on PVC (must be 9001)
     - 403 Forbidden: complete the first-boot setup wizard
-    - ConfigMap not reflected: Kubernetes syncs ConfigMaps every ~60s by default
+    - ConfigMap not reflected: verify the StatefulSet rolled after helm upgrade
 
 ================================================================================
 8. DOCUMENTATION

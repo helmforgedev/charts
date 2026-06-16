@@ -16,6 +16,9 @@ Supported presets:
 
 These presets are starting points, not workload guarantees. Validate them against your own storage, memory limits, and concurrency profile.
 
+The presets use `innodb_redo_log_capacity` for redo log sizing because the chart targets the current official MySQL
+image. Do not copy old `innodb_log_file_size` snippets into `config.myCnf` for MySQL 9.x.
+
 ## Resource presets
 
 The chart exposes resource presets independently for:
@@ -36,20 +39,3 @@ This keeps resource sizing explicit per topology role instead of trying to infer
 - replication user password
 
 Database names and usernames remain plain values on purpose. That keeps bootstrap behavior predictable and avoids turning every non-sensitive bootstrap parameter into secret indirection.
-
-<!-- @AI-METADATA
-type: chart-docs
-title: MySQL - Config Profiles
-description: Configuration presets
-
-keywords: mysql, configuration, profiles, tuning
-
-purpose: MySQL configuration presets and tuning profiles
-scope: Chart Architecture
-
-relations:
-  - charts/mysql/README.md
-path: charts/mysql/docs/configuration-profiles.md
-version: 1.0
-date: 2026-03-20
--->

@@ -51,13 +51,16 @@ podLabels: {}
 # this initialization sequence (groupadd/useradd require root).
 podSecurityContext:
   fsGroup: 9001
+  seccompProfile:
+    type: RuntimeDefault
 
 # -- Container-level security context.
-# allowPrivilegeEscalation and capabilities restrictions are intentionally
-# omitted: the entrypoint requires CAP_SETUID, CAP_SETGID, and CAP_CHOWN
-# during initialization before dropping to the openhab user.
+# capabilities restrictions are intentionally omitted: the entrypoint requires
+# CAP_SETUID, CAP_SETGID, and CAP_CHOWN during initialization before dropping
+# to the openhab user.
 # readOnlyRootFilesystem must remain false - openHAB writes to internal dirs at runtime.
 securityContext:
+  allowPrivilegeEscalation: false
   readOnlyRootFilesystem: false
 
 # -- Service configuration
@@ -112,7 +115,7 @@ persistence:
     # -- Use an existing PVC instead of creating one
     existingClaim: ""
 
-  # -- conf: Configuration files, live-reloaded by openHAB (REQUIRED)
+  # -- conf: Configuration files synced before startup (REQUIRED)
   conf:
     # -- Enable PVC for conf
     enabled: true
@@ -151,10 +154,22 @@ admin:
   # -- Use an existing Secret (must contain keys: username, password)
   existingSecret: ""
 
-# -- ConfigMap-based configuration files (live-reloaded by openHAB).
-# Changes to files in /openhab/conf/ are picked up automatically within seconds.
-# These ConfigMaps are mounted as additional files into the conf PVC mount point.
+# -- ConfigMap-based configuration files copied into the conf PVC before startup.
+# Helm upgrades roll the pod through a checksum annotation when these values change.
 configMaps:
+  # -- Image used by the init container that copies ConfigMap files into the conf PVC
+  syncImage:
+    repository: docker.io/library/busybox
+    tag: "1.37"
+    pullPolicy: IfNotPresent
+  # -- Resource requests/limits for the ConfigMap sync init container
+  syncResources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
   # -- Sitemap files mounted to /openhab/conf/sitemaps/
   sitemaps:
     # -- Enable sitemap ConfigMap
@@ -349,13 +364,13 @@ backup:
       pullPolicy: IfNotPresent
 
   # -- Resource requests/limits for backup containers
-  resources: {}
-  # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
-  # limits:
-  #   cpu: 500m
-  #   memory: 256Mi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
 
   s3:
     # -- S3-compatible endpoint URL (e.g. https://s3.amazonaws.com or https://minio.example.com)

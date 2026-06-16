@@ -285,6 +285,16 @@ dataTiers:
 | `serviceAccount.name` | ServiceAccount name override | `""` |
 | `serviceAccount.automountServiceAccountToken` | Mount Kubernetes API token into workload pods | `false` |
 
+## Security Scan
+
+### Security Scan: `elasticsearch`
+
+| Framework | Score |
+|-----------|-------|
+| MITRE + NSA + SOC2 | **83.33%** |
+
+Security posture acceptable.
+
 ### Other
 
 | Parameter | Description | Default |

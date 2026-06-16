@@ -45,6 +45,7 @@ helm install mysql oci://ghcr.io/helmforgedev/helm/mysql -f values.yaml
 - optional NetworkPolicy egress rules
 - optional TLS private-key permission normalization before MySQL startup
 - ServiceAccount token automount control
+- optional `extraManifests` for small companion resources and self-contained CI fixtures
 
 ## How to choose the architecture
 
@@ -259,6 +260,7 @@ Operational documents:
 | `replication.readReplicas.replicaCount` | Number of async read replicas | `2` |
 | `metrics.enabled` | Enable `mysqld-exporter` sidecar | `false` |
 | `metrics.serviceMonitor.enabled` | Enable ServiceMonitor | `false` |
+| `extraManifests` | Extra Kubernetes manifests rendered after chart resources | `[]` |
 
 ## CI scenarios
 
@@ -294,29 +296,17 @@ See `examples/`:
 - `production.yaml`
 - `external-secrets.yaml`
 
+### Security Scan: `mysql`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **87%** |
+
+Security posture: acceptable.
+
 ## Important notes
 
 - `replication` here is asynchronous replication with one fixed writable source
 - this chart does not implement automatic source promotion
 - init scripts run only on first initialization of a fresh data directory
 - for failover-oriented production operations, use an operator or dedicated HA solution instead of trying to turn this chart into one
-
-<!-- @AI-METADATA
-type: chart-readme
-title: MySQL Helm Chart
-description: MySQL chart with standalone and replication modes, TLS, metrics
-
-keywords: mysql, database, replication, sql, tls
-
-purpose: Usage guide for the MySQL Helm chart with standalone and replication modes
-scope: Chart
-
-relations:
-  - charts/mysql/DESIGN.md
-  - charts/mysql/docs/standalone.md
-  - charts/mysql/docs/replication.md
-  - charts/mysql/docs/backup-restore.md
-path: charts/mysql/README.md
-version: 1.0
-date: 2026-03-31
--->

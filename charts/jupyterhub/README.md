@@ -64,3 +64,21 @@ singleuser:
         cpu_limit: 1
         mem_limit: 2G
 ```
+
+## Security Scan: `jupyterhub`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **81.666664%** |
+
+> Security posture acceptable with non-root Hub and proxy containers, restricted single-user pod defaults, explicit public exposure guardrails, and operator-controlled RBAC for KubeSpawner.
+
+## Documentation
+
+- [Design](./DESIGN.md)
+- [Production guide](./docs/production.md)
+- [Networking](./docs/networking.md)
+- [External Secrets](./docs/external-secrets.md)
+- [Production values example](./examples/production.yaml)
+- [Gateway API example](./examples/gateway.yaml)
+- [External Secrets example](./examples/external-secrets.yaml)

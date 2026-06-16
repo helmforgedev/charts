@@ -140,12 +140,11 @@ Service dual-stack fields are available through:
 ```yaml
 service:
   ipFamilyPolicy: PreferDualStack
-  ipFamilies:
-    - IPv4
-    - IPv6
 ```
 
-Leave these values empty to use the cluster defaults.
+Leave these values empty to use the cluster defaults. Set `service.ipFamilies`
+only when the target cluster advertises every requested family; portable test
+profiles should prefer `ipFamilyPolicy` alone.
 
 ## Persistence
 
@@ -221,6 +220,7 @@ Use the generic extension values when platform-specific integration is needed:
 | `auth.existingSecret` | Existing Secret containing the Valkey password | `""` |
 | `auth.existingSecretPasswordKey` | Secret key used for the Valkey password | `valkey-password` |
 | `tls.enabled` | Enable Valkey TLS settings. Requires `tls.existingSecret`. | `false` |
+| `tls.insecureSkipVerify` | Append `--insecure` to chart-rendered `valkey-cli` TLS clients for CI or self-signed test certificates | `false` |
 | `standalone.persistence.enabled` | Enable persistence for standalone mode | `true` |
 | `replication.replicaCount` | Number of replica pods in replication and sentinel modes | `2` |
 | `sentinel.replicaCount` | Number of Sentinel pods | `3` |
@@ -242,6 +242,16 @@ Use the generic extension values when platform-specific integration is needed:
 | `externalSecrets.enabled` | Render an ExternalSecret for the auth Secret | `false` |
 | `externalSecrets.secretStoreRef.name` | SecretStore or ClusterSecretStore name | `""` |
 | `extraManifests` | Extra Kubernetes manifests rendered with `tpl` | `[]` |
+
+## Security Scan
+
+### Security Scan: `valkey`
+
+| Framework | Score |
+|-----------|-------|
+| MITRE + NSA + SOC2 | **83.84%** |
+
+Security posture acceptable.
 
 ## CI scenarios
 
@@ -291,24 +301,3 @@ See `examples/`:
 - Valkey Sentinel: <https://valkey.io/docs/latest/operate/oss_and_stack/management/sentinel/>
 - Valkey Cluster: <https://valkey.io/docs/latest/operate/oss_and_stack/management/scaling/>
 - Valkey security: <https://valkey.io/docs/latest/operate/oss_and_stack/management/security/>
-
-<!-- @AI-METADATA
-type: chart-readme
-title: Valkey Helm Chart
-description: Valkey chart with standalone, replication, sentinel, and cluster architectures
-
-keywords: Valkey, cache, in-memory, replication, sentinel, cluster, dual-stack, external-secrets
-
-purpose: Usage guide for the Valkey Helm chart with authentication, networking, observability, and topology guidance
-scope: Chart
-
-relations:
-  - charts/valkey/DESIGN.md
-  - charts/valkey/docs/standalone.md
-  - charts/valkey/docs/replication.md
-  - charts/valkey/docs/sentinel.md
-  - charts/valkey/docs/cluster.md
-path: charts/valkey/README.md
-version: 1.1
-date: 2026-05-05
--->

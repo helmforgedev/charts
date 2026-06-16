@@ -1,12 +1,84 @@
 # SPDX-License-Identifier: Apache-2.0
+# CI scenario: external MySQL with a local fixture.
 mysql:
   enabled: false
 
 database:
   mode: external
   external:
-    host: mariadb.example.com
+    host: dolibarr-external-mysql
     port: 3306
     name: dolibarr
     username: dolibarr
     password: external-password
+
+extraManifests:
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: dolibarr-external-mysql
+      labels:
+        app.kubernetes.io/name: dolibarr-external-mysql
+        app.kubernetes.io/component: external-database
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: dolibarr-external-mysql
+          app.kubernetes.io/component: external-database
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: dolibarr-external-mysql
+            app.kubernetes.io/component: external-database
+        spec:
+          containers:
+            - name: mysql
+              image: docker.io/library/mysql:8.4.7
+              imagePullPolicy: IfNotPresent
+              ports:
+                - name: mysql
+                  containerPort: 3306
+                  protocol: TCP
+              env:
+                - name: MYSQL_ROOT_PASSWORD
+                  value: root-password
+                - name: MYSQL_DATABASE
+                  value: dolibarr
+                - name: MYSQL_USER
+                  value: dolibarr
+                - name: MYSQL_PASSWORD
+                  value: external-password
+              readinessProbe:
+                exec:
+                  command:
+                    - sh
+                    - -c
+                    - mysqladmin ping -h 127.0.0.1 -uroot -p"${MYSQL_ROOT_PASSWORD}"
+                periodSeconds: 5
+                timeoutSeconds: 3
+                failureThreshold: 30
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 512Mi
+                limits:
+                  cpu: 1000m
+                  memory: 1Gi
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: dolibarr-external-mysql
+      labels:
+        app.kubernetes.io/name: dolibarr-external-mysql
+        app.kubernetes.io/component: external-database
+    spec:
+      type: ClusterIP
+      ports:
+        - name: mysql
+          port: 3306
+          targetPort: mysql
+          protocol: TCP
+      selector:
+        app.kubernetes.io/name: dolibarr-external-mysql
+        app.kubernetes.io/component: external-database

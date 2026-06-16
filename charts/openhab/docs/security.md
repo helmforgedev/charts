@@ -2,22 +2,30 @@
 
 ## Security Context
 
-The openHAB image is built to run as a non-root user with UID/GID `9001`.
-This chart enforces a strict security context by default:
+The openHAB image ultimately runs the application as UID/GID `9001`, but its
+entrypoint starts as root so it can create the `openhab` user/group, adjust
+directory ownership, and then drop privileges through `gosu`. For that reason,
+the chart does not force `runAsUser`, `runAsGroup`, or `capabilities.drop: ALL`
+on the application container.
+
+This chart applies the safe hardening controls that are compatible with the
+official image bootstrap sequence:
 
 ```yaml
 podSecurityContext:
-  runAsUser: 9001
-  runAsGroup: 9001
   fsGroup: 9001
+  seccompProfile:
+    type: RuntimeDefault
 
 securityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: false   # openHAB writes to internal dirs at runtime
-  capabilities:
-    drop:
-      - ALL
 ```
+
+`fsGroup: 9001` keeps mounted PVCs group-accessible after privilege drop.
+`allowPrivilegeEscalation: false` and `RuntimeDefault` seccomp reduce the
+runtime attack surface without removing the capabilities required during
+startup.
 
 ### Why readOnlyRootFilesystem is false
 
@@ -85,11 +93,11 @@ admin:
 
 ## Pod Security Standards
 
-This chart is compatible with the `restricted` Pod Security Standard
-(with the exception of `readOnlyRootFilesystem: false`).
+This chart is compatible with the `baseline` Pod Security Standard. It is not a
+strict `restricted` workload because the official image must start as root and
+because `readOnlyRootFilesystem` must remain false for the OSGi/Karaf runtime.
 
-To run under a namespace with `restricted` enforcement, ensure your namespace
-allows `readOnlyRootFilesystem: false` or set an appropriate label:
+Use a baseline namespace for openHAB:
 
 ```bash
 kubectl label namespace openhab pod-security.kubernetes.io/enforce=baseline

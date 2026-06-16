@@ -1,18 +1,67 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 Listmonk has been deployed.
 
+Release:
+  Chart:      {{ .Chart.Name }}
+  Version:    {{ .Chart.Version }}
+  AppVersion: {{ .Chart.AppVersion }}
+  Release:    {{ .Release.Name }}
+  Namespace:  {{ .Release.Namespace }}
+
+Access:
 {{- if .Values.ingress.enabled }}
-Access Listmonk at:
 {{- range .Values.ingress.hosts }}
-  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+  Web UI: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}/
 {{- end }}
 {{- else }}
-To access the Listmonk admin UI, run:
+  Port-forward:
+    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "listmonk.fullname" . }} 9000:{{ .Values.service.port }}
 
-  kubectl port-forward svc/{{ include "listmonk.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }} -n {{ .Release.Namespace }}
-
-Then open http://localhost:{{ .Values.service.port }} in your browser.
+  Web UI: http://localhost:9000/
 {{- end }}
 
-On first access, Listmonk will prompt you to create a Super Admin account.
-Configure SMTP and other settings through the admin UI at Settings > SMTP.
+Configuration:
+  Listmonk image: {{ include "listmonk.image" . }}
+  Replicas: {{ .Values.replicaCount }}
+  Database mode: {{ include "listmonk.databaseMode" . | trim }}
+  Database host: {{ include "listmonk.databaseHost" . }}
+  Upload storage enabled: {{ .Values.storage.enabled }}
+  Backup enabled: {{ .Values.backup.enabled }}
+{{- if .Values.backup.enabled }}
+  Backup schedule: {{ .Values.backup.schedule }}
+  Backup bucket: {{ .Values.backup.s3.bucket }}
+{{- end }}
+
+Validation:
+  kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=listmonk -n {{ .Release.Namespace }} --timeout=300s
+  kubectl get pods -l app.kubernetes.io/name=listmonk -n {{ .Release.Namespace }}
+  kubectl logs -l app.kubernetes.io/name=listmonk -n {{ .Release.Namespace }} -c listmonk --tail=50
+
+Getting started:
+  1. Open the Listmonk web UI.
+  2. Create the first Super Admin account in the setup wizard.
+  3. Configure SMTP in Settings > SMTP before sending campaigns.
+
+Troubleshooting:
+  kubectl describe pod -l app.kubernetes.io/name=listmonk -n {{ .Release.Namespace }}
+  kubectl logs -l app.kubernetes.io/name=listmonk -n {{ .Release.Namespace }} -c wait-for-postgresql --tail=100
+  kubectl logs -l app.kubernetes.io/name=listmonk -n {{ .Release.Namespace }} -c db-init --tail=100
+  kubectl logs -l app.kubernetes.io/name=listmonk -n {{ .Release.Namespace }} -c listmonk --tail=100
+  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Warnings:
+{{- if gt (int .Values.replicaCount) 1 }}
+  - replicaCount is greater than 1. Validate uploads storage, sessions, and campaign scheduling before production use.
+{{- end }}
+{{- if not .Values.resources }}
+  - resources is empty. Set Listmonk CPU and memory requests/limits for production.
+{{- end }}
+{{- if and .Values.backup.enabled (not .Values.backup.s3.existingSecret) }}
+  - backup.s3.existingSecret is empty. Prefer existing Secrets for backup credentials in production.
+{{- end }}
+
+Documentation:
+  https://helmforge.dev/docs/charts/listmonk
+  https://listmonk.app/docs
+
+Happy Helmforging :)
