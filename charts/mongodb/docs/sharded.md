@@ -31,6 +31,7 @@ Common cases:
 - a clear shard key strategy before production rollout
 - applications connecting through `mongos`
 - enough cluster capacity to run config servers, multiple shard members, and routers reliably
+- an operator-managed authentication bootstrap if the sharded cluster must run with auth enabled
 
 ## Operational guidance
 
@@ -53,6 +54,7 @@ truly needs data distribution, not only failover.
 - size shard replica sets according to write volume and storage growth
 - distribute config servers, routers, and shard members across failure domains
 - use persistent storage everywhere
+- treat the chart's built-in sharded example as an unauthenticated lab topology
 - monitor chunk distribution, balancer behavior, replication lag, router health, and disk growth
 - test expansion and shard-add operations before doing them in production
 
@@ -76,9 +78,7 @@ truly needs data distribution, not only failover.
 architecture: sharded
 
 auth:
-  enabled: true
-  existingSecret: mongodb-credentials
-  existingKeySecret: mongodb-keyfile
+  enabled: false
 
 sharded:
   mongos:
@@ -101,21 +101,5 @@ metrics:
 
 - when the real need is only failover and redundancy
 - when the application does not need shard-based scale
+- when the environment requires turnkey root-user initialization through `MONGO_INITDB_ROOT_*`
 - when the team is not ready to operate shard keys, balancer behavior, and multi-component MongoDB topology
-
-<!-- @AI-METADATA
-type: chart-docs
-title: MongoDB - Sharded
-description: Sharded cluster deployment
-
-keywords: mongodb, sharded, mongos
-
-purpose: MongoDB sharded cluster deployment guide with mongos routers
-scope: Chart Architecture
-
-relations:
-  - charts/mongodb/README.md
-path: charts/mongodb/docs/sharded.md
-version: 1.0
-date: 2026-03-20
--->

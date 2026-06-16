@@ -100,8 +100,7 @@ metrics:
 ```yaml
 architecture: sharded
 auth:
-  enabled: true
-  rootPassword: "changeme"
+  enabled: false
 sharded:
   mongos:
     replicaCount: 2
@@ -115,6 +114,12 @@ sharded:
     persistence:
       size: 50Gi
 ```
+
+The sharded example is intentionally unauthenticated. The official MongoDB
+container initializes `MONGO_INITDB_ROOT_*` as a standalone process, which is not
+compatible with `--configsvr` or `--shardsvr`. Production sharded authentication
+requires an operator-managed bootstrap flow outside this chart's automatic root
+user initialization path.
 
 ## Parameters
 
@@ -202,6 +207,17 @@ sharded:
 |-----------|-------------|---------|
 | `service.type` | Service type | `ClusterIP` |
 | `service.port` | Service port | `27017` |
+| `service.ipFamilyPolicy` | Service IP family policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) | `""` |
+| `service.ipFamilies` | Service IP families override | `[]` |
+
+### External Secrets
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `externalSecrets.enabled` | Render an ExternalSecret for MongoDB credentials | `false` |
+| `externalSecrets.secretStoreRef.name` | SecretStore or ClusterSecretStore name | `""` |
+| `externalSecrets.secretStoreRef.kind` | Secret store kind | `SecretStore` |
+| `externalSecrets.data` | ExternalSecret data mappings for root credentials and backup secrets | `[]` |
 
 ### Other
 
@@ -252,6 +268,10 @@ root credentials stable across `helm upgrade`; those values are initialized by
 MongoDB and should be rotated with MongoDB administrative commands instead of
 changing chart values.
 
+## Security Scan
+
+Security Scan: Kubescape local scan against `MITRE,NSA,SOC2` reports a 72.73% resource summary score.
+
 ## Connection Strings
 
 ```bash
@@ -282,23 +302,3 @@ Key differences from the Bitnami MongoDB chart:
 When migrating, you'll need to handle the data directory path change. For existing PVCs,
 use an init container to move data from `/bitnami/mongodb` to `/data/db`,
 or create new volumes and restore from backup.
-
-<!-- @AI-METADATA
-type: chart-readme
-title: MongoDB Helm Chart
-description: MongoDB chart supporting standalone, replicaset, and sharded architectures
-
-keywords: mongodb, nosql, database, replicaset, sharded
-
-purpose: Usage guide for the MongoDB Helm chart with standalone, replicaset, and sharded modes
-scope: Chart
-
-relations:
-  - charts/mongodb/DESIGN.md
-  - charts/mongodb/docs/standalone.md
-  - charts/mongodb/docs/replicaset.md
-  - charts/mongodb/docs/sharded.md
-path: charts/mongodb/README.md
-version: 1.0
-date: 2026-03-31
--->

@@ -2,40 +2,113 @@
 {{- $fullname := include "mongodb.fullname" . -}}
 {{- $namespace := .Release.Namespace -}}
 
-MongoDB has been deployed.
-
+1. MongoDB has been deployed
+----------------------------
+  Release:      {{ .Release.Name }}
+  Namespace:    {{ $namespace }}
   Architecture: {{ .Values.architecture }}
   Image:        {{ .Values.image.repository }}:{{ .Values.image.tag }}
+  Auth:         {{ .Values.auth.enabled }}
+  Persistence:  {{ .Values.persistence.enabled }}
+  Metrics:      {{ .Values.metrics.enabled }}
+  Backup:       {{ .Values.backup.enabled }}
+  External Secrets: {{ .Values.externalSecrets.enabled }}
 
 {{- if include "mongodb.isStandalone" . }}
 
+2. Connect
+----------
   Connection string:
-    mongodb://{{ if .Values.auth.enabled }}$(kubectl get secret -n {{ $namespace }} {{ include "mongodb.secretName" . }} -o jsonpath='{.data.mongodb-root-password}' | base64 -d){{ end }}@{{ $fullname }}.{{ $namespace }}.svc.cluster.local:{{ .Values.service.port }}/admin
+    mongodb://{{ if .Values.auth.enabled }}{{ .Values.auth.rootUser }}:$(kubectl get secret -n {{ $namespace }} {{ include "mongodb.secretName" . }} -o jsonpath='{.data.mongodb-root-password}' | base64 -d)@{{ end }}{{ $fullname }}.{{ $namespace }}.svc.cluster.local:{{ .Values.service.port }}/admin
 
 {{- else if include "mongodb.isReplicaSet" . }}
 
+2. Connect
+----------
   Replica Set: {{ .Values.replicaSet.name }} ({{ include "mongodb.replicaCount" . }} members)
 
   Connection string:
-    mongodb://{{ if .Values.auth.enabled }}$(kubectl get secret -n {{ $namespace }} {{ include "mongodb.secretName" . }} -o jsonpath='{.data.mongodb-root-password}' | base64 -d){{ end }}@{{ range $i := until (int (include "mongodb.replicaCount" .)) }}{{ if $i }},{{ end }}{{ $fullname }}-{{ $i }}.{{ $fullname }}-headless.{{ $namespace }}.svc.cluster.local:{{ $.Values.port }}{{ end }}/admin?replicaSet={{ .Values.replicaSet.name }}
+    mongodb://{{ if .Values.auth.enabled }}{{ .Values.auth.rootUser }}:$(kubectl get secret -n {{ $namespace }} {{ include "mongodb.secretName" . }} -o jsonpath='{.data.mongodb-root-password}' | base64 -d)@{{ end }}{{ range $i := until (int (include "mongodb.replicaCount" .)) }}{{ if $i }},{{ end }}{{ $fullname }}-{{ $i }}.{{ $fullname }}-headless.{{ $namespace }}.svc.cluster.local:{{ $.Values.port }}{{ end }}/admin?replicaSet={{ .Values.replicaSet.name }}
 
 {{- else if include "mongodb.isSharded" . }}
 
+2. Connect
+----------
   Sharded Cluster: {{ .Values.sharded.shards.count }} shards, {{ .Values.sharded.mongos.replicaCount }} mongos routers
 
   Connection string (via mongos):
-    mongodb://{{ if .Values.auth.enabled }}$(kubectl get secret -n {{ $namespace }} {{ include "mongodb.secretName" . }} -o jsonpath='{.data.mongodb-root-password}' | base64 -d){{ end }}@{{ $fullname }}-mongos.{{ $namespace }}.svc.cluster.local:{{ .Values.sharded.mongos.port }}/admin
+    mongodb://{{ if .Values.auth.enabled }}{{ .Values.auth.rootUser }}:$(kubectl get secret -n {{ $namespace }} {{ include "mongodb.secretName" . }} -o jsonpath='{.data.mongodb-root-password}' | base64 -d)@{{ end }}{{ $fullname }}-mongos.{{ $namespace }}.svc.cluster.local:{{ .Values.sharded.mongos.port }}/admin
 
 {{- end }}
 
-{{- if .Values.metrics.enabled }}
+3. Credentials
+--------------
+{{- if .Values.auth.enabled }}
+  Root username:
+    kubectl get secret -n {{ $namespace }} {{ include "mongodb.secretName" . }} -o jsonpath='{.data.mongodb-root-username}' | base64 -d; echo
 
-  Metrics:
+  Root password:
+    kubectl get secret -n {{ $namespace }} {{ include "mongodb.secretName" . }} -o jsonpath='{.data.mongodb-root-password}' | base64 -d; echo
+{{- if or (include "mongodb.isReplicaSet" .) (include "mongodb.isSharded" .) }}
+
+  Internal keyFile Secret:
+    {{ include "mongodb.keySecretName" . }}
+{{- end }}
+{{- else }}
+  Authentication is disabled. Do not expose this release outside trusted test networks.
+{{- end }}
+
+4. Validation Commands
+----------------------
+  Check workloads:
+    kubectl get pods,svc,pvc -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -o wide
+
+  Wait for MongoDB pods:
+    kubectl wait --for=condition=Ready pod -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --timeout=600s
+
+  Inspect recent events:
+    kubectl get events -n {{ $namespace }} --sort-by=.lastTimestamp
+
+  Check logs:
+    kubectl logs -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --tail=200
+
+5. Metrics
+----------
+{{- if .Values.metrics.enabled }}
     Prometheus exporter is enabled on port {{ .Values.metrics.port }}.
     {{- if .Values.metrics.serviceMonitor.enabled }}
     ServiceMonitor is created for Prometheus Operator.
     {{- end }}
+{{- else }}
+  Metrics are disabled. Enable `metrics.enabled=true` to expose MongoDB exporter metrics.
 {{- end }}
 
-To get the root password:
-  kubectl get secret -n {{ $namespace }} {{ include "mongodb.secretName" . }} -o jsonpath='{.data.mongodb-root-password}' | base64 -d; echo
+6. Backup
+---------
+{{- if .Values.backup.enabled }}
+  Backup CronJob is enabled:
+    Schedule: {{ .Values.backup.schedule }}
+    Bucket:   {{ .Values.backup.s3.bucket }}
+    Prefix:   {{ .Values.backup.s3.prefix }}
+
+  Check backup resources:
+    kubectl get cronjob,jobs -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+{{- else }}
+  Backup is disabled. Enable `backup.enabled=true` with S3 credentials for production restore points.
+{{- end }}
+
+7. Documentation
+----------------
+  Helm values:
+    helm get values {{ .Release.Name }} -n {{ $namespace }}
+
+  HelmForge docs:
+    https://helmforge.dev/docs/charts/mongodb
+
+  Chart source:
+    https://github.com/helmforgedev/charts/tree/main/charts/mongodb
+
+  Upstream docs:
+    https://www.mongodb.com/docs/
+
+Happy Helmforging :)
