@@ -38,16 +38,16 @@ spec:
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       initContainers:
         - name: wait-for-postgresql
-          image: docker.io/library/busybox:1.37
+          image: docker.io/library/postgres:17-alpine
           command:
             - sh
             - -c
             - |
-              echo "Waiting for {{ include "listmonk.databaseHost" . }}:{{ include "listmonk.databasePort" . }} ..."
-              until nc -z -w2 {{ include "listmonk.databaseHost" . }} {{ include "listmonk.databasePort" . }}; do
+              echo "Waiting for PostgreSQL readiness at {{ include "listmonk.databaseHost" . }}:{{ include "listmonk.databasePort" . }} ..."
+              until pg_isready -h {{ include "listmonk.databaseHost" . | quote }} -p {{ include "listmonk.databasePort" . | quote }} -U {{ include "listmonk.databaseUsername" . | quote }} -d {{ include "listmonk.databaseName" . | quote }}; do
                 sleep 2
               done
-              echo "PostgreSQL is reachable."
+              echo "PostgreSQL is accepting connections."
         - name: db-init
           image: {{ include "listmonk.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -58,6 +58,8 @@ spec:
               ./listmonk --install --idempotent --yes --config="" && \
               ./listmonk --upgrade --yes --config=""
           env:
+            - name: LISTMONK_app__address
+              value: "0.0.0.0:9000"
             - name: LISTMONK_db__host
               value: {{ include "listmonk.databaseHost" . | quote }}
             - name: LISTMONK_db__port
