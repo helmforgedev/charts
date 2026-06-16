@@ -130,7 +130,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/metabase/metabase` | Metabase container image repository |
-| `image.tag` | `v0.61.3` | Metabase container image tag |
+| `image.tag` | `v0.62.1` | Metabase container image tag |
 | `metabase.port` | `3000` | Application port |
 | `metabase.encryptionSecretKey` | `""` | Encryption key (auto-generated) |
 | `metabase.siteUrl` | `""` | Public site URL |
@@ -138,7 +138,7 @@ externalSecrets:
 | `metabase.javaTimezone` | `UTC` | Java timezone |
 | `metabase.javaOpts` | `""` | JVM memory options |
 | `probes.startup.initialDelaySeconds` | `90` | Startup probe delay for first-run migrations and PostgreSQL bootstrap |
-| `postgresql.enabled` | `true` | Deploy HelmForge PostgreSQL subchart (`2.0.2`) |
+| `postgresql.enabled` | `true` | Deploy HelmForge PostgreSQL subchart (`2.0.4`) |
 | `postgresql.standalone.persistence.size` | `8Gi` | PostgreSQL standalone PVC size |
 | `resources.requests.memory` | `512Mi` | Metabase memory request |
 | `resources.limits.memory` | `2Gi` | Metabase memory limit |
@@ -160,10 +160,11 @@ externalSecrets:
 
 ## Upgrade Notes
 
-Metabase `v0.61.3` is an upstream maintenance release with backported fixes for database connection handling, migrations,
-SDK/embedding behavior, serialization, notifications, Metabot, and query/cache edge cases. Back up the Metabase
-application database before upgrading, keep the encryption key stable, and validate the `/api/health` endpoint after
-rollout.
+Metabase `v0.62.1` updates the application to the latest upstream release and
+repairs the chart's validation scenarios for single-stack clusters, external
+database fixtures, and External Secrets. Back up the Metabase application
+database before upgrading, keep the encryption key stable, and validate the
+`/api/health` endpoint after rollout.
 
 ## Examples
 
