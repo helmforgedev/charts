@@ -15,6 +15,14 @@
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "postgresql.nameWithSuffix" -}}
+{{- $base := .base -}}
+{{- $suffix := .suffix -}}
+{{- $max := int (default 63 .max) -}}
+{{- $baseMax := int (sub $max (len $suffix)) -}}
+{{- printf "%s%s" ($base | trunc $baseMax | trimSuffix "-") $suffix | trunc $max | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "postgresql.labels" -}}
 helm.sh/chart: {{ include "postgresql.chart" . }}
 {{ include "postgresql.selectorLabels" . }}
@@ -52,18 +60,18 @@ app.kubernetes.io/role: {{ .role }}
 {{- if .Values.auth.existingSecret -}}
 {{- .Values.auth.existingSecret -}}
 {{- else if include "postgresql.authSecretManagedByExternalSecret" . -}}
-{{- default (printf "%s-auth" (include "postgresql.fullname" .)) .Values.externalSecrets.auth.targetName -}}
+{{- default (include "postgresql.nameWithSuffix" (dict "base" (include "postgresql.fullname" .) "suffix" "-auth")) .Values.externalSecrets.auth.targetName -}}
 {{- else -}}
-{{- printf "%s-auth" (include "postgresql.fullname" .) -}}
+{{- include "postgresql.nameWithSuffix" (dict "base" (include "postgresql.fullname" .) "suffix" "-auth") -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "postgresql.configMapName" -}}
-{{- printf "%s-config" (include "postgresql.fullname" .) -}}
+{{- include "postgresql.nameWithSuffix" (dict "base" (include "postgresql.fullname" .) "suffix" "-config") -}}
 {{- end -}}
 
 {{- define "postgresql.initdbConfigMapName" -}}
-{{- printf "%s-initdb" (include "postgresql.fullname" .) -}}
+{{- include "postgresql.nameWithSuffix" (dict "base" (include "postgresql.fullname" .) "suffix" "-initdb") -}}
 {{- end -}}
 
 {{- define "postgresql.generatedInitdbEnabled" -}}
@@ -87,7 +95,7 @@ app.kubernetes.io/role: {{ .role }}
 {{- if .Values.tls.existingSecret -}}
 {{- .Values.tls.existingSecret -}}
 {{- else if include "postgresql.tlsSecretManagedByExternalSecret" . -}}
-{{- default (printf "%s-tls" (include "postgresql.fullname" .)) .Values.externalSecrets.tls.targetName -}}
+{{- default (include "postgresql.nameWithSuffix" (dict "base" (include "postgresql.fullname" .) "suffix" "-tls")) .Values.externalSecrets.tls.targetName -}}
 {{- else -}}
 {{- required "tls.existingSecret or externalSecrets.tls.enabled is required when tls.enabled=true" .Values.tls.existingSecret -}}
 {{- end -}}
@@ -96,7 +104,7 @@ app.kubernetes.io/role: {{ .role }}
 
 {{- define "postgresql.primaryServiceName" -}}
 {{- if eq .Values.architecture "replication" -}}
-{{- printf "%s-primary" (include "postgresql.fullname" .) -}}
+{{- include "postgresql.nameWithSuffix" (dict "base" (include "postgresql.fullname" .) "suffix" "-primary") -}}
 {{- else -}}
 {{- include "postgresql.fullname" . -}}
 {{- end -}}
@@ -107,39 +115,39 @@ app.kubernetes.io/role: {{ .role }}
 {{- end -}}
 
 {{- define "postgresql.replicasServiceName" -}}
-{{- printf "%s-replicas" (include "postgresql.fullname" .) -}}
+{{- include "postgresql.nameWithSuffix" (dict "base" (include "postgresql.fullname" .) "suffix" "-replicas") -}}
 {{- end -}}
 
 {{- define "postgresql.metricsServiceName" -}}
-{{- printf "%s-metrics" (include "postgresql.fullname" .) -}}
+{{- include "postgresql.nameWithSuffix" (dict "base" (include "postgresql.fullname" .) "suffix" "-metrics") -}}
 {{- end -}}
 
 {{- define "postgresql.primaryMetricsServiceName" -}}
-{{- printf "%s-primary-metrics" (include "postgresql.fullname" .) -}}
+{{- include "postgresql.nameWithSuffix" (dict "base" (include "postgresql.fullname" .) "suffix" "-primary-metrics") -}}
 {{- end -}}
 
 {{- define "postgresql.replicasMetricsServiceName" -}}
-{{- printf "%s-replicas-metrics" (include "postgresql.fullname" .) -}}
+{{- include "postgresql.nameWithSuffix" (dict "base" (include "postgresql.fullname" .) "suffix" "-replicas-metrics") -}}
 {{- end -}}
 
 {{- define "postgresql.primaryHeadlessServiceName" -}}
-{{- printf "%s-primary-headless" (include "postgresql.fullname" .) -}}
+{{- include "postgresql.nameWithSuffix" (dict "base" (include "postgresql.fullname" .) "suffix" "-primary-headless") -}}
 {{- end -}}
 
 {{- define "postgresql.replicasHeadlessServiceName" -}}
-{{- printf "%s-replicas-headless" (include "postgresql.fullname" .) -}}
+{{- include "postgresql.nameWithSuffix" (dict "base" (include "postgresql.fullname" .) "suffix" "-replicas-headless") -}}
 {{- end -}}
 
 {{- define "postgresql.primaryStatefulSetName" -}}
 {{- if eq .Values.architecture "replication" -}}
-{{- printf "%s-primary" (include "postgresql.fullname" .) -}}
+{{- include "postgresql.nameWithSuffix" (dict "base" (include "postgresql.fullname" .) "suffix" "-primary" "max" 52) -}}
 {{- else -}}
-{{- include "postgresql.fullname" . -}}
+{{- include "postgresql.fullname" . | trunc 52 | trimSuffix "-" -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "postgresql.replicaStatefulSetName" -}}
-{{- printf "%s-replicas" (include "postgresql.fullname" .) -}}
+{{- include "postgresql.nameWithSuffix" (dict "base" (include "postgresql.fullname" .) "suffix" "-replicas" "max" 52) -}}
 {{- end -}}
 
 {{- define "postgresql.primaryPvcName" -}}
@@ -287,9 +295,9 @@ fi
 {{- if .Values.backup.s3.existingSecret -}}
 {{- .Values.backup.s3.existingSecret -}}
 {{- else if include "postgresql.backupSecretManagedByExternalSecret" . -}}
-{{- default (printf "%s-backup" (include "postgresql.fullname" .)) .Values.externalSecrets.backup.targetName -}}
+{{- default (include "postgresql.nameWithSuffix" (dict "base" (include "postgresql.fullname" .) "suffix" "-backup")) .Values.externalSecrets.backup.targetName -}}
 {{- else -}}
-{{- printf "%s-backup" (include "postgresql.fullname" .) -}}
+{{- include "postgresql.nameWithSuffix" (dict "base" (include "postgresql.fullname" .) "suffix" "-backup") -}}
 {{- end -}}
 {{- end -}}
 
