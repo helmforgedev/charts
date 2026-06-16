@@ -29,7 +29,7 @@ helm install apache oci://ghcr.io/helmforgedev/helm/apache \
 
 ## Differentiators
 
-- Official Apache HTTP Server image only, pinned to `2.4.67`.
+- Official Apache HTTP Server image only, pinned to `2.4.68`.
 - Non-root runtime on port `8080` with `RuntimeDefault` seccomp and dropped
   Linux capabilities.
 - Read-only root filesystem with explicit writable `emptyDir` volumes for logs
