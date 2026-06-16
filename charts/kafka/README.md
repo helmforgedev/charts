@@ -37,7 +37,7 @@ helm install kafka oci://ghcr.io/helmforgedev/helm/kafka -f values.yaml
 - automatic cleanup of `lost+found` directories in PVCs (ext4/xfs compatibility)
 - stable in-cluster advertised listeners for brokers
 - explicit KRaft cluster ID and controller directory ID secret handling
-- optional Prometheus metrics through the JMX exporter javaagent
+- optional Prometheus metrics through a SHA-256 verified JMX exporter javaagent
 - optional `ServiceMonitor`
 - optional `PodDisruptionBudget`
 - support for `extraInitContainers` for custom initialization logic
@@ -143,8 +143,18 @@ metrics:
 | `cluster.brokers.replicaCount` | Broker replicas in cluster mode. Set to `0` for combined mode (controllers act as brokers) | `3` |
 | `cluster.minInSyncReplicas` | Minimum ISR in cluster mode | `2` |
 | `metrics.enabled` | Enable JMX exporter javaagent metrics | `false` |
+| `metrics.agent.url` | JMX exporter javaagent download URL | Maven Central `1.0.1` jar |
+| `metrics.agent.sha256` | SHA-256 checksum for the JMX exporter javaagent | `7d61f737...` |
 | `metrics.serviceMonitor.enabled` | Create ServiceMonitor resources | `false` |
 | `pdb.enabled` | Create PodDisruptionBudgets in cluster mode | `false` |
+
+### Security Scan: `kafka`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **80%** |
+
+Security posture: acceptable.
 
 ## CI scenarios
 
