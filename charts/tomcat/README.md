@@ -12,6 +12,15 @@ Apache Tomcat chart for Kubernetes using the official `docker.io/library/tomcat`
 - Optional JMX remote port for platform monitoring integrations.
 - Dual-stack Service fields, NetworkPolicy, HPA, PDB, persistent webapps/logs, and extra init/sidecar hooks.
 
+### Security Scan: `tomcat`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **95%** |
+
+Security posture: strong. Remaining findings are documented product exceptions
+for opt-in NetworkPolicy ingress and egress boundaries.
+
 ## Install
 
 ```bash
