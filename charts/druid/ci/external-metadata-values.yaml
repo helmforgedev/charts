@@ -7,7 +7,7 @@ metadata:
   mode: external
   external:
     type: postgresql
-    host: postgres.example.com
+    host: druid-ci-postgresql
     port: 5432
     name: druid
     username: druid
@@ -16,7 +16,114 @@ metadata:
 zookeeperConfig:
   mode: external
   external:
-    hosts: "zk1.example.com:2181,zk2.example.com:2181"
+    hosts: "druid-ci-zookeeper:2181"
 
 zookeeper:
   enabled: false
+
+extraManifests:
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: druid-ci-postgresql
+      labels:
+        app.kubernetes.io/name: druid-ci-postgresql
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: druid-ci-postgresql
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: druid-ci-postgresql
+        spec:
+          containers:
+            - name: postgresql
+              image: docker.io/library/postgres:18.3-trixie
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: POSTGRES_DB
+                  value: druid
+                - name: POSTGRES_USER
+                  value: druid
+                - name: POSTGRES_PASSWORD
+                  value: my-secret-password
+                - name: PGDATA
+                  value: /var/lib/postgresql/data/pgdata
+              ports:
+                - name: postgres
+                  containerPort: 5432
+              readinessProbe:
+                exec:
+                  command:
+                    - sh
+                    - -ec
+                    - pg_isready -U druid -d druid -h 127.0.0.1
+                initialDelaySeconds: 5
+                periodSeconds: 5
+              volumeMounts:
+                - name: data
+                  mountPath: /var/lib/postgresql/data
+          volumes:
+            - name: data
+              emptyDir: {}
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: druid-ci-postgresql
+      labels:
+        app.kubernetes.io/name: druid-ci-postgresql
+    spec:
+      type: ClusterIP
+      ports:
+        - name: postgres
+          port: 5432
+          targetPort: postgres
+      selector:
+        app.kubernetes.io/name: druid-ci-postgresql
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: druid-ci-zookeeper
+      labels:
+        app.kubernetes.io/name: druid-ci-zookeeper
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: druid-ci-zookeeper
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: druid-ci-zookeeper
+        spec:
+          containers:
+            - name: zookeeper
+              image: docker.io/library/zookeeper:3.9.4
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: ZOO_4LW_COMMANDS_WHITELIST
+                  value: ruok,mntr,conf
+              ports:
+                - name: client
+                  containerPort: 2181
+              readinessProbe:
+                tcpSocket:
+                  port: client
+                initialDelaySeconds: 10
+                periodSeconds: 5
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: druid-ci-zookeeper
+      labels:
+        app.kubernetes.io/name: druid-ci-zookeeper
+    spec:
+      type: ClusterIP
+      ports:
+        - name: client
+          port: 2181
+          targetPort: client
+      selector:
+        app.kubernetes.io/name: druid-ci-zookeeper
