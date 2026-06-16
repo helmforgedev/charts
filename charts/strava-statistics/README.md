@@ -105,7 +105,7 @@ gatewayAPI:
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `image.tag` | `v4.8.7` | Statistics for Strava image tag |
+| `image.tag` | `v4.8.8` | Statistics for Strava image tag |
 | `strava.port` | `8080` | Application port |
 | `strava.clientId` | `""` | Strava OAuth Client ID |
 | `strava.clientSecret` | `""` | Strava OAuth Client Secret |
@@ -113,8 +113,9 @@ gatewayAPI:
 | `strava.existingSecret` | `""` | Use existing secret for credentials |
 | `strava.timezone` | `UTC` | Timezone |
 | `strava.config` | See `values.yaml` | Application `config.yaml` content mounted at `/var/www/config/app/config.yaml` |
-| `persistence.enabled` | `true` | Enable persistence for /data |
+| `persistence.enabled` | `true` | Enable persistence for Statistics for Strava storage data |
 | `persistence.size` | `2Gi` | PVC size |
+| `persistence.bootstrap.enabled` | `true` | Prepare `/var/www/storage` for v4.8.8+ on both PVC and emptyDir installs, and keep legacy root-level SQLite files readable after upgrades |
 | `ingress.enabled` | `false` | Enable ingress |
 | `service.port` | `80` | Service port |
 | `service.ipFamilyPolicy` | omitted | Optional Service IP family policy for dual-stack clusters |
@@ -122,6 +123,17 @@ gatewayAPI:
 | `gatewayApi.enabled` | `false` | Deprecated compatibility alias for `gatewayAPI.enabled` |
 | `externalSecrets.enabled` | `false` | Enable ExternalSecret rendering for credential integrations |
 | `externalSecrets.apiVersion` | `external-secrets.io/v1` | ExternalSecret API version |
+
+## Upgrade Notes
+
+Statistics for Strava `v4.8.8` moves database migrations into the container
+entrypoint and refreshes the onboarding flow. Upstream now reads SQLite data
+from `/var/www/storage/database`, so this chart mounts the PVC on the upstream
+path and bootstraps compatibility symlinks for legacy root-level `strava.db`
+or `dreeve.db` files. The bootstrap also runs for `persistence.enabled=false`
+so ephemeral installs still get the upstream storage directories. No values
+change is required, but production upgrades
+should still keep a current PVC backup before rollout.
 
 ## Limitations
 

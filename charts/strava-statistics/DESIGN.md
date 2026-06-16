@@ -20,7 +20,7 @@ flowchart LR
   svc --> pod[Statistics for Strava pod]
   pod --> cfg[ConfigMap app config]
   pod --> secret[Strava credential Secret]
-  pod --> pvc[(PVC /data SQLite and assets)]
+  pod --> pvc[(PVC mounted for /var/www/storage and legacy /data access)]
   eso[External Secrets Operator] -. optional .-> secret
   pod --> strava[Strava API]
 ```
@@ -30,6 +30,7 @@ flowchart LR
 - Use the upstream `robiningelbrecht/strava-statistics` image.
 - Keep the deployment single-replica because SQLite is single-writer and the upstream app is not designed for horizontal scaling with shared writes.
 - Keep persistence enabled by default because imports, generated assets, and SQLite data are stateful.
+- Bootstrap the upstream v4.8.8+ storage layout on the PVC so upgrades from older `/data`-only releases keep reading legacy SQLite files.
 - Render Gateway API HTTPRoutes as an opt-in HTTP exposure path alongside Ingress.
 - Keep the deprecated `gatewayApi` alias only for compatibility; new values should use `gatewayAPI`.
 - Render ExternalSecret resources only when requested. The chart does not install External Secrets Operator or provider-side SecretStores.

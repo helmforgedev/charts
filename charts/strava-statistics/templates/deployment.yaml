@@ -40,6 +40,26 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if .Values.persistence.bootstrap.enabled }}
+      initContainers:
+        - name: storage-bootstrap
+          image: "{{ .Values.persistence.bootstrap.image.repository }}:{{ .Values.persistence.bootstrap.image.tag }}"
+          imagePullPolicy: {{ .Values.persistence.bootstrap.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              mkdir -p /work/database /work/files /work/gear-maintenance /work/watch
+              if [ -f /work/dreeve.db ] && [ ! -e /work/database/dreeve.db ]; then
+                ln -sf ../dreeve.db /work/database/dreeve.db
+              fi
+              if [ -f /work/strava.db ] && [ ! -e /work/database/strava.db ] && [ ! -e /work/database/dreeve.db ]; then
+                ln -sf ../strava.db /work/database/strava.db
+              fi
+          volumeMounts:
+            - name: data
+              mountPath: /work
+      {{- end }}
       containers:
         - name: strava-statistics
           image: {{ include "strava-statistics.image" . | quote }}
@@ -111,6 +131,8 @@ spec:
               readOnly: true
             - name: data
               mountPath: /data
+            - name: data
+              mountPath: /var/www/storage
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
