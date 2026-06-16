@@ -1,6 +1,9 @@
 # alf.io Helm Chart
 
-Deploy [alf.io](https://alf.io) on Kubernetes using the official [alfio/alf.io](https://hub.docker.com/r/alfio/alf.io) container image. Open-source event management and ticketing platform for conferences, meetups, and exhibitions.
+Deploy [alf.io](https://alf.io) on Kubernetes using the official
+[alfio/alf.io](https://hub.docker.com/r/alfio/alf.io) container image.
+Open-source event management and ticketing platform for conferences, meetups,
+and exhibitions.
 
 ## Features
 
@@ -57,6 +60,16 @@ database:
     existingSecret: alfio-db-credentials
 ```
 
+## Architecture Guides
+
+- [Architecture](docs/architecture.md)
+- [Database Configuration](docs/database.md)
+
+## Examples
+
+- [Simple self-contained deployment](examples/simple.yaml)
+- [External PostgreSQL deployment](examples/external-postgresql.yaml)
+
 ## Ingress
 
 ```yaml
@@ -86,6 +99,14 @@ ingress:
 | `ingress.enabled` | `false` | Enable ingress |
 | `service.port` | `80` | Service port |
 | `probes.startup.initialDelaySeconds` | `15` | Startup probe initial delay (JVM warm-up) |
+
+### 🟢 Security Scan: `alfio`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **78.79%** |
+
+> ✅ Security posture acceptable.
 
 ## Limitations
 
