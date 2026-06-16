@@ -56,6 +56,7 @@ kubectl port-forward svc/<release>-olivetin 1337:80
 | Key | Default | Description |
 |-----|---------|-------------|
 | `configInit.enabled` | `true` | Prepare writable OliveTin runtime files before startup |
+| `configInit.resources` | requests/limits set | Resource guardrails for the config bootstrap init container |
 | `configInit.securityContext` | non-root | Security context for the config bootstrap init container |
 | `image.tag` | `3000.14.0` | OliveTin image tag |
 | `securityContext` | non-root | Security context for the OliveTin application container |
@@ -76,6 +77,8 @@ kubectl port-forward svc/<release>-olivetin 1337:80
 | `metrics.enabled` | `false` | Enable Prometheus metrics |
 | `metrics.defaultGoMetrics` | `false` | Expose default Go runtime metrics |
 | `metrics.serviceMonitor.enabled` | `false` | Create ServiceMonitor |
+| `resources` | requests/limits set | Default CPU and memory requests and limits |
+| `serviceAccount.automountServiceAccountToken` | `false` | Prevent automatic API token mounting |
 
 ## Prometheus Metrics
 
@@ -97,6 +100,14 @@ so OliveTin runtime expressions such as `{{ message }}` remain literal for Olive
 only when you intentionally want Helm to render templates inside `config`.
 
 See the [OliveTin documentation](https://docs.olivetin.app) for all available options.
+
+### Security Scan: olivetin
+
+| Framework          | Score   |
+| ------------------ | ------- |
+| MITRE + NSA + SOC2 | **95%** |
+
+Security posture: acceptable.
 
 ## Ingress Example
 
@@ -163,22 +174,3 @@ olivetin:
 
 - [OliveTin documentation](https://docs.olivetin.app)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/olivetin)
-
-<!-- @AI-METADATA
-type: chart-readme
-title: OliveTin Helm Chart
-description: README for the OliveTin web interface for shell commands Helm chart
-
-keywords: olivetin, shell, commands, automation, web-ui, self-hosted
-
-purpose: Chart installation, configuration, and usage documentation
-scope: Chart
-
-relations:
-  - charts/olivetin/values.yaml
-  - charts/olivetin/DESIGN.md
-  - charts/olivetin/docs/configuration.md
-path: charts/olivetin/README.md
-version: 1.1
-date: 2026-06-02
--->

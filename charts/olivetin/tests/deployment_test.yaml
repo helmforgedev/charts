@@ -45,12 +45,25 @@ tests:
               runAsNonRoot: true
               runAsUser: 65534
               runAsGroup: 65534
+            resources:
+              requests:
+                cpu: 10m
+                memory: 16Mi
+              limits:
+                cpu: 100m
+                memory: 64Mi
             volumeMounts:
               - name: config-dir
                 mountPath: /config
       - equal:
           path: spec.template.spec.securityContext.fsGroup
           value: 65534
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
       - equal:
           path: spec.template.spec.containers[0].securityContext.runAsNonRoot
           value: true
@@ -60,6 +73,15 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].securityContext.runAsGroup
           value: 999
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 10m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 256Mi
 
   - it: should keep init container compatible with pod runAsNonRoot
     template: templates/deployment.yaml
