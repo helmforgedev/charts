@@ -144,6 +144,27 @@ dev=0, staging=0, production-ha=2
 {{- end -}}
 
 {{/*
+Whether the cluster renders any dedicated non-master data tier.
+*/}}
+{{- define "elasticsearch.hasDedicatedDataNodes" -}}
+{{- $profile := include "elasticsearch.profile" . -}}
+{{- $dataReplicas := int (include "elasticsearch.data.replicaCount" .) -}}
+{{- $hotReplicas := 0 -}}
+{{- $warmReplicas := 0 -}}
+{{- if and .Values.dataTiers.hot.enabled (not (eq $profile "dev")) -}}
+  {{- $hotReplicas = int .Values.dataTiers.hot.replicas -}}
+{{- end -}}
+{{- if and .Values.dataTiers.warm.enabled (not (eq $profile "dev")) -}}
+  {{- $warmReplicas = int .Values.dataTiers.warm.replicas -}}
+{{- end -}}
+{{- if or (gt $dataReplicas 0) (gt $hotReplicas 0) (gt $warmReplicas 0) -}}
+true
+{{- else -}}
+false
+{{- end -}}
+{{- end -}}
+
+{{/*
 Master persistence size
 dev=disabled, staging=10Gi, production-ha=20Gi
 */}}
@@ -442,8 +463,9 @@ Common Elasticsearch environment variables
 - name: network.host
   value: "0.0.0.0"
 {{- $masterReplicas := int (include "elasticsearch.master.replicaCount" .) -}}
-{{- $dataReplicas := int (include "elasticsearch.data.replicaCount" .) -}}
-{{- if and (eq $masterReplicas 1) (eq $dataReplicas 0) }}
+{{- $coordReplicas := int (include "elasticsearch.coordinating.replicaCount" .) -}}
+{{- $hasDedicatedData := eq (include "elasticsearch.hasDedicatedDataNodes" .) "true" -}}
+{{- if and (eq $masterReplicas 1) (eq $coordReplicas 0) (not $hasDedicatedData) }}
 - name: discovery.type
   value: single-node
 {{- else }}

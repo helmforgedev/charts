@@ -57,6 +57,25 @@ tests:
             name: node.roles
             value: "data_hot,data_content"
 
+  - it: hot tier node uses master discovery rather than single-node mode
+    template: templates/statefulset-data-hot.yaml
+    set:
+      clusterProfile: staging
+      data.replicaCount: 0
+      dataTiers.hot.enabled: true
+      dataTiers.warm.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: discovery.seed_hosts
+            value: RELEASE-NAME-elasticsearch-master-headless
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: cluster.initial_master_nodes
+            value: RELEASE-NAME-elasticsearch-master-0
+
   - it: hot tier has node.attr.data=hot for ILM routing
     template: templates/statefulset-data-hot.yaml
     set:
@@ -80,6 +99,25 @@ tests:
           content:
             name: node.roles
             value: "data_warm"
+
+  - it: warm tier node uses master discovery rather than single-node mode
+    template: templates/statefulset-data-warm.yaml
+    set:
+      clusterProfile: staging
+      data.replicaCount: 0
+      dataTiers.hot.enabled: true
+      dataTiers.warm.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: discovery.seed_hosts
+            value: RELEASE-NAME-elasticsearch-master-headless
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: cluster.initial_master_nodes
+            value: RELEASE-NAME-elasticsearch-master-0
 
   - it: warm tier has node.attr.data=warm for ILM routing
     template: templates/statefulset-data-warm.yaml
