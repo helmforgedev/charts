@@ -14,6 +14,7 @@ This chart currently deploys `qmcgaw/ddns-updater:2.10.0`.
 - **Persistent history** — update history stored in a PVC
 - **Existing secrets** — bring your own Secret for credentials
 - **Ingress support** — expose the web UI with TLS
+- **Restricted runtime** — non-root container, read-only root filesystem, dropped capabilities, and ServiceAccount token automount disabled
 
 ## Installation
 
@@ -106,8 +107,15 @@ config:
 | `ddns.rootUrl` | `/` | Web UI root URL path |
 | `persistence.enabled` | `true` | Persist update history |
 | `persistence.size` | `256Mi` | PVC size |
+| `resources.requests.cpu` | `10m` | Default CPU request |
+| `resources.requests.memory` | `32Mi` | Default memory request |
+| `resources.limits.cpu` | `100m` | Default CPU limit |
+| `resources.limits.memory` | `128Mi` | Default memory limit |
+| `serviceAccount.automountServiceAccountToken` | `false` | Mount Kubernetes API token into pods |
 | `service.port` | `80` | Web UI service port |
 | `ingress.enabled` | `false` | Enable ingress |
+| `podSecurityContext.runAsUser` | `1000` | Upstream image user |
+| `securityContext.readOnlyRootFilesystem` | `true` | Keep the container root filesystem read-only |
 
 ## Operations
 
@@ -118,19 +126,31 @@ Before upgrading, confirm the provider-specific configuration format against the
 kubectl logs -l app.kubernetes.io/name=ddns-updater --all-containers --tail=100
 ```
 
+## Security Scan
+
+🟢 Security Scan: `ddns-updater`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **93.94%** |
+
+> ✅ Security posture acceptable.
+
+Local details:
+
+| Framework | Score |
+|---|---|
+| MITRE | 100.00% |
+| NSA | 95.00% |
+| SOC2 | 80.00% |
+
+The remaining local scan findings are expected for raw chart scanning and
+platform-level controls: NetworkPolicy and egress firewall policy are supplied
+by the platform layer because DNS provider APIs and public IP detection
+endpoints vary by deployment.
+
 ## More Information
 
 - [Supported providers](docs/providers.md)
 - [Upstream documentation](https://github.com/qdm12/ddns-updater)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/ddns-updater)
-
-<!-- @AI-METADATA
-@description: README for the ddns-updater Helm chart
-@type: chart-readme
-@chart: ddns-updater
-@path: charts/ddns-updater/README.md
-@date: 2026-05-05
-@relations:
-  - charts/ddns-updater/values.yaml
-  - charts/ddns-updater/docs/providers.md
--->
