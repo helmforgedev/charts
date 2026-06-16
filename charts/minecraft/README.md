@@ -255,10 +255,10 @@ Spigot servers, provide the platform-specific Floodgate plugin through
 
 ## Upgrade Notes
 
-`docker.io/itzg/minecraft-server:2026.5.4` updates the upstream server image from
-`2026.5.2`. The upstream releases include env-file loading at startup, server
-library cleanup on Paper installs, helper/monitor/RCON dependency updates, and a
-fix for deriving `MC_IMAGE_HELPER_OPTS` from `PROXY_*` variables. Review the
+`docker.io/itzg/minecraft-server:2026.6.0` updates the upstream server image from
+`2026.5.4`. The upstream release adds support for literal newlines in `server.motd`
+when values come from env files, refreshes bundled helper dependencies, and keeps
+the MOTD quoting documentation aligned with the runtime behavior. Review the
 upstream release notes before upgrading production servers, take a world backup,
 and verify plugins, mods, datapacks, proxy settings, and pinned `server.version`
 values in a staging environment before reusing existing PVCs.
