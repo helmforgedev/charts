@@ -144,16 +144,16 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
-| `image.tag` | `2.25.6` | n8n container image tag |
+| `image.tag` | `2.26.4` | n8n container image tag |
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
 | `n8n.diagnosticsEnabled` | `false` | Share anonymous diagnostics with n8n |
 | `n8n.gracefulShutdownTimeout` | `60` | Graceful shutdown timeout in seconds for main and workers |
 | `database.mode` | `auto` | Database mode (auto, sqlite, external, postgresql, mysql) |
-| `postgresql.enabled` | `false` | Deploy PostgreSQL subchart (`helmforge/postgresql` `2.0.2`) |
+| `postgresql.enabled` | `false` | Deploy PostgreSQL subchart (`helmforge/postgresql` `2.0.4`) |
 | `postgresql.initdb.scripts` | n8n extension bootstrap | Creates PostgreSQL extensions required by n8n migrations |
-| `mysql.enabled` | `false` | Deploy MySQL subchart (`helmforge/mysql` `2.0.0`) |
+| `mysql.enabled` | `false` | Deploy MySQL subchart (`helmforge/mysql` `2.0.1`) |
 | `queue.enabled` | `false` | Enable queue mode (requires Redis and a non-SQLite database) |
 | `queue.workers` | `1` | Number of worker replicas |
 | `queue.concurrency` | `10` | Concurrent workflows per worker |
@@ -186,8 +186,10 @@ externalSecrets:
 
 ## Upgrade Notes
 
-n8n `2.25.6` is an upstream bugfix release. It includes an editor fix for
-copying only the selected markdown editor text. Review the upstream release
+n8n `2.26.4` is an upstream bugfix release. It reduces the delay in AI
+Assistant workflow preview examples and fixes the
+`context.getNodeParameter is not a function` runtime error that could affect npm
+installs. Review the upstream release
 notes before upgrading, back up the database, and keep the encryption key stable
 before upgrading live deployments. This chart keeps the hardened non-root
 container defaults with resource requests and limits. Queue mode fails fast when
