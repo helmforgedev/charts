@@ -111,7 +111,7 @@ through `service.ports.jmxRmi` so the registry and RMI Service ports stay unique
 - `ci/standalone.yaml`
 - `ci/ingress.yaml`
 - `ci/gateway-api.yaml`
-- `ci/dual-stack.yaml`
+- `ci/ip-family-policy.yaml`
 - `ci/jmx.yaml`
 - `ci/hardening.yaml`
 
