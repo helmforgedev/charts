@@ -24,7 +24,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/robiningelbrecht/strava-statistics:v4.8.7"
+          value: "docker.io/robiningelbrecht/strava-statistics:v4.8.8"
 
   - it: should allow custom image tag
     set:
@@ -107,6 +107,11 @@ tests:
           content:
             name: data
             mountPath: /data
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /var/www/storage
 
   - it: should roll pods when config changes
     asserts:
@@ -159,7 +164,23 @@ tests:
             containerPort: 8080
             protocol: TCP
 
-  - it: should not have init containers
+  - it: should bootstrap the upstream storage layout when persistence is enabled
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: storage-bootstrap
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: "docker.io/library/busybox:1.37"
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /work
+
+  - it: should not bootstrap storage when persistence is disabled
+    set:
+      persistence.enabled: false
     asserts:
       - notExists:
           path: spec.template.spec.initContainers
