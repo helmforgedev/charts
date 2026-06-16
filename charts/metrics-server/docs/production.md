@@ -27,6 +27,9 @@ Metrics Server HA works best when kube-apiserver aggregator routing is enabled.
 The default APIService uses `insecureSkipTLSVerify=true` because Metrics Server generates a self-signed serving certificate.
 Set `apiService.caBundle` when your platform injects or manages a trusted serving CA.
 
+If the cluster already provides `v1beta1.metrics.k8s.io` or `system:aggregated-metrics-reader`, the chart skips those
+cluster-scoped resources instead of adopting ownership from the platform-managed object.
+
 ## Host Network
 
 Enable host networking only when the API server cannot reach the Metrics Server pod network:

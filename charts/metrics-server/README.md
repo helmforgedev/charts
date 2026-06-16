@@ -37,6 +37,10 @@ helm install metrics-server oci://ghcr.io/helmforgedev/helm/metrics-server -n ku
 
 Metrics Server `0.8.x` supports Kubernetes `1.31+`. The chart therefore declares `kubeVersion: >=1.31.0-0`.
 
+## Security Scan
+
+Security Scan: Kubescape local scan against `MITRE,NSA,SOC2` reports a 89.90% resource summary score.
+
 ## k3d and Local Clusters
 
 Many local clusters use kubelet serving certificates that do not include the address SANs Metrics Server validates. Use the k3d values file for local validation:
@@ -61,6 +65,12 @@ pdb:
 ```
 
 For best HA behavior, configure the kube-apiserver with aggregator routing enabled so APIService requests are distributed across replicas.
+
+## Existing Metrics API Resources
+
+Some Kubernetes distributions preinstall `v1beta1.metrics.k8s.io` and `system:aggregated-metrics-reader`.
+When those cluster-scoped resources already exist, the chart does not try to adopt them into the Helm release.
+This avoids ownership conflicts while still deploying the Metrics Server workload, Service, RBAC bindings, and optional observability resources.
 
 ## Main Values
 
