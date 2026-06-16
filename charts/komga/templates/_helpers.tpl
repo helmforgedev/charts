@@ -77,3 +77,16 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "komga.backupSecretSecretKeyKey" -}}
 {{- .Values.backup.s3.existingSecretSecretKeyKey | default "secret-key" -}}
 {{- end -}}
+
+{{/* ExternalSecret resource name */}}
+{{- define "komga.externalSecretName" -}}
+{{- $root := index . "root" -}}
+{{- $item := index . "item" -}}
+{{- if $item.fullnameOverride -}}
+{{- $item.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $fullname := include "komga.fullname" $root -}}
+{{- $itemName := $item.name | default "external" | trunc 32 | trimSuffix "-" -}}
+{{- printf "%s-%s" ($fullname | trunc (int (sub 62 (len $itemName))) | trimSuffix "-") $itemName | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
