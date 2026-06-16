@@ -37,8 +37,12 @@ spec:
             - -ec
             - |
               DATA_DIR="/var/lib/mysql"
-              if [ -d "${DATA_DIR}/mysql" ]; then
+              CLONE_DONE="${DATA_DIR}/.helmforge-clone-complete"
+              if [ -f "${CLONE_DONE}" ]; then
                 exit 0
+              fi
+              if [ -d "${DATA_DIR}/mysql" ]; then
+                find "${DATA_DIR}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
               fi
 
               ordinal="${HOSTNAME##*-}"
@@ -90,7 +94,7 @@ spec:
 
               MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysql --socket=/tmp/mysql.sock -uroot < /tmp/source.sql
 
-              mysql --socket=/tmp/mysql.sock -uroot <<EOSQL
+              MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysql --socket=/tmp/mysql.sock -uroot <<EOSQL
               SET GLOBAL super_read_only = OFF;
               SET GLOBAL read_only = OFF;
               ALTER USER 'root'@'localhost' IDENTIFIED BY '${MYSQL_ROOT_PASSWORD}';
@@ -99,7 +103,8 @@ spec:
               FLUSH PRIVILEGES;
               EOSQL
 
-              mysqladmin --socket=/tmp/mysql.sock -uroot -p"${MYSQL_ROOT_PASSWORD}" shutdown
+              touch "${CLONE_DONE}"
+              mysqladmin --socket=/tmp/mysql.sock -uroot -p"${MYSQL_ROOT_PASSWORD}" shutdown || true
           env:
             - name: MYSQL_ROOT_PASSWORD
               valueFrom:
