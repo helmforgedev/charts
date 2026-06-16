@@ -1,84 +1,77 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Liwan has been successfully deployed!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Liwan deployment summary
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
+Chart: {{ .Chart.Name }}
+Version: {{ .Chart.Version }}
 AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ACCESS INFORMATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Access
 
 {{- if .Values.ingress.enabled }}
+Ingress is enabled.
 {{- range $host := .Values.ingress.hosts }}
-WEB UI:    http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
-TRACKER:   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}:9042/
+- Web UI: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+- Tracker: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/script.js
 {{- end }}
 {{- else }}
-Port-forward to access Liwan locally:
+Run this command to access Liwan locally:
 
   kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "liwan.fullname" . }} 9042:{{ .Values.service.port }}
 
-  WEB UI:   http://localhost:9042/
+Then open:
+
+  http://localhost:9042/
 {{- end }}
 {{- if .Values.gatewayAPI.enabled }}
 
-Gateway API HTTPRoute rendered.
+Gateway API
+
+An HTTPRoute was rendered.
 {{- with .Values.gatewayAPI.hostnames }}
 Hostnames:
 {{- range . }}
-  - {{ . }}
+- {{ . }}
 {{- end }}
 {{- end }}
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  CONFIGURATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Configuration
 
-Base URL:
 {{- if .Values.liwan.baseUrl }}
-  {{ .Values.liwan.baseUrl }}
+Base URL: {{ .Values.liwan.baseUrl }}
 {{- else }}
-  Not configured. Set liwan.baseUrl to the public URL before enabling tracking scripts.
+Base URL: not configured. Set liwan.baseUrl to the public URL before installing tracking snippets.
 {{- end }}
-Persistence:
 {{- if .Values.persistence.enabled }}
-  enabled, claim {{ include "liwan.dataClaimName" . }}
+Persistence: enabled, claim {{ include "liwan.dataClaimName" . }}
 {{- else }}
-  disabled, data is stored on an emptyDir volume and is lost on pod restart
+Persistence: disabled. Analytics data is stored on emptyDir and is lost when the pod restarts.
 {{- end }}
 {{- with .Values.service.ipFamilyPolicy }}
-Service IP family policy:
-  {{ . }}
+Service IP family policy: {{ . }}
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  GETTING STARTED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Next steps
 
-1. kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=liwan -n {{ .Release.Namespace }} --timeout=300s
-2. kubectl get pods -l app.kubernetes.io/name=liwan -n {{ .Release.Namespace }}
-3. kubectl logs -l app.kubernetes.io/name=liwan -n {{ .Release.Namespace }} --all-containers --tail=50 -f
+1. Wait for the pod:
+   kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=liwan -n {{ .Release.Namespace }} --timeout=300s
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  TROUBLESHOOTING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. Check recent logs:
+   kubectl logs -l app.kubernetes.io/name=liwan -n {{ .Release.Namespace }} --all-containers --tail=50
 
+3. Create a site in the Liwan UI and install the generated tracking snippet.
+
+Troubleshooting
+
+Describe the pod:
   kubectl describe pod -l app.kubernetes.io/name=liwan -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/name=liwan -n {{ .Release.Namespace }} --all-containers --tail=100
-  kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-  kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ADDITIONAL RESOURCES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Inspect release resources:
+  kubectl get all,pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
 
-Documentation:  https://helmforge.dev/docs/charts/liwan
-Liwan:          https://liwan.dev | https://github.com/explodingcamera/liwan
+Documentation: https://helmforge.dev/docs/charts/liwan
+Upstream: https://liwan.dev
 
 Happy Helmforging :)
