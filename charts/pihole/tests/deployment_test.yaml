@@ -310,6 +310,9 @@ tests:
     template: templates/deployment.yaml
     asserts:
       - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
           path: spec.template.spec.containers[0].securityContext.capabilities.add
           value:
             - NET_BIND_SERVICE
@@ -317,16 +320,18 @@ tests:
             - SYS_NICE
             - CHOWN
 
-  - it: should set resources when configured
+  - it: should set pod security defaults
     template: templates/deployment.yaml
-    set:
-      resources:
-        requests:
-          cpu: 100m
-          memory: 128Mi
-        limits:
-          cpu: 500m
-          memory: 512Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: should set resources by default
+    template: templates/deployment.yaml
     asserts:
       - equal:
           path: spec.template.spec.containers[0].resources.requests.cpu
@@ -375,6 +380,12 @@ tests:
       - equal:
           path: spec.template.spec.containers[1].image
           value: "docker.io/ekofr/pihole-exporter:v1.2.0"
+      - equal:
+          path: spec.template.spec.containers[1].resources.requests.cpu
+          value: 25m
+      - equal:
+          path: spec.template.spec.containers[1].resources.limits.memory
+          value: 128Mi
 
   - it: should not render metrics sidecar by default
     template: templates/deployment.yaml
@@ -394,6 +405,9 @@ tests:
       - equal:
           path: spec.template.spec.containers[1].image
           value: "docker.io/mvance/unbound:1.22.0"
+      - equal:
+          path: spec.template.spec.containers[1].resources.requests.cpu
+          value: 50m
 
   - it: should mount the unbound.conf override over the image default
     template: templates/deployment.yaml
@@ -435,6 +449,9 @@ tests:
     template: templates/deployment.yaml
     asserts:
       - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 50m
+      - equal:
           path: spec.template.spec.initContainers[1].name
           value: gravity-update
       - equal:
@@ -448,6 +465,9 @@ tests:
           content:
             name: pihole-data
             mountPath: /etc/pihole
+      - equal:
+          path: spec.template.spec.initContainers[1].resources.requests.cpu
+          value: 100m
 
   - it: should not run gravity update init container when disabled
     template: templates/deployment.yaml
