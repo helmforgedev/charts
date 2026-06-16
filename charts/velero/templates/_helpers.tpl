@@ -56,3 +56,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- default (printf "%s-credentials" (include "velero.fullname" .)) .Values.credentials.name -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "velero.credentialsSecretEnabled" -}}
+{{- if and .Values.credentials.useSecret (or .Values.credentials.existingSecret .Values.credentials.name .Values.credentials.secretContents) -}}true{{- end -}}
+{{- end -}}

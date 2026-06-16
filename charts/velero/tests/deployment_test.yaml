@@ -14,6 +14,12 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].args
           content: --uploader-type=kopia
+      - notExists:
+          path: spec.template.spec.volumes[2]
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AWS_SHARED_CREDENTIALS_FILE
   - it: renders credentials secret when secret content is provided
     set:
       credentials.secretContents: |
@@ -28,3 +34,16 @@ tests:
             [default]
             aws_access_key_id=test
             aws_secret_access_key=test
+  - it: mounts a named credentials secret when requested
+    set:
+      credentials.name: velero-s3-credentials
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[2].secret.secretName
+          value: velero-s3-credentials
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AWS_SHARED_CREDENTIALS_FILE
+            value: /credentials/cloud

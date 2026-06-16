@@ -19,21 +19,3 @@ When enabled, the chart deploys the Velero node-agent as a DaemonSet and wires t
 2. enable `nodeAgent`
 3. create one controlled backup that uses filesystem backup
 4. inspect backup status before enabling recurring schedules
-
-<!-- @AI-METADATA
-type: chart-docs
-title: Velero - Filesystem Backup
-description: Filesystem backup guidance for the Velero node-agent
-
-keywords: velero, node-agent, filesystem-backup, kopia
-
-purpose: Explain the optional filesystem backup mode for Velero
-scope: Chart Architecture
-
-relations:
-  - charts/velero/README.md
-  - charts/velero/docs/s3-compatible.md
-path: charts/velero/docs/filesystem-backup.md
-version: 1.0
-date: 2026-03-31
--->
