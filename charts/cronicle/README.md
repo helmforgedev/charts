@@ -1,6 +1,10 @@
 # Cronicle Helm Chart
 
-Deploy [Cronicle](https://github.com/jhuckaby/Cronicle) on Kubernetes using the [soulteary/cronicle](https://hub.docker.com/r/soulteary/cronicle) community container image. Multi-server task scheduler and runner with a built-in web UI — supports scheduled jobs, shell commands, HTTP requests, and plugins with zero external dependencies.
+Deploy [Cronicle](https://github.com/jhuckaby/Cronicle) on Kubernetes using the
+[soulteary/cronicle](https://hub.docker.com/r/soulteary/cronicle) community
+container image. Multi-server task scheduler and runner with a built-in web UI
+for scheduled jobs, shell commands, HTTP requests, and plugins with zero
+external dependencies.
 
 ## Features
 
@@ -62,11 +66,43 @@ kubectl port-forward svc/<release>-cronicle 3012:80
 | `ingress.ingressClassName` | `traefik` | Ingress class (traefik, nginx) |
 | `service.port` | `80` | Service port |
 
+## Examples
+
+- [Simple private scheduler](examples/simple.yaml) - port-forward access with
+  bounded job concurrency and persistent storage.
+- [Ingress deployment](examples/ingress.yaml) - HTTPS ingress with production
+  resource requests and limits.
+- [SMTP notifications](examples/notifications.yaml) - public URL, SMTP host,
+  and notification-related environment values.
+
+## Architecture Guides
+
+- [Architecture](docs/architecture.md) - Kubernetes resources, request flow,
+  scheduler flow, and single-replica rationale.
+- [Operations](docs/operations.md) - access, storage, scheduler capacity,
+  notifications, upgrades, and troubleshooting.
+
 ## Limitations
 
 - **Single instance recommended** — filesystem storage is single-writer; horizontal scaling requires shared storage or external database
 - **ReadWriteOnce** — default PVC uses ReadWriteOnce due to filesystem storage
 - **Community image** — uses `soulteary/cronicle` as Cronicle does not publish an official container image
+
+## Quality Gates
+
+```bash
+helm lint charts/cronicle
+helm unittest charts/cronicle
+helm template cronicle charts/cronicle | kubeconform -strict -kubernetes-version 1.30.0 -schema-location default
+```
+
+### Security Scan: `cronicle`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **74.24%** |
+
+Security posture: acceptable.
 
 ## More Information
 
