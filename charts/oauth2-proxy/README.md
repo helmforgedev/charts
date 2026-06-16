@@ -8,8 +8,8 @@ and runtime validation.
 ## Highlights
 
 - Official `quay.io/oauth2-proxy/oauth2-proxy` image.
-- `v7.15.2` default, including the upstream security fixes for critical
-  authentication bypass advisories.
+- `v7.15.3` default, including the upstream Go `1.26.4` rebuild and the latest
+  dependency vulnerability fixes published by the oauth2-proxy project.
 - Reverse proxy header trust disabled by default, with required explicit
   `trusted_proxy_ips` CIDRs when enabled behind ingress controllers, gateways,
   or service mesh edge proxies.
@@ -57,6 +57,13 @@ OAuth2 Proxy `v7.15.2` introduced `trusted_proxy_ips` to prevent trusting
 client-supplied `X-Forwarded-*` headers from untrusted sources. Keep this list
 narrow and aligned with the IP ranges used by your ingress controller, Gateway
 implementation, or edge proxy.
+
+## Upgrade Notes
+
+OAuth2 Proxy `v7.15.3` keeps the same chart-facing configuration surface as
+`v7.15.2`, but refreshes the runtime to Go `1.26.4` and rolls in the upstream
+dependency CVE fixes called out in the official release notes. No values change
+is required for this chart bump.
 
 The chart keeps `config.reverseProxy.enabled=false` by default. If you enable
 reverse proxy header handling, the chart requires at least one
