@@ -34,7 +34,7 @@ Standalone client service:
 - Port: {{ .Values.service.ports.valkey }}
 {{- end }}
 
-{{- if or (include "valkey.isReplication" .) (include "valkey.isSentinel" .) }}
+{{- if include "valkey.isReplication" . }}
 Primary service:
 - Name: {{ include "valkey.primaryServiceName" . }}
 - DNS: {{ include "valkey.primaryServiceFqdn" . }}
@@ -51,7 +51,8 @@ Sentinel service:
 - Name: {{ include "valkey.sentinelServiceName" . }}
 - DNS: {{ include "valkey.sentinelServiceFqdn" . }}
 - Port: {{ .Values.service.ports.sentinel }}
-- Monitored primary: {{ include "valkey.primaryPodFqdn" . }}:{{ .Values.service.ports.valkey }}
+- Data nodes: {{ include "valkey.nodeStatefulSetName" . }} ({{ .Values.node.replicaCount }} pods)
+- Seed master: {{ include "valkey.nodePodFqdn" . }}:{{ .Values.service.ports.valkey }}
 {{- end }}
 
 {{- if include "valkey.isCluster" . }}
@@ -143,6 +144,9 @@ Persistence:
 - Standalone persistence: {{ .Values.standalone.persistence.enabled }}
 - Primary persistence: {{ .Values.replication.primary.persistence.enabled }}
 - Replica persistence: {{ .Values.replication.replica.persistence.enabled }}
+{{- if include "valkey.isSentinel" . }}
+- Node persistence: {{ .Values.node.persistence.enabled }}
+{{- end }}
 - Sentinel persistence: {{ .Values.sentinel.persistence.enabled }}
 - Cluster persistence: {{ .Values.cluster.persistence.enabled }}
 
@@ -172,7 +176,7 @@ Inspect logs:
 Common checks:
 
 - If replicas cannot connect, verify headless Service DNS and `clusterDomain`.
-- If Sentinel does not start, verify the primary pod FQDN and auth Secret.
+- If Sentinel does not start, verify the seed master pod FQDN and auth Secret.
 - If Valkey Cluster bootstrap is stuck, inspect the cluster init Job logs.
 - If clients cannot authenticate, verify Secret name, key, and password content.
 - If dual-stack fields are rejected, verify the Kubernetes version and cluster network configuration.

@@ -23,7 +23,23 @@ spec:
       command: ["sh", "-ec"]
       args:
         - |
-          {{- if include "valkey.isCluster" . }}
+          {{- if include "valkey.isSentinel" . }}
+          for i in $(seq 1 30); do
+            addr="$(valkey-cli $VALKEY_TLS_ARGS -h {{ include "valkey.sentinelServiceName" . | quote }} -p {{ .Values.service.ports.sentinel }} sentinel get-master-addr-by-name mymaster 2>/dev/null)"
+            host="$(echo "$addr" | sed -n '1p')"
+            port="$(echo "$addr" | sed -n '2p')"
+            [ -z "$port" ] && port={{ .Values.service.ports.valkey }}
+            if [ -n "$host" ] && valkey-cli $VALKEY_TLS_ARGS -h "$host" -p "$port" $VALKEY_AUTH_ARGS ping | grep -q PONG; then
+              valkey-cli $VALKEY_TLS_ARGS -h "$host" -p "$port" $VALKEY_AUTH_ARGS set helmforge:health ok | grep -q OK
+              test "$(valkey-cli $VALKEY_TLS_ARGS -h "$host" -p "$port" $VALKEY_AUTH_ARGS get helmforge:health)" = "ok"
+              exit 0
+            fi
+            echo "waiting for Sentinel master discovery ($i/30)"
+            sleep 2
+          done
+          echo "failed to discover Sentinel master"
+          exit 1
+          {{- else if include "valkey.isCluster" . }}
           for i in $(seq 1 30); do
             if valkey-cli $VALKEY_TLS_ARGS -c -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS cluster info | grep -q 'cluster_state:ok'; then
               exit 0
@@ -39,6 +55,7 @@ spec:
           test "$(valkey-cli $VALKEY_TLS_ARGS -h "$VALKEY_HOST" -p "$VALKEY_PORT" $VALKEY_AUTH_ARGS get helmforge:health)" = "ok"
           {{- end }}
       env:
+        {{- if not (include "valkey.isSentinel" .) }}
         - name: VALKEY_HOST
           {{- if or (include "valkey.isStandalone" .) (include "valkey.isCluster" .) }}
           value: {{ include "valkey.clientServiceName" . | quote }}
@@ -47,6 +64,7 @@ spec:
           {{- end }}
         - name: VALKEY_PORT
           value: {{ .Values.service.ports.valkey | quote }}
+        {{- end }}
         - name: VALKEY_TLS_ARGS
           value: {{ include "valkey.cliTlsArgs" . | quote }}
         {{- if .Values.auth.enabled }}

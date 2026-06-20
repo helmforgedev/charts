@@ -1,0 +1,91 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Sentinel Node StatefulSet
+templates:
+  - configmap.yaml
+  - sentinel-node-statefulset.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a role-neutral node StatefulSet in sentinel mode
+    template: sentinel-node-statefulset.yaml
+    set:
+      architecture: sentinel
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: metadata.name
+          value: test-valkey-node
+      - equal:
+          path: spec.replicas
+          value: 3
+      - equal:
+          path: spec.serviceName
+          value: test-valkey-headless
+      - notExists:
+          path: spec.selector.matchLabels["app.kubernetes.io/role"]
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].subPath
+          value: valkey-node.conf
+
+  - it: should honor node replica count
+    template: sentinel-node-statefulset.yaml
+    set:
+      architecture: sentinel
+      node.replicaCount: 2
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+
+  - it: should fail when sentinel replica count is below three
+    template: sentinel-node-statefulset.yaml
+    set:
+      architecture: sentinel
+      sentinel.replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: "sentinel.replicaCount must be at least 3 for a reliable Sentinel quorum in HA configurations"
+
+  - it: should fail when quorum exceeds sentinel replica count
+    template: sentinel-node-statefulset.yaml
+    set:
+      architecture: sentinel
+      sentinel.replicaCount: 3
+      sentinel.quorum: 4
+    asserts:
+      - failedTemplate:
+          errorMessage: "sentinel.quorum (4) cannot exceed sentinel.replicaCount (3)"
+
+  - it: should render extra env and volumes in sentinel node pods
+    template: sentinel-node-statefulset.yaml
+    set:
+      architecture: sentinel
+      extraEnv:
+        - name: EXTRA_SETTING
+          value: enabled
+      extraVolumes:
+        - name: extra-config
+          configMap:
+            name: extra-config
+      extraVolumeMounts:
+        - name: extra-config
+          mountPath: /extra
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: EXTRA_SETTING
+            value: enabled
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: extra-config
+            mountPath: /extra
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: extra-config
+            configMap:
+              name: extra-config

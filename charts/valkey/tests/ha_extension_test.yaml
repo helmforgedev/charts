@@ -3,6 +3,7 @@ suite: HA Extension Points
 templates:
   - replication-primary-statefulset.yaml
   - replication-replica-statefulset.yaml
+  - sentinel-node-statefulset.yaml
   - sentinel-statefulset.yaml
   - cluster-statefulset.yaml
   - configmap.yaml
@@ -156,7 +157,7 @@ tests:
         template: configmap.yaml
       - matchRegex:
           path: data["sentinel.conf"]
-          pattern: "sentinel monitor mymaster test-valkey-primary-0\\.test-valkey-headless\\.default\\.svc\\.cluster\\.local 6379 3"
+          pattern: "sentinel monitor mymaster test-valkey-node-0\\.test-valkey-headless\\.default\\.svc\\.cluster\\.local 6379 3"
         template: configmap.yaml
       - matchRegex:
           path: data["sentinel.conf"]
@@ -179,71 +180,74 @@ tests:
           pattern: "# HelmForge managed sentinel config end"
         template: configmap.yaml
 
-  - it: should reseed sentinel replicas from the current sentinel master on restarts
+  - it: should reseed sentinel data nodes from the current sentinel master on restarts
     set:
       architecture: sentinel
     asserts:
       - matchRegex:
           path: spec.template.spec.initContainers[0].args[0]
           pattern: "sentinel get-master-addr-by-name mymaster"
-        template: replication-replica-statefulset.yaml
+        template: sentinel-node-statefulset.yaml
       - matchRegex:
           path: spec.template.spec.initContainers[0].args[0]
           pattern: "main container will fail closed if the role cannot be confirmed"
-        template: replication-replica-statefulset.yaml
+        template: sentinel-node-statefulset.yaml
       - matchRegex:
           path: spec.template.spec.containers[0].args[0]
           pattern: "sentinel get-master-addr-by-name mymaster"
-        template: replication-replica-statefulset.yaml
+        template: sentinel-node-statefulset.yaml
       - matchRegex:
           path: spec.template.spec.containers[0].args[0]
           pattern: "set -- \"\\$@\" --replicaof \"\\$sentinel_master\""
-        template: replication-replica-statefulset.yaml
+        template: sentinel-node-statefulset.yaml
       - matchRegex:
           path: spec.template.spec.containers[0].args[0]
           pattern: "refusing to start as an unconfirmed master"
-        template: replication-replica-statefulset.yaml
+        template: sentinel-node-statefulset.yaml
       - matchRegex:
           path: spec.template.spec.containers[0].args[0]
           pattern: "Sentinel reports this pod as the current master; starting without replicaof"
-        template: replication-replica-statefulset.yaml
+        template: sentinel-node-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "helmforge-sentinel-node-bootstrapped"
+        template: sentinel-node-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "this pod is the master target; skipping init wait"
+        template: sentinel-node-statefulset.yaml
       - contains:
           path: spec.template.spec.initContainers[0].volumeMounts
           content:
             name: data
             mountPath: /data
-        template: replication-replica-statefulset.yaml
+        template: sentinel-node-statefulset.yaml
 
-  - it: should start old sentinel primary as a replica of the current sentinel master
+  - it: should seed master only from ordinal zero when Sentinel is unavailable
+    set:
+      architecture: sentinel
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "case \"\\$\\(hostname\\)\" in"
+        template: sentinel-node-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "starting as seed master"
+        template: sentinel-node-statefulset.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "seeding from test-valkey-node-0\\.test-valkey-headless\\.default\\.svc\\.cluster\\.local"
+        template: sentinel-node-statefulset.yaml
+
+  - it: should monitor the seed master node in sentinel pods
     set:
       architecture: sentinel
     asserts:
       - equal:
-          path: spec.template.spec.containers[0].command
-          value:
-            - sh
-            - -ec
-        template: replication-primary-statefulset.yaml
-      - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "sentinel get-master-addr-by-name mymaster"
-        template: replication-primary-statefulset.yaml
-      - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "self_ip=\"\\$\\(hostname -i"
-        template: replication-primary-statefulset.yaml
-      - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "set -- \"\\$@\" --replicaof \"\\$sentinel_master\""
-        template: replication-primary-statefulset.yaml
-      - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "helmforge-sentinel-primary-bootstrapped"
-        template: replication-primary-statefulset.yaml
-      - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "refusing to start without role confirmation"
-        template: replication-primary-statefulset.yaml
+          path: spec.template.spec.containers[0].env[0].value
+          value: test-valkey-node-0.test-valkey-headless.default.svc.cluster.local
+        template: sentinel-statefulset.yaml
 
   - it: should keep fixed replicaof in replication mode
     set:
@@ -331,11 +335,11 @@ tests:
       - equal:
           path: spec.template.spec.containers[1].resources.requests.memory
           value: 64Mi
-        template: replication-primary-statefulset.yaml
+        template: sentinel-node-statefulset.yaml
       - equal:
           path: spec.template.spec.containers[1].resources.limits.memory
           value: 128Mi
-        template: replication-replica-statefulset.yaml
+        template: sentinel-node-statefulset.yaml
 
   - it: should render metrics resources in cluster pods
     set:

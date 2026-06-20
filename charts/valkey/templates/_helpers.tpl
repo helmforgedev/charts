@@ -171,6 +171,10 @@ Common names.
 {{- printf "%s-cluster" (include "valkey.fullname" .) -}}
 {{- end -}}
 
+{{- define "valkey.nodeStatefulSetName" -}}
+{{- printf "%s-node" (include "valkey.fullname" .) -}}
+{{- end -}}
+
 {{- define "valkey.configMapName" -}}
 {{- printf "%s-config" (include "valkey.fullname" .) -}}
 {{- end -}}
@@ -209,6 +213,10 @@ Common names.
 
 {{- define "valkey.primaryPodFqdn" -}}
 {{- printf "%s-0.%s" (include "valkey.primaryStatefulSetName" .) (include "valkey.headlessServiceFqdn" .) -}}
+{{- end -}}
+
+{{- define "valkey.nodePodFqdn" -}}
+{{- printf "%s-0.%s" (include "valkey.nodeStatefulSetName" .) (include "valkey.headlessServiceFqdn" .) -}}
 {{- end -}}
 
 {{- define "valkey.clusterPodFqdn" -}}

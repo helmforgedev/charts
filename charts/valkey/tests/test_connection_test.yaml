@@ -40,13 +40,20 @@ tests:
           path: spec.containers[0].env[0].value
           value: test-valkey-primary
 
-  - it: should target the primary service for sentinel
+  - it: should discover the master through Sentinel in sentinel mode
     set:
       architecture: sentinel
     asserts:
-      - equal:
-          path: spec.containers[0].env[0].value
-          value: test-valkey-primary
+      - matchRegex:
+          path: spec.containers[0].args[0]
+          pattern: "sentinel get-master-addr-by-name mymaster"
+      - matchRegex:
+          path: spec.containers[0].args[0]
+          pattern: "test-valkey-sentinel"
+      - notContains:
+          path: spec.containers[0].env
+          content:
+            name: VALKEY_HOST
 
   - it: should target the client service for cluster
     set:
