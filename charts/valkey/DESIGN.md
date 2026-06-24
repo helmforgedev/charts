@@ -219,7 +219,8 @@ Recommended production controls:
 
 Metrics are optional and should be enabled only when the Prometheus Operator or a compatible scraper is present.
 
-When enabled, exporter resources should follow the selected architecture, use the metrics-specific container security context, and expose a stable ServiceMonitor target. The chart should not render CRDs owned by observability operators.
+When enabled, exporter resources should follow the selected architecture, use the metrics-specific container security
+context, and expose a stable ServiceMonitor target. The chart should not render CRDs owned by observability operators.
 
 ## Extension Points
 
