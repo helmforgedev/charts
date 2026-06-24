@@ -1,11 +1,11 @@
 # Docmost Architecture Notes
 
-This chart packages Docmost as a single application Deployment backed by PostgreSQL and Redis. It is designed
+This chart packages Docmost as an application Deployment backed by PostgreSQL and Redis. It is designed
 with clear defaults, local validation, explicit external-service support, and optional S3-compatible object storage.
 
 ## Supported Model
 
-- one Docmost application pod
+- one Docmost application pod with local storage, or multiple application pods with S3-compatible storage
 - PostgreSQL provided by the bundled subchart or an external PostgreSQL service
 - Redis provided by the bundled subchart or an external Redis service
 - uploaded files stored on a local PVC or an S3-compatible object store
@@ -13,13 +13,13 @@ with clear defaults, local validation, explicit external-service support, and op
 - optional External Secrets Operator integration for credentials managed outside Helm
 - optional PostgreSQL backup CronJob that uploads dumps to S3-compatible storage
 
-## Why Single Replica
+## Replica Model
 
-This first chart release intentionally keeps `replicaCount=1`.
+The chart defaults to `replicaCount=1` and keeps local storage single-replica.
 
 - upstream runtime documentation clearly requires PostgreSQL, Redis, and shared file storage
-- local storage with multiple application replicas can create inconsistent file visibility unless operators provide shared external object storage and validate the runtime behavior carefully
-- the chart therefore favors predictable installs over premature horizontal-scaling claims
+- local storage with multiple application replicas can create inconsistent file visibility
+- values greater than one are accepted only with `storage.mode=s3`, where uploaded files are stored outside the pod filesystem
 
 ## Storage Modes
 
@@ -33,7 +33,7 @@ This first chart release intentionally keeps `replicaCount=1`.
 
 - sets `STORAGE_DRIVER=s3`
 - uses `AWS_S3_*` environment variables documented by Docmost
-- recommended when operators want object storage managed outside the pod filesystem
+- required when operators set `replicaCount` greater than `1`
 
 ## External Services
 

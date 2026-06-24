@@ -2,7 +2,7 @@
 database:
   mode: external
   external:
-    host: pg.example.internal
+    host: docmost-external-postgresql
     name: docmost
     username: docmost
     password: change-me
@@ -13,7 +13,7 @@ postgresql:
 redis:
   enabled: false
   external:
-    host: redis.example.internal
+    host: docmost-external-redis
     password: change-me
 
 storage:
@@ -23,3 +23,80 @@ storage:
     endpoint: https://minio.example.internal
     accessKey: minio
     secretKey: secret123
+
+extraManifests:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: docmost-external-postgresql
+    spec:
+      ports:
+        - name: postgres
+          port: 5432
+          targetPort: postgres
+      selector:
+        app.kubernetes.io/name: docmost-external-postgresql
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: docmost-external-postgresql
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: docmost-external-postgresql
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: docmost-external-postgresql
+        spec:
+          containers:
+            - name: postgres
+              image: docker.io/library/postgres:18.4-trixie
+              imagePullPolicy: IfNotPresent
+              ports:
+                - name: postgres
+                  containerPort: 5432
+              env:
+                - name: POSTGRES_DB
+                  value: docmost
+                - name: POSTGRES_USER
+                  value: docmost
+                - name: POSTGRES_PASSWORD
+                  value: change-me
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: docmost-external-redis
+    spec:
+      ports:
+        - name: redis
+          port: 6379
+          targetPort: redis
+      selector:
+        app.kubernetes.io/name: docmost-external-redis
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: docmost-external-redis
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: docmost-external-redis
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: docmost-external-redis
+        spec:
+          containers:
+            - name: redis
+              image: docker.io/library/redis:8.8.0
+              imagePullPolicy: IfNotPresent
+              command: ["redis-server"]
+              args:
+                - --requirepass
+                - change-me
+              ports:
+                - name: redis
+                  containerPort: 6379
