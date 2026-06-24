@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Security Contexts
+templates:
+  - standalone-statefulset.yaml
+  - replication-primary-statefulset.yaml
+  - replication-replica-statefulset.yaml
+  - cluster-statefulset.yaml
+  - cluster-init-job.yaml
+  - configmap.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render restricted-compatible metrics sidecar security contexts
+    set:
+      metrics.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.runAsUser
+          value: 65534
+        template: standalone-statefulset.yaml
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.runAsNonRoot
+          value: true
+        template: standalone-statefulset.yaml
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.allowPrivilegeEscalation
+          value: false
+        template: standalone-statefulset.yaml
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.capabilities.drop[0]
+          value: ALL
+        template: standalone-statefulset.yaml
+
+  - it: should render metrics sidecar security contexts in replication pods
+    set:
+      architecture: replication
+      metrics.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.runAsUser
+          value: 65534
+        template: replication-primary-statefulset.yaml
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.runAsUser
+          value: 65534
+        template: replication-replica-statefulset.yaml
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.allowPrivilegeEscalation
+          value: false
+        template: replication-primary-statefulset.yaml
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.capabilities.drop[0]
+          value: ALL
+        template: replication-replica-statefulset.yaml
+
+  - it: should render metrics sidecar security contexts in cluster pods
+    set:
+      architecture: cluster
+      metrics.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.runAsUser
+          value: 65534
+        template: cluster-statefulset.yaml
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.runAsNonRoot
+          value: true
+        template: cluster-statefulset.yaml
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.capabilities.drop[0]
+          value: ALL
+        template: cluster-statefulset.yaml
+
+  - it: should render pod and container security contexts on cluster init job
+    set:
+      architecture: cluster
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 999
+        template: cluster-init-job.yaml
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+        template: cluster-init-job.yaml
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 999
+        template: cluster-init-job.yaml
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+        template: cluster-init-job.yaml
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+        template: cluster-init-job.yaml
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop[0]
+          value: ALL
+        template: cluster-init-job.yaml

@@ -227,10 +227,13 @@ Use the generic extension values when platform-specific integration is needed:
 | `sentinel.quorum` | Sentinel quorum | `2` |
 | `cluster.nodes` | Number of Valkey Cluster nodes | `6` |
 | `cluster.replicasPerMaster` | Valkey Cluster replicas per master | `1` |
+| `cluster.initJob.securityContext.runAsUser` | Cluster init Job container user ID | `999` |
 | `service.type` | Client Service type where applicable | `ClusterIP` |
 | `service.ipFamilyPolicy` | Service IP family policy for dual-stack clusters | `null` |
 | `service.ipFamilies` | Service IP families for dual-stack clusters | `[]` |
 | `metrics.enabled` | Enable redis_exporter sidecar | `false` |
+| `metrics.securityContext.runAsUser` | Metrics exporter container user ID | `65534` |
+| `metrics.securityContext.capabilities.drop` | Linux capabilities dropped from the metrics exporter | `["ALL"]` |
 | `metrics.serviceMonitor.enabled` | Create ServiceMonitor | `false` |
 | `tests.enabled` | Render Helm test connection pod | `true` |
 | `tests.image.repository` | Helm test image repository | `docker.io/valkey/valkey` |
