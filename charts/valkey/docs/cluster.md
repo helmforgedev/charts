@@ -66,6 +66,7 @@ Common cases:
 | `cluster.replicasPerMaster` | Replicas per master |
 | `cluster.persistence.enabled` | PVC on each node |
 | `cluster.persistence.size` | Volume size per node |
+| `cluster.initJob.securityContext.runAsUser` | Cluster init Job container user ID |
 | `metrics.enabled` | Exporter for monitoring |
 
 ## Example

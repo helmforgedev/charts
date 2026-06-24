@@ -188,6 +188,7 @@ Best practices:
 - `existingSecret` avoids chart-owned credential rotation when an external secret manager is authoritative.
 - External Secrets Operator integration lets the chart reference externally managed credentials while still rendering Kubernetes-native Secret consumers.
 - Pods run with restricted security contexts by default where Valkey compatibility allows it.
+- Metrics sidecars and the cluster initialization Job have their own container security context values so all chart-managed pods can satisfy Pod Security Admission `restricted`.
 - The chart avoids privileged containers and host namespace access.
 - Sensitive values should not be embedded in examples, CI values, or NOTES.
 
@@ -218,7 +219,7 @@ Recommended production controls:
 
 Metrics are optional and should be enabled only when the Prometheus Operator or a compatible scraper is present.
 
-When enabled, exporter resources should follow the selected architecture and expose a stable ServiceMonitor target. The chart should not render CRDs owned by observability operators.
+When enabled, exporter resources should follow the selected architecture, use the metrics-specific container security context, and expose a stable ServiceMonitor target. The chart should not render CRDs owned by observability operators.
 
 ## Extension Points
 
