@@ -3,7 +3,7 @@
 # Liwan Helm Chart
 
 Deploy [Liwan](https://liwan.dev) on Kubernetes with the official
-`ghcr.io/explodingcamera/liwan:1.5.0` image.
+`ghcr.io/explodingcamera/liwan:1.6.0` image.
 
 Liwan is a lightweight, privacy-focused web analytics application. It runs as a single Rust service and stores analytics
 data in embedded DuckDB under `/data`.
@@ -107,7 +107,7 @@ endpoint.
 | Key | Default | Description |
 | --- | --- | --- |
 | `image.repository` | `ghcr.io/explodingcamera/liwan` | Liwan image repository. |
-| `image.tag` | `"1.5.0"` | Liwan image tag. |
+| `image.tag` | `"1.6.0"` | Liwan image tag. |
 | `liwan.port` | `9042` | Application HTTP port. |
 | `liwan.baseUrl` | `""` | Public base URL for UI and tracking scripts. |
 | `liwan.extraEnv` | `[]` | Extra environment variables for advanced upstream settings. |
