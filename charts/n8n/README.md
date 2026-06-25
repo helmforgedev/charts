@@ -144,7 +144,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
-| `image.tag` | `2.26.4` | n8n container image tag |
+| `image.tag` | `2.27.3` | n8n container image tag |
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
@@ -159,7 +159,7 @@ externalSecrets:
 | `queue.concurrency` | `10` | Concurrent workflows per worker |
 | `queue.persistence.shareMainVolume` | `true` | Mount the main n8n data PVC into worker pods |
 | `terminationGracePeriodSeconds` | `75` | Kubernetes pod shutdown grace period |
-| `redis.enabled` | `false` | Deploy Redis subchart (`helmforge/redis` `1.6.18`) |
+| `redis.enabled` | `false` | Deploy Redis subchart (`helmforge/redis` `1.6.19`) |
 | `taskRunners.mode` | `external` | Task runner mode (`internal` or `external`) |
 | `taskRunners.image.repository` | `docker.io/n8nio/runners` | External task runner sidecar image repository |
 | `taskRunners.image.tag` | `""` | External task runner sidecar tag (defaults to `image.tag`) |
@@ -186,7 +186,7 @@ externalSecrets:
 
 ## Upgrade Notes
 
-n8n `2.26.4` is an upstream bugfix release. It reduces the delay in AI
+n8n `2.27.3` is an upstream bugfix release. It reduces the delay in AI
 Assistant workflow preview examples and fixes the
 `context.getNodeParameter is not a function` runtime error that could affect npm
 installs. Review the upstream release
