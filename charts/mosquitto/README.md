@@ -153,6 +153,26 @@ broker:
     messageSizeLimit: 262144
 ```
 
+### Eliminating TLS health check log spam (OpenSSL EOF)
+
+When `broker.tls.enabled` is true and `broker.listeners.websocketEnabled` is false, Kubernetes TCP socket health probes and/or a Cloud Load Balancer health checks (e.g., AWS NLB) will ping the `mqtts` port. Because the probes immediately close the connection without completing a TLS handshake, Mosquitto will constantly log OpenSSL errors (e.g., `error:0A000126:SSL routines::unexpected eof while reading`).
+
+To eliminate this log spam, you can use `broker.extraConfig` to create a dedicated, plaintext health check listener, and use `broker.probePortOverride` to point the Kubernetes probes to it.
+
+```yaml
+broker:
+  # Point health probes/checks to the custom plaintext port
+  probePortOverride: 9000
+
+  extraConfig: |
+    # Create a dedicated plaintext listener for health checks
+    listener 9000 0.0.0.0
+    protocol mqtt
+
+    # Silence the TCP connection logs
+    connection_messages false
+```
+
 ## Key Values
 
 | Key | Default | Description |
