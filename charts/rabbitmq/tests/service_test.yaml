@@ -37,3 +37,34 @@ tests:
             name: management
             port: 15672
             targetPort: management
+
+  - it: should expose only TLS ports when non-TLS listeners are disabled
+    set:
+      tls.enabled: true
+      tls.disableNonTLSListeners: true
+    asserts:
+      - notContains:
+          path: spec.ports
+          content:
+            name: amqp
+            port: 5672
+            targetPort: amqp
+      - notContains:
+          path: spec.ports
+          content:
+            name: management
+            port: 15672
+            targetPort: management
+      - contains:
+          path: spec.ports
+          content:
+            name: amqps
+            port: 5671
+            targetPort: amqps
+      - contains:
+          path: spec.ports
+          content:
+            name: management-tls
+            port: 15671
+            targetPort: management-tls
+            appProtocol: https

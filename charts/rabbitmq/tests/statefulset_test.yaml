@@ -26,7 +26,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/library/rabbitmq:4.3.1-alpine"
+          value: "docker.io/library/rabbitmq:4.3.2-alpine"
 
   - it: should have 1 replica in single-node mode
     template: statefulset.yaml
@@ -81,6 +81,33 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.tcpSocket.port
           value: amqps
+
+  - it: should expose only TLS container ports when non-TLS listeners are disabled
+    template: statefulset.yaml
+    set:
+      tls.enabled: true
+      tls.disableNonTLSListeners: true
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: amqp
+            containerPort: 5672
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: management
+            containerPort: 15672
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: amqps
+            containerPort: 5671
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: management-tls
+            containerPort: 15671
 
   - it: should disable Erlang scheduler busy-wait by default
     template: statefulset.yaml
