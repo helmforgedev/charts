@@ -97,6 +97,40 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[0].image
           value: "docker.io/library/busybox:1.37"
+      - equal:
+          path: spec.template.spec.initContainers[0].imagePullPolicy
+          value: IfNotPresent
+
+  - it: should allow overriding the wait-for-db init container image
+    set:
+      waitForDatabase.image.repository: registry.example.com/mirror/busybox
+      waitForDatabase.image.tag: "1.37"
+      waitForDatabase.image.pullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: "registry.example.com/mirror/busybox:1.37"
+      - equal:
+          path: spec.template.spec.initContainers[0].imagePullPolicy
+          value: Always
+
+  - it: should append extra init containers
+    set:
+      extraInitContainers:
+        - name: install-oracle-driver
+          image: registry.example.com/tools/curl:8
+          command:
+            - sh
+            - -c
+          args:
+            - wget -O /plugins/ojdbc.jar http://repo.local/ojdbc.jar
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: install-oracle-driver
+      - equal:
+          path: spec.template.spec.initContainers[1].image
+          value: registry.example.com/tools/curl:8
 
   - it: should set external database host when subchart is disabled
     set:
