@@ -2,6 +2,7 @@
 suite: Deployment
 templates:
   - templates/deployment.yaml
+  - templates/database-configmap.yaml
   - templates/secret.yaml
 release:
   name: test
@@ -33,19 +34,19 @@ tests:
             containerPort: 1337
             protocol: TCP
 
-  - it: should set sqlite env vars by default
+  - it: should set postgres env vars by default
     template: templates/deployment.yaml
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: DATABASE_CLIENT
-            value: sqlite
+            value: postgres
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: DATABASE_FILENAME
-            value: /opt/app/.tmp/data.db
+            name: DATABASE_HOST
+            value: test-postgresql
 
   - it: should mount uploads path by default
     template: templates/deployment.yaml
@@ -59,6 +60,9 @@ tests:
 
   - it: should mount sqlite directory in sqlite mode
     template: templates/deployment.yaml
+    set:
+      database.mode: sqlite
+      postgresql.enabled: false
     asserts:
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
@@ -97,6 +101,7 @@ tests:
   - it: should set mysql env vars
     template: templates/deployment.yaml
     set:
+      postgresql.enabled: false
       mysql.enabled: true
       mysql.auth.password: test
     asserts:
