@@ -5,13 +5,13 @@
 Helm chart for deploying [Homarr](https://homarr.dev/) modern application dashboard on Kubernetes using the official
 [`ghcr.io/homarr-labs/homarr`](https://github.com/homarr-labs/homarr/pkgs/container/homarr) container image.
 
-Current application version: `v1.64.0`.
+Current application version: `v1.67.0`.
 
 ## Features
 
 - **Official Homarr image** from `ghcr.io/homarr-labs/homarr`
 - **Database backends** SQLite3 (default), PostgreSQL, or MySQL with auto-detection
-- **PostgreSQL and MySQL subcharts** optional bundled database deployments using HelmForge PostgreSQL `2.0.2` and MySQL `2.0.0`
+- **PostgreSQL and MySQL subcharts** optional bundled database deployments using HelmForge PostgreSQL `2.0.4` and MySQL `2.0.1`
 - **Encryption key management** auto-generated or existing secret for `SECRET_ENCRYPTION_KEY`
 - **Kubernetes integration** optional workload discovery via `ENABLE_KUBERNETES`
 - **External Redis** optional external Redis for multi-instance setups
@@ -173,7 +173,7 @@ backup:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `ghcr.io/homarr-labs/homarr` | Container image repository |
-| `image.tag` | `"v1.64.0"` | Homarr image tag |
+| `image.tag` | `"v1.67.0"` | Homarr image tag |
 | `replicaCount` | `1` | Number of replicas |
 | `homarr.logLevel` | `info` | Log level |
 | `homarr.authProviders` | `credentials` | Auth providers (credentials, ldap, oidc) |
@@ -265,10 +265,10 @@ writable and does not force a non-root UID or dropped capabilities by default. O
 
 ## Upgrade Notes
 
-This update moves the default image from `v1.63.0` to `v1.64.0`. Review upstream release notes before upgrading production
-environments. Homarr `v1.64.0` includes demo mode, PeaNUT UPS monitoring, Docker UI improvements, onboarding updates,
-media request search, widget editing, authentication fixes, and UI bug fixes; no breaking
-changes were identified in the upstream release metadata.
+This update moves the default image from `v1.64.0` to `v1.67.0`. Review upstream release notes before upgrading production
+environments. Homarr `v1.66.1` fixes the MySQL migration regression introduced in `v1.65.0`, and `v1.67.0` adds
+server-side PostHog analytics, total CPU and memory usage display, session cookie isolation, and downloads sorting fixes.
+No breaking changes were identified in the upstream release metadata.
 
 For PostgreSQL and MySQL, the chart sets `DB_DIALECT`, `DB_DRIVER`, and discrete database environment variables instead of
 rendering a full `DB_URL`; this avoids requiring URL-encoded passwords in Kubernetes Secrets.
