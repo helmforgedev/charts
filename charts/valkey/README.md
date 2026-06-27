@@ -157,7 +157,9 @@ Persistence is configured under each topology:
 - `sentinel.persistence`
 - `cluster.persistence`
 
-Use persistent volumes for production stateful modes. Disable persistence only for ephemeral tests and short-lived environments.
+Use persistent volumes for production stateful modes when RDB/AOF must survive pod reschedules.
+In sentinel mode, `node.persistence.enabled` defaults to `false`; peer discovery keeps topology safe without PVCs.
+Disable persistence only for ephemeral tests and short-lived environments in other modes.
 
 ## Observability
 
@@ -225,6 +227,7 @@ Use the generic extension values when platform-specific integration is needed:
 | `standalone.persistence.enabled` | Enable persistence for standalone mode | `true` |
 | `replication.replicaCount` | Number of replica pods in replication mode | `2` |
 | `node.replicaCount` | Number of Valkey data nodes in sentinel mode | `3` |
+| `node.persistence.enabled` | Enable PVCs for sentinel data nodes | `false` |
 | `sentinel.replicaCount` | Number of Sentinel pods | `3` |
 | `sentinel.quorum` | Sentinel quorum | `2` |
 | `cluster.nodes` | Number of Valkey Cluster nodes | `6` |

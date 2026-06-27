@@ -43,6 +43,30 @@ spec:
           command: ["sh", "-ec"]
           args:
             - |
+              discover_master_from_peers() {
+                discovered=""
+                self_fqdn="$(hostname -f)"
+                for peer in {{ include "valkey.nodePeerFqdns" . }}; do
+                  [ "$peer" = "$self_fqdn" ] && continue
+                  info="$(valkey-cli {{ include "valkey.cliTlsArgs" . }} -h "$peer" -p {{ .Values.service.ports.valkey }} {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" --no-auth-warning {{- end }} info replication 2>/dev/null || true)"
+                  [ -z "$info" ] && continue
+                  role="$(echo "$info" | sed -n 's/^role://p' | tr -d '\r' | awk '{ print $1 }')"
+                  case "$role" in
+                    master)
+                      discovered="$peer"
+                      break
+                      ;;
+                    slave|replica)
+                      mh="$(echo "$info" | sed -n 's/^master_host://p' | tr -d '\r' | awk '{ print $1 }')"
+                      if [ -n "$mh" ]; then
+                        discovered="$mh"
+                        break
+                      fi
+                      ;;
+                  esac
+                done
+                echo "$discovered"
+              }
               sentinel_master=""
               for attempt in $(seq 1 30); do
                 sentinel_master="$(valkey-cli {{ include "valkey.cliTlsArgs" . }} -h {{ include "valkey.sentinelServiceFqdn" . | quote }} -p {{ .Values.service.ports.sentinel }} sentinel get-master-addr-by-name mymaster 2>/dev/null | awk 'NR == 1 { print $1 }')"
@@ -51,11 +75,15 @@ spec:
                 sleep 2
               done
               if [ -z "$sentinel_master" ]; then
-                if [ -f /data/.helmforge-sentinel-node-bootstrapped ]; then
-                  echo "Sentinel unavailable for already bootstrapped node; main container will fail closed if the role cannot be confirmed"
+                sentinel_master="$(discover_master_from_peers)"
+                if [ -n "$sentinel_master" ]; then
+                  echo "discovered master ${sentinel_master} from peer nodes"
+                elif [ -f /data/.helmforge-sentinel-node-bootstrapped ]; then
+                  echo "Sentinel and peers unavailable for already bootstrapped node; main container will fail closed if the role cannot be confirmed"
                   exit 0
+                else
+                  sentinel_master={{ include "valkey.nodePodFqdn" . | quote }}
                 fi
-                sentinel_master={{ include "valkey.nodePodFqdn" . | quote }}
               fi
               self_fqdn="$(hostname -f)"
               self_ip="$(hostname -i | awk '{ print $1 }')"
@@ -92,6 +120,30 @@ spec:
           command: ["sh", "-ec"]
           args:
             - |
+              discover_master_from_peers() {
+                discovered=""
+                self_fqdn="$(hostname -f)"
+                for peer in {{ include "valkey.nodePeerFqdns" . }}; do
+                  [ "$peer" = "$self_fqdn" ] && continue
+                  info="$(valkey-cli {{ include "valkey.cliTlsArgs" . }} -h "$peer" -p {{ .Values.service.ports.valkey }} {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" --no-auth-warning {{- end }} info replication 2>/dev/null || true)"
+                  [ -z "$info" ] && continue
+                  role="$(echo "$info" | sed -n 's/^role://p' | tr -d '\r' | awk '{ print $1 }')"
+                  case "$role" in
+                    master)
+                      discovered="$peer"
+                      break
+                      ;;
+                    slave|replica)
+                      mh="$(echo "$info" | sed -n 's/^master_host://p' | tr -d '\r' | awk '{ print $1 }')"
+                      if [ -n "$mh" ]; then
+                        discovered="$mh"
+                        break
+                      fi
+                      ;;
+                  esac
+                done
+                echo "$discovered"
+              }
               set -- /etc/valkey/valkey.conf
               bootstrap_marker="/data/.helmforge-sentinel-node-bootstrapped"
               sentinel_master=""
@@ -103,23 +155,29 @@ spec:
               done
               self_fqdn="$(hostname -f)"
               self_ip="$(hostname -i | awk '{ print $1 }')"
+              if [ -z "$sentinel_master" ]; then
+                sentinel_master="$(discover_master_from_peers)"
+                if [ -n "$sentinel_master" ]; then
+                  echo "discovered master ${sentinel_master} from peer nodes"
+                fi
+              fi
               if [ -n "$sentinel_master" ]; then
                 if [ "$sentinel_master" != "$self_fqdn" ] && [ "$sentinel_master" != "$self_ip" ]; then
-                  echo "starting as replica of Sentinel master ${sentinel_master}:{{ .Values.service.ports.valkey }}"
+                  echo "starting as replica of master ${sentinel_master}:{{ .Values.service.ports.valkey }}"
                   set -- "$@" --replicaof "$sentinel_master" {{ .Values.service.ports.valkey }}
                 else
-                  echo "Sentinel reports this pod as the current master; starting without replicaof"
+                  echo "this pod is the current master target; starting without replicaof"
                 fi
               elif [ -f "$bootstrap_marker" ]; then
-                echo "Sentinel master discovery failed for an already bootstrapped node; refusing to start as an unconfirmed master"
+                echo "master discovery failed for an already bootstrapped node; refusing to start as an unconfirmed master"
                 exit 1
               else
                 case "$(hostname)" in
                   *-0)
-                    echo "Sentinel unavailable during first bootstrap; starting as seed master"
+                    echo "Sentinel and peers unavailable during first bootstrap; starting as seed master"
                     ;;
                   *)
-                    echo "Sentinel unavailable during first bootstrap; seeding from {{ include "valkey.nodePodFqdn" . }}:{{ .Values.service.ports.valkey }}"
+                    echo "Sentinel and peers unavailable during first bootstrap; seeding from {{ include "valkey.nodePodFqdn" . }}:{{ .Values.service.ports.valkey }}"
                     set -- "$@" --replicaof {{ include "valkey.nodePodFqdn" . | quote }} {{ .Values.service.ports.valkey }}
                     ;;
                 esac
@@ -198,6 +256,8 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
         {{- end }}
       volumes:
         - name: config

@@ -66,7 +66,8 @@ Data node pod names are role-neutral: `-node-0` is only the seed master at cold 
 | Parameter | Description |
 |-----------|-------------|
 | `architecture` | Must be `sentinel` |
-| `node.replicaCount` | Number of Valkey data nodes |
+| `node.replicaCount` | Number of Valkey data nodes (use >= 2 for data HA) |
+| `node.persistence.enabled` | Data node PVCs (default `false`; peer discovery keeps topology safe without PVCs) |
 | `sentinel.replicaCount` | Number of Sentinel pods (independent of data nodes) |
 | `sentinel.quorum` | Quorum for failover decisions |
 | `pdb.enabled` | Protection against planned disruption |
@@ -102,6 +103,49 @@ sentinel:
   replicaCount: 3
   quorum: 2
 ```
+
+## Resilience and trade-offs
+
+### Default: persistence disabled
+
+`node.persistence.enabled` defaults to `false`. Data nodes use `emptyDir` for `/data`.
+Anti-split-brain safety does not depend on the bootstrap marker surviving reschedules.
+When Sentinel is unreachable, each node probes peer `INFO replication` before choosing a role.
+
+Data loss is possible only if every data node restarts at the same time with no peers online.
+Enable `node.persistence.enabled=true` when you need RDB/AOF to survive pod reschedules.
+
+### Fail-closed with persistence enabled
+
+When persistence is enabled and a node was already bootstrapped, it refuses to start as an
+unconfirmed master if neither Sentinel nor any peer can confirm the current topology.
+The pod exits with code 1 (CrashLoopBackOff) until Sentinel quorum or peer discovery succeeds.
+This is a safety-over-availability trade-off.
+
+A prolonged Sentinel quorum outage can block restarts of persisted nodes until Sentinels recover.
+
+### Hostname discovery
+
+Sentinel is configured with `resolve-hostnames yes` and `announce-hostnames yes`.
+`sentinel get-master-addr-by-name mymaster` returns stable pod hostnames instead of ephemeral IPs.
+
+### HA prerequisites
+
+- `node.replicaCount >= 2` for data-plane HA (at least one replica to promote)
+- `sentinel.replicaCount >= 3` with `sentinel.quorum` aligned to the Sentinel count
+- `pdb.enabled=true` for planned disruption protection
+- spread Sentinels and data nodes across failure domains
+
+## End-to-end validation (k3d)
+
+Run on a lab cluster before production rollout. Shell bootstrap logic is not covered by helm unittest.
+
+1. Install with default values (`node.persistence.enabled=false`) and wait for Ready pods.
+2. Resolve the master via Sentinel and write a test key.
+3. Delete the current master pod; confirm another `-node-N` is promoted and the key survives.
+4. Scale Sentinel to 0 or block Sentinel traffic; delete and recreate `-node-0`.
+   Confirm it joins as replica (no double master) via peer discovery.
+5. After Sentinels recover, confirm `get-master-addr-by-name` returns a hostname, not a pod IP.
 
 ## When to move to another mode
 

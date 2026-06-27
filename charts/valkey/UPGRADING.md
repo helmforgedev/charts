@@ -52,3 +52,21 @@ kubectl exec sts/<release>-valkey-sentinel-0 -- \
 ```
 
 After a forced failover, confirm the elected master pod name is `-node-N`, not `-primary-0`.
+
+## 2.0.x — Sentinel hardening (peer discovery, persistence default)
+
+### What changed
+
+- `node.persistence.enabled` now defaults to `false` for sentinel data nodes.
+- Data nodes probe peer `INFO replication` when Sentinel is unreachable, preventing split-brain
+  on pod reschedule without PVCs.
+- Sentinel config includes `announce-hostnames yes` for stable hostname-based master discovery.
+
+### Operational impact
+
+- Fresh installs no longer create node PVCs unless you set `node.persistence.enabled=true`.
+- With persistence enabled, nodes already bootstrapped fail closed when neither Sentinel nor peers
+  can confirm the role until quorum or peer discovery recovers.
+- Enable persistence when RDB/AOF must survive pod reschedules; peer discovery covers topology safety.
+
+See [docs/sentinel.md](docs/sentinel.md) for resilience trade-offs and k3d validation steps.

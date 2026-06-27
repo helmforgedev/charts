@@ -219,6 +219,17 @@ Common names.
 {{- printf "%s-0.%s" (include "valkey.nodeStatefulSetName" .) (include "valkey.headlessServiceFqdn" .) -}}
 {{- end -}}
 
+{{- define "valkey.nodePeerFqdns" -}}
+{{- $root := . -}}
+{{- $count := int .Values.node.replicaCount -}}
+{{- $fqdns := list -}}
+{{- range $i := until $count -}}
+{{- $fqdn := printf "%s-%d.%s" (include "valkey.nodeStatefulSetName" $root) $i (include "valkey.headlessServiceFqdn" $root) -}}
+{{- $fqdns = append $fqdns $fqdn -}}
+{{- end -}}
+{{- join " " $fqdns -}}
+{{- end -}}
+
 {{- define "valkey.clusterPodFqdn" -}}
 {{- printf "%s.%s" .podName (include "valkey.headlessServiceFqdn" .root) -}}
 {{- end -}}

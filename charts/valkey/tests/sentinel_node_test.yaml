@@ -89,3 +89,64 @@ tests:
             name: extra-config
             configMap:
               name: extra-config
+
+  - it: should use emptyDir for data when node persistence is disabled by default
+    template: sentinel-node-statefulset.yaml
+    set:
+      architecture: sentinel
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+      - notExists:
+          path: spec.volumeClaimTemplates
+
+  - it: should render volume claim templates when node persistence is enabled
+    template: sentinel-node-statefulset.yaml
+    set:
+      architecture: sentinel
+      node.persistence.enabled: true
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: data
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+
+  - it: should probe peer nodes for master discovery
+    template: sentinel-node-statefulset.yaml
+    set:
+      architecture: sentinel
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: discover_master_from_peers
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: discover_master_from_peers
+
+  - it: should set securityContext on the metrics sidecar
+    template: sentinel-node-statefulset.yaml
+    set:
+      architecture: sentinel
+      metrics.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: metrics
+      - isNotNull:
+          path: spec.template.spec.containers[1].securityContext
+
+  - it: should enable announce-hostnames in managed sentinel config
+    template: configmap.yaml
+    set:
+      architecture: sentinel
+    asserts:
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "sentinel announce-hostnames yes"
