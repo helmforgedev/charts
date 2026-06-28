@@ -11,6 +11,18 @@ In `architecture: sentinel`, the chart no longer renders separate `-primary` and
 
 The `-primary` and `-replicas` Services are no longer created in sentinel mode. Clients must discover the current master through the `-sentinel` Service.
 
+Additionally:
+
+- `node.persistence.enabled` now defaults to `false` for sentinel data nodes.
+- Data nodes probe peer `INFO replication` when Sentinel is unreachable, preventing split-brain
+  on pod reschedule without PVCs.
+- Sentinel config includes `announce-hostnames yes` for stable hostname-based master discovery.
+
+### Operational impact
+
+- Fresh installs no longer create node PVCs unless you set `node.persistence.enabled=true`.
+- With persistence enabled, nodes already bootstrapped fail closed when neither Sentinel nor peers
+
 ### Why this is a breaking change
 
 Kubernetes StatefulSet names and PVC claim names are immutable. An in-place `helm upgrade` from 1.x cannot rename `-primary`/`-replica` workloads to `-node`.
@@ -52,20 +64,6 @@ kubectl exec sts/<release>-valkey-sentinel-0 -- \
 ```
 
 After a forced failover, confirm the elected master pod name is `-node-N`, not `-primary-0`.
-
-## 2.0.x — Sentinel hardening (peer discovery, persistence default)
-
-### What changed
-
-- `node.persistence.enabled` now defaults to `false` for sentinel data nodes.
-- Data nodes probe peer `INFO replication` when Sentinel is unreachable, preventing split-brain
-  on pod reschedule without PVCs.
-- Sentinel config includes `announce-hostnames yes` for stable hostname-based master discovery.
-
-### Operational impact
-
-- Fresh installs no longer create node PVCs unless you set `node.persistence.enabled=true`.
-- With persistence enabled, nodes already bootstrapped fail closed when neither Sentinel nor peers
   can confirm the role until quorum or peer discovery recovers.
 - Enable persistence when RDB/AOF must survive pod reschedules; peer discovery covers topology safety.
 
