@@ -1,6 +1,6 @@
 # Docmost Chart Design
 
-This chart packages Docmost as a single application Deployment backed by
+This chart packages Docmost as an application Deployment backed by
 PostgreSQL, Redis, and either local persistent storage or S3-compatible object
 storage.
 
@@ -25,8 +25,8 @@ User
 - Default installs use HelmForge PostgreSQL `2.0.2` and Redis `1.6.16`
   subcharts so database/cache lifecycle stays inside the HelmForge ecosystem.
 - `replicaCount` defaults to one because local uploaded-file storage is
-  single-writer. Operators that need horizontal scaling should first move
-  uploads to shared object storage and validate upstream runtime behavior.
+  single-writer. Values greater than one are allowed only with S3-compatible
+  object storage.
 - The chart uses only the standard `gateway` block for Gateway API routing.
 - External services are first-class for managed PostgreSQL and Redis setups.
 - External Secrets Operator support is limited to credential materialization and
@@ -39,7 +39,7 @@ User
 The chart exposes pod/container security contexts, scheduling controls,
 resource configuration, Secret indirection, Gateway API, Ingress, dual-stack
 Service options, and backup settings. Defaults are intentionally conservative
-for a practical single-instance install.
+for a practical local-storage install.
 
 ## Non-Goals
 
@@ -56,6 +56,7 @@ for a practical single-instance install.
 - External Secrets rendering
 - Backup CronJob rendering
 - Dual-stack Service rendering
+- S3-backed multi-replica rendering
 
 ## Related Files
 

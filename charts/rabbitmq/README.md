@@ -187,7 +187,7 @@ externalSecrets:
 
 ### Runtime efficiency
 
-- the default image is `docker.io/library/rabbitmq:4.3.1-alpine`; it contains the management, Prometheus, and Kubernetes peer-discovery plugins, and the chart enables only the plugins requested by values
+- the default image is `docker.io/library/rabbitmq:4.3.2-alpine`; it contains the management, Prometheus, and Kubernetes peer-discovery plugins, and the chart enables only the plugins requested by values
 - `runtime.disableSchedulerBusyWait=true` is enabled by default to reduce idle CPU from Erlang scheduler spin-wait in containers
 - default Kubernetes probes use lightweight TCP checks against the active AMQP listener instead of recurring `rabbitmq-diagnostics` commands
 - use `runtime.additionalErlArgs` for extra Erlang VM flags and reserve `extraEnv` for explicit upstream environment variables or full overrides
@@ -198,7 +198,7 @@ externalSecrets:
 |-----------|-------------|---------|
 | `architecture` | `single-node` or `cluster` | `single-node` |
 | `image.repository` | RabbitMQ image repository | `rabbitmq` |
-| `image.tag` | RabbitMQ image tag | `4.3.1-alpine` |
+| `image.tag` | RabbitMQ image tag | `4.3.2-alpine` |
 | `auth.username` | Application username | `user` |
 | `auth.password` | Application password | `""` |
 | `auth.erlangCookie` | Erlang cookie | `""` |

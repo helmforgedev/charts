@@ -150,14 +150,24 @@ mysql://$(DB_USER):$(DB_PASS)@{{ include "appwrite.databaseHost" . }}:{{ include
 
 {{/* ---- Redis helpers ---- */}}
 {{- define "appwrite.cacheMode" -}}
+{{- $mode := .Values.cache.mode | default "auto" -}}
 {{- $hasExternal := or (ne (.Values.cache.external.host | default "") "") (ne (.Values.cache.external.existingSecret | default "") "") -}}
 {{- $hasSubchart := .Values.redis.enabled | default false -}}
-{{- if and $hasExternal $hasSubchart -}}
-{{- fail "appwrite cache selection is ambiguous: configure only one of cache.external.* or redis.enabled" -}}
-{{- end -}}
-{{- if $hasExternal -}}external
-{{- else if $hasSubchart -}}subchart
-{{- else -}}{{- fail "appwrite requires Redis: enable redis.enabled or configure cache.external.host" -}}
+{{- if eq $mode "auto" -}}
+  {{- if and $hasExternal $hasSubchart -}}
+    {{- fail "appwrite cache selection is ambiguous: configure only one of cache.external.* or redis.enabled" -}}
+  {{- end -}}
+  {{- if $hasExternal -}}external
+  {{- else if $hasSubchart -}}subchart
+  {{- else -}}{{- fail "appwrite requires Redis: enable redis.enabled or configure cache.external.host" -}}
+  {{- end -}}
+{{- else if eq $mode "external" -}}
+  {{- if not $hasExternal -}}
+    {{- fail "cache.mode=external requires cache.external.host or cache.external.existingSecret" -}}
+  {{- end -}}
+external
+{{- else -}}
+  {{- fail (printf "cache.mode must be one of: auto, external (got %s)" $mode) -}}
 {{- end -}}
 {{- end -}}
 
@@ -200,6 +210,31 @@ Appwrite Redis URL: redis://:password@host:port
 */}}
 {{- define "appwrite.redisUrl" -}}
 redis://:$(REDIS_PASS)@{{ include "appwrite.redisHost" . }}:{{ include "appwrite.redisPort" . }}
+{{- end -}}
+
+{{/* ---- Init containers for backend workloads ---- */}}
+{{- define "appwrite.waitForServicesInitContainers" -}}
+initContainers:
+  - name: wait-for-db
+    image: docker.io/library/busybox:1.37
+    imagePullPolicy: IfNotPresent
+    command: ["sh", "-c"]
+    args:
+      - |
+        until nc -z -w2 {{ include "appwrite.databaseHost" . }} {{ include "appwrite.databasePort" . }}; do
+          echo "waiting for database";
+          sleep 2;
+        done
+  - name: wait-for-redis
+    image: docker.io/library/busybox:1.37
+    imagePullPolicy: IfNotPresent
+    command: ["sh", "-c"]
+    args:
+      - |
+        until nc -z -w2 {{ include "appwrite.redisHost" . }} {{ include "appwrite.redisPort" . }}; do
+          echo "waiting for redis";
+          sleep 2;
+        done
 {{- end -}}
 
 {{/* ---- Domain ---- */}}

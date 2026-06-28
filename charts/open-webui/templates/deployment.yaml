@@ -32,6 +32,25 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if eq (include "open-webui.databaseMode" .) "auto" }}
+      initContainers:
+        - name: wait-for-postgresql
+          image: {{ .Values.backup.images.postgresql | quote }}
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              until pg_isready -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}"; do
+                sleep 2
+              done
+          env:
+            - name: DB_HOST
+              value: {{ include "open-webui.databaseHost" . | quote }}
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_USER
+              value: {{ .Values.postgresql.auth.username | quote }}
+      {{- end }}
       containers:
         - name: open-webui
           image: {{ include "open-webui.image" . | quote }}

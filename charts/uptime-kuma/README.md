@@ -154,6 +154,14 @@ before upgrading live instances.
 - [Chart design](DESIGN.md)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/uptime-kuma)
 
+### Security Scan: `uptime-kuma`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **80.30303%** |
+
+Security posture acceptable.
+
 <!-- @AI-METADATA
 @description: README for the Uptime Kuma Helm chart
 @type: chart-readme
