@@ -94,9 +94,12 @@ flowchart LR
   Node2 --> PVC2[(PVC)]
 ```
 
-Sentinel is a distinct architecture because it changes the client contract. Data nodes are role-neutral peers; Sentinel pods monitor the elected master and can promote any data node after failover. Sentinel pods wait for the seed master before startup and use hostname resolution (`resolve-hostnames` and `announce-hostnames`) so custom cluster domains work consistently.
+Sentinel is a distinct architecture because it changes the client contract. Data nodes are role-neutral peers; Sentinel pods monitor the elected master and can promote any data node after failover.
+Sentinel pods wait for the seed master before startup and use hostname resolution (`resolve-hostnames` and `announce-hostnames`) so custom cluster domains work consistently.
 
-Data node bootstrap queries Sentinel first, then probes peer `INFO replication` when Sentinel is unreachable. This prevents split-brain on pod reschedule without PVCs. `node.persistence.enabled` defaults to `false`; enable persistence when RDB/AOF must survive reschedules. Persisted nodes fail closed when neither Sentinel nor peers can confirm the role.
+Data node bootstrap queries Sentinel first, then probes peer `INFO replication` when Sentinel is unreachable.
+This prevents split-brain on pod reschedule without PVCs. `node.persistence.enabled` defaults to `false`; enable persistence when RDB/AOF must survive reschedules.
+Persisted nodes fail closed when neither Sentinel nor peers can confirm the role.
 
 ### Valkey Cluster
 
