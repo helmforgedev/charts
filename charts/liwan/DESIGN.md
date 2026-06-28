@@ -1,6 +1,6 @@
 # Liwan Chart Design
 
-This chart deploys Liwan as a single-instance web analytics service using the official `ghcr.io/explodingcamera/liwan:1.5.0` image.
+This chart deploys Liwan as a single-instance web analytics service using the official `ghcr.io/explodingcamera/liwan:1.6.0` image.
 
 ## Product Model
 

@@ -75,6 +75,26 @@ resources:
     memory: 3Gi
 ```
 
+## Air-Gapped or Proxied Registries
+
+The `wait-for-db` init container image is configurable separately from the main
+Metabase image, so proxy-based environments can mirror both images:
+
+```yaml
+image:
+  repository: registry.example.com/proxy/metabase/metabase
+  tag: v0.62.2
+
+waitForDatabase:
+  image:
+    repository: registry.example.com/proxy/library/busybox
+    tag: "1.37"
+```
+
+Use `extraInitContainers` with `extraVolumes` and `extraVolumeMounts` when you
+need to prepare files before Metabase starts, for example JDBC drivers mounted
+into a shared plugin directory.
+
 ## Dual-Stack Service
 
 ```yaml
@@ -130,7 +150,10 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/metabase/metabase` | Metabase container image repository |
-| `image.tag` | `v0.62.1` | Metabase container image tag |
+| `image.tag` | `v0.62.2` | Metabase container image tag |
+| `waitForDatabase.image.repository` | `docker.io/library/busybox` | Wait-for-db init container image repository |
+| `waitForDatabase.image.tag` | `1.37` | Wait-for-db init container image tag |
+| `waitForDatabase.image.pullPolicy` | `IfNotPresent` | Wait-for-db init container image pull policy |
 | `metabase.port` | `3000` | Application port |
 | `metabase.encryptionSecretKey` | `""` | Encryption key (auto-generated) |
 | `metabase.siteUrl` | `""` | Public site URL |
@@ -146,6 +169,7 @@ externalSecrets:
 | `service.port` | `80` | Service port |
 | `service.ipFamilyPolicy` | `~` | IP family policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
 | `service.ipFamilies` | `[]` | IP families override (`IPv4`, `IPv6`) |
+| `extraInitContainers` | `[]` | Additional init containers rendered after `wait-for-db` |
 | `gateway.enabled` | `false` | Enable Gateway API HTTPRoute |
 | `gateway.parentRefs` | `[]` | Gateway parentRefs (required when `gateway.enabled=true`) |
 | `gateway.hostnames` | `[]` | HTTPRoute hostnames |
@@ -160,7 +184,7 @@ externalSecrets:
 
 ## Upgrade Notes
 
-Metabase `v0.62.1` updates the application to the latest upstream release and
+Metabase `v0.62.2` updates the application to the latest upstream release and
 repairs the chart's validation scenarios for single-stack clusters, external
 database fixtures, and External Secrets. Back up the Metabase application
 database before upgrading, keep the encryption key stable, and validate the

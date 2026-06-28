@@ -34,7 +34,7 @@ helm install docmost oci://ghcr.io/helmforgedev/helm/docmost
 
 ## Important Notes
 
-- this chart currently supports `replicaCount=1` only
+- `replicaCount` values greater than `1` require `storage.mode=s3`
 - Docmost requires PostgreSQL and Redis
 - local storage uses `/app/data/storage`
 - S3 mode uses the official `AWS_S3_*` environment variables documented by Docmost
@@ -151,7 +151,7 @@ backup:
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `replicaCount` | `1` | Number of Docmost application pods |
+| `replicaCount` | `1` | Number of Docmost application pods. Values greater than `1` require `storage.mode=s3` |
 | `image.repository` | `docker.io/docmost/docmost` | Docmost container image repository |
 | `image.tag` | `0.90.1` | Docmost image tag |
 | `docmost.appUrl` | `""` | External Docmost URL |
