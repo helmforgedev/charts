@@ -28,6 +28,7 @@ helm install valkey oci://ghcr.io/helmforgedev/helm/valkey -f values.yaml
 - dual-stack service fields through `service.ipFamilyPolicy` and `service.ipFamilies`
 - optional TLS file wiring for Valkey server configuration
 - optional Valkey exporter sidecar and `ServiceMonitor`
+- optional `NetworkPolicy` for ingress traffic control
 - optional `PodDisruptionBudget`
 - topology-specific Services, StatefulSets, and Valkey Cluster bootstrap Job
 - `extraEnv`, `extraVolumes`, `extraVolumeMounts`, and `extraManifests` extension points
@@ -38,7 +39,7 @@ helm install valkey oci://ghcr.io/helmforgedev/helm/valkey -f values.yaml
 |-------------|----------|-------------------|----------|
 | `standalone` | One Valkey pod, lowest operational complexity, no HA contract | headless Service, client Service, StatefulSet | [docs/standalone.md](docs/standalone.md) |
 | `replication` | One fixed primary with read replicas, no automatic promotion | headless Service, primary Service, replica Service, primary and replica StatefulSets | [docs/replication.md](docs/replication.md) |
-| `sentinel` | Valkey replication plus Sentinel primary discovery and failover for compatible clients | replication resources, Sentinel Service, Sentinel StatefulSet | [docs/sentinel.md](docs/sentinel.md) |
+| `sentinel` | Valkey data nodes plus Sentinel primary discovery and failover for compatible clients | node StatefulSet, Sentinel Service, Sentinel StatefulSet | [docs/sentinel.md](docs/sentinel.md) |
 | `cluster` | Valkey Cluster sharding and HA for Valkey Cluster-compatible clients | headless Service, client Service, cluster StatefulSet, cluster init Job | [docs/cluster.md](docs/cluster.md) |
 
 ## How to choose the architecture
@@ -120,7 +121,7 @@ The chart creates a headless Service for stable StatefulSet pod DNS and topology
 |------|-----------------------|
 | `standalone` | `<release>-valkey-client` |
 | `replication` | `<release>-valkey-primary` for writes, `<release>-valkey-replicas` for reads |
-| `sentinel` | `<release>-valkey-sentinel` for Sentinel, plus replication services |
+| `sentinel` | `<release>-valkey-sentinel` for Sentinel-aware clients |
 | `cluster` | `<release>-valkey-client` |
 
 ### Cluster domain
@@ -153,10 +154,13 @@ Persistence is configured under each topology:
 - `standalone.persistence`
 - `replication.primary.persistence`
 - `replication.replica.persistence`
+- `node.persistence` (sentinel mode)
 - `sentinel.persistence`
 - `cluster.persistence`
 
-Use persistent volumes for production stateful modes. Disable persistence only for ephemeral tests and short-lived environments.
+Use persistent volumes for production stateful modes when RDB/AOF must survive pod reschedules.
+In sentinel mode, `node.persistence.enabled` defaults to `false`; peer discovery keeps topology safe without PVCs.
+Disable persistence only for ephemeral tests and short-lived environments in other modes.
 
 ## Observability
 
@@ -222,7 +226,9 @@ Use the generic extension values when platform-specific integration is needed:
 | `tls.enabled` | Enable Valkey TLS settings. Requires `tls.existingSecret`. | `false` |
 | `tls.insecureSkipVerify` | Append `--insecure` to chart-rendered `valkey-cli` TLS clients for CI or self-signed test certificates | `false` |
 | `standalone.persistence.enabled` | Enable persistence for standalone mode | `true` |
-| `replication.replicaCount` | Number of replica pods in replication and sentinel modes | `2` |
+| `replication.replicaCount` | Number of replica pods in replication mode | `2` |
+| `node.replicaCount` | Number of Valkey data nodes in sentinel mode | `3` |
+| `node.persistence.enabled` | Enable PVCs for sentinel data nodes | `false` |
 | `sentinel.replicaCount` | Number of Sentinel pods | `3` |
 | `sentinel.quorum` | Sentinel quorum | `2` |
 | `cluster.nodes` | Number of Valkey Cluster nodes | `6` |
@@ -231,6 +237,7 @@ Use the generic extension values when platform-specific integration is needed:
 | `service.type` | Client Service type where applicable | `ClusterIP` |
 | `service.ipFamilyPolicy` | Service IP family policy for dual-stack clusters | `null` |
 | `service.ipFamilies` | Service IP families for dual-stack clusters | `[]` |
+| `networkPolicy.enabled` | Enable NetworkPolicy | `false` |
 | `metrics.enabled` | Enable redis_exporter sidecar | `false` |
 | `metrics.securityContext.runAsUser` | Metrics exporter container user ID | `65534` |
 | `metrics.securityContext.capabilities.drop` | Linux capabilities dropped from the metrics exporter | `["ALL"]` |
@@ -266,6 +273,7 @@ The `ci/` scenarios validate chart behavior across common configurations:
 - `cluster.yaml`
 - `existing-secret.yaml`
 - `external-secrets.yaml`
+- `networkpolicy.yaml`
 - `metrics.yaml`
 - `dual-stack.yaml`
 - `tls-replication.yaml`
