@@ -219,6 +219,7 @@ Recommended production controls:
 
 - pod anti-affinity for Valkey replicas and Sentinel pods
 - topology spread constraints across zones or hosts
+- NetworkPolicy for ingress trafic control
 - PodDisruptionBudgets for HA modes
 - explicit resource requests and limits
 - node selectors or tolerations only when they reflect real platform policy

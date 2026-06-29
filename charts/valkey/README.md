@@ -28,6 +28,7 @@ helm install valkey oci://ghcr.io/helmforgedev/helm/valkey -f values.yaml
 - dual-stack service fields through `service.ipFamilyPolicy` and `service.ipFamilies`
 - optional TLS file wiring for Valkey server configuration
 - optional Valkey exporter sidecar and `ServiceMonitor`
+- optional `NetworkPolicy` for ingress traffic control
 - optional `PodDisruptionBudget`
 - topology-specific Services, StatefulSets, and Valkey Cluster bootstrap Job
 - `extraEnv`, `extraVolumes`, `extraVolumeMounts`, and `extraManifests` extension points
@@ -236,6 +237,7 @@ Use the generic extension values when platform-specific integration is needed:
 | `service.type` | Client Service type where applicable | `ClusterIP` |
 | `service.ipFamilyPolicy` | Service IP family policy for dual-stack clusters | `null` |
 | `service.ipFamilies` | Service IP families for dual-stack clusters | `[]` |
+| `networkPolicy.enabled` | Enable NetworkPolicy | `false` |
 | `metrics.enabled` | Enable redis_exporter sidecar | `false` |
 | `metrics.securityContext.runAsUser` | Metrics exporter container user ID | `65534` |
 | `metrics.securityContext.capabilities.drop` | Linux capabilities dropped from the metrics exporter | `["ALL"]` |
@@ -271,6 +273,7 @@ The `ci/` scenarios validate chart behavior across common configurations:
 - `cluster.yaml`
 - `existing-secret.yaml`
 - `external-secrets.yaml`
+- `networkpolicy.yaml`
 - `metrics.yaml`
 - `dual-stack.yaml`
 - `tls-replication.yaml`
