@@ -1,0 +1,282 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if include "valkey.isSentinel" . }}
+{{- if lt (int .Values.sentinel.replicaCount) 3 }}
+{{- fail "sentinel.replicaCount must be at least 3 for a reliable Sentinel quorum in HA configurations" }}
+{{- end }}
+{{- if gt (int .Values.sentinel.quorum) (int .Values.sentinel.replicaCount) }}
+{{- fail (printf "sentinel.quorum (%v) cannot exceed sentinel.replicaCount (%v)" .Values.sentinel.quorum .Values.sentinel.replicaCount) }}
+{{- end }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "valkey.nodeStatefulSetName" . }}
+  labels:
+    {{- include "valkey.labels" . | nindent 4 }}
+  {{- include "valkey.renderAnnotations" (dict "root" .) | nindent 2 }}
+spec:
+  serviceName: {{ include "valkey.headlessServiceName" . }}
+  replicas: {{ .Values.node.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "valkey.componentLabels" (dict "root" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "valkey.componentLabels" (dict "root" .) | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.auth.enabled }}
+        checksum/auth-secret: {{ include "valkey.authChecksum" . }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "valkey.podSpecCommon" . | nindent 6 }}
+      initContainers:
+        - name: wait-for-master
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-ec"]
+          args:
+            - |
+              discover_master_from_peers() {
+                discovered=""
+                self_fqdn="$(hostname -f)"
+                for peer in {{ include "valkey.nodePeerFqdns" . }}; do
+                  [ "$peer" = "$self_fqdn" ] && continue
+                  info="$(valkey-cli {{ include "valkey.cliTlsArgs" . }} -h "$peer" -p {{ .Values.service.ports.valkey }} {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" --no-auth-warning {{- end }} info replication 2>/dev/null || true)"
+                  [ -z "$info" ] && continue
+                  role="$(echo "$info" | sed -n 's/^role://p' | tr -d '\r' | awk '{ print $1 }')"
+                  case "$role" in
+                    master)
+                      discovered="$peer"
+                      break
+                      ;;
+                    slave|replica)
+                      mh="$(echo "$info" | sed -n 's/^master_host://p' | tr -d '\r' | awk '{ print $1 }')"
+                      if [ -n "$mh" ]; then
+                        discovered="$mh"
+                        break
+                      fi
+                      ;;
+                  esac
+                done
+                echo "$discovered"
+              }
+              sentinel_master=""
+              for attempt in $(seq 1 30); do
+                sentinel_master="$(valkey-cli {{ include "valkey.cliTlsArgs" . }} -h {{ include "valkey.sentinelServiceFqdn" . | quote }} -p {{ .Values.service.ports.sentinel }} sentinel get-master-addr-by-name mymaster 2>/dev/null | awk 'NR == 1 { print $1 }')"
+                [ -n "$sentinel_master" ] && break
+                echo "waiting for Sentinel master discovery ($attempt/30)"
+                sleep 2
+              done
+              if [ -z "$sentinel_master" ]; then
+                sentinel_master="$(discover_master_from_peers)"
+                if [ -n "$sentinel_master" ]; then
+                  echo "discovered master ${sentinel_master} from peer nodes"
+                elif [ -f /data/.helmforge-sentinel-node-bootstrapped ]; then
+                  echo "Sentinel and peers unavailable for already bootstrapped node; main container will fail closed if the role cannot be confirmed"
+                  exit 0
+                else
+                  sentinel_master={{ include "valkey.nodePodFqdn" . | quote }}
+                fi
+              fi
+              self_fqdn="$(hostname -f)"
+              self_ip="$(hostname -i | awk '{ print $1 }')"
+              if [ "$sentinel_master" = "$self_fqdn" ] || [ "$sentinel_master" = "$self_ip" ]; then
+                echo "this pod is the master target; skipping init wait"
+                exit 0
+              fi
+              until valkey-cli {{ include "valkey.cliTlsArgs" . }} -h "$sentinel_master" -p {{ .Values.service.ports.valkey }} {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" --no-auth-warning {{- end }} ping >/dev/null 2>&1; do
+                echo "waiting for master ${sentinel_master}:{{ .Values.service.ports.valkey }}"
+                sleep 5
+              done
+          {{- if .Values.auth.enabled }}
+          env:
+            - name: VALKEY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "valkey.secretName" . }}
+                  key: {{ .Values.auth.existingSecretPasswordKey }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
+      containers:
+        - name: valkey
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-ec"]
+          args:
+            - |
+              discover_master_from_peers() {
+                discovered=""
+                self_fqdn="$(hostname -f)"
+                for peer in {{ include "valkey.nodePeerFqdns" . }}; do
+                  [ "$peer" = "$self_fqdn" ] && continue
+                  info="$(valkey-cli {{ include "valkey.cliTlsArgs" . }} -h "$peer" -p {{ .Values.service.ports.valkey }} {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" --no-auth-warning {{- end }} info replication 2>/dev/null || true)"
+                  [ -z "$info" ] && continue
+                  role="$(echo "$info" | sed -n 's/^role://p' | tr -d '\r' | awk '{ print $1 }')"
+                  case "$role" in
+                    master)
+                      discovered="$peer"
+                      break
+                      ;;
+                    slave|replica)
+                      mh="$(echo "$info" | sed -n 's/^master_host://p' | tr -d '\r' | awk '{ print $1 }')"
+                      if [ -n "$mh" ]; then
+                        discovered="$mh"
+                        break
+                      fi
+                      ;;
+                  esac
+                done
+                echo "$discovered"
+              }
+              set -- /etc/valkey/valkey.conf
+              bootstrap_marker="/data/.helmforge-sentinel-node-bootstrapped"
+              sentinel_master=""
+              for attempt in $(seq 1 30); do
+                sentinel_master="$(valkey-cli {{ include "valkey.cliTlsArgs" . }} -h {{ include "valkey.sentinelServiceFqdn" . | quote }} -p {{ .Values.service.ports.sentinel }} sentinel get-master-addr-by-name mymaster 2>/dev/null | awk 'NR == 1 { print $1 }')"
+                [ -n "$sentinel_master" ] && break
+                echo "waiting for Sentinel master discovery ($attempt/30)"
+                sleep 2
+              done
+              self_fqdn="$(hostname -f)"
+              self_ip="$(hostname -i | awk '{ print $1 }')"
+              if [ -z "$sentinel_master" ]; then
+                sentinel_master="$(discover_master_from_peers)"
+                if [ -n "$sentinel_master" ]; then
+                  echo "discovered master ${sentinel_master} from peer nodes"
+                fi
+              fi
+              if [ -n "$sentinel_master" ]; then
+                if [ "$sentinel_master" != "$self_fqdn" ] && [ "$sentinel_master" != "$self_ip" ]; then
+                  echo "starting as replica of master ${sentinel_master}:{{ .Values.service.ports.valkey }}"
+                  set -- "$@" --replicaof "$sentinel_master" {{ .Values.service.ports.valkey }}
+                else
+                  echo "this pod is the current master target; starting without replicaof"
+                fi
+              elif [ -f "$bootstrap_marker" ]; then
+                echo "master discovery failed for an already bootstrapped node; refusing to start as an unconfirmed master"
+                exit 1
+              else
+                case "$(hostname)" in
+                  *-0)
+                    echo "Sentinel and peers unavailable during first bootstrap; starting as seed master"
+                    ;;
+                  *)
+                    echo "Sentinel and peers unavailable during first bootstrap; seeding from {{ include "valkey.nodePodFqdn" . }}:{{ .Values.service.ports.valkey }}"
+                    set -- "$@" --replicaof {{ include "valkey.nodePodFqdn" . | quote }} {{ .Values.service.ports.valkey }}
+                    ;;
+                esac
+              fi
+              touch "$bootstrap_marker"
+              {{- if .Values.auth.enabled }}
+              set -- "$@" --masterauth "$VALKEY_PASSWORD" --requirepass "$VALKEY_PASSWORD"
+              {{- end }}
+              exec valkey-server "$@"
+          ports:
+            - name: valkey
+              containerPort: {{ .Values.service.ports.valkey }}
+          env:
+            {{- if .Values.auth.enabled }}
+            - name: VALKEY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "valkey.secretName" . }}
+                  key: {{ .Values.auth.existingSecretPasswordKey }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - {{ include "valkey.probeCommand" . | quote }}
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - {{ include "valkey.probeCommand" . | quote }}
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - {{ include "valkey.probeCommand" . | quote }}
+            {{- toYaml .Values.startupProbe | nindent 12 }}
+          {{- with .Values.node.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/valkey/valkey.conf
+              subPath: valkey-node.conf
+            - name: data
+              mountPath: /data
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- if .Values.metrics.enabled }}
+        - name: metrics
+          image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
+          imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
+          env:
+            {{- include "valkey.exporterEnv" . | nindent 12 }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.service.ports.metrics }}
+          {{- include "valkey.metricsVolumeMounts" . | nindent 10 }}
+          {{- with .Values.metrics.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+        {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "valkey.configMapName" . }}
+        {{- if not .Values.node.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+        {{- if .Values.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ .Values.tls.existingSecret }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+  {{- if .Values.node.persistence.enabled }}
+  volumeClaimTemplates:
+    {{- include "valkey.volumeClaimTemplate" (dict "root" . "persistence" .Values.node.persistence) | nindent 4 }}
+  {{- end }}
+{{- end }}
