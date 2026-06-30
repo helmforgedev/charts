@@ -95,7 +95,7 @@ Configuration checksum for pod rollouts.
 */}}
 {{- define "notediscovery.configChecksum" -}}
 {{- if .Values.auth.existingSecret -}}
-{{- dict "existingSecret" .Values.auth.existingSecret "existingSecretKey" .Values.auth.existingSecretKey "externalSecrets" .Values.externalSecrets | toJson | sha256sum -}}
+{{- dict "existingSecret" .Values.auth.existingSecret "existingSecretKey" .Values.auth.existingSecretKey "externalSecrets" .Values.externalSecrets "extraManifests" .Values.extraManifests | toJson | sha256sum -}}
 {{- else if .Values.auth.enabled -}}
 {{- include (print .Template.BasePath "/secret.yaml") . | sha256sum -}}
 {{- else -}}
