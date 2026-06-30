@@ -1,12 +1,20 @@
 # NoteDiscovery Helm Chart
 
-Deploy [NoteDiscovery](https://github.com/gamosoft/NoteDiscovery), a self-hosted Markdown knowledge base with graph view, search, sharing, and MCP integration.
+Deploy [NoteDiscovery](https://github.com/gamosoft/NoteDiscovery), a
+self-hosted Markdown knowledge base with graph view, search, sharing, and MCP
+integration.
 
-This chart packages the official `ghcr.io/gamosoft/notediscovery:0.27.3` image and exposes the runtime settings that matter for Kubernetes: persistent note storage, generated or externally managed `config.yaml`, optional authentication, ingress/Gateway API exposure, network policy, pod disruption budget, and non-root security context.
+This chart packages the official `ghcr.io/gamosoft/notediscovery:0.27.3` image
+and exposes the runtime settings that matter for Kubernetes: persistent note
+storage, generated or externally managed `config.yaml`, optional authentication,
+ingress/Gateway API exposure, network policy, pod disruption budget, and
+non-root security context.
 
 ## Architecture
 
-NoteDiscovery runs as one Python web service listening on port `8000`. The upstream container stores durable notes and related files under `/app/data` and reads application settings from `/app/config.yaml`.
+NoteDiscovery runs as one Python web service listening on port `8000`. The
+upstream container stores durable notes and related files under `/app/data` and
+reads application settings from `/app/config.yaml`.
 
 The default chart topology is intentionally conservative:
 
@@ -16,7 +24,10 @@ The default chart topology is intentionally conservative:
 - ServiceAccount token automount disabled
 - non-root container security context
 
-When authentication is enabled, the generated `config.yaml` is stored in a Kubernetes Secret so `secret_key`, `password`, and `api_key` are not rendered into a ConfigMap. For GitOps and production, prefer `auth.existingSecret` with a complete `config.yaml` key.
+When authentication is enabled, the generated `config.yaml` is stored in a
+Kubernetes Secret so `secret_key`, `password`, and `api_key` are not rendered
+into a ConfigMap. For GitOps and production, prefer `auth.existingSecret` with a
+complete `config.yaml` key.
 
 ## Install
 
@@ -110,7 +121,9 @@ stringData:
 
 ## Authentication
 
-`auth.enabled=false` is the default so first-time local installs start without credentials. For any shared or internet-facing deployment, enable authentication and provide either:
+`auth.enabled=false` is the default so first-time local installs start without
+credentials. For any shared or internet-facing deployment, enable authentication
+and provide either:
 
 - `auth.secretKey` and `auth.password`, which render into a chart-managed Secret
 - `auth.existingSecret`, which must contain a complete `config.yaml`
@@ -119,9 +132,13 @@ stringData:
 
 ## Storage
 
-Back up the PersistentVolumeClaim before upgrades. NoteDiscovery stores notes and local application data under `/app/data` by default.
+Back up the PersistentVolumeClaim before upgrades. NoteDiscovery stores notes
+and local application data under `/app/data` by default.
 
-The chart blocks `replicaCount > 1` unless `persistence.existingClaim` is set. Multiple pods require storage semantics chosen by the operator, typically a shared ReadWriteMany claim; the default generated claim is a single-writer volume.
+The chart blocks `replicaCount > 1` unless `persistence.existingClaim` is set.
+Multiple pods require storage semantics chosen by the operator, typically a
+shared ReadWriteMany claim; the default generated claim is a single-writer
+volume.
 
 ## Documentation
 
