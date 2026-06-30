@@ -111,7 +111,9 @@ HTTPRoute name helper.
 {{- $route := .route -}}
 {{- $index := .index | default 0 -}}
 {{- if $route.name -}}
-{{- printf "%s-%s" (include "notediscovery.fullname" $root) $route.name | trunc 63 | trimSuffix "-" -}}
+{{- $suffix := printf "-%s" $route.name -}}
+{{- $base := include "notediscovery.fullname" $root | trunc (int (sub 63 (len $suffix))) | trimSuffix "-" -}}
+{{- printf "%s%s" $base $suffix -}}
 {{- else if gt (int $index) 0 -}}
 {{- $suffix := printf "-%d" (int $index) -}}
 {{- $base := include "notediscovery.fullname" $root | trunc (int (sub 63 (len $suffix))) | trimSuffix "-" -}}
@@ -131,7 +133,9 @@ ExternalSecret name helper.
 {{- if $item.fullnameOverride -}}
 {{- $item.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else if $item.name -}}
-{{- printf "%s-%s" (include "notediscovery.fullname" $root) $item.name | trunc 63 | trimSuffix "-" -}}
+{{- $suffix := printf "-%s" $item.name -}}
+{{- $base := include "notediscovery.fullname" $root | trunc (int (sub 63 (len $suffix))) | trimSuffix "-" -}}
+{{- printf "%s%s" $base $suffix -}}
 {{- else if gt $index 0 -}}
 {{- $suffix := printf "-%d" $index -}}
 {{- $base := include "notediscovery.configName" $root | trunc (int (sub 63 (len $suffix))) | trimSuffix "-" -}}
