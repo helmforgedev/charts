@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: notediscovery base templates
+templates:
+  - templates/configmap.yaml
+  - templates/deployment.yaml
+  - templates/ingress.yaml
+  - templates/pvc.yaml
+  - templates/service.yaml
+tests:
+  - it: renders the official pinned image
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/gamosoft/notediscovery:0.27.3
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+  - it: renders the default ClusterIP service
+    template: templates/service.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+  - it: renders common labels on a separate line
+    template: templates/service.yaml
+    values:
+      - common-labels-values.yaml
+    asserts:
+      - equal:
+          path: metadata.labels.review
+          value: enabled
+  - it: renders the default config as a ConfigMap
+    template: templates/configmap.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "enabled: false"
+  - it: renders ingress TLS
+    template: templates/ingress.yaml
+    values:
+      - ingress-values.yaml
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: notediscovery-tls
+      - equal:
+          path: spec.tls[0].hosts[0]
+          value: notediscovery.example.com
+  - it: uses emptyDir when persistence is disabled
+    template: templates/deployment.yaml
+    set:
+      persistence.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].name
+          value: data
+      - equal:
+          path: spec.template.spec.volumes[0].emptyDir
+          value: {}
+  - it: creates a PVC when persistence is chart-managed
+    template: templates/pvc.yaml
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: spec.resources.requests.storage
+          value: 5Gi

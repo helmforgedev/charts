@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: notediscovery auth configuration
+templates:
+  - templates/configmap.yaml
+  - templates/deployment.yaml
+  - templates/secret.yaml
+tests:
+  - it: stores generated authenticated config in a Secret
+    values:
+      - auth-values.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/configmap.yaml
+      - isKind:
+          of: Secret
+        template: templates/secret.yaml
+      - matchRegex:
+          path: stringData["config.yaml"]
+          pattern: "enabled: true"
+        template: templates/secret.yaml
+      - equal:
+          path: spec.template.spec.volumes[1].secret.secretName
+          value: RELEASE-NAME-notediscovery-config
+        template: templates/deployment.yaml
+  - it: mounts an existing complete config Secret
+    values:
+      - existing-config-secret-values.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/configmap.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/secret.yaml
+      - equal:
+          path: spec.template.spec.volumes[1].secret.secretName
+          value: notediscovery-config
+        template: templates/deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[1].subPath
+          value: config.yaml
+        template: templates/deployment.yaml

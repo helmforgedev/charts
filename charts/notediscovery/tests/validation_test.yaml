@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: notediscovery validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: fails when scaling without shared storage
+    set:
+      replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCount > 1 requires persistence.existingClaim because NoteDiscovery stores notes as local files on a single writable volume"
+  - it: fails when auth is missing generated credentials
+    set:
+      auth.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "auth.secretKey and auth.password are required when auth.enabled=true unless auth.existingSecret is set"
+  - it: fails when ExternalSecrets is enabled without items
+    set:
+      externalSecrets.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.items must contain at least one item when externalSecrets.enabled=true"
