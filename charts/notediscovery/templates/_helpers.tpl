@@ -125,10 +125,13 @@ ExternalSecret name helper.
 {{- define "notediscovery.externalSecretName" -}}
 {{- $root := .root -}}
 {{- $item := .item -}}
+{{- $index := int (.index | default 0) -}}
 {{- if $item.fullnameOverride -}}
 {{- $item.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else if $item.name -}}
 {{- printf "%s-%s" (include "notediscovery.fullname" $root) $item.name | trunc 63 | trimSuffix "-" -}}
+{{- else if gt $index 0 -}}
+{{- printf "%s-%d" (include "notediscovery.configName" $root) $index | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
 {{- include "notediscovery.configName" $root -}}
 {{- end -}}
