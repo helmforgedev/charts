@@ -1,0 +1,34 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "notediscovery.validate" . }}
+{{- if and (not .Values.auth.enabled) (not .Values.auth.existingSecret) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "notediscovery.configName" . }}
+  labels:
+    {{- include "notediscovery.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    app:
+      name: {{ .Values.notediscovery.appName | quote }}
+    server:
+      host: "0.0.0.0"
+      port: {{ .Values.app.port }}
+      reload: false
+      allowed_origins:
+        {{- toYaml .Values.notediscovery.allowedOrigins | nindent 8 }}
+      debug: {{ .Values.notediscovery.debug }}
+    storage:
+      notes_dir: {{ .Values.persistence.mountPath | quote }}
+      plugins_dir: "./plugins"
+    search:
+      enabled: {{ .Values.notediscovery.searchEnabled }}
+    ui:
+      autosave_delay_ms: {{ .Values.notediscovery.autosaveDelayMs }}
+    authentication:
+      enabled: false
+      secret_key: ""
+      password: ""
+      session_max_age: {{ .Values.auth.sessionMaxAge }}
+      api_key: ""
+{{- end }}

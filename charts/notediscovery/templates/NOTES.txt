@@ -1,0 +1,38 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+NoteDiscovery release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+Workload:
+  kubectl get deploy {{ include "notediscovery.fullname" . }} -n {{ .Release.Namespace }}
+  kubectl rollout status deploy/{{ include "notediscovery.fullname" . }} -n {{ .Release.Namespace }}
+
+Service:
+  kubectl get svc {{ include "notediscovery.fullname" . }} -n {{ .Release.Namespace }}
+
+Local access:
+  kubectl port-forward svc/{{ include "notediscovery.fullname" . }} 8000:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+  Open http://127.0.0.1:8000
+
+Runtime configuration:
+  Data directory: {{ .Values.persistence.mountPath }}
+  Search enabled: {{ .Values.notediscovery.searchEnabled }}
+  Authentication enabled: {{ .Values.auth.enabled }}
+
+Persistence:
+{{- if .Values.persistence.existingClaim }}
+  Existing PVC {{ .Values.persistence.existingClaim }} is mounted.
+{{- else if .Values.persistence.enabled }}
+  PVC is enabled. Back up the data volume before upgrades.
+{{- else }}
+  Persistence is disabled and NoteDiscovery data is stored in an emptyDir.
+{{- end }}
+
+Troubleshooting:
+  kubectl logs deploy/{{ include "notediscovery.fullname" . }} -n {{ .Release.Namespace }}
+  kubectl describe pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Validation:
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+  make validate-chart CHART=notediscovery
+
+Happy Helmforging :)

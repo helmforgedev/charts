@@ -1,0 +1,44 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.gatewayAPI.enabled }}
+{{- $httpRouteNames := dict }}
+{{- range $index, $route := .Values.gatewayAPI.httpRoutes }}
+{{- if not $route.parentRefs }}{{- fail "gatewayAPI.httpRoutes[].parentRefs is required" }}{{- end }}
+{{- $httpRouteName := include "notediscovery.httpRouteName" (dict "root" $ "route" $route "index" $index) }}
+{{- if hasKey $httpRouteNames $httpRouteName }}
+{{- fail (printf "gatewayAPI.httpRoutes render duplicate HTTPRoute name %q; set name to a unique value" $httpRouteName) }}
+{{- end }}
+{{- $_ := set $httpRouteNames $httpRouteName true }}
+{{- if gt $index 0 }}
+---
+{{- end }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ $httpRouteName }}
+  labels:
+    {{- include "notediscovery.labels" $ | nindent 4 }}
+  {{- with $route.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- toYaml $route.parentRefs | nindent 4 }}
+  {{- with $route.hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- if $route.rules }}
+    {{- toYaml $route.rules | nindent 4 }}
+    {{- else }}
+    - matches:
+        - path:
+            type: {{ default "PathPrefix" $route.pathType }}
+            value: {{ default "/" $route.path | quote }}
+      backendRefs:
+        - name: {{ include "notediscovery.fullname" $ }}
+          port: {{ $.Values.service.port }}
+    {{- end }}
+{{- end }}
+{{- end }}
