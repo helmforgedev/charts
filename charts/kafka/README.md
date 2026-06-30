@@ -32,7 +32,7 @@ helm install kafka oci://ghcr.io/helmforgedev/helm/kafka -f values.yaml
 ## What this chart covers
 
 - KRaft only
-- official Kafka `4.3.0` runtime image
+- official Kafka `4.3.1` runtime image
 - persistent storage for single-broker, controllers, and brokers
 - automatic cleanup of `lost+found` directories in PVCs (ext4/xfs compatibility)
 - stable in-cluster advertised listeners for brokers
@@ -128,7 +128,7 @@ metrics:
 |-----------|-------------|---------|
 | `architecture` | `single-broker` or `cluster` | `single-broker` |
 | `image.repository` | Kafka image repository | `apache/kafka` |
-| `image.tag` | Kafka image tag | `4.3.0` |
+| `image.tag` | Kafka image tag | `4.3.1` |
 | `service.type` | Client bootstrap service type | `ClusterIP` |
 | `service.ipFamilyPolicy` | Service IP family policy for client, headless, and metrics Services | `""` |
 | `service.ipFamilies` | Service IP families for client, headless, and metrics Services | `[]` |
