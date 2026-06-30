@@ -69,6 +69,7 @@ Data node pod names are role-neutral: `-node-0` is only the seed master at cold 
 | `node.replicaCount` | Number of Valkey data nodes (use >= 2 for data HA) |
 | `node.persistence.enabled` | Data node PVCs (default `false`; peer discovery keeps topology safe without PVCs) |
 | `sentinel.replicaCount` | Number of Sentinel pods (independent of data nodes) |
+| `sentinel.masterSet` | Master set name that Sentinel clients use for primary discovery |
 | `sentinel.quorum` | Quorum for failover decisions |
 | `pdb.enabled` | Protection against planned disruption |
 | `metrics.enabled` | Exporter for monitoring |
@@ -88,6 +89,7 @@ node:
 
 sentinel:
   replicaCount: 3
+  masterSet: mymaster
   quorum: 2
 ```
 

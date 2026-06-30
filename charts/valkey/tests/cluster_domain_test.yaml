@@ -9,7 +9,7 @@ templates:
   - cluster-init-job.yaml
 release:
   name: test
-  namespace: custom-ns
+  namespace: valkey-ns
 tests:
   - it: should use custom cluster domain in sentinel configuration
     template: configmap.yaml
@@ -19,7 +19,7 @@ tests:
     asserts:
       - matchRegex:
           path: data["sentinel.conf"]
-          pattern: "sentinel monitor mymaster test-valkey-node-0\\.test-valkey-headless\\.custom-ns\\.svc\\.corp\\.internal 6379 2"
+          pattern: "sentinel monitor mymaster test-valkey-node-0\\.test-valkey-headless\\.valkey-ns\\.svc\\.corp\\.internal 6379 2"
       - matchRegex:
           path: data["sentinel.conf"]
           pattern: "sentinel resolve-hostnames yes"
@@ -35,7 +35,7 @@ tests:
     asserts:
       - matchRegex:
           path: spec.template.spec.containers[0].args[0]
-          pattern: '--replicaof "test-valkey-primary-0\.test-valkey-headless\.custom-ns\.svc\.corp\.internal" 6379'
+          pattern: '--replicaof "test-valkey-primary-0\.test-valkey-headless\.valkey-ns\.svc\.corp\.internal" 6379'
       - notMatchRegex:
           path: spec.template.spec.containers[0].args[0]
           pattern: "svc\\.cluster\\.local"
@@ -48,7 +48,7 @@ tests:
     asserts:
       - matchRegex:
           path: spec.template.spec.containers[0].args[0]
-          pattern: 'seeding from test-valkey-node-0\.test-valkey-headless\.custom-ns\.svc\.corp\.internal'
+          pattern: 'seeding from test-valkey-node-0\.test-valkey-headless\.valkey-ns\.svc\.corp\.internal'
       - notMatchRegex:
           path: spec.template.spec.containers[0].args[0]
           pattern: "svc\\.cluster\\.local"
@@ -63,7 +63,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: VALKEY_PRIMARY_HOST
-            value: test-valkey-node-0.test-valkey-headless.custom-ns.svc.corp.internal
+            value: test-valkey-node-0.test-valkey-headless.valkey-ns.svc.corp.internal
       - matchRegex:
           path: spec.template.spec.containers[0].args[0]
           pattern: "until valkey-cli \\$VALKEY_TLS_ARGS -h \"\\$VALKEY_PRIMARY_HOST\""
@@ -76,7 +76,7 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: "$(POD_NAME).test-valkey-headless.custom-ns.svc.corp.internal"
+          content: "$(POD_NAME).test-valkey-headless.valkey-ns.svc.corp.internal"
 
   - it: should use custom cluster domain in cluster init job
     template: cluster-init-job.yaml
@@ -86,7 +86,7 @@ tests:
     asserts:
       - matchRegex:
           path: spec.template.spec.containers[0].args[0]
-          pattern: "test-valkey-cluster-\\$\\{i\\}\\.test-valkey-headless\\.custom-ns\\.svc\\.corp\\.internal"
+          pattern: "test-valkey-cluster-\\$\\{i\\}\\.test-valkey-headless\\.valkey-ns\\.svc\\.corp\\.internal"
       - notMatchRegex:
           path: spec.template.spec.containers[0].args[0]
           pattern: "svc\\.cluster\\.local"
