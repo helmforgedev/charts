@@ -91,6 +91,19 @@ config.yaml
 {{- end -}}
 
 {{/*
+Configuration checksum for pod rollouts.
+*/}}
+{{- define "notediscovery.configChecksum" -}}
+{{- if .Values.auth.existingSecret -}}
+{{- dict "existingSecret" .Values.auth.existingSecret "existingSecretKey" .Values.auth.existingSecretKey "externalSecrets" .Values.externalSecrets | toJson | sha256sum -}}
+{{- else if .Values.auth.enabled -}}
+{{- include (print .Template.BasePath "/secret.yaml") . | sha256sum -}}
+{{- else -}}
+{{- include (print .Template.BasePath "/configmap.yaml") . | sha256sum -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 HTTPRoute name helper.
 */}}
 {{- define "notediscovery.httpRouteName" -}}
