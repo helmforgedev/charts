@@ -1,0 +1,229 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# -- Override the chart name used in Kubernetes object names.
+nameOverride: ""
+
+# -- Override the full release name used in Kubernetes object names.
+fullnameOverride: ""
+
+# -- Extra labels applied to all Kubernetes objects rendered by this chart.
+commonLabels: {}
+
+image:
+  # -- Official Poznote container image repository.
+  repository: ghcr.io/timothepoznanski/poznote
+  # -- Pinned Poznote image tag. Floating tags such as latest are not used by default.
+  tag: "6.29.0"
+  # -- Kubernetes image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Optional image pull secrets for private registries or mirrored images.
+imagePullSecrets: []
+
+# -- Number of Poznote pods. Keep 1 because Poznote uses SQLite for persistence.
+replicaCount: 1
+
+app:
+  # -- Timezone passed to the container via TZ environment variable.
+  timezone: UTC
+  # -- Enable Poznote debug mode. Keep disabled in production.
+  debug: false
+  # -- Optional command override. Leave empty to use the upstream image entrypoint.
+  command: []
+  # -- Optional argument override. Leave empty to use the upstream image defaults.
+  args: []
+  # -- Additional environment variables for advanced upstream flags.
+  env: []
+  # -- Additional envFrom sources such as Secret or ConfigMap references.
+  envFrom: []
+
+secrets:
+  # -- Existing Secret containing Poznote sensitive values. Recommended for production.
+  existingSecret: ""
+  # -- Secret key containing the OIDC client ID.
+  oidcClientIdKey: oidc-client-id
+  # -- Inline OIDC client ID value. Ignored when existingSecret is set.
+  oidcClientId: ""
+  # -- Secret key containing the OIDC client secret.
+  oidcClientSecretKey: oidc-client-secret
+  # -- Inline OIDC client secret value. Ignored when existingSecret is set.
+  oidcClientSecret: ""
+
+poznote:
+  oidc:
+    # -- Disable the local username/password login form and force SSO-only mode.
+    disableNormalLogin: false
+
+persistence:
+  data:
+    # -- Persist Poznote data directory containing the SQLite database, notes, and attachments.
+    enabled: true
+    size: 5Gi
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    existingClaim: ""
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: true
+  # -- ServiceAccount name. Defaults to the release fullname when create=true.
+  name: ""
+  # -- Annotations for the ServiceAccount.
+  annotations: {}
+  # -- Mount the ServiceAccount token in the pod.
+  automountServiceAccountToken: false
+
+service:
+  # -- Service type.
+  type: ClusterIP
+  # -- Service port.
+  port: 80
+  # -- Service annotations.
+  annotations: {}
+  # -- IP family policy. Options: SingleStack, PreferDualStack, RequireDualStack.
+  ipFamilyPolicy: ""
+  # -- Ordered list of IP families, for example ["IPv4", "IPv6"].
+  ipFamilies: []
+
+ingress:
+  # -- Enable Kubernetes Ingress.
+  enabled: false
+  # -- IngressClassName for the generated Ingress.
+  ingressClassName: traefik
+  # -- Ingress annotations.
+  annotations: {}
+  # -- Ingress hosts and paths.
+  hosts: []
+  # -- Ingress TLS blocks.
+  tls: []
+
+gatewayAPI:
+  # -- Enable Gateway API HTTPRoute templates.
+  enabled: false
+  # -- List of HTTPRoute definitions. Each item is rendered as one HTTPRoute.
+  httpRoutes: []
+
+externalSecrets:
+  # -- Render external-secrets.io ExternalSecret resources.
+  enabled: false
+  # -- ExternalSecret apiVersion.
+  apiVersion: external-secrets.io/v1
+  # -- Default sync interval applied to items without their own value.
+  refreshInterval: 1h
+  # -- List of ExternalSecret definitions. Each item carries a complete spec.
+  items: []
+
+probes:
+  startup:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 60
+  liveness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+
+# -- Container resource requests and limits.
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 250m
+    memory: 512Mi
+
+# -- Pod security context.
+podSecurityContext:
+  fsGroup: 82
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container security context.
+# The upstream image starts as root (init.sh runs chown/chmod on the data
+# directory), then supervisord drops to www-data (UID/GID 82) for nginx and
+# PHP-FPM. The required capabilities are:
+#   CHOWN, DAC_OVERRIDE, FOWNER  - init.sh ownership and permission changes
+#   SETUID, SETGID               - PHP-FPM/nginx privilege drop to www-data
+#   NET_BIND_SERVICE             - nginx binds to port 80
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - NET_BIND_SERVICE
+      - SETUID
+      - SETGID
+  readOnlyRootFilesystem: false
+  runAsNonRoot: false
+  seccompProfile:
+    type: RuntimeDefault
+
+pdb:
+  # -- Create a PodDisruptionBudget.
+  enabled: false
+  # -- Minimum available pods during voluntary disruptions.
+  minAvailable: 1
+
+networkPolicy:
+  # -- Create a NetworkPolicy that restricts inbound HTTP traffic to Poznote.
+  enabled: false
+  # -- Custom ingress peers. Empty allows ingress from any namespace.
+  ingressFrom: []
+  egress:
+    # -- Restrict egress traffic.
+    enabled: false
+    # -- Allow DNS egress on TCP/UDP 53.
+    allowDNS: true
+    # -- Additional egress destinations appended to the generated policy.
+    extraTo: []
+    # -- Additional egress rules (full rule objects) appended to the policy.
+    extraEgress: []
+
+# -- Node selector for scheduling the pod.
+nodeSelector: {}
+
+# -- Tolerations for scheduling the pod.
+tolerations: []
+
+# -- Affinity rules for scheduling the pod.
+affinity: {}
+
+# -- Topology spread constraints for scheduling the pod.
+topologySpreadConstraints: []
+
+# -- Optional PriorityClass name.
+priorityClassName: ""
+
+# -- Pod termination grace period in seconds.
+terminationGracePeriodSeconds: 30
+
+# -- Extra labels applied to the pod template.
+podLabels: {}
+
+# -- Extra annotations applied to the pod template.
+podAnnotations: {}
+
+# -- Extra volumes mounted into the pod.
+extraVolumes: []
+
+# -- Extra volume mounts added to the Poznote container.
+extraVolumeMounts: []
+
+# -- Additional Kubernetes manifests rendered with the chart.
+extraManifests: []

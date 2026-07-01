@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-2.0
+# Secured deployment with OIDC and NetworkPolicy
+secrets:
+  existingSecret: poznote-oidc-credentials
+  oidcClientIdKey: client-id
+  oidcClientSecretKey: client-secret
+
+poznote:
+  oidc:
+    disableNormalLogin: true
+
+networkPolicy:
+  enabled: true
+  egress:
+    enabled: true
+    allowDNS: true
+    # Allow HTTPS egress for OIDC token/JWKS/userinfo calls to the IdP.
+    # Replace 0.0.0.0/0 with your IdP CIDR to restrict further.
+    extraEgress:
+      - to:
+          - ipBlock:
+              cidr: 0.0.0.0/0
+        ports:
+          - port: 443
+            protocol: TCP
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: notes.example.com
+  tls:
+    - secretName: notes-tls
+      hosts:
+        - notes.example.com
