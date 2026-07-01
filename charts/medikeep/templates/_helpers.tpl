@@ -151,8 +151,8 @@ password
 {{- $index := .index | default 0 -}}
 {{- if $route.name -}}
 {{- $suffix := printf "-%s" $route.name -}}
-{{- $base := include "medikeep.fullname" $root | trunc (int (sub 63 (len $suffix))) | trimSuffix "-" -}}
-{{- printf "%s%s" $base $suffix -}}
+{{- $base := include "medikeep.fullname" $root | trunc (int (max 1 (sub 63 (len $suffix)))) | trimSuffix "-" -}}
+{{- printf "%s%s" $base $suffix | trunc 63 | trimSuffix "-" -}}
 {{- else if gt (int $index) 0 -}}
 {{- $suffix := printf "-%d" (int $index) -}}
 {{- $base := include "medikeep.fullname" $root | trunc (int (sub 63 (len $suffix))) | trimSuffix "-" -}}
@@ -170,8 +170,8 @@ password
 {{- $item.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else if $item.name -}}
 {{- $suffix := printf "-%s" $item.name -}}
-{{- $base := include "medikeep.fullname" $root | trunc (int (sub 63 (len $suffix))) | trimSuffix "-" -}}
-{{- printf "%s%s" $base $suffix -}}
+{{- $base := include "medikeep.fullname" $root | trunc (int (max 1 (sub 63 (len $suffix)))) | trimSuffix "-" -}}
+{{- printf "%s%s" $base $suffix | trunc 63 | trimSuffix "-" -}}
 {{- else if gt $index 0 -}}
 {{- $suffix := printf "-%d" $index -}}
 {{- $base := include "medikeep.fullname" $root | trunc (int (sub 63 (len $suffix))) | trimSuffix "-" -}}
@@ -193,5 +193,16 @@ password
 {{- end -}}
 {{- if and .Values.externalSecrets.enabled (empty .Values.externalSecrets.items) -}}
 {{- fail "externalSecrets.items must contain at least one item when externalSecrets.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
+{{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}
+{{- end -}}
+{{- if .Values.podLabels -}}
+{{- if hasKey .Values.podLabels "app.kubernetes.io/name" -}}
+{{- fail "podLabels must not override the selector label app.kubernetes.io/name" -}}
+{{- end -}}
+{{- if hasKey .Values.podLabels "app.kubernetes.io/instance" -}}
+{{- fail "podLabels must not override the selector label app.kubernetes.io/instance" -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
