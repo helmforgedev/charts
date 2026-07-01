@@ -69,26 +69,17 @@ spec:
             - name: POZNOTE_DEBUG
               value: "true"
             {{- end }}
-            {{- if or .Values.secrets.oidcClientId .Values.secrets.existingSecret .Values.externalSecrets.enabled }}
-            {{- $oidcSecretName := include "poznote.appSecretName" . -}}
-            {{- if and .Values.externalSecrets.enabled .Values.externalSecrets.items }}
-            {{- $firstItem := index .Values.externalSecrets.items 0 -}}
-            {{- if and $firstItem.spec $firstItem.spec.target $firstItem.spec.target.name -}}
-            {{- $oidcSecretName = $firstItem.spec.target.name -}}
-            {{- else -}}
-            {{- $oidcSecretName = include "poznote.externalSecretName" (dict "root" . "item" $firstItem "index" 0) -}}
-            {{- end -}}
-            {{- end }}
+            {{- if or .Values.secrets.oidcClientId .Values.secrets.oidcClientSecret .Values.secrets.existingSecret .Values.externalSecrets.enabled }}
             - name: POZNOTE_OIDC_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ $oidcSecretName | quote }}
+                  name: {{ include "poznote.appSecretName" . | quote }}
                   key: {{ .Values.secrets.oidcClientIdKey | quote }}
                   optional: true
             - name: POZNOTE_OIDC_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ $oidcSecretName | quote }}
+                  name: {{ include "poznote.appSecretName" . | quote }}
                   key: {{ .Values.secrets.oidcClientSecretKey | quote }}
                   optional: true
             {{- end }}
