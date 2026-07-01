@@ -10,11 +10,14 @@ metadata:
     {{- include "valkey.labels" . | nindent 4 }}
   {{- include "valkey.renderAnnotations" (dict "root" .) | nindent 2 }}
 data:
+  {{- if eq .Values.architecture "standalone" }}
   valkey-standalone.conf: |
     {{- include "valkey.commonConfig" . | nindent 4 }}
     {{- with .Values.config.valkey }}
     {{ . | nindent 4 }}
     {{- end }}
+  {{- end }}
+  {{- if eq .Values.architecture "replication" }}
   valkey-primary.conf: |
     {{- include "valkey.commonConfig" . | nindent 4 }}
     {{- if .Values.tls.enabled }}
@@ -32,25 +35,14 @@ data:
     {{- with .Values.config.valkey }}
     {{ . | nindent 4 }}
     {{- end }}
+  {{- end }}
+  {{- if eq .Values.architecture "sentinel" }}
   valkey-node.conf: |
     {{- include "valkey.commonConfig" . | nindent 4 }}
     {{- if .Values.tls.enabled }}
     tls-replication yes
     {{- end }}
     replica-read-only yes
-    {{- with .Values.config.valkey }}
-    {{ . | nindent 4 }}
-    {{- end }}
-  valkey-cluster.conf: |
-    {{- include "valkey.commonConfig" . | nindent 4 }}
-    cluster-enabled yes
-    cluster-config-file nodes.conf
-    cluster-node-timeout 5000
-    {{- if .Values.tls.enabled }}
-    tls-cluster yes
-    tls-replication yes
-    {{- end }}
-    appendonly yes
     {{- with .Values.config.valkey }}
     {{ . | nindent 4 }}
     {{- end }}
@@ -72,3 +64,19 @@ data:
     {{ . | nindent 4 }}
     {{- end }}
     # HelmForge managed sentinel config end
+  {{- end }}
+  {{- if eq .Values.architecture "cluster" }}
+  valkey-cluster.conf: |
+    {{- include "valkey.commonConfig" . | nindent 4 }}
+    cluster-enabled yes
+    cluster-config-file nodes.conf
+    cluster-node-timeout 5000
+    {{- if .Values.tls.enabled }}
+    tls-cluster yes
+    tls-replication yes
+    {{- end }}
+    appendonly yes
+    {{- with .Values.config.valkey }}
+    {{ . | nindent 4 }}
+    {{- end }}
+  {{- end }}
