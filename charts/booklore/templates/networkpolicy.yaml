@@ -37,12 +37,17 @@ spec:
     - ports:
         - protocol: TCP
           port: {{ include "booklore.dbPort" . }}
-      {{- if .Values.mariadb.enabled }}
       to:
+      {{- if .Values.mariadb.enabled }}
         - podSelector:
             matchLabels:
               app.kubernetes.io/instance: {{ .Release.Name }}
-              app.kubernetes.io/name: mariadb
+              app.kubernetes.io/name: {{ default "mariadb" .Values.mariadb.nameOverride }}
+      {{- else if .Values.networkPolicy.egress.databaseTo }}
+        {{- toYaml .Values.networkPolicy.egress.databaseTo | nindent 8 }}
+      {{- else }}
+        - ipBlock:
+            cidr: {{ .Values.database.external.host }}/32
       {{- end }}
     {{- with .Values.networkPolicy.egress.extraTo }}
     - to:
