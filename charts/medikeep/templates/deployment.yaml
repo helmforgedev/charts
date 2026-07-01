@@ -1,0 +1,243 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "medikeep.fullname" . }}
+  labels:
+    {{- include "medikeep.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "medikeep.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "medikeep.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/secrets: {{ dict "appSecret" .Values.secrets "dbSecret" .Values.database.external "externalSecrets" .Values.externalSecrets "extraManifests" .Values.extraManifests | toJson | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "medikeep.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName | quote }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        - name: wait-for-database
+          image: "{{ .Values.waitForDatabase.image.repository }}:{{ .Values.waitForDatabase.image.tag }}"
+          imagePullPolicy: {{ .Values.waitForDatabase.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              until nc -z -w2 {{ include "medikeep.dbHost" . }} {{ include "medikeep.dbPort" . }}; do
+                echo "Waiting for PostgreSQL..."
+                sleep 2
+              done
+          {{- with .Values.waitForDatabase.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+      containers:
+        - name: {{ include "medikeep.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.app.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.app.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.app.port }}
+              protocol: TCP
+          env:
+            - name: DB_HOST
+              value: {{ include "medikeep.dbHost" . | quote }}
+            - name: DB_PORT
+              value: {{ include "medikeep.dbPort" . | quote }}
+            - name: DB_NAME
+              value: {{ include "medikeep.dbName" . | quote }}
+            - name: DB_USER
+              value: {{ include "medikeep.dbUsername" . | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "medikeep.dbSecretName" . | quote }}
+                  key: {{ include "medikeep.dbSecretPasswordKey" . | quote }}
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "medikeep.appSecretName" . | quote }}
+                  key: {{ include "medikeep.appSecretKey" . | quote }}
+            - name: DEBUG
+              value: {{ .Values.app.debug | quote }}
+            - name: ENABLE_API_DOCS
+              value: {{ .Values.app.enableApiDocs | quote }}
+            - name: ENABLE_SSL
+              value: {{ .Values.app.enableSsl | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.app.logLevel | quote }}
+            - name: TZ
+              value: {{ .Values.app.timezone | quote }}
+            - name: SSO_ENABLED
+              value: {{ .Values.medikeep.sso.enabled | quote }}
+            - name: SSO_PROVIDER_TYPE
+              value: {{ .Values.medikeep.sso.providerType | quote }}
+            - name: SSO_CLIENT_ID
+              value: {{ .Values.medikeep.sso.clientId | quote }}
+            - name: SSO_ISSUER_URL
+              value: {{ .Values.medikeep.sso.issuerUrl | quote }}
+            - name: SSO_REDIRECT_URI
+              value: {{ .Values.medikeep.sso.redirectUri | quote }}
+            - name: SSO_ALLOWED_DOMAINS
+              value: {{ .Values.medikeep.sso.allowedDomains | quote }}
+            {{- if or .Values.secrets.ssoClientSecret .Values.secrets.existingSecret }}
+            - name: SSO_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "medikeep.appSecretName" . | quote }}
+                  key: {{ .Values.secrets.ssoClientSecretKey | quote }}
+                  optional: true
+            {{- end }}
+            {{- if or .Values.secrets.adminDefaultPassword .Values.secrets.existingSecret }}
+            - name: ADMIN_DEFAULT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "medikeep.appSecretName" . | quote }}
+                  key: {{ .Values.secrets.adminDefaultPasswordKey | quote }}
+                  optional: true
+            {{- end }}
+            {{- range .Values.app.env }}
+            - name: {{ .name }}
+              {{- if hasKey . "valueFrom" }}
+              valueFrom:
+                {{- toYaml .valueFrom | nindent 16 }}
+              {{- else }}
+              value: {{ default "" .value | quote }}
+              {{- end }}
+            {{- end }}
+          {{- with .Values.app.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: uploads
+              mountPath: /app/uploads
+            - name: backups
+              mountPath: /app/backups
+            - name: logs
+              mountPath: /app/logs
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: uploads
+          {{- if .Values.persistence.uploads.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "medikeep.persistenceClaimName" (dict "root" . "name" "uploads") | quote }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: backups
+          {{- if .Values.persistence.backups.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "medikeep.persistenceClaimName" (dict "root" . "name" "backups") | quote }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: logs
+          {{- if .Values.persistence.logs.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "medikeep.persistenceClaimName" (dict "root" . "name" "logs") | quote }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

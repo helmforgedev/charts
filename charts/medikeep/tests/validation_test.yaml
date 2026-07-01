@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: medikeep value validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: fails when replicaCount is greater than one
+    set:
+      replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCount > 1 is not supported because MediKeep stores uploads, logs, and generated backups on pod-local writable volumes"
+  - it: fails when external database host is missing
+    set:
+      postgresql.enabled: false
+      database.external.password: external-password
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.external.host is required when postgresql.enabled=false"
+  - it: fails when external database password is missing
+    set:
+      postgresql.enabled: false
+      database.external.host: postgres.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.external.password or database.external.existingSecret is required when postgresql.enabled=false"
+  - it: fails when externalSecrets is enabled without items
+    set:
+      externalSecrets.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.items must contain at least one item when externalSecrets.enabled=true"

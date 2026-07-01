@@ -1,0 +1,142 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: medikeep base templates
+templates:
+  - templates/deployment.yaml
+  - templates/ingress.yaml
+  - templates/pvc.yaml
+  - templates/secret.yaml
+  - templates/service.yaml
+tests:
+  - it: renders the official pinned image and database environment
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/afairgiant/medikeep:v0.67.0
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.containers[0].env[0].name
+          value: DB_HOST
+      - equal:
+          path: spec.template.spec.containers[0].env[0].value
+          value: RELEASE-NAME-postgresql
+      - equal:
+          path: spec.template.spec.containers[0].env[4].valueFrom.secretKeyRef.name
+          value: RELEASE-NAME-postgresql-auth
+      - equal:
+          path: spec.template.spec.containers[0].env[4].valueFrom.secretKeyRef.key
+          value: user-password
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 999
+  - it: renders the app secret by default
+    template: templates/secret.yaml
+    asserts:
+      - isKind:
+          of: Secret
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-medikeep-app
+      - exists:
+          path: stringData["secret-key"]
+  - it: skips app secret when existing secret is supplied
+    template: templates/secret.yaml
+    set:
+      secrets.existingSecret: medikeep-runtime
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders the default ClusterIP service
+    template: templates/service.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.ports[0].port
+          value: 8000
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+  - it: renders common labels on a separate line
+    template: templates/service.yaml
+    values:
+      - common-labels-values.yaml
+    asserts:
+      - equal:
+          path: metadata.labels.review
+          value: enabled
+  - it: renders ingress TLS
+    template: templates/ingress.yaml
+    values:
+      - ingress-values.yaml
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: medikeep-tls
+      - equal:
+          path: spec.tls[0].hosts[0]
+          value: medikeep.example.com
+  - it: defaults ingress host paths when omitted
+    template: templates/ingress.yaml
+    values:
+      - ingress-host-only-values.yaml
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].path
+          value: /
+      - equal:
+          path: spec.rules[0].http.paths[0].pathType
+          value: Prefix
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.name
+          value: RELEASE-NAME-medikeep
+  - it: mounts uploads and backups PVCs while logs uses emptyDir by default
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          value: RELEASE-NAME-medikeep-uploads
+      - equal:
+          path: spec.template.spec.volumes[1].persistentVolumeClaim.claimName
+          value: RELEASE-NAME-medikeep-backups
+      - equal:
+          path: spec.template.spec.volumes[2].emptyDir
+          value: {}
+  - it: creates PVCs for uploads and backups by default
+    template: templates/pvc.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-medikeep-backups
+        documentIndex: 0
+      - equal:
+          path: spec.resources.requests.storage
+          value: 10Gi
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-medikeep-uploads
+        documentIndex: 1
+  - it: creates an external database password secret
+    template: templates/secret.yaml
+    set:
+      postgresql.enabled: false
+      database.external.host: postgres.example.com
+      database.external.password: external-password
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-medikeep-db
+        documentIndex: 1
+      - equal:
+          path: stringData.password
+          value: external-password
+        documentIndex: 1
