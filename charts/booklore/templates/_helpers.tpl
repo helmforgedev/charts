@@ -197,10 +197,10 @@ jdbc:mariadb://{{ include "booklore.dbHost" . }}:{{ include "booklore.dbPort" . 
 {{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
 {{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}
 {{- end -}}
-{{- if and (not .Values.mariadb.enabled) (dig "networkPolicy" "egress" "enabled" false .Values) (not (dig "networkPolicy" "egress" "databaseTo" nil .Values)) -}}
+{{- if and (not .Values.mariadb.enabled) .Values.networkPolicy.egress.enabled (not .Values.networkPolicy.egress.databaseTo) -}}
 {{- fail "networkPolicy.egress.databaseTo must contain at least one peer when mariadb.enabled=false and networkPolicy.egress.enabled=true" -}}
 {{- end -}}
-{{- if and (not .Values.mariadb.enabled) (dig "networkPolicy" "egress" "enabled" false .Values) (dig "networkPolicy" "egress" "databaseTo" nil .Values) (empty .Values.networkPolicy.egress.databaseTo) -}}
+{{- if and (not .Values.mariadb.enabled) .Values.networkPolicy.egress.enabled .Values.networkPolicy.egress.databaseTo (empty .Values.networkPolicy.egress.databaseTo) -}}
 {{- fail "networkPolicy.egress.databaseTo must not be empty when mariadb.enabled=false and networkPolicy.egress.enabled=true" -}}
 {{- end -}}
 {{- if .Values.podLabels -}}
