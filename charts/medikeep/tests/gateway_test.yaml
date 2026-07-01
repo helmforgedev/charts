@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: medikeep gateway api
+templates:
+  - templates/gateway-httproute.yaml
+tests:
+  - it: renders an HTTPRoute to the chart service
+    values:
+      - gateway-values.yaml
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.parentRefs[0].name
+          value: public
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: RELEASE-NAME-medikeep
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 8000
+  - it: reserves suffix room for multiple unnamed routes with a long fullname
+    values:
+      - gateway-long-name-values.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-1
+        documentIndex: 1
+  - it: reserves suffix room for named routes with a long fullname
+    values:
+      - gateway-long-name-named-values.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-public
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-internal
+        documentIndex: 1
+  - it: fails when a named route collides with an indexed unnamed fallback
+    values:
+      - gateway-colliding-index-name-values.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "gatewayAPI.httpRoutes render duplicate HTTPRoute name \"RELEASE-NAME-medikeep-1\"; set name to a unique value"

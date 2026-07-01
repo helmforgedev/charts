@@ -1,0 +1,40 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+MediKeep release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+Workload:
+  kubectl get deploy {{ include "medikeep.fullname" . }} -n {{ .Release.Namespace }}
+  kubectl rollout status deploy/{{ include "medikeep.fullname" . }} -n {{ .Release.Namespace }}
+
+Service:
+  kubectl get svc {{ include "medikeep.fullname" . }} -n {{ .Release.Namespace }}
+
+Local access:
+  kubectl port-forward svc/{{ include "medikeep.fullname" . }} 8000:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+  Open http://127.0.0.1:8000
+
+Database:
+{{- if .Values.postgresql.enabled }}
+  The bundled PostgreSQL dependency is enabled.
+{{- else }}
+  External PostgreSQL host: {{ .Values.database.external.host }}:{{ .Values.database.external.port }}
+{{- end }}
+
+Persistence:
+  Uploads: {{ ternary "PVC" "emptyDir" .Values.persistence.uploads.enabled }}
+  Backups: {{ ternary "PVC" "emptyDir" .Values.persistence.backups.enabled }}
+  Logs: {{ ternary "PVC" "emptyDir" .Values.persistence.logs.enabled }}
+
+First login:
+  Upstream creates admin/admin123 on fresh installs unless ADMIN_DEFAULT_PASSWORD is set.
+  Set secrets.existingSecret or secrets.adminDefaultPassword before first production login.
+
+Troubleshooting:
+  kubectl logs deploy/{{ include "medikeep.fullname" . }} -n {{ .Release.Namespace }}
+  kubectl describe pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Validation:
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+  make validate-chart CHART=medikeep
+
+Happy Helmforging :)

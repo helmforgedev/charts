@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "nameOverride": { "type": "string", "default": "" },
+    "fullnameOverride": { "type": "string", "default": "" },
+    "commonLabels": { "type": "object", "default": {} },
+    "image": {
+      "type": "object",
+      "required": ["repository", "tag", "pullPolicy"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "minLength": 1, "not": { "const": "latest" } },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "imagePullSecrets": { "type": "array", "default": [] },
+    "replicaCount": { "type": "integer", "minimum": 1, "default": 1 },
+    "app": {
+      "type": "object",
+      "properties": {
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "timezone": { "type": "string" },
+        "logLevel": { "type": "string", "enum": ["INFO", "DEBUG"] },
+        "debug": { "type": "boolean" },
+        "enableApiDocs": { "type": "boolean" },
+        "enableSsl": { "type": "boolean" },
+        "command": { "type": "array" },
+        "args": { "type": "array" },
+        "env": { "type": "array" },
+        "envFrom": { "type": "array" }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "existingSecret": { "type": "string", "default": "" },
+        "secretKeyKey": { "type": "string", "default": "secret-key" },
+        "secretKey": { "type": "string", "default": "" },
+        "adminDefaultPasswordKey": { "type": "string", "default": "admin-password" },
+        "adminDefaultPassword": { "type": "string", "default": "" },
+        "ssoClientSecretKey": { "type": "string", "default": "sso-client-secret" },
+        "ssoClientSecret": { "type": "string", "default": "" }
+      }
+    },
+    "database": {
+      "type": "object",
+      "properties": {
+        "external": {
+          "type": "object",
+          "properties": {
+            "host": { "type": "string", "default": "" },
+            "port": { "type": "string", "default": "5432" },
+            "name": { "type": "string", "default": "medical_records" },
+            "username": { "type": "string", "default": "medapp" },
+            "password": { "type": "string", "default": "" },
+            "existingSecret": { "type": "string", "default": "" },
+            "existingSecretPasswordKey": { "type": "string", "default": "password" }
+          }
+        }
+      }
+    },
+    "medikeep": {
+      "type": "object",
+      "properties": {
+        "sso": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "providerType": { "type": "string" },
+            "clientId": { "type": "string" },
+            "issuerUrl": { "type": "string" },
+            "redirectUri": { "type": "string" },
+            "allowedDomains": { "type": "string" }
+          }
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "uploads": { "$ref": "#/definitions/persistence" },
+        "backups": { "$ref": "#/definitions/persistence" },
+        "logs": { "$ref": "#/definitions/persistence" }
+      }
+    },
+    "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
+    "service": { "$ref": "#/definitions/service" },
+    "ingress": { "$ref": "#/definitions/ingress" },
+    "gatewayAPI": { "$ref": "#/definitions/gatewayAPI" },
+    "externalSecrets": { "$ref": "#/definitions/externalSecrets" },
+    "probes": { "$ref": "#/definitions/probes" },
+    "resources": { "type": "object" },
+    "waitForDatabase": { "type": "object" },
+    "podSecurityContext": { "type": "object" },
+    "securityContext": { "type": "object" },
+    "pdb": { "$ref": "#/definitions/pdb" },
+    "networkPolicy": { "$ref": "#/definitions/networkPolicy" },
+    "nodeSelector": { "type": "object" },
+    "tolerations": { "type": "array" },
+    "affinity": { "type": "object" },
+    "topologySpreadConstraints": { "type": "array" },
+    "priorityClassName": { "type": "string" },
+    "terminationGracePeriodSeconds": { "type": "integer", "minimum": 1 },
+    "podLabels": { "type": "object" },
+    "podAnnotations": { "type": "object" },
+    "extraVolumes": { "type": "array" },
+    "extraVolumeMounts": { "type": "array" },
+    "extraManifests": { "type": "array" },
+    "postgresql": { "type": "object" }
+  },
+  "definitions": {
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "size": { "type": "string" },
+        "storageClass": { "type": "string" },
+        "accessModes": { "type": "array", "items": { "type": "string" } },
+        "existingClaim": { "type": "string" }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "create": { "type": "boolean" },
+        "name": { "type": "string" },
+        "annotations": { "type": "object" },
+        "automountServiceAccountToken": { "type": "boolean" }
+      }
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer", "ExternalName"] },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "annotations": { "type": "object" },
+        "ipFamilyPolicy": { "type": "string" },
+        "ipFamilies": { "type": "array", "items": { "type": "string", "enum": ["IPv4", "IPv6"] } }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "ingressClassName": { "type": "string" },
+        "annotations": { "type": "object" },
+        "hosts": { "type": "array" },
+        "tls": { "type": "array" }
+      }
+    },
+    "gatewayAPI": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "httpRoutes": { "type": "array" }
+      }
+    },
+    "externalSecrets": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiVersion": { "type": "string" },
+        "refreshInterval": { "type": "string" },
+        "items": { "type": "array" }
+      }
+    },
+    "probes": {
+      "type": "object",
+      "properties": {
+        "startup": { "$ref": "#/definitions/probe" },
+        "liveness": { "$ref": "#/definitions/probe" },
+        "readiness": { "$ref": "#/definitions/probe" }
+      }
+    },
+    "probe": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "pdb": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minAvailable": { "oneOf": [{ "type": "integer" }, { "type": "string" }] }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "ingressFrom": { "type": "array" },
+        "egress": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "allowDNS": { "type": "boolean" },
+            "extraTo": { "type": "array" }
+          }
+        }
+      }
+    }
+  }
+}
