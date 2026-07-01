@@ -1,0 +1,322 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# -- Override the chart name used in Kubernetes object names.
+nameOverride: ""
+
+# -- Override the full release name used in Kubernetes object names.
+fullnameOverride: ""
+
+# -- Extra labels applied to all Kubernetes objects rendered by this chart.
+commonLabels: {}
+
+image:
+  # -- Official BookLore container image repository.
+  repository: ghcr.io/booklore-app/booklore
+  # -- Pinned BookLore image tag. Floating tags such as latest are not used by default.
+  tag: "v2.3.1"
+  # -- Kubernetes image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Optional image pull secrets for private registries or mirrored images.
+imagePullSecrets: []
+
+# -- Number of BookLore pods.
+replicaCount: 1
+
+app:
+  # -- HTTP port exposed by BookLore inside the container.
+  port: 6060
+  # -- Root log level passed to BookLore.
+  rootLogLevel: INFO
+  # -- Application-specific log level for org.booklore.
+  logLevel: INFO
+  # -- CORS allowed origins. Leave default for same-origin requests only.
+  allowedOrigins: "*"
+  # -- Disk type for file storage. Options: LOCAL.
+  diskType: LOCAL
+  # -- Optional command override. Leave empty to use the upstream image entrypoint.
+  command: []
+  # -- Optional argument override. Leave empty to use the upstream image defaults.
+  args: []
+  # -- Additional environment variables for advanced upstream flags.
+  env: []
+  # -- Additional envFrom sources such as Secret or ConfigMap references.
+  envFrom: []
+
+secrets:
+  # -- Existing Secret containing BookLore sensitive values. Recommended for production.
+  existingSecret: ""
+  # -- Secret key containing the database password.
+  databasePasswordKey: database-password
+  # -- Inline database password. If empty and no existingSecret is set, a random one is generated.
+  databasePassword: ""
+
+database:
+  # -- External MariaDB configuration used when mariadb.enabled=false.
+  external:
+    host: ""
+    port: "3306"
+    name: booklore
+    username: root
+    password: ""
+    # -- Existing Secret containing the external database password.
+    existingSecret: ""
+    # -- Key in database.external.existingSecret containing the password.
+    existingSecretPasswordKey: password
+
+oidc:
+  # -- Enable OIDC authentication.
+  enabled: false
+  # -- Force disable OIDC even when configured.
+  forceDisable: false
+
+remoteAuth:
+  # -- Enable remote/proxy-based authentication headers.
+  enabled: false
+  # -- Create new users from remote auth headers.
+  createNewUsers: true
+  # -- Header containing the display name.
+  headerName: Remote-Name
+  # -- Header containing the username.
+  headerUser: Remote-User
+  # -- Header containing the email.
+  headerEmail: Remote-Email
+  # -- Header containing the groups.
+  headerGroups: Remote-Groups
+  # -- Admin group name.
+  adminGroup: ""
+  # -- Groups delimiter regex.
+  groupsDelimiter: "\\s+"
+
+persistence:
+  data:
+    # -- Persist library data, configuration, and metadata.
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    existingClaim: ""
+  bookdrop:
+    # -- Persist BookDrop import folder. Disabled by default.
+    enabled: false
+    size: 5Gi
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    existingClaim: ""
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: true
+  # -- ServiceAccount name. Defaults to the release fullname when create=true.
+  name: ""
+  # -- Annotations for the ServiceAccount.
+  annotations: {}
+  # -- Mount the ServiceAccount token in the pod.
+  automountServiceAccountToken: false
+
+service:
+  # -- Service type.
+  type: ClusterIP
+  # -- Service port.
+  port: 6060
+  # -- Service annotations.
+  annotations: {}
+  # -- IP family policy. Options: SingleStack, PreferDualStack, RequireDualStack.
+  ipFamilyPolicy: ""
+  # -- Ordered list of IP families, for example ["IPv4", "IPv6"].
+  ipFamilies: []
+
+ingress:
+  # -- Enable Kubernetes Ingress.
+  enabled: false
+  # -- IngressClassName for the generated Ingress.
+  ingressClassName: traefik
+  # -- Ingress annotations.
+  annotations: {}
+  # -- Ingress hosts and paths.
+  hosts: []
+  # -- Ingress TLS blocks.
+  tls: []
+
+gatewayAPI:
+  # -- Enable Gateway API HTTPRoute templates.
+  enabled: false
+  # -- List of HTTPRoute definitions. Each item is rendered as one HTTPRoute.
+  httpRoutes: []
+
+externalSecrets:
+  # -- Render external-secrets.io ExternalSecret resources.
+  enabled: false
+  # -- ExternalSecret apiVersion.
+  apiVersion: external-secrets.io/v1
+  # -- Default sync interval applied to items without their own value.
+  refreshInterval: 1h
+  # -- List of ExternalSecret definitions. Each item carries a complete spec.
+  items: []
+
+probes:
+  startup:
+    enabled: true
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 36
+  liveness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+
+# -- Container resource requests and limits.
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1536Mi
+
+# -- Resources for the wait-for-database init container.
+waitForDatabase:
+  image:
+    repository: docker.io/library/busybox
+    tag: "1.37"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+# -- Pod security context.
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container security context. The upstream entrypoint runs as root to create
+# a user/group via addgroup and then drops privileges with su-exec.
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+  readOnlyRootFilesystem: false
+  runAsNonRoot: false
+  runAsUser: 0
+  seccompProfile:
+    type: RuntimeDefault
+
+pdb:
+  # -- Create a PodDisruptionBudget.
+  enabled: false
+  # -- Minimum available pods during voluntary disruptions.
+  minAvailable: 1
+
+networkPolicy:
+  # -- Create a NetworkPolicy that restricts inbound HTTP traffic to BookLore.
+  enabled: false
+  # -- Custom ingress peers. Empty allows ingress from any namespace.
+  ingressFrom: []
+  egress:
+    # -- Restrict egress to DNS and MariaDB destinations.
+    enabled: false
+    # -- Allow DNS egress on TCP/UDP 53.
+    allowDNS: true
+    # -- Additional egress destinations appended to the generated policy.
+    extraTo: []
+    # -- Additional egress rules (full rule objects) appended to the policy.
+    extraEgress: []
+
+autoscaling:
+  # -- Enable HorizontalPodAutoscaler.
+  enabled: false
+  # -- Minimum replicas.
+  minReplicas: 1
+  # -- Maximum replicas.
+  maxReplicas: 3
+  # -- Target CPU utilization percentage.
+  targetCPUUtilizationPercentage: 80
+  # -- Target memory utilization percentage.
+  targetMemoryUtilizationPercentage: ""
+
+monitoring:
+  serviceMonitor:
+    # -- Create a ServiceMonitor for Prometheus.
+    enabled: false
+    # -- Extra labels for the ServiceMonitor.
+    labels: {}
+    # -- Scrape interval.
+    interval: ""
+    # -- Metrics endpoint path.
+    path: /actuator/prometheus
+
+# -- Node selector for scheduling the pod.
+nodeSelector: {}
+
+# -- Tolerations for scheduling the pod.
+tolerations: []
+
+# -- Affinity rules for scheduling the pod.
+affinity: {}
+
+# -- Topology spread constraints for scheduling the pod.
+topologySpreadConstraints: []
+
+# -- Optional PriorityClass name.
+priorityClassName: ""
+
+# -- Pod termination grace period in seconds.
+terminationGracePeriodSeconds: 30
+
+# -- Extra labels applied to the pod template.
+podLabels: {}
+
+# -- Extra annotations applied to the pod template.
+podAnnotations: {}
+
+# -- Extra volumes mounted into the pod.
+extraVolumes: []
+
+# -- Extra volume mounts added to the BookLore container.
+extraVolumeMounts: []
+
+# -- Additional Kubernetes manifests rendered with the chart.
+extraManifests: []
+
+mariadb:
+  # -- Deploy MariaDB as a subchart for BookLore.
+  enabled: true
+  auth:
+    database: booklore
+    username: booklore
+    password: ""
+    rootPassword: ""
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 768Mi

@@ -1,0 +1,22 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- range $name, $persistence := .Values.persistence }}
+{{- if and $persistence.enabled (not $persistence.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "booklore.persistenceClaimName" (dict "root" $ "name" $name) }}
+  labels:
+    {{- include "booklore.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $name | quote }}
+spec:
+  accessModes:
+    {{- toYaml $persistence.accessModes | nindent 4 }}
+  {{- if $persistence.storageClass }}
+  storageClassName: {{ $persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $persistence.size | quote }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: booklore validation tests
+templates:
+  - templates/validate.yaml
+tests:
+  - it: fails when external db has no host
+    set:
+      mariadb.enabled: false
+      database.external.host: ""
+      database.external.password: "test"
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.external.host is required when mariadb.enabled=false"
+  - it: fails when external db has no password or existing secret
+    set:
+      mariadb.enabled: false
+      database.external.host: "db.example.com"
+      database.external.password: ""
+      database.external.existingSecret: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.external.password or database.external.existingSecret is required when mariadb.enabled=false"
+  - it: fails when external secrets enabled with empty items
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.items must contain at least one item when externalSecrets.enabled=true"
+  - it: fails when ingress enabled without hosts
+    set:
+      ingress.enabled: true
+      ingress.hosts: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "ingress.hosts must contain at least one host when ingress.enabled=true"
+  - it: fails when podLabels override selector labels
+    set:
+      podLabels:
+        app.kubernetes.io/name: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: "podLabels must not override the selector label app.kubernetes.io/name"
+  - it: passes with default values
+    asserts:
+      - hasDocuments:
+          count: 0
