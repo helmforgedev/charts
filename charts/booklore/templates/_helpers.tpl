@@ -121,7 +121,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "booklore.dbSecretPasswordKey" -}}
 {{- if .Values.mariadb.enabled -}}
-{{- if and .Values.mariadb.auth.existingSecret .Values.mariadb.auth.existingSecretUserPasswordKey -}}
+{{- if .Values.mariadb.auth.existingSecretUserPasswordKey -}}
 {{- .Values.mariadb.auth.existingSecretUserPasswordKey -}}
 {{- else -}}
 mariadb-user-password
@@ -196,6 +196,12 @@ jdbc:mariadb://{{ include "booklore.dbHost" . }}:{{ include "booklore.dbPort" . 
 {{- end -}}
 {{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
 {{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}
+{{- end -}}
+{{- if and (not .Values.mariadb.enabled) (dig "networkPolicy" "egress" "enabled" false .Values) (not (dig "networkPolicy" "egress" "databaseTo" nil .Values)) -}}
+{{- fail "networkPolicy.egress.databaseTo must contain at least one peer when mariadb.enabled=false and networkPolicy.egress.enabled=true" -}}
+{{- end -}}
+{{- if and (not .Values.mariadb.enabled) (dig "networkPolicy" "egress" "enabled" false .Values) (dig "networkPolicy" "egress" "databaseTo" nil .Values) (empty .Values.networkPolicy.egress.databaseTo) -}}
+{{- fail "networkPolicy.egress.databaseTo must not be empty when mariadb.enabled=false and networkPolicy.egress.enabled=true" -}}
 {{- end -}}
 {{- if .Values.podLabels -}}
 {{- if hasKey .Values.podLabels "app.kubernetes.io/name" -}}
