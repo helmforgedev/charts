@@ -78,7 +78,6 @@ ingress:
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `app.port` | HTTP port (nginx listen port) | `80` |
 | `app.timezone` | Container timezone | `UTC` |
 | `app.debug` | Enable debug mode | `false` |
 
