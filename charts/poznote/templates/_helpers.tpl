@@ -77,8 +77,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $index := .index | default 0 -}}
 {{- if $route.name -}}
 {{- $suffix := printf "-%s" $route.name -}}
-{{- $base := include "poznote.fullname" $root | trunc (int (sub 63 (len $suffix))) | trimSuffix "-" -}}
-{{- printf "%s%s" $base $suffix -}}
+{{- $base := include "poznote.fullname" $root | trunc (int (max 1 (sub 63 (len $suffix)))) | trimSuffix "-" -}}
+{{- printf "%s%s" $base $suffix | trunc 63 | trimSuffix "-" -}}
 {{- else if gt (int $index) 0 -}}
 {{- $suffix := printf "-%d" (int $index) -}}
 {{- $base := include "poznote.fullname" $root | trunc (int (sub 63 (len $suffix))) | trimSuffix "-" -}}
@@ -96,8 +96,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $item.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else if $item.name -}}
 {{- $suffix := printf "-%s" $item.name -}}
-{{- $base := include "poznote.fullname" $root | trunc (int (sub 63 (len $suffix))) | trimSuffix "-" -}}
-{{- printf "%s%s" $base $suffix -}}
+{{- $base := include "poznote.fullname" $root | trunc (int (max 1 (sub 63 (len $suffix)))) | trimSuffix "-" -}}
+{{- printf "%s%s" $base $suffix | trunc 63 | trimSuffix "-" -}}
 {{- else if gt $index 0 -}}
 {{- $suffix := printf "-%d" $index -}}
 {{- $base := include "poznote.fullname" $root | trunc (int (sub 63 (len $suffix))) | trimSuffix "-" -}}
