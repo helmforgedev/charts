@@ -1,32 +1,162 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Poznote release: {{ .Release.Name }}
-Namespace: {{ .Release.Namespace }}
+Poznote has been installed.
 
-Workload:
-  kubectl get deploy {{ include "poznote.fullname" . }} -n {{ .Release.Namespace }}
-  kubectl rollout status deploy/{{ include "poznote.fullname" . }} -n {{ .Release.Namespace }}
+1. Installation summary
+=======================
 
-Service:
-  kubectl get svc {{ include "poznote.fullname" . }} -n {{ .Release.Namespace }}
+- Release: {{ .Release.Name }}
+- Namespace: {{ .Release.Namespace }}
+- Chart: {{ .Chart.Name }} {{ .Chart.Version }}
+- App version: {{ .Chart.AppVersion }}
+- Image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+- Replicas: {{ .Values.replicaCount }}
+- ServiceAccount: {{ include "poznote.serviceAccountName" . }}
+- Deployment strategy: Recreate
 
-Local access:
+2. Access
+=========
+
+Application service:
+- Name: {{ include "poznote.fullname" . }}
+- Type: {{ .Values.service.type }}
+- Port: {{ .Values.service.port }}
+- Cluster DNS: http://{{ include "poznote.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+
+Port-forward command:
+
   kubectl port-forward svc/{{ include "poznote.fullname" . }} 8080:{{ .Values.service.port }} -n {{ .Release.Namespace }}
-  Open http://127.0.0.1:8080
+
+Local URL after port-forward:
+
+  http://127.0.0.1:8080
+
+{{- if .Values.ingress.enabled }}
+
+Ingress is enabled.
+{{- range .Values.ingress.hosts }}
+- Host: {{ .host }}
+{{- end }}
+{{- else }}
+Ingress is disabled.
+{{- end }}
+
+{{- if .Values.gatewayAPI.enabled }}
+
+Gateway API HTTPRoute is enabled.
+{{- range .Values.gatewayAPI.httpRoutes }}
+{{- range .hostnames }}
+- Hostname: {{ . }}
+{{- end }}
+{{- end }}
+{{- else }}
+Gateway API HTTPRoute is disabled.
+{{- end }}
+
+3. Getting started
+==================
+
+1. Wait for the Poznote pod to become ready:
+
+   kubectl wait --for=condition=Ready pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ include "poznote.name" . }} --timeout=5m
+
+2. Port-forward the application service:
+
+   kubectl port-forward svc/{{ include "poznote.fullname" . }} 8080:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+
+3. Open the Poznote UI:
+
+   http://127.0.0.1:8080
+
+4. Log in with the default credentials and change them immediately.
+
+4. Credentials
+==============
+
+Default login:
+- Username: admin_change_me
+- Password: admin
+
+Change the default credentials after the first login.
+
+5. Configuration summary
+========================
 
 Persistence:
-  Data: {{ ternary "PVC" "emptyDir" .Values.persistence.data.enabled }}
+- Data volume: {{ ternary "PVC" "emptyDir (data will be lost on pod restart)" .Values.persistence.data.enabled }}
+{{- if .Values.persistence.data.enabled }}
+- Storage class: {{ default "(cluster default)" .Values.persistence.data.storageClass }}
+- Size: {{ .Values.persistence.data.size }}
+{{- end }}
 
-First login:
-  Username: admin_change_me
-  Password: admin
-  Change the default credentials after the first login.
+Security:
+- Pod security context: fsGroup={{ .Values.podSecurityContext.fsGroup }}
+- Seccomp profile: {{ .Values.podSecurityContext.seccompProfile.type }}
+{{- if .Values.secrets.existingSecret }}
+- OIDC credentials: existing Secret {{ .Values.secrets.existingSecret }}
+{{- else if or .Values.secrets.oidcClientId .Values.secrets.oidcClientSecret }}
+- OIDC credentials: chart-managed Secret
+{{- else }}
+- OIDC credentials: not configured
+{{- end }}
 
-Troubleshooting:
-  kubectl logs deploy/{{ include "poznote.fullname" . }} -n {{ .Release.Namespace }}
-  kubectl describe pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+Optional features:
+- NetworkPolicy enabled: {{ .Values.networkPolicy.enabled }}
+{{- if .Values.networkPolicy.enabled }}
+- NetworkPolicy egress enabled: {{ .Values.networkPolicy.egress.enabled }}
+{{- end }}
+- PodDisruptionBudget enabled: {{ .Values.pdb.enabled }}
+- External Secrets enabled: {{ .Values.externalSecrets.enabled }}
 
-Validation:
-  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
-  make validate-chart CHART=poznote
+6. Validation commands
+======================
+
+Check release status:
+
+  helm status {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Check rendered resources:
+
+  kubectl get deploy,svc,secret,pvc,pdb,networkpolicy -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Wait for Poznote pod:
+
+  kubectl wait --for=condition=Ready pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ include "poznote.name" . }} --timeout=5m
+
+Check endpoints:
+
+  kubectl get endpoints {{ include "poznote.fullname" . }} -n {{ .Release.Namespace }}
+
+Check health:
+
+  kubectl run {{ include "poznote.fullname" . }}-health-check -n {{ .Release.Namespace }} --rm -i --restart=Never --image=docker.io/library/busybox:1.37 -- wget -qO- http://{{ include "poznote.fullname" . }}:{{ .Values.service.port }}/api/health
+
+7. Troubleshooting
+==================
+
+Inspect pods and events:
+
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -o wide
+  kubectl describe pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ include "poznote.name" . }}
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+
+Inspect Poznote logs:
+
+  kubectl logs deploy/{{ include "poznote.fullname" . }} -n {{ .Release.Namespace }} --tail=200
+  kubectl logs deploy/{{ include "poznote.fullname" . }} -n {{ .Release.Namespace }} --previous --tail=200
+
+Common checks:
+
+- If the pod stays in CrashLoopBackOff, check logs for permission errors on the data volume.
+- If OIDC login fails, verify the OIDC credentials Secret exists and contains the correct keys.
+- If the pod starts but the UI is unreachable, verify ingress/Gateway configuration and DNS.
+- If data is lost after pod restart, verify persistence.data.enabled is true and the PVC is bound.
+
+8. Resources
+============
+
+- HelmForge chart docs: https://helmforge.dev/docs/charts/poznote
+- Poznote source: https://github.com/timothepoznanski/poznote
+- Poznote documentation: https://github.com/timothepoznanski/poznote#readme
+- HelmForge chart issues: https://github.com/helmforgedev/charts/issues
 
 Happy Helmforging :)
