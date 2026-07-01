@@ -134,9 +134,20 @@ kubectl port-forward svc/my-release-poznote 8080:80
 ## Non-Goals
 
 This chart intentionally does NOT:
+
 - Support multi-replica scaling (SQLite limitation)
 - Provide a database subchart (SQLite is embedded)
 - Bundle the MCP server container (separate deployment concern)
+
+## Security Scan
+
+Security Scan: `poznote`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **87.878784%** |
+
+> Security posture acceptable.
 
 ## Contributing
 
