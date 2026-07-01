@@ -60,9 +60,22 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "booklore.mariadb.fullname" -}}
+{{- if .Values.mariadb.fullnameOverride -}}
+{{- .Values.mariadb.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default "mariadb" .Values.mariadb.nameOverride -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "booklore.dbHost" -}}
 {{- if .Values.mariadb.enabled -}}
-{{- printf "%s-mariadb" .Release.Name -}}
+{{- include "booklore.mariadb.fullname" . -}}
 {{- else -}}
 {{- .Values.database.external.host -}}
 {{- end -}}
@@ -97,7 +110,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if .Values.mariadb.auth.existingSecret -}}
 {{- .Values.mariadb.auth.existingSecret -}}
 {{- else -}}
-{{- printf "%s-mariadb-auth" .Release.Name -}}
+{{- printf "%s-auth" (include "booklore.mariadb.fullname" .) -}}
 {{- end -}}
 {{- else if .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecret -}}
