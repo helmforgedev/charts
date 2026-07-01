@@ -1,40 +1,178 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-MediKeep release: {{ .Release.Name }}
-Namespace: {{ .Release.Namespace }}
+MediKeep has been installed.
 
-Workload:
-  kubectl get deploy {{ include "medikeep.fullname" . }} -n {{ .Release.Namespace }}
-  kubectl rollout status deploy/{{ include "medikeep.fullname" . }} -n {{ .Release.Namespace }}
+1. Installation summary
+=======================
 
-Service:
-  kubectl get svc {{ include "medikeep.fullname" . }} -n {{ .Release.Namespace }}
+- Release: {{ .Release.Name }}
+- Namespace: {{ .Release.Namespace }}
+- Chart: {{ .Chart.Name }} {{ .Chart.Version }}
+- App version: {{ .Chart.AppVersion }}
+- Image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+- Replicas: {{ .Values.replicaCount }}
+- ServiceAccount: {{ include "medikeep.serviceAccountName" . }}
+- Deployment strategy: Recreate
+{{- if .Values.postgresql.enabled }}
+- Database: bundled PostgreSQL ({{ .Release.Name }}-postgresql)
+{{- else }}
+- Database: external {{ .Values.database.external.host }}:{{ include "medikeep.dbPort" . }}
+{{- end }}
 
-Local access:
+2. Access
+=========
+
+Application service:
+- Name: {{ include "medikeep.fullname" . }}
+- Type: {{ .Values.service.type }}
+- Port: {{ .Values.service.port }}
+- Cluster DNS: http://{{ include "medikeep.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+
+Port-forward command:
+
   kubectl port-forward svc/{{ include "medikeep.fullname" . }} 8000:{{ .Values.service.port }} -n {{ .Release.Namespace }}
-  Open http://127.0.0.1:8000
+
+Local URL after port-forward:
+
+  http://127.0.0.1:8000
+
+{{- if .Values.ingress.enabled }}
+
+Ingress is enabled.
+{{- range .Values.ingress.hosts }}
+- Host: {{ .host }}
+{{- end }}
+{{- else }}
+Ingress is disabled.
+{{- end }}
+
+{{- if .Values.gatewayAPI.enabled }}
+
+Gateway API HTTPRoute is enabled.
+{{- range .Values.gatewayAPI.httpRoutes }}
+{{- range .hostnames }}
+- Hostname: {{ . }}
+{{- end }}
+{{- end }}
+{{- else }}
+Gateway API HTTPRoute is disabled.
+{{- end }}
+
+3. Getting started
+==================
+
+1. Wait for the MediKeep pod to become ready:
+
+   kubectl wait --for=condition=Ready pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ include "medikeep.name" . }} --timeout=5m
+
+2. Port-forward the application service:
+
+   kubectl port-forward svc/{{ include "medikeep.fullname" . }} 8000:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+
+3. Open the MediKeep UI:
+
+   http://127.0.0.1:8000
+
+4. Log in with the default credentials and change them immediately.
+
+4. Credentials
+==============
+
+Default login:
+- Username: admin
+- Password: admin123
+
+Change the default credentials after the first login.
+Set secrets.adminDefaultPassword before first production login to override the default.
+
+5. Configuration summary
+========================
 
 Database:
 {{- if .Values.postgresql.enabled }}
-  The bundled PostgreSQL dependency is enabled.
+- Mode: bundled PostgreSQL
+- Host: {{ .Release.Name }}-postgresql
+- Port: {{ dig "service" "port" 5432 .Values.postgresql }}
+- Database: {{ .Values.postgresql.auth.database | default "medical_records" }}
+- Username: {{ .Values.postgresql.auth.username | default "medapp" }}
 {{- else }}
-  External PostgreSQL host: {{ .Values.database.external.host }}:{{ .Values.database.external.port }}
+- Mode: external PostgreSQL
+- Host: {{ .Values.database.external.host }}
+- Port: {{ include "medikeep.dbPort" . }}
+- Database: {{ include "medikeep.dbName" . }}
+- Username: {{ include "medikeep.dbUsername" . }}
 {{- end }}
 
 Persistence:
-  Uploads: {{ ternary "PVC" "emptyDir" .Values.persistence.uploads.enabled }}
-  Backups: {{ ternary "PVC" "emptyDir" .Values.persistence.backups.enabled }}
-  Logs: {{ ternary "PVC" "emptyDir" .Values.persistence.logs.enabled }}
+- Uploads: {{ ternary "PVC" "emptyDir (data will be lost on pod restart)" .Values.persistence.uploads.enabled }}
+{{- if .Values.persistence.uploads.enabled }}
+  Size: {{ .Values.persistence.uploads.size }}
+{{- end }}
+- Backups: {{ ternary "PVC" "emptyDir" .Values.persistence.backups.enabled }}
+{{- if .Values.persistence.backups.enabled }}
+  Size: {{ .Values.persistence.backups.size }}
+{{- end }}
+- Logs: {{ ternary "PVC" "emptyDir" .Values.persistence.logs.enabled }}
+{{- if .Values.persistence.logs.enabled }}
+  Size: {{ .Values.persistence.logs.size }}
+{{- end }}
 
-First login:
-  Upstream creates admin/admin123 on fresh installs unless ADMIN_DEFAULT_PASSWORD is set.
-  Set secrets.existingSecret or secrets.adminDefaultPassword before first production login.
+Optional features:
+- NetworkPolicy enabled: {{ .Values.networkPolicy.enabled }}
+{{- if .Values.networkPolicy.enabled }}
+- NetworkPolicy egress enabled: {{ .Values.networkPolicy.egress.enabled }}
+{{- end }}
+- PodDisruptionBudget enabled: {{ .Values.pdb.enabled }}
+- External Secrets enabled: {{ .Values.externalSecrets.enabled }}
 
-Troubleshooting:
-  kubectl logs deploy/{{ include "medikeep.fullname" . }} -n {{ .Release.Namespace }}
-  kubectl describe pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+6. Validation commands
+======================
 
-Validation:
-  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
-  make validate-chart CHART=medikeep
+Check release status:
+
+  helm status {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Check rendered resources:
+
+  kubectl get deploy,svc,secret,pvc,pdb,networkpolicy -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Wait for MediKeep pod:
+
+  kubectl wait --for=condition=Ready pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ include "medikeep.name" . }} --timeout=5m
+
+Check endpoints:
+
+  kubectl get endpoints {{ include "medikeep.fullname" . }} -n {{ .Release.Namespace }}
+
+Check health:
+
+  kubectl run {{ include "medikeep.fullname" . }}-health-check -n {{ .Release.Namespace }} --rm -i --restart=Never --image=docker.io/library/busybox:1.37 -- wget -qO- http://{{ include "medikeep.fullname" . }}:{{ .Values.service.port }}/api/health
+
+7. Troubleshooting
+==================
+
+Inspect pods and events:
+
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -o wide
+  kubectl describe pod -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ include "medikeep.name" . }}
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+
+Inspect MediKeep logs:
+
+  kubectl logs deploy/{{ include "medikeep.fullname" . }} -n {{ .Release.Namespace }} --tail=200
+  kubectl logs deploy/{{ include "medikeep.fullname" . }} -n {{ .Release.Namespace }} --previous --tail=200
+
+Common checks:
+
+- If the pod stays in CrashLoopBackOff, check database connectivity and credentials.
+- If migrations fail, verify database host, port, user, and password configuration.
+- If uploads are lost after restart, verify persistence.uploads.enabled is true and the PVC is bound.
+- If the UI is unreachable, verify ingress/Gateway configuration and DNS.
+
+8. Resources
+============
+
+- HelmForge chart docs: https://helmforge.dev/docs/charts/medikeep
+- MediKeep source: https://github.com/afairgiant/MediKeep
+- HelmForge chart issues: https://github.com/helmforgedev/charts/issues
 
 Happy Helmforging :)
