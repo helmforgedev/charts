@@ -230,6 +230,7 @@ Use the generic extension values when platform-specific integration is needed:
 | `node.replicaCount` | Number of Valkey data nodes in sentinel mode | `3` |
 | `node.persistence.enabled` | Enable PVCs for sentinel data nodes | `false` |
 | `sentinel.replicaCount` | Number of Sentinel pods | `3` |
+| `sentinel.masterSet` | Sentinel master set name used by Sentinel clients | `mymaster` |
 | `sentinel.quorum` | Sentinel quorum | `2` |
 | `cluster.nodes` | Number of Valkey Cluster nodes | `6` |
 | `cluster.replicasPerMaster` | Valkey Cluster replicas per master | `1` |

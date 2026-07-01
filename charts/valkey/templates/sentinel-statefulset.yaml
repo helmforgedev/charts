@@ -46,11 +46,11 @@ spec:
                 done
                 cp /etc/valkey-base/sentinel.conf /data/sentinel.conf
               else
-                persisted_monitor="$(grep '^sentinel monitor mymaster ' /data/sentinel.conf | tail -n 1 || true)"
+                persisted_monitor="$(grep '^sentinel monitor {{ .Values.sentinel.masterSet }} ' /data/sentinel.conf | tail -n 1 || true)"
                 append_sentinel_base() {
                   if [ -n "$persisted_monitor" ]; then
                     awk -v monitor="$persisted_monitor" '
-                      /^sentinel monitor mymaster / { print monitor; next }
+                      /^sentinel monitor {{ .Values.sentinel.masterSet }} / { print monitor; next }
                       { print }
                     ' /etc/valkey-base/sentinel.conf >> /data/sentinel.conf
                   else
@@ -71,17 +71,17 @@ spec:
                     -e '/^dir /d' \
                     -e '/^sentinel resolve-hostnames /d' \
                     -e '/^sentinel announce-hostnames /d' \
-                    -e '/^sentinel monitor mymaster /d' \
-                    -e '/^sentinel down-after-milliseconds mymaster /d' \
-                    -e '/^sentinel failover-timeout mymaster /d' \
-                    -e '/^sentinel parallel-syncs mymaster /d' \
+                    -e '/^sentinel monitor {{ .Values.sentinel.masterSet }} /d' \
+                    -e '/^sentinel down-after-milliseconds {{ .Values.sentinel.masterSet }} /d' \
+                    -e '/^sentinel failover-timeout {{ .Values.sentinel.masterSet }} /d' \
+                    -e '/^sentinel parallel-syncs {{ .Values.sentinel.masterSet }} /d' \
                     /data/sentinel.conf
                 fi
                 append_sentinel_base
               fi
               {{- if .Values.auth.enabled }}
-              sed -i '/^sentinel auth-pass mymaster /d' /data/sentinel.conf
-              echo "sentinel auth-pass mymaster ${VALKEY_PASSWORD}" >> /data/sentinel.conf
+              sed -i '/^sentinel auth-pass {{ .Values.sentinel.masterSet }} /d' /data/sentinel.conf
+              echo "sentinel auth-pass {{ .Values.sentinel.masterSet }} ${VALKEY_PASSWORD}" >> /data/sentinel.conf
               {{- end }}
               exec valkey-sentinel /data/sentinel.conf
           ports:
