@@ -94,7 +94,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "booklore.dbSecretName" -}}
 {{- if .Values.mariadb.enabled -}}
+{{- if .Values.mariadb.auth.existingSecret -}}
+{{- .Values.mariadb.auth.existingSecret -}}
+{{- else -}}
 {{- printf "%s-mariadb-auth" .Release.Name -}}
+{{- end -}}
 {{- else if .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecret -}}
 {{- else -}}
@@ -104,7 +108,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "booklore.dbSecretPasswordKey" -}}
 {{- if .Values.mariadb.enabled -}}
+{{- if and .Values.mariadb.auth.existingSecret .Values.mariadb.auth.existingSecretPasswordKey -}}
+{{- .Values.mariadb.auth.existingSecretPasswordKey -}}
+{{- else -}}
 mariadb-user-password
+{{- end -}}
 {{- else if .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecretPasswordKey | default "password" -}}
 {{- else -}}
