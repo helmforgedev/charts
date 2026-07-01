@@ -1,0 +1,32 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+Poznote release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+Workload:
+  kubectl get deploy {{ include "poznote.fullname" . }} -n {{ .Release.Namespace }}
+  kubectl rollout status deploy/{{ include "poznote.fullname" . }} -n {{ .Release.Namespace }}
+
+Service:
+  kubectl get svc {{ include "poznote.fullname" . }} -n {{ .Release.Namespace }}
+
+Local access:
+  kubectl port-forward svc/{{ include "poznote.fullname" . }} 8080:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+  Open http://127.0.0.1:8080
+
+Persistence:
+  Data: {{ ternary "PVC" "emptyDir" .Values.persistence.data.enabled }}
+
+First login:
+  Username: admin_change_me
+  Password: admin
+  Change the default credentials after the first login.
+
+Troubleshooting:
+  kubectl logs deploy/{{ include "poznote.fullname" . }} -n {{ .Release.Namespace }}
+  kubectl describe pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Validation:
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+  make validate-chart CHART=poznote
+
+Happy Helmforging :)

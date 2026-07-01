@@ -1,0 +1,263 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Deployment
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render a Deployment by default
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: test-poznote
+
+  - it: should use Recreate strategy
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should set replicas to 1
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should use the correct image
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/timothepoznanski/poznote:6.29.0"
+
+  - it: should expose HTTP port 80
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 80
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].name
+          value: http
+
+  - it: should set HTTP_WEB_PORT environment variable
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HTTP_WEB_PORT
+            value: "80"
+
+  - it: should set TZ environment variable
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TZ
+            value: "UTC"
+
+  - it: should set custom timezone
+    template: templates/deployment.yaml
+    set:
+      app.timezone: America/Sao_Paulo
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TZ
+            value: "America/Sao_Paulo"
+
+  - it: should set debug env var when enabled
+    template: templates/deployment.yaml
+    set:
+      app.debug: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POZNOTE_DEBUG
+            value: "true"
+
+  - it: should set OIDC disable normal login env var
+    template: templates/deployment.yaml
+    set:
+      poznote.oidc.disableNormalLogin: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POZNOTE_OIDC_DISABLE_NORMAL_LOGIN
+            value: "true"
+
+  - it: should mount data volume at upstream data path
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /var/www/html/data
+
+  - it: should use PVC for data volume by default
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: test-poznote-data
+
+  - it: should use emptyDir when persistence is disabled
+    template: templates/deployment.yaml
+    set:
+      persistence.data.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+
+  - it: should use existing PVC when specified
+    template: templates/deployment.yaml
+    set:
+      persistence.data.existingClaim: my-existing-pvc
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: my-existing-pvc
+
+  - it: should render startup probe on health endpoint
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /api/health
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.port
+          value: http
+
+  - it: should render liveness probe on health endpoint
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /api/health
+
+  - it: should render readiness probe on health endpoint
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /api/health
+
+  - it: should set security context allowing root for init script
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+
+  - it: should set fsGroup to www-data GID
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 82
+
+  - it: should disable service account token automount
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: should set custom image tag
+    template: templates/deployment.yaml
+    set:
+      image.tag: "7.0.0"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/timothepoznanski/poznote:7.0.0"
+
+  - it: should apply common labels to deployment
+    template: templates/deployment.yaml
+    set:
+      commonLabels:
+        team: platform
+    asserts:
+      - equal:
+          path: metadata.labels.team
+          value: platform
+
+  - it: should set OIDC env vars from inline secret
+    template: templates/deployment.yaml
+    set:
+      secrets.oidcClientId: test-id
+      secrets.oidcClientSecret: test-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POZNOTE_OIDC_CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                name: test-poznote-app
+                key: oidc-client-id
+                optional: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POZNOTE_OIDC_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: test-poznote-app
+                key: oidc-client-secret
+                optional: true
+
+  - it: should set OIDC env vars from existing secret
+    template: templates/deployment.yaml
+    set:
+      secrets.existingSecret: my-oidc-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POZNOTE_OIDC_CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                name: my-oidc-secret
+                key: oidc-client-id
+                optional: true
+
+  - it: should set custom resources
+    template: templates/deployment.yaml
+    set:
+      resources.requests.cpu: 50m
+      resources.requests.memory: 128Mi
+      resources.limits.cpu: 200m
+      resources.limits.memory: 512Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 50m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 512Mi

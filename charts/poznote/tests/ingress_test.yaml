@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Ingress
+templates:
+  - templates/ingress.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render Ingress when enabled
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: nginx
+      ingress.hosts:
+        - host: notes.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.rules[0].host
+          value: notes.example.com
+
+  - it: should render TLS configuration
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: notes.example.com
+      ingress.tls:
+        - secretName: notes-tls
+          hosts:
+            - notes.example.com
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: notes-tls
