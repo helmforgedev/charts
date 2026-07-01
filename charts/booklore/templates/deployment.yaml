@@ -150,7 +150,7 @@ spec:
           {{- if .Values.probes.startup.enabled }}
           startupProbe:
             httpGet:
-              path: /
+              path: /api/v1/healthcheck
               port: http
             initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.startup.periodSeconds }}
@@ -160,7 +160,7 @@ spec:
           {{- if .Values.probes.liveness.enabled }}
           livenessProbe:
             httpGet:
-              path: /
+              path: /api/v1/healthcheck
               port: http
             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
@@ -170,7 +170,7 @@ spec:
           {{- if .Values.probes.readiness.enabled }}
           readinessProbe:
             httpGet:
-              path: /
+              path: /api/v1/healthcheck
               port: http
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
@@ -184,6 +184,8 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /app/data
+            - name: books
+              mountPath: /books
             {{- if .Values.persistence.bookdrop.enabled }}
             - name: bookdrop
               mountPath: /bookdrop
@@ -196,6 +198,13 @@ spec:
           {{- if .Values.persistence.data.enabled }}
           persistentVolumeClaim:
             claimName: {{ include "booklore.persistenceClaimName" (dict "root" . "name" "data") | quote }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: books
+          {{- if .Values.persistence.books.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "booklore.persistenceClaimName" (dict "root" . "name" "books") | quote }}
           {{- else }}
           emptyDir: {}
           {{- end }}

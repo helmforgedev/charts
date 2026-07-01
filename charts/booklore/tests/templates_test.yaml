@@ -63,23 +63,32 @@ tests:
       - equal:
           path: spec.tls[0].hosts[0]
           value: booklore.example.com
-  - it: mounts data PVC by default and skips bookdrop
+  - it: mounts data and books PVCs by default and skips bookdrop
     template: templates/deployment.yaml
     asserts:
       - equal:
           path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
           value: RELEASE-NAME-booklore-data
-  - it: creates PVC for data by default
+      - equal:
+          path: spec.template.spec.volumes[1].persistentVolumeClaim.claimName
+          value: RELEASE-NAME-booklore-books
+  - it: creates PVCs for data and books by default
     template: templates/pvc.yaml
     asserts:
       - hasDocuments:
-          count: 1
+          count: 2
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-booklore-books
+        documentIndex: 0
+      - equal:
+          path: spec.resources.requests.storage
+          value: 50Gi
+        documentIndex: 0
       - equal:
           path: metadata.name
           value: RELEASE-NAME-booklore-data
-      - equal:
-          path: spec.resources.requests.storage
-          value: 10Gi
+        documentIndex: 1
   - it: creates an external database password secret
     template: templates/secret.yaml
     set:

@@ -36,11 +36,16 @@ access. See [examples/](examples/) for ready-to-use configurations.
 | Volume | Mount | Default | Description |
 |--------|-------|---------|-------------|
 | data | /app/data | 10Gi | Library data, configuration, metadata |
+| books | /books | 50Gi | Library book files |
 | bookdrop | /bookdrop | disabled | BookDrop import folder |
 
-## Security Scan
+## Security Scan: `booklore`
 
-<!-- kubescape results placeholder -->
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **89.90%** |
+
+> Security posture acceptable.
 
 ## Links
 
