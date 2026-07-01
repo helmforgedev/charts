@@ -108,8 +108,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "booklore.dbSecretPasswordKey" -}}
 {{- if .Values.mariadb.enabled -}}
-{{- if and .Values.mariadb.auth.existingSecret .Values.mariadb.auth.existingSecretPasswordKey -}}
-{{- .Values.mariadb.auth.existingSecretPasswordKey -}}
+{{- if and .Values.mariadb.auth.existingSecret .Values.mariadb.auth.existingSecretUserPasswordKey -}}
+{{- .Values.mariadb.auth.existingSecretUserPasswordKey -}}
 {{- else -}}
 mariadb-user-password
 {{- end -}}
