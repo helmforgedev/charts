@@ -385,15 +385,31 @@ volumeMounts:
 {{- end -}}
 
 {{/*
-Pod labels with component and role.
+Valkey pod labels with component and role.
 */}}
-{{- define "valkey.componentLabels" -}}
+{{- define "valkey.valkeyLabels" -}}
 {{ include "valkey.selectorLabels" .root }}
 app.kubernetes.io/component: valkey
 app.kubernetes.io/part-of: valkey
 {{- if .role }}
 app.kubernetes.io/role: {{ .role }}
 {{- end }}
+{{- end -}}
+
+{{/*
+Sentinel pod labels with component.
+*/}}
+{{- define "valkey.sentinelLabels" -}}
+{{ include "valkey.selectorLabels" . }}
+app.kubernetes.io/component: sentinel
+{{- end -}}
+
+{{/*
+Metrics pod labels with component.
+*/}}
+{{- define "valkey.metricsLabels" -}}
+{{ include "valkey.selectorLabels" . }}
+app.kubernetes.io/component: metrics
 {{- end -}}
 
 {{/*
@@ -419,12 +435,12 @@ Volume claim template.
 Common pod spec fragments.
 */}}
 {{- define "valkey.podSpecCommon" -}}
+serviceAccountName: {{ include "valkey.serviceAccountName" . }}
+automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
 {{- with .Values.imagePullSecrets }}
 imagePullSecrets:
   {{- toYaml . | nindent 2 }}
 {{- end }}
-serviceAccountName: {{ include "valkey.serviceAccountName" . }}
-automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
 {{- with .Values.priorityClassName }}
 priorityClassName: {{ . }}
 {{- end }}
@@ -445,8 +461,26 @@ affinity:
 tolerations:
   {{- toYaml . | nindent 2 }}
 {{- end }}
-{{- with .Values.topologySpreadConstraints }}
+{{- end -}}
+
+{{/*
+Generic pod spec fragment with topology spread constraints.
+*/}}
+{{- define "valkey.podSpec" -}}
+{{- $root := .root }}
+{{- $role := .role }}
+{{- include "valkey.podSpecCommon" $root }}
+{{- with $root.Values.topologySpreadConstraints }}
 topologySpreadConstraints:
-  {{- toYaml . | nindent 2 }}
+  {{- range . }}
+  - {{ toYaml . | nindent 4 | trim }}
+    labelSelector:
+      matchLabels:
+        {{- if eq $role "sentinel" }}
+        {{- include "valkey.sentinelLabels" $root | nindent 8 }}
+        {{- else }}
+        {{- include "valkey.valkeyLabels" (dict "root" $root "role" $role) | nindent 8 }}
+        {{- end }}
+  {{- end }}
 {{- end }}
 {{- end -}}
