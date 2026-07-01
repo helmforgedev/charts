@@ -55,6 +55,9 @@ poznote:
 For enterprise environments, use ESO to sync OIDC credentials from a vault:
 
 ```yaml
+secrets:
+  existingSecret: poznote-oidc
+
 externalSecrets:
   enabled: true
   items:
@@ -63,6 +66,9 @@ externalSecrets:
         secretStoreRef:
           name: vault-backend
           kind: ClusterSecretStore
+        target:
+          name: poznote-oidc
+          creationPolicy: Owner
         data:
           - secretKey: oidc-client-id
             remoteRef:
