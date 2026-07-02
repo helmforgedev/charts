@@ -1,0 +1,111 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: booklore base templates
+templates:
+  - templates/deployment.yaml
+  - templates/ingress.yaml
+  - templates/pvc.yaml
+  - templates/secret.yaml
+  - templates/service.yaml
+tests:
+  - it: renders the official pinned image and database environment
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/booklore-app/booklore:v2.3.1
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.containers[0].env[2].name
+          value: DATABASE_HOST
+      - equal:
+          path: spec.template.spec.containers[0].env[2].value
+          value: RELEASE-NAME-mariadb
+      - equal:
+          path: spec.template.spec.containers[0].env[6].valueFrom.secretKeyRef.name
+          value: RELEASE-NAME-mariadb-auth
+      - equal:
+          path: spec.template.spec.containers[0].env[6].valueFrom.secretKeyRef.key
+          value: mariadb-user-password
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 0
+  - it: renders the default ClusterIP service
+    template: templates/service.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.ports[0].port
+          value: 6060
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+  - it: renders common labels on a separate line
+    template: templates/service.yaml
+    values:
+      - common-labels-values.yaml
+    asserts:
+      - equal:
+          path: metadata.labels.review
+          value: enabled
+  - it: renders ingress TLS
+    template: templates/ingress.yaml
+    values:
+      - ingress-values.yaml
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: booklore-tls
+      - equal:
+          path: spec.tls[0].hosts[0]
+          value: booklore.example.com
+  - it: mounts data and books PVCs by default and skips bookdrop
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          value: RELEASE-NAME-booklore-data
+      - equal:
+          path: spec.template.spec.volumes[1].persistentVolumeClaim.claimName
+          value: RELEASE-NAME-booklore-books
+  - it: creates PVCs for data and books by default
+    template: templates/pvc.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-booklore-books
+        documentIndex: 0
+      - equal:
+          path: spec.resources.requests.storage
+          value: 50Gi
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-booklore-data
+        documentIndex: 1
+  - it: creates an external database password secret
+    template: templates/secret.yaml
+    set:
+      mariadb.enabled: false
+      database.external.host: mariadb.example.com
+      database.external.password: external-password
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-booklore-db
+      - equal:
+          path: stringData.password
+          value: external-password
+  - it: skips external db secret when mariadb subchart is enabled
+    template: templates/secret.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
