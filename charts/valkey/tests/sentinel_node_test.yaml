@@ -190,3 +190,48 @@ tests:
       - matchRegex:
           path: spec.template.spec.containers[0].args[0]
           pattern: "sentinel auth-pass legacy-master \\$\\{VALKEY_PASSWORD\\}"
+
+  - it: injects sentinel requirepass and sentinel-pass when auth.sentinel=true
+    set:
+      architecture: sentinel
+      auth:
+        enabled: true
+        sentinel: true
+    template: sentinel-statefulset.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: 'echo "requirepass \$\{VALKEY_PASSWORD\}"'
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: 'echo "sentinel sentinel-pass \$\{VALKEY_PASSWORD\}"'
+
+  - it: omits sentinel auth when auth.sentinel=false but keeps the strip
+    set:
+      architecture: sentinel
+      auth:
+        enabled: true
+        sentinel: false
+    template: sentinel-statefulset.yaml
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: 'echo "requirepass'
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "sed -i -e '/\\^requirepass /d'"
+
+  - it: both node containers authenticate to Sentinel when auth.sentinel=true
+    set:
+      architecture: sentinel
+      auth:
+        enabled: true
+        sentinel: true
+    template: sentinel-node-statefulset.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: '-a "\$VALKEY_PASSWORD"[^\n]*sentinel get-master-addr-by-name'
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: '-a "\$VALKEY_PASSWORD"[^\n]*sentinel get-master-addr-by-name'
