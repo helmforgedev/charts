@@ -1,0 +1,22 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "booklore.fullname" . }}
+  labels:
+    {{- include "booklore.labels" . | nindent 4 }}
+    {{- with .Values.monitoring.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "booklore.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      path: {{ required "monitoring.serviceMonitor.path is required when serviceMonitor is enabled (BookLore v2.3.1 does not expose Prometheus metrics)" .Values.monitoring.serviceMonitor.path }}
+      {{- with .Values.monitoring.serviceMonitor.interval }}
+      interval: {{ . }}
+      {{- end }}
+{{- end }}
