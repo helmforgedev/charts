@@ -6,6 +6,27 @@ The chart supports a simple standalone cache for development and a distributed s
 
 ## Install
 
+### Standard Memcached pool
+
+For a typical production-style Memcached pool, run independent cache nodes and
+let the application client distribute keys across them:
+
+```yaml
+architecture: distributed
+replicaCount: 3
+```
+
+```bash
+helm repo add helmforge https://repo.helmforge.dev
+helm repo update
+helm install memcached helmforge/memcached -f values.yaml
+```
+
+This creates three Memcached pods. The chart does not replicate cache entries
+or shard keys inside Kubernetes. Use a Memcached client library that supports
+multiple servers, preferably with consistent hashing. The headless Service gives
+pod-aware clients stable DNS names for explicit pool membership.
+
 ### HTTPS repository
 
 ```bash
@@ -42,9 +63,11 @@ helm install memcached oci://ghcr.io/helmforgedev/helm/memcached -f values.yaml
 | Architecture | Contract | Typical use |
 |--------------|----------|-------------|
 | `standalone` | One Memcached pod behind one Service. | Development, tests, small non-critical caches. |
-| `distributed` | Multiple independent Memcached pods behind one Service and stable pod DNS. | Production caches where the client library handles node distribution. |
+| `distributed` | Multiple independent Memcached pods with a client Service and stable pod DNS. | Standard Memcached pools where the client library distributes keys. |
 
-Memcached does not replicate cache entries between nodes. In distributed mode, use client-side consistent hashing when cache hit ratio matters during scale events.
+Memcached does not replicate cache entries between nodes. In distributed mode,
+the client is responsible for choosing a node for each key. Use client-side
+consistent hashing when cache hit ratio matters during scale events.
 
 ## Development quick start
 
@@ -71,7 +94,7 @@ Production-ready deployments are possible through values. The defaults stay deve
 
 Start from [examples/production.yaml](examples/production.yaml) and adapt:
 
-- use `architecture: distributed` with at least three replicas
+- use `architecture: distributed` with at least three nodes (`replicaCount: 3`)
 - size `memcached.memoryLimitMB` and Kubernetes memory limits together
 - set explicit CPU and memory requests
 - disable `flush_all` with `memcached.disableFlushAll=true`

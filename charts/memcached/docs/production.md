@@ -2,11 +2,23 @@
 
 ## Deployment Model
 
-Memcached stores cache entries in memory and does not replicate data between
-pods. In production, prefer `architecture: distributed` with at least three
-replicas and a client library that supports consistent hashing. The chart keeps
-stable StatefulSet pod identities and a headless Service so clients can address
-individual cache nodes when they need deterministic distribution.
+The standard Memcached production pattern is a pool of independent cache nodes.
+For example:
+
+```yaml
+architecture: distributed
+replicaCount: 3
+```
+
+This starts three Memcached pods. Memcached stores cache entries in memory and
+does not replicate data between pods. The application client must distribute
+keys across the pool, ideally with consistent hashing. The chart keeps stable
+StatefulSet pod identities and a headless Service so clients can address
+individual cache nodes when they need deterministic pool membership.
+
+The regular client Service is useful for simple connectivity and smoke tests.
+It does not replace client-side key distribution for workloads that expect a
+multi-node Memcached pool.
 
 Use `standalone` only when losing a single cache node is acceptable. It is a
 good fit for development, CI, preview environments, or small workloads where a
@@ -150,8 +162,8 @@ kubectl run memcached-client --rm -it --restart=Never \
   sh -ec "printf 'version\r\nquit\r\n' | nc memcached 11211"
 ```
 
-For distributed deployments, validate that all expected pods are addressable
-through the headless Service:
+For distributed deployments, validate that all expected pool members are
+addressable through the headless Service:
 
 ```bash
 kubectl get endpoints memcached-headless
