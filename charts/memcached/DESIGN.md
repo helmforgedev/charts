@@ -5,7 +5,8 @@
 This chart deploys Memcached on Kubernetes using the official image. It focuses on predictable cache infrastructure, secure-by-option production settings,
 and integration points commonly required by platform teams.
 
-It does not turn Memcached into a replicated database. Cache distribution remains a client responsibility.
+It does not turn Memcached into a replicated database or perform server-side
+sharding. Cache distribution remains a client responsibility.
 
 ## Architecture
 
@@ -57,7 +58,10 @@ Applications -------------------------------------+
 +-------------+   +-------------+   +-------------+
 ```
 
-Memcached does not replicate entries. A production client should use consistent hashing or another distribution strategy and tolerate cache misses during node replacement.
+Memcached does not replicate entries. This is the standard Memcached pool model:
+run several independent servers and configure the application client to spread
+keys across them. A production client should use consistent hashing or another
+distribution strategy and tolerate cache misses during node replacement.
 
 ### Secure Integration Flow
 
