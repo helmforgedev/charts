@@ -1,0 +1,234 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "booklore.fullname" . }}
+  labels:
+    {{- include "booklore.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "booklore.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "booklore.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/secrets: {{ dict "appSecret" .Values.secrets "dbSecret" .Values.database.external "externalSecrets" .Values.externalSecrets "extraManifests" .Values.extraManifests | toJson | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "booklore.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName | quote }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        - name: wait-for-database
+          image: "{{ .Values.waitForDatabase.image.repository }}:{{ .Values.waitForDatabase.image.tag }}"
+          imagePullPolicy: {{ .Values.waitForDatabase.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              until nc -z -w2 {{ include "booklore.dbHost" . }} {{ include "booklore.dbPort" . }}; do
+                echo "Waiting for MariaDB..."
+                sleep 2
+              done
+          {{- with .Values.waitForDatabase.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+      containers:
+        - name: {{ include "booklore.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.app.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.app.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.app.port }}
+              protocol: TCP
+          env:
+            - name: BOOKLORE_PORT
+              value: {{ .Values.app.port | quote }}
+            - name: DATABASE_URL
+              value: {{ include "booklore.dbUrl" . | quote }}
+            - name: DATABASE_HOST
+              value: {{ include "booklore.dbHost" . | quote }}
+            - name: DATABASE_PORT
+              value: {{ include "booklore.dbPort" . | quote }}
+            - name: DATABASE_NAME
+              value: {{ include "booklore.dbName" . | quote }}
+            - name: DATABASE_USERNAME
+              value: {{ include "booklore.dbUsername" . | quote }}
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "booklore.dbSecretName" . | quote }}
+                  key: {{ include "booklore.dbSecretPasswordKey" . | quote }}
+            - name: ROOT_LOG_LEVEL
+              value: {{ .Values.app.rootLogLevel | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.app.logLevel | quote }}
+            - name: ALLOWED_ORIGINS
+              value: {{ .Values.app.allowedOrigins | quote }}
+            - name: DISK_TYPE
+              value: {{ .Values.app.diskType | quote }}
+            - name: FORCE_DISABLE_OIDC
+              value: {{ .Values.oidc.forceDisable | quote }}
+            {{- if .Values.remoteAuth.enabled }}
+            - name: REMOTE_AUTH_ENABLED
+              value: "true"
+            - name: REMOTE_AUTH_CREATE_NEW_USERS
+              value: {{ .Values.remoteAuth.createNewUsers | quote }}
+            - name: REMOTE_AUTH_HEADER_NAME
+              value: {{ .Values.remoteAuth.headerName | quote }}
+            - name: REMOTE_AUTH_HEADER_USER
+              value: {{ .Values.remoteAuth.headerUser | quote }}
+            - name: REMOTE_AUTH_HEADER_EMAIL
+              value: {{ .Values.remoteAuth.headerEmail | quote }}
+            - name: REMOTE_AUTH_HEADER_GROUPS
+              value: {{ .Values.remoteAuth.headerGroups | quote }}
+            {{- with .Values.remoteAuth.adminGroup }}
+            - name: REMOTE_AUTH_ADMIN_GROUP
+              value: {{ . | quote }}
+            {{- end }}
+            - name: REMOTE_AUTH_GROUPS_DELIMITER
+              value: {{ .Values.remoteAuth.groupsDelimiter | quote }}
+            {{- end }}
+            {{- range .Values.app.env }}
+            - name: {{ .name }}
+              {{- if hasKey . "valueFrom" }}
+              valueFrom:
+                {{- toYaml .valueFrom | nindent 16 }}
+              {{- else }}
+              value: {{ default "" .value | quote }}
+              {{- end }}
+            {{- end }}
+          {{- with .Values.app.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: /api/v1/healthcheck
+              port: http
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /api/v1/healthcheck
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /api/v1/healthcheck
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: books
+              mountPath: /books
+            {{- if .Values.persistence.bookdrop.enabled }}
+            - name: bookdrop
+              mountPath: /bookdrop
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.data.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "booklore.persistenceClaimName" (dict "root" . "name" "data") | quote }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: books
+          {{- if .Values.persistence.books.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "booklore.persistenceClaimName" (dict "root" . "name" "books") | quote }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if .Values.persistence.bookdrop.enabled }}
+        - name: bookdrop
+          persistentVolumeClaim:
+            claimName: {{ include "booklore.persistenceClaimName" (dict "root" . "name" "bookdrop") | quote }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
