@@ -25,7 +25,7 @@ spec:
         - |
           {{- if include "valkey.isSentinel" . }}
           for i in $(seq 1 30); do
-            addr="$(valkey-cli $VALKEY_TLS_ARGS -h {{ include "valkey.sentinelServiceName" . | quote }} -p {{ .Values.service.ports.sentinel }} sentinel get-master-addr-by-name mymaster 2>/dev/null)"
+            addr="$(valkey-cli $VALKEY_TLS_ARGS{{- if and .Values.auth.enabled .Values.auth.sentinel }} -a "$VALKEY_PASSWORD" --no-auth-warning{{- end }} -h {{ include "valkey.sentinelServiceName" . | quote }} -p {{ .Values.service.ports.sentinel }} sentinel get-master-addr-by-name {{ .Values.sentinel.masterSet }} 2>/dev/null)"
             host="$(echo "$addr" | sed -n '1p')"
             port="$(echo "$addr" | sed -n '2p')"
             [ -z "$port" ] && port={{ .Values.service.ports.valkey }}
