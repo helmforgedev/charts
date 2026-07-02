@@ -85,3 +85,20 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- printf "%s-sync" (include "adguard-home.fullname" .) -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "adguard-home.validate" -}}
+{{- if .Values.externalSecrets.enabled -}}
+  {{- if not .Values.config.existingSecret -}}
+    {{- fail "externalSecrets.enabled requires config.existingSecret to be set to prevent credential drift between the chart-managed Secret and the ExternalSecret." -}}
+  {{- end -}}
+  {{- $hasConfigKey := false -}}
+  {{- range .Values.externalSecrets.data -}}
+    {{- if eq .secretKey "AdGuardHome.yaml" -}}
+      {{- $hasConfigKey = true -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if not $hasConfigKey -}}
+    {{- fail "externalSecrets.data must contain an entry with secretKey 'AdGuardHome.yaml' when externalSecrets.enabled=true to populate the initial configuration." -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
