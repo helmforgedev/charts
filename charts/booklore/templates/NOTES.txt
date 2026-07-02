@@ -1,0 +1,125 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+BookLore has been installed.
+
+1. Installation summary
+=======================
+  Release:         {{ .Release.Name }}
+  Namespace:       {{ .Release.Namespace }}
+  Chart:           {{ include "booklore.chart" . }}
+  AppVersion:      {{ .Chart.AppVersion }}
+  Image:           {{ .Values.image.repository }}:{{ .Values.image.tag }}
+  Replicas:        {{ .Values.replicaCount }}
+  ServiceAccount:  {{ include "booklore.serviceAccountName" . }}
+
+2. Access
+=========
+  Service name:    {{ include "booklore.fullname" . }}
+  Service type:    {{ .Values.service.type }}
+  Service port:    {{ .Values.service.port }}
+  Cluster DNS:     {{ include "booklore.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+  Port-forward:    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "booklore.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+{{- if .Values.ingress.enabled }}
+  Ingress hosts:
+  {{- range .Values.ingress.hosts }}
+    - {{ .host }}
+  {{- end }}
+{{- end }}
+{{- if .Values.gatewayAPI.enabled }}
+  Gateway API:     enabled
+  {{- range .Values.gatewayAPI.httpRoutes }}
+  {{- with .hostnames }}
+  HTTPRoute hosts:
+    {{- range . }}
+    - {{ . }}
+    {{- end }}
+  {{- end }}
+  {{- end }}
+{{- end }}
+
+3. Getting started
+==================
+  Wait for pod:
+
+    kubectl wait --for=condition=Ready pod \
+      -l app.kubernetes.io/name={{ include "booklore.name" . }},app.kubernetes.io/instance={{ .Release.Name }} \
+      -n {{ .Release.Namespace }} --timeout=300s
+
+  Port-forward and open in browser:
+
+    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "booklore.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+    # Open http://localhost:{{ .Values.service.port }}
+
+  First-time setup:
+    On first launch, BookLore will run database migrations (Flyway) automatically.
+    Create your first user account through the web UI.
+
+4. Credentials
+==============
+  Database:
+    Host:       {{ include "booklore.dbHost" . }}
+    Port:       {{ include "booklore.dbPort" . }}
+    Database:   {{ include "booklore.dbName" . }}
+    Username:   {{ include "booklore.dbUsername" . }}
+    Password:   stored in Secret {{ include "booklore.dbSecretName" . }}
+{{- if .Values.remoteAuth.enabled }}
+
+  Remote Auth:
+    Enabled:    true
+    Headers:    {{ .Values.remoteAuth.headerUser }} / {{ .Values.remoteAuth.headerEmail }}
+{{- end }}
+
+5. Configuration summary
+========================
+  Database mode:   {{ if .Values.mariadb.enabled }}embedded MariaDB subchart{{ else }}external MariaDB at {{ include "booklore.dbHost" . }}:{{ include "booklore.dbPort" . }}{{ end }}
+  Data volume:     {{ if .Values.persistence.data.enabled }}{{ .Values.persistence.data.size }} PVC{{ else }}emptyDir (data lost on pod restart){{ end }}
+  BookDrop:        {{ if .Values.persistence.bookdrop.enabled }}{{ .Values.persistence.bookdrop.size }} PVC at /bookdrop{{ else }}disabled{{ end }}
+  OIDC:            {{ if .Values.oidc.forceDisable }}force-disabled{{ else }}available via upstream config{{ end }}
+  Remote Auth:     {{ if .Values.remoteAuth.enabled }}enabled{{ else }}disabled{{ end }}
+  NetworkPolicy:   {{ if .Values.networkPolicy.enabled }}enabled{{ else }}disabled{{ end }}
+  HPA:             {{ if .Values.autoscaling.enabled }}enabled ({{ .Values.autoscaling.minReplicas }}-{{ .Values.autoscaling.maxReplicas }}){{ else }}disabled{{ end }}
+  ServiceMonitor:  {{ if .Values.monitoring.serviceMonitor.enabled }}enabled{{ else }}disabled{{ end }}
+
+6. Validation commands
+======================
+  helm status {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+  kubectl get deploy,svc,pvc,ing -n {{ .Release.Namespace }} \
+    -l app.kubernetes.io/instance={{ .Release.Name }}
+
+  kubectl wait --for=condition=Available deploy/{{ include "booklore.fullname" . }} \
+    -n {{ .Release.Namespace }} --timeout=300s
+
+  kubectl get endpoints {{ include "booklore.fullname" . }} \
+    -n {{ .Release.Namespace }}
+
+  # Quick health check
+  kubectl exec -n {{ .Release.Namespace }} deploy/{{ include "booklore.fullname" . }} -- \
+    wget -qO- http://localhost:{{ .Values.app.port }}/ | head -c 200
+
+7. Troubleshooting
+==================
+  kubectl get pods -n {{ .Release.Namespace }} \
+    -l app.kubernetes.io/instance={{ .Release.Name }}
+
+  kubectl describe pod -n {{ .Release.Namespace }} \
+    -l app.kubernetes.io/name={{ include "booklore.name" . }},app.kubernetes.io/instance={{ .Release.Name }}
+
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+
+  kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "booklore.fullname" . }} --tail=100
+
+  kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "booklore.fullname" . }} --previous --tail=50
+
+  Common problems:
+    - CrashLoopBackOff:    Check database connectivity and credentials.
+    - Flyway errors:       Database may have stale migration state; check logs.
+    - OOM:                 Increase resources.limits.memory (BookLore is a Java/Spring Boot app).
+    - Slow startup:        Java apps need warm-up time; the startup probe allows up to 6 min.
+
+8. Resources
+============
+  HelmForge docs:  https://helmforge.dev/docs/charts/booklore
+  Upstream:        https://github.com/booklore-app/booklore
+  Chart issues:    https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)
