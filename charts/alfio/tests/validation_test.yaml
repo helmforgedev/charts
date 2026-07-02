@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Validation
+templates:
+  - templates/validate.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should require an external database host when the subchart is disabled
+    set:
+      postgresql.enabled: false
+      database.external.password: my-password
+    asserts:
+      - failedTemplate:
+          errorMessage: database.external.host is required when postgresql.enabled=false
+
+  - it: should require an external database password source when the subchart is disabled
+    set:
+      postgresql.enabled: false
+      database.external.host: db.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: database.external.password or database.external.existingSecret is required when postgresql.enabled=false
+
+  - it: should require at least one ingress host when ingress is enabled
+    set:
+      ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.hosts must contain at least one host when ingress.enabled=true
+
+  - it: should reject podLabels that override the name selector
+    set:
+      podLabels:
+        app.kubernetes.io/name: other
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels must not override the selector label app.kubernetes.io/name
+
+  - it: should reject podLabels that override the instance selector
+    set:
+      podLabels:
+        app.kubernetes.io/instance: other
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels must not override the selector label app.kubernetes.io/instance
