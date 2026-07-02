@@ -211,4 +211,10 @@ jdbc:mariadb://{{ include "booklore.dbHost" . }}:{{ include "booklore.dbPort" . 
 {{- fail "podLabels must not override the selector label app.kubernetes.io/instance" -}}
 {{- end -}}
 {{- end -}}
+{{- if and .Values.gatewayAPI.enabled (empty .Values.gatewayAPI.httpRoutes) -}}
+{{- fail "gatewayAPI.httpRoutes must contain at least one route when gatewayAPI.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.autoscaling.enabled (gt (int .Values.autoscaling.maxReplicas) 1) .Values.persistence.data.enabled (ne .Values.persistence.data.accessMode "ReadWriteMany") -}}
+{{- fail "autoscaling.maxReplicas > 1 with persistence.data.accessMode=ReadWriteOnce will cause volume scheduling failures; set persistence.data.accessMode=ReadWriteMany or disable persistence" -}}
+{{- end -}}
 {{- end -}}
