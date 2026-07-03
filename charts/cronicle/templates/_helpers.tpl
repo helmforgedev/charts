@@ -43,6 +43,20 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
+{{- define "cronicle.validate" -}}
+{{- if and (not .Values.secret.create) (not .Values.secret.existingSecret) -}}
+{{- fail "secret.existingSecret is required when secret.create=false" -}}
+{{- end -}}
+{{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
+{{- fail "ingress.hosts must contain at least one rule when ingress.enabled=true" -}}
+{{- end -}}
+{{- range $key, $_ := .Values.podLabels -}}
+{{- if or (eq $key "app.kubernetes.io/name") (eq $key "app.kubernetes.io/instance") -}}
+{{- fail (printf "podLabels must not override selector label %q" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Data PVC claim name */}}
 {{- define "cronicle.dataClaimName" -}}
 {{- if .Values.persistence.existingClaim -}}
