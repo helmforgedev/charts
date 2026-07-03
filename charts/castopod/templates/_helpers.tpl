@@ -39,6 +39,44 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "castopod.validate" -}}
+{{- if and (not .Values.mariadb.enabled) (not .Values.database.external.host) -}}
+{{- fail "database.external.host is required when mariadb.enabled is false" -}}
+{{- end -}}
+{{- if and (not .Values.mariadb.enabled) (not .Values.database.external.existingSecret) (not .Values.database.external.password) -}}
+{{- fail "database.external.password or database.external.existingSecret is required when mariadb.enabled is false" -}}
+{{- end -}}
+{{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
+{{- fail "ingress.enabled requires ingress.hosts to contain at least one host" -}}
+{{- end -}}
+{{- if .Values.ingress.enabled -}}
+{{- range $index, $host := .Values.ingress.hosts -}}
+{{- if not $host.host -}}
+{{- fail (printf "ingress.hosts[%d].host is required when ingress.enabled is true" $index) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.backup.enabled -}}
+{{- if not .Values.backup.s3.endpoint -}}
+{{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
+{{- end -}}
+{{- if not .Values.backup.s3.bucket -}}
+{{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
+{{- end -}}
+{{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}
+{{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
+{{- end -}}
+{{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.secretKey) -}}
+{{- fail "backup.s3.secretKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
+{{- end -}}
+{{- end -}}
+{{- range $key, $_ := .Values.podLabels -}}
+{{- if or (eq $key "app.kubernetes.io/name") (eq $key "app.kubernetes.io/instance") -}}
+{{- fail (printf "podLabels must not override selector label %q" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "castopod.image" -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
@@ -142,18 +180,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
-{{/* Backup — validate required fields */}}
 {{- define "castopod.backupEnabled" -}}
 {{- if .Values.backup.enabled -}}
-  {{- if not .Values.backup.s3.endpoint -}}
-    {{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
-  {{- end -}}
-  {{- if not .Values.backup.s3.bucket -}}
-    {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
-  {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}
-    {{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
-  {{- end -}}
 true
 {{- end -}}
 {{- end -}}
