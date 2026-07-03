@@ -246,7 +246,7 @@ Central fail-fast validation entrypoint.
 {{- if and .Values.rateLimiting.enabled (not .Values.redis.enabled) (not .Values.rateLimiting.externalRedis.host) -}}
 {{- fail "rateLimiting.enabled requires redis.enabled=true or rateLimiting.externalRedis.host to be set" -}}
 {{- end -}}
-{{- if and .Values.rateLimiting.externalRedis.auth.enabled (not .Values.rateLimiting.externalRedis.auth.secretName) -}}
+{{- if and .Values.rateLimiting.enabled (not .Values.redis.enabled) .Values.rateLimiting.externalRedis.host .Values.rateLimiting.externalRedis.auth.enabled (not .Values.rateLimiting.externalRedis.auth.secretName) -}}
 {{- fail "rateLimiting.externalRedis.auth.enabled requires rateLimiting.externalRedis.auth.secretName" -}}
 {{- end -}}
 {{- $podLabels := .Values.podLabels | default dict -}}
