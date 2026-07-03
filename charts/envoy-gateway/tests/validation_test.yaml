@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Validation
+templates:
+  - validate.yaml
+tests:
+  - it: should reject rate limiting without redis backend
+    set:
+      rateLimiting:
+        enabled: true
+      redis:
+        enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "rateLimiting.enabled requires redis.enabled=true or rateLimiting.externalRedis.host to be set"
+
+  - it: should reject external redis auth without secret
+    set:
+      rateLimiting:
+        externalRedis:
+          host: redis.example.com
+          auth:
+            enabled: true
+            secretName: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "rateLimiting.externalRedis.auth.enabled requires rateLimiting.externalRedis.auth.secretName"
+
+  - it: should reject external secrets without external redis auth secret
+    set:
+      externalSecrets:
+        enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.enabled requires rateLimiting.externalRedis.auth.secretName to be set to prevent credential drift between the chart-managed Secret and the ExternalSecret."
+
+  - it: should reject reserved pod label overrides
+    set:
+      podLabels:
+        app.kubernetes.io/component: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: "podLabels must not override selector label app.kubernetes.io/component"
+
+  - it: should allow null pod labels
+    set:
+      podLabels: null
+    asserts:
+      - notFailedTemplate: {}

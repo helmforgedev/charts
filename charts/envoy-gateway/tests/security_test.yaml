@@ -42,6 +42,31 @@ tests:
           count: 0
         template: networkpolicy.yaml
 
+  - it: should append controller extra egress rules
+    set:
+      security:
+        networkPolicies: true
+        networkPolicy:
+          extraEgress:
+            - to:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: observability
+              ports:
+                - protocol: TCP
+                  port: 4317
+    asserts:
+      - equal:
+          path: spec.egress[2].to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: observability
+        template: networkpolicy.yaml
+        documentIndex: 0
+      - equal:
+          path: spec.egress[2].ports[0].port
+          value: 4317
+        template: networkpolicy.yaml
+        documentIndex: 0
+
   - it: should create NetworkPolicies for Redis and ratelimit when rate limiting enabled
     set:
       namespaceOverride: envoy-system

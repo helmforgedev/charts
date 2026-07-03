@@ -235,3 +235,28 @@ affinity:
   {{- toYaml $affinity | nindent 2 }}
 {{- end }}
 {{- end }}
+
+{{/*
+Central fail-fast validation entrypoint.
+*/}}
+{{- define "envoy-gateway.validate" -}}
+{{- if and .Values.externalSecrets.enabled (not .Values.rateLimiting.externalRedis.auth.secretName) -}}
+{{- fail "externalSecrets.enabled requires rateLimiting.externalRedis.auth.secretName to be set to prevent credential drift between the chart-managed Secret and the ExternalSecret." -}}
+{{- end -}}
+{{- if and .Values.rateLimiting.enabled (not .Values.redis.enabled) (not .Values.rateLimiting.externalRedis.host) -}}
+{{- fail "rateLimiting.enabled requires redis.enabled=true or rateLimiting.externalRedis.host to be set" -}}
+{{- end -}}
+{{- if and .Values.rateLimiting.externalRedis.auth.enabled (not .Values.rateLimiting.externalRedis.auth.secretName) -}}
+{{- fail "rateLimiting.externalRedis.auth.enabled requires rateLimiting.externalRedis.auth.secretName" -}}
+{{- end -}}
+{{- $podLabels := .Values.podLabels | default dict -}}
+{{- if hasKey $podLabels "app.kubernetes.io/name" -}}
+{{- fail "podLabels must not override selector label app.kubernetes.io/name" -}}
+{{- end -}}
+{{- if hasKey $podLabels "app.kubernetes.io/instance" -}}
+{{- fail "podLabels must not override selector label app.kubernetes.io/instance" -}}
+{{- end -}}
+{{- if hasKey $podLabels "app.kubernetes.io/component" -}}
+{{- fail "podLabels must not override selector label app.kubernetes.io/component" -}}
+{{- end -}}
+{{- end -}}
