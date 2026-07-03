@@ -14,6 +14,14 @@ tests:
       - failedTemplate:
           errorMessage: "containers[].name must be a DNS-1123 label: App"
 
+  - it: should fail when a container name is longer than 63 characters
+    set:
+      containers:
+        - name: app-name-that-is-intentionally-longer-than-sixty-three-characters-total
+    asserts:
+      - failedTemplate:
+          errorMessage: "containers[].name must be 63 characters or fewer: app-name-that-is-intentionally-longer-than-sixty-three-characters-total"
+
   - it: should fail when HPA targets a DaemonSet
     set:
       workload.type: DaemonSet
@@ -36,6 +44,14 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "pdb.minAvailable or pdb.maxUnavailable is required when pdb.enabled=true"
+
+  - it: should allow zero as an explicit PDB availability budget
+    set:
+      pdb.enabled: true
+      pdb.minAvailable: 0
+    asserts:
+      - hasDocuments:
+          count: 0
 
   - it: should fail when ingress falls back to disabled primary service
     set:

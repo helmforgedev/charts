@@ -372,15 +372,24 @@ dnsConfig:
 {{- if not (regexMatch $namePattern .name) }}
 {{- fail (printf "containers[].name must be a DNS-1123 label: %s" .name) }}
 {{- end }}
+{{- if gt (len .name) 63 }}
+{{- fail (printf "containers[].name must be 63 characters or fewer: %s" .name) }}
+{{- end }}
 {{- end }}
 {{- range .Values.jobs | default list }}
 {{- if not (regexMatch $namePattern .name) }}
 {{- fail (printf "jobs[].name must be a DNS-1123 label: %s" .name) }}
 {{- end }}
+{{- if gt (len .name) 63 }}
+{{- fail (printf "jobs[].name must be 63 characters or fewer: %s" .name) }}
+{{- end }}
 {{- end }}
 {{- range .Values.cronjobs | default list }}
 {{- if not (regexMatch $namePattern .name) }}
 {{- fail (printf "cronjobs[].name must be a DNS-1123 label: %s" .name) }}
+{{- end }}
+{{- if gt (len .name) 63 }}
+{{- fail (printf "cronjobs[].name must be 63 characters or fewer: %s" .name) }}
 {{- end }}
 {{- if not .schedule }}
 {{- fail (printf "cronjobs[%s].schedule is required" .name) }}
@@ -390,6 +399,9 @@ dnsConfig:
 {{- if not (regexMatch $namePattern .name) }}
 {{- fail (printf "configMaps[].name must be a DNS-1123 label: %s" .name) }}
 {{- end }}
+{{- if gt (len .name) 63 }}
+{{- fail (printf "configMaps[].name must be 63 characters or fewer: %s" .name) }}
+{{- end }}
 {{- end }}
 {{- if and .Values.hpa.enabled (eq (.Values.workload.type | default "Deployment") "DaemonSet") }}
 {{- fail "hpa.enabled cannot be used with workload.type=DaemonSet" }}
@@ -397,10 +409,12 @@ dnsConfig:
 {{- if and .Values.hpa.enabled (not .Values.hpa.maxReplicas) }}
 {{- fail "hpa.maxReplicas is required when hpa.enabled=true" }}
 {{- end }}
-{{- if and .Values.pdb.enabled (not .Values.pdb.minAvailable) (not .Values.pdb.maxUnavailable) }}
+{{- $pdbHasMinAvailable := hasKey .Values.pdb "minAvailable" -}}
+{{- $pdbHasMaxUnavailable := hasKey .Values.pdb "maxUnavailable" -}}
+{{- if and .Values.pdb.enabled (not $pdbHasMinAvailable) (not $pdbHasMaxUnavailable) }}
 {{- fail "pdb.minAvailable or pdb.maxUnavailable is required when pdb.enabled=true" }}
 {{- end }}
-{{- if and .Values.pdb.enabled .Values.pdb.minAvailable .Values.pdb.maxUnavailable }}
+{{- if and .Values.pdb.enabled $pdbHasMinAvailable $pdbHasMaxUnavailable }}
 {{- fail "set only one of pdb.minAvailable or pdb.maxUnavailable" }}
 {{- end }}
 {{- if and .Values.serviceMonitor.enabled (not .Values.serviceMonitor.endpoints) }}
