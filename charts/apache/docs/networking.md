@@ -50,6 +50,14 @@ networkPolicy:
     enabled: true
     allowDns: true
     allowInternet: false
+    extraEgress:
+      - to:
+          - ipBlock:
+              cidr: 10.0.0.0/8
+        ports:
+          - protocol: TCP
+            port: 443
 ```
 
 When `allowInternet=true`, the chart allows both `0.0.0.0/0` and `::/0` so IPv4, IPv6, and dual-stack clusters behave consistently.
+Use `extraEgress` for complete additional egress rules with `to` and `ports`.
