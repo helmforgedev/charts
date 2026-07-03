@@ -97,8 +97,23 @@ tests:
 
   - it: fails when worker podLabels override selector labels
     set:
+      architecture.mode: queue
+      persistence.enabled: false
+      storage.type: s3
+      storage.s3.bucketName: flowise
+      storage.s3.existingSecret: flowise-s3
+      postgresql.enabled: true
+      redis.enabled: true
       queue.worker.podLabels:
         app.kubernetes.io/component: custom
     asserts:
       - failedTemplate:
           errorMessage: queue.worker.podLabels must not override the selector label app.kubernetes.io/component
+
+  - it: allows worker podLabels in standalone mode because no worker is rendered
+    set:
+      queue.worker.podLabels:
+        app.kubernetes.io/component: custom
+    asserts:
+      - hasDocuments:
+          count: 0

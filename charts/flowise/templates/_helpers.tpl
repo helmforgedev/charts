@@ -319,6 +319,7 @@ true
 {{- if hasKey $podLabels "app.kubernetes.io/component" -}}
 {{- fail "podLabels must not override the selector label app.kubernetes.io/component" -}}
 {{- end -}}
+{{- if eq $arch "queue" -}}
 {{- $workerPodLabels := .Values.queue.worker.podLabels | default dict -}}
 {{- if hasKey $workerPodLabels "app.kubernetes.io/name" -}}
 {{- fail "queue.worker.podLabels must not override the selector label app.kubernetes.io/name" -}}
@@ -328,5 +329,6 @@ true
 {{- end -}}
 {{- if hasKey $workerPodLabels "app.kubernetes.io/component" -}}
 {{- fail "queue.worker.podLabels must not override the selector label app.kubernetes.io/component" -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
