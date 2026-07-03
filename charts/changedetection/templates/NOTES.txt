@@ -2,8 +2,8 @@
 changedetection.io has been installed
 =====================================
 
-Installation summary
---------------------
+1. Installation summary
+-----------------------
 Release: {{ .Release.Name }}
 Namespace: {{ .Release.Namespace }}
 Chart version: {{ .Chart.Version }}
@@ -14,12 +14,16 @@ Service type: {{ .Values.service.type }}
 Service port: {{ .Values.service.port }}
 Container port: {{ .Values.changedetection.port }}
 
-Access changedetection.io
--------------------------
+2. Access changedetection.io
+----------------------------
 {{- if .Values.ingress.enabled }}
 Ingress routes:
 {{- range .Values.ingress.hosts }}
+{{- if .host }}
   - http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}/
+{{- else }}
+  - catch-all host on the configured ingress controller
+{{- end }}
 {{- end }}
 {{- else if .Values.gateway.enabled }}
 Gateway API routes:
@@ -42,8 +46,8 @@ Cluster-local endpoint:
 
   http://{{ include "changedetection.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}/
 
-Operational checks
-------------------
+3. Operational checks
+---------------------
 Wait for the workload:
 
   kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=changedetection -n {{ .Release.Namespace }} --timeout=300s
@@ -54,8 +58,8 @@ Inspect status:
   kubectl logs -l app.kubernetes.io/name=changedetection -n {{ .Release.Namespace }} --all-containers --tail=50
   kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
 
-Persistence
------------
+4. Persistence
+--------------
 {{- if .Values.persistence.enabled }}
 Datastore persistence is enabled.
 PVC: {{ include "changedetection.dataClaimName" . }}
@@ -68,8 +72,8 @@ Datastore persistence is disabled. /datastore uses emptyDir and all watches,
 history, and snapshots are ephemeral.
 {{- end }}
 
-Browser rendering
------------------
+5. Browser rendering
+--------------------
 {{- if .Values.browser.enabled }}
 Playwright browser rendering is enabled.
 Browser image: {{ .Values.browser.image.repository }}:{{ .Values.browser.image.tag }}
@@ -80,8 +84,8 @@ Enable browser.enabled=true for JavaScript-heavy pages, SPAs, and rendered
 price or inventory checks.
 {{- end }}
 
-Routing summary
----------------
+6. Routing summary
+------------------
 Ingress: {{ ternary "enabled" "disabled" .Values.ingress.enabled }}
 Gateway API HTTPRoute: {{ ternary "enabled" "disabled" .Values.gateway.enabled }}
 Service IP family policy: {{ default "cluster default" .Values.service.ipFamilyPolicy }}
@@ -89,8 +93,8 @@ Service IP family policy: {{ default "cluster default" .Values.service.ipFamilyP
 Service IP families: {{ join ", " . }}
 {{- end }}
 
-External Secrets
-----------------
+7. External Secrets
+-------------------
 {{- if .Values.externalSecrets.enabled }}
 ExternalSecret is enabled.
 Target Secret: {{ include "changedetection.externalSecretName" . }}
@@ -106,8 +110,8 @@ externalSecrets.enabled to materialize environment-backed credentials through
 External Secrets Operator.
 {{- end }}
 
-Common operations
------------------
+8. Common operations
+--------------------
 Open a shell in the main container:
 
   kubectl exec -n {{ .Release.Namespace }} deploy/{{ include "changedetection.fullname" . }} -c changedetection -- sh
@@ -116,8 +120,8 @@ List rendered resources:
 
   kubectl get all,pvc -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
 
-Documentation
--------------
+9. Documentation
+----------------
 Chart docs: https://helmforge.dev/docs/charts/changedetection
 Chart source: https://github.com/helmforgedev/charts/tree/main/charts/changedetection
 Upstream project: https://changedetection.io

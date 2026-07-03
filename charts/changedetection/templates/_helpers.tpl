@@ -39,6 +39,33 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "changedetection.validate" -}}
+{{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
+{{- fail "ingress.enabled requires ingress.hosts to contain at least one host" -}}
+{{- end -}}
+{{- if and .Values.gateway.enabled (not .Values.gateway.parentRefs) -}}
+{{- fail "gateway.enabled requires gateway.parentRefs to be populated to create a valid HTTPRoute." -}}
+{{- end -}}
+{{- if .Values.gateway.enabled -}}
+{{- range $index, $parentRef := .Values.gateway.parentRefs -}}
+{{- if not $parentRef.name -}}
+{{- fail (printf "gateway.parentRefs[%d].name is required when gateway.enabled is true" $index) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.externalSecrets.enabled (not .Values.externalSecrets.secretStoreRef.name) -}}
+{{- fail "externalSecrets.secretStoreRef.name is required when externalSecrets.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.externalSecrets.enabled (not .Values.externalSecrets.data) (not .Values.externalSecrets.dataFrom) -}}
+{{- fail "externalSecrets.data or externalSecrets.dataFrom is required when externalSecrets.enabled=true" -}}
+{{- end -}}
+{{- range $key, $_ := .Values.podLabels -}}
+{{- if or (eq $key "app.kubernetes.io/name") (eq $key "app.kubernetes.io/instance") -}}
+{{- fail (printf "podLabels must not override selector label %q" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "changedetection.image" -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}

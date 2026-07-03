@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: should render no validation manifest by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should fail when ingress is enabled without hosts
+    set:
+      ingress.enabled: true
+      ingress.hosts: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "ingress.enabled requires ingress.hosts to contain at least one host"
+
+  - it: should fail when gateway is enabled without parentRefs
+    set:
+      gateway.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.enabled requires gateway.parentRefs to be populated to create a valid HTTPRoute."
+
+  - it: should fail when gateway parentRef has no name
+    set:
+      gateway.enabled: true
+      gateway.parentRefs:
+        - namespace: ingress
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.parentRefs[0].name is required when gateway.enabled is true"
+
+  - it: should fail when external secret store reference is missing
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.data:
+        - secretKey: LOGGER_LEVEL
+          remoteRef:
+            key: changedetection/app
+            property: loggerLevel
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.secretStoreRef.name is required when externalSecrets.enabled=true"
+
+  - it: should fail when external secret has no data mappings
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: helmforge-fake-store
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.data or externalSecrets.dataFrom is required when externalSecrets.enabled=true"
+
+  - it: should fail when podLabels override selector labels
+    set:
+      podLabels:
+        app.kubernetes.io/instance: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: 'podLabels must not override selector label "app.kubernetes.io/instance"'
