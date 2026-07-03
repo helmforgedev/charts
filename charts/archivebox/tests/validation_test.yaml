@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: should render no validation manifest by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should fail when backup endpoint is missing
+    set:
+      backup.enabled: true
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.endpoint is required when backup.enabled is true"
+
+  - it: should fail when backup credentials are missing
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.bucket: backups
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey"
+
+  - it: should fail when ingress is enabled without hosts
+    set:
+      ingress.enabled: true
+      ingress.hosts: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "ingress.enabled requires ingress.hosts to contain at least one host"
+
+  - it: should fail when an ingress host entry has no hostname
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - failedTemplate:
+          errorMessage: "ingress.hosts[0].host is required when ingress.enabled is true"
+
+  - it: should fail when podLabels override selector labels
+    set:
+      podLabels:
+        app.kubernetes.io/name: archivebox-custom
+    asserts:
+      - failedTemplate:
+          errorMessage: 'podLabels must not override selector label "app.kubernetes.io/name"'
