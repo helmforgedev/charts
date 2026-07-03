@@ -297,10 +297,11 @@ true
     {{- fail (printf "externalSecrets.data must include a mapping for key '%s' (admin password)" $passKey) -}}
   {{- end -}}
 {{- end -}}
-{{- if hasKey .Values.podLabels "app.kubernetes.io/name" -}}
+{{- $podLabels := .Values.podLabels | default dict -}}
+{{- if hasKey $podLabels "app.kubernetes.io/name" -}}
 {{- fail "podLabels must not override selector label app.kubernetes.io/name" -}}
 {{- end -}}
-{{- if hasKey .Values.podLabels "app.kubernetes.io/instance" -}}
+{{- if hasKey $podLabels "app.kubernetes.io/instance" -}}
 {{- fail "podLabels must not override selector label app.kubernetes.io/instance" -}}
 {{- end -}}
 {{- end -}}
