@@ -371,3 +371,26 @@ Backup database username.
 {{- include "drupal.databaseUsername" . -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Central fail-fast validation entrypoint.
+*/}}
+{{- define "drupal.validate" -}}
+{{- $_ := include "drupal.databaseMode" . -}}
+{{- $_ := include "drupal.replicaCount" . -}}
+{{- $_ := include "drupal.backupEnabled" . -}}
+{{- $_ := include "drupal.autoscalingEnabled" . -}}
+{{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
+{{- fail "ingress.hosts must contain at least one rule when ingress.enabled=true" -}}
+{{- end -}}
+{{- $podLabels := .Values.podLabels | default dict -}}
+{{- if hasKey $podLabels "app.kubernetes.io/name" -}}
+{{- fail "podLabels must not override selector label app.kubernetes.io/name" -}}
+{{- end -}}
+{{- if hasKey $podLabels "app.kubernetes.io/instance" -}}
+{{- fail "podLabels must not override selector label app.kubernetes.io/instance" -}}
+{{- end -}}
+{{- if hasKey $podLabels "app.kubernetes.io/component" -}}
+{{- fail "podLabels must not override selector label app.kubernetes.io/component" -}}
+{{- end -}}
+{{- end -}}

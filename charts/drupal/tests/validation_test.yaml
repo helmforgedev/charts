@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 suite: Validations
 templates:
-  - templates/deployment.yaml
+  - templates/validate.yaml
 release:
   name: test
   namespace: default
@@ -35,3 +35,25 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "database.mode=sqlite requires drupal.sqlitePath to stay under sites/ so persistence and backup cover the database file"
+
+  - it: should fail ingress without rules
+    set:
+      ingress.enabled: true
+      ingress.hosts: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "ingress.hosts must contain at least one rule when ingress.enabled=true"
+
+  - it: should fail reserved pod label overrides
+    set:
+      podLabels:
+        app.kubernetes.io/component: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: "podLabels must not override selector label app.kubernetes.io/component"
+
+  - it: should allow null pod labels
+    set:
+      podLabels: null
+    asserts:
+      - notFailedTemplate: {}
