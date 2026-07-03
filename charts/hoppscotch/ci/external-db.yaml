@@ -4,8 +4,101 @@ postgresql:
 database:
   external:
     enabled: true
-    host: postgres.example.local
+    host: hoppscotch-ci-external-db-postgresql
     port: 5432
     name: hoppscotch
     username: hoppscotch
     password: test-password
+
+extraManifests:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: hoppscotch-ci-external-db-init
+      labels:
+        app.kubernetes.io/name: hoppscotch-external-postgresql
+        app.kubernetes.io/instance: hoppscotch-ci-external-db
+        app.kubernetes.io/component: external-database
+    data:
+      01-extensions.sql: |
+        CREATE EXTENSION IF NOT EXISTS pg_trgm;
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: hoppscotch-ci-external-db-postgresql
+      labels:
+        app.kubernetes.io/name: hoppscotch-external-postgresql
+        app.kubernetes.io/instance: hoppscotch-ci-external-db
+        app.kubernetes.io/component: external-database
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: hoppscotch-external-postgresql
+          app.kubernetes.io/instance: hoppscotch-ci-external-db
+          app.kubernetes.io/component: external-database
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: hoppscotch-external-postgresql
+            app.kubernetes.io/instance: hoppscotch-ci-external-db
+            app.kubernetes.io/component: external-database
+        spec:
+          containers:
+            - name: postgresql
+              image: docker.io/library/postgres:18.3-trixie
+              imagePullPolicy: IfNotPresent
+              ports:
+                - name: postgresql
+                  containerPort: 5432
+                  protocol: TCP
+              env:
+                - name: POSTGRES_DB
+                  value: hoppscotch
+                - name: POSTGRES_USER
+                  value: hoppscotch
+                - name: POSTGRES_PASSWORD
+                  value: test-password
+              readinessProbe:
+                exec:
+                  command:
+                    - pg_isready
+                    - -U
+                    - hoppscotch
+                    - -d
+                    - hoppscotch
+                initialDelaySeconds: 5
+                periodSeconds: 5
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 1000m
+                  memory: 1Gi
+              volumeMounts:
+                - name: initdb
+                  mountPath: /docker-entrypoint-initdb.d
+          volumes:
+            - name: initdb
+              configMap:
+                name: hoppscotch-ci-external-db-init
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: hoppscotch-ci-external-db-postgresql
+      labels:
+        app.kubernetes.io/name: hoppscotch-external-postgresql
+        app.kubernetes.io/instance: hoppscotch-ci-external-db
+        app.kubernetes.io/component: external-database
+    spec:
+      type: ClusterIP
+      ports:
+        - name: postgresql
+          port: 5432
+          targetPort: postgresql
+          protocol: TCP
+      selector:
+        app.kubernetes.io/name: hoppscotch-external-postgresql
+        app.kubernetes.io/instance: hoppscotch-ci-external-db
+        app.kubernetes.io/component: external-database

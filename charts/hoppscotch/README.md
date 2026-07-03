@@ -99,7 +99,9 @@ backend process inside the AIO image.
 | `externalSecrets.enabled` | Enable ExternalSecret | `false` |
 | `externalSecrets.apiVersion` | ExternalSecret API version | `external-secrets.io/v1` |
 | `networkPolicy.enabled` | Enable NetworkPolicy | `false` |
+| `networkPolicy.extraEgress` | Additional egress rules appended after DNS and database baseline rules | `[]` |
 | `podDisruptionBudget.enabled` | Enable PDB | `false` |
+| `extraManifests` | Additional Kubernetes manifests rendered with the release | `[]` |
 
 ## Upgrade Notes
 
