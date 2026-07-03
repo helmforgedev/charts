@@ -262,3 +262,45 @@ true
   {{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "dolibarr.validate" -}}
+{{- $_ := include "dolibarr.databaseMode" . -}}
+{{- if .Values.backup.enabled -}}
+{{- $_ := include "dolibarr.backupEnabled" . -}}
+{{- end -}}
+{{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
+{{- fail "ingress.hosts must contain at least one rule when ingress.enabled=true" -}}
+{{- end -}}
+{{- if .Values.gateway.enabled -}}
+  {{- if not .Values.gateway.parentRefs -}}
+    {{- fail "gateway.enabled requires gateway.parentRefs to be populated to create a valid HTTPRoute." -}}
+  {{- end -}}
+  {{- range .Values.gateway.parentRefs -}}
+    {{- if not .name -}}
+      {{- fail "Each gateway.parentRefs entry must define a 'name' field" -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- if .Values.externalSecrets.enabled -}}
+  {{- if not .Values.admin.existingSecret -}}
+    {{- fail "externalSecrets.enabled requires admin.existingSecret to be set to prevent credential drift between the chart-managed Secret and the ExternalSecret." -}}
+  {{- end -}}
+  {{- if not .Values.externalSecrets.data -}}
+    {{- fail "externalSecrets.data must not be empty when externalSecrets.enabled=true" -}}
+  {{- end -}}
+  {{- $passKey := .Values.admin.existingSecretPasswordKey | default "admin-password" -}}
+  {{- $hasPass := false -}}
+  {{- range .Values.externalSecrets.data -}}
+    {{- if eq .secretKey $passKey }}{{ $hasPass = true }}{{ end -}}
+  {{- end -}}
+  {{- if not $hasPass -}}
+    {{- fail (printf "externalSecrets.data must include a mapping for key '%s' (admin password)" $passKey) -}}
+  {{- end -}}
+{{- end -}}
+{{- if hasKey .Values.podLabels "app.kubernetes.io/name" -}}
+{{- fail "podLabels must not override selector label app.kubernetes.io/name" -}}
+{{- end -}}
+{{- if hasKey .Values.podLabels "app.kubernetes.io/instance" -}}
+{{- fail "podLabels must not override selector label app.kubernetes.io/instance" -}}
+{{- end -}}
+{{- end -}}
