@@ -14,3 +14,26 @@ tests:
           content:
             protocol: TCP
             port: http
+      - notContains:
+          path: spec.policyTypes
+          content: Egress
+  - it: enables egress isolation when extraEgress is configured
+    values:
+      - networkpolicy-values.yaml
+    set:
+      networkPolicy.extraEgress[0].to[0].ipBlock.cidr: 10.0.0.0/8
+      networkPolicy.extraEgress[0].ports[0].protocol: TCP
+      networkPolicy.extraEgress[0].ports[0].port: 8443
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 443
+      - equal:
+          path: spec.egress[2].ports[0].port
+          value: 8443

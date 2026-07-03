@@ -152,10 +152,20 @@ Validate chart values.
 {{- if and (gt (int .Values.replicaCount) 1) (not .Values.persistence.existingClaim) -}}
 {{- fail "replicaCount > 1 requires persistence.existingClaim because NoteDiscovery stores notes as local files on a single writable volume" -}}
 {{- end -}}
+{{- if and .Values.ingress.enabled (empty .Values.ingress.hosts) -}}
+{{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}
+{{- end -}}
 {{- if and .Values.auth.enabled (not .Values.auth.existingSecret) (or (empty .Values.auth.secretKey) (empty .Values.auth.password)) -}}
 {{- fail "auth.secretKey and auth.password are required when auth.enabled=true unless auth.existingSecret is set" -}}
 {{- end -}}
 {{- if and .Values.externalSecrets.enabled (empty .Values.externalSecrets.items) -}}
 {{- fail "externalSecrets.items must contain at least one item when externalSecrets.enabled=true" -}}
+{{- end -}}
+{{- $podLabels := .Values.podLabels | default dict -}}
+{{- if hasKey $podLabels "app.kubernetes.io/name" -}}
+{{- fail "podLabels must not override the selector label app.kubernetes.io/name" -}}
+{{- end -}}
+{{- if hasKey $podLabels "app.kubernetes.io/instance" -}}
+{{- fail "podLabels must not override the selector label app.kubernetes.io/instance" -}}
 {{- end -}}
 {{- end -}}

@@ -83,6 +83,13 @@ resources:
 
 networkPolicy:
   enabled: true
+  extraEgress:
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/8
+      ports:
+        - protocol: TCP
+          port: 8443
 ```
 
 Create the existing Secret with a complete NoteDiscovery config file:
@@ -139,6 +146,13 @@ The chart blocks `replicaCount > 1` unless `persistence.existingClaim` is set.
 Multiple pods require storage semantics chosen by the operator, typically a
 shared ReadWriteMany claim; the default generated claim is a single-writer
 volume.
+
+## Network Policy
+
+`networkPolicy.enabled=true` restricts inbound HTTP traffic to the configured
+`networkPolicy.ingressFrom` peers, or to all namespaces when `ingressFrom` is
+empty. `networkPolicy.extraEgress` enables egress isolation and appends custom
+egress rules after built-in DNS and HTTPS allowances.
 
 ## Documentation
 
