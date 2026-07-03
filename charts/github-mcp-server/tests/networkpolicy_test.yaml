@@ -14,3 +14,23 @@ tests:
           content:
             protocol: TCP
             port: http
+
+  - it: appends extra egress rules
+    set:
+      networkPolicy:
+        enabled: true
+        extraEgress:
+          - to:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: kube-system
+            ports:
+              - protocol: UDP
+                port: 53
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53

@@ -15,6 +15,9 @@ The default deployment starts the server in HTTP mode on port `8082`, read-only 
 The chart is stateless by default.
 If persistence is enabled and the Deployment is scaled above one replica, use `ReadWriteMany` storage or disable persistence to avoid sharing one `ReadWriteOnce` PVC across pods.
 
+Ingress class rendering is optional. Set `ingress.ingressClassName: ""` to omit `spec.ingressClassName`.
+When `networkPolicy.enabled=true`, use `networkPolicy.extraEgress` for DNS, proxy, or API-server egress allowances.
+
 ## Token Configuration
 
 Use a Kubernetes Secret for production:
