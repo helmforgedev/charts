@@ -100,6 +100,19 @@ Validate ConfigMap sync configuration.
 {{- end }}
 
 {{/*
+Validate pod labels do not override immutable selector labels.
+*/}}
+{{- define "openhab.validatePodLabels" -}}
+{{- $podLabels := .Values.podLabels | default dict -}}
+{{- if hasKey $podLabels "app.kubernetes.io/name" -}}
+{{- fail "podLabels must not override the selector label app.kubernetes.io/name" -}}
+{{- end -}}
+{{- if hasKey $podLabels "app.kubernetes.io/instance" -}}
+{{- fail "podLabels must not override the selector label app.kubernetes.io/instance" -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Resolve the admin secret name.
 */}}
 {{- define "openhab.adminSecretName" -}}
