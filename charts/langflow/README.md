@@ -1,7 +1,7 @@
 # Langflow Helm Chart
 
 Langflow is a visual builder for AI workflows, RAG applications, agents, and integrations with model providers and vector databases.
-This HelmForge chart deploys the official `docker.io/langflowai/langflow:1.10.0` image with persistent local state by default and explicit
+This HelmForge chart deploys the official `docker.io/langflowai/langflow:1.10.1` image with persistent local state by default and explicit
 production paths for secret management, PostgreSQL-compatible databases, ingress, Gateway API, and horizontal scaling.
 
 ## Install
@@ -12,6 +12,10 @@ helm install langflow helmforge/langflow
 ```
 
 The default deployment starts one Langflow pod on port `7860` and persists `/app/langflow`, which contains local configuration and the default SQLite database.
+Ingress class rendering is optional. Set `ingress.ingressClassName: ""` to omit `spec.ingressClassName`.
+When `networkPolicy.enabled=true`, ingress is restricted to the configured peers.
+It also enables egress isolation with built-in DNS and HTTPS allowances, then appends `networkPolicy.extraEgress` for database, provider, or proxy rules.
+Set `networkPolicy.dnsEgressPeers` when your cluster DNS pods do not use the default kube-system/kube-dns labels.
 
 ## Production Configuration
 

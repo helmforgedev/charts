@@ -17,3 +17,18 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "replicaCount > 1 with persistence.enabled requires persistence.accessModes to include ReadWriteMany or persistence.enabled=false"
+  - it: allows scaling with an existing persistence claim
+    set:
+      replicaCount: 2
+      database.existingSecret: langflow-database
+      persistence.existingClaim: langflow-data-rwx
+      persistence.accessModes[0]: ReadWriteOnce
+    asserts:
+      - notFailedTemplate: {}
+  - it: fails when podLabels override selector labels
+    set:
+      podLabels:
+        app.kubernetes.io/name: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: "podLabels must not override the selector label app.kubernetes.io/name"
