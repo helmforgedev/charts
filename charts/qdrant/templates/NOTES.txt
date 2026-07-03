@@ -1,63 +1,96 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Qdrant has been deployed.
+1. Summary
 
-Access:
+Qdrant release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+HTTP API port: {{ .Values.service.port }}
+gRPC API port: {{ .Values.service.grpcPort }}
 
-Internal service:
-- HTTP API: http://{{ include "qdrant.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
-- gRPC API: {{ include "qdrant.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.grpcPort }}
+2. Workload
 
-Port-forward:
-- kubectl port-forward svc/{{ include "qdrant.fullname" . }} 6333:{{ .Values.service.port }} -n {{ .Release.Namespace }}
-- curl http://127.0.0.1:6333/readyz
+Check the StatefulSet and rollout status:
+
+  kubectl get statefulset {{ include "qdrant.fullname" . }} -n {{ .Release.Namespace }}
+  kubectl rollout status statefulset/{{ include "qdrant.fullname" . }} -n {{ .Release.Namespace }}
+
+3. Access
+
+Internal endpoints:
+
+  http://{{ include "qdrant.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+  {{ include "qdrant.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.grpcPort }}
+
+Use a local port-forward when Ingress or Gateway API is not enabled:
+
+  kubectl port-forward svc/{{ include "qdrant.fullname" . }} 6333:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+  curl http://127.0.0.1:6333/readyz
+
+4. Credentials
 
 {{- if or .Values.auth.apiKey .Values.auth.existingSecret }}
-Authentication:
+API key authentication is enabled.
 
-API key authentication is enabled. Retrieve the key from:
-- Secret: {{ default (include "qdrant.fullname" .) .Values.auth.existingSecret }}
-- Key: {{ .Values.auth.apiKeyKey }}
+Secret: {{ default (include "qdrant.fullname" .) .Values.auth.existingSecret }}
+Key: {{ .Values.auth.apiKeyKey }}
 
-Example:
-- kubectl get secret {{ default (include "qdrant.fullname" .) .Values.auth.existingSecret }} -n {{ .Release.Namespace }} -o jsonpath='{.data.{{ .Values.auth.apiKeyKey }}}' | base64 -d
-- curl -H "api-key: $QDRANT_API_KEY" http://127.0.0.1:6333/collections
-{{- end }}
+Retrieve the API key:
 
-Storage:
-
-- Storage path: {{ .Values.persistence.mountPath }}
-- Snapshot path: {{ .Values.snapshots.path }}
-{{- if .Values.persistence.enabled }}
-- Persistence: enabled
+  kubectl get secret {{ default (include "qdrant.fullname" .) .Values.auth.existingSecret }} -n {{ .Release.Namespace }} -o jsonpath='{.data.{{ .Values.auth.apiKeyKey }}}' | base64 -d
 {{- else }}
-- Persistence: disabled; data uses emptyDir and is lost when the pod is deleted
+API key authentication is disabled. Enable auth.apiKey or auth.existingSecret before exposing Qdrant to shared users.
 {{- end }}
 
+5. Configuration
+
+Storage path: {{ .Values.persistence.mountPath }}
+Snapshot path: {{ .Values.snapshots.path }}
+{{- if .Values.persistence.enabled }}
+Persistence: enabled.
+{{- else }}
+Persistence: disabled; data uses emptyDir and is lost when the pod is deleted.
+{{- end }}
 {{- if .Values.cluster.enabled }}
-Distributed mode:
-
-- Replicas: {{ .Values.replicaCount }}
-- P2P service: {{ include "qdrant.fullname" . }}-headless.{{ .Release.Namespace }}.svc:{{ .Values.cluster.p2pPort }}
-- Confirm cluster health with Qdrant collection and cluster APIs after bootstrap
+Distributed mode: enabled with {{ .Values.replicaCount }} replicas.
+P2P service: {{ include "qdrant.fullname" . }}-headless.{{ .Release.Namespace }}.svc:{{ .Values.cluster.p2pPort }}
+{{- else }}
+Distributed mode: disabled.
+{{- end }}
+{{- if .Values.networkPolicy.enabled }}
+NetworkPolicy: enabled.
+{{- else }}
+NetworkPolicy: disabled.
 {{- end }}
 
-{{- if .Values.metrics.serviceMonitor.enabled }}
-Monitoring:
+6. Validation
 
-- ServiceMonitor: {{ include "qdrant.fullname" . }}
-- Metrics endpoint: /metrics on port http
-{{- end }}
+Run Helm tests:
 
-Troubleshooting:
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
 
-- kubectl get pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-- kubectl logs statefulset/{{ include "qdrant.fullname" . }} -n {{ .Release.Namespace }}
-- kubectl describe pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+Run the HelmForge chart gate from the ops repo:
 
-Resources:
+  make validate-chart CHART=qdrant
 
-- Chart documentation: https://helmforge.dev/docs/charts/qdrant
-- Qdrant documentation: https://qdrant.tech/documentation/
-- HelmForge issues: https://github.com/helmforgedev/charts/issues
+7. Troubleshooting
+
+Inspect pods, logs, and PVCs:
+
+  kubectl get pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+  kubectl logs statefulset/{{ include "qdrant.fullname" . }} -n {{ .Release.Namespace }}
+  kubectl describe pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+8. Resources
+
+Chart documentation:
+
+  https://helmforge.dev/docs/charts/qdrant
+
+Qdrant documentation:
+
+  https://qdrant.tech/documentation/
+
+HelmForge issues:
+
+  https://github.com/helmforgedev/charts/issues
 
 Happy Helmforging :)
