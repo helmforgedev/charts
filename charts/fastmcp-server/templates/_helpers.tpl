@@ -105,9 +105,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if and .Values.gatewayAPI.enabled (empty .Values.gatewayAPI.parentRefs) -}}
 {{- fail "gatewayAPI.parentRefs must contain at least one parentRef when gatewayAPI.enabled=true" -}}
 {{- end -}}
+{{- if .Values.gatewayAPI.enabled -}}
 {{- range .Values.gatewayAPI.parentRefs }}
 {{- if empty .name -}}
 {{- fail "Each gatewayAPI.parentRefs entry must define a name" -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 {{- if and (eq .Values.auth.type "bearer") (not .Values.auth.bearer.token) (not .Values.auth.bearer.existingSecret) -}}
