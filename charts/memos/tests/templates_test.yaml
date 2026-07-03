@@ -13,6 +13,11 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].image
           value: docker.io/neosmemo/memos:0.29.1
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/name"]
+          value: memos
+      - notExists:
+          path: spec.template.metadata.labels["helm.sh/chart"]
   - it: renders the default ClusterIP service
     template: templates/service.yaml
     asserts:
@@ -40,6 +45,17 @@ tests:
       - equal:
           path: spec.tls[0].hosts[0]
           value: memos.example.com
+  - it: omits empty ingress class name
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: ""
+      ingress.hosts[0].host: memos.example.com
+      ingress.hosts[0].paths[0].path: /
+      ingress.hosts[0].paths[0].pathType: Prefix
+    asserts:
+      - notExists:
+          path: spec.ingressClassName
   - it: uses emptyDir when persistence is disabled
     template: templates/statefulset.yaml
     set:

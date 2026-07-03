@@ -1,46 +1,88 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-Memos release: {{ .Release.Name }}
-Namespace: {{ .Release.Namespace }}
+Memos has been deployed.
 
-Workload:
-  kubectl get statefulset {{ include "memos.fullname" . }} -n {{ .Release.Namespace }}
-  kubectl rollout status statefulset/{{ include "memos.fullname" . }} -n {{ .Release.Namespace }}
+1. Access
 
-Service:
-  kubectl get svc {{ include "memos.fullname" . }} -n {{ .Release.Namespace }}
-
-Local access:
+- Service DNS: http://{{ include "memos.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+- Port-forward:
   kubectl port-forward svc/{{ include "memos.fullname" . }} 5230:{{ .Values.service.port }} -n {{ .Release.Namespace }}
-  Open http://127.0.0.1:5230
+- Browser URL:
+  http://127.0.0.1:5230
 
-Runtime configuration:
-  Database driver: {{ .Values.database.driver }}
-  Data directory: {{ .Values.persistence.mountPath }}
-  Public instance URL: {{ default "not set" .Values.memos.instanceUrl }}
-  Private webhooks: {{ .Values.memos.allowPrivateWebhooks }}
+2. Workload
 
-Persistence:
-{{- if .Values.persistence.enabled }}
-  PVC is enabled. Back up the data volume before upgrades.
-{{- else if .Values.persistence.existingClaim }}
-  Existing PVC {{ .Values.persistence.existingClaim }} is mounted.
+- StatefulSet:
+  kubectl get statefulset {{ include "memos.fullname" . }} -n {{ .Release.Namespace }}
+- Rollout:
+  kubectl rollout status statefulset/{{ include "memos.fullname" . }} -n {{ .Release.Namespace }}
+- Replicas: {{ .Values.replicaCount }}
+- Image: {{ include "memos.image" . }}
+
+3. Runtime Configuration
+
+- Database driver: {{ .Values.database.driver }}
+- Data directory: {{ .Values.persistence.mountPath }}
+- Public instance URL: {{ default "not set" .Values.memos.instanceUrl }}
+- Private webhooks: {{ .Values.memos.allowPrivateWebhooks }}
+- Log level: {{ .Values.memos.logLevel }}
+
+4. Persistence
+
+{{- if .Values.persistence.existingClaim }}
+- Existing PVC {{ .Values.persistence.existingClaim }} is mounted.
+{{- else if .Values.persistence.enabled }}
+- A chart-managed volumeClaimTemplate is enabled.
+- PVC size: {{ .Values.persistence.size }}
+- Access modes: {{ join "," .Values.persistence.accessModes }}
 {{- else }}
-  Persistence is disabled and Memos data is stored in an emptyDir.
+- Persistence is disabled and Memos data is stored in emptyDir.
 {{- end }}
+- Back up the data volume before upgrades and before database migrations.
 
-Database notes:
+5. Database
+
 {{- if eq .Values.database.driver "sqlite" }}
-  SQLite is stored under {{ .Values.persistence.mountPath }}. Keep replicaCount=1 and back up the PVC.
+- SQLite is stored under {{ .Values.persistence.mountPath }}.
+- Keep replicaCount=1 when using SQLite.
 {{- else }}
-  External {{ .Values.database.driver }} is enabled. Back up both the external database and the Memos data PVC.
+- External {{ .Values.database.driver }} is enabled through MEMOS_DSN.
+- Back up both the external database and the Memos data volume.
 {{- end }}
 
-Troubleshooting:
-  kubectl logs statefulset/{{ include "memos.fullname" . }} -n {{ .Release.Namespace }}
-  kubectl describe pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+6. Exposure
 
-Validation:
-  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
-  make validate-chart CHART=memos
+{{- if .Values.ingress.enabled }}
+- Ingress is enabled.
+{{- else }}
+- Ingress is disabled.
+{{- end }}
+{{- if .Values.gateway.enabled }}
+- Gateway API HTTPRoute is enabled.
+{{- else }}
+- Gateway API HTTPRoute is disabled.
+{{- end }}
+{{- if .Values.networkPolicy.enabled }}
+- NetworkPolicy is enabled for inbound Memos traffic.
+{{- else }}
+- NetworkPolicy is disabled.
+{{- end }}
+
+7. Troubleshooting
+
+- Pods:
+  kubectl get pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+- Logs:
+  kubectl logs statefulset/{{ include "memos.fullname" . }} -n {{ .Release.Namespace }}
+- Describe pods:
+  kubectl describe pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+- Service endpoints:
+  kubectl get endpoints {{ include "memos.fullname" . }} -n {{ .Release.Namespace }}
+
+8. Resources
+
+- Chart documentation: https://helmforge.dev/docs/charts/memos
+- Memos Docker deployment: https://usememos.com/docs/deploy/docker
+- Memos source: https://github.com/usememos/memos
+- Validation command: make validate-chart CHART=memos
 
 Happy Helmforging :)

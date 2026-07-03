@@ -20,6 +20,9 @@ The default chart topology is intentionally conservative:
 
 When `database.driver` is `mysql` or `postgres`, the chart renders `MEMOS_DSN` from a Kubernetes Secret.
 The data volume remains required because Memos can still store local assets and instance data outside the external database.
+Ingress class rendering is optional. Set `ingress.ingressClassName: ""` to omit `spec.ingressClassName`.
+When `networkPolicy.enabled=true`, ingress is restricted to the configured peers.
+Setting `networkPolicy.extraEgress` also enables egress isolation with built-in DNS and HTTPS allowances, then appends the supplied database, webhook, or proxy rules.
 
 ## Install
 
