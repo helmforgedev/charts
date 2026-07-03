@@ -1,28 +1,24 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-=============================================================================
-Immich deployed successfully!
-=============================================================================
+1. Summary
+   Immich has been deployed successfully.
+   Image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+   Service: {{ include "immich.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
 
-ACCESS:
+2. Access
 {{- if .Values.ingress.enabled }}
   {{- range .Values.ingress.hosts }}
-   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+   URL: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
   {{- end }}
 {{- else if and .Values.gateway.enabled .Values.gateway.hostnames }}
   {{- range .Values.gateway.hostnames }}
-   https://{{ . }}
+   URL: https://{{ . }}
   {{- end }}
 {{- else }}
    kubectl port-forward svc/{{ include "immich.fullname" . }} -n {{ .Release.Namespace }} 2283:{{ .Values.service.port }}
    Open: http://localhost:2283
 {{- end }}
 
-SERVICE:
-   Internal: {{ include "immich.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
-   Health:   {{ .Values.probes.path }}
-   Image:    {{ .Values.image.repository }}:{{ .Values.image.tag }}
-
-DATABASE:
+3. Data Services
 {{- if .Values.postgresql.enabled }}
    PostgreSQL: bundled HelmForge subchart with Immich VectorChord image
    Service: {{ .Release.Name }}-postgresql.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.postgresql.service.port | default 5432 }}
@@ -30,8 +26,6 @@ DATABASE:
    PostgreSQL: external
    Host: {{ .Values.database.external.host }}:{{ .Values.database.external.port }}
 {{- end }}
-
-CACHE:
 {{- if .Values.valkey.internal.enabled }}
    Redis-compatible cache: bundled HelmForge Redis subchart aliased as valkey
    Service: {{ include "immich.valkeyHost" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.valkey.service.ports.redis | default 6379 }}
@@ -41,24 +35,26 @@ CACHE:
 {{- end }}
 
 {{- if .Values.machineLearning.enabled }}
-MACHINE LEARNING:
+4. Machine Learning
    Service: {{ include "immich.fullname" . }}-machine-learning.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.machineLearning.service.port }}
 {{- end }}
 
-OPERATIONS:
+5. Validation
+   Health path: {{ .Values.probes.path }}
    Run Helm tests:
-     helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+   helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
 
+6. Troubleshooting
    Inspect pods:
-     kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
-     kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "immich.fullname" . }}
+   kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+   kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "immich.fullname" . }}
 
-PRODUCTION REMINDERS:
+7. Production Reminders
    1. Use explicit Secrets or External Secrets for PostgreSQL and cache credentials.
    2. Keep upload persistence on durable storage and use ReadWriteMany before scaling server replicas.
    3. Configure HTTPS through Ingress or Gateway API before exposing Immich publicly.
 
-DOCUMENTATION:
+8. Resources
    Chart: https://helmforge.dev/docs/charts/immich
    Source: https://github.com/helmforgedev/charts/tree/main/charts/immich
    Immich: https://immich.app

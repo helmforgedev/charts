@@ -91,6 +91,20 @@ ingress:
           pathType: Prefix
 ```
 
+## NetworkPolicy
+
+```yaml
+networkPolicy:
+  enabled: true
+  extraEgress:
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/8
+      ports:
+        - protocol: TCP
+          port: 443
+```
+
 ## Documentation
 
 - [Design](DESIGN.md)
@@ -108,10 +122,10 @@ helm unittest --with-subchart=false charts/immich
 helm template immich charts/immich -f charts/immich/ci/ci-values.yaml
 ```
 
-### 🟢 Security Scan: `immich`
+### Security Scan: `immich`
 
 | Framework | Score |
 |---|---|
 | MITRE + NSA + SOC2 | **88.61111%** |
 
-> ✅ Security posture acceptable.
+Security posture acceptable.
