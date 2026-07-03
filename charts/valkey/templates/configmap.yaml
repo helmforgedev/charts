@@ -64,6 +64,354 @@ data:
     {{ . | nindent 4 }}
     {{- end }}
     # HelmForge managed sentinel config end
+  node-entrypoint.sh: |
+    #!/bin/sh
+    # Shared bootstrap for sentinel-mode data nodes.
+    # Usage: node-entrypoint.sh            -> discover role, write runtime config, exec valkey-server
+    #        node-entrypoint.sh --wait-only -> bounded init-container wait (never blocks recovery)
+    set -eu
+
+    MODE="${1:-run}"
+    VALKEY_PORT={{ .Values.service.ports.valkey }}
+    SENTINEL_HOST="{{ include "valkey.sentinelServiceFqdn" . }}"
+    SENTINEL_PORT={{ .Values.service.ports.sentinel }}
+    MASTER_SET="{{ .Values.sentinel.masterSet }}"
+    SEED_MASTER="{{ include "valkey.nodePodFqdn" . }}"
+    PEERS="{{ include "valkey.nodePeerFqdns" . }}"
+    TLS_ARGS="{{ include "valkey.cliTlsArgs" . }}"
+    MARKER=/data/.helmforge-sentinel-node-bootstrapped
+    SELF_FQDN="$(hostname -f)"
+    SELF_IP="$(hostname -i 2>/dev/null | awk '{ print $1 }')"
+
+    # Data-plane auth flows through VALKEYCLI_AUTH set on the container (never on argv).
+    # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
+    vcli() { valkey-cli $TLS_ARGS "$@"; }
+    {{- if and .Values.auth.enabled (not .Values.auth.sentinel) }}
+    # Sentinel control plane is unauthenticated: strip inherited credentials.
+    # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
+    scli() { env -u VALKEYCLI_AUTH valkey-cli $TLS_ARGS -h "$SENTINEL_HOST" -p "$SENTINEL_PORT" "$@"; }
+    {{- else }}
+    # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
+    scli() { valkey-cli $TLS_ARGS -h "$SENTINEL_HOST" -p "$SENTINEL_PORT" "$@"; }
+    {{- end }}
+
+    is_self() { [ "$1" = "$SELF_FQDN" ] || [ "$1" = "$SELF_IP" ]; }
+
+    sentinel_master() {
+      scli sentinel get-master-addr-by-name "$MASTER_SET" 2>/dev/null | awk 'NR == 1 { print $1 }'
+    }
+
+    peer_info() { vcli -h "$1" -p "$VALKEY_PORT" info replication 2>/dev/null || true; }
+
+    peer_master() {
+      for peer in $PEERS; do
+        [ "$peer" = "$SELF_FQDN" ] && continue
+        info="$(peer_info "$peer")"
+        [ -z "$info" ] && continue
+        role="$(printf '%s\n' "$info" | sed -n 's/^role://p' | tr -d '\r')"
+        case "$role" in
+          master)
+            echo "$peer"
+            return 0
+            ;;
+          slave|replica)
+            mh="$(printf '%s\n' "$info" | sed -n 's/^master_host://p' | tr -d '\r')"
+            if [ -n "$mh" ]; then
+              echo "$mh"
+              return 0
+            fi
+            ;;
+        esac
+      done
+      return 1
+    }
+
+    peer_replicates_self() {
+      for peer in $PEERS; do
+        [ "$peer" = "$SELF_FQDN" ] && continue
+        info="$(peer_info "$peer")"
+        [ -z "$info" ] && continue
+        role="$(printf '%s\n' "$info" | sed -n 's/^role://p' | tr -d '\r')"
+        mh="$(printf '%s\n' "$info" | sed -n 's/^master_host://p' | tr -d '\r')"
+        case "$role" in
+          slave|replica) is_self "$mh" && return 0 ;;
+        esac
+      done
+      return 1
+    }
+
+    discover_master() {
+      i=0
+      while [ "$i" -lt 30 ]; do
+        m="$(sentinel_master)"
+        if [ -n "$m" ]; then
+          echo "$m"
+          return 0
+        fi
+        i=$((i + 1))
+        echo "waiting for Sentinel master discovery ($i/30)" >&2
+        sleep 2
+      done
+      peer_master
+    }
+
+    if [ "$MODE" = "--wait-only" ]; then
+      # Bounded, re-resolving wait: the previous unbounded ping loop could deadlock
+      # every replica behind a permanently dead master while Sentinel had no live
+      # replica left to promote. If the master cannot be confirmed in time, defer to
+      # the main container, which owns the fail-closed decision.
+      i=0
+      while [ "$i" -lt 24 ]; do
+        m="$(sentinel_master)"
+        [ -z "$m" ] && m="$(peer_master || true)"
+        if [ -z "$m" ] || is_self "$m"; then
+          exit 0
+        fi
+        if vcli -h "$m" -p "$VALKEY_PORT" ping >/dev/null 2>&1; then
+          exit 0
+        fi
+        i=$((i + 1))
+        echo "waiting for master $m:$VALKEY_PORT ($i/24)"
+        sleep 5
+      done
+      echo "master not confirmed after bounded wait; deferring to main container"
+      exit 0
+    fi
+
+    master="$(discover_master || true)"
+
+    {{- if .Values.sentinel.startupFailoverGuard.enabled }}
+    # Anti-wipe guard: a master pod recreated on an empty volume inside the
+    # down-after-milliseconds window is still designated master by Sentinel. Starting
+    # it empty would make every replica full-resync from an empty dataset. If peers
+    # still replicate from us and we have no bootstrap marker, force a failover so a
+    # data-bearing replica is promoted first, then join as its replica.
+    if [ -n "$master" ] && is_self "$master" && [ ! -f "$MARKER" ] && peer_replicates_self; then
+      echo "fresh data dir while topology still designates this pod as master and peers hold data"
+      echo "requesting Sentinel failover to avoid replicas resyncing from an empty dataset"
+      i=0
+      while [ "$i" -lt {{ int .Values.sentinel.startupFailoverGuard.maxAttempts }} ]; do
+        scli sentinel failover "$MASTER_SET" >/dev/null 2>&1 || true
+        sleep 3
+        m="$(sentinel_master)"
+        if [ -n "$m" ] && ! is_self "$m"; then
+          master="$m"
+          break
+        fi
+        i=$((i + 1))
+      done
+      if is_self "$master"; then
+        echo "WARNING: forced failover did not complete; starting as master (replicas may resync from an empty dataset)"
+      fi
+    fi
+    {{- end }}
+
+    if [ -n "$master" ]; then
+      if is_self "$master"; then
+        echo "this pod is the current master target; starting without replicaof"
+        master=""
+      else
+        echo "starting as replica of $master:$VALKEY_PORT"
+      fi
+    elif [ -f "$MARKER" ]; then
+      echo "master discovery failed for an already bootstrapped node; refusing to start as an unconfirmed master"
+      exit 1
+    else
+      case "$(hostname)" in
+        *-0)
+          echo "Sentinel and peers unavailable during first bootstrap; starting as seed master"
+          ;;
+        *)
+          echo "Sentinel and peers unavailable during first bootstrap; seeding from $SEED_MASTER:$VALKEY_PORT"
+          master="$SEED_MASTER"
+          ;;
+      esac
+    fi
+
+    # Secrets and per-pod directives are written to a 0600 runtime config instead of
+    # argv, so they never show up in /proc/<pid>/cmdline. replica-announce-* keeps
+    # Sentinel state hostname-based across failovers instead of decaying to pod IPs.
+    RUNTIME=/data/.valkey-runtime.conf
+    umask 077
+    rm -f "$RUNTIME"
+    cp /etc/valkey/valkey.conf "$RUNTIME"
+    {
+      echo "replica-announce-ip $SELF_FQDN"
+      echo "replica-announce-port $VALKEY_PORT"
+      [ -n "$master" ] && echo "replicaof $master $VALKEY_PORT"
+    {{- if .Values.auth.enabled }}
+      esc="$(printf '%s' "$VALKEY_PASSWORD" | sed 's/[\\"]/\\&/g')"
+      printf 'masterauth "%s"\n' "$esc"
+      printf 'requirepass "%s"\n' "$esc"
+    {{- end }}
+    } >> "$RUNTIME"
+    touch "$MARKER"
+    exec valkey-server "$RUNTIME"
+  node-prestop.sh: |
+    #!/bin/sh
+    # Graceful demotion: when the active master receives SIGTERM (rollout, drain,
+    # delete), promote a replica through Sentinel before shutting down instead of
+    # letting clients eat the full down-after-milliseconds detection window.
+    # Total budget must stay below terminationGracePeriodSeconds. Never fails.
+    set -u
+
+    VALKEY_PORT={{ .Values.service.ports.valkey }}
+    SENTINEL_HOST="{{ include "valkey.sentinelServiceFqdn" . }}"
+    SENTINEL_PORT={{ .Values.service.ports.sentinel }}
+    MASTER_SET="{{ .Values.sentinel.masterSet }}"
+    TLS_ARGS="{{ include "valkey.cliTlsArgs" . }}"
+    SELF_FQDN="$(hostname -f)"
+    SELF_IP="$(hostname -i 2>/dev/null | awk '{ print $1 }')"
+
+    # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
+    vcli() { valkey-cli $TLS_ARGS "$@"; }
+    {{- if and .Values.auth.enabled (not .Values.auth.sentinel) }}
+    # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
+    scli() { env -u VALKEYCLI_AUTH valkey-cli $TLS_ARGS -h "$SENTINEL_HOST" -p "$SENTINEL_PORT" "$@"; }
+    {{- else }}
+    # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
+    scli() { valkey-cli $TLS_ARGS -h "$SENTINEL_HOST" -p "$SENTINEL_PORT" "$@"; }
+    {{- end }}
+
+    role="$(vcli -p "$VALKEY_PORT" info replication 2>/dev/null | sed -n 's/^role://p' | tr -d '\r')"
+    [ "$role" = "master" ] || exit 0
+
+    slaves="$(vcli -p "$VALKEY_PORT" info replication 2>/dev/null | sed -n 's/^connected_slaves://p' | tr -d '\r')"
+    case "${slaves:-0}" in '' | *[!0-9]*) slaves=0 ;; esac
+    if [ "$slaves" -lt 1 ]; then
+      echo "active master has no connected replicas; nothing to promote"
+      exit 0
+    fi
+
+    echo "active master shutting down; requesting Sentinel failover"
+    i=0
+    while [ "$i" -lt {{ int .Values.sentinel.gracefulFailover.maxAttempts }} ]; do
+      scli sentinel failover "$MASTER_SET" >/dev/null 2>&1 || true
+      sleep 3
+      m="$(scli sentinel get-master-addr-by-name "$MASTER_SET" 2>/dev/null | awk 'NR == 1 { print $1 }')"
+      if [ -n "$m" ] && [ "$m" != "$SELF_FQDN" ] && [ "$m" != "$SELF_IP" ]; then
+        echo "failover completed: new master is $m"
+        exit 0
+      fi
+      i=$((i + 1))
+    done
+    echo "failover not confirmed within budget; continuing shutdown"
+    exit 0
+  sentinel-entrypoint.sh: |
+    #!/bin/sh
+    set -eu
+
+    VALKEY_PORT={{ .Values.service.ports.valkey }}
+    SENTINEL_PORT={{ .Values.service.ports.sentinel }}
+    MASTER_SET="{{ .Values.sentinel.masterSet }}"
+    SEED_MASTER="{{ include "valkey.nodePodFqdn" . }}"
+    PEERS="{{ include "valkey.nodePeerFqdns" . }}"
+    TLS_ARGS="{{ include "valkey.cliTlsArgs" . }}"
+    CONF=/data/sentinel.conf
+    BASE=/etc/valkey-base/sentinel.conf
+
+    # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
+    {{- if .Values.auth.enabled }}
+    vcli() { VALKEYCLI_AUTH="$VALKEY_PASSWORD" valkey-cli $TLS_ARGS "$@"; }
+    {{- else }}
+    vcli() { valkey-cli $TLS_ARGS "$@"; }
+    {{- end }}
+
+    find_current_master() {
+      for peer in $PEERS; do
+        info="$(vcli -h "$peer" -p "$VALKEY_PORT" info replication 2>/dev/null || true)"
+        [ -z "$info" ] && continue
+        role="$(printf '%s\n' "$info" | sed -n 's/^role://p' | tr -d '\r')"
+        if [ "$role" = "master" ]; then
+          echo "$peer"
+          return 0
+        fi
+      done
+      return 1
+    }
+
+    if [ ! -f "$CONF" ]; then
+      # First boot of this Sentinel replica. The static seed (node-0) is only a
+      # cold-start hint: if a failover already happened and this pod lost its
+      # emptyDir, monitoring node-0 again would advertise a stale master until
+      # hello-channel gossip converges. Probe the data plane for the real master.
+      master="$SEED_MASTER"
+      i=0
+      until vcli -h "$master" -p "$VALKEY_PORT" ping >/dev/null 2>&1; do
+        i=$((i + 1))
+        if m="$(find_current_master)"; then
+          if [ "$m" != "$master" ]; then
+            echo "seed $master unavailable; using discovered master $m"
+            master="$m"
+            continue
+          fi
+        fi
+        if [ "$i" -ge 60 ]; then
+          echo "no reachable master after bounded wait; monitoring seed $master anyway"
+          break
+        fi
+        echo "waiting for master $master:$VALKEY_PORT ($i/60)"
+        sleep 5
+      done
+      cp "$BASE" "$CONF"
+      if [ "$master" != "$SEED_MASTER" ]; then
+        sed -i "s|^sentinel monitor $MASTER_SET .*|sentinel monitor $MASTER_SET $master $VALKEY_PORT {{ int .Values.sentinel.quorum }}|" "$CONF"
+      fi
+    else
+      persisted_monitor="$(grep "^sentinel monitor $MASTER_SET " "$CONF" | tail -n 1 || true)"
+      append_sentinel_base() {
+        if [ -n "$persisted_monitor" ]; then
+          awk -v monitor="$persisted_monitor" '
+            /^sentinel monitor {{ .Values.sentinel.masterSet }} / { print monitor; next }
+            { print }
+          ' "$BASE" >> "$CONF"
+        else
+          cat "$BASE" >> "$CONF"
+        fi
+      }
+      if grep -q '^# HelmForge managed sentinel config begin$' "$CONF"; then
+        sed -i '/^# HelmForge managed sentinel config begin$/,/^# HelmForge managed sentinel config end$/d' "$CONF"
+      else
+        sed -i \
+          -e '/^port /d' \
+          -e '/^tls-port /d' \
+          -e '/^tls-cert-file /d' \
+          -e '/^tls-key-file /d' \
+          -e '/^tls-ca-cert-file /d' \
+          -e '/^tls-auth-clients /d' \
+          -e '/^tls-replication /d' \
+          -e '/^dir /d' \
+          -e '/^sentinel resolve-hostnames /d' \
+          -e '/^sentinel announce-hostnames /d' \
+          -e "/^sentinel monitor $MASTER_SET /d" \
+          -e "/^sentinel down-after-milliseconds $MASTER_SET /d" \
+          -e "/^sentinel failover-timeout $MASTER_SET /d" \
+          -e "/^sentinel parallel-syncs $MASTER_SET /d" \
+          "$CONF"
+      fi
+      append_sentinel_base
+    fi
+
+    # Stable per-pod identity: without an announced hostname, every emptyDir
+    # restart re-registers this Sentinel under a new IP+runid, and the dead entry
+    # is never garbage-collected, silently inflating the majority required for
+    # failover authorization. A stable address lets peers replace the old entry.
+    sed -i -e '/^sentinel announce-ip /d' -e '/^sentinel announce-port /d' "$CONF"
+    {
+      echo "sentinel announce-ip $(hostname -f)"
+      echo "sentinel announce-port $SENTINEL_PORT"
+    } >> "$CONF"
+    {{- if .Values.auth.enabled }}
+    esc="$(printf '%s' "$VALKEY_PASSWORD" | sed 's/[\\"]/\\&/g')"
+    sed -i "/^sentinel auth-pass $MASTER_SET /d" "$CONF"
+    printf 'sentinel auth-pass %s "%s"\n' "$MASTER_SET" "$esc" >> "$CONF"
+    {{- end }}
+    sed -i -e '/^requirepass /d' -e '/^sentinel sentinel-pass /d' "$CONF"
+    {{- if and .Values.auth.enabled .Values.auth.sentinel }}
+    printf 'requirepass "%s"\n' "$esc" >> "$CONF"
+    printf 'sentinel sentinel-pass "%s"\n' "$esc" >> "$CONF"
+    {{- end }}
+    exec valkey-sentinel "$CONF"
   {{- end }}
   {{- if eq .Values.architecture "cluster" }}
   valkey-cluster.conf: |

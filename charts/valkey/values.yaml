@@ -150,6 +150,10 @@ node:
 sentinel:
   # -- Number of Sentinel pods
   replicaCount: 3
+  # -- StatefulSet podManagementPolicy for Sentinel pods. "Parallel" is recommended
+  # for new installs (Sentinels are symmetric peers); left empty for upgrade
+  # compatibility because this field is immutable on existing StatefulSets.
+  podManagementPolicy: ""
   # -- Sentinel master set name used by Sentinel clients
   masterSet: mymaster
   # -- Sentinel quorum required for failover decisions
@@ -160,6 +164,16 @@ sentinel:
   failoverTimeout: 180000
   # -- Number of replicas that can reconfigure in parallel during failover
   parallelSyncs: 1
+  gracefulFailover:
+    # -- Trigger a Sentinel failover from a preStop hook when the active master shuts down (rollouts, drains, deletes)
+    enabled: true
+    # -- Failover confirmation attempts (~3s each). Keep total below terminationGracePeriodSeconds
+    maxAttempts: 12
+  startupFailoverGuard:
+    # -- On a fresh data dir, refuse to resume as master while peers still hold data; force a failover first (prevents replicas resyncing from an empty dataset)
+    enabled: true
+    # -- Failover confirmation attempts (~3s each) before falling back to starting as master
+    maxAttempts: 20
   persistence:
     # -- Enable persistent storage for Sentinel pods
     enabled: false

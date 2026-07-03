@@ -484,3 +484,19 @@ topologySpreadConstraints:
   {{- end }}
 {{- end }}
 {{- end -}}
+
+{{/*
+Probe commands for sentinel-mode pods. Auth flows through the VALKEYCLI_AUTH
+environment variable set on the container, never through argv.
+*/}}
+{{- define "valkey.nodeProbeCommand" -}}
+valkey-cli {{ include "valkey.probeTlsArgs" . }} -p {{ .Values.service.ports.valkey }} ping
+{{- end -}}
+
+{{- define "valkey.sentinelProbeCommand" -}}
+valkey-cli {{ include "valkey.probeTlsArgs" . }} -p {{ .Values.service.ports.sentinel }} ping
+{{- end -}}
+
+{{- define "valkey.sentinelReadyCommand" -}}
+valkey-cli {{ include "valkey.probeTlsArgs" . }} -p {{ .Values.service.ports.sentinel }} sentinel get-master-addr-by-name {{ .Values.sentinel.masterSet }} | grep -q .
+{{- end -}}

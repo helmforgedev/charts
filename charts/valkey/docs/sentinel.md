@@ -114,8 +114,15 @@ sentinel:
 Anti-split-brain safety does not depend on the bootstrap marker surviving reschedules.
 When Sentinel is unreachable, each node probes peer `INFO replication` before choosing a role.
 
-Data loss is possible only if every data node restarts at the same time with no peers online.
-Enable `node.persistence.enabled=true` when you need RDB/AOF to survive pod reschedules.
+Without additional safeguards, a single restart of the active master pod inside the
+`down-after-milliseconds` window would resume it as an empty master and make every
+replica full-resync from an empty dataset. The chart mitigates this with
+`sentinel.gracefulFailover` (preStop-triggered failover on voluntary disruptions) and
+`sentinel.startupFailoverGuard` (a fresh master refuses to resume while peers still
+hold data and forces a failover first). Residual data loss remains possible if these
+guards are disabled, if no replica is promotable, or if every data node restarts at
+the same time. Enable `node.persistence.enabled=true` when you need RDB/AOF to
+survive pod reschedules.
 
 ### Fail-closed with persistence enabled
 
