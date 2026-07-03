@@ -1,58 +1,89 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-DDNS Updater has been deployed.
+ddns-updater has been deployed.
 
-Release:
-  Chart:      {{ .Chart.Name }}
-  Version:    {{ .Chart.Version }}
-  AppVersion: {{ .Chart.AppVersion }}
-  Release:    {{ .Release.Name }}
-  Namespace:  {{ .Release.Namespace }}
+1. Installation summary
+-----------------------
+Chart: {{ .Chart.Name }}
+Version: {{ .Chart.Version }}
+AppVersion: {{ .Chart.AppVersion }}
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Image: {{ include "ddns-updater.image" . }}
 
-Access:
-  DDNS Updater runs as a background service. The web UI is not exposed outside
-  the cluster unless ingress is enabled.
-
+2. Access
+---------
+DDNS Updater runs as a background service. The web UI is exposed outside the
+cluster only when ingress is enabled.
 {{- if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
-  Web UI: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+{{- if $host.host }}
+Web UI: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+{{- else }}
+Web UI: hostless ingress is enabled. Use the external address assigned by your ingress controller.
+{{- end }}
 {{- end }}
 {{- else }}
-  Port-forward:
-    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "ddns-updater.fullname" . }} 8000:{{ .Values.service.port }}
+Port-forward:
 
-  Web UI:
-    http://localhost:8000/
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "ddns-updater.fullname" . }} 8000:{{ .Values.service.port }}
+
+Web UI:
+
+  http://localhost:8000/
 {{- end }}
 
-Configuration:
+3. Getting started
+------------------
+Check pod status:
+
+  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Follow logs:
+
+  kubectl logs -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }} --all-containers --tail=50 -f
+
+4. Credentials
+--------------
 {{- if .Values.config.existingSecret }}
-  Config source: existing Secret {{ .Values.config.existingSecret }}
-  Config key:    {{ .Values.config.existingSecretKey }}
+Config source: existing Secret {{ .Values.config.existingSecret }}
+Config key: {{ .Values.config.existingSecretKey }}
 {{- else }}
-  Config source: chart-managed Secret {{ include "ddns-updater.configSecretName" . }}
-  Records:       {{ len (.Values.config.settings | default list) }}
+Config source: chart-managed Secret {{ include "ddns-updater.configSecretName" . }}
+Configured records: {{ len (.Values.config.settings | default list) }}
 {{- end }}
-  Data path:     /updater/data
-  Persistence:   {{ ternary "enabled" "disabled" .Values.persistence.enabled }}
 
-Security:
-  ServiceAccount token automount: {{ .Values.serviceAccount.automountServiceAccountToken }}
-  Run as non-root:                {{ .Values.podSecurityContext.runAsNonRoot }}
-  Read-only root filesystem:      {{ .Values.securityContext.readOnlyRootFilesystem }}
+5. Configuration
+----------------
+Data path: /updater/data
+Persistence: {{ ternary "enabled" "disabled" .Values.persistence.enabled }}
+Root URL: {{ .Values.ddns.rootUrl }}
+Update period: {{ .Values.ddns.period }}
+Public IP fetchers: {{ .Values.ddns.publicIpFetchers }}
 
-Next Steps:
-  1. Check pod status:
-       kubectl get pods -l app.kubernetes.io/name=ddns-updater -n {{ .Release.Namespace }}
-  2. Follow logs:
-       kubectl logs -l app.kubernetes.io/name=ddns-updater -n {{ .Release.Namespace }} --all-containers --tail=50 -f
-  3. Confirm provider credentials and DNS records in the web UI or logs.
+6. Security
+-----------
+ServiceAccount token automount: {{ .Values.serviceAccount.automountServiceAccountToken }}
+Run as non-root: {{ .Values.podSecurityContext.runAsNonRoot }}
+Read-only root filesystem: {{ .Values.securityContext.readOnlyRootFilesystem }}
 
-Troubleshooting:
-  kubectl describe pod -l app.kubernetes.io/name=ddns-updater -n {{ .Release.Namespace }}
-  kubectl logs -l app.kubernetes.io/name=ddns-updater -n {{ .Release.Namespace }} --all-containers --tail=100
+7. Troubleshooting
+------------------
+Describe pod:
+
+  kubectl describe pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Inspect recent logs:
+
+  kubectl logs -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }} --all-containers --tail=100
+
+List related resources:
+
   kubectl get all,pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
 
-Documentation:
-  https://helmforge.dev/docs/charts/ddns-updater
+8. Resources
+------------
+Chart docs: https://helmforge.dev/docs/charts/ddns-updater
+Chart source: https://github.com/helmforgedev/charts/tree/main/charts/ddns-updater
+Upstream project: https://github.com/qdm12/ddns-updater
 
 Happy Helmforging :)
