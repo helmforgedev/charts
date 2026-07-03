@@ -121,16 +121,25 @@ tests:
             emptyDir: {}
 
   - it: should probe peer nodes for master discovery
-    template: sentinel-node-statefulset.yaml
     set:
       architecture: sentinel
     asserts:
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: discover_master_from_peers
+          path: data["node-entrypoint.sh"]
+          pattern: 'peer_master\(\)'
+        template: configmap.yaml
       - matchRegex:
-          path: spec.template.spec.initContainers[0].args[0]
-          pattern: discover_master_from_peers
+          path: data["node-entrypoint.sh"]
+          pattern: 'discover_master\(\)'
+        template: configmap.yaml
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: /scripts/node-entrypoint.sh
+        template: sentinel-node-statefulset.yaml
+      - contains:
+          path: spec.template.spec.initContainers[0].command
+          content: /scripts/node-entrypoint.sh
+        template: sentinel-node-statefulset.yaml
 
   - it: should set securityContext on the metrics sidecar
     template: sentinel-node-statefulset.yaml
@@ -182,14 +191,17 @@ tests:
           value: sentinel
 
   - it: should use the custom Sentinel master set for auth-pass
-    template: sentinel-statefulset.yaml
+    template: configmap.yaml
     set:
       architecture: sentinel
       sentinel.masterSet: legacy-master
     asserts:
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "sentinel auth-pass legacy-master \\$\\{VALKEY_PASSWORD\\}"
+          path: data["sentinel-entrypoint.sh"]
+          pattern: 'MASTER_SET="legacy-master"'
+      - matchRegex:
+          path: data["sentinel-entrypoint.sh"]
+          pattern: 'sentinel auth-pass %s'
 
   - it: injects sentinel requirepass and sentinel-pass when auth.sentinel=true
     set:
@@ -197,28 +209,27 @@ tests:
       auth:
         enabled: true
         sentinel: true
-    template: sentinel-statefulset.yaml
+    template: configmap.yaml
     asserts:
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: 'echo "requirepass \$\{VALKEY_PASSWORD\}"'
+          path: data["sentinel-entrypoint.sh"]
+          pattern: "printf 'requirepass \"%s\""
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: 'echo "sentinel sentinel-pass \$\{VALKEY_PASSWORD\}"'
-
+          path: data["sentinel-entrypoint.sh"]
+          pattern: "printf 'sentinel sentinel-pass \"%s\""
   - it: omits sentinel auth when auth.sentinel=false but keeps the strip
     set:
       architecture: sentinel
       auth:
         enabled: true
         sentinel: false
-    template: sentinel-statefulset.yaml
+    template: configmap.yaml
     asserts:
       - notMatchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: 'echo "requirepass'
+          path: data["sentinel-entrypoint.sh"]
+          pattern: "printf 'requirepass"
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
+          path: data["sentinel-entrypoint.sh"]
           pattern: "sed -i -e '/\\^requirepass /d'"
 
   - it: both node containers authenticate to Sentinel when auth.sentinel=true
@@ -227,11 +238,26 @@ tests:
       auth:
         enabled: true
         sentinel: true
-    template: sentinel-node-statefulset.yaml
     asserts:
       - matchRegex:
-          path: spec.template.spec.initContainers[0].args[0]
-          pattern: '-a "\$VALKEY_PASSWORD"[^\n]*sentinel get-master-addr-by-name'
-      - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: '-a "\$VALKEY_PASSWORD"[^\n]*sentinel get-master-addr-by-name'
+          path: data["node-entrypoint.sh"]
+          pattern: 'scli sentinel get-master-addr-by-name'
+        template: configmap.yaml
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: VALKEYCLI_AUTH
+            valueFrom:
+              secretKeyRef:
+                name: test-valkey-auth
+                key: valkey-password
+        template: sentinel-node-statefulset.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: VALKEYCLI_AUTH
+            valueFrom:
+              secretKeyRef:
+                name: test-valkey-auth
+                key: valkey-password
+        template: sentinel-node-statefulset.yaml
