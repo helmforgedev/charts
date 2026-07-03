@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Validation
+templates:
+  - templates/validate.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should require an existing config secret when external secrets are enabled
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: cluster-secrets
+      externalSecrets.data:
+        - secretKey: AdGuardHome.yaml
+          remoteRef:
+            key: adguard-home/config
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.enabled requires config.existingSecret to be set to prevent credential drift between the chart-managed Secret and the ExternalSecret.
+
+  - it: should require the AdGuardHome config key when external secrets are enabled
+    set:
+      config.existingSecret: adguard-config
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: cluster-secrets
+      externalSecrets.data:
+        - secretKey: other-key
+          remoteRef:
+            key: adguard-home/config
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.data must contain an entry with secretKey 'AdGuardHome.yaml' when externalSecrets.enabled=true to populate the initial configuration.
