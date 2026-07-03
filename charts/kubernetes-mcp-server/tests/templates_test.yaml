@@ -14,6 +14,11 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].image
           value: ghcr.io/containers/kubernetes-mcp-server:v0.0.63
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/name"]
+          value: kubernetes-mcp-server
+      - notExists:
+          path: spec.template.metadata.labels["helm.sh/chart"]
   - it: renders service
     template: templates/service.yaml
     asserts:
@@ -41,6 +46,17 @@ tests:
       - equal:
           path: metadata.annotations["cert-manager.io/cluster-issuer"]
           value: letsencrypt
+  - it: omits empty ingress class name
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: ""
+      ingress.hosts[0].host: kubernetes-mcp-server.example.com
+      ingress.hosts[0].paths[0].path: /
+      ingress.hosts[0].paths[0].pathType: Prefix
+    asserts:
+      - notExists:
+          path: spec.ingressClassName
   - it: renders HTTPRoute hostnames
     template: templates/httproute.yaml
     set:
