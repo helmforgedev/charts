@@ -1,81 +1,95 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 Discount Bandit has been deployed.
 
-Chart:      {{ .Chart.Name }}
-Version:    {{ .Chart.Version }}
+1. Installation summary
+-----------------------
+Chart: {{ .Chart.Name }}
+Version: {{ .Chart.Version }}
 AppVersion: {{ .Chart.AppVersion }}
-Release:    {{ .Release.Name }}
-Namespace:  {{ .Release.Namespace }}
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
 
-Runtime
-  Database mode: {{ include "discount-bandit.databaseMode" . }}
-  ServiceAccount: {{ include "discount-bandit.serviceAccountName" . }}
-  ServiceAccount token automount: {{ .Values.serviceAccount.automountServiceAccountToken }}
-  NetworkPolicy enabled: {{ .Values.networkPolicy.enabled }}
-  Gateway API enabled: {{ .Values.gatewayAPI.enabled }}
-  External Secrets enabled: {{ .Values.externalSecrets.enabled }}
-  Logs persistence enabled: {{ .Values.persistence.logs.enabled }}
-  Supervisor ConfigMap enabled: {{ .Values.supervisor.configMap.enabled }}
+2. Runtime
+----------
+Database mode: {{ include "discount-bandit.databaseMode" . }}
+ServiceAccount: {{ include "discount-bandit.serviceAccountName" . }}
+ServiceAccount token automount: {{ .Values.serviceAccount.automountServiceAccountToken }}
+NetworkPolicy enabled: {{ .Values.networkPolicy.enabled }}
+Gateway API enabled: {{ .Values.gatewayAPI.enabled }}
+External Secrets enabled: {{ .Values.externalSecrets.enabled }}
+Logs persistence enabled: {{ .Values.persistence.logs.enabled }}
+Supervisor ConfigMap enabled: {{ .Values.supervisor.configMap.enabled }}
 
-Getting started
-  Check workload readiness:
-    kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=discount-bandit,app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }} --timeout=300s
+3. Getting started
+------------------
+Check workload readiness:
 
-Access
+  kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=discount-bandit,app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }} --timeout=300s
+
+4. Access
+---------
 {{- if .Values.gatewayAPI.enabled }}
 {{- range .Values.gatewayAPI.hostnames }}
-  WEB UI: https://{{ . }}/
+Web UI: https://{{ . }}/
 {{- end }}
 {{- else if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
-  WEB UI: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
+Web UI: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}/
 {{- end }}
 {{- else }}
-  Port-forward:
-    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "discount-bandit.fullname" . }} 8080:{{ .Values.service.port }}
+Port-forward:
 
-  WEB UI:
-    http://localhost:8080/
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "discount-bandit.fullname" . }} 8080:{{ .Values.service.port }}
+
+Web UI:
+
+  http://localhost:8080/
 {{- end }}
 
-Configuration
-  - Set discountBandit.appUrl and discountBandit.assetUrl to the public URL before exposing the instance.
-  - Store APP_KEY, database passwords, and exchange-rate keys in Kubernetes Secrets or External Secrets.
-  - Use mysql.enabled=true or database.mode=external for production.
+5. Configuration
+----------------
+- Set discountBandit.appUrl and discountBandit.assetUrl to the public URL before exposing the instance.
+- Store APP_KEY, database passwords, and exchange-rate keys in Kubernetes Secrets or External Secrets.
+- Use mysql.enabled=true or database.mode=external for production.
 
-Health checks
+6. Health checks
+----------------
   kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=discount-bandit,app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }} --timeout=300s
   kubectl get pods -l app.kubernetes.io/name=discount-bandit,app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
   kubectl logs -l app.kubernetes.io/name=discount-bandit,app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }} --all-containers --tail=100
 
-Database
+7. Database
+-----------
 {{- if eq (include "discount-bandit.databaseMode" .) "mysql" }}
-  The HelmForge MySQL subchart is enabled.
-  MySQL Service: {{ include "discount-bandit.mysqlFullname" . }}
-  Secret: {{ include "discount-bandit.databaseSecretName" . }}
+The HelmForge MySQL subchart is enabled.
+MySQL Service: {{ include "discount-bandit.mysqlFullname" . }}
+Secret: {{ include "discount-bandit.databaseSecretName" . }}
 {{- else if eq (include "discount-bandit.databaseMode" .) "external" }}
-  External database host: {{ include "discount-bandit.databaseHost" . }}:{{ include "discount-bandit.databasePort" . }}
-  Secret: {{ include "discount-bandit.databaseSecretName" . }}
+External database host: {{ include "discount-bandit.databaseHost" . }}:{{ include "discount-bandit.databasePort" . }}
+Secret: {{ include "discount-bandit.databaseSecretName" . }}
 {{- else }}
-  SQLite is enabled for development/small installs.
-  PVC: {{ include "discount-bandit.dataClaimName" . }}
-  Keep replicaCount=1 with SQLite.
+SQLite is enabled for development/small installs.
+PVC: {{ include "discount-bandit.dataClaimName" . }}
+Keep replicaCount=1 with SQLite.
 {{- end }}
 
-Troubleshooting
+8. Troubleshooting
+------------------
   kubectl describe pod -l app.kubernetes.io/name=discount-bandit,app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
   kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
   kubectl get deploy,svc,secret,pvc,networkpolicy,pdb -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
 
-Production reminders
-  - Use mysql.enabled=true or database.mode=external for production.
-  - Set discountBandit.appUrl and discountBandit.assetUrl to the public URL.
-  - Store APP_KEY, database passwords, and exchange-rate keys in Kubernetes Secrets or External Secrets.
-  - Enable NetworkPolicy only after confirming crawler and notification egress destinations.
-  - Review crawler logs because some stores rely on Chromium headless.
+9. Production reminders
+-----------------------
+- Use mysql.enabled=true or database.mode=external for production.
+- Set discountBandit.appUrl and discountBandit.assetUrl to the public URL.
+- Store APP_KEY, database passwords, and exchange-rate keys in Kubernetes Secrets or External Secrets.
+- Enable NetworkPolicy only after confirming crawler and notification egress destinations.
+- Review crawler logs because some stores rely on Chromium headless.
 
-Resources
-  Documentation: https://helmforge.dev/docs/charts/discount-bandit
-  Upstream: https://github.com/Cybrarist/Discount-Bandit
+10. Resources
+-------------
+Documentation: https://helmforge.dev/docs/charts/discount-bandit
+Upstream: https://github.com/Cybrarist/Discount-Bandit
 
 Happy Helmforging :)
