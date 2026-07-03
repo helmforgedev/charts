@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: should render no validation manifest by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should fail when external database host is missing
+    set:
+      postgresql.enabled: false
+      database.external.password: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.external.host is required when postgresql.enabled is false"
+
+  - it: should fail when external database credentials are missing
+    set:
+      postgresql.enabled: false
+      database.external.host: postgres.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.external.password or database.external.existingSecret is required when postgresql.enabled is false"
+
+  - it: should fail when external redis host is missing
+    set:
+      redis.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "redis_config.external.host is required when redis.enabled is false"
+
+  - it: should fail when ingress is enabled without hosts
+    set:
+      ingress.enabled: true
+      ingress.hosts: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "ingress.enabled requires ingress.hosts to contain at least one host"
+
+  - it: should fail when an ingress host entry has no hostname
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - failedTemplate:
+          errorMessage: "ingress.hosts[0].host is required when ingress.enabled is true"
+
+  - it: should fail when podLabels override selector labels
+    set:
+      podLabels:
+        app.kubernetes.io/name: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: 'podLabels must not override selector label "app.kubernetes.io/name"'
