@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: should render no validation manifest by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should fail when managed tunnel has no credentials
+    set:
+      tunnel.quickTunnel.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "tunnel.token or tunnel.existingSecret is required when tunnel.quickTunnel.enabled is false"
+
+  - it: should fail when quick tunnel url mode has no url
+    set:
+      tunnel.quickTunnel.enabled: true
+      tunnel.quickTunnel.helloWorld: false
+      tunnel.quickTunnel.url: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "tunnel.quickTunnel.url is required when tunnel.quickTunnel.enabled=true and helloWorld=false"
+
+  - it: should fail when external secrets has no target secret
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: helmforge-fake-store
+      externalSecrets.data:
+        - secretKey: token
+          remoteRef:
+            key: test/password
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.enabled requires tunnel.existingSecret to be set to prevent credential drift between the chart-managed Secret and the ExternalSecret."
+
+  - it: should fail when external secrets has no store reference
+    set:
+      tunnel.existingSecret: cloudflared-tunnel-token
+      externalSecrets.enabled: true
+      externalSecrets.data:
+        - secretKey: token
+          remoteRef:
+            key: test/password
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.secretStoreRef.name is required when externalSecrets.enabled=true"
+
+  - it: should fail when external secrets has no data mappings
+    set:
+      tunnel.existingSecret: cloudflared-tunnel-token
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: helmforge-fake-store
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.data must not be empty when externalSecrets.enabled=true"
+
+  - it: should fail when service monitor has no metrics service
+    set:
+      metrics.enabled: false
+      serviceMonitor.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "metrics.enabled must be true when serviceMonitor.enabled is true"
+
+  - it: should fail when pdb minAvailable exceeds replicas
+    set:
+      replicaCount: 1
+      pdb.enabled: true
+      pdb.minAvailable: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCount must be greater than or equal to pdb.minAvailable when pdb.enabled is true"
+
+  - it: should fail when podLabels override selector labels
+    set:
+      podLabels:
+        app.kubernetes.io/name: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: 'podLabels must not override selector label "app.kubernetes.io/name"'
