@@ -60,6 +60,33 @@ tests:
           content: Egress
         template: networkpolicy.yaml
 
+  - it: should append extra NetworkPolicy egress rules
+    set:
+      networkPolicy:
+        enabled: true
+        egress:
+          - to:
+              - podSelector:
+                  matchLabels:
+                    app: database
+        extraEgress:
+          - to:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: kube-system
+            ports:
+              - protocol: UDP
+                port: 53
+    asserts:
+      - equal:
+          path: spec.egress[0].to[0].podSelector.matchLabels.app
+          value: database
+        template: networkpolicy.yaml
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 53
+        template: networkpolicy.yaml
+
   - it: should apply restricted security preset when contexts are not explicit
     set:
       securityPreset: restricted

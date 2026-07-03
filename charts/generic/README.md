@@ -400,7 +400,7 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | `service.extraPorts` | Additional service ports | `[]` |
 | `services` | Additional Service resources | `[]` |
 | `ingress.enabled` | Enable Ingress | `false` |
-| `ingress.ingressClassName` | Ingress class | `traefik` |
+| `ingress.ingressClassName` | Ingress class. Set `""` to omit `spec.ingressClassName`. | `traefik` |
 | `ingress.hosts` | Ingress host rules; `host` supports tpl (e.g. `{{ .Release.Namespace }}`); paths require explicit `backend` when `service.enabled=false` | `[]` |
 | `ingress.defaultBackend` | Ingress default backend | `{}` |
 | `ingress.tls` | TLS configuration | `[]` |
@@ -464,6 +464,7 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | `rbac.clusterRole.create` | Create ClusterRole and ClusterRoleBinding | `false` |
 | `networkPolicy.enabled` | Create NetworkPolicy | `false` |
 | `networkPolicy.defaultDeny` | Render default-deny policy shape | `false` |
+| `networkPolicy.extraEgress` | Additional egress rules appended after `networkPolicy.egress` | `[]` |
 | **Batch** | | |
 | `jobs` | One-time Job definitions | `[]` |
 | `cronjobs` | CronJob definitions | `[]` |
