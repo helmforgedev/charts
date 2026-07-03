@@ -329,3 +329,21 @@ true
 database-password
 {{- end -}}
 {{- end -}}
+
+{{- define "answer.validate" -}}
+{{- $databaseMode := include "answer.databaseMode" . -}}
+{{- if .Values.backup.enabled -}}
+{{- $_ := include "answer.backupEnabled" . -}}
+{{- end -}}
+{{- if and .Values.ingress.enabled (empty .Values.ingress.hosts) -}}
+{{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}
+{{- end -}}
+{{- if .Values.podLabels -}}
+{{- if hasKey .Values.podLabels "app.kubernetes.io/name" -}}
+{{- fail "podLabels must not override the selector label app.kubernetes.io/name" -}}
+{{- end -}}
+{{- if hasKey .Values.podLabels "app.kubernetes.io/instance" -}}
+{{- fail "podLabels must not override the selector label app.kubernetes.io/instance" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}

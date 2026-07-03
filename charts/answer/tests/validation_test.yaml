@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Validation
+templates:
+  - templates/validate.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should reject ambiguous database auto-selection
+    set:
+      database.external.host: db.example.com
+      postgresql.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "answer database selection is ambiguous: configure only one of database.external.host, postgresql.enabled, or mysql.enabled"
+
+  - it: should require backup S3 endpoint when backup is enabled
+    set:
+      backup.enabled: true
+      backup.s3.bucket: answer-backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.endpoint is required when backup.enabled is true"
+
+  - it: should require at least one ingress host when ingress is enabled
+    set:
+      ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "ingress.hosts must contain at least one host when ingress.enabled=true"
+
+  - it: should reject podLabels that override the name selector
+    set:
+      podLabels:
+        app.kubernetes.io/name: other
+    asserts:
+      - failedTemplate:
+          errorMessage: "podLabels must not override the selector label app.kubernetes.io/name"
+
+  - it: should reject podLabels that override the instance selector
+    set:
+      podLabels:
+        app.kubernetes.io/instance: other
+    asserts:
+      - failedTemplate:
+          errorMessage: "podLabels must not override the selector label app.kubernetes.io/instance"

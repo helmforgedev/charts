@@ -1,9 +1,7 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-=============================================================================
-Apache Answer deployed successfully!
-=============================================================================
+Apache Answer deployed successfully.
 
-SUMMARY:
+1. Summary:
    Release: {{ .Release.Name }}
    Namespace: {{ .Release.Namespace }}
    Chart: {{ .Chart.Name }} {{ .Chart.Version }}
@@ -13,7 +11,7 @@ SUMMARY:
    Persistence: {{ if .Values.persistence.enabled }}enabled ({{ .Values.persistence.size }}){{ else }}disabled{{ end }}
    ServiceAccount: {{ include "answer.serviceAccountName" . }}
 
-ACCESS:
+2. Access:
 {{- if .Values.ingress.enabled }}
 {{- range .Values.ingress.hosts }}
    Ingress: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
@@ -30,7 +28,7 @@ ACCESS:
      http://127.0.0.1:9080
 {{- end }}
 
-ADMIN:
+3. Credentials:
    Username: {{ .Values.admin.name }}
    Email: {{ .Values.admin.email }}
 {{- if .Values.admin.existingSecret }}
@@ -42,7 +40,7 @@ ADMIN:
      kubectl get secret {{ include "answer.adminSecretName" . }} -n {{ .Release.Namespace }} -o jsonpath="{.data.{{ include "answer.adminSecretKey" . }}}" | base64 -d
 {{- end }}
 
-DATABASE:
+4. Configuration:
 {{- $dbMode := include "answer.databaseMode" . }}
    Mode: {{ $dbMode }}
 {{- if eq $dbMode "sqlite" }}
@@ -56,7 +54,6 @@ DATABASE:
    Password secret: {{ include "answer.databaseSecretName" . }} / {{ include "answer.databaseSecretKey" . }}
 {{- end }}
 
-ROUTING:
    Service: {{ include "answer.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
    Ingress enabled: {{ .Values.ingress.enabled }}
    Gateway API enabled: {{ .Values.gateway.enabled }}
@@ -67,7 +64,6 @@ ROUTING:
    IP families: {{ join ", " . }}
 {{- end }}
 
-OPTIONAL FEATURES:
    Backups: {{ .Values.backup.enabled }}
    External Secrets: {{ .Values.externalSecrets.enabled }}
 {{- if .Values.backup.enabled }}
@@ -78,7 +74,7 @@ OPTIONAL FEATURES:
    SecretStore: {{ .Values.externalSecrets.secretStoreRef.name }} ({{ .Values.externalSecrets.secretStoreRef.kind }})
 {{- end }}
 
-VALIDATION:
+5. Validation:
    Release status:
      helm status {{ .Release.Name }} -n {{ .Release.Namespace }}
 
@@ -91,7 +87,7 @@ VALIDATION:
    Health check:
      kubectl run {{ include "answer.fullname" . }}-health-check -n {{ .Release.Namespace }} --rm -i --restart=Never --image=docker.io/library/busybox:1.37 -- wget -qO- http://{{ include "answer.fullname" . }}:{{ .Values.service.port }}/healthz
 
-TROUBLESHOOTING:
+6. Troubleshooting:
    Events:
      kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
 
@@ -101,16 +97,15 @@ TROUBLESHOOTING:
    Init container logs when using PostgreSQL, MySQL, or external DB:
      kubectl logs deploy/{{ include "answer.fullname" . }} -n {{ .Release.Namespace }} -c wait-for-db --tail=200
 
-NOTES:
+7. Upgrade Notes:
    - Keep the admin password and database password stable across upgrades.
    - Use PostgreSQL, MySQL, or an external database for production concurrency.
    - Enable backups before changing storage, database mode, or chart major versions.
    - Set answer.siteUrl to the externally reachable URL for production installs.
 
-DOCUMENTATION:
+8. Resources:
    Chart: https://helmforge.dev/docs/charts/answer
    Apache Answer: https://answer.apache.org
    Source: https://github.com/helmforgedev/charts/tree/main/charts/answer
 
-=============================================================================
 Happy Helmforging :)
