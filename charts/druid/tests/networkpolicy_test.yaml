@@ -59,3 +59,26 @@ tests:
       - equal:
           path: spec.ingress[0].from[1].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
           value: gateway-system
+
+  - it: renders extra egress rules
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.allowDNS: false
+      networkPolicy.egress.allowSameNamespace: false
+      networkPolicy.egress.allowHTTPS: false
+      networkPolicy.egress.extraEgress:
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: observability
+          ports:
+            - protocol: TCP
+              port: 4317
+    asserts:
+      - equal:
+          path: spec.egress[0].to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: observability
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 4317
