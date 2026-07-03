@@ -1,0 +1,161 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: should render no validation manifest by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should fail when external MongoDB has no URI or secret
+    set:
+      mongodb.enabled: false
+      externalMongodb.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalMongodb.uri or externalMongodb.existingSecret is required when externalMongodb.enabled=true"
+
+  - it: should fail when ingress has no rules
+    set:
+      ingress.enabled: true
+      ingress.hosts: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "ingress.hosts must contain at least one rule when ingress.enabled=true"
+
+  - it: should fail when gateway has no parent references
+    set:
+      gateway.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.enabled requires gateway.parentRefs to be populated to create a valid HTTPRoute."
+
+  - it: should fail when external secrets is enabled without external MongoDB
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: helmforge-fake-store
+      externalSecrets.data:
+        - secretKey: mongodb-uri
+          remoteRef:
+            key: countly/mongodb
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.enabled requires externalMongodb.enabled=true; the Deployment only mounts the MongoDB secret when external MongoDB is active."
+
+  - it: should fail when external secrets has no target secret
+    set:
+      mongodb.enabled: false
+      externalMongodb.enabled: true
+      externalMongodb.uri: mongodb://mongodb.example.com:27017/countly
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: helmforge-fake-store
+      externalSecrets.data:
+        - secretKey: mongodb-uri
+          remoteRef:
+            key: countly/mongodb
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.enabled requires externalMongodb.existingSecret to be set to prevent credential drift between the chart-managed Secret and the ExternalSecret."
+
+  - it: should fail when external secrets has no store reference
+    set:
+      mongodb.enabled: false
+      externalMongodb.enabled: true
+      externalMongodb.existingSecret: countly-mongodb
+      externalSecrets.enabled: true
+      externalSecrets.data:
+        - secretKey: mongodb-uri
+          remoteRef:
+            key: countly/mongodb
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.secretStoreRef.name is required when externalSecrets.enabled=true"
+
+  - it: should fail when external secrets has no data mappings
+    set:
+      mongodb.enabled: false
+      externalMongodb.enabled: true
+      externalMongodb.existingSecret: countly-mongodb
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: helmforge-fake-store
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.data must not be empty when externalSecrets.enabled=true"
+
+  - it: should fail when external secrets misses the MongoDB URI key
+    set:
+      mongodb.enabled: false
+      externalMongodb.enabled: true
+      externalMongodb.existingSecret: countly-mongodb
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: helmforge-fake-store
+      externalSecrets.data:
+        - secretKey: other
+          remoteRef:
+            key: countly/mongodb
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.data must include a mapping for key 'mongodb-uri' (MongoDB connection URI)"
+
+  - it: should fail when backup has no endpoint
+    set:
+      backup.enabled: true
+      backup.s3.bucket: backups
+      backup.s3.accessKey: admin
+      backup.s3.secretKey: admin123
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.endpoint is required when backup.enabled is true"
+
+  - it: should fail when backup has no bucket
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.accessKey: admin
+      backup.s3.secretKey: admin123
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.bucket is required when backup.enabled is true"
+
+  - it: should fail when backup has no access key or existing secret
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.bucket: backups
+      backup.s3.secretKey: admin123
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true"
+
+  - it: should fail when backup has no secret key or existing secret
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.bucket: backups
+      backup.s3.accessKey: admin
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.secretKey or backup.s3.existingSecret is required when backup.enabled is true"
+
+  - it: should fail when external secret MongoDB URI cannot be injected into backup
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.bucket: backups
+      backup.s3.accessKey: admin
+      backup.s3.secretKey: admin123
+      mongodb.enabled: false
+      externalMongodb.enabled: true
+      externalMongodb.existingSecret: countly-mongodb
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup requires backup.database.uri when externalMongodb.existingSecret is set and externalMongodb.uri is empty (the URI is in the secret and cannot be injected into mongodump)"
+
+  - it: should fail when podLabels override selector labels
+    set:
+      podLabels:
+        app.kubernetes.io/name: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: 'podLabels must not override selector label "app.kubernetes.io/name"'

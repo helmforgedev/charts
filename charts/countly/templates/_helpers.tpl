@@ -43,12 +43,57 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
+{{- define "countly.validate" -}}
+{{- if and .Values.externalMongodb.enabled (not .Values.externalMongodb.uri) (not .Values.externalMongodb.existingSecret) -}}
+{{- fail "externalMongodb.uri or externalMongodb.existingSecret is required when externalMongodb.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
+{{- fail "ingress.hosts must contain at least one rule when ingress.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.gateway.enabled (not .Values.gateway.parentRefs) -}}
+{{- fail "gateway.enabled requires gateway.parentRefs to be populated to create a valid HTTPRoute." -}}
+{{- end -}}
+{{- if .Values.externalSecrets.enabled -}}
+  {{- if not .Values.externalMongodb.enabled -}}
+    {{- fail "externalSecrets.enabled requires externalMongodb.enabled=true; the Deployment only mounts the MongoDB secret when external MongoDB is active." -}}
+  {{- end -}}
+  {{- if not .Values.externalMongodb.existingSecret -}}
+    {{- fail "externalSecrets.enabled requires externalMongodb.existingSecret to be set to prevent credential drift between the chart-managed Secret and the ExternalSecret." -}}
+  {{- end -}}
+  {{- if not .Values.externalSecrets.secretStoreRef.name -}}
+    {{- fail "externalSecrets.secretStoreRef.name is required when externalSecrets.enabled=true" -}}
+  {{- end -}}
+  {{- if not .Values.externalSecrets.data -}}
+    {{- fail "externalSecrets.data must not be empty when externalSecrets.enabled=true" -}}
+  {{- end -}}
+  {{- $uriKey := .Values.externalMongodb.existingSecretUriKey | default "mongodb-uri" -}}
+  {{- $hasUri := false -}}
+  {{- range .Values.externalSecrets.data -}}
+    {{- if eq .secretKey $uriKey }}{{ $hasUri = true }}{{ end -}}
+  {{- end -}}
+  {{- if not $hasUri -}}
+    {{- fail (printf "externalSecrets.data must include a mapping for key '%s' (MongoDB connection URI)" $uriKey) -}}
+  {{- end -}}
+{{- end -}}
+{{- if .Values.backup.enabled -}}
+  {{- $_ := include "countly.backupEnabled" . -}}
+  {{- $_ := include "countly.backupMongodbUri" . -}}
+{{- end -}}
+{{- range $key, $_ := .Values.podLabels -}}
+{{- if or (eq $key "app.kubernetes.io/name") (eq $key "app.kubernetes.io/instance") -}}
+{{- fail (printf "podLabels must not override selector label %q" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{/* MongoDB host */}}
 {{- define "countly.mongodbHost" -}}
-{{- if .Values.externalMongodb.enabled -}}
-{{- "" -}}
+{{- if .Values.mongodb.enabled -}}
+{{- if contains "mongodb" .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
 {{- printf "%s-mongodb" .Release.Name -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -90,6 +135,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- end -}}
   {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}
     {{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
+  {{- end -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.secretKey) -}}
+    {{- fail "backup.s3.secretKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
   {{- end -}}
 true
 {{- end -}}
