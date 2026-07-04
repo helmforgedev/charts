@@ -98,6 +98,17 @@ metrics:
     enabled: true
 ```
 
+## NetworkPolicy
+
+```yaml
+networkPolicy:
+  enabled: true
+  extraEgress: []
+```
+
+Use `networkPolicy.extraEgress` to append full custom egress rules without
+replacing the chart's generated DNS and HTTP(S) egress defaults.
+
 ## Alpha Config
 
 When `alphaConfig.enabled=true`, the chart renders the structured

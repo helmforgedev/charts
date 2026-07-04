@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: NetworkPolicy
+templates:
+  - templates/networkpolicy.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should render default ingress and egress rules
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 4180
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53
+
+  - it: should append custom egress rules
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.extraEgress:
+        - to:
+            - ipBlock:
+                cidr: 10.80.0.0/16
+          ports:
+            - protocol: TCP
+              port: 443
+    asserts:
+      - equal:
+          path: spec.egress[2].to[0].ipBlock.cidr
+          value: 10.80.0.0/16
+      - equal:
+          path: spec.egress[2].ports[0].port
+          value: 443
