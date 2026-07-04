@@ -1,9 +1,9 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-# Getting started
+1. Getting Started
 
 Memcached has been deployed as {{ .Values.architecture }}.
 
-## Access
+2. Access
 
 Client service:
   {{ include "memcached.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.service.port }}
@@ -11,7 +11,7 @@ Client service:
 Headless service for pod-aware client hashing:
   {{ include "memcached.headlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}
 
-## Configuration
+3. Configuration
 
 Architecture: {{ .Values.architecture }}
 Replicas: {{ .Values.replicaCount }}
@@ -37,7 +37,7 @@ Metrics: disabled
 Service IP family policy: {{ . }}{{ with $.Values.service.ipFamilies }} (families: {{ join ", " . }}){{ end }}
 {{- end }}
 
-## Validation
+4. Validation
 
 Validate connectivity:
   kubectl run memcached-client --rm -it --restart=Never \
@@ -45,8 +45,9 @@ Validate connectivity:
     --image=docker.io/library/busybox:1.37.0 -- \
     sh -ec "printf 'version\r\n' | nc {{ include "memcached.fullname" . }} {{ .Values.service.port }}"
 
-{{- if .Values.auth.enabled }}
+5. Authentication
 
+{{- if .Values.auth.enabled }}
 Authentication is enabled with mode {{ .Values.auth.mode }}.
 {{- if eq .Values.auth.mode "ascii" }}
 ASCII auth uses a fake set command before regular commands:
@@ -55,20 +56,28 @@ ASCII auth uses a fake set command before regular commands:
 SASL mode requires binary protocol clients and the mounted SASL database from Secret {{ include "memcached.authSecretName" . }}.
 The chart sets SASL_CONF_PATH={{ .Values.auth.sasl.mountPath }}.
 {{- end }}
+{{- else }}
+Authentication is disabled.
 {{- end }}
+
+6. TLS
 
 {{- if .Values.tls.enabled }}
-
 TLS is enabled. Use a Memcached client that supports TLS and trusts the mounted certificate chain.
+{{- else }}
+TLS is disabled.
 {{- end }}
+
+7. Observability
 
 {{- if .Values.metrics.enabled }}
-
 Metrics endpoint:
   {{ include "memcached.metricsServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.metrics.port }}/metrics
+{{- else }}
+Metrics are disabled.
 {{- end }}
 
-## Troubleshooting
+8. Troubleshooting
 
 Inspect pods:
   kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
@@ -79,7 +88,7 @@ Inspect logs:
 Inspect events:
   kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
 
-## Resources
+9. Resources
 
 Chart documentation:
   https://helmforge.dev/docs/charts/memcached
@@ -87,7 +96,8 @@ Chart documentation:
 Upstream Memcached:
   https://memcached.org
 
-Production reminders:
+10. Production Reminders
+
   - Memcached is a volatile cache, not a database.
   - Use distributed mode only with client-side hashing or application-aware node lists.
   - Enable NetworkPolicy with explicit client namespaces before exposing shared cache services.

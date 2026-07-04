@@ -306,6 +306,7 @@ networkPolicy:
     enabled: true
     allowSameNamespace: true
     allowDNS: true
+  extraEgress: []
 ```
 
 ## Important values
@@ -331,6 +332,7 @@ networkPolicy:
 | `metrics.memcachedTLS.serverName` | computed Service DNS | TLS verification name used by the metrics exporter. |
 | `networkPolicy.enabled` | `false` | Enables NetworkPolicy resources. |
 | `networkPolicy.egress.allowSameNamespace` | `true` | Allows cache and metrics responses to same-namespace clients. |
+| `networkPolicy.extraEgress` | `[]` | Additional full NetworkPolicy egress rules appended to generated egress. |
 | `pdb.maxUnavailable` | `""` | Optional PDB disruption limit. Explicit `0` is honored. |
 | `service.ipFamilyPolicy` | `""` | Optional Kubernetes Service dual-stack policy. |
 | `service.ipFamilies` | `[]` | Optional ordered Service IP families. |
