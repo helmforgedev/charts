@@ -85,45 +85,45 @@ tests:
       sentinel.persistence.enabled: true
     asserts:
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "exec valkey-sentinel /data/sentinel.conf"
-        template: sentinel-statefulset.yaml
+          path: data["sentinel-entrypoint.sh"]
+          pattern: 'exec valkey-sentinel "\$CONF"'
+        template: configmap.yaml
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "if \\[ ! -f /data/sentinel.conf \\]; then"
-        template: sentinel-statefulset.yaml
+          path: data["sentinel-entrypoint.sh"]
+          pattern: 'if \[ ! -f "\$CONF" \]; then'
+        template: configmap.yaml
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "if \\[ ! -f /data/sentinel.conf \\]; then\\n.*until valkey-cli"
-        template: sentinel-statefulset.yaml
+          path: data["sentinel-entrypoint.sh"]
+          pattern: 'if \[ ! -f "\$CONF" \]; then[\s\S]*?until vcli'
+        template: configmap.yaml
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "sed -i '/\\^sentinel auth-pass mymaster /d' /data/sentinel.conf"
-        template: sentinel-statefulset.yaml
+          path: data["sentinel-entrypoint.sh"]
+          pattern: 'sed -i "/\^sentinel auth-pass \$MASTER_SET /d"'
+        template: configmap.yaml
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "HelmForge managed sentinel config begin"
-        template: sentinel-statefulset.yaml
+          path: data["sentinel-entrypoint.sh"]
+          pattern: 'HelmForge managed sentinel config begin'
+        template: configmap.yaml
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "sentinel down-after-milliseconds mymaster /d"
-        template: sentinel-statefulset.yaml
+          path: data["sentinel-entrypoint.sh"]
+          pattern: 'sentinel down-after-milliseconds \$MASTER_SET /d'
+        template: configmap.yaml
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "persisted_monitor=\"\\$\\(grep '\\^sentinel monitor mymaster ' /data/sentinel.conf"
-        template: sentinel-statefulset.yaml
+          path: data["sentinel-entrypoint.sh"]
+          pattern: 'persisted_monitor="\$\(grep "\^sentinel monitor \$MASTER_SET " "\$CONF"'
+        template: configmap.yaml
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "append_sentinel_base\\(\\)"
-        template: sentinel-statefulset.yaml
+          path: data["sentinel-entrypoint.sh"]
+          pattern: 'append_sentinel_base\(\)'
+        template: configmap.yaml
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "awk -v monitor=\"\\$persisted_monitor\""
-        template: sentinel-statefulset.yaml
+          path: data["sentinel-entrypoint.sh"]
+          pattern: 'awk -v monitor="\$persisted_monitor"'
+        template: configmap.yaml
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "\\^sentinel monitor mymaster / \\{ print monitor; next \\}"
-        template: sentinel-statefulset.yaml
+          path: data["sentinel-entrypoint.sh"]
+          pattern: '\^sentinel monitor mymaster / \{ print monitor; next \}'
+        template: configmap.yaml
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -185,47 +185,43 @@ tests:
       architecture: sentinel
     asserts:
       - matchRegex:
-          path: spec.template.spec.initContainers[0].args[0]
-          pattern: "sentinel get-master-addr-by-name mymaster"
-        template: sentinel-node-statefulset.yaml
+          path: data["node-entrypoint.sh"]
+          pattern: 'sentinel get-master-addr-by-name "\$MASTER_SET"'
+        template: configmap.yaml
       - matchRegex:
-          path: spec.template.spec.initContainers[0].args[0]
-          pattern: "Sentinel and peers unavailable for already bootstrapped node; main container will fail closed"
-        template: sentinel-node-statefulset.yaml
+          path: data["node-entrypoint.sh"]
+          pattern: 'refusing to start as an unconfirmed master'
+        template: configmap.yaml
       - matchRegex:
-          path: spec.template.spec.initContainers[0].args[0]
-          pattern: "info replication"
-        template: sentinel-node-statefulset.yaml
+          path: data["node-entrypoint.sh"]
+          pattern: 'info replication'
+        template: configmap.yaml
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "sentinel get-master-addr-by-name mymaster"
-        template: sentinel-node-statefulset.yaml
+          path: data["node-entrypoint.sh"]
+          pattern: 'replicaof \$master \$VALKEY_PORT'
+        template: configmap.yaml
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "info replication"
-        template: sentinel-node-statefulset.yaml
+          path: data["node-entrypoint.sh"]
+          pattern: 'this pod is the current master target; starting without replicaof'
+        template: configmap.yaml
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "set -- \"\\$@\" --replicaof \"\\$sentinel_master\""
-        template: sentinel-node-statefulset.yaml
+          path: data["node-entrypoint.sh"]
+          pattern: 'helmforge-sentinel-node-bootstrapped'
+        template: configmap.yaml
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "refusing to start as an unconfirmed master"
-        template: sentinel-node-statefulset.yaml
-      - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "this pod is the current master target; starting without replicaof"
-        template: sentinel-node-statefulset.yaml
-      - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "helmforge-sentinel-node-bootstrapped"
-        template: sentinel-node-statefulset.yaml
-      - matchRegex:
-          path: spec.template.spec.initContainers[0].args[0]
-          pattern: "this pod is the master target; skipping init wait"
+          path: data["node-entrypoint.sh"]
+          pattern: 'deferring to main container'
+        template: configmap.yaml
+      - contains:
+          path: spec.template.spec.initContainers[0].command
+          content: /scripts/node-entrypoint.sh
         template: sentinel-node-statefulset.yaml
       - contains:
-          path: spec.template.spec.initContainers[0].volumeMounts
+          path: spec.template.spec.containers[0].command
+          content: /scripts/node-entrypoint.sh
+        template: sentinel-node-statefulset.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
           content:
             name: data
             mountPath: /data
@@ -236,26 +232,26 @@ tests:
       architecture: sentinel
     asserts:
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "case \"\\$\\(hostname\\)\" in"
-        template: sentinel-node-statefulset.yaml
+          path: data["node-entrypoint.sh"]
+          pattern: 'case "\$\(hostname\)" in'
+        template: configmap.yaml
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "Sentinel and peers unavailable during first bootstrap; starting as seed master"
-        template: sentinel-node-statefulset.yaml
+          path: data["node-entrypoint.sh"]
+          pattern: 'Sentinel and peers unavailable during first bootstrap; starting as seed master'
+        template: configmap.yaml
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "seeding from test-valkey-node-0\\.test-valkey-headless\\.valkey-ns\\.svc\\.cluster\\.local"
-        template: sentinel-node-statefulset.yaml
+          path: data["node-entrypoint.sh"]
+          pattern: 'SEED_MASTER="test-valkey-node-0\.test-valkey-headless\.valkey-ns\.svc\.cluster\.local"'
+        template: configmap.yaml
 
   - it: should monitor the seed master node in sentinel pods
     set:
       architecture: sentinel
     asserts:
-      - equal:
-          path: spec.template.spec.containers[0].env[0].value
-          value: test-valkey-node-0.test-valkey-headless.valkey-ns.svc.cluster.local
-        template: sentinel-statefulset.yaml
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: 'sentinel monitor mymaster test-valkey-node-0\.test-valkey-headless\.valkey-ns\.svc\.cluster\.local 6379'
+        template: configmap.yaml
 
   - it: should keep fixed replicaof in replication mode
     set:

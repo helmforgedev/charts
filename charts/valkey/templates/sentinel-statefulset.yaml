@@ -10,6 +10,9 @@ metadata:
 spec:
   serviceName: {{ include "valkey.sentinelServiceName" . }}
   replicas: {{ .Values.sentinel.replicaCount }}
+  {{- with .Values.sentinel.podManagementPolicy }}
+  podManagementPolicy: {{ . }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "valkey.sentinelLabels" . | nindent 6 }}
@@ -34,90 +37,49 @@ spec:
         - name: sentinel
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["sh", "-ec"]
-          args:
-            - |
-              if [ ! -f /data/sentinel.conf ]; then
-                until valkey-cli $VALKEY_TLS_ARGS -h "$VALKEY_PRIMARY_HOST" -p "$VALKEY_PRIMARY_PORT" {{- if .Values.auth.enabled }} -a "$VALKEY_PASSWORD" --no-auth-warning {{- end }} ping >/dev/null 2>&1; do
-                  echo "waiting for primary $VALKEY_PRIMARY_HOST:$VALKEY_PRIMARY_PORT"
-                  sleep 5
-                done
-                cp /etc/valkey-base/sentinel.conf /data/sentinel.conf
-              else
-                persisted_monitor="$(grep '^sentinel monitor {{ .Values.sentinel.masterSet }} ' /data/sentinel.conf | tail -n 1 || true)"
-                append_sentinel_base() {
-                  if [ -n "$persisted_monitor" ]; then
-                    awk -v monitor="$persisted_monitor" '
-                      /^sentinel monitor {{ .Values.sentinel.masterSet }} / { print monitor; next }
-                      { print }
-                    ' /etc/valkey-base/sentinel.conf >> /data/sentinel.conf
-                  else
-                    cat /etc/valkey-base/sentinel.conf >> /data/sentinel.conf
-                  fi
-                }
-                if grep -q '^# HelmForge managed sentinel config begin$' /data/sentinel.conf; then
-                  sed -i '/^# HelmForge managed sentinel config begin$/,/^# HelmForge managed sentinel config end$/d' /data/sentinel.conf
-                else
-                  sed -i \
-                    -e '/^port /d' \
-                    -e '/^tls-port /d' \
-                    -e '/^tls-cert-file /d' \
-                    -e '/^tls-key-file /d' \
-                    -e '/^tls-ca-cert-file /d' \
-                    -e '/^tls-auth-clients /d' \
-                    -e '/^tls-replication /d' \
-                    -e '/^dir /d' \
-                    -e '/^sentinel resolve-hostnames /d' \
-                    -e '/^sentinel announce-hostnames /d' \
-                    -e '/^sentinel monitor {{ .Values.sentinel.masterSet }} /d' \
-                    -e '/^sentinel down-after-milliseconds {{ .Values.sentinel.masterSet }} /d' \
-                    -e '/^sentinel failover-timeout {{ .Values.sentinel.masterSet }} /d' \
-                    -e '/^sentinel parallel-syncs {{ .Values.sentinel.masterSet }} /d' \
-                    /data/sentinel.conf
-                fi
-                append_sentinel_base
-              fi
-              {{- if .Values.auth.enabled }}
-              sed -i '/^sentinel auth-pass {{ .Values.sentinel.masterSet }} /d' /data/sentinel.conf
-              echo "sentinel auth-pass {{ .Values.sentinel.masterSet }} ${VALKEY_PASSWORD}" >> /data/sentinel.conf
-              {{- end }}
-              sed -i -e '/^requirepass /d' -e '/^sentinel sentinel-pass /d' /data/sentinel.conf
-              {{- if and .Values.auth.enabled .Values.auth.sentinel }}
-              echo "requirepass ${VALKEY_PASSWORD}" >> /data/sentinel.conf
-              echo "sentinel sentinel-pass ${VALKEY_PASSWORD}" >> /data/sentinel.conf
-              {{- end }}
-              exec valkey-sentinel /data/sentinel.conf
+          command: ["sh", "/scripts/sentinel-entrypoint.sh"]
           ports:
             - name: sentinel
               containerPort: {{ .Values.service.ports.sentinel }}
-          {{- if .Values.auth.enabled }}
           env:
-            - name: VALKEY_PRIMARY_HOST
-              value: {{ include "valkey.nodePodFqdn" . | quote }}
-            - name: VALKEY_PRIMARY_PORT
-              value: {{ .Values.service.ports.valkey | quote }}
-            - name: VALKEY_TLS_ARGS
-              value: {{ include "valkey.cliTlsArgs" . | quote }}
+            {{- if .Values.auth.enabled }}
             - name: VALKEY_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "valkey.secretName" . }}
                   key: {{ .Values.auth.existingSecretPasswordKey }}
+            {{- end }}
+            {{- if and .Values.auth.enabled .Values.auth.sentinel }}
+            - name: VALKEYCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "valkey.secretName" . }}
+                  key: {{ .Values.auth.existingSecretPasswordKey }}
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- else }}
-          env:
-            - name: VALKEY_PRIMARY_HOST
-              value: {{ include "valkey.nodePodFqdn" . | quote }}
-            - name: VALKEY_PRIMARY_PORT
-              value: {{ .Values.service.ports.valkey | quote }}
-            - name: VALKEY_TLS_ARGS
-              value: {{ include "valkey.cliTlsArgs" . | quote }}
-            {{- with .Values.extraEnv }}
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
-          {{- end }}
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - {{ include "valkey.sentinelProbeCommand" . | quote }}
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - {{ include "valkey.sentinelReadyCommand" . | quote }}
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - {{ include "valkey.sentinelProbeCommand" . | quote }}
+            {{- toYaml .Values.startupProbe | nindent 12 }}
           {{- with .Values.sentinel.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -128,6 +90,9 @@ spec:
             - name: config
               mountPath: /etc/valkey-base/sentinel.conf
               subPath: sentinel.conf
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
             - name: data
               mountPath: /data
             {{- if .Values.tls.enabled }}
@@ -142,6 +107,13 @@ spec:
         - name: config
           configMap:
             name: {{ include "valkey.configMapName" . }}
+        - name: scripts
+          configMap:
+            name: {{ include "valkey.configMapName" . }}
+            defaultMode: 0555
+            items:
+              - key: sentinel-entrypoint.sh
+                path: sentinel-entrypoint.sh
         {{- if not .Values.sentinel.persistence.enabled }}
         - name: data
           emptyDir: {}
