@@ -1,9 +1,77 @@
 # SPDX-License-Identifier: Apache-2.0
+# CI: External PostgreSQL database.
+#
+# This scenario keeps sonarqube.databaseMode external while providing a
+# throwaway PostgreSQL endpoint through extraManifests so the runtime k3d gate
+# does not depend on infrastructure outside the test namespace.
 sonarqube:
   databaseMode: external
 
 database:
   external:
-    jdbcUrl: jdbc:postgresql://postgresql.default.svc.cluster.local:5432/sonarqube
+    jdbcUrl: jdbc:postgresql://sonarqube-external-postgresql:5432/sonarqube
     username: sonar
     password: change-me
+
+extraManifests:
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: sonarqube-external-postgresql
+      labels:
+        app.kubernetes.io/name: sonarqube-external-postgresql
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: sonarqube-external-postgresql
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: sonarqube-external-postgresql
+        spec:
+          containers:
+            - name: postgresql
+              image: docker.io/library/postgres:18.3-alpine
+              imagePullPolicy: IfNotPresent
+              ports:
+                - name: postgresql
+                  containerPort: 5432
+              env:
+                - name: POSTGRES_DB
+                  value: sonarqube
+                - name: POSTGRES_USER
+                  value: sonar
+                - name: POSTGRES_PASSWORD
+                  value: change-me
+              readinessProbe:
+                exec:
+                  command:
+                    - pg_isready
+                    - -U
+                    - sonar
+                    - -d
+                    - sonarqube
+                initialDelaySeconds: 5
+                periodSeconds: 5
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: sonarqube-external-postgresql
+      labels:
+        app.kubernetes.io/name: sonarqube-external-postgresql
+    spec:
+      type: ClusterIP
+      ports:
+        - name: postgresql
+          port: 5432
+          targetPort: postgresql
+      selector:
+        app.kubernetes.io/name: sonarqube-external-postgresql
