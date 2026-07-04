@@ -4,7 +4,7 @@ Apache Tomcat chart for Kubernetes using the official `docker.io/library/tomcat`
 
 ## Highlights
 
-- Official Tomcat image, pinned by default to `11.0.22-jdk17-temurin-noble`.
+- Official Tomcat image, pinned by default to `11.0.23-jdk17-temurin-noble`.
 - Stable default install with an optional ROOT health webapp for deterministic probes and Helm tests.
 - Preserves WARs or exploded applications baked into immutable Tomcat images before mounting the writable webapps volume.
 - Non-root runtime with writable `webapps`, `logs`, `temp`, and `work` volumes.
@@ -79,6 +79,7 @@ through `service.ports.jmxRmi` so the registry and RMI Service ports stay unique
 
 - Keep `serviceAccount.automountServiceAccountToken=false` unless your app needs Kubernetes API access.
 - Enable `networkPolicy.enabled` and explicitly allow ingress from your gateway or ingress controller namespace.
+- Use `networkPolicy.egress.extraEgress` for complete custom egress rules when applications call platform services.
 - Use persistent `webapps` storage only when applications are installed or mutated at runtime.
 - Prefer immutable app images or init containers that fetch versioned WAR artifacts.
 - Configure `tomcat.serverXml` or `tomcat.existingServerXmlConfigMap` when you need proxy connector attributes such as `proxyName`, `proxyPort`, or `scheme`.
@@ -89,7 +90,7 @@ through `service.ports.jmxRmi` so the registry and RMI Service ports stay unique
 | --- | --- | --- |
 | `replicaCount` | `1` | Number of Tomcat pods when HPA is disabled. |
 | `image.repository` | `docker.io/library/tomcat` | Tomcat image repository. |
-| `image.tag` | `11.0.22-jdk17-temurin-noble` | Tomcat image tag. |
+| `image.tag` | `11.0.23-jdk17-temurin-noble` | Tomcat image tag. |
 | `service.type` | `ClusterIP` | Kubernetes Service type. |
 | `service.ipFamilyPolicy` | `null` | Optional Service dual-stack policy. |
 | `service.ipFamilies` | `[]` | Optional Service IP family ordering. |
@@ -103,6 +104,7 @@ through `service.ports.jmxRmi` so the registry and RMI Service ports stay unique
 | `ingress.enabled` | `false` | Render Ingress. |
 | `gatewayAPI.enabled` | `false` | Render Gateway API HTTPRoute. |
 | `networkPolicy.enabled` | `false` | Render NetworkPolicy. |
+| `networkPolicy.egress.extraEgress` | `[]` | Additional complete NetworkPolicy egress rules. |
 | `autoscaling.enabled` | `false` | Render HPA. |
 | `pdb.enabled` | `false` | Render PodDisruptionBudget. |
 

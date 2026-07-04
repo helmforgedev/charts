@@ -1,35 +1,74 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+1. Release
+
 Apache Tomcat has been deployed.
+Name: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Chart: {{ .Chart.Name }} {{ .Chart.Version }}
+App version: {{ .Chart.AppVersion }}
+Image: {{ include "tomcat.image" . }}
 
-Release:
-  name: {{ .Release.Name }}
-  namespace: {{ .Release.Namespace }}
-  chart: {{ .Chart.Name }} {{ .Chart.Version }}
-  appVersion: {{ .Chart.AppVersion }}
-  image: {{ include "tomcat.image" . }}
+2. Service
 
-Service:
+Internal URL:
   http://{{ include "tomcat.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.ports.http }}
+
+{{- if .Values.ingress.enabled }}
+Ingress hosts:
+{{- range .Values.ingress.hosts }}
+  - {{ .host }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.gatewayAPI.enabled }}
+Gateway API hostnames:
+{{- range .Values.gatewayAPI.hostnames }}
+  - {{ . }}
+{{- end }}
+{{- end }}
+
+3. Workload
 
 Pods:
   kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ include "tomcat.name" . }}
 
-Health:
+4. Health
+
 {{- if and .Values.readinessProbe.enabled (eq .Values.readinessProbe.mode "http") }}
   kubectl run {{ include "tomcat.fullname" . }}-check -n {{ .Release.Namespace }} --rm -i --restart=Never --image={{ .Values.tests.image.repository }}:{{ .Values.tests.image.tag }} -- wget -qO- http://{{ include "tomcat.fullname" . }}:{{ .Values.service.ports.http }}{{ .Values.readinessProbe.path }}
 {{- else }}
   kubectl run {{ include "tomcat.fullname" . }}-check -n {{ .Release.Namespace }} --rm -i --restart=Never --image={{ .Values.tests.image.repository }}:{{ .Values.tests.image.tag }} -- nc -z {{ include "tomcat.fullname" . }} {{ .Values.service.ports.http }}
 {{- end }}
 
+5. Validation
+
+Run Helm tests:
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Inspect logs:
+  kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "tomcat.fullname" . }} --since=10m
+
+6. JMX
+
 {{- if .Values.jmx.enabled }}
-JMX:
-  service port: {{ .Values.service.ports.jmx }}
-  registry target port: {{ .Values.jmx.port }}
-  rmi service port: {{ .Values.service.ports.jmxRmi }}
-  rmi target port: {{ .Values.jmx.rmiPort }}
+Enabled: true
+Service port: {{ .Values.service.ports.jmx }}
+Registry target port: {{ .Values.jmx.port }}
+RMI service port: {{ .Values.service.ports.jmxRmi }}
+RMI target port: {{ .Values.jmx.rmiPort }}
+{{- else }}
+Enabled: false
 {{- end }}
 
-Documentation:
+7. Production reminders
+
+Use immutable Tomcat images or versioned init-container artifacts for applications.
+Set probes to application-specific endpoints when disabling the default ROOT webapp.
+Enable NetworkPolicy after confirming ingress, JMX, and application egress paths.
+Keep ServiceAccount token mounting disabled unless the application needs Kubernetes API access.
+
+8. Documentation
+
   https://helmforge.dev/docs/charts/tomcat
 
 Happy Helmforging :)

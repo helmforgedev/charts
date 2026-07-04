@@ -87,3 +87,29 @@ tests:
       - equal:
           path: spec.egress[0].to[0].podSelector.matchLabels["app.kubernetes.io/name"]
           value: postgresql
+
+  - it: should render additional egress rules without baseline egress
+    template: networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: false
+      networkPolicy.egress.extraEgress:
+        - to:
+            - ipBlock:
+                cidr: 10.80.0.0/16
+          ports:
+            - protocol: TCP
+              port: 443
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - ipBlock:
+                  cidr: 10.80.0.0/16
+            ports:
+              - protocol: TCP
+                port: 443
