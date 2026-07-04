@@ -157,6 +157,32 @@ tests:
           value: 8443
         documentIndex: 0
 
+  - it: should append extra web egress rules to the defaults
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.extraEgress:
+        - to:
+            - ipBlock:
+                cidr: 10.80.0.0/16
+          ports:
+            - protocol: TCP
+              port: 443
+    asserts:
+      - contains:
+          path: spec.egress[0].ports
+          content:
+            protocol: UDP
+            port: 53
+        documentIndex: 0
+      - equal:
+          path: spec.egress[2].to[0].ipBlock.cidr
+          value: 10.80.0.0/16
+        documentIndex: 0
+      - equal:
+          path: spec.egress[2].ports[0].port
+          value: 443
+        documentIndex: 0
+
   - it: should append custom web ingress rules without dropping the default web port
     set:
       networkPolicy.enabled: true

@@ -72,6 +72,15 @@ gateway:
     - opencut.example.com
 ```
 
+NetworkPolicy can append full custom web egress rules while keeping the generated
+DNS, database, Redis HTTP bridge, and HTTPS egress rules:
+
+```yaml
+networkPolicy:
+  enabled: true
+  extraEgress: []
+```
+
 ## Documentation
 
 - [Design](DESIGN.md)
@@ -113,10 +122,10 @@ helm unittest charts/opencut
 kubeconform -strict -summary rendered.yaml
 ```
 
-### 🟢 Security Scan: `opencut`
+### Security Scan: `opencut`
 
 | Framework | Score |
-|---|---|
+| --- | --- |
 | MITRE + NSA + SOC2 | **92.85354%** |
 
-> ✅ Security posture acceptable.
+Security posture: acceptable.
