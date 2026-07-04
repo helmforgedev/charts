@@ -11,8 +11,8 @@ support, Gateway API, Ingress, NetworkPolicy, ExternalSecret, ServiceMonitor,
 PodDisruptionBudget, and Helm tests.
 
 NetworkPolicy supports `networkPolicy.extraEgress` for appending custom egress
-rules without replacing the chart-generated Jenkins, DNS, cluster, and internet
-egress controls.
+rules without replacing the chart-generated DNS, cluster, internet, and
+`networkPolicy.egress.extraRules` controls.
 
 ## Install
 
