@@ -39,7 +39,9 @@ spec:
     []
     {{- end }}
   {{- if .Values.networkPolicy.egress.enabled }}
+  {{- $allowEgress := or .Values.networkPolicy.egress.allowDNS .Values.networkPolicy.egress.allowAPIServer .Values.networkPolicy.egress.allowKubelet .Values.networkPolicy.egress.extraTo .Values.networkPolicy.extraEgress }}
   egress:
+    {{- if $allowEgress }}
     {{- if .Values.networkPolicy.egress.allowDNS }}
     - to:
         - namespaceSelector: {}
@@ -72,6 +74,12 @@ spec:
     {{- with .Values.networkPolicy.egress.extraTo }}
     - to:
         {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- else }}
+    []
     {{- end }}
   {{- end }}
 {{- end }}
