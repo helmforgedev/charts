@@ -152,6 +152,11 @@ app.kubernetes.io/part-of: helmforge
 {{- if or $auth $keys .Values.extraEnv -}}true{{- else -}}false{{- end -}}
 {{- end -}}
 
+{{- define "kibana.waitForElasticsearchEnabled" -}}
+{{- $externalPlainHTTP := and (not .Values.bundledElasticsearch.enabled) (eq .Values.elasticsearch.auth.type "none") (not .Values.elasticsearch.tls.enabled) -}}
+{{- if and .Values.waitForElasticsearch.enabled (or .Values.bundledElasticsearch.enabled $externalPlainHTTP) -}}true{{- else -}}false{{- end -}}
+{{- end -}}
+
 {{- define "kibana.probePath" -}}
 {{- $basePath := trimSuffix "/" .Values.server.basePath -}}
 {{- if $basePath -}}
