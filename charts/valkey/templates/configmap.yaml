@@ -312,9 +312,9 @@ data:
 
     # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
     {{- if .Values.auth.enabled }}
-    vcli() { VALKEYCLI_AUTH="$VALKEY_PASSWORD" valkey-cli $TLS_ARGS "$@"; }
+    vcli() { VALKEYCLI_AUTH="$VALKEY_PASSWORD" timeout 5 valkey-cli $TLS_ARGS "$@"; }
     {{- else }}
-    vcli() { valkey-cli $TLS_ARGS "$@"; }
+    vcli() { timeout 5 valkey-cli $TLS_ARGS "$@"; }
     {{- end }}
 
     find_current_master() {
@@ -346,12 +346,12 @@ data:
             continue
           fi
         fi
-        if [ "$i" -ge 60 ]; then
+        if [ "$i" -ge 6 ]; then
           echo "no reachable master after bounded wait; monitoring seed $master anyway"
           break
         fi
-        echo "waiting for master $master:$VALKEY_PORT ($i/60)"
-        sleep 5
+        echo "waiting for master $master:$VALKEY_PORT ($i/6)"
+        sleep 3
       done
       cp "$BASE" "$CONF"
       if [ "$master" != "$SEED_MASTER" ]; then
@@ -411,6 +411,17 @@ data:
     printf 'requirepass "%s"\n' "$esc" >> "$CONF"
     printf 'sentinel sentinel-pass "%s"\n' "$esc" >> "$CONF"
     {{- end }}
+
+    # Optional hardening: pin a stable Sentinel identity (runid). Sentinel only
+    # generates a random myid when none is set, so a deterministic one derived
+    # from the pod's ordinal name and this release keeps the id stable across
+    # emptyDir restarts without a PVC, so peers update the existing entry instead
+    # of accumulating dead ones. Inputs are DNS-independent (short hostname from
+    # the kernel, namespace/name baked at render time).
+    if ! grep -q '^sentinel myid ' "$CONF"; then
+      MYID="$(printf '%s' '{{ .Release.Namespace }}/{{ include "valkey.fullname" . }}/'"$(hostname)" | sha1sum | awk '{ print $1 }')"
+      echo "sentinel myid $MYID" >> "$CONF"
+    fi
     exec valkey-sentinel "$CONF"
   {{- end }}
   {{- if eq .Values.architecture "cluster" }}
