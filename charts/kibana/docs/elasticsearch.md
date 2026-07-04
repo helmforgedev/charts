@@ -1,38 +1,25 @@
 # Kibana Elasticsearch Connectivity
 
-By default, Kibana connects to an external Elasticsearch endpoint:
-
-```yaml
-elasticsearch:
-  hosts:
-    - http://elasticsearch:9200
-```
-
-## HelmForge Elasticsearch Subchart
-
-Enable the bundled HelmForge Elasticsearch subchart for local development or
-self-contained test environments:
+By default, Kibana deploys the HelmForge Elasticsearch subchart and connects to
+its generated in-cluster Service:
 
 ```yaml
 bundledElasticsearch:
   enabled: true
-
-elasticsearch:
-  hosts:
-    - http://kibana-bundled-elasticsearch:9200
-
-bundled-elasticsearch:
-  image:
-    tag: "9.4.2"
 ```
 
-When using a custom release name, set the host to the service rendered by the
-aliased dependency:
+## External Elasticsearch
+
+Disable the bundled dependency when connecting to a separately operated
+Elasticsearch cluster:
 
 ```yaml
+bundledElasticsearch:
+  enabled: false
+
 elasticsearch:
   hosts:
-    - http://<release-name>-bundled-elasticsearch:9200
+    - http://elasticsearch:9200
 ```
 
 For production, operate Elasticsearch separately and keep the subchart disabled.
@@ -40,6 +27,9 @@ For production, operate Elasticsearch separately and keep the subchart disabled.
 ## Secured Elasticsearch
 
 ```yaml
+bundledElasticsearch:
+  enabled: false
+
 elasticsearch:
   hosts:
     - https://elasticsearch:9200

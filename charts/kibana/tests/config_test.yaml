@@ -5,7 +5,7 @@ templates:
   - templates/secret.yaml
 
 tests:
-  - it: renders kibana.yml with Elasticsearch hosts
+  - it: renders kibana.yml with bundled Elasticsearch by default
     template: templates/configmap.yaml
     asserts:
       - isKind:
@@ -13,6 +13,18 @@ tests:
       - matchRegex:
           path: data["kibana.yml"]
           pattern: "elasticsearch.hosts:"
+      - matchRegex:
+          path: data["kibana.yml"]
+          pattern: "http://.*-bundled-elasticsearch:9200"
+
+  - it: renders kibana.yml with external Elasticsearch hosts
+    template: templates/configmap.yaml
+    set:
+      bundledElasticsearch.enabled: false
+      elasticsearch:
+        hosts:
+          - http://elasticsearch:9200
+    asserts:
       - matchRegex:
           path: data["kibana.yml"]
           pattern: "http://elasticsearch:9200"
@@ -40,6 +52,7 @@ tests:
   - it: renders TLS configuration
     template: templates/configmap.yaml
     set:
+      bundledElasticsearch.enabled: false
       elasticsearch:
         hosts:
           - https://elasticsearch:9200
@@ -52,9 +65,32 @@ tests:
           path: data["kibana.yml"]
           pattern: "elasticsearch.ssl.verificationMode: \"certificate\""
 
+  - it: rejects external auth while bundled Elasticsearch is enabled
+    template: templates/configmap.yaml
+    set:
+      elasticsearch:
+        auth:
+          type: basic
+          password: super-secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "elasticsearch.auth.type must be none when bundledElasticsearch.enabled=true because the bundled dev profile is unauthenticated plain HTTP. Disable bundledElasticsearch to use external secured Elasticsearch."
+
+  - it: rejects external TLS while bundled Elasticsearch is enabled
+    template: templates/configmap.yaml
+    set:
+      elasticsearch:
+        tls:
+          enabled: true
+          certificateAuthoritiesSecret: elasticsearch-ca
+    asserts:
+      - failedTemplate:
+          errorMessage: "elasticsearch.tls.enabled must be false when bundledElasticsearch.enabled=true because the bundled dev profile is plain HTTP. Disable bundledElasticsearch to use external TLS Elasticsearch."
+
   - it: creates a managed secret for inline auth and encryption keys
     template: templates/secret.yaml
     set:
+      bundledElasticsearch.enabled: false
       elasticsearch:
         auth:
           type: basic
