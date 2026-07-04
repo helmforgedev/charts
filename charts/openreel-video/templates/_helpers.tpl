@@ -47,3 +47,9 @@ app.kubernetes.io/part-of: helmforge
 {{- define "openreel-video.image" -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
+
+{{- define "openreel-video.validate" -}}
+{{- if and (eq .Values.service.type "ExternalName") (not .Values.service.externalName) -}}
+{{- fail "service.externalName is required when service.type=ExternalName" -}}
+{{- end -}}
+{{- end -}}

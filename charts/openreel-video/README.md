@@ -46,6 +46,16 @@ ingress:
           pathType: Prefix
 ```
 
+## NetworkPolicy
+
+```yaml
+networkPolicy:
+  enabled: true
+  extraEgress: []
+```
+
+Use `networkPolicy.extraEgress` to append full custom egress rules.
+
 ## Documentation
 
 - [Design](DESIGN.md)
@@ -66,7 +76,7 @@ kubeconform -strict -summary rendered.yaml
 ### Security Scan: `openreel-video`
 
 | Framework | Score |
-|---|---|
+| --- | --- |
 | MITRE + NSA + SOC2 | **86.580086%** |
 
-> Security posture acceptable.
+Security posture: acceptable.
