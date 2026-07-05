@@ -79,8 +79,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- $_ := include "countly.backupEnabled" . -}}
   {{- $_ := include "countly.backupMongodbUri" . -}}
 {{- end -}}
-{{- range $key, $_ := .Values.podLabels -}}
-{{- if or (eq $key "app.kubernetes.io/name") (eq $key "app.kubernetes.io/instance") -}}
+{{- $podLabels := .Values.podLabels | default dict -}}
+{{- $selectorLabels := include "countly.selectorLabels" . | fromYaml -}}
+{{- range $key, $_ := $selectorLabels -}}
+{{- if hasKey $podLabels $key -}}
 {{- fail (printf "podLabels must not override selector label %q" $key) -}}
 {{- end -}}
 {{- end -}}
