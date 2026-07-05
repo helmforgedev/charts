@@ -256,6 +256,9 @@ true
 {{- end -}}
 
 {{- define "docmost.validate" -}}
+{{- if and (ne .Values.storage.mode "local") (ne .Values.storage.mode "s3") -}}
+{{- fail (printf "docmost: storage.mode must be 'local' or 's3', got %q" .Values.storage.mode) -}}
+{{- end -}}
 {{- if and (ne (int .Values.replicaCount) 1) (ne .Values.storage.mode "s3") -}}
 {{- fail "docmost: replicaCount greater than 1 requires storage.mode=s3 because local storage is single-writer" -}}
 {{- end -}}
