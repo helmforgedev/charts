@@ -16,10 +16,26 @@ tests:
       - failedTemplate:
           errorMessage: "database.type=postgres cannot be used with mysql.enabled=true"
 
+  - it: should fail when mysql mode enables postgresql subchart
+    set:
+      database.type: mysql
+      postgresql.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.type=mysql cannot be used with postgresql.enabled=true"
+
   - it: should fail when external database host is missing
     set:
       database.type: postgres
       postgresql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.external.host is required when database.type is not sqlite and no matching database subchart is enabled"
+
+  - it: should fail when external mysql database host is missing
+    set:
+      database.type: mysql
+      mysql.enabled: false
     asserts:
       - failedTemplate:
           errorMessage: "database.external.host is required when database.type is not sqlite and no matching database subchart is enabled"
@@ -68,6 +84,15 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "gateway.enabled requires gateway.parentRefs to be set to create a valid HTTPRoute."
+
+  - it: should fail when a gateway parentRef has no name
+    set:
+      gateway.enabled: true
+      gateway.parentRefs:
+        - sectionName: http
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.parentRefs[0].name is required when gateway.enabled is true"
 
   - it: should fail when podLabels override selector labels
     set:

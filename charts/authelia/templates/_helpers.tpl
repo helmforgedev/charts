@@ -33,6 +33,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "authelia.validate" -}}
 {{- $dbType := include "authelia.dbType" . -}}
+{{- $databaseSubchartEnabled := or (and (eq $dbType "postgres") .Values.postgresql.enabled) (and (eq $dbType "mysql") .Values.mysql.enabled) -}}
 {{- if not (has $dbType (list "sqlite" "postgres" "mysql")) -}}
 {{- fail (printf "database.type must be one of: sqlite, postgres, mysql (got %s)" $dbType) -}}
 {{- end -}}
@@ -42,10 +43,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if and (eq $dbType "mysql") .Values.postgresql.enabled -}}
 {{- fail "database.type=mysql cannot be used with postgresql.enabled=true" -}}
 {{- end -}}
-{{- if and (eq $dbType "postgres") (not .Values.postgresql.enabled) (not .Values.database.external.host) -}}
-{{- fail "database.external.host is required when database.type is not sqlite and no matching database subchart is enabled" -}}
-{{- end -}}
-{{- if and (eq $dbType "mysql") (not .Values.mysql.enabled) (not .Values.database.external.host) -}}
+{{- if and (ne $dbType "sqlite") (not $databaseSubchartEnabled) (not .Values.database.external.host) -}}
 {{- fail "database.external.host is required when database.type is not sqlite and no matching database subchart is enabled" -}}
 {{- end -}}
 {{- if and .Values.backup.enabled (not .Values.backup.s3.endpoint) -}}
