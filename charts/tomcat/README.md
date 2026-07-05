@@ -79,7 +79,7 @@ through `service.ports.jmxRmi` so the registry and RMI Service ports stay unique
 
 - Keep `serviceAccount.automountServiceAccountToken=false` unless your app needs Kubernetes API access.
 - Enable `networkPolicy.enabled` and explicitly allow ingress from your gateway or ingress controller namespace.
-- Use `networkPolicy.egress.extraEgress` for complete custom egress rules when applications call platform services.
+- Use `networkPolicy.egress.extraTo` to append peers to the built-in egress rules; use `networkPolicy.egress.extraEgress` only for standalone custom egress rules.
 - Use persistent `webapps` storage only when applications are installed or mutated at runtime.
 - Prefer immutable app images or init containers that fetch versioned WAR artifacts.
 - Configure `tomcat.serverXml` or `tomcat.existingServerXmlConfigMap` when you need proxy connector attributes such as `proxyName`, `proxyPort`, or `scheme`.
@@ -104,6 +104,7 @@ through `service.ports.jmxRmi` so the registry and RMI Service ports stay unique
 | `ingress.enabled` | `false` | Render Ingress. |
 | `gatewayAPI.enabled` | `false` | Render Gateway API HTTPRoute. |
 | `networkPolicy.enabled` | `false` | Render NetworkPolicy. |
+| `networkPolicy.egress.extraTo` | `[]` | Additional peers appended to the built-in egress rules. |
 | `networkPolicy.egress.extraEgress` | `[]` | Additional complete NetworkPolicy egress rules. |
 | `autoscaling.enabled` | `false` | Render HPA. |
 | `pdb.enabled` | `false` | Render PodDisruptionBudget. |
