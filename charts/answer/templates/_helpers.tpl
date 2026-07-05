@@ -331,10 +331,8 @@ database-password
 {{- end -}}
 
 {{- define "answer.validate" -}}
-{{- $databaseMode := include "answer.databaseMode" . -}}
-{{- if .Values.backup.enabled -}}
+{{- $_ := include "answer.databaseMode" . -}}
 {{- $_ := include "answer.backupEnabled" . -}}
-{{- end -}}
 {{- if and .Values.ingress.enabled (empty .Values.ingress.hosts) -}}
 {{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}
 {{- end -}}
