@@ -62,8 +62,8 @@ When enabled, the StatefulSet starts ordinal 0 with a stable `--uri`; later pods
 `networkPolicy.enabled=true` restricts inbound HTTP and gRPC traffic to the configured `networkPolicy.ingressFrom` peers, or to all
 namespaces when `ingressFrom` is empty. Cluster p2p ingress is allowed from Qdrant pods when `cluster.enabled=true`.
 
-Set `networkPolicy.extraEgress` to enable egress isolation and append custom egress rules. The chart preserves DNS and HTTPS egress, and
-also preserves Qdrant p2p egress between pods when distributed mode is enabled:
+Set `networkPolicy.extraEgress` to enable egress isolation and append custom egress rules. The chart preserves DNS and broad HTTPS
+egress to any IPv4/IPv6 destination, and also preserves Qdrant p2p egress between pods when distributed mode is enabled:
 
 ```yaml
 networkPolicy:
