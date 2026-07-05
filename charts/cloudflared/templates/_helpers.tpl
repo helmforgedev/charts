@@ -65,8 +65,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if and .Values.pdb.enabled (lt (int .Values.replicaCount) (int .Values.pdb.minAvailable)) -}}
 {{- fail "replicaCount must be greater than or equal to pdb.minAvailable when pdb.enabled is true" -}}
 {{- end -}}
-{{- range $key, $_ := .Values.podLabels -}}
-{{- if or (eq $key "app.kubernetes.io/name") (eq $key "app.kubernetes.io/instance") -}}
+{{- $podLabels := .Values.podLabels | default dict -}}
+{{- $selectorLabels := include "cloudflared.selectorLabels" . | fromYaml -}}
+{{- range $key, $_ := $selectorLabels -}}
+{{- if hasKey $podLabels $key -}}
 {{- fail (printf "podLabels must not override selector label %q" $key) -}}
 {{- end -}}
 {{- end -}}
