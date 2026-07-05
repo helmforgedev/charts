@@ -32,10 +32,9 @@ app.kubernetes.io/part-of: helmforge
 {{- fail "replicaCount > 1 with mysql or postgres requires persistence.existingClaim backed by shared storage because generated StatefulSet PVCs are per-pod and Memos can store local assets in MEMOS_DATA" -}}
 {{- end -}}
 {{- $podLabels := .Values.podLabels | default dict -}}
-{{- if hasKey $podLabels "app.kubernetes.io/name" -}}
-{{- fail "podLabels must not override the selector label app.kubernetes.io/name" -}}
+{{- range $key := (list "app.kubernetes.io/name" "app.kubernetes.io/instance") -}}
+{{- if hasKey $podLabels $key -}}
+{{- fail (printf "podLabels must not override the selector label %s" $key) -}}
 {{- end -}}
-{{- if hasKey $podLabels "app.kubernetes.io/instance" -}}
-{{- fail "podLabels must not override the selector label app.kubernetes.io/instance" -}}
 {{- end -}}
 {{- end -}}
