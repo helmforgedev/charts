@@ -101,7 +101,7 @@ backend process inside the AIO image.
 | `networkPolicy.enabled` | Enable NetworkPolicy | `false` |
 | `networkPolicy.extraEgress` | Additional egress rules appended after DNS and database baseline rules | `[]` |
 | `podDisruptionBudget.enabled` | Enable PDB | `false` |
-| `extraManifests` | Additional Kubernetes manifests rendered with the release | `[]` |
+| `extraManifests` | Additional Kubernetes manifests rendered with the release; entries are evaluated with Helm `tpl` | `[]` |
 
 ## Upgrade Notes
 
