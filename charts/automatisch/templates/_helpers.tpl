@@ -59,8 +59,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 {{- end -}}
+{{- $selectorLabels := include "automatisch.selectorLabels" . | fromYaml -}}
 {{- range $key, $_ := .Values.podLabels -}}
-{{- if or (eq $key "app.kubernetes.io/name") (eq $key "app.kubernetes.io/instance") -}}
+{{- if hasKey $selectorLabels $key -}}
 {{- fail (printf "podLabels must not override selector label %q" $key) -}}
 {{- end -}}
 {{- end -}}
