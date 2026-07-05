@@ -10,7 +10,7 @@ Jenkins Configuration as Code, optional plugin installation with
 support, Gateway API, Ingress, NetworkPolicy, ExternalSecret, ServiceMonitor,
 PodDisruptionBudget, and Helm tests.
 
-NetworkPolicy supports `networkPolicy.extraEgress` for appending custom egress
+NetworkPolicy supports `networkPolicy.egress.extraEgress` for appending custom egress
 rules without replacing the chart-generated DNS, cluster, internet, and
 `networkPolicy.egress.extraRules` controls.
 

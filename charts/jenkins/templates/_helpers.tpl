@@ -97,7 +97,7 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 {{- end -}}
 
-{{- define "jenkins.validate" -}}
+{{- define "jenkins.validate.externalSecrets" -}}
 {{- if and .Values.externalSecrets.enabled (not .Values.admin.existingSecret) -}}
 {{- fail "externalSecrets.enabled requires admin.existingSecret to be set to prevent credential drift between the chart-managed Secret and the ExternalSecret." -}}
 {{- end -}}
@@ -106,6 +106,10 @@ app.kubernetes.io/part-of: helmforge
 {{- if and .Values.externalSecrets.enabled (eq (add (len $externalSecretData) (len $externalSecretDataFrom)) 0) -}}
 {{- fail "externalSecrets.data or externalSecrets.dataFrom must not be empty when externalSecrets.enabled=true" -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "jenkins.validate" -}}
+{{- include "jenkins.validate.externalSecrets" . -}}
 {{- if and .Values.jcasC.enabled (eq (len (.Values.jcasC.configScripts | default dict)) 0) -}}
 {{- fail "jcasC.enabled requires at least one jcasC.configScripts entry" -}}
 {{- end -}}
