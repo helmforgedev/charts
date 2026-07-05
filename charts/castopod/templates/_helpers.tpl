@@ -46,10 +46,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if and (not .Values.mariadb.enabled) (not .Values.database.external.existingSecret) (not .Values.database.external.password) -}}
 {{- fail "database.external.password or database.external.existingSecret is required when mariadb.enabled is false" -}}
 {{- end -}}
-{{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
+{{- if .Values.ingress.enabled -}}
+{{- if not .Values.ingress.hosts -}}
 {{- fail "ingress.enabled requires ingress.hosts to contain at least one host" -}}
 {{- end -}}
-{{- if .Values.ingress.enabled -}}
 {{- range $index, $host := .Values.ingress.hosts -}}
 {{- if not $host.host -}}
 {{- fail (printf "ingress.hosts[%d].host is required when ingress.enabled is true" $index) -}}
