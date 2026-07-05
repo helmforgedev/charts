@@ -162,10 +162,9 @@ Validate chart values.
 {{- fail "externalSecrets.items must contain at least one item when externalSecrets.enabled=true" -}}
 {{- end -}}
 {{- $podLabels := .Values.podLabels | default dict -}}
-{{- if hasKey $podLabels "app.kubernetes.io/name" -}}
-{{- fail "podLabels must not override the selector label app.kubernetes.io/name" -}}
+{{- range $key := (list "app.kubernetes.io/name" "app.kubernetes.io/instance") -}}
+{{- if hasKey $podLabels $key -}}
+{{- fail (printf "podLabels must not override the selector label %s" $key) -}}
 {{- end -}}
-{{- if hasKey $podLabels "app.kubernetes.io/instance" -}}
-{{- fail "podLabels must not override the selector label app.kubernetes.io/instance" -}}
 {{- end -}}
 {{- end -}}
