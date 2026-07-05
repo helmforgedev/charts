@@ -11,6 +11,23 @@ tests:
       - failedTemplate:
           errorMessage: "ingress.hosts must contain at least one rule when ingress.enabled=true"
 
+  - it: should reject gateway without parentRefs
+    set:
+      gateway.enabled: true
+      gateway.parentRefs: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.enabled requires gateway.parentRefs to be populated to create a valid HTTPRoute."
+
+  - it: should reject gateway parentRefs entry missing name
+    set:
+      gateway.enabled: true
+      gateway.parentRefs:
+        - namespace: default
+    asserts:
+      - failedTemplate:
+          errorMessage: "Each gateway.parentRefs entry must define a 'name' field"
+
   - it: should reject reserved selector label overrides
     set:
       podLabels:
@@ -43,3 +60,24 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "externalSecrets.enabled requires admin.existingSecret to be set to prevent credential drift between the chart-managed Secret and the ExternalSecret."
+
+  - it: should reject external secrets without data
+    set:
+      admin.existingSecret: dolibarr-admin
+      externalSecrets.enabled: true
+      externalSecrets.data: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.data must not be empty when externalSecrets.enabled=true"
+
+  - it: should reject external secrets missing admin password mapping
+    set:
+      admin.existingSecret: dolibarr-admin
+      externalSecrets.enabled: true
+      externalSecrets.data:
+        - secretKey: some-other-key
+          remoteRef:
+            key: dolibarr/other
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.data must include a mapping for key 'admin-password' (admin password)"
