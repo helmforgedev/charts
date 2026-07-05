@@ -40,6 +40,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "archivebox.validate" -}}
+{{/* Triggers backup validation failures through archivebox.backupEnabled; the return value is unused. */}}
 {{- $backupEnabled := include "archivebox.backupEnabled" . -}}
 {{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
 {{- fail "ingress.enabled requires ingress.hosts to contain at least one host" -}}
