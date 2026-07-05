@@ -384,13 +384,9 @@ Central fail-fast validation entrypoint.
 {{- fail "ingress.hosts must contain at least one rule when ingress.enabled=true" -}}
 {{- end -}}
 {{- $podLabels := .Values.podLabels | default dict -}}
-{{- if hasKey $podLabels "app.kubernetes.io/name" -}}
-{{- fail "podLabels must not override selector label app.kubernetes.io/name" -}}
+{{- range list "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/component" -}}
+{{- if hasKey $podLabels . -}}
+{{- fail (printf "podLabels must not override selector label %s" .) -}}
 {{- end -}}
-{{- if hasKey $podLabels "app.kubernetes.io/instance" -}}
-{{- fail "podLabels must not override selector label app.kubernetes.io/instance" -}}
-{{- end -}}
-{{- if hasKey $podLabels "app.kubernetes.io/component" -}}
-{{- fail "podLabels must not override selector label app.kubernetes.io/component" -}}
 {{- end -}}
 {{- end -}}
