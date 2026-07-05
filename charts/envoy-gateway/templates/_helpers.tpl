@@ -250,13 +250,10 @@ Central fail-fast validation entrypoint.
 {{- fail "rateLimiting.externalRedis.auth.enabled requires rateLimiting.externalRedis.auth.secretName" -}}
 {{- end -}}
 {{- $podLabels := .Values.podLabels | default dict -}}
-{{- if hasKey $podLabels "app.kubernetes.io/name" -}}
-{{- fail "podLabels must not override selector label app.kubernetes.io/name" -}}
+{{- $selectorLabels := include "envoy-gateway.controller.selectorLabels" . | fromYaml -}}
+{{- range $key, $_ := $selectorLabels -}}
+{{- if hasKey $podLabels $key -}}
+{{- fail (printf "podLabels must not override selector label %s" $key) -}}
 {{- end -}}
-{{- if hasKey $podLabels "app.kubernetes.io/instance" -}}
-{{- fail "podLabels must not override selector label app.kubernetes.io/instance" -}}
-{{- end -}}
-{{- if hasKey $podLabels "app.kubernetes.io/component" -}}
-{{- fail "podLabels must not override selector label app.kubernetes.io/component" -}}
 {{- end -}}
 {{- end -}}

@@ -314,7 +314,7 @@ highAvailability:
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `security.networkPolicies` | `false` | Enable NetworkPolicies |
+| `security.networkPolicies` | `false` | Enable rendering of NetworkPolicy resources |
 | `security.podSecurityStandards` | `true` | Enable PodSecurityStandards (restricted mode) |
 
 ### High Availability
