@@ -59,8 +59,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if and .Values.externalSecrets.enabled (not .Values.externalSecrets.data) (not .Values.externalSecrets.dataFrom) -}}
 {{- fail "externalSecrets.data or externalSecrets.dataFrom is required when externalSecrets.enabled=true" -}}
 {{- end -}}
+{{- $selectorLabels := include "changedetection.selectorLabels" . | fromYaml -}}
 {{- range $key, $_ := .Values.podLabels -}}
-{{- if or (eq $key "app.kubernetes.io/name") (eq $key "app.kubernetes.io/instance") -}}
+{{- if hasKey $selectorLabels $key -}}
 {{- fail (printf "podLabels must not override selector label %q" $key) -}}
 {{- end -}}
 {{- end -}}
