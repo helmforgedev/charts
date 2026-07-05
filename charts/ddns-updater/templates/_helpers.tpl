@@ -47,8 +47,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
 {{- fail "ingress.hosts must contain at least one rule when ingress.enabled=true" -}}
 {{- end -}}
-{{- range $key, $_ := .Values.podLabels -}}
-{{- if or (eq $key "app.kubernetes.io/name") (eq $key "app.kubernetes.io/instance") -}}
+{{- $podLabels := .Values.podLabels | default dict -}}
+{{- $selectorLabels := include "ddns-updater.selectorLabels" . | fromYaml -}}
+{{- range $key, $_ := $selectorLabels -}}
+{{- if hasKey $podLabels $key -}}
 {{- fail (printf "podLabels must not override selector label %q" $key) -}}
 {{- end -}}
 {{- end -}}
