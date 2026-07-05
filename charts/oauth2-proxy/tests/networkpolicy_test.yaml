@@ -42,3 +42,28 @@ tests:
       - equal:
           path: spec.egress[2].ports[0].port
           value: 443
+
+  - it: should append extra egress after custom egress
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress:
+        - ports:
+            - protocol: TCP
+              port: 9000
+      networkPolicy.extraEgress:
+        - to:
+            - ipBlock:
+                cidr: 10.80.0.0/16
+          ports:
+            - protocol: TCP
+              port: 443
+    asserts:
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 9000
+      - equal:
+          path: spec.egress[1].to[0].ipBlock.cidr
+          value: 10.80.0.0/16
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 443
