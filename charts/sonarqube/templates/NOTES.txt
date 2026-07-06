@@ -1,37 +1,80 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- $databaseMode := include "sonarqube.databaseMode" . }}
-SonarQube Community Build has been deployed.
+1. Release
 
-Service:
+SonarQube Community Build has been deployed in namespace {{ .Release.Namespace }}.
+
+2. Service
+
+Internal URL:
   http://{{ include "sonarqube.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.service.port }}{{ .Values.sonarqube.context }}
 
-Database:
-{{- if eq $databaseMode "embedded" }}
-  mode: embedded
-  status: evaluation only; use bundled or external PostgreSQL for durable environments
-{{- else if eq $databaseMode "postgresql" }}
-  mode: bundled HelmForge PostgreSQL
-  jdbc: {{ include "sonarqube.postgresqlJdbcUrl" . }}
-  secret: {{ include "sonarqube.databaseSecretName" . }} / {{ include "sonarqube.databaseSecretKey" . }}
-{{- else }}
-  mode: external PostgreSQL
-  jdbc: {{ .Values.database.external.jdbcUrl }}
-  secret: {{ include "sonarqube.databaseSecretName" . }} / {{ include "sonarqube.databaseSecretKey" . }}
+{{- if .Values.ingress.enabled }}
+Ingress hosts:
+{{- range .Values.ingress.hosts }}
+  - {{ .host }}
+{{- end }}
 {{- end }}
 
-Health:
+{{- if .Values.gatewayAPI.enabled }}
+Gateway API hostnames:
+{{- range .Values.gatewayAPI.hostnames }}
+  - {{ . }}
+{{- end }}
+{{- end }}
+
+3. Database
+
+{{- if eq $databaseMode "embedded" }}
+Mode: embedded
+Status: evaluation only; use bundled or external PostgreSQL for durable environments.
+{{- else if eq $databaseMode "postgresql" }}
+Mode: bundled HelmForge PostgreSQL
+JDBC: {{ include "sonarqube.postgresqlJdbcUrl" . }}
+Secret: {{ include "sonarqube.databaseSecretName" . }} / {{ include "sonarqube.databaseSecretKey" . }}
+{{- else }}
+Mode: external PostgreSQL
+JDBC: {{ .Values.database.external.jdbcUrl }}
+Secret: {{ include "sonarqube.databaseSecretName" . }} / {{ include "sonarqube.databaseSecretKey" . }}
+{{- end }}
+
+4. Local access
+
   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "sonarqube.fullname" . }} 9000:{{ .Values.service.port }}
   curl -fsS http://127.0.0.1:9000{{ include "sonarqube.probePath" (dict "root" . "path" "/api/system/status") }}
 
-Validation:
+5. Validation
+
   helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
   kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "sonarqube.fullname" . }}
 
+6. Operations
+
+Inspect pods:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Inspect events:
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+
 {{- if .Values.communityBranchPlugin.enabled }}
-Community branch plugin:
-  enabled: true
-  version: {{ .Values.communityBranchPlugin.version }}
-  Keep the plugin version aligned with the SonarQube Community Build version.
+
+7. Community branch plugin
+
+Enabled: true
+Version: {{ .Values.communityBranchPlugin.version }}
+Keep the plugin version aligned with the SonarQube Community Build version.
+{{- else }}
+
+7. Community branch plugin
+
+Enabled: false
 {{- end }}
+
+8. Production reminders
+
+Use bundled or external PostgreSQL for durable environments.
+Prepare host kernel settings before enabling Elasticsearch bootstrap checks.
+Enable NetworkPolicy after confirming required database and plugin download egress.
+Keep plugin versions aligned with the SonarQube Community Build version.
 
 Happy Helmforging :)

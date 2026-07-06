@@ -4,6 +4,7 @@ templates:
   - templates/networkpolicy.yaml
   - templates/pdb.yaml
   - templates/externalsecret.yaml
+  - templates/extra-manifests.yaml
   - templates/tests/test-connection.yaml
 release:
   name: test
@@ -33,6 +34,32 @@ tests:
       - equal:
           path: spec.egress[2].ports[0].port
           value: 443
+
+  - it: should render additional egress rules without baseline egress
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: false
+      networkPolicy.egress.extraEgress:
+        - to:
+            - ipBlock:
+                cidr: 10.80.0.0/16
+          ports:
+            - protocol: TCP
+              port: 443
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - ipBlock:
+                  cidr: 10.80.0.0/16
+            ports:
+              - protocol: TCP
+                port: 443
 
   - it: should deny ingress when no ingress sources are configured
     template: templates/networkpolicy.yaml
@@ -65,6 +92,23 @@ tests:
       - equal:
           path: spec.minAvailable
           value: 1
+
+  - it: should render extra manifests
+    template: templates/extra-manifests.yaml
+    set:
+      extraManifests:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: sonarqube-extra
+          data:
+            enabled: "true"
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: sonarqube-extra
 
   - it: should render ExternalSecrets for database and monitoring passcode
     template: templates/externalsecret.yaml

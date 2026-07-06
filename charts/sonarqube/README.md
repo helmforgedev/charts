@@ -33,6 +33,7 @@ helm install sonarqube oci://ghcr.io/helmforgedev/helm/sonarqube -f values.yaml
 - Gateway API `HTTPRoute`, Ingress, and dual-stack Service fields
 - default non-root pod security context, dropped Linux capabilities, and read-only root filesystem
 - optional NetworkPolicy, PodDisruptionBudget, persistence, extra containers, and extra volumes
+- optional extra manifests for small companion resources and self-contained CI fixtures
 - Helm test pod that validates the SonarQube system status endpoint
 
 ## Database Modes
@@ -141,6 +142,24 @@ service:
     - IPv6
 ```
 
+## Network Policy
+
+Enable NetworkPolicy after confirming the required ingress controller, database, DNS, plugin download, and external service paths for your cluster.
+
+```yaml
+networkPolicy:
+  enabled: true
+  egress:
+    enabled: true
+    extraEgress:
+      - to:
+          - ipBlock:
+              cidr: 10.80.0.0/16
+        ports:
+          - protocol: TCP
+            port: 443
+```
+
 ## Main Values
 
 | Key | Default | Description |
@@ -161,7 +180,9 @@ service:
 | `ingress.enabled` | `false` | Render Ingress |
 | `gatewayAPI.enabled` | `false` | Render Gateway API HTTPRoute |
 | `networkPolicy.enabled` | `false` | Render NetworkPolicy |
+| `networkPolicy.egress.extraEgress` | `[]` | Additional complete NetworkPolicy egress rules |
 | `pdb.enabled` | `false` | Render PodDisruptionBudget |
+| `extraManifests` | `[]` | Additional Kubernetes manifests rendered with the release |
 
 ## Production Notes
 
@@ -176,10 +197,10 @@ The chart defaults to disabled bootstrap checks for k3d and evaluation; producti
 - [SonarQube Docker source](https://github.com/SonarSource/docker-sonarqube)
 - [Community branch plugin](https://github.com/mc1arke/sonarqube-community-branch-plugin)
 
-### 🟢 Security Scan: `sonarqube`
+### Security Scan: `sonarqube`
 
 | Framework | Score |
 |---|---|
 | MITRE + NSA + SOC2 | **92.42425%** |
 
-> ✅ Security posture acceptable.
+Security posture acceptable.
