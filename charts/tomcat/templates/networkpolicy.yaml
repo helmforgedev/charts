@@ -1,5 +1,8 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- if .Values.networkPolicy.enabled }}
+{{- $egress := .Values.networkPolicy.egress }}
+{{- $extraEgress := $egress.extraEgress }}
+{{- $hasBaseEgress := and $egress.enabled (or $egress.allowDNS $egress.allowHTTPS $egress.allowHTTP $egress.extraTo) }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -13,7 +16,7 @@ spec:
       app.kubernetes.io/component: tomcat
   policyTypes:
     - Ingress
-    {{- if .Values.networkPolicy.egress.enabled }}
+    {{- if or $egress.enabled $extraEgress }}
     - Egress
     {{- end }}
   ingress:
@@ -39,9 +42,11 @@ spec:
     {{- else }}
     []
     {{- end }}
-  {{- if .Values.networkPolicy.egress.enabled }}
+  {{- if or $egress.enabled $extraEgress }}
   egress:
-    {{- if .Values.networkPolicy.egress.allowDNS }}
+    {{- if or $hasBaseEgress $extraEgress }}
+    {{- if $egress.enabled }}
+    {{- if $egress.allowDNS }}
     - to:
         - namespaceSelector:
             matchLabels:
@@ -52,19 +57,26 @@ spec:
         - protocol: TCP
           port: 53
     {{- end }}
-    {{- if .Values.networkPolicy.egress.allowHTTPS }}
+    {{- if $egress.allowHTTPS }}
     - ports:
         - protocol: TCP
           port: 443
     {{- end }}
-    {{- if .Values.networkPolicy.egress.allowHTTP }}
+    {{- if $egress.allowHTTP }}
     - ports:
         - protocol: TCP
           port: 80
     {{- end }}
-    {{- with .Values.networkPolicy.egress.extraTo }}
+    {{- with $egress.extraTo }}
     - to:
         {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- end }}
+    {{- with $extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- else }}
+    []
     {{- end }}
   {{- end }}
 {{- end }}
