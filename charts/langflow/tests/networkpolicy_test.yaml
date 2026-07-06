@@ -10,7 +10,43 @@ tests:
       - isKind:
           of: NetworkPolicy
       - contains:
+          path: spec.policyTypes
+          content: Egress
+      - contains:
           path: spec.ingress[0].ports
           content:
             protocol: TCP
             port: http
+      - equal:
+          path: spec.egress[0].to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: kube-system
+      - equal:
+          path: spec.egress[0].to[0].podSelector.matchLabels["k8s-app"]
+          value: kube-dns
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 443
+  - it: appends extra egress rules after default DNS and HTTPS
+    set:
+      networkPolicy:
+        enabled: true
+        extraEgress:
+          - to:
+              - ipBlock:
+                  cidr: 10.0.0.0/8
+            ports:
+              - protocol: TCP
+                port: 5432
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 443
+      - equal:
+          path: spec.egress[2].ports[0].port
+          value: 5432

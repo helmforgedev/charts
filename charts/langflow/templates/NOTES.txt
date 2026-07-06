@@ -1,57 +1,96 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 Langflow has been deployed.
 
-Access:
+1. Access
 
-- Service: http://{{ include "langflow.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
-- Port-forward: kubectl port-forward svc/{{ include "langflow.fullname" . }} 7860:{{ .Values.service.port }} -n {{ .Release.Namespace }}
-- Browser: http://127.0.0.1:7860
+- Service DNS: http://{{ include "langflow.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+- Port-forward:
+  kubectl port-forward svc/{{ include "langflow.fullname" . }} 7860:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+- Browser URL:
+  http://127.0.0.1:7860
 
-State:
+2. Runtime
 
+- Image: {{ include "langflow.image" . }}
+- HTTP port: {{ .Values.app.port }}
 - Config directory: {{ .Values.persistence.mountPath }}
+
+3. State
+
 {{- if .Values.persistence.enabled }}
 - Persistence: enabled
+- PVC source: {{ default (include "langflow.fullname" .) .Values.persistence.existingClaim }}
+- Size: {{ .Values.persistence.size }}
+- Access modes: {{ join "," .Values.persistence.accessModes }}
 {{- else }}
-- Persistence: disabled; local SQLite data and config are lost when the pod is deleted
+- Persistence: disabled.
+- Local SQLite data and local config are lost when the pod is deleted.
 {{- end }}
 {{- if or .Values.database.url .Values.database.existingSecret }}
-- Database: external via LANGFLOW_DATABASE_URL
+- Database: external via LANGFLOW_DATABASE_URL.
 {{- else }}
-- Database: local SQLite in the config directory
+- Database: local SQLite in the config directory.
 {{- end }}
 
-{{- if or .Values.auth.secretKey .Values.auth.existingSecret }}
-Authentication:
+4. Authentication
 
+{{- if or .Values.auth.secretKey .Values.auth.existingSecret }}
 - Auth Secret: {{ default (include "langflow.fullname" .) .Values.auth.existingSecret }}
 - Secret key entry: {{ .Values.auth.secretKeyKey }}
 - Superuser entry: {{ .Values.auth.superuserKey }}
 - Superuser password entry: {{ .Values.auth.superuserPasswordKey }}
 {{- else }}
-Authentication:
-
 - No chart-managed Langflow auth Secret is configured.
 - Set auth.existingSecret before exposing Langflow to users.
 {{- end }}
 
-{{- if gt (int .Values.replicaCount) 1 }}
-Scaling:
+5. Scaling
 
 - Replicas: {{ .Values.replicaCount }}
-- Shared database is configured; verify all replicas can read/write the same flows.
+{{- if gt (int .Values.replicaCount) 1 }}
+- Shared database is configured; verify all replicas can read and write the same flows.
+- If persistence is enabled, use ReadWriteMany storage or an externally managed RWX claim.
+{{- else }}
+- Single-replica mode can use local SQLite under {{ .Values.persistence.mountPath }}.
 {{- end }}
 
-Troubleshooting:
+6. Exposure
 
-- kubectl get pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-- kubectl logs deploy/{{ include "langflow.fullname" . }} -n {{ .Release.Namespace }}
-- kubectl describe pvc {{ include "langflow.fullname" . }} -n {{ .Release.Namespace }}
+{{- if .Values.ingress.enabled }}
+- Ingress is enabled.
+- Protect Langflow with authentication before exposing it to users.
+{{- else }}
+- Ingress is disabled.
+{{- end }}
+{{- if .Values.gateway.enabled }}
+- Gateway API HTTPRoute is enabled.
+{{- else }}
+- Gateway API HTTPRoute is disabled.
+{{- end }}
+{{- if .Values.networkPolicy.enabled }}
+- NetworkPolicy is enabled for inbound Langflow traffic.
+{{- else }}
+- NetworkPolicy is disabled.
+{{- end }}
 
-Resources:
+7. Troubleshooting
+
+- Pods:
+  kubectl get pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+- Logs:
+  kubectl logs deploy/{{ include "langflow.fullname" . }} -n {{ .Release.Namespace }}
+{{- if .Values.persistence.enabled }}
+- PVC:
+  kubectl describe pvc {{ default (include "langflow.fullname" .) .Values.persistence.existingClaim }} -n {{ .Release.Namespace }}
+{{- end }}
+- Service endpoints:
+  kubectl get endpoints {{ include "langflow.fullname" . }} -n {{ .Release.Namespace }}
+
+8. Resources
 
 - Chart documentation: https://helmforge.dev/docs/charts/langflow
 - Langflow documentation: https://docs.langflow.org/
+- Langflow deployment docs: https://docs.langflow.org/deployment-kubernetes-prod
 - HelmForge issues: https://github.com/helmforgedev/charts/issues
 
 Happy Helmforging :)
