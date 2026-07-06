@@ -43,6 +43,50 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "ckan.validate" -}}
+{{- if and (eq .Values.database.mode "external") (not .Values.database.external.host) -}}
+{{- fail "database.external.host is required when database.mode is external" -}}
+{{- end -}}
+{{- if and (eq .Values.database.mode "external") (not .Values.database.external.existingSecret) (not .Values.database.external.password) -}}
+{{- fail "database.external.password or database.external.existingSecret is required when database.mode is external" -}}
+{{- end -}}
+{{- if and (eq .Values.redisConfig.mode "external") (not .Values.redisConfig.external.url) -}}
+{{- fail "redisConfig.external.url is required when redisConfig.mode is external" -}}
+{{- end -}}
+{{- if and (not .Values.solr.enabled) (not .Values.solr.externalUrl) -}}
+{{- fail "solr.externalUrl is required when solr.enabled is false" -}}
+{{- end -}}
+{{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
+{{- fail "ingress.enabled requires ingress.hosts to contain at least one rule" -}}
+{{- end -}}
+{{- if .Values.backup.enabled -}}
+{{- if not .Values.backup.s3.endpoint -}}
+{{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
+{{- end -}}
+{{- if not .Values.backup.s3.bucket -}}
+{{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
+{{- end -}}
+{{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}
+{{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
+{{- end -}}
+{{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.secretKey) -}}
+{{- fail "backup.s3.secretKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
+{{- end -}}
+{{- end -}}
+{{- range $key, $_ := .Values.podLabels -}}
+{{- if or (eq $key "app.kubernetes.io/name") (eq $key "app.kubernetes.io/instance") (eq $key "app.kubernetes.io/component") -}}
+{{- fail (printf "podLabels must not override selector label %q" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.datapusher.enabled -}}
+{{- range $key, $_ := .Values.datapusher.podLabels -}}
+{{- if or (eq $key "app.kubernetes.io/name") (eq $key "app.kubernetes.io/instance") (eq $key "app.kubernetes.io/component") -}}
+{{- fail (printf "datapusher.podLabels must not override selector label %q" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 # =============================================================================
 # Secret
 # =============================================================================
@@ -286,18 +330,8 @@ exec /srv/app/start_ckan.sh
 {{- end -}}
 {{- end -}}
 
-{{/* Backup — validate required fields */}}
 {{- define "ckan.backupEnabled" -}}
 {{- if .Values.backup.enabled -}}
-  {{- if not .Values.backup.s3.endpoint -}}
-    {{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
-  {{- end -}}
-  {{- if not .Values.backup.s3.bucket -}}
-    {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
-  {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}
-    {{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
-  {{- end -}}
 true
 {{- end -}}
 {{- end -}}

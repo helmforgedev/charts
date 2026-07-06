@@ -1,37 +1,107 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 CKAN {{ .Chart.AppVersion }} has been installed.
 
+1. Installation summary
+-----------------------
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Chart version: {{ .Chart.Version }}
+Application version: {{ .Chart.AppVersion }}
+Image: {{ include "ckan.image" . }}
+Service name: {{ include "ckan.fullname" . }}
+Service type: {{ .Values.service.type }}
+Service port: {{ .Values.service.port }}
+
+2. Access
+---------
 {{- if .Values.ingress.enabled }}
+Ingress routes:
 {{- range .Values.ingress.hosts }}
-  Web UI: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- if .host }}
+  - http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}/
+{{- else }}
+  - catch-all host on the configured ingress controller
+{{- end }}
 {{- end }}
 {{- else }}
-  kubectl port-forward svc/{{ include "ckan.fullname" . }} 5000:{{ .Values.service.port }}
-  Web UI: http://localhost:5000
+Port-forward the Service:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "ckan.fullname" . }} 5000:{{ .Values.service.port }}
+
+Then open:
+
+  http://localhost:5000/
 {{- end }}
 
-Default credentials: {{ .Values.ckan.sysadminName }} / (check secret {{ include "ckan.secretName" . }})
+Cluster-local endpoint:
 
-Runtime:
-  Image: {{ include "ckan.image" . }}
-  PostgreSQL subchart: {{ ternary "enabled" "disabled" .Values.postgresql.enabled }}
-  Redis subchart: {{ ternary "enabled" "disabled" .Values.redis.enabled }}
-  Solr: {{ ternary "enabled" "external" .Values.solr.enabled }}
-  DataPusher: {{ ternary "enabled" "disabled" .Values.datapusher.enabled }}
-  Backup CronJob: {{ ternary "enabled" "disabled" .Values.backup.enabled }}
+  http://{{ include "ckan.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}/
 
-Checks:
+3. Credentials
+--------------
+Sysadmin username: {{ .Values.ckan.sysadminName }}
+Sysadmin password secret: {{ include "ckan.secretName" . }}
+Sysadmin password key: {{ .Values.ckan.existingSecretPasswordKey | default "sysadmin-password" }}
+
+Inspect generated credentials:
+
+  kubectl -n {{ .Release.Namespace }} get secret {{ include "ckan.secretName" . }}
+
+4. Runtime components
+---------------------
+PostgreSQL subchart: {{ ternary "enabled" "disabled" .Values.postgresql.enabled }}
+Redis subchart: {{ ternary "enabled" "disabled" .Values.redis.enabled }}
+Solr: {{ ternary "enabled" "external" .Values.solr.enabled }}
+DataPusher: {{ ternary "enabled" "disabled" .Values.datapusher.enabled }}
+Backup CronJob: {{ ternary "enabled" "disabled" .Values.backup.enabled }}
+
+5. Operational checks
+---------------------
+Wait for CKAN:
+
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "ckan.fullname" . }} --timeout=300s
+
+Inspect workload status:
+
   kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
   kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "ckan.fullname" . }} --tail=100
   kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
+
+6. Storage and backup
+---------------------
+{{- if .Values.persistence.enabled }}
+CKAN file storage persistence is enabled.
+PVC: {{ .Values.persistence.existingClaim | default (printf "%s-storage" (include "ckan.fullname" .)) }}
+{{- else }}
+CKAN file storage persistence is disabled and uses emptyDir.
+{{- end }}
+
+{{- if .Values.backup.enabled }}
+Scheduled PostgreSQL backups are enabled.
+Backup CronJob: {{ include "ckan.fullname" . }}-backup
+{{- else }}
+Scheduled PostgreSQL backups are disabled.
+{{- end }}
+
+7. Troubleshooting
+------------------
+Inspect CKAN and dependencies:
+
+  kubectl -n {{ .Release.Namespace }} describe deploy/{{ include "ckan.fullname" . }}
 {{- if .Values.postgresql.enabled }}
   kubectl -n {{ .Release.Namespace }} logs statefulset/{{ .Release.Name }}-postgresql --tail=80
 {{- end }}
 {{- if .Values.redis.enabled }}
   kubectl -n {{ .Release.Namespace }} logs statefulset/{{ .Release.Name }}-redis --tail=80
 {{- end }}
+{{- if .Values.solr.enabled }}
+  kubectl -n {{ .Release.Namespace }} logs statefulset/{{ include "ckan.fullname" . }}-solr --tail=80
+{{- end }}
 
-Upgrade reminder:
-  Take a PostgreSQL backup and confirm CKAN plugins before production upgrades.
+8. Resources
+------------
+Chart docs: https://helmforge.dev/docs/charts/ckan
+Chart source: https://github.com/helmforgedev/charts/tree/main/charts/ckan
+Upstream project: https://ckan.org
 
 Happy Helmforging :)

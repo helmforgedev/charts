@@ -1,0 +1,112 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: should render no validation manifest by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should fail when external database host is missing
+    set:
+      database.mode: external
+      database.external.password: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.external.host is required when database.mode is external"
+
+  - it: should fail when external database credentials are missing
+    set:
+      database.mode: external
+      database.external.host: postgresql.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.external.password or database.external.existingSecret is required when database.mode is external"
+
+  - it: should fail when external redis url is missing
+    set:
+      redisConfig.mode: external
+    asserts:
+      - failedTemplate:
+          errorMessage: "redisConfig.external.url is required when redisConfig.mode is external"
+
+  - it: should fail when external solr url is missing
+    set:
+      solr.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "solr.externalUrl is required when solr.enabled is false"
+
+  - it: should fail when ingress is enabled without rules
+    set:
+      ingress.enabled: true
+      ingress.hosts: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "ingress.enabled requires ingress.hosts to contain at least one rule"
+
+  - it: should fail when backup endpoint is missing
+    set:
+      backup.enabled: true
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.endpoint is required when backup.enabled is true"
+
+  - it: should fail when backup bucket is missing
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.bucket is required when backup.enabled is true"
+
+  - it: should fail when backup access key is missing
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.bucket: backups
+      backup.s3.secretKey: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true"
+
+  - it: should fail when backup secret key is missing
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: http://minio:9000
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.secretKey or backup.s3.existingSecret is required when backup.enabled is true"
+
+  - it: should fail when podLabels override selector labels
+    set:
+      podLabels:
+        app.kubernetes.io/component: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: 'podLabels must not override selector label "app.kubernetes.io/component"'
+
+  - it: should fail when datapusher podLabels override selector labels
+    set:
+      datapusher.podLabels:
+        app.kubernetes.io/name: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: 'datapusher.podLabels must not override selector label "app.kubernetes.io/name"'
+
+  - it: should allow datapusher podLabels when datapusher is disabled
+    set:
+      datapusher.enabled: false
+      datapusher.podLabels:
+        app.kubernetes.io/name: custom
+    asserts:
+      - hasDocuments:
+          count: 0
