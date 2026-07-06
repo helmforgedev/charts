@@ -1,13 +1,16 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-GitHub MCP Server has been deployed.
+1. Release
 
-Access:
+GitHub MCP Server has been deployed as release {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
 
-- Service: http://{{ include "github-mcp-server.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
-- Port-forward: kubectl port-forward svc/{{ include "github-mcp-server.fullname" . }} 8082:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+2. Access
+
+- Service DNS: http://{{ include "github-mcp-server.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+- Port-forward:
+  kubectl port-forward svc/{{ include "github-mcp-server.fullname" . }} 8082:{{ .Values.service.port }} -n {{ .Release.Namespace }}
 - Local MCP URL: http://127.0.0.1:8082
 
-GitHub runtime:
+3. GitHub Runtime
 
 - Read-only mode: {{ .Values.github.readOnly }}
 - Toolsets: {{ .Values.github.toolsets }}
@@ -23,18 +26,41 @@ GitHub runtime:
 - No GitHub token is configured; set github.existingSecret for production.
 {{- end }}
 
-Security:
+4. Security
 
 - Keep this service internal or protect Ingress/Gateway with external authentication.
 - Keep github.readOnly=true unless write tools are explicitly required.
 - Restrict token scopes to the enabled toolsets.
+- When NetworkPolicy is enabled, use networkPolicy.extraEgress for required private proxies or GitHub Enterprise endpoints.
+- Enable networkPolicy.enabled and set networkPolicy.ingressFrom for restricted clients.
 
-Troubleshooting:
+5. Scaling
 
-- kubectl get pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-- kubectl logs deploy/{{ include "github-mcp-server.fullname" . }} -n {{ .Release.Namespace }}
+- Current replicas: {{ .Values.replicaCount }}
+- If persistence.enabled=true and replicaCount > 1, persistence.accessModes must include ReadWriteMany.
+- Prefer stateless replicas with persistence.enabled=false for horizontal scaling.
 
-Resources:
+6. Networking
+
+{{- if .Values.ingress.enabled }}
+- Ingress is enabled.
+{{- else }}
+- Ingress is disabled.
+{{- end }}
+{{- if .Values.gateway.enabled }}
+- Gateway API HTTPRoute is enabled.
+{{- else }}
+- Gateway API HTTPRoute is disabled.
+{{- end }}
+
+7. Troubleshooting
+
+- Pods:
+  kubectl get pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+- Logs:
+  kubectl logs deploy/{{ include "github-mcp-server.fullname" . }} -n {{ .Release.Namespace }}
+
+8. Resources
 
 - Chart documentation: https://helmforge.dev/docs/charts/github-mcp-server
 - Upstream: https://github.com/github/github-mcp-server
