@@ -57,6 +57,26 @@ pdb:
 The chart fails rendering when `cluster.enabled=true` is combined with one replica, disabled persistence, or a shared `persistence.existingClaim`.
 When enabled, the StatefulSet starts ordinal 0 with a stable `--uri`; later pods join through `--bootstrap` and publish their own stable peer URI.
 
+## Network Policy
+
+`networkPolicy.enabled=true` restricts inbound HTTP and gRPC traffic to the configured `networkPolicy.ingressFrom` peers, or to all
+namespaces when `ingressFrom` is empty. Cluster p2p ingress is allowed from Qdrant pods when `cluster.enabled=true`.
+
+Set `networkPolicy.extraEgress` to enable egress isolation and append custom egress rules. The chart preserves DNS and broad HTTPS
+egress to any IPv4/IPv6 destination, and also preserves Qdrant p2p egress between pods when distributed mode is enabled:
+
+```yaml
+networkPolicy:
+  enabled: true
+  extraEgress:
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/8
+      ports:
+        - protocol: TCP
+          port: 6333
+```
+
 ## Monitoring
 
 Qdrant exposes Prometheus metrics on `/metrics`. Enable a ServiceMonitor when Prometheus Operator CRDs are installed:

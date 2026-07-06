@@ -12,6 +12,9 @@ spec:
       {{- include "qdrant.selectorLabels" . | nindent 6 }}
   policyTypes:
     - Ingress
+    {{- if .Values.networkPolicy.extraEgress }}
+    - Egress
+    {{- end }}
   ingress:
     - from:
         {{- if .Values.networkPolicy.ingressFrom }}
@@ -33,4 +36,33 @@ spec:
         - protocol: TCP
           port: p2p
     {{- end }}
+  {{- with .Values.networkPolicy.extraEgress }}
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- /* Preserve broad HTTPS for compatibility with external Qdrant/cloud endpoints when egress isolation is enabled. */}}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+        - ipBlock:
+            cidr: ::/0
+      ports:
+        - protocol: TCP
+          port: 443
+    {{- if $.Values.cluster.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "qdrant.selectorLabels" $ | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: p2p
+    {{- end }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 {{- end }}
