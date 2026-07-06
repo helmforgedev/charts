@@ -1,7 +1,7 @@
 # Kubernetes MCP Server Helm Chart
 
 Kubernetes MCP Server exposes Kubernetes cluster inspection and automation through the Model Context Protocol.
-This chart deploys the official `ghcr.io/containers/kubernetes-mcp-server:v0.0.62` image in HTTP mode with in-cluster authentication,
+This chart deploys the official `ghcr.io/containers/kubernetes-mcp-server:v0.0.63` image in HTTP mode with in-cluster authentication,
 read-only safety flags, and least-privilege RBAC by default.
 
 ## Install
@@ -35,6 +35,10 @@ rbac:
 The chart blocks full write plus destructive mode unless `mcp.allowUnsafeWriteAccess=true` is set.
 The chart is stateless by default.
 If persistence is enabled and the Deployment is scaled above one replica, use `ReadWriteMany` storage or disable persistence to avoid sharing one `ReadWriteOnce` PVC across pods.
+Ingress class rendering is optional. Set `ingress.ingressClassName: ""` to omit `spec.ingressClassName`.
+When `networkPolicy.enabled=true`, ingress is restricted to the configured peers.
+Setting `networkPolicy.enabled=true` enables egress isolation with built-in DNS and HTTPS allowances; `networkPolicy.extraEgress` appends API server or proxy rules.
+Set `networkPolicy.dnsEgressPeers` when your cluster DNS pods do not use the default kube-system/kube-dns labels.
 
 ## Security Scan: `kubernetes-mcp-server`
 

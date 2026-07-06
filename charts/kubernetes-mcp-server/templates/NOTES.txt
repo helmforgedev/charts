@@ -1,39 +1,95 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 Kubernetes MCP Server has been deployed.
 
-Access:
+1. Access
 
-- Service: http://{{ include "kubernetes-mcp-server.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
-- Port-forward: kubectl port-forward svc/{{ include "kubernetes-mcp-server.fullname" . }} 8080:{{ .Values.service.port }} -n {{ .Release.Namespace }}
-- Local MCP URL: http://127.0.0.1:8080
+- Service DNS: http://{{ include "kubernetes-mcp-server.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+- Port-forward:
+  kubectl port-forward svc/{{ include "kubernetes-mcp-server.fullname" . }} 8080:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+- Local MCP URL:
+  http://127.0.0.1:8080
 
-Safety mode:
+2. Runtime Mode
 
 - readOnly: {{ .Values.mcp.readOnly }}
 - disableDestructive: {{ .Values.mcp.disableDestructive }}
+- allowUnsafeWriteAccess: {{ .Values.mcp.allowUnsafeWriteAccess }}
 - stateless: {{ .Values.mcp.stateless }}
 - clusterProvider: {{ .Values.mcp.clusterProvider }}
 - disableMultiCluster: {{ .Values.mcp.disableMultiCluster }}
+- listOutput: {{ .Values.mcp.listOutput }}
+- logLevel: {{ .Values.mcp.logLevel }}
 - toolsets: {{ join "," .Values.mcp.toolsets }}
 
-RBAC:
+3. RBAC
 
 {{- if and .Values.serviceAccount.create .Values.rbac.create }}
 - ServiceAccount: {{ include "kubernetes-mcp-server.serviceAccountName" . }}
 - ClusterRoleBinding target: {{ .Values.rbac.clusterRoleName }}
+- Verify read access:
+  kubectl auth can-i list pods --as=system:serviceaccount:{{ .Release.Namespace }}:{{ include "kubernetes-mcp-server.serviceAccountName" . }}
+- Verify destructive access remains denied with default values:
+  kubectl auth can-i delete pods --as=system:serviceaccount:{{ .Release.Namespace }}:{{ include "kubernetes-mcp-server.serviceAccountName" . }}
 {{- else }}
-- Chart-managed RBAC is disabled. Confirm the ServiceAccount can access the intended resources.
+- Chart-managed RBAC is disabled.
+- Confirm the selected ServiceAccount can access only the intended resources.
 {{- end }}
 
-Troubleshooting:
+4. Configuration File
 
-- kubectl get pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
-- kubectl logs deploy/{{ include "kubernetes-mcp-server.fullname" . }} -n {{ .Release.Namespace }}
-- kubectl auth can-i list pods --as=system:serviceaccount:{{ .Release.Namespace }}:{{ include "kubernetes-mcp-server.serviceAccountName" . }}
+{{- if .Values.mcp.configToml }}
+- TOML config is mounted from ConfigMap {{ include "kubernetes-mcp-server.fullname" . }}.
+- Inspect it with:
+  kubectl get configmap {{ include "kubernetes-mcp-server.fullname" . }} -n {{ .Release.Namespace }} -o yaml
+{{- else }}
+- No TOML config is mounted; runtime options are generated from mcp.* values.
+{{- end }}
 
-Resources:
+5. Exposure
+
+{{- if .Values.ingress.enabled }}
+- Ingress is enabled.
+- Keep this endpoint behind trusted authentication and network controls.
+{{- else }}
+- Ingress is disabled.
+{{- end }}
+{{- if .Values.gateway.enabled }}
+- Gateway API HTTPRoute is enabled.
+{{- else }}
+- Gateway API HTTPRoute is disabled.
+{{- end }}
+{{- if .Values.networkPolicy.enabled }}
+- NetworkPolicy is enabled for inbound MCP traffic.
+{{- else }}
+- NetworkPolicy is disabled.
+{{- end }}
+
+6. Persistence And Scaling
+
+{{- if .Values.persistence.enabled }}
+- Persistence is enabled at {{ .Values.persistence.mountPath }}.
+- PVC source: {{ default (include "kubernetes-mcp-server.fullname" .) .Values.persistence.existingClaim }}
+- For replicaCount > 1, use ReadWriteMany storage or an externally managed RWX claim.
+{{- else }}
+- Persistence is disabled; the default deployment is stateless.
+{{- end }}
+- replicaCount: {{ .Values.replicaCount }}
+
+7. Troubleshooting
+
+- Pods:
+  kubectl get pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+- Logs:
+  kubectl logs deploy/{{ include "kubernetes-mcp-server.fullname" . }} -n {{ .Release.Namespace }}
+- Service endpoints:
+  kubectl get endpoints {{ include "kubernetes-mcp-server.fullname" . }} -n {{ .Release.Namespace }}
+- Rendered arguments:
+  kubectl get deploy {{ include "kubernetes-mcp-server.fullname" . }} -n {{ .Release.Namespace }} -o jsonpath='{.spec.template.spec.containers[0].args}'
+
+8. Resources
 
 - Chart documentation: https://helmforge.dev/docs/charts/kubernetes-mcp-server
-- Upstream: https://github.com/containers/kubernetes-mcp-server
+- Upstream project: https://github.com/containers/kubernetes-mcp-server
+- Security guidance: keep write-enabled releases isolated to trusted namespaces and clients.
 
 Happy Helmforging :)
