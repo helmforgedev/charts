@@ -9,6 +9,7 @@ templates:
   - templates/servicemonitor.yaml
   - templates/pvc.yaml
   - templates/externalsecret.yaml
+  - templates/tests/test-connection.yaml
 
 tests:
   - it: renders dual-stack service fields
@@ -68,6 +69,29 @@ tests:
       - contains:
           path: spec.policyTypes
           content: Egress
+
+  - it: appends extra NetworkPolicy egress rules
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        extraEgress:
+          - to:
+              - ipBlock:
+                  cidr: 10.70.0.0/16
+            ports:
+              - protocol: TCP
+                port: 443
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - ipBlock:
+                  cidr: 10.70.0.0/16
+            ports:
+              - protocol: TCP
+                port: 443
 
   - it: renders persistence PVC
     template: templates/pvc.yaml
@@ -149,3 +173,12 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "externalSecrets.data or externalSecrets.dataFrom must not be empty when externalSecrets.enabled=true"
+
+  - it: renders the Helm test hook pod
+    template: templates/tests/test-connection.yaml
+    asserts:
+      - isKind:
+          of: Pod
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: test

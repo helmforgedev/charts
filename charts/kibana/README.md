@@ -8,13 +8,16 @@ HelmForge Elasticsearch subchart support, and static encryption key support.
 
 It also includes Gateway API, dual-stack services, NetworkPolicy, PDB, External Secrets Operator integration, and focused Helm tests.
 
+NetworkPolicy supports `networkPolicy.extraEgress` for appending egress rules
+without replacing the generated DNS, Elasticsearch, and
+`networkPolicy.egress.extra` controls.
+
 ## Install
 
 ```bash
 helm repo add helmforge https://repo.helmforge.dev
 helm repo update
-helm install kibana helmforge/kibana \
-  --set elasticsearch.hosts[0]=http://elasticsearch:9200
+helm install kibana helmforge/kibana
 ```
 
 Elastic recommends running the same Elastic Stack version across Kibana and
@@ -22,16 +25,12 @@ Elasticsearch. The default chart version targets Kibana `9.4.2`.
 
 ## HelmForge Elasticsearch Subchart
 
-The chart can deploy HelmForge Elasticsearch as an optional dependency for local
-or self-contained environments:
+The chart deploys HelmForge Elasticsearch by default so local and validation
+installs are self-contained:
 
 ```yaml
 bundledElasticsearch:
   enabled: true
-
-elasticsearch:
-  hosts:
-    - http://kibana-bundled-elasticsearch:9200
 
 bundled-elasticsearch:
   image:
@@ -56,6 +55,9 @@ encryptionKeys:
 For secured Elasticsearch clusters, use either basic auth or an Elasticsearch service account token:
 
 ```yaml
+bundledElasticsearch:
+  enabled: false
+
 elasticsearch:
   hosts:
     - https://elasticsearch:9200
@@ -98,13 +100,13 @@ gateway:
 | `image.flavor` | Image flavor: `default` or `wolfi` | `default` |
 | `image.tag` | Kibana image tag | `9.4.2` |
 | `replicaCount` | Number of Kibana replicas | `1` |
-| `elasticsearch.hosts` | Elasticsearch URLs | `[http://elasticsearch:9200]` |
-| `bundledElasticsearch.enabled` | Enable HelmForge Elasticsearch dependency | `false` |
+| `elasticsearch.hosts` | External Elasticsearch URLs used when bundled mode is disabled | `[http://elasticsearch:9200]` |
+| `bundledElasticsearch.enabled` | Enable HelmForge Elasticsearch dependency | `true` |
 | `elasticsearch.auth.type` | Elasticsearch auth mode: `none`, `basic`, `serviceAccountToken` | `none` |
 | `elasticsearch.auth.existingSecret` | Secret containing Elasticsearch credentials | `""` |
 | `elasticsearch.tls.enabled` | Configure Elasticsearch CA trust | `false` |
 | `encryptionKeys.existingSecret` | Secret containing Kibana encryption keys | `""` |
-| `waitForElasticsearch.enabled` | Wait for the first Elasticsearch endpoint before starting Kibana | `false` |
+| `waitForElasticsearch.enabled` | Wait for the first Elasticsearch endpoint before starting Kibana | `true` |
 | `service.ipFamilyPolicy` | Dual-stack ipFamilyPolicy | `null` |
 | `ingress.enabled` | Create Kubernetes Ingress | `false` |
 | `gateway.enabled` | Create Gateway API HTTPRoute | `false` |

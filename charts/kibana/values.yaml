@@ -5,7 +5,11 @@
 # Production-ready Kibana deployment using official Elastic images.
 #
 # Quick start:
+#   helm install kibana helmforge/kibana
+#
+# External Elasticsearch:
 #   helm install kibana helmforge/kibana \
+#     --set bundledElasticsearch.enabled=false \
 #     --set elasticsearch.hosts[0]=http://elasticsearch:9200
 #
 # Hardened image:
@@ -77,14 +81,13 @@ elasticsearch:
     certificateAuthoritiesKey: ca.crt
 
 bundledElasticsearch:
-  # -- Enable the HelmForge Elasticsearch subchart for local/dev deployments.
-  # Keep disabled when connecting to an existing Elasticsearch service.
-  # Bundled mode is plain HTTP (clusterProfile: dev) only: the chart wires just
-  # the in-cluster Service URL, not TLS CA verification or auth. Enabling
-  # security on the subchart (bundled-elasticsearch.security.enabled=true or
-  # clusterProfile=production-ha) is rejected at render time -- use external mode
-  # (elasticsearch.hosts + elasticsearch.tls + elasticsearch.auth) for secured ES.
-  enabled: false
+  # -- Enable the HelmForge Elasticsearch subchart for self-contained installs.
+  # Disable when connecting to an existing Elasticsearch service. Bundled mode
+  # is plain HTTP (clusterProfile: dev) only: the chart wires just the in-cluster
+  # Service URL, not TLS CA verification or auth. Use external mode
+  # (bundledElasticsearch.enabled=false plus elasticsearch.hosts/tls/auth) for
+  # secured Elasticsearch clusters.
+  enabled: true
 
 bundled-elasticsearch:
   # -- Values passed to the aliased HelmForge Elasticsearch subchart.
@@ -139,8 +142,11 @@ encryptionKeys:
 # -- Additional kibana.yml settings
 extraConfig: {}
 
-# -- Extra environment variables
-extraEnv: []
+# -- Extra environment variables. Helm replaces lists during value overrides;
+# re-add ELASTIC_APM_ACTIVE=false if you override this value.
+extraEnv:
+  - name: ELASTIC_APM_ACTIVE
+    value: "false"
 
 # -- Extra volumes
 extraVolumes: []
@@ -148,9 +154,11 @@ extraVolumes: []
 # -- Extra volume mounts
 extraVolumeMounts: []
 
-# -- Wait for the first configured Elasticsearch endpoint before starting Kibana
+# -- Wait for bundled or unauthenticated plain-HTTP Elasticsearch before starting Kibana.
+# Secured external Elasticsearch skips this init container because the busybox
+# probe does not mount Elasticsearch credentials or CA material.
 waitForElasticsearch:
-  enabled: false
+  enabled: true
   image:
     repository: docker.io/library/busybox
     tag: "1.37.0"
@@ -325,6 +333,7 @@ networkPolicy:
       podSelectors: []
       ipBlocks: []
     extra: []
+  extraEgress: []
 
 # =============================================================================
 # Prometheus Operator

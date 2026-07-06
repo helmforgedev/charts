@@ -152,6 +152,11 @@ app.kubernetes.io/part-of: helmforge
 {{- if or $auth $keys .Values.extraEnv -}}true{{- else -}}false{{- end -}}
 {{- end -}}
 
+{{- define "kibana.waitForElasticsearchEnabled" -}}
+{{- $externalPlainHTTP := and (not .Values.bundledElasticsearch.enabled) (eq .Values.elasticsearch.auth.type "none") (not .Values.elasticsearch.tls.enabled) -}}
+{{- if and .Values.waitForElasticsearch.enabled (or .Values.bundledElasticsearch.enabled $externalPlainHTTP) -}}true{{- else -}}false{{- end -}}
+{{- end -}}
+
 {{- define "kibana.probePath" -}}
 {{- $basePath := trimSuffix "/" .Values.server.basePath -}}
 {{- if $basePath -}}
@@ -165,6 +170,12 @@ app.kubernetes.io/part-of: helmforge
 {{- $auth := .Values.elasticsearch.auth.type -}}
 {{- if and .Values.bundledElasticsearch.enabled (eq (include "kibana.bundledElasticsearchSecured" .) "true") -}}
 {{- fail "bundled Elasticsearch with security enabled (bundled-elasticsearch.security.enabled=true or clusterProfile=production-ha) is not supported in bundled mode: this chart wires only the plain-HTTP Service URL, not TLS CA verification or auth, so Kibana would connect to the wrong (https) endpoint. Use external mode instead -- set bundledElasticsearch.enabled=false and configure elasticsearch.hosts + elasticsearch.tls + elasticsearch.auth against your secured cluster." -}}
+{{- end -}}
+{{- if and .Values.bundledElasticsearch.enabled (ne $auth "none") -}}
+{{- fail "elasticsearch.auth.type must be none when bundledElasticsearch.enabled=true because the bundled dev profile is unauthenticated plain HTTP. Disable bundledElasticsearch to use external secured Elasticsearch." -}}
+{{- end -}}
+{{- if and .Values.bundledElasticsearch.enabled .Values.elasticsearch.tls.enabled -}}
+{{- fail "elasticsearch.tls.enabled must be false when bundledElasticsearch.enabled=true because the bundled dev profile is plain HTTP. Disable bundledElasticsearch to use external TLS Elasticsearch." -}}
 {{- end -}}
 {{- if not (has $auth (list "none" "basic" "serviceAccountToken")) -}}
 {{- fail "elasticsearch.auth.type must be one of: none, basic, serviceAccountToken" -}}

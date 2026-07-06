@@ -31,6 +31,7 @@ tests:
   - it: wires basic Elasticsearch authentication from a Secret
     template: templates/deployment.yaml
     set:
+      bundledElasticsearch.enabled: false
       elasticsearch:
         auth:
           type: basic
@@ -53,6 +54,7 @@ tests:
   - it: wires service account token authentication
     template: templates/deployment.yaml
     set:
+      bundledElasticsearch.enabled: false
       elasticsearch:
         auth:
           type: serviceAccountToken
@@ -79,9 +81,6 @@ tests:
 
   - it: can wait for Elasticsearch before starting Kibana
     template: templates/deployment.yaml
-    set:
-      waitForElasticsearch:
-        enabled: true
     asserts:
       - equal:
           path: spec.template.spec.initContainers[0].name
@@ -91,11 +90,27 @@ tests:
           value: docker.io/library/busybox:1.37.0
       - matchRegex:
           path: spec.template.spec.initContainers[0].command[2]
-          pattern: "http://elasticsearch:9200"
+          pattern: "http://.*-bundled-elasticsearch:9200"
+
+  - it: skips wait init for secured external Elasticsearch
+    template: templates/deployment.yaml
+    set:
+      bundledElasticsearch.enabled: false
+      elasticsearch:
+        auth:
+          type: serviceAccountToken
+          existingSecret: kibana-elasticsearch-token
+        tls:
+          enabled: true
+          certificateAuthoritiesSecret: elasticsearch-ca
+    asserts:
+      - isNull:
+          path: spec.template.spec.initContainers
 
   - it: mounts Elasticsearch CA when TLS is enabled
     template: templates/deployment.yaml
     set:
+      bundledElasticsearch.enabled: false
       elasticsearch:
         tls:
           enabled: true
