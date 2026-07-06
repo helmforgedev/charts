@@ -365,3 +365,93 @@ dnsConfig:
   {{- toYaml . | nindent 2 }}
 {{- end }}
 {{- end -}}
+
+{{- define "chart.validate" -}}
+{{- $namePattern := "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" -}}
+{{- range .Values.containers | default list }}
+{{- if not (regexMatch $namePattern .name) }}
+{{- fail (printf "containers[].name must be a DNS-1123 label: %s" .name) }}
+{{- end }}
+{{- if gt (len .name) 63 }}
+{{- fail (printf "containers[].name must be 63 characters or fewer: %s" .name) }}
+{{- end }}
+{{- end }}
+{{- range .Values.jobs | default list }}
+{{- if not (regexMatch $namePattern .name) }}
+{{- fail (printf "jobs[].name must be a DNS-1123 label: %s" .name) }}
+{{- end }}
+{{- if gt (len .name) 63 }}
+{{- fail (printf "jobs[].name must be 63 characters or fewer: %s" .name) }}
+{{- end }}
+{{- end }}
+{{- range .Values.cronjobs | default list }}
+{{- if not (regexMatch $namePattern .name) }}
+{{- fail (printf "cronjobs[].name must be a DNS-1123 label: %s" .name) }}
+{{- end }}
+{{- if gt (len .name) 63 }}
+{{- fail (printf "cronjobs[].name must be 63 characters or fewer: %s" .name) }}
+{{- end }}
+{{- if not .schedule }}
+{{- fail (printf "cronjobs[%s].schedule is required" .name) }}
+{{- end }}
+{{- end }}
+{{- range .Values.configMaps | default list }}
+{{- if not (regexMatch $namePattern .name) }}
+{{- fail (printf "configMaps[].name must be a DNS-1123 label: %s" .name) }}
+{{- end }}
+{{- if gt (len .name) 63 }}
+{{- fail (printf "configMaps[].name must be 63 characters or fewer: %s" .name) }}
+{{- end }}
+{{- end }}
+{{- if and .Values.hpa.enabled (eq (.Values.workload.type | default "Deployment") "DaemonSet") }}
+{{- fail "hpa.enabled cannot be used with workload.type=DaemonSet" }}
+{{- end }}
+{{- if and .Values.hpa.enabled (not .Values.hpa.maxReplicas) }}
+{{- fail "hpa.maxReplicas is required when hpa.enabled=true" }}
+{{- end }}
+{{- $pdbHasMinAvailable := hasKey .Values.pdb "minAvailable" -}}
+{{- $pdbHasMaxUnavailable := hasKey .Values.pdb "maxUnavailable" -}}
+{{- if and .Values.pdb.enabled (not $pdbHasMinAvailable) (not $pdbHasMaxUnavailable) }}
+{{- fail "pdb.minAvailable or pdb.maxUnavailable is required when pdb.enabled=true" }}
+{{- end }}
+{{- if and .Values.pdb.enabled $pdbHasMinAvailable $pdbHasMaxUnavailable }}
+{{- fail "set only one of pdb.minAvailable or pdb.maxUnavailable" }}
+{{- end }}
+{{- if and .Values.serviceMonitor.enabled (not .Values.serviceMonitor.endpoints) }}
+{{- fail "serviceMonitor.endpoints is required when serviceMonitor.enabled=true" }}
+{{- end }}
+{{- if and .Values.ingress.enabled (not .Values.ingress.hosts) (not .Values.ingress.defaultBackend) }}
+{{- fail "ingress.hosts or ingress.defaultBackend is required when ingress.enabled=true" }}
+{{- end }}
+{{- if and .Values.ingress.enabled (eq .Values.service.enabled false) }}
+{{- range .Values.ingress.hosts | default list }}
+{{- range .paths | default (list "/") }}
+{{- if or (kindIs "string" .) (not .backend) }}
+{{- fail "ingress paths require an explicit backend when service.enabled=false" }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if and .Values.gatewayApi.enabled (eq .Values.service.enabled false) }}
+{{- range .Values.gatewayApi.httpRoutes | default list }}
+{{- range .rules | default list }}
+{{- if not .backendRefs }}
+{{- fail "gatewayApi.httpRoutes[].rules[].backendRefs is required when service.enabled=false" }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if and .Values.keda.enabled .Values.keda.scaledObject.enabled (not (include "chart.hasWorkload" .)) }}
+{{- fail "keda.scaledObject.enabled requires workload.enabled=true" }}
+{{- end }}
+{{- range .Values.persistence.storage | default list }}
+{{- if not .capacity }}
+{{- fail (printf "persistence.storage[%s].capacity is required" .name) }}
+{{- end }}
+{{- end }}
+{{- range .Values.persistence.persistentVolumeClaims | default list }}
+{{- if not .storage }}
+{{- fail (printf "persistence.persistentVolumeClaims[%s].storage is required" .name) }}
+{{- end }}
+{{- end }}
+{{- end -}}

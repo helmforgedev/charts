@@ -39,7 +39,10 @@ Use `externalSecrets.enabled` or `sealedSecrets.enabled` only when the matching 
 
 ## NetworkPolicy
 
-`networkPolicy.enabled` creates a NetworkPolicy targeting the release pods. Use `networkPolicy.defaultDeny: true` to start from a deny posture and add explicit ingress/egress rules.
+`networkPolicy.enabled` creates a NetworkPolicy targeting the release pods. Use `networkPolicy.defaultDeny: true` to
+start from a deny posture and add explicit ingress/egress rules. `networkPolicy.extraEgress` appends additional egress
+rules after the base `networkPolicy.egress` list, which is useful for environment-specific DNS, proxy, or API-server
+allowances without replacing the base policy.
 
 <!-- @AI-METADATA
 type: chart-docs
