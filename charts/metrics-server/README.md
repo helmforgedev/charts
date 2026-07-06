@@ -89,6 +89,7 @@ This avoids ownership conflicts while still deploying the Metrics Server workloa
 | `service.ipFamilyPolicy` | `~` | Optional Service IP family policy |
 | `pdb.enabled` | `false` | Render PodDisruptionBudget |
 | `networkPolicy.enabled` | `false` | Render NetworkPolicy |
+| `networkPolicy.egress.extraEgress` | `[]` | Append full custom NetworkPolicy egress rules when `networkPolicy.egress.enabled=true` |
 | `serviceMonitor.enabled` | `false` | Render Prometheus Operator ServiceMonitor |
 
 ## References

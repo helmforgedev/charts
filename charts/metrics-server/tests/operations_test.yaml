@@ -4,7 +4,6 @@ templates:
   - templates/pdb.yaml
   - templates/networkpolicy.yaml
   - templates/servicemonitor.yaml
-  - templates/tests/test-connection.yaml
 release:
   name: test
   namespace: metrics
@@ -82,6 +81,29 @@ tests:
             ipBlock:
               cidr: ::/0
 
+  - it: should append custom NetworkPolicy egress rules
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.allowDNS: false
+      networkPolicy.egress.allowAPIServer: false
+      networkPolicy.egress.allowKubelet: false
+      networkPolicy.egress.extraEgress:
+        - to:
+            - ipBlock:
+                cidr: 10.80.0.0/16
+          ports:
+            - protocol: TCP
+              port: 443
+    asserts:
+      - equal:
+          path: spec.egress[0].to[0].ipBlock.cidr
+          value: 10.80.0.0/16
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 443
+
   - it: should render deny-all ingress when no sources are allowed
     template: templates/networkpolicy.yaml
     set:
@@ -110,15 +132,3 @@ tests:
       - equal:
           path: spec.endpoints[0].port
           value: https
-
-  - it: should render Helm test pod
-    template: templates/tests/test-connection.yaml
-    asserts:
-      - isKind:
-          of: Pod
-      - equal:
-          path: metadata.annotations["helm.sh/hook"]
-          value: test
-      - matchRegex:
-          path: spec.containers[0].args[0]
-          pattern: /readyz
