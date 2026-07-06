@@ -20,6 +20,12 @@ The default chart topology is intentionally conservative:
 
 When `database.driver` is `mysql` or `postgres`, the chart renders `MEMOS_DSN` from a Kubernetes Secret.
 The data volume remains required because Memos can still store local assets and instance data outside the external database.
+Ingress class rendering is optional. Set `ingress.ingressClassName: ""` to omit `spec.ingressClassName`.
+When `networkPolicy.enabled=true`, ingress is restricted to the configured peers.
+Set `networkPolicy.egressIsolation=true` to add baseline DNS and HTTPS egress rules without custom egress rules. DNS egress defaults to
+`kube-system` pods labeled `k8s-app: kube-dns`; override `networkPolicy.dnsEgress` for clusters with different DNS labels. HTTPS egress
+defaults to IPv4 and IPv6 internet destinations on port 443; override `networkPolicy.httpsEgress` to restrict webhook and integration
+destinations. Setting `networkPolicy.extraEgress` also enables egress isolation and appends the supplied database, webhook, or proxy rules.
 
 ## Install
 
