@@ -254,3 +254,21 @@ true
 {{- define "docmost.backupDbPasswordSecretKey" -}}
 {{- include "docmost.databaseSecretKey" . -}}
 {{- end -}}
+
+{{- define "docmost.validate" -}}
+{{- if and (ne .Values.storage.mode "local") (ne .Values.storage.mode "s3") -}}
+{{- fail (printf "docmost: storage.mode must be 'local' or 's3', got %q" .Values.storage.mode) -}}
+{{- end -}}
+{{- if and (ne (int .Values.replicaCount) 1) (ne .Values.storage.mode "s3") -}}
+{{- fail "docmost: replicaCount greater than 1 requires storage.mode=s3 because local storage is single-writer" -}}
+{{- end -}}
+{{- if and (eq .Values.storage.mode "local") (not .Values.storage.local.enabled) (not .Values.storage.local.existingClaim) -}}
+{{- fail "docmost: storage.mode=local requires storage.local.enabled=true or storage.local.existingClaim" -}}
+{{- end -}}
+{{- if and (eq .Values.storage.mode "s3") (not .Values.storage.s3.bucket) -}}
+{{- fail "docmost: storage.mode=s3 requires storage.s3.bucket" -}}
+{{- end -}}
+{{- if and (eq .Values.storage.mode "s3") (not .Values.storage.s3.existingSecret) (or (not .Values.storage.s3.accessKey) (not .Values.storage.s3.secretKey)) -}}
+{{- fail "docmost: storage.mode=s3 requires storage.s3.existingSecret or both storage.s3.accessKey and storage.s3.secretKey" -}}
+{{- end -}}
+{{- end -}}
