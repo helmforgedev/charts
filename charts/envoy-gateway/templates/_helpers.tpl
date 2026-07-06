@@ -235,3 +235,25 @@ affinity:
   {{- toYaml $affinity | nindent 2 }}
 {{- end }}
 {{- end }}
+
+{{/*
+Central fail-fast validation entrypoint.
+*/}}
+{{- define "envoy-gateway.validate" -}}
+{{- if and .Values.externalSecrets.enabled (not .Values.rateLimiting.externalRedis.auth.secretName) -}}
+{{- fail "externalSecrets.enabled requires rateLimiting.externalRedis.auth.secretName to be set to prevent credential drift between the chart-managed Secret and the ExternalSecret." -}}
+{{- end -}}
+{{- if and .Values.rateLimiting.enabled (not .Values.redis.enabled) (not .Values.rateLimiting.externalRedis.host) -}}
+{{- fail "rateLimiting.enabled requires redis.enabled=true or rateLimiting.externalRedis.host to be set" -}}
+{{- end -}}
+{{- if and .Values.rateLimiting.enabled (not .Values.redis.enabled) .Values.rateLimiting.externalRedis.host .Values.rateLimiting.externalRedis.auth.enabled (not .Values.rateLimiting.externalRedis.auth.secretName) -}}
+{{- fail "rateLimiting.externalRedis.auth.enabled requires rateLimiting.externalRedis.auth.secretName" -}}
+{{- end -}}
+{{- $podLabels := .Values.podLabels | default dict -}}
+{{- $selectorLabels := include "envoy-gateway.controller.selectorLabels" . | fromYaml -}}
+{{- range $key, $_ := $selectorLabels -}}
+{{- if hasKey $podLabels $key -}}
+{{- fail (printf "podLabels must not override selector label %s" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
