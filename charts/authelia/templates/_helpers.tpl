@@ -31,6 +31,55 @@ app.kubernetes.io/name: {{ include "authelia.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{- define "authelia.validate" -}}
+{{- $dbType := include "authelia.dbType" . -}}
+{{- $databaseSubchartEnabled := or (and (eq $dbType "postgres") .Values.postgresql.enabled) (and (eq $dbType "mysql") .Values.mysql.enabled) -}}
+{{- if not (has $dbType (list "sqlite" "postgres" "mysql")) -}}
+{{- fail (printf "database.type must be one of: sqlite, postgres, mysql (got %s)" $dbType) -}}
+{{- end -}}
+{{- if and (eq $dbType "postgres") .Values.mysql.enabled -}}
+{{- fail "database.type=postgres cannot be used with mysql.enabled=true" -}}
+{{- end -}}
+{{- if and (eq $dbType "mysql") .Values.postgresql.enabled -}}
+{{- fail "database.type=mysql cannot be used with postgresql.enabled=true" -}}
+{{- end -}}
+{{- if and (ne $dbType "sqlite") (not $databaseSubchartEnabled) (not .Values.database.external.host) -}}
+{{- fail "database.external.host is required when database.type is not sqlite and no matching database subchart is enabled" -}}
+{{- end -}}
+{{- if and .Values.backup.enabled (not .Values.backup.s3.endpoint) -}}
+{{- fail "backup.s3.endpoint is required when backup.enabled is true" -}}
+{{- end -}}
+{{- if and .Values.backup.enabled (not .Values.backup.s3.bucket) -}}
+{{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
+{{- end -}}
+{{- if and .Values.backup.enabled (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+{{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
+{{- end -}}
+{{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
+{{- fail "ingress.enabled requires ingress.hosts to contain at least one host" -}}
+{{- end -}}
+{{- if .Values.ingress.enabled -}}
+{{- range $index, $host := .Values.ingress.hosts -}}
+{{- if not $host.host -}}
+{{- fail (printf "ingress.hosts[%d].host is required when ingress.enabled is true" $index) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.gateway.enabled (not .Values.gateway.parentRefs) -}}
+{{- fail "gateway.enabled requires gateway.parentRefs to be set to create a valid HTTPRoute." -}}
+{{- end -}}
+{{- range $index, $parentRef := .Values.gateway.parentRefs -}}
+{{- if and $.Values.gateway.enabled (not $parentRef.name) -}}
+{{- fail (printf "gateway.parentRefs[%d].name is required when gateway.enabled is true" $index) -}}
+{{- end -}}
+{{- end -}}
+{{- range $key, $_ := .Values.podLabels -}}
+{{- if or (eq $key "app.kubernetes.io/name") (eq $key "app.kubernetes.io/instance") -}}
+{{- fail (printf "podLabels must not override selector label %q" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Image helper */}}
 {{- define "authelia.image" -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}

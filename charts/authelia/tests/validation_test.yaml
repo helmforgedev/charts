@@ -1,0 +1,103 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: should render no validation manifest by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should fail when postgres mode enables mysql subchart
+    set:
+      database.type: postgres
+      mysql.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.type=postgres cannot be used with mysql.enabled=true"
+
+  - it: should fail when mysql mode enables postgresql subchart
+    set:
+      database.type: mysql
+      postgresql.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.type=mysql cannot be used with postgresql.enabled=true"
+
+  - it: should fail when external database host is missing
+    set:
+      database.type: postgres
+      postgresql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.external.host is required when database.type is not sqlite and no matching database subchart is enabled"
+
+  - it: should fail when external mysql database host is missing
+    set:
+      database.type: mysql
+      mysql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "database.external.host is required when database.type is not sqlite and no matching database subchart is enabled"
+
+  - it: should fail when backup endpoint is missing
+    set:
+      backup.enabled: true
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.endpoint is required when backup.enabled is true"
+
+  - it: should fail when backup credentials are missing
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://s3.example.com
+      backup.s3.bucket: backups
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey"
+
+  - it: should fail when ingress is enabled without hosts
+    set:
+      ingress.enabled: true
+      ingress.hosts: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "ingress.enabled requires ingress.hosts to contain at least one host"
+
+  - it: should fail when an ingress host entry has no hostname
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - failedTemplate:
+          errorMessage: "ingress.hosts[0].host is required when ingress.enabled is true"
+
+  - it: should fail when gateway is enabled without parentRefs
+    set:
+      gateway.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.enabled requires gateway.parentRefs to be set to create a valid HTTPRoute."
+
+  - it: should fail when a gateway parentRef has no name
+    set:
+      gateway.enabled: true
+      gateway.parentRefs:
+        - sectionName: http
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.parentRefs[0].name is required when gateway.enabled is true"
+
+  - it: should fail when podLabels override selector labels
+    set:
+      podLabels:
+        app.kubernetes.io/instance: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: 'podLabels must not override selector label "app.kubernetes.io/instance"'
