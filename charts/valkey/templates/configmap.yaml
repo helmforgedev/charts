@@ -335,22 +335,25 @@ data:
       # cold-start hint: if a failover already happened and this pod lost its
       # emptyDir, monitoring node-0 again would advertise a stale master until
       # hello-channel gossip converges. Probe the data plane for the real master.
-      master="$SEED_MASTER"
+      # Discover the node currently reporting role:master, not merely a reachable
+      # seed. After a failover the seed (node-0) is a live *replica*, and a
+      # Sentinel seeded on a replica never redirects to the real master — it would
+      # advertise that replica to clients. Fall back to the seed only if no node
+      # answers as master within the bounded budget.
+      master=""
       i=0
-      until vcli -h "$master" -p "$VALKEY_PORT" ping >/dev/null 2>&1; do
-        i=$((i + 1))
+      while :; do
         if m="$(find_current_master)"; then
-          if [ "$m" != "$master" ]; then
-            echo "seed $master unavailable; using discovered master $m"
-            master="$m"
-            continue
-          fi
-        fi
-        if [ "$i" -ge 6 ]; then
-          echo "no reachable master after bounded wait; monitoring seed $master anyway"
+          master="$m"
           break
         fi
-        echo "waiting for master $master:$VALKEY_PORT ($i/6)"
+        i=$((i + 1))
+        if [ "$i" -ge 6 ]; then
+          master="$SEED_MASTER"
+          echo "no master discovered after bounded wait; monitoring seed $master anyway"
+          break
+        fi
+        echo "waiting to discover current master ($i/6)"
         sleep 3
       done
       cp "$BASE" "$CONF"
