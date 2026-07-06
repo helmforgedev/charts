@@ -1,38 +1,87 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+1. Summary
+
 NoteDiscovery release: {{ .Release.Name }}
 Namespace: {{ .Release.Namespace }}
+Application port: {{ .Values.service.port }}
+Data directory: {{ .Values.persistence.mountPath }}
 
-Workload:
+2. Workload
+
+Check the Deployment and rollout status:
+
   kubectl get deploy {{ include "notediscovery.fullname" . }} -n {{ .Release.Namespace }}
   kubectl rollout status deploy/{{ include "notediscovery.fullname" . }} -n {{ .Release.Namespace }}
 
-Service:
+3. Access
+
+Check the Service:
+
   kubectl get svc {{ include "notediscovery.fullname" . }} -n {{ .Release.Namespace }}
 
-Local access:
+Use a local port-forward when Ingress or Gateway API is not enabled:
+
   kubectl port-forward svc/{{ include "notediscovery.fullname" . }} 8000:{{ .Values.service.port }} -n {{ .Release.Namespace }}
-  Open http://127.0.0.1:8000
 
-Runtime configuration:
-  Data directory: {{ .Values.persistence.mountPath }}
-  Search enabled: {{ .Values.notediscovery.searchEnabled }}
-  Authentication enabled: {{ .Values.auth.enabled }}
+Then open:
 
-Persistence:
-{{- if .Values.persistence.existingClaim }}
-  Existing PVC {{ .Values.persistence.existingClaim }} is mounted.
-{{- else if .Values.persistence.enabled }}
-  PVC is enabled. Back up the data volume before upgrades.
+  http://127.0.0.1:8000
+
+4. Credentials
+
+Authentication enabled: {{ .Values.auth.enabled }}
+
+{{- if .Values.auth.existingSecret }}
+The complete NoteDiscovery config is read from Secret {{ .Values.auth.existingSecret }} key {{ .Values.auth.existingSecretKey }}.
+{{- else if .Values.auth.enabled }}
+The chart renders the generated authenticated config into a Secret.
 {{- else }}
-  Persistence is disabled and NoteDiscovery data is stored in an emptyDir.
+Authentication is disabled. Enable auth or provide auth.existingSecret before exposing NoteDiscovery to shared users.
 {{- end }}
 
-Troubleshooting:
+5. Configuration
+
+Search enabled: {{ .Values.notediscovery.searchEnabled }}
+{{- if .Values.persistence.existingClaim }}
+Storage: existing PVC {{ .Values.persistence.existingClaim }} is mounted.
+{{- else if .Values.persistence.enabled }}
+Storage: chart-managed PVC is enabled. Back up the data volume before upgrades.
+{{- else }}
+Storage: persistence is disabled and NoteDiscovery data is stored in an emptyDir.
+{{- end }}
+{{- if .Values.networkPolicy.enabled }}
+NetworkPolicy: enabled.
+{{- else }}
+NetworkPolicy: disabled.
+{{- end }}
+
+6. Validation
+
+Run Helm tests:
+
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Run the HelmForge chart gate from the ops repo:
+
+  make validate-chart CHART=notediscovery
+
+7. Troubleshooting
+
+Inspect logs and pod events:
+
   kubectl logs deploy/{{ include "notediscovery.fullname" . }} -n {{ .Release.Namespace }}
   kubectl describe pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
 
-Validation:
-  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
-  make validate-chart CHART=notediscovery
+If the app is exposed, ensure notediscovery.allowedOrigins includes the public origin.
+
+8. Resources
+
+Chart documentation:
+
+  https://github.com/helmforgedev/charts/tree/main/charts/notediscovery
+
+Upstream project:
+
+  https://github.com/gamosoft/NoteDiscovery
 
 Happy Helmforging :)

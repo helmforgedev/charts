@@ -12,6 +12,9 @@ spec:
       {{- include "notediscovery.selectorLabels" . | nindent 6 }}
   policyTypes:
     - Ingress
+    {{- if .Values.networkPolicy.extraEgress }}
+    - Egress
+    {{- end }}
   ingress:
     - from:
         {{- if .Values.networkPolicy.ingressFrom }}
@@ -22,4 +25,23 @@ spec:
       ports:
         - protocol: TCP
           port: http
+  {{- with .Values.networkPolicy.extraEgress }}
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+        - ipBlock:
+            cidr: ::/0
+      ports:
+        - protocol: TCP
+          port: 443
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 {{- end }}
