@@ -1,9 +1,8 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
-cloudflared has been installed
-==============================
+cloudflared has been installed.
 
-Installation summary
---------------------
+1. Installation summary
+-----------------------
 Release: {{ .Release.Name }}
 Namespace: {{ .Release.Namespace }}
 Chart version: {{ .Chart.Version }}
@@ -14,8 +13,8 @@ Quick tunnel: {{ ternary "enabled" "disabled" .Values.tunnel.quickTunnel.enabled
 Metrics service: {{ ternary "enabled" "disabled" .Values.metrics.enabled }}
 ServiceMonitor: {{ ternary "enabled" "disabled" .Values.serviceMonitor.enabled }}
 
-Tunnel status
--------------
+2. Tunnel status
+----------------
 cloudflared creates outbound-only connections from this cluster to Cloudflare.
 No inbound Kubernetes Service or LoadBalancer is required for application
 traffic. Public hostnames and origins are configured in the Cloudflare Zero
@@ -29,14 +28,9 @@ Follow connection logs:
 
   kubectl logs -l app.kubernetes.io/name=cloudflared -n {{ .Release.Namespace }} --all-containers --tail=50 -f
 
-Look for established tunnel connections:
-
-  kubectl logs -l app.kubernetes.io/name=cloudflared -n {{ .Release.Namespace }} --all-containers | grep -i "connection\|tunnel\|registered"
-
+3. Metrics
+----------
 {{- if .Values.metrics.enabled }}
-
-Metrics
--------
 Internal metrics endpoint:
 
   http://{{ include "cloudflared.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port | default 2000 }}/metrics
@@ -44,10 +38,12 @@ Internal metrics endpoint:
 Port-forward metrics locally:
 
   kubectl port-forward svc/{{ include "cloudflared.fullname" . }} -n {{ .Release.Namespace }} 2000:{{ .Values.service.port | default 2000 }}
+{{- else }}
+Metrics Service rendering is disabled.
 {{- end }}
 
-Credentials
------------
+4. Credentials
+--------------
 {{- if .Values.tunnel.quickTunnel.enabled }}
 Quick tunnel mode does not use a managed tunnel token. Use it only for demos or
 smoke tests.
@@ -68,8 +64,16 @@ Tunnel token was provided through chart-managed Secret data. Prefer an existing
 Secret or External Secrets Operator for production.
 {{- end }}
 
-Troubleshooting
----------------
+5. High availability
+--------------------
+Replicas: {{ .Values.replicaCount }}
+PodDisruptionBudget: {{ ternary "enabled" "disabled" .Values.pdb.enabled }}
+{{- if .Values.pdb.enabled }}
+PDB minAvailable: {{ .Values.pdb.minAvailable }}
+{{- end }}
+
+6. Troubleshooting
+------------------
 Describe pods:
 
   kubectl describe pod -l app.kubernetes.io/name=cloudflared -n {{ .Release.Namespace }}
@@ -82,15 +86,15 @@ Inspect recent events:
 
   kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
 
-Cloudflare routing
-------------------
+7. Cloudflare routing
+---------------------
 Configure Public Hostnames in the Cloudflare Zero Trust dashboard and point
 origins to Kubernetes DNS names such as:
 
   http://service.namespace.svc.cluster.local:80
 
-Documentation
--------------
+8. Resources
+------------
 Chart docs: https://helmforge.dev/docs/charts/cloudflared
 Chart source: https://github.com/helmforgedev/charts/tree/main/charts/cloudflared
 Cloudflare Tunnel docs: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/

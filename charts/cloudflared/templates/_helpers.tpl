@@ -43,6 +43,37 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
+{{- define "cloudflared.validate" -}}
+{{- if and (not .Values.tunnel.quickTunnel.enabled) (not .Values.tunnel.token) (not .Values.tunnel.existingSecret) -}}
+{{- fail "tunnel.token or tunnel.existingSecret is required when tunnel.quickTunnel.enabled is false" -}}
+{{- end -}}
+{{- if and .Values.tunnel.quickTunnel.enabled (not .Values.tunnel.quickTunnel.helloWorld) (not .Values.tunnel.quickTunnel.url) -}}
+{{- fail "tunnel.quickTunnel.url is required when tunnel.quickTunnel.enabled=true and helloWorld=false" -}}
+{{- end -}}
+{{- if and .Values.externalSecrets.enabled (not .Values.tunnel.existingSecret) -}}
+{{- fail "externalSecrets.enabled requires tunnel.existingSecret to be set to prevent credential drift between the chart-managed Secret and the ExternalSecret." -}}
+{{- end -}}
+{{- if and .Values.externalSecrets.enabled (not .Values.externalSecrets.secretStoreRef.name) -}}
+{{- fail "externalSecrets.secretStoreRef.name is required when externalSecrets.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.externalSecrets.enabled (not .Values.externalSecrets.data) -}}
+{{- fail "externalSecrets.data must not be empty when externalSecrets.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.serviceMonitor.enabled (not .Values.metrics.enabled) -}}
+{{- fail "metrics.enabled must be true when serviceMonitor.enabled is true" -}}
+{{- end -}}
+{{- if and .Values.pdb.enabled (lt (int .Values.replicaCount) (int .Values.pdb.minAvailable)) -}}
+{{- fail "replicaCount must be greater than or equal to pdb.minAvailable when pdb.enabled is true" -}}
+{{- end -}}
+{{- $podLabels := .Values.podLabels | default dict -}}
+{{- $selectorLabels := include "cloudflared.selectorLabels" . | fromYaml -}}
+{{- range $key, $_ := $selectorLabels -}}
+{{- if hasKey $podLabels $key -}}
+{{- fail (printf "podLabels must not override selector label %q" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Tunnel token secret name */}}
 {{- define "cloudflared.tunnelSecretName" -}}
 {{- if .Values.tunnel.existingSecret -}}
