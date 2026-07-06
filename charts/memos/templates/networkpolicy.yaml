@@ -1,6 +1,8 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- if .Values.networkPolicy.enabled }}
 {{- $extraEgress := .Values.networkPolicy.extraEgress | default list }}
+{{- $dnsEgress := .Values.networkPolicy.dnsEgress | default list }}
+{{- $httpsEgress := .Values.networkPolicy.httpsEgress | default list }}
 {{- $egressEnabled := or .Values.networkPolicy.egressIsolation (gt (len $extraEgress) 0) }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -29,21 +31,22 @@ spec:
           port: http
   {{- if $egressEnabled }}
   egress:
+    {{- if gt (len $dnsEgress) 0 }}
     - to:
-        {{- toYaml .Values.networkPolicy.dnsEgress | nindent 8 }}
+        {{- toYaml $dnsEgress | nindent 8 }}
       ports:
         - protocol: UDP
           port: 53
         - protocol: TCP
           port: 53
+    {{- end }}
+    {{- if gt (len $httpsEgress) 0 }}
     - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-        - ipBlock:
-            cidr: ::/0
+        {{- toYaml $httpsEgress | nindent 8 }}
       ports:
         - protocol: TCP
           port: 443
+    {{- end }}
     {{- with $extraEgress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

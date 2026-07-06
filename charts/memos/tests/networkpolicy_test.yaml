@@ -37,6 +37,29 @@ tests:
       - equal:
           path: spec.egress[1].ports[0].port
           value: 443
+      - equal:
+          path: spec.egress[1].to[0].ipBlock.cidr
+          value: 0.0.0.0/0
+      - equal:
+          path: spec.egress[1].to[1].ipBlock.cidr
+          value: ::/0
+  - it: renders custom baseline HTTPS egress peers
+    set:
+      networkPolicy:
+        enabled: true
+        egressIsolation: true
+        httpsEgress:
+          - ipBlock:
+              cidr: 203.0.113.0/24
+    asserts:
+      - equal:
+          path: spec.egress[1].to[0].ipBlock.cidr
+          value: 203.0.113.0/24
+      - notContains:
+          path: spec.egress[1].to
+          content:
+            ipBlock:
+              cidr: 0.0.0.0/0
   - it: appends extra egress rules after default DNS and HTTPS
     set:
       networkPolicy:
