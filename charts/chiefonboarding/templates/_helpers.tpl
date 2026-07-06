@@ -39,6 +39,23 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "chiefonboarding.validate" -}}
+{{- if and (not .Values.postgresql.enabled) (not .Values.database.external.host) -}}
+{{- fail "database.external.host is required when postgresql.enabled is false" -}}
+{{- end -}}
+{{- if and (not .Values.postgresql.enabled) (not .Values.database.external.existingSecret) (not .Values.database.external.password) -}}
+{{- fail "database.external.password or database.external.existingSecret is required when postgresql.enabled is false" -}}
+{{- end -}}
+{{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
+{{- fail "ingress.enabled requires ingress.hosts to contain at least one rule" -}}
+{{- end -}}
+{{- range $key, $_ := .Values.podLabels -}}
+{{- if or (eq $key "app.kubernetes.io/name") (eq $key "app.kubernetes.io/instance") -}}
+{{- fail (printf "podLabels must not override selector label %q" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "chiefonboarding.image" -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
