@@ -105,3 +105,23 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "alfio.jdbcUrl" -}}
 {{- printf "jdbc:postgresql://%s:%s/%s" (include "alfio.dbHost" .) (include "alfio.dbPort" .) (include "alfio.dbName" .) -}}
 {{- end -}}
+
+{{- define "alfio.validate" -}}
+{{- if and (not .Values.postgresql.enabled) (empty .Values.database.external.host) -}}
+{{- fail "database.external.host is required when postgresql.enabled=false" -}}
+{{- end -}}
+{{- if and (not .Values.postgresql.enabled) (not .Values.database.external.existingSecret) (empty .Values.database.external.password) -}}
+{{- fail "database.external.password or database.external.existingSecret is required when postgresql.enabled=false" -}}
+{{- end -}}
+{{- if and .Values.ingress.enabled (empty .Values.ingress.hosts) -}}
+{{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}
+{{- end -}}
+{{- if .Values.podLabels -}}
+{{- if hasKey .Values.podLabels "app.kubernetes.io/name" -}}
+{{- fail "podLabels must not override the selector label app.kubernetes.io/name" -}}
+{{- end -}}
+{{- if hasKey .Values.podLabels "app.kubernetes.io/instance" -}}
+{{- fail "podLabels must not override the selector label app.kubernetes.io/instance" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
