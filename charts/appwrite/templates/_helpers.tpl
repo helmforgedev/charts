@@ -53,6 +53,25 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 {{- end -}}
 
+{{- define "appwrite.validate" -}}
+{{- $databaseMode := include "appwrite.databaseMode" . -}}
+{{- $cacheMode := include "appwrite.cacheMode" . -}}
+{{- $backupEnabled := include "appwrite.backupEnabled" . -}}
+{{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
+{{- fail "ingress.enabled requires ingress.hosts to contain at least one host" -}}
+{{- end -}}
+{{- if .Values.ingress.enabled -}}
+{{- range $index, $host := .Values.ingress.hosts -}}
+{{- if not $host.host -}}
+{{- fail (printf "ingress.hosts[%d].host is required when ingress.enabled is true" $index) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.gateway.enabled (not .Values.gateway.parentRefs) -}}
+{{- fail "gateway.enabled requires gateway.parentRefs to be populated to create a valid HTTPRoute." -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "appwrite.image" -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}

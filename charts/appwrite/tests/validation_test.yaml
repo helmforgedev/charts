@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: should render no validation manifest by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should fail when database selection is ambiguous
+    set:
+      database.external.host: mariadb.example.com
+      database.external.rootPassword: secret
+      mariadb.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "appwrite database selection is ambiguous: configure only one of database.external.* or mariadb.enabled"
+
+  - it: should fail when cache selection is ambiguous
+    set:
+      cache.external.host: redis.example.com
+      cache.external.password: secret
+      redis.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "appwrite cache selection is ambiguous: configure only one of cache.external.* or redis.enabled"
+
+  - it: should fail when backup endpoint is missing
+    set:
+      backup.enabled: true
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.endpoint is required when backup.enabled is true"
+
+  - it: should fail when ingress is enabled without hosts
+    set:
+      ingress.enabled: true
+      ingress.hosts: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "ingress.enabled requires ingress.hosts to contain at least one host"
+
+  - it: should fail when an ingress host entry has no hostname
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - failedTemplate:
+          errorMessage: "ingress.hosts[0].host is required when ingress.enabled is true"
+
+  - it: should fail when gateway is enabled without parentRefs
+    set:
+      gateway.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.enabled requires gateway.parentRefs to be populated to create a valid HTTPRoute."
