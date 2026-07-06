@@ -248,11 +248,11 @@ redis-password
 {{- end -}}
 
 {{- define "flowise.mainCommand" -}}
-sleep 3; flowise start
+sleep {{ int .Values.flowise.startupDelaySeconds }}; flowise start
 {{- end -}}
 
 {{- define "flowise.workerCommand" -}}
-sleep 3; flowise worker
+sleep {{ int .Values.queue.worker.startupDelaySeconds }}; flowise worker
 {{- end -}}
 
 {{- define "flowise.backupSecretName" -}}
@@ -279,5 +279,56 @@ sleep 3; flowise worker
     {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
   {{- end -}}
 true
+{{- end -}}
+{{- end -}}
+
+{{- define "flowise.validate" -}}
+{{- $arch := include "flowise.architectureMode" . -}}
+{{- $dbMode := include "flowise.databaseMode" . -}}
+{{- if and (eq $arch "queue") (eq $dbMode "sqlite") -}}
+{{- fail "architecture.mode=queue requires database.mode to resolve to external or postgresql, not sqlite" -}}
+{{- end -}}
+{{- if and (eq $arch "queue") (eq (include "flowise.redisMode" .) "none") -}}
+{{- fail "architecture.mode=queue requires Redis: enable redis.enabled or configure redis.external.host" -}}
+{{- end -}}
+{{- if and (eq $arch "queue") (ne .Values.storage.type "s3") -}}
+{{- fail "architecture.mode=queue requires storage.type=s3 for shared blob storage across main and worker pods" -}}
+{{- end -}}
+{{- if and (eq $arch "queue") .Values.persistence.enabled -}}
+{{- fail "architecture.mode=queue requires persistence.enabled=false because shared local volumes are not a valid scalable topology for Flowise" -}}
+{{- end -}}
+{{- if and (eq $dbMode "sqlite") (gt (int .Values.flowise.replicaCount) 1) -}}
+{{- fail "SQLite mode only supports flowise.replicaCount=1" -}}
+{{- end -}}
+{{- if and (eq .Values.storage.type "local") (gt (int .Values.flowise.replicaCount) 1) -}}
+{{- fail "local storage only supports flowise.replicaCount=1; use storage.type=s3 for multiple replicas" -}}
+{{- end -}}
+{{- if and (eq .Values.storage.type "s3") (eq (.Values.storage.s3.bucketName | default "") "") -}}
+{{- fail "storage.type=s3 requires storage.s3.bucketName" -}}
+{{- end -}}
+{{- if and (eq .Values.storage.type "s3") (not (or .Values.storage.s3.existingSecret (and .Values.storage.s3.accessKeyId .Values.storage.s3.secretAccessKey))) -}}
+{{- fail "storage.type=s3 requires storage.s3.existingSecret or inline storage.s3.accessKeyId and storage.s3.secretAccessKey" -}}
+{{- end -}}
+{{- $podLabels := .Values.podLabels | default dict -}}
+{{- if hasKey $podLabels "app.kubernetes.io/name" -}}
+{{- fail "podLabels must not override the selector label app.kubernetes.io/name" -}}
+{{- end -}}
+{{- if hasKey $podLabels "app.kubernetes.io/instance" -}}
+{{- fail "podLabels must not override the selector label app.kubernetes.io/instance" -}}
+{{- end -}}
+{{- if hasKey $podLabels "app.kubernetes.io/component" -}}
+{{- fail "podLabels must not override the selector label app.kubernetes.io/component" -}}
+{{- end -}}
+{{- if eq $arch "queue" -}}
+{{- $workerPodLabels := .Values.queue.worker.podLabels | default dict -}}
+{{- if hasKey $workerPodLabels "app.kubernetes.io/name" -}}
+{{- fail "queue.worker.podLabels must not override the selector label app.kubernetes.io/name" -}}
+{{- end -}}
+{{- if hasKey $workerPodLabels "app.kubernetes.io/instance" -}}
+{{- fail "queue.worker.podLabels must not override the selector label app.kubernetes.io/instance" -}}
+{{- end -}}
+{{- if hasKey $workerPodLabels "app.kubernetes.io/component" -}}
+{{- fail "queue.worker.podLabels must not override the selector label app.kubernetes.io/component" -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}

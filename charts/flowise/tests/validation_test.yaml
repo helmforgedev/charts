@@ -1,0 +1,119 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: passes with default values
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: fails when queue mode resolves to sqlite
+    set:
+      architecture.mode: queue
+    asserts:
+      - failedTemplate:
+          errorMessage: architecture.mode=queue requires database.mode to resolve to external or postgresql, not sqlite
+
+  - it: fails when queue mode has no Redis
+    set:
+      architecture.mode: queue
+      postgresql.enabled: true
+      persistence.enabled: false
+      storage.type: s3
+      storage.s3.bucketName: flowise
+      storage.s3.existingSecret: flowise-s3
+    asserts:
+      - failedTemplate:
+          errorMessage: "architecture.mode=queue requires Redis: enable redis.enabled or configure redis.external.host"
+
+  - it: fails when queue mode does not use S3 storage
+    set:
+      architecture.mode: queue
+      postgresql.enabled: true
+      redis.enabled: true
+      persistence.enabled: false
+      storage.type: local
+    asserts:
+      - failedTemplate:
+          errorMessage: architecture.mode=queue requires storage.type=s3 for shared blob storage across main and worker pods
+
+  - it: fails when queue mode leaves local persistence enabled
+    set:
+      architecture.mode: queue
+      postgresql.enabled: true
+      redis.enabled: true
+      storage.type: s3
+      storage.s3.bucketName: flowise
+      storage.s3.existingSecret: flowise-s3
+      persistence.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: architecture.mode=queue requires persistence.enabled=false because shared local volumes are not a valid scalable topology for Flowise
+
+  - it: fails when sqlite has multiple replicas
+    set:
+      flowise.replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: SQLite mode only supports flowise.replicaCount=1
+
+  - it: fails when local storage has multiple replicas
+    set:
+      database.mode: external
+      database.external.host: postgres.example.com
+      flowise.replicaCount: 2
+      storage.type: local
+    asserts:
+      - failedTemplate:
+          errorMessage: local storage only supports flowise.replicaCount=1; use storage.type=s3 for multiple replicas
+
+  - it: fails when S3 storage has no bucket
+    set:
+      storage.type: s3
+      storage.s3.existingSecret: flowise-s3
+    asserts:
+      - failedTemplate:
+          errorMessage: storage.type=s3 requires storage.s3.bucketName
+
+  - it: fails when S3 storage has no credentials
+    set:
+      storage.type: s3
+      storage.s3.bucketName: flowise
+      storage.s3.existingSecret: ""
+      storage.s3.accessKeyId: ""
+      storage.s3.secretAccessKey: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: storage.type=s3 requires storage.s3.existingSecret or inline storage.s3.accessKeyId and storage.s3.secretAccessKey
+
+  - it: fails when podLabels override selector labels
+    set:
+      podLabels:
+        app.kubernetes.io/name: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels must not override the selector label app.kubernetes.io/name
+
+  - it: fails when worker podLabels override selector labels
+    set:
+      architecture.mode: queue
+      persistence.enabled: false
+      storage.type: s3
+      storage.s3.bucketName: flowise
+      storage.s3.existingSecret: flowise-s3
+      postgresql.enabled: true
+      redis.enabled: true
+      queue.worker.podLabels:
+        app.kubernetes.io/component: custom
+    asserts:
+      - failedTemplate:
+          errorMessage: queue.worker.podLabels must not override the selector label app.kubernetes.io/component
+
+  - it: allows worker podLabels in standalone mode because no worker is rendered
+    set:
+      queue.worker.podLabels:
+        app.kubernetes.io/component: custom
+    asserts:
+      - hasDocuments:
+          count: 0
