@@ -97,3 +97,54 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "fastmcp-server.hasAnyInline" -}}
 {{- if or (include "fastmcp-server.hasInlineTools" .) (include "fastmcp-server.hasInlineResources" .) (include "fastmcp-server.hasInlinePrompts" .) (include "fastmcp-server.hasInlineKnowledge" .) -}}true{{- end -}}
 {{- end -}}
+
+{{- define "fastmcp-server.validate" -}}
+{{- if and .Values.ingress.enabled (empty .Values.ingress.hosts) -}}
+{{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.gatewayAPI.enabled (empty .Values.gatewayAPI.parentRefs) -}}
+{{- fail "gatewayAPI.parentRefs must contain at least one parentRef when gatewayAPI.enabled=true" -}}
+{{- end -}}
+{{- if .Values.gatewayAPI.enabled -}}
+{{- range .Values.gatewayAPI.parentRefs }}
+{{- if empty .name -}}
+{{- fail "Each gatewayAPI.parentRefs entry must define a name" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if and (eq .Values.auth.type "bearer") (not .Values.auth.bearer.token) (not .Values.auth.bearer.existingSecret) -}}
+{{- fail "auth.type=bearer requires auth.bearer.token or auth.bearer.existingSecret" -}}
+{{- end -}}
+{{- if eq .Values.auth.type "jwt" -}}
+{{- if or (empty .Values.auth.jwt.issuer) (empty .Values.auth.jwt.audience) (empty .Values.auth.jwt.jwksUri) -}}
+{{- fail "auth.type=jwt requires auth.jwt.issuer, auth.jwt.audience, and auth.jwt.jwksUri" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.sources.s3.enabled -}}
+{{- if empty .Values.sources.s3.bucket -}}
+{{- fail "sources.s3.enabled requires sources.s3.bucket" -}}
+{{- end -}}
+{{- if and (empty .Values.sources.s3.existingSecret) (or (empty .Values.sources.s3.accessKey) (empty .Values.sources.s3.secretKey)) -}}
+{{- fail "sources.s3.enabled requires sources.s3.existingSecret or both sources.s3.accessKey and sources.s3.secretKey" -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.sources.git.enabled (empty .Values.sources.git.repository) -}}
+{{- fail "sources.git.enabled requires sources.git.repository" -}}
+{{- end -}}
+{{- if .Values.autoscaling.enabled -}}
+{{- if lt (int .Values.autoscaling.maxReplicas) (int .Values.autoscaling.minReplicas) -}}
+{{- fail "autoscaling.maxReplicas must be greater than or equal to autoscaling.minReplicas" -}}
+{{- end -}}
+{{- if and (empty .Values.autoscaling.targetCPUUtilizationPercentage) (empty .Values.autoscaling.targetMemoryUtilizationPercentage) -}}
+{{- fail "autoscaling.enabled requires at least one target metric" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.podLabels -}}
+{{- if hasKey .Values.podLabels "app.kubernetes.io/name" -}}
+{{- fail "podLabels must not override the selector label app.kubernetes.io/name" -}}
+{{- end -}}
+{{- if hasKey .Values.podLabels "app.kubernetes.io/instance" -}}
+{{- fail "podLabels must not override the selector label app.kubernetes.io/instance" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
