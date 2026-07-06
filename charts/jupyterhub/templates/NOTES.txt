@@ -1,16 +1,16 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 JupyterHub deployed successfully!
 
-ACCESS:
+1. Access
    kubectl port-forward svc/{{ include "jupyterhub.proxyName" . }} -n {{ .Release.Namespace }} 8080:{{ .Values.service.port }}
    Open: http://localhost:8080{{ .Values.hub.baseUrl }}
 
-SERVICES:
+2. Services
    Proxy: {{ include "jupyterhub.proxyName" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
    Proxy API: {{ include "jupyterhub.proxyApiName" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.proxyApiPort }}
    Hub: {{ include "jupyterhub.hubName" . }}.{{ .Release.Namespace }}.svc.cluster.local:8081
 
-AUTHENTICATION:
+3. Authentication
    Auth type: {{ .Values.auth.type }}
 {{- if and (eq .Values.auth.type "dummy") (not .Values.auth.dummyPassword) }}
    Dummy password: empty
@@ -18,7 +18,7 @@ AUTHENTICATION:
    Dummy password: configured
 {{- end }}
 
-PERSISTENCE:
+4. Persistence
 {{- if .Values.hub.persistence.enabled }}
    Hub PVC: {{ include "jupyterhub.hubDataClaimName" . }}
 {{- else }}
@@ -30,7 +30,7 @@ PERSISTENCE:
    Single-user PVCs: disabled
 {{- end }}
 
-NETWORKING:
+5. Networking
 {{- if .Values.ingress.enabled }}
    Ingress: enabled
    Class: {{ .Values.ingress.ingressClassName | default "(cluster default)" }}
@@ -43,8 +43,9 @@ NETWORKING:
 {{- else }}
    Gateway API: disabled
 {{- end }}
+   NetworkPolicy: {{ ternary "enabled" "disabled" .Values.networkPolicy.enabled }}
 
-OPERATIONS:
+6. Operations
    Run Helm tests:
      helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
 
@@ -52,12 +53,12 @@ OPERATIONS:
      kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
      kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "jupyterhub.hubName" . }}
 
-SECURITY REMINDERS:
+7. Security Reminders
    1. Do not expose DummyAuthenticator publicly without auth.dummyPassword.
    2. Use a real authenticator through hub.extraConfig for production.
    3. Keep the proxy token in an existing Secret or ExternalSecret for GitOps.
 
-DOCUMENTATION:
+8. Documentation
    Chart: https://helmforge.dev/docs/charts/jupyterhub
    Source: https://github.com/helmforgedev/charts/tree/main/charts/jupyterhub
    JupyterHub: https://jupyter.org/hub

@@ -9,6 +9,10 @@ user pods, optional user PVCs, Gateway API, Ingress, dual-stack Service,
 NetworkPolicy, ExternalSecret, ServiceMonitor, PodDisruptionBudget, schema, and
 Helm tests.
 
+NetworkPolicy supports `networkPolicy.extraEgress` for appending Hub egress
+rules without replacing the default DNS, HTTPS, same-namespace, and
+`networkPolicy.hub.egress` rules.
+
 ## Install
 
 ```bash
