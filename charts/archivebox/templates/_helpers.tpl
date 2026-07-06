@@ -39,6 +39,26 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "archivebox.validate" -}}
+{{/* Triggers backup validation failures through archivebox.backupEnabled; the return value is unused. */}}
+{{- $backupEnabled := include "archivebox.backupEnabled" . -}}
+{{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
+{{- fail "ingress.enabled requires ingress.hosts to contain at least one host" -}}
+{{- end -}}
+{{- if .Values.ingress.enabled -}}
+{{- range $index, $host := .Values.ingress.hosts -}}
+{{- if not $host.host -}}
+{{- fail (printf "ingress.hosts[%d].host is required when ingress.enabled is true" $index) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- range $key, $_ := .Values.podLabels -}}
+{{- if or (eq $key "app.kubernetes.io/name") (eq $key "app.kubernetes.io/instance") -}}
+{{- fail (printf "podLabels must not override selector label %q" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "archivebox.image" -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
@@ -96,8 +116,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- if not .Values.backup.s3.bucket -}}
     {{- fail "backup.s3.bucket is required when backup.enabled is true" -}}
   {{- end -}}
-  {{- if and (not .Values.backup.s3.existingSecret) (not .Values.backup.s3.accessKey) -}}
-    {{- fail "backup.s3.accessKey or backup.s3.existingSecret is required when backup.enabled is true" -}}
+  {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
+    {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
   {{- end -}}
 true
 {{- end -}}
