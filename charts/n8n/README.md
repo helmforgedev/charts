@@ -144,7 +144,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
-| `image.tag` | `2.26.8` | n8n container image tag |
+| `image.tag` | `2.29.7` | n8n container image tag |
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
@@ -186,7 +186,7 @@ externalSecrets:
 
 ## Upgrade Notes
 
-n8n `2.26.8` is the upstream stable release used by the chart defaults. Review
+n8n `2.29.7` is the upstream stable release used by the chart defaults. Review
 the upstream release notes before upgrading, back up the database, and keep the
 encryption key stable before upgrading live deployments. This chart keeps the
 hardened non-root container defaults with resource requests and limits. Queue
@@ -194,6 +194,11 @@ mode fails fast when it resolves to SQLite or when Redis is not configured,
 because workers must share the same PostgreSQL, MySQL, or external database as
 the main pod. Validate database and queue mode in a staging namespace before
 reusing production PVCs.
+
+The issue target `2.29.6` is marked as a pre-release upstream. This chart uses
+`2.29.7`, the next stable release, which includes fixes for Code node workflows
+with AI tools, versioned action generation for nodes with flat Action fields,
+and Salesforce document upload and JWT authentication error reporting.
 
 The chart defaults to `N8N_RUNNERS_MODE=external`. It creates a shared auth
 token, opens the broker port, and runs a `docker.io/n8nio/runners` sidecar next
