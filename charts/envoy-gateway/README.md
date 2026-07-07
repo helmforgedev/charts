@@ -448,9 +448,9 @@ Major architectural redesign to align with the EG operator model.
 `docker.io/envoyproxy/gateway:v1.8.2` is the upstream patch update from
 `v1.8.1`. The automatically generated issue referenced `1.8.2`, but Docker Hub
 publishes the canonical Envoy Gateway image tag with the `v` prefix. This chart
-also updates the managed Envoy proxy image to
-`docker.io/envoyproxy/envoy:distroless-v1.38.0`, matching the upstream v1.8
-compatibility matrix.
+keeps the managed Envoy proxy image pinned to
+`docker.io/envoyproxy/envoy:distroless-v1.38.0`, which remains aligned with the
+upstream v1.8 compatibility matrix.
 
 Envoy Gateway v1.8.2 includes upstream bug fixes for Gateway API conditions,
 Backend TLS ALPN handling, ExternalName backends, Kubernetes 1.36 rate limit
