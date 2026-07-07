@@ -76,6 +76,14 @@ When ingress is enabled, requests are routed by path:
 
 See [`values.yaml`](values.yaml) for the full configuration reference.
 
+## Upgrade Notes
+
+Appwrite 1.9.5 requires the upstream database migration step even when upgrading
+from Appwrite 1.9.0. After `helm upgrade`, run the Appwrite migrate command
+against an Appwrite API pod before returning production traffic to the release,
+for example with `kubectl exec deploy/<release>-appwrite-api -- appwrite migrate`
+adjusted to the release name and namespace.
+
 ## External Database
 
 To use an external MariaDB instead of the subchart:
