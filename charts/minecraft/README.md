@@ -255,10 +255,14 @@ Spigot servers, provide the platform-specific Floodgate plugin through
 
 ## Upgrade Notes
 
-`docker.io/itzg/minecraft-server:2026.6.1` updates the upstream server image from
-`2026.6.0`. Review the upstream release notes before upgrading production servers,
-take a world backup, and verify plugins, mods, datapacks, proxy settings, and
-pinned `server.version` values in a staging environment before reusing existing PVCs.
+`docker.io/itzg/minecraft-server:2026.7.0` updates the upstream server image from
+`2026.6.1`. The upstream release adds Purpur support for ServerLibraryCleaner,
+fixes start-utils extraction for non-specific file types, fixes Paper boolean
+flag handling, improves GTNH pack version handling, and reloads
+`LOAD_ENV_FROM_FILE` after the packwiz installer runs.
+Review the upstream release notes before upgrading production servers, take a
+world backup, and verify plugins, mods, datapacks, proxy settings, and pinned
+`server.version` values in a staging environment before reusing existing PVCs.
 
 ## Security Scan
 
