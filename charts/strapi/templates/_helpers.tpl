@@ -3,6 +3,11 @@
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "strapi.validate" -}}
+{{- $_ := include "strapi.databaseMode" . -}}
+{{- $_ := include "strapi.replicaCount" . -}}
+{{- end -}}
+
 {{- define "strapi.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
