@@ -34,7 +34,7 @@ certgen:
   enabled: true          # Enable the certgen job (required for EG to function)
   image:
     repository: docker.io/envoyproxy/gateway
-    tag: v1.8.1
+    tag: v1.8.2
   resources:
     requests:
       cpu: 10m
