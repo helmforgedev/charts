@@ -61,7 +61,7 @@ When ingress is enabled, requests are routed by path:
 | `image.repository` | `appwrite/appwrite` | Appwrite server image |
 | `image.tag` | `""` (uses appVersion) | Image tag |
 | `console.image.repository` | `appwrite/console` | Console image |
-| `console.image.tag` | `7.5.7` | Console image tag |
+| `console.image.tag` | `8.7.5` | Console image tag |
 | `appwrite.locale` | `en` | Application locale |
 | `appwrite.domain` | `""` (auto-detected) | Appwrite domain |
 | `appwrite.openSslKeyV1` | `""` (auto-generated) | 64-char hex encryption key |
@@ -75,6 +75,14 @@ When ingress is enabled, requests are routed by path:
 | `redis.enabled` | `true` | Deploy Redis subchart |
 
 See [`values.yaml`](values.yaml) for the full configuration reference.
+
+## Upgrade Notes
+
+Appwrite 1.9.5 requires the upstream database migration step even when upgrading
+from Appwrite 1.9.0. After `helm upgrade`, run the Appwrite migrate command
+against an Appwrite API pod before returning production traffic to the release,
+for example with `kubectl exec deploy/<release>-appwrite-api -- appwrite migrate`
+adjusted to the release name and namespace.
 
 ## External Database
 
