@@ -1,0 +1,132 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: passes with default bundled MySQL settings
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: fails when MySQL is disabled without an external database host
+    set:
+      mysql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: database.external.host is required when mysql.enabled is false
+
+  - it: fails when external database has no password source
+    set:
+      mysql.enabled: false
+      database.external.host: mysql.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: database.external.password or database.external.existingSecret is required when mysql.enabled is false
+
+  - it: passes with external database password
+    set:
+      mysql.enabled: false
+      database.external.host: mysql.example.com
+      database.external.password: test-password
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: passes with external database existing secret
+    set:
+      mysql.enabled: false
+      database.external.host: mysql.example.com
+      database.external.existingSecret: ghost-db
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: fails when ingress is enabled without hosts
+    set:
+      ingress.enabled: true
+      ingress.hosts: []
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.enabled requires ingress.hosts to contain at least one host
+
+  - it: fails when ingress host entry has no host
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.hosts[0].host is required when ingress.enabled is true
+
+  - it: passes with valid ingress hosts
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: blog.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: fails when gateway is enabled without parentRefs
+    set:
+      gateway.enabled: true
+      gateway.parentRefs: []
+    asserts:
+      - failedTemplate:
+          errorMessage: gateway.parentRefs must contain at least one parentRef when gateway.enabled is true
+
+  - it: passes with valid gateway parentRefs
+    set:
+      gateway.enabled: true
+      gateway.parentRefs:
+        - name: platform-gateway
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: fails when external secrets has no target database secret
+    set:
+      externalSecrets.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: database.external.existingSecret is required when externalSecrets.enabled is true
+
+  - it: fails when external secrets has no secret store name
+    set:
+      database.external.existingSecret: ghost-db
+      externalSecrets.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.secretStoreRef.name is required when externalSecrets.enabled is true
+
+  - it: fails when external secrets has no data entries
+    set:
+      database.external.existingSecret: ghost-db
+      externalSecrets:
+        enabled: true
+        secretStoreRef:
+          name: fake-store
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.data must contain at least one entry when externalSecrets.enabled is true
+
+  - it: passes with complete external secrets settings
+    set:
+      database.external.existingSecret: ghost-db
+      externalSecrets:
+        enabled: true
+        secretStoreRef:
+          name: fake-store
+        data:
+          - secretKey: password
+            remoteRef:
+              key: ghost/db
+              property: password
+    asserts:
+      - hasDocuments:
+          count: 0
