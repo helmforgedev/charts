@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: clickhouse network policy
+templates:
+  - networkpolicy.yaml
+tests:
+  - it: does not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders ingress network policy
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+      - contains:
+          path: spec.ingress[0].from
+          content:
+            podSelector: {}
+  - it: renders metrics ingress when metrics enabled
+    set:
+      metrics:
+        enabled: true
+      networkPolicy:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.ingress[1].ports[0].port
+          value: metrics
+      - contains:
+          path: spec.ingress[1].from
+          content:
+            podSelector: {}
+  - it: renders DNS egress rule
+    set:
+      networkPolicy:
+        enabled: true
+        egress:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53

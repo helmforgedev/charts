@@ -1,0 +1,88 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+ClickHouse has been installed.
+
+1. Installation summary
+=======================
+- Release: {{ .Release.Name }}
+- Namespace: {{ include "clickhouse.namespace" . }}
+- Chart: {{ .Chart.Name }} {{ .Chart.Version }}
+- App version: {{ .Chart.AppVersion }}
+- Image: {{ include "clickhouse.image" . }}
+- Replicas: {{ .Values.replicaCount }}
+- Metrics: {{ ternary "enabled" "disabled" .Values.metrics.enabled }}
+
+2. Access
+=========
+HTTP API:
+  http://{{ include "clickhouse.fullname" . }}.{{ include "clickhouse.namespace" . }}.svc.{{ .Values.clusterDomain }}:{{ .Values.service.ports.http }}
+
+Native TCP:
+  {{ include "clickhouse.fullname" . }}.{{ include "clickhouse.namespace" . }}.svc.{{ .Values.clusterDomain }}:{{ .Values.service.ports.tcp }}
+
+Port-forward HTTP:
+  kubectl -n {{ include "clickhouse.namespace" . }} port-forward svc/{{ include "clickhouse.fullname" . }} 8123:{{ .Values.service.ports.http }}
+  curl -fsS http://127.0.0.1:8123/ping
+
+Port-forward native TCP:
+  kubectl -n {{ include "clickhouse.namespace" . }} port-forward svc/{{ include "clickhouse.fullname" . }} 9000:{{ .Values.service.ports.tcp }}
+
+3. Getting started
+==================
+Wait for readiness:
+  kubectl -n {{ include "clickhouse.namespace" . }} rollout status statefulset/{{ include "clickhouse.fullname" . }} --timeout=5m
+
+Run an HTTP query:
+  kubectl -n {{ include "clickhouse.namespace" . }} run {{ include "clickhouse.fullname" . }}-query --rm -i --restart=Never --image=docker.io/curlimages/curl:8.17.0 -- curl -fsS "http://{{ include "clickhouse.fullname" . }}:{{ .Values.service.ports.http }}/?query=SELECT%201"
+
+4. Credentials
+==============
+- User: {{ .Values.clickhouse.user }}
+{{- if or .Values.clickhouse.password .Values.clickhouse.existingSecret .Values.externalSecrets.enabled }}
+- Password secret: {{ include "clickhouse.secretName" . }} / {{ .Values.clickhouse.existingSecretPasswordKey }}
+{{- else }}
+- Password: empty by default. Set clickhouse.password, clickhouse.existingSecret, or externalSecrets for production.
+{{- end }}
+
+5. Configuration summary
+========================
+- Data PVC: {{ ternary "enabled" "disabled" .Values.persistence.enabled }}
+- Data size: {{ .Values.persistence.size }}
+- Logs PVC: {{ ternary "enabled" "disabled" .Values.logs.persistence.enabled }}
+- Prometheus endpoint: {{ ternary (printf "enabled on %s:%d" .Values.metrics.path (.Values.service.ports.metrics | int)) "disabled" .Values.metrics.enabled }}
+
+6. Validation commands
+======================
+Pods:
+  kubectl -n {{ include "clickhouse.namespace" . }} get pods -l app.kubernetes.io/instance={{ .Release.Name | quote }} -o wide
+
+Health:
+  kubectl -n {{ include "clickhouse.namespace" . }} exec statefulset/{{ include "clickhouse.fullname" . }} -- wget -qO- http://127.0.0.1:{{ .Values.service.ports.http }}/ping
+
+Helm test:
+  helm test {{ .Release.Name }} -n {{ include "clickhouse.namespace" . }}
+
+7. Troubleshooting
+==================
+Events:
+  kubectl -n {{ include "clickhouse.namespace" . }} get events --sort-by=.lastTimestamp
+
+Server logs:
+  kubectl -n {{ include "clickhouse.namespace" . }} logs statefulset/{{ include "clickhouse.fullname" . }} -c clickhouse --tail=200
+
+Configuration:
+  kubectl -n {{ include "clickhouse.namespace" . }} get configmap {{ include "clickhouse.configMapName" . }} -o yaml
+
+Common checks:
+- If the pod is pending, inspect PVC binding and StorageClass availability.
+- If authentication fails, verify the password secret before first startup.
+- If you need shards or replicas, use the ClickHouse Operator instead of increasing replicaCount.
+- If metrics are missing, set metrics.enabled=true and verify the Service exposes the metrics port.
+
+8. Resources
+============
+- HelmForge docs: https://helmforge.dev/docs/charts/clickhouse
+- ClickHouse Docker docs: https://clickhouse.com/docs/install/docker
+- ClickHouse Operator docs: https://clickhouse.com/docs/clickhouse-operator/guides/introduction
+- Issues: https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)

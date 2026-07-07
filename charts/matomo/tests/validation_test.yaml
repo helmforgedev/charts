@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: matomo validations
+templates:
+  - validate.yaml
+tests:
+  - it: rejects selector label override
+    set:
+      podLabels:
+        app.kubernetes.io/name: bad
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels must not override app.kubernetes.io/name
+  - it: fails ingress without hosts
+    set:
+      ingress:
+        enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.hosts must contain at least one host when ingress.enabled=true
+  - it: fails ExternalSecrets without items
+    set:
+      externalSecrets:
+        enabled: true
+        items: []
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.items must contain at least one item when externalSecrets.enabled=true
+  - it: fails external database without password even when archiver is disabled
+    set:
+      mysql:
+        enabled: false
+      database:
+        mode: external
+        external:
+          host: mysql.example.com
+      archiver:
+        enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: external database mode requires database.external.password, database.external.existingSecret, or ExternalSecret targeting the database secret
+  - it: fails external database with unrelated ExternalSecret
+    set:
+      mysql:
+        enabled: false
+      database:
+        mode: external
+        external:
+          host: mysql.example.com
+      externalSecrets:
+        enabled: true
+        items:
+          - fullnameOverride: unrelated-secret
+            spec:
+              secretStoreRef:
+                name: helmforge-fake-store
+                kind: ClusterSecretStore
+              data:
+                - secretKey: database-password
+                  remoteRef:
+                    key: matomo/database-password
+    asserts:
+      - failedTemplate:
+          errorMessage: external database mode requires database.external.password, database.external.existingSecret, or ExternalSecret targeting the database secret
+  - it: accepts external database with database-targeting ExternalSecret
+    set:
+      mysql:
+        enabled: false
+      database:
+        mode: external
+        external:
+          host: mysql.example.com
+      externalSecrets:
+        enabled: true
+        items:
+          - spec:
+              secretStoreRef:
+                name: helmforge-fake-store
+                kind: ClusterSecretStore
+              data:
+                - secretKey: database-password
+                  remoteRef:
+                    key: matomo/database-password
+    asserts:
+      - notFailedTemplate: {}

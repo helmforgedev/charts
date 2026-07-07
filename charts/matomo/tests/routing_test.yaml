@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: matomo routing
+templates:
+  - ingress.yaml
+  - gateway-httproute.yaml
+tests:
+  - it: does not render ingress by default
+    template: ingress.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders ingress with ingressClassName
+    template: ingress.yaml
+    set:
+      ingress:
+        enabled: true
+        ingressClassName: nginx
+        hosts:
+          - host: matomo.example.com
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+  - it: renders HTTPRoute with default backend
+    template: gateway-httproute.yaml
+    set:
+      gatewayAPI:
+        enabled: true
+        httpRoutes:
+          - parentRefs:
+              - name: gateway
+            hostnames:
+              - matomo.example.com
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 80

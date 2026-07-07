@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: clickhouse validations
+templates:
+  - validate.yaml
+tests:
+  - it: blocks unsafe replica count
+    set:
+      replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCount > 1 is intentionally blocked in this chart; use ClickHouse Operator for replicated clusters"
+  - it: blocks selector label override
+    set:
+      podLabels:
+        app.kubernetes.io/instance: bad
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels must not override app.kubernetes.io/instance
+  - it: fails ExternalSecrets without items
+    set:
+      externalSecrets:
+        enabled: true
+        items: []
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.items must contain at least one item when externalSecrets.enabled=true
+  - it: fails ServiceMonitor without metrics endpoint
+    set:
+      metrics:
+        serviceMonitor:
+          enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: metrics.serviceMonitor.enabled requires metrics.enabled=true
+  - it: blocks inline password with existing secret
+    set:
+      clickhouse:
+        password: test
+        existingSecret: clickhouse-auth
+    asserts:
+      - failedTemplate:
+          errorMessage: clickhouse.existingSecret and clickhouse.password are mutually exclusive

@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: matomo deployment
+templates:
+  - configmap.yaml
+  - secret.yaml
+  - deployment.yaml
+tests:
+  - it: renders deployment with official image
+    template: deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/library/matomo:5.11.2-apache
+  - it: wires Matomo database environment variables
+    template: deployment.yaml
+    asserts:
+      - exists:
+          path: spec.template.metadata.annotations["checksum/secret"]
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MATOMO_DATABASE_DBNAME
+            value: matomo
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MATOMO_DATABASE_USERNAME
+            value: matomo
+  - it: mounts persistent application data
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          value: /var/www/html
