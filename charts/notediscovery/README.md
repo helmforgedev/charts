@@ -4,7 +4,7 @@ Deploy [NoteDiscovery](https://github.com/gamosoft/NoteDiscovery), a
 self-hosted Markdown knowledge base with graph view, search, sharing, and MCP
 integration.
 
-This chart packages the official `ghcr.io/gamosoft/notediscovery:0.27.3` image
+This chart packages the official `ghcr.io/gamosoft/notediscovery:0.28.1` image
 and exposes the runtime settings that matter for Kubernetes: persistent note
 storage, generated or externally managed `config.yaml`, optional authentication,
 ingress/Gateway API exposure, network policy, pod disruption budget, and
@@ -146,6 +146,16 @@ The chart blocks `replicaCount > 1` unless `persistence.existingClaim` is set.
 Multiple pods require storage semantics chosen by the operator, typically a
 shared ReadWriteMany claim; the default generated claim is a single-writer
 volume.
+
+## Upgrade Notes
+
+NoteDiscovery `0.28.1` includes the large-vault performance work from `0.28.0`
+and the upstream task rendering fix from `0.28.1`. The upstream release adds an
+in-memory note index, background index warmup, faster search and graph
+endpoints, and support for overriding storage paths with `NOTES_DIR` and
+`PLUGINS_DIR`. The chart continues to render `storage.notes_dir` from
+`persistence.mountPath`; keep that path stable across upgrades and back up the
+PVC before upgrading production vaults.
 
 ## Network Policy
 
