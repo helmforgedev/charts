@@ -52,6 +52,13 @@ After deploying, port-forward to access the web interface and create your admin 
 kubectl port-forward svc/<release>-komga 25600:80
 ```
 
+## Upgrade Notes
+
+Komga `1.25.0` adds support for solid RAR4 archives, enforces Kobo content
+restrictions more consistently, flattens hierarchical OpenAPI schemas, and
+updates application dependencies including Spring Boot. Back up the `/config`
+PVC before upgrading because Komga stores its SQLite databases there.
+
 ## Production Example
 
 ```yaml
@@ -98,7 +105,7 @@ backup:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/gotson/komga` | Image repository |
-| `image.tag` | `"1.24.4"` | Image tag |
+| `image.tag` | `"1.25.0"` | Image tag |
 | `image.pullPolicy` | `IfNotPresent` | Pull policy |
 
 ### Komga Configuration
