@@ -1,7 +1,7 @@
 # Envoy Gateway
 
 A Helm chart for deploying [Envoy Gateway](https://gateway.envoyproxy.io/)
-v1.8.1 on Kubernetes. Envoy Gateway is a **Kubernetes operator** — it manages
+v1.8.2 on Kubernetes. Envoy Gateway is a **Kubernetes operator** — it manages
 Envoy proxy pods automatically in response to Gateway API resources.
 
 ## Installation
@@ -27,7 +27,7 @@ The Envoy Gateway operator CRDs (`gateway.envoyproxy.io/*`: `EnvoyProxy`,
 chart's `crds/` directory, so Helm installs them automatically on first install
 when they are absent (and skips them if already present). Only the upstream
 **Gateway API** CRDs (`gateway.networking.k8s.io/*`) are a separate cluster
-prerequisite, installed once below. Envoy Gateway v1.8.1 requires the Gateway API
+prerequisite, installed once below. Envoy Gateway v1.8.2 requires the Gateway API
 **experimental** channel (v1.5.1) — it watches `ListenerSet`, which only ships in
 the experimental channel; the standard channel is not sufficient. These CRDs are
 cluster-scoped and shared, so they are NOT bundled in the chart (Helm's release
@@ -173,7 +173,7 @@ highAvailability:
 |-----|---------|-------------|
 | `controller.replicaCount` | `1` | Number of controller replicas (overridden by profile) |
 | `controller.image.repository` | `docker.io/envoyproxy/gateway` | Controller image repository |
-| `controller.image.tag` | `v1.8.1` | Controller image tag |
+| `controller.image.tag` | `v1.8.2` | Controller image tag |
 | `controller.image.pullPolicy` | `IfNotPresent` | Image pull policy |
 | `controller.resources.requests.cpu` | `100m` | CPU request (overridden by profile) |
 | `controller.resources.requests.memory` | `128Mi` | Memory request (overridden by profile) |
@@ -191,7 +191,7 @@ highAvailability:
 |-----|---------|-------------|
 | `certgen.enabled` | `true` | Run certgen pre-install/pre-upgrade job for controller TLS certs |
 | `certgen.image.repository` | `docker.io/envoyproxy/gateway` | Certgen image (same as controller) |
-| `certgen.image.tag` | `v1.8.1` | Certgen image tag |
+| `certgen.image.tag` | `v1.8.2` | Certgen image tag |
 | `certgen.resources.requests.cpu` | `10m` | CPU request |
 | `certgen.resources.requests.memory` | `64Mi` | Memory request |
 | `certgen.resources.limits.cpu` | `100m` | CPU limit |
@@ -210,7 +210,7 @@ highAvailability:
 | `proxy.image.tag` | `distroless-v1.38.0` | Proxy image tag |
 | `proxy.image.pullPolicy` | `IfNotPresent` | Image pull policy |
 | `proxy.shutdownManager.image.repository` | `docker.io/envoyproxy/gateway` | Shutdown manager sidecar image repository |
-| `proxy.shutdownManager.image.tag` | `v1.8.1` | Shutdown manager sidecar image tag |
+| `proxy.shutdownManager.image.tag` | `v1.8.2` | Shutdown manager sidecar image tag |
 | `proxy.shutdownManager.image.pullPolicy` | `IfNotPresent` | Shutdown manager image pull policy |
 | `proxy.resources.requests.cpu` | `100m` | CPU request (overridden by profile) |
 | `proxy.resources.requests.memory` | `128Mi` | Memory request (overridden by profile) |
@@ -445,25 +445,21 @@ Major architectural redesign to align with the EG operator model.
 
 ## Upgrade Notes
 
-`docker.io/envoyproxy/gateway:v1.8.1` is the upstream patch update from
-`v1.8.0`. The automatically generated issue referenced `1.8.1`, but Docker Hub
+`docker.io/envoyproxy/gateway:v1.8.2` is the upstream patch update from
+`v1.8.1`. The automatically generated issue referenced `1.8.2`, but Docker Hub
 publishes the canonical Envoy Gateway image tag with the `v` prefix. This chart
-also updates the managed Envoy proxy image to
-`docker.io/envoyproxy/envoy:distroless-v1.38.0`, matching the upstream v1.8
-compatibility matrix.
+keeps the managed Envoy proxy image pinned to
+`docker.io/envoyproxy/envoy:distroless-v1.38.0`, which remains aligned with the
+upstream v1.8 compatibility matrix.
 
-Envoy Gateway v1.8.1 includes security fixes for GatewayNamespaceMode xDS
-authentication, Lua validator sandbox path normalization, Wasm HTTP fetch gzip
-decompression limits, ReferenceGrant bypass handling, and related controller
-runtime issues. The chart now also pins the EG-managed `shutdown-manager`
-sidecar to `docker.io/envoyproxy/gateway:v1.8.1` through the EnvoyProxy strategic
-merge patch, avoiding the upstream-generated `gateway-dev:latest` runtime image.
-It also moves Gateway API safe-upgrades ValidatingAdmissionPolicy resources from
-the CRD bundle into the gateway Helm templates upstream. Before upgrading
-production controllers, review ownership of existing
-`safe-upgrades.gateway.networking.k8s.io` ValidatingAdmissionPolicy resources,
-verify Gateway API and Envoy Gateway CRDs in staging, and test existing Gateway,
-HTTPRoute, EnvoyProxy, and policy resources.
+Envoy Gateway v1.8.2 includes upstream bug fixes for Gateway API conditions,
+Backend TLS ALPN handling, ExternalName backends, Kubernetes 1.36 rate limit
+validation, EnvoyGateway config hot reload, and route timeout handling. It also
+tightens admission validation for `SecurityPolicy.spec.apiKeyAuth.extractFrom`:
+each entry must specify exactly one of `headers`, `params`, or `cookies`, and
+source names must be non-empty. Before upgrading production controllers, verify
+Gateway API and Envoy Gateway CRDs in staging, and test existing Gateway,
+HTTPRoute, EnvoyProxy, `BackendTrafficPolicy`, and `SecurityPolicy` resources.
 
 ### Version 1.0.0
 
