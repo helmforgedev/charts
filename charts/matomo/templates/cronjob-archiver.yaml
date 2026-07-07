@@ -1,0 +1,79 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.archiver.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "matomo.suffixedName" (dict "base" (include "matomo.fullname" .) "suffix" "-archiver") }}
+  namespace: {{ include "matomo.namespace" . | quote }}
+  labels:
+    {{- include "matomo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: archiver
+spec:
+  schedule: {{ .Values.archiver.schedule | quote }}
+  concurrencyPolicy: {{ .Values.archiver.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.archiver.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.archiver.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: {{ .Values.archiver.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            {{- include "matomo.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: archiver
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: {{ include "matomo.serviceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+          {{- with .Values.podSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: archive
+              image: {{ include "matomo.image" . | quote }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                - sh
+                - -ec
+                - |
+                  php /var/www/html/console core:archive --url="${MATOMO_URL}" {{ join " " .Values.archiver.extraArgs }}
+              env:
+                - name: MATOMO_URL
+                  value: {{ include "matomo.siteUrl" . | quote }}
+                - name: MATOMO_DATABASE_HOST
+                  value: {{ printf "%s:%s" (include "matomo.databaseHost" .) (include "matomo.databasePort" .) | quote }}
+                - name: MATOMO_DATABASE_USERNAME
+                  value: {{ include "matomo.databaseUsername" . | quote }}
+                - name: MATOMO_DATABASE_DBNAME
+                  value: {{ include "matomo.databaseName" . | quote }}
+                - name: MATOMO_DATABASE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "matomo.databaseSecretName" . }}
+                      key: {{ include "matomo.databaseSecretKey" . }}
+              resources:
+                {{- toYaml .Values.archiver.resources | nindent 16 }}
+              volumeMounts:
+                - name: matomo-data
+                  mountPath: /var/www/html
+                {{- if .Values.php.ini }}
+                - name: php-config
+                  mountPath: /usr/local/etc/php/conf.d/helmforge.ini
+                  subPath: custom.ini
+                  readOnly: true
+                {{- end }}
+          volumes:
+            - name: matomo-data
+              {{- if .Values.persistence.enabled }}
+              persistentVolumeClaim:
+                claimName: {{ default (include "matomo.fullname" .) .Values.persistence.existingClaim }}
+              {{- else }}
+              emptyDir: {}
+              {{- end }}
+            {{- if .Values.php.ini }}
+            - name: php-config
+              configMap:
+                name: {{ include "matomo.configMapName" . }}
+            {{- end }}
+{{- end }}

@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: matomo archiver
+templates:
+  - cronjob-archiver.yaml
+tests:
+  - it: renders archiver CronJob by default
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.schedule
+          value: "5 * * * *"
+      - equal:
+          path: spec.concurrencyPolicy
+          value: Forbid
+  - it: disables archiver when requested
+    set:
+      archiver:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: uses configured public URL
+    set:
+      matomo:
+        siteUrl: https://analytics.example.com
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: MATOMO_URL
+            value: https://analytics.example.com

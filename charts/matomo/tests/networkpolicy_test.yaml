@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: matomo network policy
+templates:
+  - networkpolicy.yaml
+tests:
+  - it: does not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders ingress policy
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+  - it: renders egress policy with DNS
+    set:
+      networkPolicy:
+        enabled: true
+        egress:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53

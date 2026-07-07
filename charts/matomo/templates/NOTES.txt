@@ -1,0 +1,102 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+Matomo has been installed.
+
+1. Installation summary
+=======================
+- Release: {{ .Release.Name }}
+- Namespace: {{ include "matomo.namespace" . }}
+- Chart: {{ .Chart.Name }} {{ .Chart.Version }}
+- App version: {{ .Chart.AppVersion }}
+- Image: {{ include "matomo.image" . }}
+- Database mode: {{ include "matomo.databaseMode" . }}
+- Web replicas: {{ .Values.replicaCount }}
+- Archiver CronJob: {{ ternary "enabled" "disabled" .Values.archiver.enabled }}
+
+2. Access
+=========
+Cluster service:
+  http://{{ include "matomo.fullname" . }}.{{ include "matomo.namespace" . }}.svc.{{ .Values.clusterDomain }}:{{ .Values.service.port }}
+
+Port-forward:
+  kubectl -n {{ include "matomo.namespace" . }} port-forward svc/{{ include "matomo.fullname" . }} 8080:{{ .Values.service.port }}
+  Open http://127.0.0.1:8080
+
+{{- if .Values.ingress.enabled }}
+Ingress hosts:
+{{- range .Values.ingress.hosts }}
+  - {{ .host }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.gatewayAPI.enabled }}
+Gateway API HTTPRoutes:
+{{- range $index, $route := .Values.gatewayAPI.httpRoutes }}
+  - {{ include "matomo.httpRouteName" (dict "root" $ "route" $route "index" $index) }}
+{{- end }}
+{{- end }}
+
+3. Getting started
+==================
+Wait for Matomo and MySQL:
+  kubectl -n {{ include "matomo.namespace" . }} rollout status deploy/{{ include "matomo.fullname" . }} --timeout=5m
+  kubectl -n {{ include "matomo.namespace" . }} get pods -l app.kubernetes.io/instance={{ .Release.Name | quote }}
+
+Complete the Matomo web installer in the browser. The chart pre-wires database
+connectivity through MATOMO_DATABASE_* environment variables, but Matomo still
+expects the first-time application setup flow.
+
+4. Database
+===========
+- Host: {{ include "matomo.databaseHost" . }}
+- Port: {{ include "matomo.databasePort" . }}
+- Database: {{ include "matomo.databaseName" . }}
+- User: {{ include "matomo.databaseUsername" . }}
+- Password secret: {{ include "matomo.databaseSecretName" . }} / {{ include "matomo.databaseSecretKey" . }}
+
+5. Production archiving
+=======================
+The chart can run Matomo report archiving outside user traffic:
+  kubectl -n {{ include "matomo.namespace" . }} get cronjob {{ include "matomo.suffixedName" (dict "base" (include "matomo.fullname" .) "suffix" "-archiver") }}
+
+Trigger one archive run manually:
+  kubectl -n {{ include "matomo.namespace" . }} create job --from=cronjob/{{ include "matomo.suffixedName" (dict "base" (include "matomo.fullname" .) "suffix" "-archiver") }} {{ include "matomo.fullname" . }}-archive-now
+
+6. Validation commands
+======================
+Service endpoints:
+  kubectl -n {{ include "matomo.namespace" . }} get endpoints {{ include "matomo.fullname" . }}
+
+HTTP smoke test:
+  kubectl -n {{ include "matomo.namespace" . }} run {{ include "matomo.fullname" . }}-curl --rm -i --restart=Never --image=docker.io/curlimages/curl:8.17.0 -- curl -fsS http://{{ include "matomo.fullname" . }}:{{ .Values.service.port }}/matomo.php
+
+Helm test:
+  helm test {{ .Release.Name }} -n {{ include "matomo.namespace" . }}
+
+7. Troubleshooting
+==================
+Pods:
+  kubectl -n {{ include "matomo.namespace" . }} get pods -l app.kubernetes.io/instance={{ .Release.Name | quote }} -o wide
+
+Events:
+  kubectl -n {{ include "matomo.namespace" . }} get events --sort-by=.lastTimestamp
+
+Matomo logs:
+  kubectl -n {{ include "matomo.namespace" . }} logs deploy/{{ include "matomo.fullname" . }} -c matomo --tail=200
+
+Archiver logs:
+  kubectl -n {{ include "matomo.namespace" . }} logs job/{{ include "matomo.fullname" . }}-archive-now --tail=200
+
+Common checks:
+- If the web installer cannot reach the database, verify the password secret.
+- If report pages are slow, enable or tune archiver.schedule.
+- If client IPs are wrong behind ingress, configure Matomo trusted proxy headers.
+- If multiple replicas are used, make sure storage and PHP sessions are safe for that topology.
+
+8. Resources
+============
+- HelmForge docs: https://helmforge.dev/docs/charts/matomo
+- Upstream docs: https://matomo.org/faq/on-premise/
+- Archiving guide: https://developer.matomo.org/guides/archiving
+- Issues: https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)
