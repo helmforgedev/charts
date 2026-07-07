@@ -38,7 +38,7 @@ helm install docmost oci://ghcr.io/helmforgedev/helm/docmost
 - Docmost requires PostgreSQL and Redis
 - local storage uses `/app/data/storage`
 - S3 mode uses the official `AWS_S3_*` environment variables documented by Docmost
-- the default image tag is `0.90.1`, validated against the published `docmost/docmost:0.90.1` container image
+- the default image tag is `0.95.0`, validated against the published `docmost/docmost:0.95.0` container image
 - upstream telemetry can be disabled with `docmost.disableTelemetry=true`
 - this chart intentionally does not keep `Chart.lock`; dependencies are resolved by the repository release workflow
 
@@ -153,7 +153,7 @@ backup:
 |-----|---------|-------------|
 | `replicaCount` | `1` | Number of Docmost application pods. Values greater than `1` require `storage.mode=s3` |
 | `image.repository` | `docker.io/docmost/docmost` | Docmost container image repository |
-| `image.tag` | `0.90.1` | Docmost image tag |
+| `image.tag` | `0.95.0` | Docmost image tag |
 | `docmost.appUrl` | `""` | External Docmost URL |
 | `docmost.appSecret` | `""` | Application secret, auto-generated when empty |
 | `docmost.jwtTokenExpiresIn` | `30d` | JWT expiration |
