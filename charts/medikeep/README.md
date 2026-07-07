@@ -2,8 +2,17 @@
 
 Deploy [MediKeep](https://github.com/afairgiant/MediKeep), a self-hosted personal medical records application built with React and FastAPI.
 
-This chart packages the official `ghcr.io/afairgiant/medikeep:v0.67.0` image with PostgreSQL, persistent uploads and backups,
+This chart packages the official `ghcr.io/afairgiant/medikeep:v0.68.0` image with PostgreSQL, persistent uploads and backups,
 Kubernetes Ingress, Gateway API, NetworkPolicy, and External Secrets Operator integration.
+
+## Upgrade Notes
+
+MediKeep `v0.68.0` adds medication reminder configuration and test reminders,
+new clinical data options such as Chikungunya vaccine support, stacked lab
+result views, and practitioner entry improvements. It also includes fixes for
+reference range validation, immunization history linking, condition lab results,
+and a migration file ID overlap. Back up PostgreSQL and uploaded records before
+upgrading.
 
 ## Install
 
