@@ -222,6 +222,7 @@ backup:
 | `service.dns.type` | `LoadBalancer` | DNS service type |
 | `service.dns.port` | `53` | DNS port |
 | `service.dns.loadBalancerIP` | `""` | Fixed IP for DNS stability |
+| `service.dns.externalTrafficPolicy` | `Cluster` | Traffic policy for external traffic (`Cluster`, `Local`). Set to `Local` to preserve client source IP |
 | `service.dns.ipFamilyPolicy` | `~` | Dual-stack policy (`SingleStack`, `PreferDualStack`, `RequireDualStack`) |
 | `service.dns.ipFamilies` | `[]` | IP families (`IPv4`, `IPv6`) |
 
