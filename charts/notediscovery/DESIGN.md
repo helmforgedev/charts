@@ -1,7 +1,7 @@
 # NoteDiscovery Chart Design
 
 This chart deploys NoteDiscovery as a self-hosted knowledge base using the
-official `ghcr.io/gamosoft/notediscovery:0.27.3` image.
+official `ghcr.io/gamosoft/notediscovery:0.28.1` image.
 
 ## Product Model
 
