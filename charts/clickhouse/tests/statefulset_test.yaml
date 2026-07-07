@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: clickhouse statefulset
+templates:
+  - configmap.yaml
+  - statefulset.yaml
+tests:
+  - it: renders official image
+    template: statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/clickhouse/clickhouse-server:25.8.28.1
+  - it: exposes HTTP and native TCP ports
+    template: statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].name
+          value: http
+      - equal:
+          path: spec.template.spec.containers[0].ports[1].name
+          value: tcp
+  - it: mounts data persistence path
+    template: statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /var/lib/clickhouse
+  - it: renders password env when password configured
+    template: statefulset.yaml
+    set:
+      clickhouse:
+        password: test-password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CLICKHOUSE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-clickhouse-auth
+                key: clickhouse-password
+  - it: uses emptyDir when persistence disabled
+    template: statefulset.yaml
+    set:
+      persistence:
+        enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+  - it: renders volumeClaimTemplates when persistence enabled
+    template: statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: data

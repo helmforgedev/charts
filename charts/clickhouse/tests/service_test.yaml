@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: clickhouse services
+templates:
+  - service.yaml
+tests:
+  - it: renders client and headless services
+    asserts:
+      - hasDocuments:
+          count: 2
+  - it: renders client service ports
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.ports[0].name
+          value: http
+      - equal:
+          path: spec.ports[1].name
+          value: tcp
+  - it: renders headless service
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: spec.clusterIP
+          value: None
+      - equal:
+          path: spec.publishNotReadyAddresses
+          value: true
+  - it: omits dual stack by default
+    documentIndex: 0
+    asserts:
+      - notExists:
+          path: spec.ipFamilyPolicy
+  - it: renders dual stack on both services
+    set:
+      service:
+        ipFamilyPolicy: PreferDualStack
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+        documentIndex: 0
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+        documentIndex: 1

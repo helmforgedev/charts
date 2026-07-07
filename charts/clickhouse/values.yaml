@@ -1,0 +1,216 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# ClickHouse Helm Chart
+# =============================================================================
+# Uses the official clickhouse/clickhouse-server image.
+# This chart intentionally targets production-safe standalone deployments.
+# For sharded or replicated clusters, use the ClickHouse Operator/Altinity CRDs.
+# =============================================================================
+
+# -- Override chart name
+nameOverride: ""
+
+# -- Override full release name
+fullnameOverride: ""
+
+# -- Override namespace for namespaced resources. The namespace must already exist.
+namespaceOverride: ""
+
+# -- Kubernetes cluster DNS domain
+clusterDomain: cluster.local
+
+# -- Labels added to all resources
+commonLabels: {}
+
+# -- Number of ClickHouse pods. Keep 1 unless you are deliberately managing replication outside this chart.
+replicaCount: 1
+
+image:
+  # -- Official ClickHouse image repository
+  repository: docker.io/clickhouse/clickhouse-server
+  # -- Official full-version tag
+  tag: "25.8.28.1"
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+clickhouse:
+  # -- Initial database created by the official entrypoint on empty data dir
+  database: default
+  # -- Initial user created by the official entrypoint
+  user: default
+  # -- Initial user password. Empty leaves default user passwordless; use existingSecret or ExternalSecret for production.
+  password: ""
+  # -- Existing Secret containing the ClickHouse password
+  existingSecret: ""
+  # -- Secret key containing the ClickHouse password
+  existingSecretPasswordKey: clickhouse-password
+  # -- Enable default access management for SQL user/role management
+  defaultAccessManagement: true
+  # -- Additional XML under config.d/helmforge.xml
+  extraConfig: ""
+  # -- Additional XML under users.d/helmforge-users.xml
+  extraUsersConfig: ""
+  # -- Extra environment variables for the ClickHouse container
+  extraEnv: []
+  # -- Additional envFrom sources for the ClickHouse container
+  extraEnvFrom: []
+
+service:
+  # -- Client Service type
+  type: ClusterIP
+  # -- Service annotations
+  annotations: {}
+  ports:
+    # -- HTTP API port
+    http: 8123
+    # -- Native TCP port
+    tcp: 9000
+    # -- Interserver HTTP port
+    interserver: 9009
+    # -- Prometheus metrics port
+    metrics: 9363
+  headless:
+    # -- Headless Service annotations
+    annotations: {}
+    # -- Publish not-ready addresses for stable pod DNS
+    publishNotReadyAddresses: true
+  # -- IP family policy: SingleStack | PreferDualStack | RequireDualStack. Empty uses cluster default.
+  ipFamilyPolicy: ""
+  # -- IP families. Empty uses cluster default.
+  ipFamilies: []
+
+persistence:
+  # -- Enable persistent storage for /var/lib/clickhouse
+  enabled: true
+  # -- Storage class. Empty uses cluster default.
+  storageClass: ""
+  # -- PVC access modes
+  accessModes:
+    - ReadWriteOnce
+  # -- PVC size
+  size: 20Gi
+
+logs:
+  persistence:
+    # -- Persist /var/log/clickhouse-server separately
+    enabled: false
+    # -- Storage class. Empty uses cluster default.
+    storageClass: ""
+    # -- PVC access modes
+    accessModes:
+      - ReadWriteOnce
+    # -- PVC size
+    size: 5Gi
+
+metrics:
+  # -- Enable built-in ClickHouse Prometheus endpoint
+  enabled: false
+  # -- Prometheus endpoint path
+  path: /metrics
+  serviceMonitor:
+    # -- Create ServiceMonitor
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+    namespaceSelector: {}
+
+externalSecrets:
+  # -- Render ExternalSecret resources
+  enabled: false
+  # -- Default refresh interval
+  refreshInterval: 1h
+  # -- ExternalSecret items using the canonical HelmForge items[] contract
+  items: []
+
+networkPolicy:
+  # -- Create NetworkPolicy resources
+  enabled: false
+  ingressFrom: []
+  metricsFrom: []
+  egress:
+    # -- Render explicit egress rules
+    enabled: false
+    # -- Allow DNS egress
+    allowDNS: true
+    # -- Extra peers
+    extraTo: []
+    # -- Extra complete egress rules
+    extraEgress: []
+
+podDisruptionBudget:
+  # -- Create PodDisruptionBudget when replicaCount > 1
+  enabled: true
+  # -- Maximum unavailable pods
+  maxUnavailable: 1
+  # -- Minimum available pods. Takes precedence when set.
+  minAvailable: ""
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: true
+  # -- ServiceAccount name override
+  name: ""
+  # -- ServiceAccount annotations
+  annotations: {}
+  # -- Automount Kubernetes API credentials
+  automountServiceAccountToken: false
+
+podSecurityContext:
+  fsGroup: 101
+  fsGroupChangePolicy: OnRootMismatch
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+  runAsUser: 101
+  runAsGroup: 101
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    memory: 2Gi
+
+startupProbe:
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+
+livenessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+readinessProbe:
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+terminationGracePeriodSeconds: 60
+podManagementPolicy: Parallel
+updateStrategy:
+  type: RollingUpdate
+
+podLabels: {}
+podAnnotations: {}
+priorityClassName: ""
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+
+extraInitContainers: []
+extraContainers: []
+extraVolumes: []
+extraVolumeMounts: []
+extraManifests: []

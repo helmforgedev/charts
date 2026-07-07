@@ -1,0 +1,31 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clickhouse.configMapName" . }}
+  namespace: {{ include "clickhouse.namespace" . | quote }}
+  labels:
+    {{- include "clickhouse.labels" . | nindent 4 }}
+data:
+  helmforge.xml: |
+    <clickhouse>
+      <listen_host>0.0.0.0</listen_host>
+      {{- if .Values.metrics.enabled }}
+      <prometheus>
+        <endpoint>{{ .Values.metrics.path }}</endpoint>
+        <port>{{ .Values.service.ports.metrics }}</port>
+        <metrics>true</metrics>
+        <events>true</events>
+        <asynchronous_metrics>true</asynchronous_metrics>
+      </prometheus>
+      {{- end }}
+{{- with .Values.clickhouse.extraConfig }}
+{{ . | indent 6 }}
+{{- end }}
+    </clickhouse>
+  users-helmforge.xml: |
+    <clickhouse>
+{{- with .Values.clickhouse.extraUsersConfig }}
+{{ . | indent 6 }}
+{{- end }}
+    </clickhouse>

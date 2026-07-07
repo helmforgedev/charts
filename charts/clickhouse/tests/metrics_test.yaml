@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: clickhouse metrics
+templates:
+  - configmap.yaml
+  - service.yaml
+  - servicemonitor.yaml
+tests:
+  - it: does not render ServiceMonitor by default
+    template: servicemonitor.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders metrics port and ServiceMonitor
+    set:
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+        template: servicemonitor.yaml
+      - equal:
+          path: spec.endpoints[0].port
+          value: metrics
+        template: servicemonitor.yaml

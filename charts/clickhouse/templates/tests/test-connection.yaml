@@ -1,0 +1,39 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "clickhouse.fullname" . }}-test-connection"
+  namespace: {{ include "clickhouse.namespace" . | quote }}
+  labels:
+    {{- include "clickhouse.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  containers:
+    - name: curl
+      image: docker.io/curlimages/curl:8.17.0
+      imagePullPolicy: IfNotPresent
+      command:
+        - sh
+        - -ec
+        - curl -fsS "http://{{ include "clickhouse.fullname" . }}:{{ .Values.service.ports.http }}/ping" | grep -q Ok
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+            - ALL
+        seccompProfile:
+          type: RuntimeDefault
