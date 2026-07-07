@@ -46,6 +46,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end }}
 
+{{- define "homarr.validate" -}}
+{{/* Triggers database selection validation through homarr.databaseMode; the return value is unused. */}}
+{{- $databaseMode := include "homarr.databaseMode" . -}}
+{{- end }}
+
 {{/* ======================================================================== */}}
 {{/* Encryption helpers                                                        */}}
 {{/* ======================================================================== */}}
