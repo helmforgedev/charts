@@ -14,10 +14,10 @@ Scaling above one pod is blocked because MediKeep writes uploads and generated b
 The chart uses the official upstream image:
 
 ```text
-ghcr.io/afairgiant/medikeep:v0.67.0
+ghcr.io/afairgiant/medikeep:v0.68.0
 ```
 
-The tag maps to the upstream `v0.67.0` release and publishes Linux `amd64` and `arm64` manifests.
+The tag maps to the upstream `v0.68.0` release and publishes Linux `amd64` and `arm64` manifests.
 
 ## Database
 
