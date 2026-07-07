@@ -61,7 +61,7 @@ When ingress is enabled, requests are routed by path:
 | `image.repository` | `appwrite/appwrite` | Appwrite server image |
 | `image.tag` | `""` (uses appVersion) | Image tag |
 | `console.image.repository` | `appwrite/console` | Console image |
-| `console.image.tag` | `7.5.7` | Console image tag |
+| `console.image.tag` | `8.7.5` | Console image tag |
 | `appwrite.locale` | `en` | Application locale |
 | `appwrite.domain` | `""` (auto-detected) | Appwrite domain |
 | `appwrite.openSslKeyV1` | `""` (auto-generated) | 64-char hex encryption key |
