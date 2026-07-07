@@ -91,7 +91,7 @@ Security posture acceptable.
 Local details:
 
 - Tool: Kubescape v4.0.9
-- Command: `kubescape scan framework mitre,nsa,soc2 .tmp\clickhouse-render.yaml`
+- Command: `kubescape scan framework mitre,nsa,soc2 .tmp/clickhouse-render.yaml`
 - Result: 0 critical failed resources, resource summary score 89.39%.
 
 ## Operator Boundary
