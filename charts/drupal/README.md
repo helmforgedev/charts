@@ -53,8 +53,15 @@ Then:
 
 ## Upstream Version Notes
 
-Drupal `11.4.0` is an upstream release for Drupal 11. Review the official
-Drupal release notes before upgrading production workloads.
+Drupal `11.4.0` is an upstream feature minor release for Drupal 11 and is
+marked by upstream as ready for production sites. The release changes the
+Composer dependency policy for `drupal/core-recommended`: Guzzle, Twig, and
+Symfony polyfills are no longer pinned there, so security and patch updates can
+be applied without waiting for a new Drupal core release.
+
+Before upgrading production workloads, test the site in staging with the same
+PHP extensions, Composer dependency set, storage class, and database mode used
+in production.
 
 ## Production Example
 
