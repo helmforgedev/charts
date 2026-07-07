@@ -71,7 +71,7 @@ ingress:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Image repository | `ghcr.io/timothepoznanski/poznote` |
-| `image.tag` | Image tag | `6.29.0` |
+| `image.tag` | Image tag | `6.30.2` |
 | `image.pullPolicy` | Pull policy | `IfNotPresent` |
 
 #### Application Parameters
@@ -137,6 +137,16 @@ This chart intentionally does NOT:
 - Support multi-replica scaling (SQLite limitation)
 - Provide a database subchart (SQLite is embedded)
 - Bundle the MCP server container (separate deployment concern)
+
+## Upgrade Notes
+
+Poznote `6.30.2` is a stable UI, backup, API, and security hardening release.
+Upstream highlights include brute-force login throttling, improved backup import
+validation, trashed notes included in exports, new REST API endpoints, MCP server
+fixes, dark mode fixes, and mobile/task editing fixes. No Kubernetes-facing
+configuration changes are required by this chart, but back up the `data` PVC
+before upgrading because it stores the SQLite database, notes, attachments, and
+application configuration.
 
 ## Security Scan
 
