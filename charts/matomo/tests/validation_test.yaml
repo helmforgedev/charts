@@ -38,3 +38,47 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: external database mode requires database.external.password, database.external.existingSecret, or ExternalSecret targeting the database secret
+  - it: fails external database with unrelated ExternalSecret
+    set:
+      mysql:
+        enabled: false
+      database:
+        mode: external
+        external:
+          host: mysql.example.com
+      externalSecrets:
+        enabled: true
+        items:
+          - fullnameOverride: unrelated-secret
+            spec:
+              secretStoreRef:
+                name: helmforge-fake-store
+                kind: ClusterSecretStore
+              data:
+                - secretKey: database-password
+                  remoteRef:
+                    key: matomo/database-password
+    asserts:
+      - failedTemplate:
+          errorMessage: external database mode requires database.external.password, database.external.existingSecret, or ExternalSecret targeting the database secret
+  - it: accepts external database with database-targeting ExternalSecret
+    set:
+      mysql:
+        enabled: false
+      database:
+        mode: external
+        external:
+          host: mysql.example.com
+      externalSecrets:
+        enabled: true
+        items:
+          - spec:
+              secretStoreRef:
+                name: helmforge-fake-store
+                kind: ClusterSecretStore
+              data:
+                - secretKey: database-password
+                  remoteRef:
+                    key: matomo/database-password
+    asserts:
+      - notFailedTemplate: {}
