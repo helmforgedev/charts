@@ -92,7 +92,7 @@ For Traefik, use middleware with websocket passthrough configured.
 
 ## Default Proxy URL
 
-Hoppscotch `2026.5.0` can read a default proxy URL from `PROXY_APP_URL`. Set it when you run a self-hosted proxy and want
+Hoppscotch `2026.6.0` can read a default proxy URL from `PROXY_APP_URL`. Set it when you run a self-hosted proxy and want
 new users to inherit a default without configuring it individually:
 
 ```yaml
