@@ -102,7 +102,7 @@ Use feature flags instead to enable optional components.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `image.tag` | openHAB image tag | `5.1.4` |
+| `image.tag` | openHAB image tag | `5.2.0` |
 | `image.repository` | Image repository | `docker.io/openhab/openhab` |
 | `replicaCount` | Must be 1 — no clustering support | `1` |
 | `namespaceOverride` | Namespace for chart-managed resources | `""` |
@@ -234,6 +234,16 @@ metrics:
 rule executions, threadpool statistics, JVM metrics (memory, GC, threads).
 
 See [Prometheus Metrics Guide](docs/metrics.md) for full details.
+
+## Upgrade Notes
+
+openHAB `5.2.0` is a stable feature release for the 5.x line. The upstream
+release notes list new add-ons, runtime/UI enhancements, and several breaking
+changes that may require manual action after upgrade. Back up the `userdata`,
+`conf`, and `addons` PVCs before upgrading. Review any affected rules, UI
+layouts, persistence queries, voice IDs, and add-ons before rolling production
+deployments. openHAB 5.x still requires Java 21, which is provided by the
+official container image used by this chart.
 
 ### Security Scan: openhab
 
