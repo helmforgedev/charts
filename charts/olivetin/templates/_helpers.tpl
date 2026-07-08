@@ -65,6 +65,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
+{{- define "olivetin.validate" -}}
+{{- end -}}
+
 {{/* Data PVC claim name */}}
 {{- define "olivetin.dataClaimName" -}}
 {{- if .Values.persistence.existingClaim -}}

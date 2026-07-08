@@ -58,7 +58,7 @@ kubectl port-forward svc/<release>-olivetin 1337:80
 | `configInit.enabled` | `true` | Prepare writable OliveTin runtime files before startup |
 | `configInit.resources` | requests/limits set | Resource guardrails for the config bootstrap init container |
 | `configInit.securityContext` | non-root | Security context for the config bootstrap init container |
-| `image.tag` | `3000.15.0` | OliveTin image tag |
+| `image.tag` | `3000.16.2` | OliveTin image tag |
 | `securityContext` | non-root | Security context for the OliveTin application container |
 | `olivetin.port` | `1337` | Application port |
 | `config` | `""` | OliveTin YAML configuration. Empty uses the chart-managed default config. |
@@ -100,6 +100,13 @@ so OliveTin runtime expressions such as `{{ message }}` remain literal for Olive
 only when you intentionally want Helm to render templates inside `config`.
 
 See the [OliveTin documentation](https://docs.olivetin.app) for all available options.
+
+## Upgrade Notes
+
+OliveTin `3000.16.2` is a bugfix release focused on Windows packaging and
+upstream unit test stability. Upstream reports no upgrade warnings or breaking
+changes between `3000.16.1` and `3000.16.2`; keep the chart-managed config and
+persistent data paths unchanged when rolling production deployments.
 
 ### Security Scan: olivetin
 
