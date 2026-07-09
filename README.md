@@ -143,6 +143,10 @@ Project references:
 
 ## Support
 
+If HelmForge saves you maintenance time, please star
+[helmforgedev/charts](https://github.com/helmforgedev/charts) so adoption is visible.
+For direct maintainer support, use the Buy Me a Coffee QR code below.
+
 <p align="center">
   <a href="https://buymeacoffee.com/mberlofa">
     <img src="docs/images/buymeacoffee-qr.png" alt="Buy Me a Coffee QR code for HelmForge support" width="180" />
@@ -179,7 +183,7 @@ relations:
   - ADOPTERS.md
   - SECURITY.md
 path: README.md
-version: 1.5
+version: 1.6
 date: 2026-04-01
 updated: 2026-07-09
 -->
