@@ -1,40 +1,131 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 
-const [repo = 'helmforgedev/charts', outputPath = 'badges/contributors.svg'] = process.argv.slice(2);
+const [repo = "helmforgedev/charts", outputPath = "badges/contributors.svg"] =
+  process.argv.slice(2);
 const token = process.env.GITHUB_TOKEN;
-const maxContributors = Number.parseInt(process.env.CONTRIBUTORS_LIMIT ?? '24', 10);
+const maxContributors = Number.parseInt(
+  process.env.CONTRIBUTORS_LIMIT ?? "24",
+  10,
+);
 
 const headers = {
-  Accept: 'application/vnd.github+json',
-  'User-Agent': 'helmforge-contributors-badge',
+  Accept: "application/vnd.github+json",
+  "User-Agent": "helmforge-contributors-badge",
 };
 
 if (token) {
   headers.Authorization = `Bearer ${token}`;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function fetchWithRetry(url) {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    let response;
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, 15000);
+
+      try {
+        response = await fetch(url, { headers, signal: controller.signal });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    } catch (error) {
+      if (attempt === 3) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to fetch ${url}: ${message}`, {
+          cause: error,
+        });
+      }
+
+      await sleep(attempt * 1000);
+      continue;
+    }
+
+    if (response.ok) {
+      return response;
+    }
+
+    const retryable = [403, 429, 500, 502, 503, 504].includes(response.status);
+
+    if (!retryable || attempt === 3) {
+      return response;
+    }
+
+    const retryAfter = Number.parseInt(
+      response.headers.get("retry-after") ?? "",
+      10,
+    );
+    await sleep(
+      Number.isFinite(retryAfter) ? retryAfter * 1000 : attempt * 1000,
+    );
+  }
+
+  throw new Error(`Failed to fetch ${url}`);
+}
+
 async function fetchBuffer(url) {
-  const response = await fetch(url, { headers });
+  const response = await fetchWithRetry(url);
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+    throw new Error(
+      `Failed to fetch ${url}: ${response.status} ${response.statusText}`,
+    );
   }
 
   return Buffer.from(await response.arrayBuffer());
 }
 
-const contributorsResponse = await fetch(`https://api.github.com/repos/${repo}/contributors?per_page=100`, { headers });
+async function fetchContributors(repoName) {
+  const contributors = [];
 
-if (!contributorsResponse.ok) {
-  throw new Error(
-    `Failed to fetch contributors for ${repo}: ${contributorsResponse.status} ${contributorsResponse.statusText}`,
+  for (let page = 1; page <= 10; page += 1) {
+    const url = `https://api.github.com/repos/${repoName}/contributors?per_page=100&page=${page}`;
+    const response = await fetchWithRetry(url);
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch contributors for ${repoName}: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    const pageContributors = await response.json();
+    contributors.push(...pageContributors);
+
+    if (pageContributors.length < 100) {
+      break;
+    }
+  }
+
+  return contributors;
+}
+
+function isAutomationAccount(contributor) {
+  const login = contributor.login.toLowerCase();
+  return (
+    contributor.type === "Bot" ||
+    login.endsWith("[bot]") ||
+    /(^|[-_])bot($|[-_])/.test(login)
   );
 }
 
-const contributors = await contributorsResponse.json();
-const humans = contributors.filter((contributor) => !contributor.login.endsWith('[bot]'));
-const selected = (humans.length > 0 ? humans : contributors).slice(0, maxContributors);
+const contributors = await fetchContributors(repo);
+const people = contributors.filter(
+  (contributor) => !isAutomationAccount(contributor),
+);
+const selected = (people.length > 0 ? people : contributors).slice(
+  0,
+  maxContributors,
+);
 
 const avatarSize = 64;
 const gap = 12;
@@ -47,15 +138,20 @@ const height = padding * 2 + rows * (avatarSize + labelHeight + gap) - gap;
 
 const avatarImages = await Promise.all(
   selected.map(async (contributor) => {
-    const image = await fetchBuffer(`${contributor.avatar_url}&s=${avatarSize * 2}`);
+    const avatarUrl = new URL(contributor.avatar_url);
+    avatarUrl.searchParams.set("s", String(avatarSize * 2));
+    const image = await fetchBuffer(avatarUrl.toString());
     return {
       ...contributor,
-      image: `data:image/png;base64,${image.toString('base64')}`,
+      image: `data:image/png;base64,${image.toString("base64")}`,
     };
   }),
 );
 
-const escapedRepo = repo.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+const escapedRepo = repo
+  .replaceAll("&", "&amp;")
+  .replaceAll("<", "&lt;")
+  .replaceAll(">", "&gt;");
 const items = avatarImages
   .map((contributor, index) => {
     const column = index % columns;
@@ -64,9 +160,9 @@ const items = avatarImages
     const y = padding + row * (avatarSize + labelHeight + gap);
     const clipId = `avatar-${index}`;
     const login = contributor.login
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;');
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;");
 
     return `
   <a href="${contributor.html_url}" target="_blank">
@@ -77,7 +173,7 @@ const items = avatarImages
     <text x="${x + avatarSize / 2}" y="${y + avatarSize + 16}" text-anchor="middle">${login}</text>
   </a>`;
   })
-  .join('');
+  .join("");
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="title desc">
   <title id="title">Contributors for ${escapedRepo}</title>

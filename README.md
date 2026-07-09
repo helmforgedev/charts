@@ -64,23 +64,6 @@ helm show values oci://ghcr.io/helmforgedev/helm/<chart-name> --version <version
 Check each chart README, [the documentation site](https://helmforge.dev/docs/charts), and
 [GitHub releases](https://github.com/helmforgedev/charts/releases) for available versions and upgrade notes.
 
-## Verify Releases
-
-Every published chart package is signed by the release workflow.
-
-```bash
-# HTTPS repository provenance verification
-helm pull helmforge/<chart-name> --version <version> --verify
-
-# OCI signature verification
-cosign verify \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  --certificate-identity-regexp 'https://github.com/helmforgedev/charts/.github/workflows/publish.yml@refs/heads/main' \
-  ghcr.io/helmforgedev/helm/<chart-name>:<version>
-```
-
-The public key is published at <https://repo.helmforge.dev/pgp-public-key.asc>.
-
 ## Chart Catalog
 
 Browse the full catalog with descriptions, install commands, values guidance, and playground configs at
@@ -160,14 +143,19 @@ Project references:
 
 ## Support
 
-If HelmForge saves you maintenance time, please star
-[helmforgedev/charts](https://github.com/helmforgedev/charts) so adoption is visible.
-For direct maintainer support, use [Buy Me a Coffee](https://buymeacoffee.com/mberlofa).
+<p align="center">
+  <a href="https://buymeacoffee.com/mberlofa">
+    <img src="docs/images/buymeacoffee-qr.png" alt="Buy Me a Coffee QR code for HelmForge support" width="180" />
+  </a>
+</p>
 
 ## Contributors
 
-See [GitHub contributors](https://github.com/helmforgedev/charts/graphs/contributors) and the
-[community page](https://helmforge.dev/community) for the human contributor list.
+<p align="center">
+  <a href="https://github.com/helmforgedev/charts/graphs/contributors">
+    <img src="docs/images/contributors.svg" alt="HelmForge contributors" />
+  </a>
+</p>
 
 ## License
 
@@ -176,11 +164,11 @@ Apache License 2.0
 <!-- @AI-METADATA
 type: overview
 title: HelmForge Charts
-description: Repository overview, installation, validation, release model, support, and contributing guide
+description: Repository overview, installation, validation, release model, support, and contributors guide
 
 keywords: helm, charts, oci, ghcr, repository, install
 
-purpose: Repository overview with installation, verification, validation, release model, and contributing guide
+purpose: Repository overview with installation, validation, release model, support, and contributors guide
 scope: Repository
 
 relations:
@@ -191,7 +179,7 @@ relations:
   - ADOPTERS.md
   - SECURITY.md
 path: README.md
-version: 1.4
+version: 1.5
 date: 2026-04-01
 updated: 2026-07-09
 -->
