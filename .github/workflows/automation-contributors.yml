@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Automation - Contributors
+
+# Refreshes the contributors image used by the root README.
+# Requires repo/org secret OPS_AUTOMATION_TOKEN with contents+pull_requests write.
+
+on:
+  schedule:
+    - cron: "30 6 * * *" # Daily 06:30 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contributors:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout charts
+        uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Refresh contributors image
+        env:
+          GITHUB_TOKEN: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+        run: node scripts/generate-contributors-image.mjs "${{ github.repository }}" docs/images/contributors.svg
+
+      - name: Open refresh PR
+        env:
+          GH_TOKEN: ${{ secrets.OPS_AUTOMATION_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          if git diff --quiet -- docs/images/contributors.svg; then
+            echo "Contributors image is current."
+            exit 0
+          fi
+
+          git config user.name "helmforge-automation"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c automation/contributors-refresh
+          git add docs/images/contributors.svg
+          git commit -m "docs(contributors): refresh contributors image"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.git"
+          git push --force origin HEAD:automation/contributors-refresh
+
+          if gh pr view automation/contributors-refresh --json number >/dev/null 2>&1; then
+            gh pr edit automation/contributors-refresh \
+              --title "docs(contributors): refresh contributors image" \
+              --body "Refreshes the contributors image used by the root README."
+          else
+            gh pr create \
+              --base main \
+              --head automation/contributors-refresh \
+              --title "docs(contributors): refresh contributors image" \
+              --body "Refreshes the contributors image used by the root README."
+          fi
