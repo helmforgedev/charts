@@ -11,45 +11,41 @@
 <p align="center">
   <a href="https://github.com/helmforgedev/charts/actions/workflows/ci.yml"><img src="https://github.com/helmforgedev/charts/actions/workflows/ci.yml/badge.svg" alt="Tests" /></a>
   <a href="https://github.com/helmforgedev/charts/actions/workflows/publish.yml"><img src="https://github.com/helmforgedev/charts/actions/workflows/publish.yml/badge.svg" alt="Publish" /></a>
-  <a href="https://github.com/helmforgedev/charts/actions/workflows/code-quality.yml">
-    <img src="https://github.com/helmforgedev/charts/actions/workflows/code-quality.yml/badge.svg" alt="Quality" />
-  </a>
-  <a href="https://github.com/helmforgedev/charts/actions/workflows/security-scan.yml">
-    <img src="https://github.com/helmforgedev/charts/actions/workflows/security-scan.yml/badge.svg" alt="Security" />
-  </a>
-  <a href="https://github.com/helmforgedev/charts/actions/workflows/upstream-watch.yml">
-    <img src="https://github.com/helmforgedev/charts/actions/workflows/upstream-watch.yml/badge.svg" alt="Upstream" />
-  </a>
-  <a href="https://github.com/helmforgedev/charts/stargazers"><img src="https://img.shields.io/github/stars/helmforgedev/charts?style=flat&label=Stars&logo=github" alt="GitHub stars" /></a>
-  <a href="https://buymeacoffee.com/mberlofa"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-FFDD00?logo=buymeacoffee&logoColor=000000" alt="Buy Me a Coffee" /></a>
   <a href="https://www.apache.org/licenses/LICENSE-2.0"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0" /></a>
   <a href="https://artifacthub.io/packages/search?repo=helmforge"><img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/helmforge" alt="Artifact Hub" /></a>
   <img src="https://img.shields.io/endpoint?url=https://repo.helmforge.dev/badges/charts-count.json" alt="Charts count" />
-  <img src="https://img.shields.io/badge/Signed-GPG%20%2B%20Cosign-brightgreen" alt="GPG + Cosign Signed" />
-  <img src="https://img.shields.io/badge/Helm-4-blue?logo=helm" alt="Helm 4" />
-  <img src="https://img.shields.io/badge/Kubernetes-≥1.26-blue?logo=kubernetes" alt="Kubernetes >=1.26" />
-  <a href="https://github.com/helmforgedev/charts/issues"><img src="https://img.shields.io/github/issues/helmforgedev/charts?label=Open%20Issues" alt="Open issues" /></a>
-  <a href="https://github.com/helmforgedev/charts/pulls"><img src="https://img.shields.io/github/issues-pr/helmforgedev/charts?label=Open%20PRs" alt="Open pull requests" /></a>
-  <a href="https://github.com/helmforgedev/charts/commits/main"><img src="https://img.shields.io/github/last-commit/helmforgedev/charts/main?label=Last%20Commit" alt="Last commit" /></a>
-  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen" alt="PRs Welcome" /></a>
+  <img src="https://img.shields.io/badge/Signed-GPG%20%2B%20Cosign-brightgreen" alt="GPG and Cosign signed" />
 </p>
 
 <p align="center">
-  <a href="https://helmforge.dev">Website</a> ·
-  <a href="https://helmforge.dev/docs">Documentation</a> ·
-  <a href="https://repo.helmforge.dev">Helm Repository</a> ·
-  <a href="https://buymeacoffee.com/mberlofa">Support</a> ·
-  <a href="CONTRIBUTING.md">Contributing</a> ·
-  <a href="GOVERNANCE.md">Governance</a>
+  <a href="https://helmforge.dev">Website</a> |
+  <a href="https://helmforge.dev/docs">Documentation</a> |
+  <a href="https://repo.helmforge.dev">Helm Repository</a> |
+  <a href="https://github.com/orgs/helmforgedev/packages?repo_name=charts">OCI Registry</a> |
+  <a href="CONTRIBUTING.md">Contributing</a> |
+  <a href="https://buymeacoffee.com/mberlofa">Support</a>
 </p>
 
-## Quick Start
+## What HelmForge Provides
+
+HelmForge is a catalog of 89 Helm charts built around a consistent operating contract:
+official upstream images, pinned versions, explicit values, reproducible validation, and signed releases.
+
+Use HelmForge when you want charts that stay close to upstream applications while still behaving like a
+maintained Kubernetes platform catalog.
+
+- **Official upstream images**: charts prefer images published by the application maintainers.
+- **Pinned image tags**: no `:latest`, floating tags, or surprise upgrades after a pull.
+- **Explicit values contracts**: `values.yaml` and schema validation document what operators can configure.
+- **Consistent dependencies**: databases, caches, queues, and platform services use HelmForge subcharts where available.
+- **Signed releases**: packages include GPG provenance, and OCI artifacts are signed with Sigstore Cosign.
+- **Apache-2.0 chart code**: charts, tests, examples, and docs use a permissive open-source license.
+
+## Install
 
 HelmForge publishes charts through both a standard HTTPS Helm repository and an OCI registry on GHCR.
-Use the HTTPS repository when you want classic `helm repo` workflows,
-and OCI when you prefer registry-native pulls and signatures.
 
-### HTTPS repository
+### HTTPS Repository
 
 ```bash
 helm repo add helmforge https://repo.helmforge.dev
@@ -58,21 +54,19 @@ helm search repo helmforge/
 helm install <release-name> helmforge/<chart-name> --version <version> -f values.yaml
 ```
 
-### OCI registry
+### OCI Registry
 
 ```bash
 helm install <release-name> oci://ghcr.io/helmforgedev/helm/<chart-name> --version <version> -f values.yaml
-
-# Show default values
 helm show values oci://ghcr.io/helmforgedev/helm/<chart-name> --version <version>
 ```
 
-Check each chart's README and [git tags](../../tags) for available versions.
+Check each chart README, [the documentation site](https://helmforge.dev/docs/charts), and
+[GitHub releases](../../releases) for available versions and upgrade notes.
 
-### Verify a packaged chart
+## Verify Releases
 
-Every published chart package is signed with GPG provenance, and OCI artifacts are signed with Cosign by the release workflow.
-Import the HelmForge public key before using Helm provenance verification.
+Every published chart package is signed by the release workflow.
 
 ```bash
 # HTTPS repository provenance verification
@@ -85,213 +79,78 @@ cosign verify \
   ghcr.io/helmforgedev/helm/<chart-name>:<version>
 ```
 
-## Why HelmForge
+The public key is published at <https://repo.helmforge.dev/pgp-public-key.asc>.
 
-HelmForge is built on a simple principle: **use what upstream ships, make the Kubernetes contract explicit, and keep releases verifiable**.
+## Chart Catalog
 
-- **Official upstream images** — charts prefer images published by the application maintainers. No proprietary rebuild layer or vendor-specific runtime wrapper.
-- **Pinned version tags** — charts reference explicit, immutable image tags. No `:latest`, no floating tags, no surprises after a pull.
-- **Apache-2.0 licensed** — the charts, tests, and docs use a CNCF-aligned permissive license. No open-core, no paid tiers, no license traps.
-- **GPG + Cosign signed** — every release includes GPG provenance files for Helm verification and [Sigstore Cosign](https://www.sigstore.dev/) keyless signatures on OCI artifacts.
-- **No vendor lock-in** — standard Helm, standard Kubernetes APIs, standard images. If you stop using HelmForge tomorrow, nothing breaks.
-- **Explicit values contracts** — product-oriented `values.yaml` files map directly to application and Kubernetes configuration, with schemas and validations where they prevent bad releases.
-- **HelmForge-native dependencies** — charts that need databases, caches, queues, or coordination services use HelmForge subcharts when available.
-  This keeps dependency behavior consistent across the catalog.
-- **Operator-first docs** — chart READMEs, site docs, examples, and test values are kept close to the release surface.
-
-## Support and Star Tracking
-
-HelmForge is maintained in the open and funded by practical community signals: stars, issues, reviews, and direct support.
-
-<p>
-  <a href="https://github.com/helmforgedev/charts/stargazers">
-    <img
-      src="https://img.shields.io/github/stars/helmforgedev/charts?style=for-the-badge&logo=github&label=GitHub%20Stars"
-      alt="GitHub stars"
-    />
-  </a>
-  <a href="https://buymeacoffee.com/mberlofa">
-    <img
-      src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support%20HelmForge-FFDD00?style=for-the-badge&logo=buymeacoffee&logoColor=000000"
-      alt="Support HelmForge on Buy Me a Coffee"
-    />
-  </a>
-</p>
-
-If HelmForge helps your cluster or saves maintenance time, please give the repository a star.
-Stars help track real adoption, make the project easier to discover, and guide where maintenance time should go next.
-For direct support, use [Buy Me a Coffee](https://buymeacoffee.com/mberlofa).
-
-## Charts
-
-60+ production-ready charts covering databases, authentication, CMS, analytics, automation, AI tooling, observability, and platform infrastructure.
-
-Browse the full catalog with descriptions, install commands, and playground configs at **[helmforge.dev/docs/charts](https://helmforge.dev/docs/charts)**.
+Browse the full catalog with descriptions, install commands, values guidance, and playground configs at
+[helmforge.dev/docs/charts](https://helmforge.dev/docs/charts).
 
 Common categories include:
 
-- **Databases and data stores** — PostgreSQL, MySQL, MariaDB, MongoDB, Redis, Valkey, Kafka, ZooKeeper, RabbitMQ, Elasticsearch, and Druid.
-- **Identity and access** — Keycloak, Authelia, and application charts with ingress/auth integration patterns.
-- **Automation and operations** — n8n, Cronicle, FastMCP Server, Cloudflared, Velero, DDNS Updater, and Envoy Gateway.
-- **Content and community apps** — WordPress, Ghost, Drupal, Gitea, Wallabag, Castopod, Komga, OpenWebUI, and more.
+- **Data services**: PostgreSQL, MySQL, MariaDB, MongoDB, Redis, Valkey, Kafka, ZooKeeper, RabbitMQ, Elasticsearch, and Druid.
+- **Identity and access**: Keycloak, Authelia, OAuth2 Proxy, and application charts with ingress/auth patterns.
+- **Operations and automation**: n8n, Cronicle, FastMCP Server, Cloudflared, Velero, DDNS Updater, and Envoy Gateway.
+- **Content and collaboration**: WordPress, Ghost, Drupal, Gitea, Wallabag, Castopod, Komga, and Open WebUI.
+- **Reusable platform workloads**: the [`generic`](charts/generic) chart for internal services, workers, jobs, and sidecars.
 
-### Generic platform chart
+## Validation
 
-The [`generic`](charts/generic) chart is the reusable platform chart for workloads that need a Kubernetes contract
-instead of an application-specific chart. It is useful for internal services, workers, batch releases,
-sidecar-based apps, and platform integration tests where a full bespoke chart would add more maintenance than value.
+Pull requests run the same chart quality gates used for release readiness:
 
-It supports:
-
-- Deployments, StatefulSets, DaemonSets, Jobs, and CronJobs.
-- Multiple containers, init containers, global env/envFrom, probes, rollout checksums, and explicit restarts.
-- Primary and additional Services, headless Service mode, Ingress, and Gateway API HTTPRoutes.
-- RBAC, NetworkPolicy, ServiceMonitor, PodMonitor, PrometheusRule, VPA, HPA, and KEDA.
-- Safer validation for disabled-Service routing and KEDA ScaledObject targets.
-
-## Automation and Governance
-
-The repository is governed by a comprehensive suite of GitHub Actions workflows that enforce quality, security, and operational intelligence automatically.
-
-| Workflow | Trigger | Purpose |
-|----------|---------|----------|
-| **[ci.yml](../../actions/workflows/ci.yml)** | PR | Dependency build, strict lint, default and CI scenario rendering, unit tests, kubeconform, Artifact Hub lint |
-| **[publish.yml](../../actions/workflows/publish.yml)** | Push to main | Semver bump, package, sign, publish to GHCR + Pages |
-| **[code-quality.yml](../../actions/workflows/code-quality.yml)** | PR | Markdown lint, values quality checks, SPDX license headers |
-| **[security-scan.yml](../../actions/workflows/security-scan.yml)** | PR | Kubescape MITRE + NSA + SOC2 compliance scanning |
-| **[pr-governance.yml](../../actions/workflows/pr-governance.yml)** | PR | Conventional commit enforcement, auto-labeling |
-| **[upstream-watch.yml](../../actions/workflows/upstream-watch.yml)** | Weekly (Mon 8AM UTC) | Monitors upstream image tags across Docker Hub, GHCR, and Quay.io |
-| **[community.yml](../../actions/workflows/community.yml)** | Daily | Stale issue/PR management |
-| **[repo-health.yml](../../actions/workflows/repo-health.yml)** | Daily | Helm index, OCI registry, and badge endpoint monitoring |
-
-## Validation and Publishing
-
-Charts are automatically tested and published via GitHub Actions.
-
-```text
-PR        --> ci.yml            --> [Dependency Build] [Strict Lint] [Template] [Unit Test] [Kubeconform] [Artifact Hub Lint]
-          --> code-quality.yml --> [Markdown Lint] [Values Quality] [License Headers]
-          --> security-scan.yml --> [Kubescape MITRE+NSA+SOC2]
-          --> pr-governance.yml --> [Conventional PR Title] [Scope Labels]
-Push main --> publish.yml      --> Detect --> Semver --> Package --> Sign --> Publish --> Git tag
-Weekly    --> upstream-watch.yml --> Scan all charts --> Create issues for outdated images
-```
-
-PR workflows (`ci.yml`, `code-quality.yml`, `security-scan.yml`) dynamically detect which charts changed
-and run jobs only for affected charts using a matrix strategy.
-Changes to docs (`README.md`, `examples/`, `docs/`) are ignored.
-Scheduled workflows run against the full repository.
-
-The `Tests` workflow runs for pull requests and pushes to `main` that affect chart templates,
-chart metadata, tests, or the workflow itself. The `Publish` workflow runs on pushes to `main`
-and publishes chart releases. Documentation-only changes are intentionally excluded
-from chart tests and release publishing.
-
-Quality gates include:
-
-- `helm dependency build` for every changed chart, including HelmForge OCI subcharts.
+- Dependency build for HelmForge OCI subcharts.
 - `helm lint --strict`.
-- `helm template` with default values and every `ci/*.yaml` scenario.
-- `helm unittest` when a chart has a test suite.
-- `kubeconform` against Kubernetes schemas and CRD schemas from the Datree CRDs catalog.
-- `ah lint -p` for Artifact Hub metadata.
-- Kubescape security compliance scanning (MITRE, NSA, SOC2 frameworks).
-- Markdown linting, values quality checks, and SPDX license header enforcement on changed YAML, template, and shell files.
-- Signed package publishing to GHCR and the HTTPS Helm repository.
+- Default and `ci/*.yaml` render checks.
+- Helm unit tests when a chart includes tests.
+- `kubeconform` with Kubernetes and CRD schemas.
+- Artifact Hub lint.
+- Kubescape security scanning.
+- Markdown, values quality, and SPDX checks for changed files.
 
-Local validation should use the repository helper:
+For local work, use the repository helper:
 
 ```bash
 # Static validation matching the current PR gates
 ./test.sh <chart-name>
 
-# Validate a runtime scenario on the local k3d cluster
-kubectl config current-context
+# Runtime validation on the local k3d lab cluster
 ./test.sh <chart-name> --runtime -f charts/<chart-name>/ci/<scenario>.yaml
 
 # Validate every chart without runtime installs
 ./test.sh --all --skip-runtime
 ```
 
-`test.sh` intentionally does not use `kubeconform --ignore-missing-schema`.
-If a chart renders a CRD-backed resource, install the CRD locally and make sure schema validation can resolve the API.
-The helper checks the tools needed by the selected gates before running.
-Missing `helm`, `kubectl`, `kubeconform`, `ah`, and `kubescape` binaries are
-installed into `~/.local/bin` by default, and the `helm-unittest` plugin is
-installed when selected charts include tests. Set `HELMFORGE_TOOLS_DIR` to use a
-different tool directory, or pass `--no-install` to fail fast on missing tools.
+Runtime validation must use the local `k3d-helmforge-tests-wsl` lab context, not a production cluster.
+The helper intentionally does not use `kubeconform --ignore-missing-schema`; CRD-backed resources must have
+real schemas available during validation.
 
-Every chart PR should have a linked GitHub issue, complete PR checklist evidence, passing CI, and no unresolved review comments before merge.
+## Release Model
 
-### Versioning
-
-Versions are calculated automatically from Conventional Commits affecting each chart.
+Chart versions are calculated automatically from Conventional Commits affecting each chart.
+Do not edit chart versions manually.
 
 | Commit prefix | Bump | Example |
-|---------------|------|---------|
-| `fix:`, `docs:`, `refactor:` | PATCH | `fix(generic): correct HPA indentation` |
-| `feat:` | MINOR | `feat(generic): add DaemonSet support` |
+| ------------- | ---- | ------- |
+| `fix:`, `docs:`, `refactor:` | PATCH | `fix(generic): correct hpa indentation` |
+| `feat:` | MINOR | `feat(generic): add daemonset support` |
 | `feat!:` or `BREAKING CHANGE` | MAJOR | `feat(generic)!: restructure workload config` |
 
-Tags follow the format `{chart}-v{version}` (for example `generic-v1.2.3`).
+Tags follow the format `{chart}-v{version}`, for example `generic-v1.2.3`.
+Each release includes install instructions for both OCI and the HTTPS Helm repository.
 
-### Release Notes
+## Requirements
 
-Every chart release automatically creates a [GitHub Release](https://github.com/helmforgedev/charts/releases) with categorized notes generated from Conventional Commits:
-
-- **Breaking Changes** — commits with `!:` or `BREAKING CHANGE`
-- **Features** — `feat(...):`
-- **Bug Fixes** — `fix(...):`
-- **Other Changes** — `docs`, `refactor`, `ci`, etc.
-
-Each release includes install instructions for both OCI and Helm repository.
-
-### Chart Testing
-
-Each chart can include a `ci/` directory with test values files. The pipeline runs `helm template`
-and kubeconform against every `ci/*.yaml` file automatically, in addition to default values, lint,
-Artifact Hub lint, and chart unit tests when present.
-
-For local chart work:
-
-```bash
-# For charts with HelmForge OCI subcharts, authenticate to GHCR if your environment is not already logged in
-echo "$GHCR_TOKEN" | helm registry login ghcr.io -u "$GHCR_USERNAME" --password-stdin
-
-./test.sh <chart-name>
-```
-
-For runtime validation, use the local `k3d-helmforge-tests-wsl` cluster instead of any production Kubernetes context.
-Helm installs should use `--wait --timeout 120s`.
-Validation must check pod readiness, recent namespace events, and pod logs before the namespace is removed.
-
-### Kubernetes Compatibility
-
-All charts require **Helm 4** (`apiVersion: v2`) and target **Kubernetes 1.26+**.
-
-| Kubernetes Version | Status |
-|--------------------|--------|
-| 1.26.x | Supported (minimum) |
-| 1.27.x | Supported |
-| 1.28.x | Supported |
-| 1.29.x | Supported |
-| 1.30.x | Supported |
-| 1.31.x | Supported |
-| 1.32.x | Supported |
-| 1.33.x | Supported |
-| 1.34.x | Supported |
-| 1.35.x | Supported |
-
-The Tests workflow validates rendered manifests with [kubeconform](https://github.com/yannh/kubeconform)
-against the default Kubernetes JSON schemas. Local runtime validation uses [k3d](https://k3d.io/) clusters.
-
-Charts use standard stable APIs (`apps/v1`, `batch/v1`, `networking.k8s.io/v1`) and avoid alpha/beta API versions to maximize compatibility.
+- Helm 4.
+- Kubernetes 1.26 or newer.
+- Standard stable Kubernetes APIs where possible.
+- No alpha or beta APIs unless a chart explicitly documents the exception.
 
 ## Contributing
 
-Contributions are welcome. Please read the [contributing guide](CONTRIBUTING.md) for branch flow, validation requirements, commit conventions, and chart standards.
+Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for branch flow,
+validation requirements, commit conventions, and chart standards.
 
-Community and project governance documents:
+Project references:
 
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Governance](GOVERNANCE.md)
@@ -299,11 +158,16 @@ Community and project governance documents:
 - [Adopters](ADOPTERS.md)
 - [Security Policy](SECURITY.md)
 
+## Support
+
+If HelmForge saves you maintenance time, please star
+[helmforgedev/charts](https://github.com/helmforgedev/charts) so adoption is visible.
+For direct maintainer support, use [Buy Me a Coffee](https://buymeacoffee.com/mberlofa).
+
 ## Contributors
 
-<a href="https://github.com/helmforgedev/charts/graphs/contributors">
-  <img src="https://repo.helmforge.dev/badges/contributors.svg" alt="HelmForge Charts contributors" />
-</a>
+See [GitHub contributors](https://github.com/helmforgedev/charts/graphs/contributors) and the
+[community page](https://helmforge.dev/community) for the human contributor list.
 
 ## License
 
@@ -312,16 +176,14 @@ Apache License 2.0
 <!-- @AI-METADATA
 type: overview
 title: HelmForge Charts
-description: Helm chart repository overview, installation, charts list, validation, and publishing
+description: Repository overview, installation, validation, release model, support, and contributing guide
 
 keywords: helm, charts, oci, ghcr, repository, install
 
-purpose: Repository overview with charts list, installation, validation, publishing, and contributing guide
+purpose: Repository overview with installation, verification, validation, release model, and contributing guide
 scope: Repository
 
 relations:
-  - .claude/AGENTS.md
-  - docs/testing-strategy.md
   - CONTRIBUTING.md
   - CODE_OF_CONDUCT.md
   - GOVERNANCE.md
@@ -329,7 +191,7 @@ relations:
   - ADOPTERS.md
   - SECURITY.md
 path: README.md
-version: 1.3
+version: 1.4
 date: 2026-04-01
-updated: 2026-06-02
+updated: 2026-07-09
 -->
