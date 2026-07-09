@@ -62,7 +62,7 @@ helm show values oci://ghcr.io/helmforgedev/helm/<chart-name> --version <version
 ```
 
 Check each chart README, [the documentation site](https://helmforge.dev/docs/charts), and
-[GitHub releases](../../releases) for available versions and upgrade notes.
+[GitHub releases](https://github.com/helmforgedev/charts/releases) for available versions and upgrade notes.
 
 ## Verify Releases
 
@@ -114,7 +114,7 @@ For local work, use the repository helper:
 ./test.sh <chart-name>
 
 # Runtime validation on the local k3d lab cluster
-./test.sh <chart-name> --runtime -f charts/<chart-name>/ci/<scenario>.yaml
+./test.sh <chart-name> --runtime --values charts/<chart-name>/ci/<scenario>.yaml
 
 # Validate every chart without runtime installs
 ./test.sh --all --skip-runtime
