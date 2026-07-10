@@ -157,7 +157,7 @@ For direct maintainer support, use the Buy Me a Coffee QR code below.
 
 <p align="center">
   <a href="https://github.com/helmforgedev/charts/graphs/contributors">
-    <img src="docs/images/contributors.svg" alt="HelmForge contributors" />
+    <img src="https://contrib.rocks/image?repo=helmforgedev/charts&max=100" alt="HelmForge contributors" />
   </a>
 </p>
 
