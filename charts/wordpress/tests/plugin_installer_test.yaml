@@ -15,6 +15,9 @@ tests:
     set:
       plugins.enabled: true
       plugins.installer.enabled: true
+      serviceAccount.create: true
+      imagePullSecrets:
+        - name: registry-auth
       plugins.items:
         - slug: classic-editor
           activate: true
@@ -27,6 +30,12 @@ tests:
       - equal:
           path: metadata.annotations["helm.sh/hook"]
           value: post-install,post-upgrade
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: test-wordpress
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: registry-auth
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
           pattern: "install_plugin \"classic-editor\""
@@ -69,6 +78,12 @@ tests:
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
           pattern: "install_plugin \"w3-total-cache\""
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "Creating Memcached object-cache.php drop-in"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "wp total-cache fix_environment"
 
   - it: should allow explicitly acknowledged Memcached with the official image
     set:

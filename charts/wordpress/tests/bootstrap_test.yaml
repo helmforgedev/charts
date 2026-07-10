@@ -18,6 +18,9 @@ tests:
       wordpress.siteTitle: Example Blog
       wordpress.adminUser: editor
       wordpress.adminEmail: editor@example.com
+      serviceAccount.create: true
+      imagePullSecrets:
+        - name: registry-auth
     asserts:
       - isKind:
           of: Job
@@ -30,6 +33,12 @@ tests:
       - equal:
           path: metadata.annotations["helm.sh/hook-weight"]
           value: "0"
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: test-wordpress
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: registry-auth
       - contains:
           path: spec.template.spec.containers[0].env
           content:
@@ -73,6 +82,15 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "bootstrap.enabled requires bootstrap.siteUrl or wordpress.siteUrl"
+
+  - it: should reject an invalid multisite mode
+    set:
+      bootstrap.enabled: true
+      wordpress.siteUrl: https://blog.example.com
+      wordpress.multisite.mode: invalid
+    asserts:
+      - failedTemplate:
+          errorPattern: "value must be one of 'subdirectory', 'subdomain'"
 
   - it: should require persistence when enabled
     set:

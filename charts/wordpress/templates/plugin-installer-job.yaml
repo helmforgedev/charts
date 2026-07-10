@@ -27,7 +27,14 @@ spec:
         app.kubernetes.io/component: plugin-installer
     spec:
       restartPolicy: Never
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "wordpress.serviceAccountName" . }}
+      {{- end }}
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- if and .Values.plugins.installer.preferWordPressPodNode .Values.persistence.enabled }}
       affinity:
         podAffinity:
@@ -154,6 +161,25 @@ spec:
               else
                 echo "Redis plugin files are missing; cannot create object-cache.php." >&2
                 exit 1
+              fi
+              {{- end }}
+
+              {{- if and (eq (include "wordpress.objectCacheMemcachedEnabled" .) "true") .Values.objectCache.enableDropIn }}
+              if [ -f /var/www/html/wp-content/object-cache.php ]; then
+                echo "Memcached object-cache.php drop-in already exists."
+              else
+                memcached_plugin={{ .Values.objectCache.memcached.pluginSlug | quote }}
+                memcached_dropin="$(find "/var/www/html/wp-content/plugins/${memcached_plugin}" -path "*/object-cache.php" -type f | head -n 1 || true)"
+                if [ -n "$memcached_dropin" ]; then
+                  echo "Creating Memcached object-cache.php drop-in."
+                  cp "$memcached_dropin" /var/www/html/wp-content/object-cache.php
+                elif is_installed; then
+                  echo "Enabling Memcached object-cache.php drop-in through WP-CLI."
+                  wp total-cache fix_environment --path=/var/www/html --allow-root
+                else
+                  echo "Memcached plugin files are missing; cannot create object-cache.php." >&2
+                  exit 1
+                fi
               fi
               {{- end }}
           env:
