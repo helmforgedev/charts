@@ -1,12 +1,84 @@
 # SPDX-License-Identifier: Apache-2.0
-# CI: External database
+# CI: external MySQL database backed by a local disposable MySQL pod.
 mysql:
   enabled: false
 
 database:
   external:
-    host: db.example.com
+    host: mysql-external
     port: 3306
     name: wordpress
     username: wordpress
-    password: secret
+    password: external-password
+
+extraManifests:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: mysql-external
+      labels:
+        app.kubernetes.io/name: mysql
+        app.kubernetes.io/component: external-db-ci
+    spec:
+      type: ClusterIP
+      ports:
+        - name: mysql
+          port: 3306
+          targetPort: mysql
+      selector:
+        app.kubernetes.io/name: mysql
+        app.kubernetes.io/component: external-db-ci
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: mysql-external
+      labels:
+        app.kubernetes.io/name: mysql
+        app.kubernetes.io/component: external-db-ci
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: mysql
+          app.kubernetes.io/component: external-db-ci
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: mysql
+            app.kubernetes.io/component: external-db-ci
+        spec:
+          containers:
+            - name: mysql
+              image: docker.io/library/mysql:8.4
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: MYSQL_DATABASE
+                  value: wordpress
+                - name: MYSQL_USER
+                  value: wordpress
+                - name: MYSQL_PASSWORD
+                  value: external-password
+                - name: MYSQL_ROOT_PASSWORD
+                  value: root-password
+              ports:
+                - name: mysql
+                  containerPort: 3306
+              readinessProbe:
+                exec:
+                  command:
+                    - mysqladmin
+                    - ping
+                    - -h
+                    - 127.0.0.1
+                    - -uroot
+                    - -proot-password
+                initialDelaySeconds: 10
+                periodSeconds: 5
+                timeoutSeconds: 3
+                failureThreshold: 18
+              volumeMounts:
+                - name: data
+                  mountPath: /var/lib/mysql
+          volumes:
+            - name: data
+              emptyDir: {}

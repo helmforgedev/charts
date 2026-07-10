@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Bootstrap
+templates:
+  - templates/bootstrap-job.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: should not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render a WP-CLI bootstrap hook job
+    set:
+      bootstrap.enabled: true
+      wordpress.siteUrl: https://blog.example.com
+      wordpress.siteTitle: Example Blog
+      wordpress.adminUser: editor
+      wordpress.adminEmail: editor@example.com
+      serviceAccount.name: existing-wordpress
+      imagePullSecrets:
+        - name: registry-auth
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: test-wordpress-bootstrap
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: post-install,post-upgrade
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "0"
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: existing-wordpress
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: registry-auth
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BOOTSTRAP_SITE_URL
+            value: https://blog.example.com
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BOOTSTRAP_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: test-wordpress-admin
+                key: admin-password
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "wp core install"
+
+  - it: should use multisite bootstrap when multisite is enabled
+    set:
+      bootstrap.enabled: true
+      wordpress.siteUrl: https://network.example.com
+      wordpress.multisite.enabled: true
+      wordpress.multisite.mode: subdomain
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "wp core multisite-install"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "--subdomains"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WORDPRESS_MULTISITE_ENABLED
+            value: "true"
+
+  - it: should require a site URL when enabled
+    set:
+      bootstrap.enabled: true
+      wordpress.siteUrl: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "bootstrap.enabled requires bootstrap.siteUrl or wordpress.siteUrl"
+
+  - it: should reject an invalid multisite mode
+    set:
+      bootstrap.enabled: true
+      wordpress.siteUrl: https://blog.example.com
+      wordpress.multisite.mode: invalid
+    asserts:
+      - failedTemplate:
+          errorPattern: "value must be one of 'subdirectory', 'subdomain'"
+
+  - it: should require persistence when enabled
+    set:
+      bootstrap.enabled: true
+      wordpress.siteUrl: https://blog.example.com
+      persistence.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "bootstrap.enabled requires persistence.enabled=true so WordPress files and wp-config.php are shared with the bootstrap Job"

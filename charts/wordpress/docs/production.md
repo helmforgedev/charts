@@ -17,6 +17,10 @@ wpCron:
   cronJob:
     enabled: true
 
+bootstrap:
+  enabled: true
+  permalinkStructure: /%postname%/
+
 resources:
   requests:
     cpu: 250m
@@ -59,6 +63,12 @@ For production, prefer one of these patterns:
 Use `admin.existingSecret`, `database.external.existingSecret`, and `backup.s3.existingSecret` for simple clusters.
 Use `externalSecrets` when the cluster runs External Secrets Operator and credentials are managed in an external store.
 
+## Bootstrap
+
+Enable `bootstrap.enabled` when Helm should perform the initial `wp core install` through WP-CLI.
+Always set `wordpress.siteUrl` to the final public URL before enabling bootstrap.
+The bootstrap Job is idempotent by default and skips work when the database already contains an installed site.
+
 ## Routing
 
 Use either Ingress or Gateway API. Do not enable both for the same hostname unless you intentionally want two routing paths.
@@ -68,6 +78,9 @@ Use either Ingress or Gateway API. Do not enable both for the same hostname unle
 Enable `networkPolicy.enabled` to isolate inbound traffic.
 Enable `networkPolicy.egress.enabled` only after listing required destinations such as DNS, database, HTTPS APIs,
 object storage, and SMTP.
+
+Redis object cache is the recommended provider for the official WordPress image. Memcached can be used with the
+HelmForge Memcached subchart only when the WordPress image includes the required PHP extension.
 
 <!-- @AI-METADATA
 type: chart-docs

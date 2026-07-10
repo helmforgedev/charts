@@ -245,6 +245,29 @@ Admin secret key.
 {{- end -}}
 
 {{/*
+Bootstrap settings.
+*/}}
+{{- define "wordpress.bootstrapSiteUrl" -}}
+{{- default .Values.wordpress.siteUrl .Values.bootstrap.siteUrl -}}
+{{- end -}}
+
+{{- define "wordpress.bootstrapSiteTitle" -}}
+{{- default .Values.wordpress.siteTitle .Values.bootstrap.siteTitle -}}
+{{- end -}}
+
+{{- define "wordpress.bootstrapAdminUser" -}}
+{{- default .Values.wordpress.adminUser .Values.bootstrap.adminUser -}}
+{{- end -}}
+
+{{- define "wordpress.bootstrapAdminEmail" -}}
+{{- default .Values.wordpress.adminEmail .Values.bootstrap.adminEmail -}}
+{{- end -}}
+
+{{- define "wordpress.bootstrapJobEnabled" -}}
+{{- if .Values.bootstrap.enabled -}}true{{- end -}}
+{{- end -}}
+
+{{/*
 Backup enabled (with validation).
 */}}
 {{- define "wordpress.backupEnabled" -}}
@@ -351,10 +374,18 @@ ConfigMap name.
 {{- end -}}
 
 {{/*
-Redis object cache helpers.
+Object cache helpers.
 */}}
+{{- define "wordpress.objectCacheProvider" -}}
+{{- .Values.objectCache.provider | default "redis" -}}
+{{- end -}}
+
 {{- define "wordpress.objectCacheRedisEnabled" -}}
-{{- if and .Values.objectCache.enabled (eq .Values.objectCache.provider "redis-cache") -}}true{{- end -}}
+{{- if and .Values.objectCache.enabled (eq (include "wordpress.objectCacheProvider" .) "redis") -}}true{{- end -}}
+{{- end -}}
+
+{{- define "wordpress.objectCacheMemcachedEnabled" -}}
+{{- if and .Values.objectCache.enabled (eq (include "wordpress.objectCacheProvider" .) "memcached") -}}true{{- end -}}
 {{- end -}}
 
 {{- define "wordpress.redisSubchartFullname" -}}
@@ -427,6 +458,30 @@ Redis object cache helpers.
 {{- end -}}
 {{- end -}}
 
+{{- define "wordpress.memcachedSubchartFullname" -}}
+{{- $memcachedValues := default dict .Values.memcached -}}
+{{- $fullnameOverride := default "" (get $memcachedValues "fullnameOverride") -}}
+{{- $nameOverride := default "" (get $memcachedValues "nameOverride") -}}
+{{- if $fullnameOverride -}}
+{{- $fullnameOverride | trunc 52 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default "memcached" $nameOverride -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 52 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 52 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "wordpress.memcachedHost" -}}
+{{- if eq .Values.objectCache.memcached.mode "external" -}}
+{{- .Values.objectCache.memcached.external.host -}}
+{{- else -}}
+{{- include "wordpress.memcachedSubchartFullname" . -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "wordpress.pluginsJobEnabled" -}}
 {{- if and .Values.plugins.enabled .Values.plugins.installer.enabled -}}true{{- end -}}
 {{- end -}}
@@ -443,6 +498,9 @@ define('DISALLOW_FILE_EDIT', true);
 {{- end }}
 {{- if or .Values.wordpress.disableWpCron .Values.wpCron.cronJob.enabled }}
 define('DISABLE_WP_CRON', true);
+{{- end }}
+{{- if .Values.wordpress.multisite.enabled }}
+define('WP_ALLOW_MULTISITE', true);
 {{- end }}
 {{- with .Values.wordpress.memoryLimit }}
 define('WP_MEMORY_LIMIT', {{ . | quote }});
@@ -464,6 +522,16 @@ define('WP_REDIS_PASSWORD', getenv('WP_REDIS_PASSWORD'));
 {{- with .Values.objectCache.redis.maxTtl }}
 define('WP_REDIS_MAXTTL', {{ int . }});
 {{- end }}
+{{- end }}
+{{- if eq (include "wordpress.objectCacheMemcachedEnabled" .) "true" }}
+define('WP_CACHE', true);
+define('WP_CACHE_KEY_SALT', {{ printf "%s:" (include "wordpress.fullname" .) | quote }});
+global $memcached_servers;
+$memcached_servers = array(
+  'default' => array(
+    {{ printf "%s:%d" (include "wordpress.memcachedHost" .) (int .Values.objectCache.memcached.port) | quote }}
+  )
+);
 {{- end }}
 {{- with .Values.wordpress.configExtra }}
 {{ . }}
@@ -534,11 +602,18 @@ define('WP_REDIS_MAXTTL', {{ int . }});
   {{- fail "plugins.installer.enabled requires persistence.enabled=true so installed plugins are written to the WordPress volume" -}}
 {{- end -}}
 {{- if .Values.objectCache.enabled -}}
+  {{- $provider := include "wordpress.objectCacheProvider" . -}}
+  {{- if eq $provider "redis-cache" -}}
+    {{- fail "objectCache.provider=redis-cache is no longer supported; use objectCache.provider=redis" -}}
+  {{- end -}}
+  {{- if not (has $provider (list "redis" "memcached")) -}}
+    {{- fail "objectCache.provider must be one of: redis, memcached" -}}
+  {{- end -}}
   {{- if not .Values.plugins.enabled -}}
     {{- fail "plugins.enabled must be true when objectCache.enabled is true" -}}
   {{- end -}}
-  {{- if not .Values.plugins.installer.enabled -}}
-    {{- fail "plugins.installer.enabled must be true when objectCache.enabled is true" -}}
+  {{- if and (not .Values.plugins.installer.enabled) (or .Values.objectCache.installPlugin .Values.objectCache.enableDropIn) -}}
+    {{- fail "plugins.installer.enabled must be true when objectCache.installPlugin or objectCache.enableDropIn is true" -}}
   {{- end -}}
 {{- end -}}
 {{- range .Values.plugins.items -}}
@@ -550,25 +625,53 @@ define('WP_REDIS_MAXTTL', {{ int . }});
   {{- end -}}
 {{- end -}}
 {{- if .Values.objectCache.enabled -}}
-  {{- if ne .Values.objectCache.provider "redis-cache" -}}
-    {{- fail "objectCache.provider currently supports only redis-cache" -}}
+  {{- if eq (include "wordpress.objectCacheProvider" .) "redis" -}}
+    {{- if not (has .Values.objectCache.redis.mode (list "subchart" "external")) -}}
+      {{- fail "objectCache.redis.mode must be subchart or external" -}}
+    {{- end -}}
+    {{- if and (eq .Values.objectCache.redis.mode "subchart") (not .Values.objectCache.redis.subchart.enabled) -}}
+      {{- fail "objectCache.redis.subchart.enabled must be true when objectCache.redis.mode=subchart" -}}
+    {{- end -}}
+    {{- if and (eq .Values.objectCache.redis.mode "external") (not .Values.objectCache.redis.external.host) -}}
+      {{- fail "objectCache.redis.external.host is required when objectCache.redis.mode=external" -}}
+    {{- end -}}
+    {{- if and .Values.objectCache.redis.auth.enabled (eq .Values.objectCache.redis.mode "external") (not .Values.objectCache.redis.auth.existingSecret) (not .Values.objectCache.redis.auth.password) -}}
+      {{- fail "objectCache.redis.auth.existingSecret or objectCache.redis.auth.password is required when external Redis auth is enabled" -}}
+    {{- end -}}
   {{- end -}}
-  {{- if not (has .Values.objectCache.redis.mode (list "subchart" "external")) -}}
-    {{- fail "objectCache.redis.mode must be subchart or external" -}}
-  {{- end -}}
-  {{- if and (eq .Values.objectCache.redis.mode "subchart") (not .Values.objectCache.redis.subchart.enabled) -}}
-    {{- fail "objectCache.redis.subchart.enabled must be true when objectCache.redis.mode=subchart" -}}
-  {{- end -}}
-  {{- if and (eq .Values.objectCache.redis.mode "external") (not .Values.objectCache.redis.external.host) -}}
-    {{- fail "objectCache.redis.external.host is required when objectCache.redis.mode=external" -}}
-  {{- end -}}
-  {{- if and .Values.objectCache.redis.auth.enabled (eq .Values.objectCache.redis.mode "external") (not .Values.objectCache.redis.auth.existingSecret) (not .Values.objectCache.redis.auth.password) -}}
-    {{- fail "objectCache.redis.auth.existingSecret or objectCache.redis.auth.password is required when external Redis auth is enabled" -}}
+  {{- if eq (include "wordpress.objectCacheProvider" .) "memcached" -}}
+    {{- if not (has .Values.objectCache.memcached.mode (list "subchart" "external")) -}}
+      {{- fail "objectCache.memcached.mode must be subchart or external" -}}
+    {{- end -}}
+    {{- if and (eq .Values.objectCache.memcached.mode "subchart") (not .Values.objectCache.memcached.subchart.enabled) -}}
+      {{- fail "objectCache.memcached.subchart.enabled must be true when objectCache.memcached.mode=subchart" -}}
+    {{- end -}}
+    {{- if and (eq .Values.objectCache.memcached.mode "external") (not .Values.objectCache.memcached.external.host) -}}
+      {{- fail "objectCache.memcached.external.host is required when objectCache.memcached.mode=external" -}}
+    {{- end -}}
+    {{- if and (or (eq .Values.image.repository "docker.io/library/wordpress") (eq .Values.plugins.installer.image.repository "docker.io/library/wordpress")) (not .Values.objectCache.memcached.allowOfficialImageWithoutExtension) -}}
+      {{- fail "objectCache.provider=memcached requires custom WordPress and installer images with the php-memcached extension, or set objectCache.memcached.allowOfficialImageWithoutExtension=true to acknowledge the official image limitation" -}}
+    {{- end -}}
   {{- end -}}
 {{- end -}}
 {{- range $i, $plugin := .Values.plugins.items }}
   {{- if not $plugin.slug -}}
     {{- fail (printf "plugins.items[%d].slug is required" $i) -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Validate bootstrap settings */}}
+{{- define "wordpress.validateBootstrap" -}}
+{{- if .Values.bootstrap.enabled -}}
+  {{- if not .Values.persistence.enabled -}}
+    {{- fail "bootstrap.enabled requires persistence.enabled=true so WordPress files and wp-config.php are shared with the bootstrap Job" -}}
+  {{- end -}}
+  {{- if not (include "wordpress.bootstrapSiteUrl" .) -}}
+    {{- fail "bootstrap.enabled requires bootstrap.siteUrl or wordpress.siteUrl" -}}
+  {{- end -}}
+  {{- if not (has .Values.wordpress.multisite.mode (list "subdirectory" "subdomain")) -}}
+    {{- fail "wordpress.multisite.mode must be subdirectory or subdomain" -}}
   {{- end -}}
 {{- end -}}
 {{- end -}}

@@ -90,6 +90,21 @@
           "type": "boolean",
           "description": "Disable WordPress pseudo-cron (DISABLE_WP_CRON)"
         },
+        "multisite": {
+          "type": "object",
+          "description": "WordPress multisite configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable WordPress multisite constants in wp-config.php"
+            },
+            "mode": {
+              "type": "string",
+              "description": "Multisite mode used by bootstrap",
+              "enum": ["subdirectory", "subdomain"]
+            }
+          }
+        },
         "memoryLimit": {
           "type": "string",
           "description": "WordPress frontend memory limit (WP_MEMORY_LIMIT)"
@@ -126,6 +141,37 @@
           "type": "string",
           "description": "Key in the existing secret for the admin password"
         }
+      }
+    },
+    "bootstrap": {
+      "type": "object",
+      "description": "WP-CLI bootstrap Job for initial WordPress installation",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Install WordPress core with WP-CLI when not initialized" },
+        "skipIfInstalled": { "type": "boolean", "description": "Skip bootstrap when WordPress is already installed" },
+        "siteUrl": { "type": "string", "description": "Full site URL used by wp core install" },
+        "siteTitle": { "type": "string", "description": "Site title used by wp core install" },
+        "adminUser": { "type": "string", "description": "Admin username used by wp core install" },
+        "adminEmail": { "type": "string", "description": "Admin email used by wp core install" },
+        "permalinkStructure": { "type": "string", "description": "Permalink structure applied after install" },
+        "language": { "type": "string", "description": "Optional WordPress locale installed after bootstrap" },
+        "useHelmHooks": { "type": "boolean", "description": "Run bootstrap as a Helm hook" },
+        "hookWeight": { "type": "string", "description": "Helm hook weight" },
+        "image": {
+          "type": "object",
+          "description": "WordPress CLI image used by bootstrap",
+          "properties": {
+            "repository": { "type": "string", "description": "Image repository" },
+            "tag": { "type": "string", "description": "Image tag" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "description": "Image pull policy" }
+          }
+        },
+        "backoffLimit": { "type": "integer", "description": "Job backoff limit" },
+        "activeDeadlineSeconds": { "type": "integer", "description": "Job active deadline" },
+        "ttlSecondsAfterFinished": { "type": ["integer", "null"], "description": "Job TTL after finish" },
+        "resources": { "type": "object", "description": "Bootstrap resources" },
+        "securityContext": { "type": "object", "description": "Bootstrap container security context" },
+        "preferWordPressPodNode": { "type": "boolean", "description": "Schedule near WordPress pods for ReadWriteOnce PVCs" }
       }
     },
     "database": {
@@ -520,7 +566,7 @@
       "description": "WordPress persistent object cache integration",
       "properties": {
         "enabled": { "type": "boolean", "description": "Enable object cache integration" },
-        "provider": { "type": "string", "enum": ["redis-cache"], "description": "Object cache provider" },
+        "provider": { "type": "string", "enum": ["redis", "memcached"], "description": "Object cache provider" },
         "installPlugin": { "type": "boolean", "description": "Install the object cache plugin" },
         "enableDropIn": { "type": "boolean", "description": "Create the object-cache.php drop-in" },
         "redis": {
@@ -538,6 +584,20 @@
             "maxTtl": { "type": ["integer", "string"], "description": "Maximum TTL for Redis cache keys" },
             "auth": { "type": "object", "description": "Redis authentication settings" }
           }
+        },
+        "memcached": {
+          "type": "object",
+          "description": "Memcached object cache settings",
+          "properties": {
+            "mode": { "type": "string", "enum": ["subchart", "external"], "description": "Memcached deployment mode" },
+            "subchart": { "type": "object", "description": "HelmForge Memcached subchart settings" },
+            "external": { "type": "object", "description": "External Memcached settings" },
+            "port": { "type": "integer", "description": "Memcached port" },
+            "pluginSlug": { "type": "string", "description": "Plugin installed for Memcached cache wiring" },
+            "requiredPhpExtension": { "type": "string", "description": "PHP extension required by the Memcached object cache plugin" },
+            "allowOfficialImageWithoutExtension": { "type": "boolean", "description": "Allow official WordPress image despite missing php-memcached" },
+            "validatePhpExtension": { "type": "boolean", "description": "Validate PHP extension availability in the installer job" }
+          }
         }
       }
     },
@@ -548,7 +608,21 @@
         "enabled": { "type": "boolean", "description": "Create a NetworkPolicy for WordPress pods" },
         "ingress": { "type": "object", "description": "Ingress policy rules" },
         "metrics": { "type": "object", "description": "Metrics ingress policy rules" },
-        "egress": { "type": "object", "description": "Egress policy rules" }
+        "egress": {
+          "type": "object",
+          "description": "Egress policy rules",
+          "properties": {
+            "enabled": { "type": "boolean", "description": "Manage egress allow list" },
+            "allowDNS": { "type": "boolean", "description": "Allow DNS egress" },
+            "allowSameNamespaceDatabase": { "type": "boolean", "description": "Allow database egress in the same namespace" },
+            "databasePort": { "type": "integer", "description": "Database egress port" },
+            "allowSameNamespaceCache": { "type": "boolean", "description": "Allow object cache egress in the same namespace" },
+            "allowHTTPS": { "type": "boolean", "description": "Allow HTTPS egress" },
+            "allowSMTP": { "type": "boolean", "description": "Allow SMTP egress" },
+            "smtpPort": { "type": "integer", "description": "SMTP egress port" },
+            "extraTo": { "type": "array", "description": "Additional egress destinations", "items": { "type": "object" } }
+          }
+        }
       }
     },
     "externalSecrets": {

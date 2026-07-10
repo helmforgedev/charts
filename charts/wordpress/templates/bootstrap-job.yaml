@@ -1,0 +1,162 @@
+# SPDX-License-Identifier: Apache-2.0
+{{- include "wordpress.validateBootstrap" . }}
+{{- if eq (include "wordpress.bootstrapJobEnabled" .) "true" }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "wordpress.fullname" . }}-bootstrap
+  labels:
+    {{- include "wordpress.labels" . | nindent 4 }}
+    app.kubernetes.io/component: bootstrap
+  {{- if .Values.bootstrap.useHelmHooks }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": {{ .Values.bootstrap.hookWeight | quote }}
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  {{- end }}
+spec:
+  backoffLimit: {{ .Values.bootstrap.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.bootstrap.activeDeadlineSeconds }}
+  {{- with .Values.bootstrap.ttlSecondsAfterFinished }}
+  ttlSecondsAfterFinished: {{ . }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "wordpress.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: bootstrap
+    spec:
+      restartPolicy: Never
+      {{- if or .Values.serviceAccount.create .Values.serviceAccount.name }}
+      serviceAccountName: {{ include "wordpress.serviceAccountName" . }}
+      {{- end }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if and .Values.bootstrap.preferWordPressPodNode .Values.persistence.enabled }}
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  {{- include "wordpress.selectorLabels" . | nindent 18 }}
+                  app.kubernetes.io/component: wordpress
+              topologyKey: kubernetes.io/hostname
+      {{- end }}
+      containers:
+        - name: bootstrap
+          image: "{{ .Values.bootstrap.image.repository }}:{{ .Values.bootstrap.image.tag }}"
+          imagePullPolicy: {{ .Values.bootstrap.image.pullPolicy }}
+          workingDir: /var/www/html
+          {{- with .Values.bootstrap.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - sh
+            - -ec
+            - |
+              wait_for_wordpress_files() {
+                for i in $(seq 1 60); do
+                  if [ -f /var/www/html/wp-config.php ] && [ -d /var/www/html/wp-content ]; then
+                    return 0
+                  fi
+                  echo "Waiting for WordPress files on the shared volume..."
+                  sleep 2
+                done
+                echo "WordPress files were not initialized in time." >&2
+                return 1
+              }
+
+              wait_for_wordpress_files
+
+              if wp core is-installed --path=/var/www/html >/dev/null 2>&1; then
+                if [ "$BOOTSTRAP_SKIP_IF_INSTALLED" = "true" ]; then
+                  echo "WordPress is already installed; bootstrap skipped."
+                  exit 0
+                fi
+                echo "WordPress is already installed and bootstrap.skipIfInstalled=false." >&2
+                exit 1
+              fi
+
+              if [ "$WORDPRESS_MULTISITE_ENABLED" = "true" ]; then
+                args=""
+                if [ "$WORDPRESS_MULTISITE_MODE" = "subdomain" ]; then
+                  args="--subdomains"
+                fi
+                wp core multisite-install \
+                  --path=/var/www/html \
+                  --url="$BOOTSTRAP_SITE_URL" \
+                  --title="$BOOTSTRAP_SITE_TITLE" \
+                  --admin_user="$BOOTSTRAP_ADMIN_USER" \
+                  --admin_password="$BOOTSTRAP_ADMIN_PASSWORD" \
+                  --admin_email="$BOOTSTRAP_ADMIN_EMAIL" \
+                  --skip-email \
+                  $args
+              else
+                wp core install \
+                  --path=/var/www/html \
+                  --url="$BOOTSTRAP_SITE_URL" \
+                  --title="$BOOTSTRAP_SITE_TITLE" \
+                  --admin_user="$BOOTSTRAP_ADMIN_USER" \
+                  --admin_password="$BOOTSTRAP_ADMIN_PASSWORD" \
+                  --admin_email="$BOOTSTRAP_ADMIN_EMAIL" \
+                  --skip-email
+              fi
+
+              if [ -n "$BOOTSTRAP_LANGUAGE" ]; then
+                wp language core install "$BOOTSTRAP_LANGUAGE" --activate --path=/var/www/html
+              fi
+
+              if [ -n "$BOOTSTRAP_PERMALINK_STRUCTURE" ]; then
+                wp rewrite structure "$BOOTSTRAP_PERMALINK_STRUCTURE" --hard --path=/var/www/html
+              fi
+          env:
+            - name: BOOTSTRAP_SITE_URL
+              value: {{ include "wordpress.bootstrapSiteUrl" . | quote }}
+            - name: BOOTSTRAP_SITE_TITLE
+              value: {{ include "wordpress.bootstrapSiteTitle" . | quote }}
+            - name: BOOTSTRAP_ADMIN_USER
+              value: {{ include "wordpress.bootstrapAdminUser" . | quote }}
+            - name: BOOTSTRAP_ADMIN_EMAIL
+              value: {{ include "wordpress.bootstrapAdminEmail" . | quote }}
+            - name: BOOTSTRAP_SKIP_IF_INSTALLED
+              value: {{ .Values.bootstrap.skipIfInstalled | quote }}
+            - name: BOOTSTRAP_LANGUAGE
+              value: {{ .Values.bootstrap.language | quote }}
+            - name: BOOTSTRAP_PERMALINK_STRUCTURE
+              value: {{ .Values.bootstrap.permalinkStructure | quote }}
+            - name: WORDPRESS_MULTISITE_ENABLED
+              value: {{ .Values.wordpress.multisite.enabled | quote }}
+            - name: WORDPRESS_MULTISITE_MODE
+              value: {{ .Values.wordpress.multisite.mode | quote }}
+            - name: BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wordpress.adminSecretName" . }}
+                  key: {{ include "wordpress.adminSecretKey" . }}
+            - name: WORDPRESS_DB_HOST
+              value: {{ printf "%s:%s" (include "wordpress.databaseHost" .) (include "wordpress.databasePort" .) | quote }}
+            - name: WORDPRESS_DB_NAME
+              value: {{ include "wordpress.databaseName" . | quote }}
+            - name: WORDPRESS_DB_USER
+              value: {{ include "wordpress.databaseUsername" . | quote }}
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wordpress.databaseSecretName" . }}
+                  key: {{ include "wordpress.databaseSecretKey" . }}
+          {{- with .Values.bootstrap.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: wordpress-data
+              mountPath: /var/www/html
+      volumes:
+        - name: wordpress-data
+          persistentVolumeClaim:
+            claimName: {{ default (include "wordpress.fullname" .) .Values.persistence.existingClaim }}
+{{- end }}
