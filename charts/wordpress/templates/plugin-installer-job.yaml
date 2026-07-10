@@ -128,10 +128,21 @@ spec:
               install_plugin {{ default "" .slug | quote }} {{ $activate | quote }} {{ $skipIfInstalled | quote }}
               {{- end }}
               {{- if and .Values.objectCache.enabled .Values.objectCache.installPlugin }}
+              {{- if eq (include "wordpress.objectCacheRedisEnabled" .) "true" }}
               install_plugin "redis-cache" "true" "true"
               {{- end }}
+              {{- if eq (include "wordpress.objectCacheMemcachedEnabled" .) "true" }}
+              if [ {{ .Values.objectCache.memcached.validatePhpExtension | quote }} = "true" ]; then
+                if ! php -m | grep -Eiq '^{{ .Values.objectCache.memcached.requiredPhpExtension }}$'; then
+                  echo "PHP extension {{ .Values.objectCache.memcached.requiredPhpExtension }} is required for Memcached object cache." >&2
+                  exit 1
+                fi
+              fi
+              install_plugin {{ .Values.objectCache.memcached.pluginSlug | quote }} "true" "true"
+              {{- end }}
+              {{- end }}
 
-              {{- if and .Values.objectCache.enabled .Values.objectCache.enableDropIn }}
+              {{- if and (eq (include "wordpress.objectCacheRedisEnabled" .) "true") .Values.objectCache.enableDropIn }}
               if [ -f /var/www/html/wp-content/object-cache.php ]; then
                 echo "Redis object-cache.php drop-in already exists."
               elif [ -f /var/www/html/wp-content/plugins/redis-cache/includes/object-cache.php ]; then

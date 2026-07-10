@@ -18,13 +18,18 @@ plugins:
   enabled: true
   installer:
     enabled: true
+    image:
+      repository: example.com/custom-wordpress-cli
+      tag: cli-php8.3-memcached
   items:
     - slug: classic-editor
       activate: true
       skipIfInstalled: true
 ```
 
-## Redis Object Cache
+## Object Cache
+
+### Redis
 
 ```yaml
 plugins:
@@ -34,6 +39,7 @@ plugins:
 
 objectCache:
   enabled: true
+  provider: redis
   redis:
     mode: subchart
     subchart:
@@ -43,6 +49,36 @@ objectCache:
 The chart installs the official `redis-cache` plugin, configures `WP_REDIS_*`, and creates `wp-content/object-cache.php`.
 If WordPress core is not installed yet, plugin files are downloaded directly from WordPress.org and activation is retried
 on a future upgrade, but the drop-in can still be created from plugin files.
+
+### Memcached
+
+Memcached is supported as an advanced provider for custom WordPress images that include the PHP `memcached`
+extension. The official WordPress image does not include that extension, so the chart fails fast unless you use a
+custom image or explicitly acknowledge the limitation.
+
+```yaml
+image:
+  repository: example.com/custom-wordpress
+  tag: 7.0.0-apache-memcached
+
+plugins:
+  enabled: true
+  installer:
+    enabled: true
+
+objectCache:
+  enabled: true
+  provider: memcached
+  memcached:
+    mode: subchart
+    subchart:
+      enabled: true
+
+memcached:
+  architecture: standalone
+```
+
+Prefer Redis when using the upstream official image unchanged.
 
 ## Validation
 
@@ -58,9 +94,9 @@ Functional Redis validation requires:
 <!-- @AI-METADATA
 type: chart-docs
 title: WordPress Plugins and Object Cache
-description: Plugin installer and Redis Object Cache guide for the WordPress Helm chart
-keywords: wordpress, plugins, redis, object-cache, wp-cli, helm
-purpose: Documents mutable plugin installation and Redis object cache integration
+description: Plugin installer and object cache guide for the WordPress Helm chart
+keywords: wordpress, plugins, redis, memcached, object-cache, wp-cli, helm
+purpose: Documents mutable plugin installation and object cache integration
 scope: Chart
 relations:
   - charts/wordpress/README.md

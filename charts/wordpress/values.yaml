@@ -70,6 +70,12 @@ wordpress:
   # -- Disable WordPress pseudo-cron. Pair with wpCron.cronJob.enabled for scheduled execution.
   disableWpCron: false
 
+  multisite:
+    # -- Enable WordPress multisite constants in wp-config.php.
+    enabled: false
+    # -- Multisite mode used by bootstrap when creating a new network: subdirectory or subdomain.
+    mode: subdirectory
+
   # -- WordPress frontend memory limit (WP_MEMORY_LIMIT)
   memoryLimit: ""
 
@@ -104,6 +110,47 @@ admin:
 
   # -- Key in the existing secret for the admin password
   existingSecretPasswordKey: admin-password
+
+# =============================================================================
+# WordPress Bootstrap
+# =============================================================================
+
+bootstrap:
+  # -- Install WordPress core with WP-CLI when the database is not initialized yet.
+  enabled: false
+  # -- Skip bootstrap when wp core is already installed.
+  skipIfInstalled: true
+  # -- Full site URL used by wp core install. Defaults to wordpress.siteUrl.
+  siteUrl: ""
+  # -- Site title used by wp core install. Defaults to wordpress.siteTitle.
+  siteTitle: ""
+  # -- Admin username used by wp core install. Defaults to wordpress.adminUser.
+  adminUser: ""
+  # -- Admin email used by wp core install. Defaults to wordpress.adminEmail.
+  adminEmail: ""
+  # -- Permalink structure applied after installation. Empty leaves WordPress default.
+  permalinkStructure: ""
+  # -- Optional locale installed and activated after core installation, for example pt_BR.
+  language: ""
+  # -- Hook annotations make the Job run after install/upgrade and before plugin installation.
+  useHelmHooks: true
+  hookWeight: "0"
+  image:
+    # -- WordPress CLI image used by the bootstrap Job.
+    repository: docker.io/library/wordpress
+    tag: cli-php8.3
+    pullPolicy: IfNotPresent
+  backoffLimit: 1
+  activeDeadlineSeconds: 180
+  ttlSecondsAfterFinished: 300
+  resources: {}
+  securityContext:
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    runAsUser: 33
+    runAsGroup: 33
+  # -- Prefer scheduling the Job on nodes already running WordPress pods. Useful with ReadWriteOnce PVCs.
+  preferWordPressPodNode: true
 
 # =============================================================================
 # Database
@@ -421,7 +468,8 @@ plugins:
 objectCache:
   # -- Enable WordPress persistent object cache integration.
   enabled: false
-  provider: redis-cache
+  # -- Object cache provider: redis or memcached.
+  provider: redis
   # -- Install/activate the Redis Object Cache plugin and enable the object-cache.php drop-in.
   installPlugin: true
   enableDropIn: true
@@ -444,6 +492,35 @@ objectCache:
       password: ""
       existingSecret: ""
       existingSecretPasswordKey: redis-password
+  memcached:
+    # -- Memcached mode: subchart or external.
+    mode: subchart
+    subchart:
+      # -- Deploy HelmForge Memcached as a subchart when objectCache.provider=memcached.
+      enabled: false
+    external:
+      host: ""
+    port: 11211
+    # -- Plugin used for Memcached cache wiring.
+    pluginSlug: w3-total-cache
+    # -- PHP extension expected in the WordPress image. Official wordpress images do not ship this extension.
+    requiredPhpExtension: memcached
+    # -- Allow the official WordPress image even though it does not ship the required Memcached PHP extension.
+    allowOfficialImageWithoutExtension: false
+    # -- Validate that the required PHP extension is loaded before installing/configuring Memcached cache.
+    validatePhpExtension: true
+
+# =============================================================================
+# Memcached Subchart
+# =============================================================================
+# When objectCache.provider is memcached and objectCache.memcached.mode is
+# subchart, the chart deploys HelmForge Memcached as a subchart dependency.
+# The default official WordPress image does not include php-memcached, so use a
+# custom WordPress image or explicitly acknowledge that limitation.
+# =============================================================================
+
+memcached:
+  enabled: false
 
 # =============================================================================
 # NetworkPolicy
@@ -471,6 +548,8 @@ networkPolicy:
     allowSameNamespaceDatabase: true
     # -- Database port allowed when allowSameNamespaceDatabase=true
     databasePort: 3306
+    # -- Allow TCP egress to object cache pods in the same namespace when objectCache.enabled=true
+    allowSameNamespaceCache: true
     # -- Allow HTTPS egress for updates, plugin/theme downloads, APIs, and object storage endpoints
     allowHTTPS: false
     # -- Allow SMTP egress when a mail plugin or SMTP configuration needs it

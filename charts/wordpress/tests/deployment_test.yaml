@@ -138,6 +138,7 @@ tests:
       wordpress.forceSSLAdmin: true
       wordpress.disallowFileEdit: true
       wordpress.disableWpCron: true
+      wordpress.multisite.enabled: true
       wordpress.memoryLimit: 256M
       wordpress.maxMemoryLimit: 512M
     asserts:
@@ -150,6 +151,9 @@ tests:
       - matchRegex:
           path: spec.template.spec.containers[0].env[5].value
           pattern: "DISABLE_WP_CRON"
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[5].value
+          pattern: "WP_ALLOW_MULTISITE"
 
   - it: should configure Redis object cache env and wp-config constants
     template: templates/deployment.yaml
@@ -212,6 +216,36 @@ tests:
       - notMatchRegex:
           path: spec.template.spec.containers[0].env[5].value
           pattern: "WP_REDIS_PASSWORD"
+
+  - it: should configure Memcached object cache constants with a custom image
+    template: templates/deployment.yaml
+    set:
+      image.repository: example.com/custom-wordpress
+      plugins.installer.image.repository: example.com/custom-wordpress-cli
+      plugins.enabled: true
+      plugins.installer.enabled: true
+      objectCache.enabled: true
+      objectCache.provider: memcached
+      objectCache.memcached.subchart.enabled: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[5].value
+          pattern: "memcached_servers"
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[5].value
+          pattern: "test-memcached:11211"
+
+  - it: should reject Memcached with the official image unless explicitly acknowledged
+    template: templates/deployment.yaml
+    set:
+      plugins.enabled: true
+      plugins.installer.enabled: true
+      objectCache.enabled: true
+      objectCache.provider: memcached
+      objectCache.memcached.subchart.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "objectCache.provider=memcached requires custom WordPress and installer images with the php-memcached extension, or set objectCache.memcached.allowOfficialImageWithoutExtension=true to acknowledge the official image limitation"
 
   - it: should include extra env vars
     template: templates/deployment.yaml

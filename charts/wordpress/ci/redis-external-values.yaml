@@ -1,14 +1,78 @@
 # SPDX-License-Identifier: Apache-2.0
+# CI: external Redis object cache backed by a local disposable Redis pod.
 plugins:
   enabled: true
   installer:
-    enabled: true
+    enabled: false
 
 objectCache:
   enabled: true
+  installPlugin: false
+  enableDropIn: false
   redis:
     mode: external
     external:
-      host: redis.example.com
+      host: redis-external
     auth:
       password: ci-redis-password
+
+extraManifests:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: redis-external
+      labels:
+        app.kubernetes.io/name: redis
+        app.kubernetes.io/component: external-cache-ci
+    spec:
+      type: ClusterIP
+      ports:
+        - name: redis
+          port: 6379
+          targetPort: redis
+      selector:
+        app.kubernetes.io/name: redis
+        app.kubernetes.io/component: external-cache-ci
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: redis-external
+      labels:
+        app.kubernetes.io/name: redis
+        app.kubernetes.io/component: external-cache-ci
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: redis
+          app.kubernetes.io/component: external-cache-ci
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: redis
+            app.kubernetes.io/component: external-cache-ci
+        spec:
+          containers:
+            - name: redis
+              image: docker.io/library/redis:8.8.0
+              imagePullPolicy: IfNotPresent
+              args:
+                - redis-server
+                - --appendonly
+                - "no"
+                - --requirepass
+                - ci-redis-password
+              ports:
+                - name: redis
+                  containerPort: 6379
+              readinessProbe:
+                exec:
+                  command:
+                    - redis-cli
+                    - -a
+                    - ci-redis-password
+                    - ping
+                initialDelaySeconds: 5
+                periodSeconds: 5
+                timeoutSeconds: 3
+                failureThreshold: 12

@@ -42,6 +42,7 @@ Production-ready options are available through values:
 - PodDisruptionBudget and HorizontalPodAutoscaler.
 - Kubernetes CronJob for deterministic `wp-cron.php` execution.
 - S3-compatible scheduled backups for database and `wp-content`.
+- WP-CLI bootstrap Job for repeatable first-install setup.
 - Structured `wp-config.php` settings for SSL admin, file editor lockout, cron, and memory limits.
 
 ## Features
@@ -58,8 +59,11 @@ Production-ready options are available through values:
 - Optional Prometheus metrics through Apache exporter and ServiceMonitor.
 - Optional scheduled backups to S3-compatible storage.
 - Extensibility through `extraEnv`, `extraEnvFrom`, extra volumes, extra init containers, extra containers, and extra manifests.
+- Optional WP-CLI bootstrap Job for initial core installation, permalink setup, locale activation, and multisite install.
 - Idempotent post-install/post-upgrade plugin installer Job.
+- Object cache integration with Redis or Memcached provider modes.
 - Redis Object Cache integration with HelmForge Redis subchart or external Redis.
+- Memcached subchart wiring for custom WordPress images that include the required PHP extension.
 
 ## Production Example
 
@@ -120,6 +124,10 @@ pdb:
 wpCron:
   cronJob:
     enabled: true
+
+bootstrap:
+  enabled: true
+  permalinkStructure: /%postname%/
 
 networkPolicy:
   enabled: true
@@ -194,6 +202,9 @@ plugins:
   enabled: true
   installer:
     enabled: true
+    image:
+      repository: example.com/custom-wordpress-cli
+      tag: cli-php8.3-memcached
   items:
     - slug: classic-editor
       activate: true
@@ -213,7 +224,33 @@ the Job downloads the official plugin archive from `downloads.wordpress.org`, ex
 and defers activation until a later upgrade.
 The installer runs as `www-data` by default so it can write to the same PVC paths initialized by the official WordPress image.
 
-## Redis Object Cache
+## Bootstrap
+
+The official WordPress image creates `wp-config.php`, but it does not create the initial site, admin user,
+or permalink settings. Enable the bootstrap Job when you want Helm to complete the first install with WP-CLI.
+
+```yaml
+wordpress:
+  siteUrl: https://blog.example.com
+  siteTitle: Example Blog
+  adminUser: admin
+  adminEmail: admin@example.com
+
+admin:
+  existingSecret: wordpress-admin
+
+bootstrap:
+  enabled: true
+  permalinkStructure: /%postname%/
+```
+
+The Job is idempotent by default. It exits successfully when WordPress is already installed.
+For multisite installs, enable `wordpress.multisite.enabled` and set `wordpress.multisite.mode` to
+`subdirectory` or `subdomain`.
+
+## Object Cache
+
+### Redis
 
 Enable Redis Object Cache with the HelmForge Redis subchart:
 
@@ -225,6 +262,7 @@ plugins:
 
 objectCache:
   enabled: true
+  provider: redis
   redis:
     mode: subchart
     subchart:
@@ -244,6 +282,7 @@ plugins:
 
 objectCache:
   enabled: true
+  provider: redis
   redis:
     mode: external
     external:
@@ -259,6 +298,39 @@ It also installs `redis-cache` and creates `wp-content/object-cache.php`.
 
 For immutable production deployments, prefer a custom WordPress image with required plugins and drop-ins already packaged.
 The installer Job is a practical operational convenience for development, labs, and mutable PVC-based installs.
+
+### Memcached
+
+Memcached is available as an advanced provider for teams that already use a WordPress image with the PHP
+`memcached` extension installed. The official `docker.io/library/wordpress` image does not ship that extension,
+so the chart rejects `provider: memcached` with the official image unless you explicitly acknowledge the limitation.
+
+```yaml
+image:
+  repository: example.com/custom-wordpress
+  tag: 7.0.0-apache-memcached
+
+plugins:
+  enabled: true
+  installer:
+    enabled: true
+
+objectCache:
+  enabled: true
+  provider: memcached
+  memcached:
+    mode: subchart
+    subchart:
+      enabled: true
+
+memcached:
+  architecture: standalone
+  memcached:
+    memoryLimitMB: 128
+```
+
+Use Redis for the default plug-and-play path. Use Memcached only when the runtime image and plugin strategy are
+validated for your environment.
 
 ## Gateway API
 
@@ -294,11 +366,16 @@ The chart creates an `HTTPRoute` that sends traffic to the WordPress Service.
 | `wordpress.forceSSLAdmin` | `false` | Sets `FORCE_SSL_ADMIN` |
 | `wordpress.disallowFileEdit` | `false` | Sets `DISALLOW_FILE_EDIT` |
 | `wordpress.disableWpCron` | `false` | Sets `DISABLE_WP_CRON` |
+| `wordpress.multisite.enabled` | `false` | Enables WordPress multisite constants |
+| `wordpress.multisite.mode` | `subdirectory` | Bootstrap multisite mode: `subdirectory` or `subdomain` |
 | `wordpress.memoryLimit` | `""` | Sets `WP_MEMORY_LIMIT` |
 | `wordpress.maxMemoryLimit` | `""` | Sets `WP_MAX_MEMORY_LIMIT` |
 | `wordpress.configExtra` | `""` | Extra PHP appended to `wp-config.php` |
 | `wordpress.extraEnv` | `[]` | Extra environment variables |
 | `wordpress.extraEnvFrom` | `[]` | Extra `envFrom` references |
+| `bootstrap.enabled` | `false` | Create a WP-CLI Job for first-install setup |
+| `bootstrap.siteUrl` | `""` | Site URL used by bootstrap; defaults to `wordpress.siteUrl` |
+| `bootstrap.permalinkStructure` | `""` | Optional permalink structure applied after install |
 
 ### Database
 
@@ -344,8 +421,11 @@ The chart creates an `HTTPRoute` that sends traffic to the WordPress Service.
 | `metrics.serviceMonitor.enabled` | `false` | Create ServiceMonitor |
 | `plugins.enabled` | `false` | Enable plugin installer support |
 | `plugins.installer.enabled` | `false` | Create plugin installer Job |
-| `objectCache.enabled` | `false` | Enable Redis Object Cache integration |
+| `objectCache.enabled` | `false` | Enable persistent object cache integration |
+| `objectCache.provider` | `redis` | Object cache provider: `redis` or `memcached` |
 | `objectCache.redis.mode` | `subchart` | Redis source: `subchart` or `external` |
+| `objectCache.memcached.mode` | `subchart` | Memcached source: `subchart` or `external` |
+| `objectCache.memcached.allowOfficialImageWithoutExtension` | `false` | Acknowledge official image limitation for Memcached |
 
 ### Storage and Backup
 
@@ -376,6 +456,7 @@ The chart creates an `HTTPRoute` that sends traffic to the WordPress Service.
 | PodDisruptionBudget | `pdb.enabled` | Disruption protection |
 | CronJob | `wpCron.cronJob.enabled` | WordPress cron trigger |
 | CronJob | `backup.enabled` | Database and content backup |
+| Job | `bootstrap.enabled` | WP-CLI first-install bootstrap |
 | Job | `plugins.installer.enabled` | Idempotent plugin installation and activation |
 | ServiceMonitor | `metrics.serviceMonitor.enabled` | Prometheus scrape configuration |
 
@@ -387,7 +468,9 @@ The chart creates an `HTTPRoute` that sends traffic to the WordPress Service.
 - [External Secrets](examples/external-secrets.yaml)
 - [Gateway API](examples/gateway-api.yaml)
 - [Dual stack](examples/dual-stack.yaml)
+- [Bootstrap](examples/bootstrap.yaml)
 - [Redis Object Cache](examples/redis-object-cache.yaml)
+- [Memcached Object Cache](examples/memcached-object-cache.yaml)
 - [Custom plugins](examples/custom-plugins.yaml)
 
 ## Architecture Guides

@@ -53,6 +53,36 @@ tests:
                 name: test-redis-auth
                 key: redis-password
 
+  - it: should install Memcached cache plugin with a custom image
+    set:
+      image.repository: example.com/custom-wordpress
+      plugins.installer.image.repository: example.com/custom-wordpress-cli
+      plugins.enabled: true
+      plugins.installer.enabled: true
+      objectCache.enabled: true
+      objectCache.provider: memcached
+      objectCache.memcached.subchart.enabled: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "PHP extension memcached is required"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "install_plugin \"w3-total-cache\""
+
+  - it: should allow explicitly acknowledged Memcached with the official image
+    set:
+      plugins.enabled: true
+      plugins.installer.enabled: true
+      objectCache.enabled: true
+      objectCache.provider: memcached
+      objectCache.memcached.subchart.enabled: true
+      objectCache.memcached.allowOfficialImageWithoutExtension: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "install_plugin \"w3-total-cache\""
+
   - it: should use Redis subchart existingSecret in installer job
     set:
       plugins.enabled: true
@@ -102,6 +132,15 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "plugins.enabled must be true when objectCache.enabled is true"
+
+  - it: should require installer when object cache manages plugins or drop-ins
+    set:
+      plugins.enabled: true
+      objectCache.enabled: true
+      objectCache.redis.subchart.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "plugins.installer.enabled must be true when objectCache.installPlugin or objectCache.enableDropIn is true"
 
   - it: should require persistence for installer job writes
     set:

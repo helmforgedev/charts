@@ -114,28 +114,60 @@ It runs as UID/GID 33 (`www-data`) by default to match the official WordPress im
 When persistence uses `ReadWriteOnce`, the Job uses pod affinity to schedule on the same node as the WordPress pod.
 The Job is intentionally fail-fast with a 60 second active deadline and one retry by default.
 
-## Redis Object Cache Architecture
+## Bootstrap Architecture
+
+```text
+Helm post-install/post-upgrade
+  |
+  v
++----------------------+
+| Bootstrap Job        |
+| wordpress:cli        |
++----------+-----------+
+           |
+           | waits for wp-config.php
+           | wp core is-installed
+           | wp core install / multisite-install
+           v
++----------------------+
+| WordPress database   |
+| admin/site settings  |
++----------------------+
+```
+
+The official WordPress image prepares files and `wp-config.php`, but it does not create the initial site.
+The bootstrap Job provides that missing operational layer with WP-CLI. It is idempotent by default and exits
+successfully when `wp core is-installed` is already true.
+
+Bootstrap requires persistence because the Job and Deployment must share the initialized WordPress files.
+It also requires an explicit site URL so production installs do not accidentally store an internal Kubernetes
+Service URL in WordPress options.
+
+## Object Cache Architecture
 
 ```text
 WordPress Deployment
   |
-  | WP_REDIS_* constants
-  | object-cache.php drop-in
+  | provider-specific constants
+  | object-cache.php drop-in or plugin wiring
   v
-+-------------------------+
-| Redis Object Cache      |
-| plugin/drop-in          |
-+------------+------------+
++----------------------------+
+| WordPress object cache     |
+| redis or memcached backend |
++------------+---------------+
              |
-             | TCP 6379
+             | TCP 6379 / 11211
              v
-+-------------------------+
-| HelmForge Redis subchart|
-| or external Redis       |
-+-------------------------+
++----------------------------+
+| HelmForge Redis/Memcached |
+| or external cache service |
++----------------------------+
 ```
 
 Redis integration is considered functional only when the drop-in exists and Redis receives cache keys after WordPress requests. A running Redis pod alone is not enough.
+Redis is the plug-and-play provider for the official WordPress image because the selected plugin can use Predis.
+Memcached is intentionally guarded: the official image does not include the required PHP extension, so the chart
+requires a custom image or an explicit acknowledgement before rendering that provider.
 
 ## Routing Architecture
 
@@ -165,10 +197,11 @@ The chart exposes HPA and PDB, but it does not assume WordPress is safely horizo
 Use this order for production decisions:
 
 1. Choose database mode and backup ownership.
-2. Choose content storage/media strategy.
-3. Enable TLS routing.
-4. Enable explicit resources, NetworkPolicy, metrics, and backups.
-5. Add HPA/PDB only after storage and plugin behavior are safe for multiple pods.
+2. Choose bootstrap mode and the initial site URL.
+3. Choose content storage/media strategy.
+4. Enable TLS routing.
+5. Enable explicit resources, NetworkPolicy, metrics, and backups.
+6. Add HPA/PDB only after storage and plugin behavior are safe for multiple pods.
 
 ## Backup Model
 

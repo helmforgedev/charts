@@ -122,10 +122,16 @@ Features:
 
 {{- if .Values.objectCache.enabled }}
 Object Cache:
-  Provider:     {{ .Values.objectCache.provider }}
+  Provider:     {{ include "wordpress.objectCacheProvider" . }}
+{{- if eq (include "wordpress.objectCacheProvider" .) "redis" }}
   Redis mode:   {{ .Values.objectCache.redis.mode }}
   Redis host:   {{ include "wordpress.redisHost" . }}:{{ .Values.objectCache.redis.port }}
   Redis prefix: {{ include "wordpress.redisPrefix" . }}
+{{- end }}
+{{- if eq (include "wordpress.objectCacheProvider" .) "memcached" }}
+  Memcached mode: {{ .Values.objectCache.memcached.mode }}
+  Memcached host: {{ include "wordpress.memcachedHost" . }}:{{ .Values.objectCache.memcached.port }}
+{{- end }}
 {{- end }}
 
 {{- if .Values.backup.enabled }}
@@ -242,8 +248,12 @@ View MySQL logs:
 {{- end }}
 
 {{- if .Values.objectCache.enabled }}
-View Redis/Object Cache logs:
+View Object Cache logs:
+{{- if eq (include "wordpress.objectCacheProvider" .) "redis" }}
   kubectl logs -l app.kubernetes.io/name=redis -n {{ .Release.Namespace }} --all-containers --tail=100
+{{- else if eq (include "wordpress.objectCacheProvider" .) "memcached" }}
+  kubectl logs -l app.kubernetes.io/name=memcached -n {{ .Release.Namespace }} --all-containers --tail=100
+{{- end }}
 {{- end }}
 
 --------------------------------------------------------------------

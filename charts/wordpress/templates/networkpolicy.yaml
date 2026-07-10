@@ -54,7 +54,7 @@ spec:
     []
     {{- end }}
   {{- if .Values.networkPolicy.egress.enabled }}
-  {{- $allowEgress := or .Values.networkPolicy.egress.allowDNS .Values.networkPolicy.egress.allowSameNamespaceDatabase .Values.networkPolicy.egress.allowHTTPS .Values.networkPolicy.egress.allowSMTP .Values.networkPolicy.egress.extraTo }}
+  {{- $allowEgress := or .Values.networkPolicy.egress.allowDNS .Values.networkPolicy.egress.allowSameNamespaceDatabase (and .Values.networkPolicy.egress.allowSameNamespaceCache .Values.objectCache.enabled) .Values.networkPolicy.egress.allowHTTPS .Values.networkPolicy.egress.allowSMTP .Values.networkPolicy.egress.extraTo }}
   egress:
     {{- if $allowEgress }}
     {{- if .Values.networkPolicy.egress.allowDNS }}
@@ -77,6 +77,16 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.networkPolicy.egress.databasePort }}
+    {{- end }}
+    {{- if and .Values.networkPolicy.egress.allowSameNamespaceCache .Values.objectCache.enabled }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector: {}
+      ports:
+        - protocol: TCP
+          port: {{ ternary .Values.objectCache.memcached.port .Values.objectCache.redis.port (eq (include "wordpress.objectCacheProvider" .) "memcached") }}
     {{- end }}
     {{- if .Values.networkPolicy.egress.allowHTTPS }}
     - to:
