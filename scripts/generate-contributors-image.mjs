@@ -3,7 +3,13 @@ import { dirname } from 'node:path';
 
 const [repo = 'helmforgedev/charts', outputPath = 'badges/contributors.svg'] = process.argv.slice(2);
 const token = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
-const maxContributors = Number.parseInt(process.env.CONTRIBUTORS_LIMIT ?? '24', 10);
+const contributorsLimit = process.env.CONTRIBUTORS_LIMIT ?? '24';
+const maxContributors = Number(contributorsLimit);
+
+if (!/^\d+$/.test(contributorsLimit) || !Number.isSafeInteger(maxContributors) || maxContributors < 1) {
+  throw new Error('CONTRIBUTORS_LIMIT must be a positive integer.');
+}
+
 const excludedLogins = new Set(
   (process.env.CONTRIBUTORS_EXCLUDE ?? 'cursoragent,github-actions[bot],dependabot[bot],renovate[bot]')
     .split(',')
