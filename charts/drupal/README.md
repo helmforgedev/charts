@@ -6,7 +6,7 @@ Important runtime note:
 
 - This chart uses `docker.io/library/drupal`.
 - Drupal upstream does not currently publish its own upstream-maintained runtime container image.
-- HelmForge pins the Docker Official Apache image explicitly to `11.4.0-php8.5-apache-bookworm`, which is published by the Docker Official Drupal image repository.
+- HelmForge pins the Docker Official Apache image explicitly to `11.4.1-php8.5-apache-bookworm`, which is published by the Docker Official Drupal image repository.
 - The chart prepares runtime, persistence, ingress, backup automation, and database connectivity, then guides the final site installation through Drupal's web installer.
 
 ## Install
@@ -44,7 +44,7 @@ Then:
 
 ## Why This Chart Is Different
 
-- **Pinned production image** — uses `drupal:11.4.0-php8.5-apache-bookworm`, keeping the Drupal release, PHP runtime, and Debian base explicit
+- **Pinned production image** — uses `drupal:11.4.1-php8.5-apache-bookworm`, keeping the Drupal release, PHP runtime, and Debian base explicit
 - **Seeded `sites/` persistence** — preserves installer output and uploads without masking Drupal core files from the image
 - **Built-in backup automation** — archives `sites/` and backs up either MySQL or SQLite to S3-compatible storage
 - **Safe scaling model** — single replica by default, with fail-fast guardrails for multi-replica or HPA use
@@ -53,15 +53,16 @@ Then:
 
 ## Upstream Version Notes
 
-Drupal `11.4.0` is an upstream feature minor release for Drupal 11 and is
-marked by upstream as ready for production sites. The release changes the
+Drupal `11.4.1` is a production-ready patch release that fixes three regressions
+found in 11.4.0. The 11.4 line changes the
 Composer dependency policy for `drupal/core-recommended`: Guzzle, Twig, and
 Symfony polyfills are no longer pinned there, so security and patch updates can
 be applied without waiting for a new Drupal core release.
 
 Before upgrading production workloads, test the site in staging with the same
 PHP extensions, Composer dependency set, storage class, and database mode used
-in production.
+in production. Review Drupal's 11.4.1 known issues, especially the documented
+search-module update path, before running database updates.
 
 ## Production Example
 
@@ -149,7 +150,7 @@ mysql:
 |-----|---------|-------------|
 | `replicaCount` | `1` | Number of Drupal replicas. |
 | `image.repository` | `docker.io/library/drupal` | Drupal image repository. |
-| `image.tag` | `11.4.0-php8.5-apache-bookworm` | Drupal image tag. |
+| `image.tag` | `11.4.1-php8.5-apache-bookworm` | Drupal image tag. |
 | `database.mode` | `auto` | Database mode: `auto`, `external`, `mysql`, or `sqlite`. |
 | `mysql.enabled` | `true` | Deploy bundled MySQL. |
 | `mysql.auth.database` | `drupal` | Database name created by the MySQL subchart. |
