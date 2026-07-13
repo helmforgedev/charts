@@ -5,7 +5,7 @@
 Helm chart for deploying [Homarr](https://homarr.dev/) modern application dashboard on Kubernetes using the official
 [`ghcr.io/homarr-labs/homarr`](https://github.com/homarr-labs/homarr/pkgs/container/homarr) container image.
 
-Current application version: `v1.69.2`.
+Current application version: `v1.70.0`.
 
 ## Features
 
@@ -173,7 +173,7 @@ backup:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `ghcr.io/homarr-labs/homarr` | Container image repository |
-| `image.tag` | `"v1.69.2"` | Homarr image tag |
+| `image.tag` | `"v1.70.0"` | Homarr image tag |
 | `replicaCount` | `1` | Number of replicas |
 | `homarr.logLevel` | `info` | Log level |
 | `homarr.authProviders` | `credentials` | Auth providers (credentials, ldap, oidc) |
@@ -265,8 +265,8 @@ writable and does not force a non-root UID or dropped capabilities by default. O
 
 ## Upgrade Notes
 
-This update moves the default image from `v1.68.0` to `v1.69.2`. Review upstream release notes before upgrading production
-environments. Homarr `v1.69.2` is a patch release that fixes layout stacking so the AppShell header renders above indicator
+This update moves the default image from `v1.69.2` to `v1.70.0`. Review upstream release notes before upgrading production
+environments. Homarr `v1.70.0` adds integrations and fixes widget secrets, forms, query caching, and layout stacking so the AppShell header renders above indicator
 dots. No breaking changes were identified in the upstream release metadata.
 
 For PostgreSQL and MySQL, the chart sets `DB_DIALECT`, `DB_DRIVER`, and discrete database environment variables instead of
