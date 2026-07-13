@@ -243,7 +243,7 @@ probes:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `ghcr.io/dgtlmoon/changedetection.io` | changedetection.io image repository |
-| `image.tag` | `0.55.7` | changedetection.io image tag |
+| `image.tag` | `0.55.8` | changedetection.io image tag |
 | `image.pullPolicy` | `IfNotPresent` | Image pull policy |
 | `changedetection.port` | `5000` | Application port |
 | `changedetection.baseUrl` | `""` | Public base URL |
@@ -283,10 +283,11 @@ probes:
 
 ## Upgrade Notes
 
-For this release the application image is updated to `0.55.7`. The upstream
+For this release the application image is updated to `0.55.8`. The upstream
 `0.55.6` release includes a security fix for an SSRF parser differential,
 notification and preview fixes, plus an `LLM_FEATURES_DISABLED` flag. The
-`0.55.7` release fixes the LLM settings UI path. Review the upstream changelog
+`0.55.8` release adds translation updates and fixes page title extraction,
+password-protected RSS feeds, URL fragments, restock tokens, and LLM handling. Review the upstream changelog
 before production rollout and test restores from the `/datastore` backup when
 upgrading long-lived instances.
 
