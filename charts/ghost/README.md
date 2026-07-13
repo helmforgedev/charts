@@ -77,13 +77,11 @@ database:
 
 ## Upgrade Notes
 
-Ghost `6.52.1` is the current upstream patch release. It includes publisher
-gift links, configurable admin session max age, Ghost Admin appearance updates,
-analytics/admin improvements, and fixes including stored XSS hardening in JSON-LD
-output. Review the upstream Ghost release notes before upgrading production
-sites, take a content and database backup, and verify themes, custom
-integrations, newsletter flows, comments, and member signup paths in staging
-before reusing existing PVCs.
+Ghost `6.52.1` is the current upstream patch release and fixes link selection
+in the automations email editor. Review the upstream Ghost release notes before
+upgrading production sites, take a content and database backup, and verify
+themes, custom integrations, newsletter flows, comments, and member signup
+paths in staging before reusing existing PVCs.
 
 ## S3 Backup
 
