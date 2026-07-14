@@ -155,13 +155,13 @@ externalSecrets:
 
 When an ExternalSecret owns a target Secret, the native generated Secret for that credential is suppressed and Keycloak consumes the materialized Kubernetes Secret.
 
-## Keycloak 26.6.x rollout notes
+## Keycloak 26.7.x rollout notes
 
 The default image is `quay.io/keycloak/keycloak:26.7.0`.
 
 Before rolling this version into production:
 
-- read the official 26.6.x release notes
+- read the official [26.7.0 release notes](https://www.keycloak.org/2026/07/keycloak-2670-released)
 - validate database startup and migration logs
 - validate readiness and liveness on the management service
 - validate login, token refresh, logout, and admin console access through the real reverse proxy path
