@@ -17,6 +17,17 @@ application data, user accounts, provider credentials, ACME state, workflows,
 and issued certificate material. Backup and restore procedures should treat the
 whole directory as sensitive.
 
+Certimate is PocketBase-backed in the upstream container. The chart deliberately
+does not add PostgreSQL, MySQL, or Redis subcharts because there is no official
+external database contract to wire those dependencies safely. A database subchart
+would create a false production signal without moving Certimate state out of
+`/app/pb_data`.
+
+Disabling persistence is a breaking, explicit choice: users must set
+`persistence.ephemeral=true` together with `persistence.enabled=false`. This
+keeps disposable CI and demo installs available while preventing accidental loss
+of certificates, ACME accounts, provider credentials, and workflow state.
+
 ## Exposure
 
 The chart supports Kubernetes Ingress and Gateway API HTTPRoute. TLS termination is expected at the ingress controller or gateway. Certimate itself remains an internal HTTP service.
