@@ -135,7 +135,7 @@ metrics:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/pihole/pihole` | Pi-hole container image repository |
-| `image.tag` | `2026.06.0` | Pi-hole container image tag (official upstream release 2026.06.0) |
+| `image.tag` | `2026.07.2` | Pi-hole container image tag (official upstream release 2026.07.2) |
 | `image.pullPolicy` | `IfNotPresent` | Pi-hole image pull policy |
 | `pihole.timezone` | `UTC` | Timezone for logs and scheduled tasks |
 | `pihole.upstreamDns` | `8.8.8.8;8.8.4.4` | Upstream DNS servers (semicolon-delimited) |
@@ -294,9 +294,10 @@ metrics:
 
 ## Upgrade Notes
 
-Pi-hole `2026.06.0` rolls in the upstream Web `6.5.1` fixes published by the
-Pi-hole project. No chart-specific migration is required for this image bump,
-but production upgrades should still back up `/etc/pihole` and
+Pi-hole `2026.07.2` includes the container-side fix associated with upstream
+security advisory `GHSA-h8w9-qx2v-wrww` and moves the logrotate configuration
+to `/etc/logrotate.d/pihole`. No chart-specific migration is required, but
+production upgrades should still back up `/etc/pihole` and
 `/etc/dnsmasq.d` before rollout.
 
 ## Connection
