@@ -1,0 +1,30 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "netbird.serverServiceName" . }}
+  labels:
+    {{- include "netbird.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  minAvailable: {{ .Values.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "netbird.componentSelectorLabels" (dict "root" . "component" "server") | nindent 6 }}
+{{- if .Values.dashboard.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "netbird.dashboardServiceName" . }}
+  labels:
+    {{- include "netbird.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dashboard
+spec:
+  minAvailable: {{ .Values.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "netbird.componentSelectorLabels" (dict "root" . "component" "dashboard") | nindent 6 }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: netbird base templates
+templates:
+  - templates/deployment.yaml
+  - templates/service.yaml
+  - templates/pvc.yaml
+  - templates/secret-config.yaml
+  - templates/ingress.yaml
+tests:
+  - it: renders the official pinned server image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: netbirdio/netbird-server:0.74.4
+        template: templates/deployment.yaml
+        documentIndex: 0
+  - it: renders the official pinned dashboard image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: netbirdio/dashboard:v2.90.3
+        template: templates/deployment.yaml
+        documentIndex: 1
+  - it: renders separate server and dashboard services
+    asserts:
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-netbird-server
+        template: templates/service.yaml
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-netbird-dashboard
+        template: templates/service.yaml
+        documentIndex: 1
+  - it: uses emptyDir when persistence is disabled
+    set:
+      persistence.enabled: false
+    asserts:
+      - exists:
+          path: spec.template.spec.volumes[1].emptyDir
+        template: templates/deployment.yaml
+        documentIndex: 0
+  - it: creates a PVC when persistence is chart-managed
+    asserts:
+      - equal:
+          path: spec.resources.requests.storage
+          value: 10Gi
+        template: templates/pvc.yaml

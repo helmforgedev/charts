@@ -1,0 +1,38 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "netbird.fullname" . }}
+  labels:
+    {{- include "netbird.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.ingressClassName }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- $paths := default (list (dict "path" "/" "pathType" "Prefix")) .paths }}
+          {{- range $paths }}
+          {{- $service := default "dashboard" .service }}
+          - path: {{ default "/" .path }}
+            pathType: {{ default "Prefix" .pathType }}
+            backend:
+              service:
+                name: {{- if eq $service "server" }} {{ include "netbird.serverServiceName" $ }}{{- else }} {{ include "netbird.dashboardServiceName" $ }}{{- end }}
+                port:
+                  number: {{- if eq $service "server" }} {{ $.Values.server.service.httpPort }}{{- else }} {{ $.Values.dashboard.service.port }}{{- end }}
+          {{- end }}
+    {{- end }}
+{{- end }}

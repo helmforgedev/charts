@@ -1,0 +1,285 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# -- Override the chart name used in Kubernetes object names.
+nameOverride: ""
+
+# -- Override the full release name used in Kubernetes object names.
+fullnameOverride: ""
+
+# -- Extra labels applied to all Kubernetes objects rendered by this chart.
+commonLabels: {}
+
+server:
+  image:
+    # -- Official NetBird server container image repository.
+    repository: netbirdio/netbird-server
+    # -- Pinned NetBird server image tag. Floating tags such as latest are not used by default.
+    tag: "0.74.4"
+    # -- Kubernetes image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Number of NetBird server pods. Keep 1 with the default sqlite store.
+  replicaCount: 1
+  # -- Public URL used by NetBird peers, dashboard, APIs, gRPC, signal, and relay.
+  publicUrl: https://netbird.example.com
+  # -- Shared authentication secret used by the NetBird server. Override for production.
+  authSecret: change-me-in-production
+  # -- Disable anonymous upstream telemetry from the NetBird server.
+  disableAnonymousMetrics: true
+  # -- Disable GeoLite database updates when outbound internet access is restricted.
+  disableGeoliteUpdate: true
+  # -- Optional command override. Leave empty to use the upstream image entrypoint.
+  command: []
+  # -- Optional argument override. Defaults to loading the rendered config file.
+  args:
+    - --config
+    - /etc/netbird/config.yaml
+  # -- Additional environment variables.
+  env: []
+  # -- Additional envFrom sources such as Secret or ConfigMap references.
+  envFrom: []
+  probes:
+    # -- Enable NetBird server health probes. Disabled by default because first boot can initialize geolocation data longer than default Helm wait timeouts.
+    enabled: false
+  config:
+    # -- Existing Secret containing config.yaml. When set, the chart does not render its generated config Secret.
+    existingSecret: ""
+    # -- Key inside existingSecret that stores the NetBird config file.
+    existingSecretKey: config.yaml
+    # -- Extra raw YAML appended under the top-level server config.
+    extraYaml: ""
+  auth:
+    # -- OIDC issuer URL. The default is suitable only for chart validation and must be replaced for production.
+    issuer: https://netbird.example.com/oauth2
+    # -- Disable local authentication when an external OIDC provider is configured.
+    localAuthDisabled: false
+    # -- Enable NetBird sign-key refresh.
+    signKeyRefreshEnabled: false
+    owner:
+      # -- Optional initial owner email for local authentication bootstrap.
+      email: ""
+      # -- Optional initial owner password for local authentication bootstrap. Prefer externalSecrets in production.
+      password: ""
+  store:
+    # -- NetBird store engine. Supported by upstream: sqlite, postgres, mysql.
+    engine: sqlite
+    # -- Store DSN. Empty uses sqlite under /var/lib/netbird.
+    dsn: ""
+    # -- Optional encryption key for stored secrets. Prefer externalSecrets in production.
+    encryptionKey: ""
+  service:
+    # -- Service type for NetBird server HTTP/gRPC and STUN UDP traffic.
+    type: ClusterIP
+    # -- HTTP/gRPC service port.
+    httpPort: 80
+    # -- UDP STUN service port.
+    stunPort: 3478
+    # -- Metrics service port.
+    metricsPort: 9090
+    # -- Health service port.
+    healthPort: 9000
+    # -- Service annotations.
+    annotations: {}
+    # -- IP family policy. Options: SingleStack, PreferDualStack, RequireDualStack.
+    ipFamilyPolicy: ""
+    # -- Ordered list of IP families, for example ["IPv4", "IPv6"].
+    ipFamilies: []
+
+dashboard:
+  # -- Deploy the NetBird dashboard UI.
+  enabled: true
+  image:
+    # -- Official NetBird dashboard container image repository.
+    repository: netbirdio/dashboard
+    # -- Pinned NetBird dashboard image tag. This follows dashboard's own upstream versioning.
+    tag: "v2.90.3"
+    # -- Kubernetes image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Number of dashboard pods.
+  replicaCount: 1
+  # -- Additional dashboard environment variables.
+  env: []
+  # -- Additional envFrom sources such as Secret or ConfigMap references.
+  envFrom: []
+  auth:
+    # -- Dashboard OIDC client ID.
+    clientId: netbird
+    # -- Dashboard OIDC audience.
+    audience: netbird
+    # -- Dashboard OIDC scopes.
+    supportedScopes: openid profile email offline_access api
+    # -- Dashboard token source.
+    tokenSource: accessToken
+    # -- Whether the dashboard should use Auth0 mode.
+    useAuth0: "false"
+  # -- Dashboard container security context. Upstream supervisord starts as root and drops privileges internally.
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+      add:
+        - CHOWN
+        - SETGID
+        - SETUID
+    readOnlyRootFilesystem: false
+    runAsNonRoot: false
+    seccompProfile:
+      type: RuntimeDefault
+  service:
+    # -- Service type for the dashboard.
+    type: ClusterIP
+    # -- Dashboard service port.
+    port: 80
+    # -- Service annotations.
+    annotations: {}
+    # -- IP family policy. Options: SingleStack, PreferDualStack, RequireDualStack.
+    ipFamilyPolicy: ""
+    # -- Ordered list of IP families, for example ["IPv4", "IPv6"].
+    ipFamilies: []
+
+# -- Optional image pull secrets for private registries or mirrored images.
+imagePullSecrets: []
+
+persistence:
+  # -- Persist NetBird sqlite data, embedded configuration state, and generated assets.
+  enabled: true
+  # -- PersistentVolumeClaim size for /var/lib/netbird.
+  size: 10Gi
+  # -- StorageClass for the generated PersistentVolumeClaim. Empty uses the cluster default.
+  storageClass: ""
+  # -- Access modes for the generated PersistentVolumeClaim.
+  accessModes:
+    - ReadWriteOnce
+  # -- Existing PersistentVolumeClaim to mount instead of creating a new claim.
+  existingClaim: ""
+  # -- Container data directory used by upstream NetBird.
+  mountPath: /var/lib/netbird
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: true
+  # -- ServiceAccount name. Defaults to the release fullname when create=true.
+  name: ""
+  # -- Annotations for the ServiceAccount.
+  annotations: {}
+  # -- Mount the ServiceAccount token in the pod.
+  automountServiceAccountToken: false
+
+ingress:
+  # -- Enable Kubernetes Ingress for dashboard and server HTTP/gRPC endpoints.
+  enabled: false
+  # -- IngressClassName for the generated Ingress.
+  ingressClassName: traefik
+  # -- Ingress annotations.
+  annotations: {}
+  # -- Ingress hosts and paths. Use service: server or dashboard per path.
+  hosts: []
+  # -- Ingress TLS blocks.
+  tls: []
+
+gatewayAPI:
+  # -- Enable Gateway API HTTPRoute templates.
+  enabled: false
+  # -- List of HTTPRoute definitions. Each item is rendered as one HTTPRoute.
+  httpRoutes: []
+
+externalSecrets:
+  # -- Render external-secrets.io ExternalSecret resources.
+  enabled: false
+  # -- ExternalSecret apiVersion.
+  apiVersion: external-secrets.io/v1
+  # -- Default sync interval applied to items without their own value.
+  refreshInterval: 1h
+  # -- List of ExternalSecret definitions. Each item carries a complete spec.
+  items: []
+
+probes:
+  startup:
+    # -- Enable startup probes.
+    enabled: true
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 30
+  liveness:
+    # -- Enable liveness probes.
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    # -- Enable readiness probes.
+    enabled: true
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+
+# -- Container resource requests and limits.
+resources: {}
+
+# -- Pod security context.
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+
+# -- NetBird server container security context.
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+pdb:
+  # -- Create PodDisruptionBudgets for enabled components.
+  enabled: false
+  # -- Minimum available pods during voluntary disruptions.
+  minAvailable: 1
+
+networkPolicy:
+  # -- Create a NetworkPolicy that restricts inbound traffic to NetBird.
+  enabled: false
+  # -- Custom ingress peers. Empty allows ingress from any namespace.
+  ingressFrom: []
+  # -- Additional egress rules. When set, the policy also isolates egress while preserving DNS, HTTP, HTTPS, and UDP 3478 access.
+  extraEgress: []
+
+# -- Node selector for scheduling pods.
+nodeSelector: {}
+
+# -- Tolerations for scheduling pods.
+tolerations: []
+
+# -- Affinity rules for scheduling pods.
+affinity: {}
+
+# -- Topology spread constraints for scheduling pods.
+topologySpreadConstraints: []
+
+# -- Optional PriorityClass name.
+priorityClassName: ""
+
+# -- Pod termination grace period in seconds.
+terminationGracePeriodSeconds: 30
+
+# -- Extra labels applied to pod templates.
+podLabels: {}
+
+# -- Extra annotations applied to pod templates.
+podAnnotations: {}
+
+# -- Extra volumes mounted into pods.
+extraVolumes: []
+
+# -- Extra volume mounts added to containers.
+extraVolumeMounts: []
+
+# -- Additional Kubernetes manifests rendered with the chart.
+extraManifests: []

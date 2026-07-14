@@ -1,0 +1,320 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "netbird.serverServiceName" . }}
+  labels:
+    {{- include "netbird.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  replicas: {{ .Values.server.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "netbird.componentSelectorLabels" (dict "root" . "component" "server") | nindent 6 }}
+  {{- if eq .Values.server.store.engine "sqlite" }}
+  strategy:
+    type: Recreate
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "netbird.componentSelectorLabels" (dict "root" . "component" "server") | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ dict "publicUrl" .Values.server.publicUrl "authSecret" .Values.server.authSecret "disableAnonymousMetrics" .Values.server.disableAnonymousMetrics "disableGeoliteUpdate" .Values.server.disableGeoliteUpdate "config" .Values.server.config "auth" .Values.server.auth "store" .Values.server.store "persistence" .Values.persistence.mountPath | toJson | sha256sum }}
+        checksum/pod-settings: {{ dict "env" .Values.server.env "envFrom" .Values.server.envFrom "probes" .Values.server.probes "globalProbes" .Values.probes | toJson | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "netbird.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName | quote }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: server
+          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag }}"
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          {{- with .Values.server.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.server.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+            - name: stun-udp
+              containerPort: 3478
+              protocol: UDP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+            - name: health
+              containerPort: 9000
+              protocol: TCP
+          {{- with .Values.server.env }}
+          env:
+            {{- range . }}
+            - name: {{ .name }}
+              {{- if hasKey . "valueFrom" }}
+              valueFrom:
+                {{- toYaml .valueFrom | nindent 16 }}
+              {{- else }}
+              value: {{ default "" .value | quote }}
+              {{- end }}
+            {{- end }}
+          {{- end }}
+          {{- with .Values.server.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if and .Values.server.probes.enabled .Values.probes.startup.enabled }}
+          startupProbe:
+            tcpSocket:
+              port: health
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if and .Values.server.probes.enabled .Values.probes.liveness.enabled }}
+          livenessProbe:
+            tcpSocket:
+              port: health
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if and .Values.server.probes.enabled .Values.probes.readiness.enabled }}
+          readinessProbe:
+            tcpSocket:
+              port: health
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/netbird
+              readOnly: true
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath | quote }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: config
+          secret:
+            secretName: {{ include "netbird.configSecretName" . }}
+            items:
+              - key: {{ .Values.server.config.existingSecretKey | quote }}
+                path: config.yaml
+        - name: data
+          {{- if .Values.persistence.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | quote }}
+          {{- else if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "netbird.fullname" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- if .Values.dashboard.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "netbird.dashboardServiceName" . }}
+  labels:
+    {{- include "netbird.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dashboard
+spec:
+  replicas: {{ .Values.dashboard.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "netbird.componentSelectorLabels" (dict "root" . "component" "dashboard") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "netbird.componentSelectorLabels" (dict "root" . "component" "dashboard") | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/pod-settings: {{ dict "env" .Values.dashboard.env "envFrom" .Values.dashboard.envFrom | toJson | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "netbird.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: dashboard
+          image: "{{ .Values.dashboard.image.repository }}:{{ .Values.dashboard.image.tag }}"
+          imagePullPolicy: {{ .Values.dashboard.image.pullPolicy }}
+          {{- with .Values.dashboard.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          env:
+            - name: NETBIRD_MGMT_API_ENDPOINT
+              value: {{ .Values.server.publicUrl | quote }}
+            - name: NETBIRD_MGMT_GRPC_API_ENDPOINT
+              value: {{ .Values.server.publicUrl | quote }}
+            - name: AUTH_AUTHORITY
+              value: {{ .Values.server.auth.issuer | quote }}
+            - name: AUTH_CLIENT_ID
+              value: {{ .Values.dashboard.auth.clientId | quote }}
+            - name: AUTH_AUDIENCE
+              value: {{ .Values.dashboard.auth.audience | quote }}
+            - name: AUTH_SUPPORTED_SCOPES
+              value: {{ .Values.dashboard.auth.supportedScopes | quote }}
+            - name: NETBIRD_TOKEN_SOURCE
+              value: {{ .Values.dashboard.auth.tokenSource | quote }}
+            - name: USE_AUTH0
+              value: {{ .Values.dashboard.auth.useAuth0 | quote }}
+            {{- range .Values.dashboard.env }}
+            - name: {{ .name }}
+              {{- if hasKey . "valueFrom" }}
+              valueFrom:
+                {{- toYaml .valueFrom | nindent 16 }}
+              {{- else }}
+              value: {{ default "" .value | quote }}
+              {{- end }}
+            {{- end }}
+          {{- with .Values.dashboard.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: nginx-var
+              mountPath: /var/lib/nginx
+            - name: nginx-logs
+              mountPath: /var/lib/nginx/logs
+            - name: nginx-tmp
+              mountPath: /var/lib/nginx/tmp
+            - name: nginx-run
+              mountPath: /run/nginx
+          {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: nginx-var
+          emptyDir: {}
+        - name: nginx-logs
+          emptyDir: {}
+        - name: nginx-tmp
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}
+      {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
