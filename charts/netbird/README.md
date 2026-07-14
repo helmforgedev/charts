@@ -7,6 +7,7 @@ This chart packages the current upstream combined architecture:
 - `netbirdio/netbird-server:0.74.4` for the management API, gRPC endpoint, signal, relay, metrics, health, and UDP STUN service
 - `netbirdio/dashboard:v2.90.3` for the web UI
 - a generated or externally supplied `config.yaml`
+- HelmForge PostgreSQL subchart as the default production store
 - optional persistent storage under `/var/lib/netbird`
 - dashboard OIDC environment derived from chart values
 - Ingress and Gateway API HTTPRoute support for HTTP/gRPC front doors
@@ -32,6 +33,16 @@ helm upgrade --install netbird helmforge/netbird \
   --set server.authSecret="$(openssl rand -hex 32)"
 ```
 
+The v1 chart defaults to PostgreSQL-backed storage through the HelmForge
+PostgreSQL subchart. For disposable or single-node lab installs, explicitly set:
+
+```yaml
+database:
+  mode: sqlite
+postgresql:
+  enabled: false
+```
+
 ## Production notes
 
 NetBird peers need a stable public endpoint. Expose:
@@ -53,9 +64,17 @@ Use `server.config.existingSecret` when you need to provide a full upstream `con
 
 ## Storage
 
-The default store engine is `sqlite`, so the server Deployment defaults to one replica and
-uses a `Recreate` strategy. For horizontal server scaling, configure an external
-`postgres` or `mysql` store and set `server.replicaCount` above one.
+The default store mode is `auto`, which selects the PostgreSQL subchart unless
+an external database is configured. This follows upstream guidance that
+PostgreSQL is the production store for concurrent access and high availability.
+
+Use `database.mode=external` with `database.external.engine=postgres` or `mysql`
+when your platform owns the database. MySQL is supported as an external database
+because upstream supports it, but this chart does not add a MySQL subchart in v1;
+PostgreSQL is the recommended bundled production path.
+
+SQLite remains available for lab installs with `database.mode=sqlite` and
+`postgresql.enabled=false`. Keep `server.replicaCount: 1` in sqlite mode.
 
 ## External secrets
 
@@ -69,13 +88,13 @@ Local security scan:
 Image: netbirdio/netbird-server:0.74.4
 Image: netbirdio/dashboard:v2.90.3
 Scanner: Kubescape v4.0.9, frameworks MITRE, NSA, SOC2
-Result: 83.83838 compliance score
+Result: 86.86869 compliance score
 ```
 
 The local scan reported no critical failures and an overall score above the
 repository security gate. Remaining findings are tracked as hardening trade-offs
-for default resource limits, optional NetworkPolicy enablement, and the
-dashboard image startup model.
+for optional NetworkPolicy enablement, upstream dashboard startup model, and
+operator-owned resource limit tuning across the database-backed topology.
 
 ## Validation
 

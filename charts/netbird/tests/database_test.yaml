@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: netbird database
+templates:
+  - templates/deployment.yaml
+  - templates/secret-config.yaml
+  - templates/secret-database.yaml
+  - templates/validate.yaml
+tests:
+  - it: defaults to the PostgreSQL subchart store
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[0].name
+          value: NETBIRD_DATABASE_PASSWORD
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
+          value: RELEASE-NAME-postgresql-auth
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].env[1].name
+          value: NETBIRD_STORE_ENGINE_POSTGRES_DSN
+        documentIndex: 0
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[1].value
+          pattern: "host=RELEASE-NAME-postgresql.*dbname=netbird.*sslmode=disable"
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-database
+        documentIndex: 0
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "RELEASE-NAME-postgresql"
+        documentIndex: 0
+  - it: renders sqlite without database env vars
+    template: templates/deployment.yaml
+    values:
+      - sqlite-values.yaml
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].env
+        documentIndex: 0
+      - notExists:
+          path: spec.template.spec.initContainers
+        documentIndex: 0
+  - it: renders external postgres password Secret and DSN env
+    values:
+      - external-postgres-values.yaml
+    asserts:
+      - isKind:
+          of: Secret
+        template: templates/secret-database.yaml
+      - equal:
+          path: stringData.database-password
+          value: external-password
+        template: templates/secret-database.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[1].value
+          pattern: "host=postgres.example.com.*sslmode=require"
+        template: templates/deployment.yaml
+        documentIndex: 0
+  - it: renders external mysql DSN env
+    template: templates/deployment.yaml
+    values:
+      - external-mysql-values.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[1].name
+          value: NETBIRD_STORE_ENGINE_MYSQL_DSN
+        documentIndex: 0
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[1].value
+          pattern: "netbird:\\$\\(NETBIRD_DATABASE_PASSWORD\\)@tcp\\(mysql.example.com:3306\\)/netbird"
+        documentIndex: 0

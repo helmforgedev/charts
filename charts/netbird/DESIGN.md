@@ -26,7 +26,14 @@ The default store engine is `sqlite`, stored under `/var/lib/netbird`.
 With sqlite, `server.replicaCount` must remain `1` because concurrent writers are unsafe.
 The validation helper blocks sqlite scale-out.
 
-For high availability, configure an external `postgres` or `mysql` DSN through `server.store` and then increase `server.replicaCount`.
+For high availability, use the default PostgreSQL subchart for self-contained
+installs or configure an external `postgres` or `mysql` database through
+`database.external`. PostgreSQL is the only bundled database dependency in v1
+because upstream documents it as the recommended production store. MySQL remains
+available as an external store for organizations standardized on it.
+
+SQLite is still supported, but only for single-replica lab or small installs.
+Set `database.mode=sqlite` and `postgresql.enabled=false` explicitly.
 
 ## Exposure
 

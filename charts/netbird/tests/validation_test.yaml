@@ -10,12 +10,26 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "server.replicaCount > 1 requires server.store.engine other than sqlite"
+  - it: fails when scaling database.mode sqlite server replicas
+    set:
+      server.replicaCount: 2
+      database.mode: sqlite
+      postgresql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "server.replicaCount > 1 requires database.mode other than sqlite"
   - it: fails when ingress is enabled without hosts
     set:
       ingress.enabled: true
     asserts:
       - failedTemplate:
           errorMessage: "ingress.hosts must contain at least one host when ingress.enabled=true"
+  - it: fails when database selection is ambiguous
+    values:
+      - database-ambiguous-values.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "netbird database selection is ambiguous: configure only one of database.external.* or postgresql.enabled"
   - it: fails when ExternalSecrets is enabled without items
     set:
       externalSecrets.enabled: true
