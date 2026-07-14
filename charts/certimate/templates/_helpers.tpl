@@ -110,6 +110,9 @@ Validate chart values.
 {{- if and (gt (int .Values.replicaCount) 1) (not .Values.persistence.existingClaim) -}}
 {{- fail "replicaCount > 1 requires persistence.existingClaim because Certimate stores PocketBase state on a single writable volume" -}}
 {{- end -}}
+{{- if and (not .Values.persistence.enabled) (not .Values.persistence.ephemeral) -}}
+{{- fail "persistence.enabled=false requires persistence.ephemeral=true because Certimate stores critical PocketBase state under /app/pb_data" -}}
+{{- end -}}
 {{- if and .Values.ingress.enabled (empty .Values.ingress.hosts) -}}
 {{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}
 {{- end -}}

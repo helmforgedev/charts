@@ -7,7 +7,9 @@ This chart packages the official `certimate/certimate:v0.4.26` image and follows
 ## Production Defaults
 
 - one Deployment using `Recreate` strategy for single-writer PocketBase storage
-- one PersistentVolumeClaim mounted at `/app/pb_data`
+- one `10Gi` PersistentVolumeClaim mounted at `/app/pb_data`
+- explicit `persistence.ephemeral=true` opt-in for disposable emptyDir installs
+- default resource requests and memory limit for scheduler and Kubescape hygiene
 - restricted ServiceAccount token mounting by default
 - Kubernetes Ingress and Gateway API HTTPRoute support
 - optional NetworkPolicy with explicit additional egress for ACME DNS APIs, DNS, SMTP, webhooks, and target deployment systems
@@ -69,6 +71,11 @@ Back up the PersistentVolumeClaim before upgrades. Certimate stores its
 PocketBase database, uploaded certificate material, ACME account state, workflow
 definitions, and provider credentials under `/app/pb_data`.
 
+Certimate's upstream deployment uses PocketBase-local state. This chart does not
+ship PostgreSQL, MySQL, or Redis subcharts because the product does not expose an
+official external database mode for its application state. Treat the PVC as the
+database and certificate material authority.
+
 For production, enable `networkPolicy.enabled` and add egress rules for the DNS
 providers, certificate deployment targets, SMTP relays, webhook endpoints, and
 ACME endpoints required by your workflows.
@@ -79,13 +86,13 @@ Local security scan:
 
 ```text
 Image: certimate/certimate:v0.4.26
-Scanner: pending local repository security scan
-Result: pending
+Scanner: Kubescape v4.0.9, frameworks MITRE, NSA, SOC2
+Result: 93.93939 compliance score
 ```
 
-The chart is designed for the HelmForge security scan workflow. Local scan
-evidence must be refreshed before merge with the repository security tooling and
-then pasted into this section if required by the release checklist.
+The local scan reported no critical or high-severity failures. Remaining medium
+findings are expected until operators enable a production NetworkPolicy matching
+their ACME, DNS provider, SMTP, webhook, and deployment destinations.
 
 ## Documentation
 

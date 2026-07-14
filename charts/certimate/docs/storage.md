@@ -20,3 +20,15 @@ persistence:
 ```
 
 Do not disable persistence outside ephemeral validation environments.
+
+If you intentionally need disposable storage, opt in explicitly:
+
+```yaml
+persistence:
+  enabled: false
+  ephemeral: true
+```
+
+There is no PostgreSQL, MySQL, or Redis subchart for Certimate. The upstream
+container persists application state through PocketBase under `/app/pb_data`, so
+the PVC is the production data authority.
