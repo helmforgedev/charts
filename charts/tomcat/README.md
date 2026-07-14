@@ -4,7 +4,7 @@ Apache Tomcat chart for Kubernetes using the official `docker.io/library/tomcat`
 
 ## Highlights
 
-- Official Tomcat image, pinned by default to `11.0.23-jdk17-temurin-noble`.
+- Official Tomcat image, pinned by default to `11.0.24-jdk17-temurin-noble`.
 - Stable default install with an optional ROOT health webapp for deterministic probes and Helm tests.
 - Preserves WARs or exploded applications baked into immutable Tomcat images before mounting the writable webapps volume.
 - Non-root runtime with writable `webapps`, `logs`, `temp`, and `work` volumes.
@@ -90,7 +90,7 @@ through `service.ports.jmxRmi` so the registry and RMI Service ports stay unique
 | --- | --- | --- |
 | `replicaCount` | `1` | Number of Tomcat pods when HPA is disabled. |
 | `image.repository` | `docker.io/library/tomcat` | Tomcat image repository. |
-| `image.tag` | `11.0.23-jdk17-temurin-noble` | Tomcat image tag. |
+| `image.tag` | `11.0.24-jdk17-temurin-noble` | Tomcat image tag. |
 | `service.type` | `ClusterIP` | Kubernetes Service type. |
 | `service.ipFamilyPolicy` | `null` | Optional Service dual-stack policy. |
 | `service.ipFamilies` | `[]` | Optional Service IP family ordering. |
