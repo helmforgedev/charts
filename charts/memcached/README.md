@@ -316,7 +316,7 @@ networkPolicy:
 | `architecture` | `standalone` | `standalone` or `distributed`. |
 | `replicaCount` | `1` | Number of Memcached pods. Must be `1` for standalone. |
 | `image.repository` | `docker.io/library/memcached` | Official Memcached image. |
-| `image.tag` | `1.6.42` | Pinned image tag. |
+| `image.tag` | `1.6.45` | Pinned image tag. |
 | `memcached.memoryLimitMB` | `64` | Memcached item memory limit passed to `-m`. |
 | `memcached.maxConnections` | `1024` | Maximum simultaneous connections. |
 | `memcached.threads` | `4` | Worker threads. |
@@ -355,7 +355,7 @@ anti-affinity or topology spread constraints.
 
 ## Operations
 
-Memcached `1.6.42` is an upstream security-focused release. Upgrading is
+Memcached `1.6.45` is the pinned upstream release. Upgrading is
 strongly advised when Memcached is reachable by untrusted clients; validate
 connectivity with a `version` or `stats` command after rollout.
 
