@@ -157,7 +157,7 @@ When an ExternalSecret owns a target Secret, the native generated Secret for tha
 
 ## Keycloak 26.6.x rollout notes
 
-The default image is `quay.io/keycloak/keycloak:26.6.4`.
+The default image is `quay.io/keycloak/keycloak:26.7.0`.
 
 Before rolling this version into production:
 
