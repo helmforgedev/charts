@@ -68,13 +68,14 @@ Local security scan:
 ```text
 Image: netbirdio/netbird-server:0.74.4
 Image: netbirdio/dashboard:v2.90.3
-Scanner: pending local repository security scan
-Result: pending
+Scanner: Kubescape v4.0.9, frameworks MITRE, NSA, SOC2
+Result: 83.83838 compliance score
 ```
 
-The chart is designed for the HelmForge security scan workflow. Local scan
-evidence must be refreshed before merge with the repository security tooling and
-then pasted into this section if required by the release checklist.
+The local scan reported no critical failures and an overall score above the
+repository security gate. Remaining findings are tracked as hardening trade-offs
+for default resource limits, optional NetworkPolicy enablement, and the
+dashboard image startup model.
 
 ## Validation
 

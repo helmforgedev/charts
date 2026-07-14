@@ -143,6 +143,9 @@ Validate chart values.
 {{- if and (gt (int .Values.server.replicaCount) 1) (eq .Values.server.store.engine "sqlite") -}}
 {{- fail "server.replicaCount > 1 requires server.store.engine other than sqlite" -}}
 {{- end -}}
+{{- if and (ne .Values.server.store.engine "sqlite") (empty .Values.server.store.dsn) -}}
+{{- fail "server.store.dsn is required when server.store.engine is postgres or mysql" -}}
+{{- end -}}
 {{- if and .Values.ingress.enabled (empty .Values.ingress.hosts) -}}
 {{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}
 {{- end -}}

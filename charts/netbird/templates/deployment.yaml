@@ -23,8 +23,8 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/config: {{ dict "publicUrl" .Values.server.publicUrl "authSecret" .Values.server.authSecret "config" .Values.server.config "auth" .Values.server.auth "store" .Values.server.store "persistence" .Values.persistence.mountPath | toJson | sha256sum }}
-        checksum/pod-settings: {{ dict "env" .Values.server.env "envFrom" .Values.server.envFrom "extraManifests" .Values.extraManifests | toJson | sha256sum }}
+        checksum/config: {{ dict "publicUrl" .Values.server.publicUrl "authSecret" .Values.server.authSecret "disableAnonymousMetrics" .Values.server.disableAnonymousMetrics "disableGeoliteUpdate" .Values.server.disableGeoliteUpdate "config" .Values.server.config "auth" .Values.server.auth "store" .Values.server.store "persistence" .Values.persistence.mountPath | toJson | sha256sum }}
+        checksum/pod-settings: {{ dict "env" .Values.server.env "envFrom" .Values.server.envFrom "probes" .Values.server.probes "globalProbes" .Values.probes | toJson | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -88,7 +88,7 @@ spec:
           envFrom:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if .Values.server.probes.enabled }}
+          {{- if and .Values.server.probes.enabled .Values.probes.startup.enabled }}
           startupProbe:
             tcpSocket:
               port: health
@@ -96,6 +96,8 @@ spec:
             periodSeconds: {{ .Values.probes.startup.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
             failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if and .Values.server.probes.enabled .Values.probes.liveness.enabled }}
           livenessProbe:
             tcpSocket:
               port: health
@@ -103,6 +105,8 @@ spec:
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
             failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if and .Values.server.probes.enabled .Values.probes.readiness.enabled }}
           readinessProbe:
             tcpSocket:
               port: health
