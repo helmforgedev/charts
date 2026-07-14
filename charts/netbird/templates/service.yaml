@@ -1,0 +1,70 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "netbird.serverServiceName" . }}
+  labels:
+    {{- include "netbird.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+  {{- with .Values.server.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.server.service.type }}
+  {{- if .Values.server.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ .Values.server.service.ipFamilyPolicy }}
+  {{- end }}
+  {{- with .Values.server.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: http
+      port: {{ .Values.server.service.httpPort }}
+      targetPort: http
+      protocol: TCP
+    - name: stun-udp
+      port: {{ .Values.server.service.stunPort }}
+      targetPort: stun-udp
+      protocol: UDP
+    - name: metrics
+      port: {{ .Values.server.service.metricsPort }}
+      targetPort: metrics
+      protocol: TCP
+    - name: health
+      port: {{ .Values.server.service.healthPort }}
+      targetPort: health
+      protocol: TCP
+  selector:
+    {{- include "netbird.componentSelectorLabels" (dict "root" . "component" "server") | nindent 4 }}
+{{- if .Values.dashboard.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "netbird.dashboardServiceName" . }}
+  labels:
+    {{- include "netbird.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dashboard
+  {{- with .Values.dashboard.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.dashboard.service.type }}
+  {{- if .Values.dashboard.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ .Values.dashboard.service.ipFamilyPolicy }}
+  {{- end }}
+  {{- with .Values.dashboard.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: http
+      port: {{ .Values.dashboard.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "netbird.componentSelectorLabels" (dict "root" . "component" "dashboard") | nindent 4 }}
+{{- end }}

@@ -1,0 +1,88 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+1. Summary
+
+NetBird release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Server URL: {{ .Values.server.publicUrl }}
+Server service: {{ include "netbird.serverServiceName" . }}:{{ .Values.server.service.httpPort }}
+STUN UDP service port: {{ .Values.server.service.stunPort }}
+{{- if .Values.dashboard.enabled }}
+Dashboard service: {{ include "netbird.dashboardServiceName" . }}:{{ .Values.dashboard.service.port }}
+{{- end }}
+Data directory: {{ .Values.persistence.mountPath }}
+
+2. Workload
+
+Check the Deployments and rollout status:
+
+  kubectl get deploy -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+  kubectl rollout status deploy/{{ include "netbird.serverServiceName" . }} -n {{ .Release.Namespace }}
+{{- if .Values.dashboard.enabled }}
+  kubectl rollout status deploy/{{ include "netbird.dashboardServiceName" . }} -n {{ .Release.Namespace }}
+{{- end }}
+
+3. Access
+
+Check the Services:
+
+  kubectl get svc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Use a local port-forward when Ingress or Gateway API is not enabled:
+
+  kubectl port-forward svc/{{ include "netbird.dashboardServiceName" . }} 8080:{{ .Values.dashboard.service.port }} -n {{ .Release.Namespace }}
+
+Then open:
+
+  http://127.0.0.1:8080
+
+Expose UDP {{ .Values.server.service.stunPort }} through a LoadBalancer, gateway, or infrastructure-specific UDP listener for production peers.
+
+4. Credentials
+
+The rendered default `server.authSecret` is only a bootstrap value. Replace it with a strong secret or provide `server.config.existingSecret` before production use. If local owner bootstrap is enabled, keep the owner password in a Secret or ExternalSecret.
+
+5. Configuration
+
+{{- if .Values.persistence.existingClaim }}
+Storage: existing PVC {{ .Values.persistence.existingClaim }} is mounted.
+{{- else if .Values.persistence.enabled }}
+Storage: chart-managed PVC is enabled. Back up the data volume before upgrades.
+{{- else }}
+Storage: persistence is disabled and NetBird data is stored in an emptyDir.
+{{- end }}
+{{- if .Values.networkPolicy.enabled }}
+NetworkPolicy: enabled.
+{{- else }}
+NetworkPolicy: disabled.
+{{- end }}
+
+6. Validation
+
+Run Helm tests:
+
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Run the HelmForge chart gate from the ops repo:
+
+  make validate-chart CHART=netbird
+
+7. Troubleshooting
+
+Inspect logs and pod events:
+
+  kubectl logs deploy/{{ include "netbird.serverServiceName" . }} -n {{ .Release.Namespace }}
+  kubectl describe pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+If peers cannot connect, verify the public URL, reverse proxy HTTP/2 or gRPC support, and UDP {{ .Values.server.service.stunPort }} reachability.
+
+8. Resources
+
+Chart documentation:
+
+  https://github.com/helmforgedev/charts/tree/main/charts/netbird
+
+Upstream project:
+
+  https://github.com/netbirdio/netbird
+
+Happy Helmforging :)

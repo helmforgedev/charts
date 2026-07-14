@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: netbird network policy
+templates:
+  - templates/networkpolicy.yaml
+tests:
+  - it: limits inbound netbird HTTP traffic
+    values:
+      - networkpolicy-values.yaml
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.ingress[0].ports
+          content:
+            protocol: TCP
+            port: http
+      - notContains:
+          path: spec.policyTypes
+          content: Egress
+  - it: enables egress isolation when extraEgress is configured
+    values:
+      - networkpolicy-extra-egress-values.yaml
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 80
+      - equal:
+          path: spec.egress[2].ports[0].port
+          value: 8443
