@@ -92,7 +92,7 @@ Database/store mode selection.
 {{- fail (printf "database.mode must be one of: auto, sqlite, postgresql, external (got %s)" $mode) -}}
 {{- end -}}
 {{- $external := .Values.database.external | default dict -}}
-{{- $hasExternal := or (ne ($external.host | default "") "") (ne ($external.existingSecret | default "") "") (ne ($external.dsn | default "") "") -}}
+{{- $hasExternal := or (ne ($external.host | default "") "") (ne ($external.existingSecret | default "") "") (ne ($external.dsn | default "") "") (ne ($external.password | default "") "") -}}
 {{- $hasPostgresql := .Values.postgresql.enabled | default false -}}
 {{- if eq $mode "auto" -}}
   {{- if and $hasExternal $hasPostgresql -}}
@@ -104,7 +104,7 @@ Database/store mode selection.
   {{- end -}}
 {{- else -}}
   {{- if and (eq $mode "external") (not $hasExternal) -}}
-    {{- fail "database.mode=external requires database.external.host, database.external.existingSecret, or database.external.dsn" -}}
+    {{- fail "database.mode=external requires database.external.host, database.external.existingSecret, database.external.password, or database.external.dsn" -}}
   {{- end -}}
   {{- if and (eq $mode "external") $hasPostgresql -}}
     {{- fail "database.mode=external cannot be combined with postgresql.enabled" -}}
@@ -205,7 +205,8 @@ user-password
 
 {{- define "netbird.storeEnv" -}}
 {{- $mode := include "netbird.databaseMode" . -}}
-{{- if and (ne $mode "sqlite") (not .Values.server.store.dsn) (not .Values.database.external.dsn) }}
+{{- $configDsn := include "netbird.storeConfigDsn" . -}}
+{{- if and (ne $mode "sqlite") (not .Values.server.store.dsn) (not $configDsn) }}
 - name: NETBIRD_DATABASE_PASSWORD
   valueFrom:
     secretKeyRef:
@@ -283,8 +284,21 @@ Validate chart values.
 {{- if and (eq (include "netbird.databaseMode" .) "external") (not .Values.database.external.dsn) (not .Values.database.external.existingSecret) (not .Values.database.external.password) -}}
 {{- fail "database.external.password, database.external.existingSecret, or database.external.dsn is required when database.mode=external" -}}
 {{- end -}}
+{{- if and (eq (include "netbird.databaseMode" .) "external") (not .Values.database.external.dsn) (not .Values.database.external.host) -}}
+{{- fail "database.external.host or database.external.dsn is required when database.mode=external" -}}
+{{- end -}}
 {{- if and .Values.server.store.engine (not (has .Values.server.store.engine (list "sqlite" "postgres" "mysql"))) -}}
 {{- fail "server.store.engine must be one of: sqlite, postgres, mysql" -}}
+{{- end -}}
+{{- $mode := include "netbird.databaseMode" . -}}
+{{- if and .Values.server.store.engine (eq $mode "sqlite") (ne .Values.server.store.engine "sqlite") -}}
+{{- fail "server.store.engine must be sqlite when database.mode resolves to sqlite" -}}
+{{- end -}}
+{{- if and .Values.server.store.engine (eq $mode "postgresql") (ne .Values.server.store.engine "postgres") -}}
+{{- fail "server.store.engine must be postgres when database.mode resolves to postgresql" -}}
+{{- end -}}
+{{- if and .Values.server.store.engine (eq $mode "external") (ne .Values.server.store.engine (.Values.database.external.engine | default "postgres")) -}}
+{{- fail "server.store.engine must match database.external.engine when database.mode resolves to external" -}}
 {{- end -}}
 {{- if and .Values.ingress.enabled (empty .Values.ingress.hosts) -}}
 {{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}
