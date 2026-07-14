@@ -1,0 +1,78 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+1. Summary
+
+certimate release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Application port: {{ .Values.service.port }}
+Data directory: {{ .Values.persistence.mountPath }}
+
+2. Workload
+
+Check the Deployment and rollout status:
+
+  kubectl get deploy {{ include "certimate.fullname" . }} -n {{ .Release.Namespace }}
+  kubectl rollout status deploy/{{ include "certimate.fullname" . }} -n {{ .Release.Namespace }}
+
+3. Access
+
+Check the Service:
+
+  kubectl get svc {{ include "certimate.fullname" . }} -n {{ .Release.Namespace }}
+
+Use a local port-forward when Ingress or Gateway API is not enabled:
+
+  kubectl port-forward svc/{{ include "certimate.fullname" . }} 8090:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+
+Then open:
+
+  http://127.0.0.1:8090
+
+4. Credentials
+
+Certimate stores application users, provider credentials, ACME accounts, workflows, and issued certificate material in PocketBase under {{ .Values.persistence.mountPath }}. Change the upstream default administrator immediately after first login and back up the PVC before upgrades.
+
+5. Configuration
+
+{{- if .Values.persistence.existingClaim }}
+Storage: existing PVC {{ .Values.persistence.existingClaim }} is mounted.
+{{- else if .Values.persistence.enabled }}
+Storage: chart-managed PVC is enabled. Back up the data volume before upgrades.
+{{- else }}
+Storage: persistence is disabled and certimate data is stored in an emptyDir.
+{{- end }}
+{{- if .Values.networkPolicy.enabled }}
+NetworkPolicy: enabled.
+{{- else }}
+NetworkPolicy: disabled.
+{{- end }}
+
+6. Validation
+
+Run Helm tests:
+
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Run the HelmForge chart gate from the ops repo:
+
+  make validate-chart CHART=certimate
+
+7. Troubleshooting
+
+Inspect logs and pod events:
+
+  kubectl logs deploy/{{ include "certimate.fullname" . }} -n {{ .Release.Namespace }}
+  kubectl describe pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+If the UI does not load, check the container logs and verify that the PVC is writable by the configured pod security context.
+
+8. Resources
+
+Chart documentation:
+
+  https://github.com/helmforgedev/charts/tree/main/charts/certimate
+
+Upstream project:
+
+  https://github.com/certimate-go/certimate
+
+Happy Helmforging :)
