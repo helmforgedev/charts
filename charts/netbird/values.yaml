@@ -60,9 +60,9 @@ server:
       # -- Optional initial owner password for local authentication bootstrap. Prefer externalSecrets in production.
       password: ""
   store:
-    # -- NetBird store engine. Supported by upstream: sqlite, postgres, mysql.
-    engine: sqlite
-    # -- Store DSN. Empty uses sqlite under /var/lib/netbird.
+    # -- Legacy direct NetBird store engine override. Prefer database.mode for new installs.
+    engine: ""
+    # -- Legacy direct store DSN override. Prefer database.external for new installs.
     dsn: ""
     # -- Optional encryption key for stored secrets. Prefer externalSecrets in production.
     encryptionKey: ""
@@ -140,8 +140,53 @@ dashboard:
 # -- Optional image pull secrets for private registries or mirrored images.
 imagePullSecrets: []
 
+database:
+  # -- Store mode: auto | sqlite | postgresql | external. Auto selects external when configured, then PostgreSQL subchart, then sqlite.
+  mode: auto
+  external:
+    # -- External database engine. Upstream supports postgres and mysql.
+    engine: postgres
+    # -- External database hostname.
+    host: ""
+    # -- External database port.
+    port: 5432
+    # -- External database name.
+    name: netbird
+    # -- External database username.
+    username: netbird
+    # -- External database password. Ignored when existingSecret is set.
+    password: ""
+    # -- Existing Secret containing the external database password.
+    existingSecret: ""
+    # -- Key in existingSecret containing the database password.
+    existingSecretPasswordKey: database-password
+    # -- PostgreSQL sslmode when external.engine=postgres.
+    sslMode: disable
+    # -- Raw upstream DSN. When set, it is used directly and host/user/password fields are ignored.
+    dsn: ""
+
+postgresql:
+  # -- Deploy HelmForge PostgreSQL as the default production store.
+  enabled: true
+  architecture: standalone
+  auth:
+    # -- PostgreSQL database name created on first run.
+    database: netbird
+    # -- PostgreSQL username created on first run.
+    username: netbird
+    # -- PostgreSQL application user password. Auto-generated if empty.
+    password: ""
+    # -- PostgreSQL superuser password. Auto-generated if empty.
+    postgresPassword: ""
+  standalone:
+    persistence:
+      # -- Enable persistence for PostgreSQL data.
+      enabled: true
+      # -- PVC size for PostgreSQL.
+      size: 8Gi
+
 persistence:
-  # -- Persist NetBird sqlite data, embedded configuration state, and generated assets.
+  # -- Persist NetBird sqlite data, embedded configuration state, and generated assets. PostgreSQL mode still uses this for non-database runtime assets.
   enabled: true
   # -- PersistentVolumeClaim size for /var/lib/netbird.
   size: 10Gi
