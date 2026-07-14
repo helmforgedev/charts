@@ -13,13 +13,18 @@ The server exposes HTTP, UDP STUN, metrics, and health ports. The dashboard expo
 
 ## Configuration
 
-The default mode renders a Kubernetes Secret containing `config.yaml` from chart values. This makes the chart easy to install while keeping sensitive data out of ConfigMaps. Production users can set `server.config.existingSecret` to mount a complete upstream configuration file instead.
+The default mode renders a Kubernetes Secret containing `config.yaml` from chart values.
+This keeps the chart easy to install while keeping sensitive data out of ConfigMaps.
+Production users can set `server.config.existingSecret` to mount a complete upstream
+configuration file instead.
 
 The rendered config disables embedded TLS because Kubernetes deployments normally terminate TLS at an Ingress, Gateway, load balancer, or external reverse proxy.
 
 ## Storage and scaling
 
-The default store engine is `sqlite`, stored under `/var/lib/netbird`. With sqlite, `server.replicaCount` must remain `1` because concurrent writers are unsafe. The validation helper blocks sqlite scale-out.
+The default store engine is `sqlite`, stored under `/var/lib/netbird`.
+With sqlite, `server.replicaCount` must remain `1` because concurrent writers are unsafe.
+The validation helper blocks sqlite scale-out.
 
 For high availability, configure an external `postgres` or `mysql` DSN through `server.store` and then increase `server.replicaCount`.
 
@@ -32,8 +37,15 @@ The chart provides:
 - Ingress routing that can target `dashboard` or `server` per path
 - Gateway API HTTPRoute routing that can target `dashboard` or `server`
 
-UDP `3478` is intentionally modeled as a Service port because Ingress does not handle UDP. Clusters should expose it through a LoadBalancer, Gateway implementation, or infrastructure-specific UDP listener.
+UDP `3478` is intentionally modeled as a Service port because Ingress does not handle UDP.
+Clusters should expose it through a LoadBalancer, Gateway implementation, or
+infrastructure-specific UDP listener.
 
 ## Security posture
 
-The server container defaults to non-root execution, dropped Linux capabilities, disabled ServiceAccount token mounting, optional NetworkPolicy, and Secret-backed configuration. The dashboard image uses upstream `supervisord` and nginx, which start as root, adjust runtime directory ownership, set worker user and group, and drop privileges internally, so the chart keeps a dashboard-specific securityContext with only `CHOWN`, `SETGID`, and `SETUID` added back plus writable emptyDir mounts for nginx runtime paths.
+The server container defaults to non-root execution, dropped Linux capabilities, disabled
+ServiceAccount token mounting, optional NetworkPolicy, and Secret-backed configuration.
+The dashboard image uses upstream `supervisord` and nginx, which start as root, adjust
+runtime directory ownership, set worker user and group, and drop privileges internally.
+The chart therefore keeps a dashboard-specific securityContext with only `CHOWN`,
+`SETGID`, and `SETUID` added back plus writable emptyDir mounts for nginx runtime paths.

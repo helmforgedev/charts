@@ -39,15 +39,23 @@ NetBird peers need a stable public endpoint. Expose:
 - TCP `443` at your reverse proxy or ingress controller for dashboard, API, gRPC, signal, and relay traffic
 - UDP `3478` for STUN
 
-The chart listens on HTTP inside Kubernetes and expects TLS termination at your ingress, gateway, load balancer, or external reverse proxy. Ensure your proxy supports HTTP/2 or gRPC for the server endpoint.
+The chart listens on HTTP inside Kubernetes and expects TLS termination at your ingress,
+gateway, load balancer, or external reverse proxy. Ensure your proxy supports HTTP/2 or
+gRPC for the server endpoint.
 
-GeoLite database updates are disabled by default for deterministic Kubernetes startup. Set `server.disableGeoliteUpdate=false` only when your cluster allows the server pod to download the upstream databases during boot. Server health probes are also opt-in with `server.probes.enabled=true` because a fresh server can spend several minutes initializing geolocation data before opening the health endpoint.
+GeoLite database updates are disabled by default for deterministic Kubernetes startup.
+Set `server.disableGeoliteUpdate=false` only when your cluster allows the server pod to
+download the upstream databases during boot. Server health probes are also opt-in with
+`server.probes.enabled=true` because a fresh server can spend several minutes initializing
+geolocation data before opening the health endpoint.
 
 Use `server.config.existingSecret` when you need to provide a full upstream `config.yaml` directly. Otherwise the chart renders one from values and stores it in a Kubernetes Secret.
 
 ## Storage
 
-The default store engine is `sqlite`, so the server Deployment defaults to one replica and uses a `Recreate` strategy. For horizontal server scaling, configure an external `postgres` or `mysql` store and set `server.replicaCount` above one.
+The default store engine is `sqlite`, so the server Deployment defaults to one replica and
+uses a `Recreate` strategy. For horizontal server scaling, configure an external
+`postgres` or `mysql` store and set `server.replicaCount` above one.
 
 ## External secrets
 
