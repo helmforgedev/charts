@@ -86,13 +86,13 @@ Recommended reading before installation:
 - [Kubernetes Gateway API](https://kubernetes.io/docs/concepts/services-networking/gateway/)
 - [External Secrets Operator](https://external-secrets.io/latest/)
 
-## Keycloak 26.6.x alignment
+## Keycloak 26.7.x alignment
 
-This chart tracks the official Keycloak server image `quay.io/keycloak/keycloak:26.6.4`.
+This chart tracks the official Keycloak server image `quay.io/keycloak/keycloak:26.7.0`.
 
-Relevant 26.6.x operational changes to account for during rollout:
+Relevant 26.7.x operational changes to account for during rollout:
 
-- 26.6.4 is a security-focused patch release; prioritize rollout for public or multi-tenant realms and validate custom login/front-channel logout templates
+- 26.7.0 includes security fixes and new administration capabilities; review the upstream migration guide before production rollout
 - zero-downtime patch releases are supported within the same minor stream, but still require readiness, proxy, and database validation
 - the HTTP stack supports graceful shutdown, so keep `terminationGracePeriodSeconds` aligned with connection draining at the proxy layer
 - Kubernetes and OpenShift truststore initialization improved upstream; keep custom `truststore` and database CA mounts explicit when the platform uses private CAs
@@ -245,7 +245,7 @@ postgresql:
 |-----------|-------------|---------|
 | `mode` | `dev` or `production` | `dev` |
 | `image.repository` | Keycloak image repository | `quay.io/keycloak/keycloak` |
-| `image.tag` | Keycloak image tag | `26.6.4` |
+| `image.tag` | Keycloak image tag | `26.7.0` |
 | `admin.existingSecret` | Existing secret for bootstrap admin credentials | `""` |
 | `http.port` | Application HTTP port | `8080` |
 | `http.managementPort` | Management port for health and metrics | `9000` |
