@@ -105,7 +105,7 @@ gatewayAPI:
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `image.tag` | `v4.8.8` | Statistics for Strava image tag |
+| `image.tag` | `v5.0.0` | Dreeve image tag |
 | `strava.port` | `8080` | Application port |
 | `strava.clientId` | `""` | Strava OAuth Client ID |
 | `strava.clientSecret` | `""` | Strava OAuth Client Secret |
@@ -126,7 +126,12 @@ gatewayAPI:
 
 ## Upgrade Notes
 
-Statistics for Strava `v4.8.8` moves database migrations into the container
+Statistics for Strava was renamed to Dreeve in `v5.0.0`. This major release
+adds local activity uploads and an admin panel, and migrates YAML settings into
+the database. Back up both `storage/database` and the `config` directory, then
+follow the [upstream v4 migration guide](https://docs.dreeve.app/#/getting-started/migrating-from-v4).
+The chart continues to prepare the storage layout introduced in v4.8.8 and
+moves database migrations into the container
 entrypoint and refreshes the onboarding flow. Upstream now reads SQLite data
 from `/var/www/storage/database`, so this chart mounts the PVC on the upstream
 path and bootstraps compatibility symlinks for legacy root-level `strava.db`
@@ -139,12 +144,13 @@ should still keep a current PVC backup before rollout.
 
 - **Single instance only** — SQLite is single-writer, horizontal scaling is not supported
 - **ReadWriteOnce** — PVC must be ReadWriteOnce due to SQLite limitations
-- **Strava API** — requires valid Strava OAuth credentials to fetch activity data
+- **Strava API imports** — require valid Strava OAuth credentials; Dreeve 5 also supports local FIT, TCX, and GPX uploads
 - **OAuth callback** — `strava.config.general.appUrl` must match the public URL configured in the Strava app
 
 ## More Information
 
-- [Statistics for Strava documentation](https://github.com/robiningelbrecht/statistics-for-strava)
+- [Dreeve documentation](https://docs.dreeve.app)
+- [Dreeve source](https://github.com/dreeveapp/dreeve)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/strava-statistics)
 
 ### Security Scan: `strava-statistics`
