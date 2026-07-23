@@ -70,7 +70,7 @@ The chart includes a post-install Job (`initdb-job`) that:
 
 Set `initDb.enabled: false` to skip automatic initialization (useful with external databases that already have the schema).
 
-Set `database.waitForConnection.enabled: false` to skip waiting for successful database connection (useful with already existing external databases).
+Set `database.waitForConnection.enabled: false` to skip waiting for successful database connection in the main pod (useful with already existing external databases). The `initdb-job` still waits for the database before initialization.
 
 <!-- @AI-METADATA
 type: chart-docs
