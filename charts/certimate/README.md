@@ -2,7 +2,7 @@
 
 Deploy [Certimate](https://github.com/certimate-go/certimate), a self-hosted certificate automation platform for ACME issuance, deployment, renewal, and monitoring.
 
-This chart packages the official `certimate/certimate:v0.4.26` image and follows the upstream container contract: HTTP on port `8090` and durable PocketBase data under `/app/pb_data`.
+This chart packages the official `certimate/certimate:v0.4.27` image and follows the upstream container contract: HTTP on port `8090` and durable PocketBase data under `/app/pb_data`.
 
 ## Production Defaults
 
@@ -85,7 +85,7 @@ ACME endpoints required by your workflows.
 Local security scan:
 
 ```text
-Image: certimate/certimate:v0.4.26
+Image: certimate/certimate:v0.4.27
 Scanner: Kubescape v4.0.9, frameworks MITRE, NSA, SOC2
 Result: 93.93939 compliance score
 ```
