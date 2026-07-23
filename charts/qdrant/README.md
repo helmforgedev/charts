@@ -2,7 +2,7 @@
 
 Qdrant is a vector database and similarity search engine for embeddings, payload filters, semantic search, retrieval-augmented generation,
 recommendation, and matching workloads.
-This HelmForge chart deploys the official `docker.io/qdrant/qdrant:v1.18.2` image with persistent storage, HTTP and gRPC services,
+This HelmForge chart deploys the official `docker.io/qdrant/qdrant:v1.18.3` image with persistent storage, HTTP and gRPC services,
 optional API key authentication, snapshot storage, Prometheus scraping, and guarded distributed-mode settings.
 
 ## Install
