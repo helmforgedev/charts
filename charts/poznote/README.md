@@ -71,7 +71,7 @@ ingress:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Image repository | `ghcr.io/timothepoznanski/poznote` |
-| `image.tag` | Image tag | `6.33.0` |
+| `image.tag` | Image tag | `6.35.0` |
 | `image.pullPolicy` | Pull policy | `IfNotPresent` |
 
 #### Application Parameters
@@ -140,7 +140,7 @@ This chart intentionally does NOT:
 
 ## Upgrade Notes
 
-Poznote `6.33.0` adds the graph view and improves dashboard and mobile
+Poznote `6.35.0` adds the optional AI assistant and improves the mobile
 navigation. No Kubernetes-facing configuration changes are required by this
 chart, but back up the `data` PVC
 before upgrading because it stores the SQLite database, notes, attachments, and
