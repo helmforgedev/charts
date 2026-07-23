@@ -83,7 +83,7 @@ Metabase image, so proxy-based environments can mirror both images:
 ```yaml
 image:
   repository: registry.example.com/proxy/metabase/metabase
-  tag: v0.62.4
+  tag: v0.63.1
 
 waitForDatabase:
   image:
@@ -150,7 +150,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/metabase/metabase` | Metabase container image repository |
-| `image.tag` | `v0.62.4` | Metabase container image tag |
+| `image.tag` | `v0.63.1` | Metabase container image tag |
 | `waitForDatabase.image.repository` | `docker.io/library/busybox` | Wait-for-db init container image repository |
 | `waitForDatabase.image.tag` | `1.37` | Wait-for-db init container image tag |
 | `waitForDatabase.image.pullPolicy` | `IfNotPresent` | Wait-for-db init container image pull policy |
@@ -184,7 +184,7 @@ externalSecrets:
 
 ## Upgrade Notes
 
-Metabase `v0.62.4` updates the application to the latest upstream release and
+Metabase `v0.63.1` updates the application to the latest upstream release and
 repairs the chart's validation scenarios for single-stack clusters, external
 database fixtures, and External Secrets. Back up the Metabase application
 database before upgrading, keep the encryption key stable, and validate the
