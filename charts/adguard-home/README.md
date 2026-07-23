@@ -35,10 +35,9 @@ To skip the wizard and deploy a pre-configured instance, provide `config.adGuard
 
 ## Upstream Version Notes
 
-AdGuard Home `0.107.77` is an upstream security and bugfix release. It fixes a
-GLiNET-mode authorization path traversal issue (CVE-2026-41448), adds the
-`reason` query parameter for query log filtering, and deprecates the older
-`response_status` query parameter.
+AdGuard Home `0.107.78` is an upstream security and bugfix release. It improves
+resistance to JIGGLE attacks, validates responses from DNS-over-HTTPS upstreams
+more strictly, and protects QUIC connections from unbounded reads.
 
 The `0.107.76` release notes also state that YAML duration values now support
 `d` day units. If you roll back to a version below `v0.107.76`, convert any `d`
@@ -188,7 +187,7 @@ backup:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/adguard/adguardhome` | Container image |
-| `image.tag` | `v0.107.77` | Image tag |
+| `image.tag` | `v0.107.78` | Image tag |
 | `image.pullPolicy` | `IfNotPresent` | Pull policy |
 
 ### General Configuration
