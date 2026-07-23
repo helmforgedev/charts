@@ -4,7 +4,7 @@ Deploy [NoteDiscovery](https://github.com/gamosoft/NoteDiscovery), a
 self-hosted Markdown knowledge base with graph view, search, sharing, and MCP
 integration.
 
-This chart packages the official `ghcr.io/gamosoft/notediscovery:0.28.2` image
+This chart packages the official `ghcr.io/gamosoft/notediscovery:0.28.3` image
 and exposes the runtime settings that matter for Kubernetes: persistent note
 storage, generated or externally managed `config.yaml`, optional authentication,
 ingress/Gateway API exposure, network policy, pod disruption budget, and
@@ -149,8 +149,8 @@ volume.
 
 ## Upgrade Notes
 
-NoteDiscovery `0.28.2` fixes rendering of nested code blocks inside GFM and
-GLFM alerts. The chart continues to render `storage.notes_dir` from
+NoteDiscovery `0.28.3` adds pane visibility shortcuts and custom image sizes.
+The chart continues to render `storage.notes_dir` from
 `persistence.mountPath`; keep that path stable across upgrades and back up the
 PVC before upgrading production vaults.
 
