@@ -112,6 +112,8 @@ See [OIDC with Keycloak guide](docs/oidc-keycloak.md) for detailed setup instruc
 | Key | Default | Description |
 |-----|---------|-------------|
 | `database.type` | `postgresql` | Database type (postgresql, mysql) |
+| `database.waitForConnection.enabled` | `true` | Wait for successful database connection before starting |
+| `database.waitForConnection.resources` | `{}` | Optional resource definitions for waitForConnection |
 | `database.external.host` | `""` | External database host |
 | `database.external.name` | `guacamole_db` | Database name |
 | `database.external.username` | `guacamole_user` | Database username |
@@ -159,6 +161,15 @@ See [OIDC with Keycloak guide](docs/oidc-keycloak.md) for detailed setup instruc
 | `backup.schedule` | `0 2 * * *` | Cron schedule |
 | `backup.s3.endpoint` | `""` | S3 endpoint URL |
 | `backup.s3.bucket` | `""` | S3 bucket |
+
+### Extra
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `extraInitContainers` | `[]` | Additional init containers for the pod |
+| `extraVolumes` | `[]` | Additional volumes for the pod |
+| `extraVolumeMounts` | `[]` | Additional volume mounts for the container |
+| `extraManifests` | `[]` | Extra manifests to deploy alongside the chart |
 
 ## Architecture
 

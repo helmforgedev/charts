@@ -92,6 +92,53 @@ tests:
           path: spec.template.spec.initContainers[0].name
           value: wait-for-db
 
+  - it: should have custom resources for wait-for-db init container when set
+    set:
+      database.waitForConnection.resources:
+        limits:
+          cpu: 100m
+          memory: 128Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.cpu
+          value: "100m"
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.memory
+          value: "128Mi"
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: "50m"
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.memory
+          value: "64Mi"
+
+  - it: should not have wait-for-db init container when waitForConnection is disabled
+    set:
+      database.waitForConnection.enabled: false
+    template: templates/deployment.yaml
+    asserts:
+      - notExists:
+          path: spec.template.spec.initContainers
+
+  - it: should also have a custom init container when extraInitContainers is set
+    set:
+      extraInitContainers:
+        - name: custom-init
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - echo "Custom init container"
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[-1].name
+          value: custom-init      
+
   - it: should set OIDC env vars when enabled
     template: templates/deployment.yaml
     set:

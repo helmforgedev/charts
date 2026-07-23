@@ -70,6 +70,9 @@ The chart includes a post-install Job (`initdb-job`) that:
 
 Set `initDb.enabled: false` to skip automatic initialization (useful with external databases that already have the schema).
 
+Set `database.waitForConnection.enabled: false` to skip waiting for successful database connection in the main pod (useful with already existing external databases).
+Note: this does not disable waiting in `initdb-job`.
+
 <!-- @AI-METADATA
 type: chart-docs
 title: Guacamole Database Configuration
