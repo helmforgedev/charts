@@ -112,6 +112,8 @@ See [OIDC with Keycloak guide](docs/oidc-keycloak.md) for detailed setup instruc
 | Key | Default | Description |
 |-----|---------|-------------|
 | `database.type` | `postgresql` | Database type (postgresql, mysql) |
+| `database.waitForConnection.enabled` | `enabled` | Wait for successful database connection before starting |
+| `database.waitForConnection.resources` | `{}` | Optional resource definitions for waitForConnection |
 | `database.external.host` | `""` | External database host |
 | `database.external.name` | `guacamole_db` | Database name |
 | `database.external.username` | `guacamole_user` | Database username |
