@@ -206,9 +206,6 @@ true
 {{- if and .Values.ingress.enabled (empty .Values.ingress.hosts) -}}
 {{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}
 {{- end -}}
-{{- if and .Values.gatewayAPI .Values.gatewayAPI.enabled (empty .Values.gatewayAPI.httpRoutes) -}}
-{{- fail "gatewayAPI.httpRoutes must contain at least one route when gatewayAPI.enabled=true" -}}
-{{- end -}}
 {{- if .Values.podLabels -}}
 {{- if hasKey .Values.podLabels "app.kubernetes.io/name" -}}{{- fail "podLabels must not override app.kubernetes.io/name" -}}{{- end -}}
 {{- if hasKey .Values.podLabels "app.kubernetes.io/instance" -}}{{- fail "podLabels must not override app.kubernetes.io/instance" -}}{{- end -}}
