@@ -4,7 +4,7 @@ Deploy [NetBird](https://github.com/netbirdio/netbird), a self-hosted WireGuard 
 
 This chart packages the current upstream combined architecture:
 
-- `netbirdio/netbird-server:0.74.4` for the management API, gRPC endpoint, signal, relay, metrics, health, and UDP STUN service
+- `netbirdio/netbird-server:0.74.7` for the management API, gRPC endpoint, signal, relay, metrics, health, and UDP STUN service
 - `netbirdio/dashboard:v2.90.3` for the web UI
 - a generated or externally supplied `config.yaml`
 - HelmForge PostgreSQL subchart as the default production store
@@ -85,7 +85,7 @@ Use `externalSecrets.items[]` to synchronize sensitive values such as `config.ya
 Local security scan:
 
 ```text
-Image: netbirdio/netbird-server:0.74.4
+Image: netbirdio/netbird-server:0.74.7
 Image: netbirdio/dashboard:v2.90.3
 Scanner: Kubescape v4.0.9, frameworks MITRE, NSA, SOC2
 Result: 86.86869 compliance score
