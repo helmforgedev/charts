@@ -65,7 +65,7 @@ database:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `ghost.url` | `""` | Public URL of the Ghost instance |
-| `image.tag` | `6.52.1` | Ghost image tag |
+| `image.tag` | `6.53.0` | Ghost image tag |
 | `mysql.enabled` | `true` | Deploy MySQL subchart |
 | `mysql.image.tag` | `8.4.7` | MySQL image tag pinned to the Ghost-supported MySQL 8 major |
 | `persistence.enabled` | `true` | Enable content persistence |
@@ -77,11 +77,12 @@ database:
 
 ## Upgrade Notes
 
-Ghost `6.52.1` is the current upstream patch release and fixes link selection
-in the automations email editor. Review the upstream Ghost release notes before
-upgrading production sites, take a content and database backup, and verify
-themes, custom integrations, newsletter flows, comments, and member signup
-paths in staging before reusing existing PVCs.
+Ghost `6.53.0` adds adapter boot-time validation and strengthens protection
+against spam member signups. It also improves author selection and analytics
+performance and fixes expired-session and editor-state issues. Review the
+upstream Ghost release notes before upgrading production sites, take a content
+and database backup, and verify themes, custom integrations, newsletter flows,
+comments, and member signup paths in staging before reusing existing PVCs.
 
 ## S3 Backup
 
