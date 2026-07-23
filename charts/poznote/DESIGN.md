@@ -14,10 +14,10 @@ Scaling above one pod is blocked because Poznote uses SQLite for persistence and
 The chart uses the official upstream image:
 
 ```text
-ghcr.io/timothepoznanski/poznote:6.33.0
+ghcr.io/timothepoznanski/poznote:6.35.0
 ```
 
-The tag maps to the upstream `6.33.0` release and publishes Linux `amd64` and `arm64` manifests.
+The tag maps to the upstream `6.35.0` release and publishes Linux `amd64` and `arm64` manifests.
 
 ## Database
 
