@@ -9,7 +9,7 @@ ClusterIP HTTP and SSH services, and restricted-compatible pod defaults.
 
 ## Goals
 
-- Run the official `docker.io/gitea/gitea:1.26.4-rootless` image without Bitnami
+- Run the official `docker.io/gitea/gitea:1.27.0-rootless` image without Bitnami
   or third-party runtime substitutions.
 - Keep the default install zero-config through SQLite while making PostgreSQL,
   MySQL, and external database modes explicit.
