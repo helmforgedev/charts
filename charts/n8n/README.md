@@ -144,7 +144,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
-| `image.tag` | `2.30.4` | n8n container image tag |
+| `image.tag` | `2.31.4` | n8n container image tag |
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
@@ -186,7 +186,7 @@ externalSecrets:
 
 ## Upgrade Notes
 
-n8n `2.30.4` is the upstream stable release used by the chart defaults. Review
+n8n `2.31.4` is the upstream stable release used by the chart defaults. Review
 the upstream release notes before upgrading, back up the database, and keep the
 encryption key stable before upgrading live deployments. This chart keeps the
 hardened non-root container defaults with resource requests and limits. Queue
