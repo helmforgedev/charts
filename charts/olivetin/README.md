@@ -58,7 +58,7 @@ kubectl port-forward svc/<release>-olivetin 1337:80
 | `configInit.enabled` | `true` | Prepare writable OliveTin runtime files before startup |
 | `configInit.resources` | requests/limits set | Resource guardrails for the config bootstrap init container |
 | `configInit.securityContext` | non-root | Security context for the config bootstrap init container |
-| `image.tag` | `3000.17.0` | OliveTin image tag |
+| `image.tag` | `3000.17.2` | OliveTin image tag |
 | `securityContext` | non-root | Security context for the OliveTin application container |
 | `olivetin.port` | `1337` | Application port |
 | `config` | `""` | OliveTin YAML configuration. Empty uses the chart-managed default config. |
@@ -103,7 +103,7 @@ See the [OliveTin documentation](https://docs.olivetin.app) for all available op
 
 ## Upgrade Notes
 
-OliveTin `3000.17.0` adds checklist and entity UI support and includes security
+OliveTin `3000.17.2` fixes dashboard ACLs and includes security
 hardening for shell execution, argument types, log access control, and OAuth2
 state growth. Upstream reports no upgrade warnings or breaking changes; keep
 the chart-managed config and persistent data paths unchanged when rolling
