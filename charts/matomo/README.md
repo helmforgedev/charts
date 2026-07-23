@@ -16,7 +16,7 @@ helm install matomo oci://ghcr.io/helmforgedev/helm/matomo
 
 ## Features
 
-- Official Matomo Apache image pinned to `5.11.2-apache`.
+- Official Matomo Apache image pinned to `5.12.0-apache`.
 - Bundled HelmForge MySQL subchart for simple deployments.
 - External MySQL/MariaDB mode for production.
 - CronJob-based `core:archive` execution.
@@ -64,7 +64,7 @@ ingress:
 | --- | --- | --- |
 | `replicaCount` | Matomo web replicas | `1` |
 | `image.repository` | Official Matomo image repository | `docker.io/library/matomo` |
-| `image.tag` | Official Matomo image tag | `5.11.2-apache` |
+| `image.tag` | Official Matomo image tag | `5.12.0-apache` |
 | `database.mode` | `auto`, `external`, or `mysql` | `auto` |
 | `mysql.enabled` | Deploy HelmForge MySQL subchart | `true` |
 | `persistence.enabled` | Persist `/var/www/html` | `true` |
