@@ -62,6 +62,31 @@ geolocation data before opening the health endpoint.
 
 Use `server.config.existingSecret` when you need to provide a full upstream `config.yaml` directly. Otherwise the chart renders one from values and stores it in a Kubernetes Secret.
 
+## Embedded identity provider
+
+The default dashboard authentication settings match the identity provider
+embedded in `netbird-server`:
+
+```yaml
+server:
+  publicUrl: https://netbird.example.com
+  auth:
+    issuer: https://netbird.example.com/oauth2
+
+dashboard:
+  auth:
+    clientId: netbird-dashboard
+    audience: netbird-dashboard
+    supportedScopes: openid profile email groups
+    redirectUri: /nb-auth
+    silentRedirectUri: /nb-silent-auth
+```
+
+The generated server configuration allows the corresponding absolute callback
+URLs below `server.publicUrl`. Keep the dashboard and server on the same public
+hostname when using the embedded provider. Override all dashboard auth values
+when integrating an external OIDC provider.
+
 ## Storage
 
 The default store mode is `auto`, which selects the PostgreSQL subchart unless

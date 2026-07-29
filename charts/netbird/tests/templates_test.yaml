@@ -21,6 +21,72 @@ tests:
           value: netbirdio/dashboard:v2.90.3
         template: templates/deployment.yaml
         documentIndex: 1
+  - it: configures dashboard defaults for the embedded identity provider
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AUTH_CLIENT_ID
+            value: netbird-dashboard
+        template: templates/deployment.yaml
+        documentIndex: 1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AUTH_AUDIENCE
+            value: netbird-dashboard
+        template: templates/deployment.yaml
+        documentIndex: 1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AUTH_SUPPORTED_SCOPES
+            value: openid profile email groups
+        template: templates/deployment.yaml
+        documentIndex: 1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AUTH_REDIRECT_URI
+            value: /nb-auth
+        template: templates/deployment.yaml
+        documentIndex: 1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AUTH_SILENT_REDIRECT_URI
+            value: /nb-silent-auth
+        template: templates/deployment.yaml
+        documentIndex: 1
+  - it: supports external identity provider dashboard overrides
+    set:
+      dashboard.auth.clientId: custom-dashboard
+      dashboard.auth.audience: custom-audience
+      dashboard.auth.supportedScopes: openid profile email
+      dashboard.auth.redirectUri: https://vpn.example.com/auth/callback
+      dashboard.auth.silentRedirectUri: https://vpn.example.com/auth/silent
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AUTH_CLIENT_ID
+            value: custom-dashboard
+        template: templates/deployment.yaml
+        documentIndex: 1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AUTH_REDIRECT_URI
+            value: https://vpn.example.com/auth/callback
+        template: templates/deployment.yaml
+        documentIndex: 1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AUTH_SILENT_REDIRECT_URI
+            value: https://vpn.example.com/auth/silent
+        template: templates/deployment.yaml
+        documentIndex: 1
   - it: renders separate server and dashboard services
     asserts:
       - equal:
