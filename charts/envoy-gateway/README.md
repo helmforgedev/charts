@@ -22,25 +22,15 @@ helm install envoy-gateway oci://ghcr.io/helmforgedev/helm/envoy-gateway
 
 ## Quick Start
 
-The Envoy Gateway operator CRDs (`gateway.envoyproxy.io/*`: `EnvoyProxy`,
-`ClientTrafficPolicy`, `BackendTrafficPolicy`, `SecurityPolicy`, ...) ship in this
-chart's `crds/` directory, so Helm installs them automatically on first install
-when they are absent (and skips them if already present). Only the upstream
-**Gateway API** CRDs (`gateway.networking.k8s.io/*`) are a separate cluster
-prerequisite, installed once below. Envoy Gateway v1.8.2 requires the Gateway API
-**experimental** channel (v1.5.1) — it watches `ListenerSet`, which only ships in
-the experimental channel; the standard channel is not sufficient. These CRDs are
-cluster-scoped and shared, so they are NOT bundled in the chart (Helm's release
-secret has a 1 MiB limit and server-side apply would conflict with platform-managed
-CRDs, e.g. Argo CD).
+Envoy Gateway and Gateway API experimental v1.5.1 CRDs are bundled in the local
+`crds` subchart and installed automatically by default. This includes
+`ListenerSet`, which Envoy Gateway v1.8.2 requires. Set `crds.enabled=false`
+only when a platform operator, GitOps controller, or another release manages
+all required CRDs. Helm installs CRDs on first install but does not upgrade or
+delete them automatically; review upstream CRD changes before chart upgrades.
 
 ```bash
-# Install Gateway API CRDs — experimental channel (cluster prerequisite; provides
-# ListenerSet, required by the controller). The envoy-gateway operator CRDs are
-# bundled in this chart's crds/ and installed automatically.
-kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.5.1/experimental-install.yaml
-
-# Install with development profile (creates Gateway, example HTTPRoute, and backend)
+# Install CRDs and the controller with the development profile.
 helm install envoy-gateway oci://ghcr.io/helmforgedev/helm/envoy-gateway \
   --set profile=dev \
   --set gateway.create=true \
@@ -57,7 +47,7 @@ curl -H "Host: example.local" http://$GATEWAY_IP/
 
 ## How It Works
 
-1. **Chart installs**: GatewayClass, EnvoyProxy CRD, certgen job, controller Deployment, RBAC
+1. **Chart installs**: bundled CRDs, GatewayClass, certgen job, controller Deployment, RBAC
 2. **certgen job** runs as a pre-install hook and generates TLS certs for the controller
 3. **Controller** starts and watches for `Gateway` resources
 4. When `gateway.create: true`, a **Gateway** resource is created → EG automatically provisions Envoy proxy pods and a Service
@@ -161,6 +151,7 @@ highAvailability:
 |-----|---------|-------------|
 | `profile` | `custom` | Profile preset (dev, production-ha, custom) |
 | `namespaceOverride` | `""` | Namespace for chart-managed resources; target namespace must already exist |
+| `crds.enabled` | `true` | Install bundled Envoy Gateway and Gateway API experimental CRDs |
 | `nameOverride` | `""` | Override chart name |
 | `fullnameOverride` | `""` | Override full name |
 | `imagePullSecrets` | `[]` | Image pull secrets |

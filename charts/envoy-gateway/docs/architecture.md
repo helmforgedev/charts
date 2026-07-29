@@ -12,6 +12,12 @@ Envoy Gateway (EG) is a Kubernetes operator built on the Gateway API. This chart
 - Watches EG-specific CRDs (SecurityPolicy, BackendTrafficPolicy, etc.)
 - Provisions and configures Envoy proxy pods automatically
 
+### CRD subchart (managed by this chart by default)
+
+- Installs Envoy Gateway and Gateway API experimental v1.5.1 CRDs
+- Includes the Gateway API safe-upgrade admission policy
+- Can be disabled with `crds.enabled=false` for externally managed CRDs
+
 ### Certgen Job (managed by this chart)
 
 - Runs as a pre-install/pre-upgrade Helm hook
