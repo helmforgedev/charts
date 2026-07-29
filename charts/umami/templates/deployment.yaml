@@ -41,9 +41,12 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if or .Values.initContainers.waitForDatabase.enabled .Values.database.external.init.enabled .Values.extraInitContainers }}
       initContainers:
+        {{- if .Values.initContainers.waitForDatabase.enabled }}
         - name: wait-for-db
-          image: docker.io/library/busybox:1.37
+          image: {{ .Values.initContainers.waitForDatabase.image | quote }}
+          imagePullPolicy: {{ .Values.initContainers.waitForDatabase.pullPolicy }}
           command:
             - sh
             - -c
@@ -58,6 +61,7 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+        {{- end }}
         {{- if .Values.database.external.init.enabled }}
         - name: prepare-external-db
           image: {{ .Values.database.external.init.image | quote }}
@@ -100,6 +104,7 @@ spec:
         {{- with .Values.extraInitContainers }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+      {{- end }}
       containers:
         - name: umami
           image: {{ include "umami.image" . | quote }}

@@ -101,6 +101,42 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[0].name
           value: wait-for-db
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: docker.io/library/busybox:1.37
+      - equal:
+          path: spec.template.spec.initContainers[0].imagePullPolicy
+          value: IfNotPresent
+
+  - it: should configure the wait-for-db image and pull policy
+    set:
+      initContainers.waitForDatabase.image: registry.example.com/platform/busybox:1.37
+      initContainers.waitForDatabase.pullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: registry.example.com/platform/busybox:1.37
+      - equal:
+          path: spec.template.spec.initContainers[0].imagePullPolicy
+          value: Always
+
+  - it: should disable the wait-for-db init container
+    set:
+      initContainers.waitForDatabase.enabled: false
+    asserts:
+      - notExists:
+          path: spec.template.spec.initContainers
+
+  - it: should append extra init containers when wait-for-db is disabled
+    set:
+      initContainers.waitForDatabase.enabled: false
+      extraInitContainers:
+        - name: prepare-assets
+          image: docker.io/library/busybox:1.37
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: prepare-assets
 
   - it: should append extra init containers after internal init containers
     set:

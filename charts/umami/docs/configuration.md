@@ -46,6 +46,18 @@ Change the default admin password immediately after first login.
 
 ## Custom initialization
 
+The built-in database readiness check is enabled by default. Mirror or replace
+its image when public-registry access is restricted, or disable it when
+database readiness is enforced elsewhere:
+
+```yaml
+initContainers:
+  waitForDatabase:
+    enabled: true
+    image: registry.example.com/platform/busybox:1.37
+    pullPolicy: IfNotPresent
+```
+
 Use `extraInitContainers` with `extraVolumes` and `extraVolumeMounts` when Umami
 needs files prepared before the application starts, such as a GeoIP database,
 custom tracker assets, or organization-owned configuration mounted from a
@@ -71,9 +83,9 @@ extraVolumeMounts:
     mountPath: /app/geoip
 ```
 
-The chart renders custom init containers after the built-in database readiness
-check and optional external database preparation. Keep external downloads pinned
-to trusted URLs or use an internal artifact mirror for reproducible installs.
+The chart renders custom init containers after the enabled internal init
+containers. Keep external downloads pinned to trusted URLs or use an internal
+artifact mirror for reproducible installs.
 
 ## Scaling
 
