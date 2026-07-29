@@ -30,3 +30,29 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: externalSecrets.data must contain an entry with secretKey 'AdGuardHome.yaml' when externalSecrets.enabled=true to populate the initial configuration.
+
+  - it: should reject an extra DNS port that reuses a built-in name
+    set:
+      service.dns.extraPorts:
+        - name: dns-tcp
+          port: 853
+          targetPort: 853
+          protocol: TCP
+    asserts:
+      - failedTemplate:
+          errorMessage: service.dns.extraPorts names must be unique and cannot use the reserved names dns-tcp or dns-udp.
+
+  - it: should reject duplicate extra DNS port names
+    set:
+      service.dns.extraPorts:
+        - name: dns-tls
+          port: 853
+          targetPort: 853
+          protocol: TCP
+        - name: dns-tls
+          port: 8853
+          targetPort: 8853
+          protocol: TCP
+    asserts:
+      - failedTemplate:
+          errorMessage: service.dns.extraPorts names must be unique and cannot use the reserved names dns-tcp or dns-udp.

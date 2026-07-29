@@ -87,6 +87,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "adguard-home.validate" -}}
+{{- $dnsPortNames := dict "dns-tcp" true "dns-udp" true -}}
+{{- range .Values.service.dns.extraPorts -}}
+  {{- if hasKey $dnsPortNames .name -}}
+    {{- fail "service.dns.extraPorts names must be unique and cannot use the reserved names dns-tcp or dns-udp." -}}
+  {{- end -}}
+  {{- $_ := set $dnsPortNames .name true -}}
+{{- end -}}
 {{- if .Values.externalSecrets.enabled -}}
   {{- if not .Values.config.existingSecret -}}
     {{- fail "externalSecrets.enabled requires config.existingSecret to be set to prevent credential drift between the chart-managed Secret and the ExternalSecret." -}}
