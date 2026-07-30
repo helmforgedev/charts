@@ -161,7 +161,7 @@ dataTiers:
 | `namespaceOverride` | Namespace for chart-managed namespaced resources | `""` |
 | `clusterName` | Elasticsearch cluster name | `helmforge-cluster` |
 | `image.repository` | Elasticsearch image | `docker.io/library/elasticsearch` |
-| `image.tag` | Image tag | `9.4.3` |
+| `image.tag` | Image tag | `9.4.4` |
 | `nameOverride` | Override chart name | `""` |
 | `fullnameOverride` | Override full release name | `""` |
 
@@ -262,7 +262,7 @@ dataTiers:
 | Parameter | Description | Default |
 |---|---|---|
 | `kibana.enabled` | Deploy Kibana alongside Elasticsearch | `false` |
-| `kibana.image.tag` | Kibana version (must match ES version) | `9.4.3` |
+| `kibana.image.tag` | Kibana version (must match ES version) | `9.4.4` |
 | `kibana.replicaCount` | Kibana replica count | `1` |
 | `kibana.ingress.enabled` | Expose Kibana via Ingress | `false` |
 | `kibana.ingress.hosts` | Ingress hostnames | `[kibana.example.com]` |
@@ -311,11 +311,14 @@ Security posture acceptable.
 
 ## Upgrade Notes
 
-`docker.io/library/elasticsearch:9.4.3` is an upstream image update from
-`9.4.2` with upstream fixes and enhancements. Review the upstream Elasticsearch
-release notes before upgrading production clusters, take a snapshot backup, and
-verify Kibana compatibility, plugins, ILM policies, and index templates in a
-staging environment before reusing existing PVCs.
+`docker.io/library/elasticsearch:9.4.4` is an upstream image update from
+`9.4.3`. It improves aggregation memory accounting, search timeout enforcement,
+data stream authorization, snapshot handling on CIFS shares, ML model validation,
+and ES|QL reliability. Review the
+[upstream Elasticsearch 9.4.4 release notes](https://www.elastic.co/docs/release-notes/elasticsearch#elasticsearch-9.4.4-release-notes)
+before upgrading production clusters, take a snapshot backup, and verify Kibana
+compatibility, plugins, ILM policies, and index templates in a staging
+environment before reusing existing PVCs.
 
 ## Resources Generated
 
