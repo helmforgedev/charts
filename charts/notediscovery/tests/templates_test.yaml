@@ -5,6 +5,7 @@ templates:
   - templates/deployment.yaml
   - templates/ingress.yaml
   - templates/pvc.yaml
+  - templates/secret.yaml
   - templates/service.yaml
 tests:
   - it: renders the official pinned image
@@ -14,10 +15,28 @@ tests:
           of: Deployment
       - equal:
           path: spec.template.spec.containers[0].image
-          value: ghcr.io/gamosoft/notediscovery:0.28.3
+          value: ghcr.io/gamosoft/notediscovery:0.28.4
       - equal:
           path: spec.strategy.type
           value: Recreate
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: plugin-bootstrap
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: ghcr.io/gamosoft/notediscovery:0.28.4
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "if \\[ -d /app/plugins \\]"
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "cp -Rn /app/plugins"
+      - equal:
+          path: spec.template.spec.containers[0].env[2].name
+          value: PLUGINS_DIR
+      - equal:
+          path: spec.template.spec.containers[0].env[2].value
+          value: /app/data/plugins
       - matchRegex:
           path: spec.template.metadata.annotations["checksum/config"]
           pattern: "^[a-f0-9]{64}$"
@@ -45,6 +64,37 @@ tests:
       - matchRegex:
           path: data["config.yaml"]
           pattern: "enabled: false"
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: 'default_theme: "light"'
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: 'plugins_dir: "/app/data/plugins"'
+  - it: renders a custom default theme in generated config
+    template: templates/configmap.yaml
+    set:
+      notediscovery.defaultTheme: dracula
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: 'default_theme: "dracula"'
+  - it: renders theme and plugin path in generated authenticated config
+    template: templates/secret.yaml
+    set:
+      auth.enabled: true
+      auth.secretKey: test-session-secret
+      auth.password: test-password
+      notediscovery.defaultTheme: nord
+      notediscovery.pluginsDir: /plugins
+    asserts:
+      - isKind:
+          of: Secret
+      - matchRegex:
+          path: stringData["config.yaml"]
+          pattern: 'default_theme: "nord"'
+      - matchRegex:
+          path: stringData["config.yaml"]
+          pattern: 'plugins_dir: "/plugins"'
   - it: renders ingress TLS
     template: templates/ingress.yaml
     values:

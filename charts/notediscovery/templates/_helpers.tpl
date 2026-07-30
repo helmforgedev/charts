@@ -104,6 +104,17 @@ Configuration checksum for pod rollouts.
 {{- end -}}
 
 {{/*
+Writable plugin directory colocated with the persistent data volume.
+*/}}
+{{- define "notediscovery.pluginsDir" -}}
+{{- if .Values.notediscovery.pluginsDir -}}
+{{- .Values.notediscovery.pluginsDir -}}
+{{- else -}}
+{{- printf "%s/plugins" (trimSuffix "/" .Values.persistence.mountPath) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 HTTPRoute name helper.
 */}}
 {{- define "notediscovery.httpRouteName" -}}

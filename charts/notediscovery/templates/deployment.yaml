@@ -39,6 +39,25 @@ spec:
       priorityClassName: {{ .Values.priorityClassName | quote }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        - name: plugin-bootstrap
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              mkdir -p {{ include "notediscovery.pluginsDir" . | quote }}
+              if [ -d /app/plugins ]; then
+                cp -Rn /app/plugins/. {{ include "notediscovery.pluginsDir" . | quote }}/
+              fi
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath | quote }}
       containers:
         - name: {{ include "notediscovery.name" . }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -64,6 +83,8 @@ spec:
               value: {{ .Values.app.timezone | quote }}
             - name: PORT
               value: {{ .Values.app.port | quote }}
+            - name: PLUGINS_DIR
+              value: {{ include "notediscovery.pluginsDir" . | quote }}
             {{- range .Values.app.env }}
             - name: {{ .name }}
               {{- if hasKey . "valueFrom" }}

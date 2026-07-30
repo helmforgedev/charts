@@ -4,7 +4,7 @@ Deploy [NoteDiscovery](https://github.com/gamosoft/NoteDiscovery), a
 self-hosted Markdown knowledge base with graph view, search, sharing, and MCP
 integration.
 
-This chart packages the official `ghcr.io/gamosoft/notediscovery:0.28.3` image
+This chart packages the official `ghcr.io/gamosoft/notediscovery:0.28.4` image
 and exposes the runtime settings that matter for Kubernetes: persistent note
 storage, generated or externally managed `config.yaml`, optional authentication,
 ingress/Gateway API exposure, network policy, pod disruption budget, and
@@ -50,6 +50,7 @@ Then open `http://127.0.0.1:8000`.
 notediscovery:
   allowedOrigins:
     - https://notes.example.com
+  defaultTheme: dracula
 
 auth:
   enabled: true
@@ -113,11 +114,12 @@ stringData:
       debug: false
     storage:
       notes_dir: "/app/data"
-      plugins_dir: "./plugins"
+      plugins_dir: "/app/data/plugins"
     search:
       enabled: true
     ui:
       autosave_delay_ms: 1000
+      default_theme: "dracula"
     authentication:
       enabled: true
       secret_key: "replace-with-a-long-random-secret"
@@ -149,10 +151,29 @@ volume.
 
 ## Upgrade Notes
 
-NoteDiscovery `0.28.3` adds pane visibility shortcuts and custom image sizes.
-The chart continues to render `storage.notes_dir` from
-`persistence.mountPath`; keep that path stable across upgrades and back up the
-PVC before upgrading production vaults.
+NoteDiscovery `0.28.4` adds a configurable default theme and fixes Markdown
+links to sibling notes. Set `notediscovery.defaultTheme` to a built-in or
+operator-mounted theme ID; a theme already stored in the browser continues to
+take precedence, and invalid IDs fall back to `light`.
+
+Generated configuration now stores plugin state under the writable data volume
+and bootstraps the official bundled plugins there. Existing Secrets should use
+`storage.plugins_dir: "/app/data/plugins"` (or another writable directory).
+The chart sets `PLUGINS_DIR` to `notediscovery.pluginsDir`, derived from
+`persistence.mountPath` when empty, so the effective path stays consistent for
+generated config, existing Secrets, and External Secrets. Bootstrap preserves
+files already present on the volume.
+
+Back up the PVC and keep `persistence.mountPath` stable, then apply the new
+chart defaults while preserving explicit overrides:
+
+```bash
+helm repo update helmforge
+helm upgrade notediscovery helmforge/notediscovery \
+  --version 1.1.0 \
+  --namespace notediscovery \
+  --reset-then-reuse-values
+```
 
 ## Network Policy
 

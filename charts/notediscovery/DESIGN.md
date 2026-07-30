@@ -1,7 +1,7 @@
 # NoteDiscovery Chart Design
 
 This chart deploys NoteDiscovery as a self-hosted knowledge base using the
-official `ghcr.io/gamosoft/notediscovery:0.28.3` image.
+official `ghcr.io/gamosoft/notediscovery:0.28.4` image.
 
 ## Product Model
 
@@ -25,6 +25,13 @@ Upstream NoteDiscovery reads `config.yaml`. The chart renders that file in two m
 The chart does not split individual auth keys into separate environment
 variables because the upstream contract is file-based. Keeping the full file
 together avoids partially duplicated configuration paths.
+
+Generated configuration places plugins under the writable data volume. An init
+container copies the upstream bundled plugins there before application startup,
+preserving plugin configuration without running the application as root or
+hiding the official plugin bundle. `PLUGINS_DIR` is set to the same effective
+path for generated and externally supplied config files, and bootstrap never
+overwrites a plugin already present on the volume.
 
 ## Default Topology
 
