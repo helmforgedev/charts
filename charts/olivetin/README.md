@@ -105,14 +105,14 @@ See the [OliveTin documentation](https://docs.olivetin.app) for all available op
 
 ## Upgrade Notes
 
-OliveTin `3000.18.1` adds `dnsname` action arguments, configuration issues in
-diagnostics, dashboard categories, persistent log filters, and support for the
-`PORT` environment variable. It also fixes `shellAfterCompleted` output
-injection, HTTP timeout and path traversal weaknesses, and unsafe theme
-permissions. Upstream reports no breaking changes. The chart now propagates
-`olivetin.port` through `PORT`; remove any duplicate `PORT` entry from
-`olivetin.extraEnv` and configure the port only through `olivetin.port`.
-Enabling persistence now creates the data PVC when
+OliveTin `3000.18.0` added `dnsname` action arguments and configuration issues
+in diagnostics. OliveTin `3000.18.1` adds dashboard categories, persistent log
+filters, and support for the `PORT` environment variable. It also fixes
+`shellAfterCompleted` output injection, HTTP timeout and path traversal
+weaknesses, and unsafe theme permissions. Upstream reports no breaking changes.
+The chart now propagates `olivetin.port` through `PORT`; remove any duplicate
+`PORT` entry from `olivetin.extraEnv` and configure the port only through
+`olivetin.port`. Enabling persistence now creates the data PVC when
 `persistence.existingClaim` is empty.
 
 ### Security Scan: olivetin
