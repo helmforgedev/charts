@@ -13,6 +13,25 @@ config: |
 
 When `config` is empty, the chart renders a safe default action so the application can start and expose the UI.
 
+## Application Port
+
+`olivetin.port` configures the container port, probes, Service target, and the
+upstream `PORT` environment variable. `PORT` is reserved by the chart; do not
+repeat it in `olivetin.extraEnv`.
+
+OliveTin 3000.18 also supports the `dnsname` argument type:
+
+```yaml
+config: |
+  actions:
+    - title: Resolve host
+      shell: "getent hosts {{ hostname }}"
+      arguments:
+        - name: hostname
+          type: dnsname
+          default: example.com
+```
+
 ## Runtime Template Handling
 
 OliveTin supports its own runtime template syntax. For that reason, Helm `tpl` rendering is disabled by default.

@@ -14,6 +14,8 @@ OliveTin gives safe and simple access to predefined shell commands from a web in
 - **Gateway API support** — optional HTTPRoute rendering for modern ingress controllers
 - **External Secrets support** — optional ExternalSecret resources for command credentials
 - **Dual-stack Service support** — optional `ipFamilyPolicy` and `ipFamilies`
+- **Authoritative application port** — `olivetin.port` configures both Kubernetes and OliveTin through `PORT`
+- **Optional persistence** — dynamically provision a data PVC or attach an existing claim
 - **Lightweight** — minimal resource usage
 
 ## Installation
@@ -58,9 +60,9 @@ kubectl port-forward svc/<release>-olivetin 1337:80
 | `configInit.enabled` | `true` | Prepare writable OliveTin runtime files before startup |
 | `configInit.resources` | requests/limits set | Resource guardrails for the config bootstrap init container |
 | `configInit.securityContext` | non-root | Security context for the config bootstrap init container |
-| `image.tag` | `3000.17.2` | OliveTin image tag |
+| `image.tag` | `3000.18.1` | OliveTin image tag |
 | `securityContext` | non-root | Security context for the OliveTin application container |
-| `olivetin.port` | `1337` | Application port |
+| `olivetin.port` | `1337` | Application port, propagated through OliveTin's `PORT` environment variable |
 | `config` | `""` | OliveTin YAML configuration. Empty uses the chart-managed default config. |
 | `configTpl.enabled` | `false` | Opt in to Helm `tpl` rendering for `config` |
 | `persistence.enabled` | `false` | Enable optional PVC for data |
@@ -103,11 +105,15 @@ See the [OliveTin documentation](https://docs.olivetin.app) for all available op
 
 ## Upgrade Notes
 
-OliveTin `3000.17.2` fixes dashboard ACLs and includes security
-hardening for shell execution, argument types, log access control, and OAuth2
-state growth. Upstream reports no upgrade warnings or breaking changes; keep
-the chart-managed config and persistent data paths unchanged when rolling
-production deployments.
+OliveTin `3000.18.1` adds `dnsname` action arguments, configuration issues in
+diagnostics, dashboard categories, persistent log filters, and support for the
+`PORT` environment variable. It also fixes `shellAfterCompleted` output
+injection, HTTP timeout and path traversal weaknesses, and unsafe theme
+permissions. Upstream reports no breaking changes. The chart now propagates
+`olivetin.port` through `PORT`; remove any duplicate `PORT` entry from
+`olivetin.extraEnv` and configure the port only through `olivetin.port`.
+Enabling persistence now creates the data PVC when
+`persistence.existingClaim` is empty.
 
 ### Security Scan: olivetin
 
