@@ -12,7 +12,30 @@ tests:
           value: test
       - matchRegex:
           path: spec.containers[0].command[2]
-          pattern: --max-time 15.*/ping
+          pattern: EXPLAIN ANALYZE
+      - contains:
+          path: spec.containers[0].env
+          content:
+            name: CLICKHOUSE_EXPECTED_VERSION
+            value: "26.7.1"
+      - contains:
+          path: spec.containers[0].env
+          content:
+            name: CLICKHOUSE_USER
+            value: default
       - equal:
           path: spec.activeDeadlineSeconds
           value: 60
+  - it: authenticates queries with the configured Secret
+    set:
+      clickhouse:
+        password: test-password
+    asserts:
+      - contains:
+          path: spec.containers[0].env
+          content:
+            name: CLICKHOUSE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-clickhouse-auth
+                key: clickhouse-password

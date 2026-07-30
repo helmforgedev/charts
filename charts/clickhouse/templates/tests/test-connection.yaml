@@ -19,7 +19,33 @@ spec:
       command:
         - sh
         - -ec
-        - curl -fsS --connect-timeout 5 --max-time 15 "http://{{ include "clickhouse.fullname" . }}:{{ .Values.service.ports.http }}/ping" | grep -q Ok
+        - |-
+          endpoint="http://{{ include "clickhouse.fullname" . }}:{{ .Values.service.ports.http }}"
+          auth="${CLICKHOUSE_USER}:${CLICKHOUSE_PASSWORD:-}"
+          curl -fsS --connect-timeout 5 --max-time 15 "${endpoint}/ping" | grep -q Ok
+          actual_version="$(curl -fsS --connect-timeout 5 --max-time 15 --user "${auth}" --get --data-urlencode "query=SELECT version()" "${endpoint}/")"
+          case "${actual_version}" in
+            "${CLICKHOUSE_EXPECTED_VERSION}"*) ;;
+            *)
+              echo "unexpected ClickHouse version: expected ${CLICKHOUSE_EXPECTED_VERSION}, got ${actual_version}" >&2
+              exit 1
+              ;;
+          esac
+          curl -fsS --connect-timeout 5 --max-time 15 --user "${auth}" --get \
+            --data-urlencode "query=EXPLAIN ANALYZE SELECT number FROM numbers(10) WHERE number % 2 = 0" \
+            "${endpoint}/" | grep -q .
+      env:
+        - name: CLICKHOUSE_EXPECTED_VERSION
+          value: {{ .Chart.AppVersion | quote }}
+        - name: CLICKHOUSE_USER
+          value: {{ .Values.clickhouse.user | quote }}
+        {{- if or .Values.clickhouse.password .Values.clickhouse.existingSecret .Values.externalSecrets.enabled }}
+        - name: CLICKHOUSE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "clickhouse.secretName" . }}
+              key: {{ .Values.clickhouse.existingSecretPasswordKey }}
+        {{- end }}
       resources:
         requests:
           cpu: 10m

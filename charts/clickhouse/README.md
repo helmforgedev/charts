@@ -15,7 +15,7 @@ helm install clickhouse oci://ghcr.io/helmforgedev/helm/clickhouse
 
 ## Features
 
-- Official ClickHouse image pinned to `26.6.1`.
+- Official ClickHouse image pinned to `26.7.1`.
 - StatefulSet with persistent data volume.
 - Client Service exposing HTTP `8123` and native TCP `9000`.
 - Headless Service for stable pod DNS.
@@ -55,7 +55,7 @@ networkPolicy:
 | --- | --- | --- |
 | `replicaCount` | ClickHouse pod count. Must remain `1` | `1` |
 | `image.repository` | Official image repository | `docker.io/clickhouse/clickhouse-server` |
-| `image.tag` | Official full-version tag | `26.6.1` |
+| `image.tag` | Official full-version tag | `26.7.1` |
 | `clickhouse.database` | Initial database | `default` |
 | `clickhouse.user` | Initial user | `default` |
 | `clickhouse.password` | Initial password | `""` |
@@ -103,10 +103,19 @@ clusters.
 
 ## Upgrade Notes
 
-This release moves ClickHouse from the 25.8 LTS line to 26.6 stable. Review the
-upstream release notes and test application queries, persisted data, and backup
-restore procedures before upgrading production workloads. StatefulSet rolling
-updates reuse the existing data volume; take a verified backup first.
+This release moves ClickHouse from 26.6 to 26.7 stable. Review the upstream
+[ClickHouse 26.7 release notes](https://github.com/ClickHouse/ClickHouse/releases/tag/v26.7.1.1315-stable)
+and backward-incompatible changes before upgrading production workloads.
+Important changes include explicit credentials for user SQL that accesses S3,
+rejection of ZIP/ZIPX backups on object storage, stricter
+`AggregatingMergeTree` dimensions, removal of XML `resources` and
+`workload_classifiers`, and startup rejection of legacy
+`insert_deduplication_version` values. StatefulSet rolling updates reuse the
+existing data volume; take a verified backup and test application queries and
+restore procedures first.
+
+The Helm test now authenticates through the configured Secret, verifies the
+running version, and executes an `EXPLAIN ANALYZE` query introduced in 26.7.
 
 <!-- @AI-METADATA
 type: chart-readme
