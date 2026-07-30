@@ -1,6 +1,6 @@
 # Memos Chart Design
 
-This chart deploys Memos as a stateful web application using the official `docker.io/neosmemo/memos:0.29.1` image.
+This chart deploys Memos as a stateful web application using the official `docker.io/neosmemo/memos:0.30.0` image.
 
 ## Product Model
 
@@ -58,6 +58,16 @@ The chart supports:
 - dual-stack Service fields
 
 `memos.instanceUrl` maps to `MEMOS_INSTANCE_URL` and should be set for any reverse-proxied deployment so generated URLs match the public endpoint.
+Starting with Memos 0.30, an empty instance URL also selects private mode.
+
+## Deployment Configuration
+
+`provisioning.existingSecret` mounts one Kubernetes Secret at `/etc/secrets`, the fixed upstream scan path. Secret keys become Memos provisioning
+filenames, which lets operators provide OAuth2 identity providers and supported instance-setting groups without storing their values in the application
+database or Helm release values. The mount is read-only and group-readable by the chart's non-root `fsGroup`.
+
+The chart does not copy provisioning data into another Secret or attempt reconciliation. Memos validates the complete file set before starting HTTP
+services and reloads it only on process restart.
 
 ## Security Choices
 
@@ -80,5 +90,8 @@ The chart has template tests for:
 - dual-stack Service fields
 - Ingress TLS rendering
 - valueFrom preservation
+- HTTP `/healthz` probes
+- deployment-configuration Secret mounting
 
-Behavioral validation uses the default SQLite topology because it can run in an isolated k3d cluster without a fake external database dependency.
+Behavioral validation covers the default SQLite topology and a file-backed `GENERAL` provisioning scenario because both can run in an isolated k3d
+cluster without a fake external database dependency.

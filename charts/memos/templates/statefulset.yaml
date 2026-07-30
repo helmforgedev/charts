@@ -103,7 +103,8 @@ spec:
           {{- end }}
           {{- if .Values.probes.startup.enabled }}
           startupProbe:
-            tcpSocket:
+            httpGet:
+              path: {{ .Values.probes.startup.path | quote }}
               port: http
             initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.startup.periodSeconds }}
@@ -112,7 +113,8 @@ spec:
           {{- end }}
           {{- if .Values.probes.liveness.enabled }}
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: {{ .Values.probes.liveness.path | quote }}
               port: http
             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
@@ -121,7 +123,8 @@ spec:
           {{- end }}
           {{- if .Values.probes.readiness.enabled }}
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: {{ .Values.probes.readiness.path | quote }}
               port: http
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
@@ -135,6 +138,11 @@ spec:
           volumeMounts:
             - name: data
               mountPath: {{ .Values.persistence.mountPath }}
+            {{- if .Values.provisioning.existingSecret }}
+            - name: provisioning
+              mountPath: /etc/secrets
+              readOnly: true
+            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -154,7 +162,7 @@ spec:
       topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if or (not .Values.persistence.enabled) .Values.persistence.existingClaim .Values.extraVolumes }}
+      {{- if or (not .Values.persistence.enabled) .Values.persistence.existingClaim .Values.provisioning.existingSecret .Values.extraVolumes }}
       volumes:
         {{- if .Values.persistence.existingClaim }}
         - name: data
@@ -163,6 +171,12 @@ spec:
         {{- else if not .Values.persistence.enabled }}
         - name: data
           emptyDir: {}
+        {{- end }}
+        {{- if .Values.provisioning.existingSecret }}
+        - name: provisioning
+          secret:
+            secretName: {{ .Values.provisioning.existingSecret | quote }}
+            defaultMode: {{ .Values.provisioning.defaultMode }}
         {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}

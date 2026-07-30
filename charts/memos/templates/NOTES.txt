@@ -23,8 +23,14 @@ Memos has been deployed.
 - Database driver: {{ .Values.database.driver }}
 - Data directory: {{ .Values.persistence.mountPath }}
 - Public instance URL: {{ default "not set" .Values.memos.instanceUrl }}
+- Anonymous access mode: {{ ternary "public" "private" (ne .Values.memos.instanceUrl "") }}
 - Private webhooks: {{ .Values.memos.allowPrivateWebhooks }}
 - Log level: {{ .Values.memos.logLevel }}
+{{- if .Values.provisioning.existingSecret }}
+- Deployment configuration: Secret {{ .Values.provisioning.existingSecret }} mounted at /etc/secrets
+{{- else }}
+- Deployment configuration: not mounted
+{{- end }}
 
 4. Persistence
 
@@ -77,6 +83,8 @@ Memos has been deployed.
   kubectl describe pod -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
 - Service endpoints:
   kubectl get endpoints {{ include "memos.fullname" . }} -n {{ .Release.Namespace }}
+- Application health:
+  kubectl exec statefulset/{{ include "memos.fullname" . }} -n {{ .Release.Namespace }} -- wget -qO- http://127.0.0.1:{{ .Values.app.port }}/healthz
 
 8. Resources
 
