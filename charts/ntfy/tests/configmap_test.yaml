@@ -28,6 +28,9 @@ tests:
       - matchRegex:
           path: data["server.yml"]
           pattern: "behind-proxy.*true"
+      - notMatchRegex:
+          path: data["server.yml"]
+          pattern: "ban-file"
 
   - it: should set base-url when configured
     set:
@@ -44,3 +47,29 @@ tests:
       - matchRegex:
           path: data["server.yml"]
           pattern: "enable-metrics.*true"
+
+  - it: should render the abuse ban-feed when enabled
+    set:
+      ntfy.banFeed.enabled: true
+      ntfy.banFeed.file: /var/cache/ntfy/ban.log
+      ntfy.banFeed.window: 5m
+      ntfy.banFeed.threshold: 20
+      ntfy.banFeed.weights:
+        - "42909:10"
+        - "*:1"
+    asserts:
+      - matchRegex:
+          path: data["server.yml"]
+          pattern: "ban-file.*var/cache/ntfy/ban.log"
+      - matchRegex:
+          path: data["server.yml"]
+          pattern: "ban-window.*5m"
+      - matchRegex:
+          path: data["server.yml"]
+          pattern: "ban-threshold: 20"
+      - matchRegex:
+          path: data["server.yml"]
+          pattern: "ban-weights:[\\s\\S]*42909:10"
+      - matchRegex:
+          path: data["server.yml"]
+          pattern: "ban-weights:[\\s\\S]*\\*:1"

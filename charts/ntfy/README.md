@@ -13,6 +13,7 @@ to phones and desktops via scripts — no signup, no fees.
 - **Prometheus metrics** — opt-in `/metrics` endpoint with ServiceMonitor
 - **Behind proxy** — trusts X-Forwarded-For headers by default
 - **Attachment support** — configurable file size and expiry limits
+- **Abuse ban-feed** — opt-in weighted offender feed for fail2ban or equivalent tooling
 - **Ingress support** — TLS with cert-manager
 - **Dual-stack** — `ipFamilyPolicy`/`ipFamilies` on the Service for IPv4/IPv6 clusters
 - **Gateway API** — opt-in `HTTPRoute` (alternative to Ingress; requires Gateway API CRDs)
@@ -62,6 +63,8 @@ curl -s http://localhost:8080/test/json
 | `ntfy.authDefaultAccess` | `"read-write"` | Default access for unauthenticated users |
 | `ntfy.behindProxy` | `true` | Trust X-Forwarded-For headers |
 | `ntfy.enableMetrics` | `false` | Enable Prometheus `/metrics` endpoint |
+| `ntfy.banFeed.enabled` | `false` | Append confirmed abusive visitors to a ban-feed file |
+| `ntfy.banFeed.file` | `/var/cache/ntfy/ban.log` | Writable ban-feed file on the data volume |
 | `persistence.enabled` | `true` | Enable persistence for cache and auth |
 | `persistence.size` | `2Gi` | PVC size |
 | `service.type` | `ClusterIP` | Service type |
@@ -100,6 +103,28 @@ metrics:
   serviceMonitor:
     enabled: true
 ```
+
+## Abuse Ban-Feed
+
+ntfy 2.26.3 can append confirmed abusive visitor IPs to a weighted ban-feed for
+an external fail2ban or equivalent consumer. The chart keeps this disabled by
+default. When enabled, the default file is stored on the writable data volume:
+
+```yaml
+ntfy:
+  banFeed:
+    enabled: true
+    file: /var/cache/ntfy/ban.log
+    window: 10m
+    threshold: 100
+    weights:
+      - "42909:10"
+```
+
+The chart configures the feed only; it does not install fail2ban or modify node
+firewall rules. The external consumer must be able to read the file, and the
+operator must rotate it with a copy-truncate strategy so it cannot grow without
+bound.
 
 ## Gateway API
 

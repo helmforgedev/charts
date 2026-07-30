@@ -21,6 +21,8 @@ flowchart LR
   svc --> pod[ntfy pod]
   pod --> cfg[ConfigMap server.yml]
   pod --> pvc[(PVC /var/cache/ntfy)]
+  pod -. optional ban feed .-> pvc
+  pvc -. external consumer .-> ban[fail2ban or equivalent]
   prom[Prometheus] -. optional .-> svc
 ```
 
@@ -32,6 +34,7 @@ flowchart LR
 - Render Gateway API HTTPRoutes as an opt-in exposure path alongside Ingress.
 - Keep Service dual-stack fields opt-in so clusters without dual-stack support use their defaults.
 - Keep authentication user lifecycle out of the chart; ntfy users are managed with the upstream CLI.
+- Keep the 2.26.3 abuse ban-feed opt-in, persist its default file on the existing data volume, and leave firewall enforcement to an external consumer.
 
 ## Production Boundary
 
@@ -43,6 +46,7 @@ Recommended production controls:
 - back up the PVC before upgrades
 - expose the service only through trusted ingress or Gateway policy
 - set explicit resources for shared clusters
+- rotate the ban-feed with copy-truncate semantics when it is enabled
 
 ## Non-Goals
 
@@ -50,6 +54,7 @@ Recommended production controls:
 - user account reconciliation
 - installing Gateway API CRDs or controllers
 - installing Prometheus Operator CRDs
+- installing fail2ban or changing node firewall rules
 
 ## Validation
 
@@ -60,6 +65,7 @@ The chart is expected to pass:
 - helm-unittest coverage for deployment, service, persistence, ingress, Gateway API, and metrics
 - kubeconform validation for Kubernetes-native default manifests
 - local k3d deployment smoke tests with pod logs and namespace events checked
+- an opt-in k3d scenario that renders and starts with the upstream ban-feed settings
 
 <!-- @AI-METADATA
 type: design

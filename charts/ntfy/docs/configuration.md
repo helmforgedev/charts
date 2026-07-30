@@ -39,6 +39,26 @@ metrics:
 
 `ServiceMonitor` requires Prometheus Operator CRDs to exist in the cluster.
 
+## Abuse Ban-Feed
+
+ntfy 2.26.3 can emit confirmed abusive visitors to a file consumed by fail2ban
+or equivalent enforcement:
+
+```yaml
+ntfy:
+  banFeed:
+    enabled: true
+    file: /var/cache/ntfy/ban.log
+    window: 10m
+    threshold: 100
+    weights:
+      - "42909:10"
+```
+
+The default path is on the chart's writable data volume. Configure an external
+consumer and rotate the file with copy-truncate semantics. The chart does not
+install fail2ban or modify node firewall rules.
+
 ## Gateway API
 
 ```yaml
