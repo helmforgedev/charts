@@ -92,7 +92,8 @@ externalSecrets:
 ```
 
 The chart renders `external-secrets.io/v1`, defaults the target to the rendered
-ExternalSecret name, and supports multiple items. The legacy
+ExternalSecret name, and supports multiple items. Every item must set either
+`name` or `fullnameOverride` so each resource has a unique identity. The legacy
 `secretStoreRef`/`data` surface remains compatible for existing releases, but
 new configurations should use `externalSecrets.items`.
 

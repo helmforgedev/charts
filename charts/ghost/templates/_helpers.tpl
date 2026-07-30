@@ -19,7 +19,7 @@
 {{- $item.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
 {{- $fullname := include "ghost.fullname" $root -}}
-{{- $itemName := $item.name | default "external" | trunc 32 | trimSuffix "-" -}}
+{{- $itemName := required "externalSecrets.items[].name is required when fullnameOverride is not set" $item.name | trunc 32 | trimSuffix "-" -}}
 {{- printf "%s-%s" ($fullname | trunc (int (sub 62 (len $itemName))) | trimSuffix "-") $itemName | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 {{- end -}}
