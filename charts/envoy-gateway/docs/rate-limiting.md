@@ -211,7 +211,7 @@ kubectl exec -it envoy-gateway-redis-0 -- redis-cli ping
 
 ```bash
 # Port-forward to the managed rate-limit service
-kubectl port-forward svc/envoy-ratelimit 19001:19001
+kubectl -n <namespace> port-forward svc/envoy-ratelimit 19001:19001
 
 # Check rate limit metrics
 curl http://localhost:19001/metrics | grep ratelimit
