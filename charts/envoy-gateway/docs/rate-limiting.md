@@ -69,7 +69,8 @@ Create the secret:
 
 ```bash
 kubectl create secret generic redis-auth \
-  --from-literal=password=your-redis-password
+  --from-literal=password=your-redis-password \
+  -n <namespace>
 ```
 
 ## Rate Limit Presets
@@ -236,11 +237,11 @@ Key metrics:
 kubectl get pods -l app.kubernetes.io/component=redis
 
 # Check rate limit policy
-kubectl get backendtrafficpolicy
+kubectl get backendtrafficpolicy -n <namespace>
 
 # Verify the policy target and that the route uses the same Gateway
-kubectl get backendtrafficpolicy <policy-name> -o yaml
-kubectl get httproute <route-name> -o yaml
+kubectl get backendtrafficpolicy <policy-name> -n <namespace> -o yaml
+kubectl get httproute <route-name> -n <namespace> -o yaml
 ```
 
 **Common Causes**:

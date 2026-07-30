@@ -23,7 +23,7 @@ tests:
         template: configmap.yaml
       - matchRegex:
           path: data["envoy-gateway.yaml"]
-          pattern: "url: RELEASE-NAME-redis-client\."
+          pattern: 'url: RELEASE-NAME-redis-client\.'
         template: configmap.yaml
       - equal:
           path: metadata.name
@@ -59,7 +59,31 @@ tests:
     asserts:
       - matchRegex:
           path: data["envoy-gateway.yaml"]
-          pattern: "url: my-redis\.infra\.svc\.cluster\.local:6379"
+          pattern: 'url: my-redis\.infra\.svc\.cluster\.local:6379'
+        template: configmap.yaml
+
+  - it: should not inject bundled Redis auth for an external Redis host
+    set:
+      rateLimiting:
+        enabled: true
+        externalRedis:
+          host: my-redis.infra.svc.cluster.local
+      redis:
+        enabled: true
+        auth:
+          enabled: true
+    asserts:
+      - matchRegex:
+          path: data["envoy-gateway.yaml"]
+          pattern: 'url: my-redis\.infra\.svc\.cluster\.local:6379'
+        template: configmap.yaml
+      - notMatchRegex:
+          path: data["envoy-gateway.yaml"]
+          pattern: "name: REDIS_AUTH"
+        template: configmap.yaml
+      - notMatchRegex:
+          path: data["envoy-gateway.yaml"]
+          pattern: "RELEASE-NAME-redis-auth"
         template: configmap.yaml
 
   - it: should inject external Redis auth from the configured Secret

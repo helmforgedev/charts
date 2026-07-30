@@ -308,6 +308,8 @@ highAvailability:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `security.networkPolicies` | `false` | Enable rendering of NetworkPolicy resources |
+| `security.networkPolicy.dns.namespace` | `kube-system` | Namespace containing cluster DNS pods allowed by NetworkPolicies |
+| `security.networkPolicy.dns.podLabels` | `{"k8s-app":"kube-dns"}` | Labels selecting cluster DNS pods allowed by NetworkPolicies |
 | `security.podSecurityStandards` | `true` | Enable PodSecurityStandards (restricted mode) |
 
 ### High Availability

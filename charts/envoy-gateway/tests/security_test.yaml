@@ -39,6 +39,16 @@ tests:
             port: 18001
         template: networkpolicy.yaml
         documentIndex: 0
+      - equal:
+          path: spec.egress[1].to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: kube-system
+        template: networkpolicy.yaml
+        documentIndex: 0
+      - equal:
+          path: spec.egress[1].to[0].podSelector.matchLabels["k8s-app"]
+          value: kube-dns
+        template: networkpolicy.yaml
+        documentIndex: 0
 
   - it: should not create NetworkPolicies when disabled
     set:
@@ -175,8 +185,12 @@ tests:
           path: spec.egress
           content:
             to:
-              - namespaceSelector: {}
-                podSelector: {}
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: kube-system
+                podSelector:
+                  matchLabels:
+                    k8s-app: kube-dns
             ports:
               - protocol: TCP
                 port: 53
@@ -189,6 +203,41 @@ tests:
           content:
             protocol: TCP
             port: 18001
+        template: networkpolicy.yaml
+        documentIndex: 0
+
+  - it: should allow a custom cluster DNS selector for ratelimit
+    set:
+      security:
+        networkPolicies: true
+        networkPolicy:
+          dns:
+            namespace: openshift-dns
+            podLabels:
+              dns.operator.openshift.io/daemonset-dns: default
+      rateLimiting:
+        enabled: true
+      redis:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.egress[1].to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: openshift-dns
+        template: networkpolicy.yaml
+        documentIndex: 2
+      - equal:
+          path: spec.egress[1].to[0].podSelector.matchLabels["dns.operator.openshift.io/daemonset-dns"]
+          value: default
+        template: networkpolicy.yaml
+        documentIndex: 2
+      - equal:
+          path: spec.egress[1].to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: openshift-dns
+        template: networkpolicy.yaml
+        documentIndex: 0
+      - equal:
+          path: spec.egress[1].to[0].podSelector.matchLabels["dns.operator.openshift.io/daemonset-dns"]
+          value: default
         template: networkpolicy.yaml
         documentIndex: 0
 
