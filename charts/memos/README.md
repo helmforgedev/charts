@@ -91,10 +91,16 @@ provisioning:
   existingSecret: memos-provisioning
 ```
 
-The Secret keys become filenames and must use Memos' supported patterns:
+The Secret keys become filenames and must use Memos' supported names:
 
 - `memos-idp-<label>.json`
-- `memos-instance-setting-<label>.json`
+- `memos-instance-setting-general.json`
+- `memos-instance-setting-storage.json`
+- `memos-instance-setting-memo-related.json`
+- `memos-instance-setting-notification.json`
+- `memos-instance-setting-ai.json`
+
+Unsupported instance-setting suffixes are ignored.
 
 For example:
 
@@ -116,9 +122,10 @@ stringData:
     }
 ```
 
-Files are validated atomically during startup, remain authoritative for the process lifetime, and require a pod restart after changes. Supported instance
-setting keys are `GENERAL`, `STORAGE`, `MEMO_RELATED`, `NOTIFICATION`, and `AI`; Memos rejects `BASIC`, `TAGS`, unknown fields, duplicate stable keys, and
-invalid cross-resource authentication configuration.
+Files are validated atomically during startup and remain authoritative for the process lifetime. Each setting file replaces its complete
+database-backed group; omitted scalar fields reset to defaults, so include every required field. Every replica must mount identical files, and Secret
+changes require an orderly restart of every replica. Supported instance setting keys are `GENERAL`, `STORAGE`, `MEMO_RELATED`, `NOTIFICATION`, and `AI`;
+Memos rejects `BASIC`, `TAGS`, unknown fields, duplicate stable keys, and invalid cross-resource authentication configuration.
 
 ## External Database
 
@@ -159,14 +166,16 @@ Back up the data volume and external database before upgrading. Review these ups
 
 - an unset `memos.instanceUrl` now creates a private instance; set it to retain anonymous public access and RSS
 - the shared-memo endpoint is now `GET /api/v1/shares/{share_token}/memo`
-- saved filters use the `now` timestamp variable instead of `now()`
+- saved filters use CEL timestamp fields and `now` instead of `now()`; for example, `created_ts >= now - duration("24h")`
 - MCP is now a stateless tools-only endpoint at `/mcp` with service-prefixed tool names
 
 The release also adds the Web Clipper, a rebuilt Markdown editor, multi-column feeds, signed webhooks, file-backed settings, and a rebuilt MCP toolset.
 
 ## Backups
 
-Back up the PersistentVolumeClaim even when using an external database. With SQLite, it contains the database and local assets. With MySQL/PostgreSQL, it can still contain assets and instance data.
+Back up the PersistentVolumeClaim even when using an external database. With SQLite, it contains the database and local assets. With MySQL/PostgreSQL,
+it can still contain assets and instance data. Also back up the Secret selected by `provisioning.existingSecret`; PVC and database backups do not include
+its mounted OAuth2/IdP and instance-setting JSON files.
 
 For SQLite, quiesce writes or take a volume snapshot consistent with your storage backend before copying `{MEMOS_DATA}/memos_prod.db`.
 
