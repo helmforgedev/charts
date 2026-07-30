@@ -4,7 +4,7 @@ Deploy [NetBird](https://github.com/netbirdio/netbird), a self-hosted WireGuard 
 
 This chart packages the current upstream combined architecture:
 
-- `netbirdio/netbird-server:0.74.7` for the management API, gRPC endpoint, signal, relay, metrics, health, and UDP STUN service
+- `netbirdio/netbird-server:0.75.0` for the management API, gRPC endpoint, signal, relay, metrics, health, and UDP STUN service
 - `netbirdio/dashboard:v2.90.3` for the web UI
 - a generated or externally supplied `config.yaml`
 - HelmForge PostgreSQL subchart as the default production store
@@ -110,7 +110,7 @@ Use `externalSecrets.items[]` to synchronize sensitive values such as `config.ya
 Local security scan:
 
 ```text
-Image: netbirdio/netbird-server:0.74.7
+Image: netbirdio/netbird-server:0.75.0
 Image: netbirdio/dashboard:v2.90.3
 Scanner: Kubescape v4.0.9, frameworks MITRE, NSA, SOC2
 Result: 86.86869 compliance score
@@ -120,6 +120,26 @@ The local scan reported no critical failures and an overall score above the
 repository security gate. Remaining findings are tracked as hardening trade-offs
 for optional NetworkPolicy enablement, upstream dashboard startup model, and
 operator-owned resource limit tuning across the database-backed topology.
+
+## Upgrade from 0.74.7
+
+NetBird `0.75.0` improves the combined server's management, relay, and
+self-hosting paths. The redesigned desktop client announced in the upstream
+release is distributed separately and is not part of this server chart.
+
+Back up the configured database and `/var/lib/netbird`, then apply the new chart
+defaults while preserving your explicit overrides:
+
+```bash
+helm repo update helmforge
+helm upgrade netbird helmforge/netbird \
+  --version 1.0.3 \
+  --namespace netbird \
+  --reset-then-reuse-values
+```
+
+Using `--reuse-values` alone retains the previous default image tag. Remove any
+explicit `server.image.tag` override if you want the chart default `0.75.0`.
 
 ## Validation
 

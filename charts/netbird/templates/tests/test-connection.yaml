@@ -12,13 +12,25 @@ spec:
   restartPolicy: Never
   automountServiceAccountToken: false
   containers:
-    - name: wget
+    - name: connectivity
+      {{- if .Values.dashboard.enabled }}
       image: busybox:1.37.0
       command:
         - wget
       args:
         - -qO-
         - http://{{ include "netbird.dashboardServiceName" . }}:{{ .Values.dashboard.service.port }}/
+      {{- else }}
+      image: busybox:1.37.0
+      command:
+        - nc
+      args:
+        - -z
+        - -w
+        - "10"
+        - {{ include "netbird.serverServiceName" . }}
+        - {{ .Values.server.service.httpPort | quote }}
+      {{- end }}
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
