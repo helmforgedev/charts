@@ -221,7 +221,7 @@ Use the generic extension values when platform-specific integration is needed:
 | `architecture` | Redis topology: `standalone`, `replication`, `sentinel`, or `cluster` | `standalone` |
 | `clusterDomain` | Kubernetes cluster DNS domain used for internal service FQDNs | `cluster.local` |
 | `image.repository` | Redis image repository | `docker.io/library/redis` |
-| `image.tag` | Redis image tag | `8.8.0` |
+| `image.tag` | Redis image tag | `8.8.1` |
 | `auth.enabled` | Enable password authentication | `true` |
 | `auth.password` | Inline Redis password | `""` |
 | `auth.existingSecret` | Existing Secret containing the Redis password | `""` |
@@ -289,6 +289,7 @@ See `examples/`:
 - Redis Sentinel: <https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/>
 - Redis Cluster: <https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/>
 - Redis security: <https://redis.io/docs/latest/operate/oss_and_stack/management/security/>
+- Redis 8.8.1 security release: <https://github.com/redis/redis/releases/tag/8.8.1>
 
 ### 🟢 Security Scan: `redis`
 
