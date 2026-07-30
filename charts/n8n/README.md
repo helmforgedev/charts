@@ -144,7 +144,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
-| `image.tag` | `2.31.4` | n8n container image tag |
+| `image.tag` | `2.32.5` | n8n container image tag |
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
@@ -186,17 +186,21 @@ externalSecrets:
 
 ## Upgrade Notes
 
-n8n `2.31.4` is the upstream stable release used by the chart defaults. Review
-the upstream release notes before upgrading, back up the database, and keep the
-encryption key stable before upgrading live deployments. This chart keeps the
-hardened non-root container defaults with resource requests and limits. Queue
-mode fails fast when it resolves to SQLite or when Redis is not configured,
-because workers must share the same PostgreSQL, MySQL, or external database as
-the main pod. Validate database and queue mode in a staging namespace before
-reusing production PVCs.
+n8n `2.32.5` adds public API, workflow export, and editor capabilities, and
+includes fixes across queue-mode MCP executions, S3 path signing, AI Assistant
+runs, credentials, and integrations. Review the
+[upstream 2.32.5 release notes](https://github.com/n8n-io/n8n/releases/tag/n8n%402.32.5)
+before upgrading, back up the database, and keep the encryption key stable
+before upgrading live deployments. This chart keeps the hardened non-root
+container defaults with resource requests and limits. Queue mode fails fast
+when it resolves to SQLite or when Redis is not configured, because workers
+must share the same PostgreSQL, MySQL, or external database as the main pod.
+Validate database and queue mode in a staging namespace before reusing
+production PVCs.
 
-This release includes fixes for execution visibility, webhook error handling,
-and compatibility with earlier versions of the Notion node.
+When upgrading with `--reuse-values`, explicitly set `image.tag=2.32.5`.
+Helm preserves the previous image override in that mode; also update
+`taskRunners.image.tag` when it was pinned separately.
 
 The chart defaults to `N8N_RUNNERS_MODE=external`. It creates a shared auth
 token, opens the broker port, and runs a `docker.io/n8nio/runners` sidecar next
