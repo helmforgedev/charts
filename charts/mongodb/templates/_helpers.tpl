@@ -7,6 +7,15 @@ Expand the name of the chart.
 {{- end -}}
 
 {{/*
+Validate cross-field settings that JSON Schema cannot express.
+*/}}
+{{- define "mongodb.validate" -}}
+{{- if and .Values.persistence.existingClaim (ne .Values.architecture "standalone") -}}
+{{- fail "persistence.existingClaim is supported only when architecture is standalone" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Fully qualified app name.
 */}}
 {{- define "mongodb.fullname" -}}

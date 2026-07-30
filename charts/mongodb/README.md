@@ -129,7 +129,7 @@ user initialization path.
 |-----------|-------------|---------|
 | `architecture` | `standalone`, `replicaset`, or `sharded` | `standalone` |
 | `image.repository` | MongoDB image | `mongo` |
-| `image.tag` | Image tag | `8.3.4` |
+| `image.tag` | Image tag | `8.3.7` |
 | `nameOverride` | Override chart name | `""` |
 | `fullnameOverride` | Override full release name | `""` |
 
@@ -260,13 +260,15 @@ See the [`examples/`](examples/) directory:
 
 ## Upgrade Notes
 
-MongoDB `8.3.4` is a patch-level update within the MongoDB `8.3` release line.
-Review the MongoDB 8.3 release notes before upgrading production clusters,
-take a backup, and verify the data files are compatible with the target
-`mongod` version before reusing existing PVCs. Keep replica set keyFiles and
-root credentials stable across `helm upgrade`; those values are initialized by
-MongoDB and should be rotated with MongoDB administrative commands instead of
-changing chart values.
+MongoDB `8.3.7` is a security and reliability patch within the MongoDB `8.3`
+release line. It addresses upstream CVEs plus authorization, input validation,
+memory-bound, query-planning, and crash fixes. Review the
+[MongoDB 8.3 release notes](https://www.mongodb.com/docs/manual/release-notes/8.3/)
+before upgrading production clusters, take a backup, and verify the data files
+are compatible with the target `mongod` version before reusing existing PVCs.
+Keep replica set keyFiles and root credentials stable across `helm upgrade`;
+those values are initialized by MongoDB and should be rotated with MongoDB
+administrative commands instead of changing chart values.
 
 ## Security Scan
 
