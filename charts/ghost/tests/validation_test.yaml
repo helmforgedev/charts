@@ -96,37 +96,29 @@ tests:
       - failedTemplate:
           errorMessage: database.external.existingSecret is required when externalSecrets.enabled is true
 
-  - it: fails when external secrets has no secret store name
+  - it: fails when external secrets has no items
     set:
       database.external.existingSecret: ghost-db
       externalSecrets.enabled: true
     asserts:
       - failedTemplate:
-          errorMessage: externalSecrets.secretStoreRef.name is required when externalSecrets.enabled is true
-
-  - it: fails when external secrets has no data entries
-    set:
-      database.external.existingSecret: ghost-db
-      externalSecrets:
-        enabled: true
-        secretStoreRef:
-          name: fake-store
-    asserts:
-      - failedTemplate:
-          errorMessage: externalSecrets.data must contain at least one entry when externalSecrets.enabled is true
+          errorMessage: externalSecrets.items or externalSecrets.data is required when externalSecrets.enabled=true
 
   - it: passes with complete external secrets settings
     set:
       database.external.existingSecret: ghost-db
       externalSecrets:
         enabled: true
-        secretStoreRef:
-          name: fake-store
-        data:
-          - secretKey: password
-            remoteRef:
-              key: ghost/db
-              property: password
+        items:
+          - fullnameOverride: ghost-db
+            spec:
+              secretStoreRef:
+                name: fake-store
+              data:
+                - secretKey: password
+                  remoteRef:
+                    key: ghost/db
+                    property: password
     asserts:
       - hasDocuments:
           count: 0

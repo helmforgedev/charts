@@ -11,6 +11,19 @@
 {{- end -}}
 {{- end -}}
 
+{{/* ExternalSecret resource name */}}
+{{- define "ghost.externalSecretName" -}}
+{{- $root := index . "root" -}}
+{{- $item := index . "item" -}}
+{{- if $item.fullnameOverride -}}
+{{- $item.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $fullname := include "ghost.fullname" $root -}}
+{{- $itemName := $item.name | default "external" | trunc 32 | trimSuffix "-" -}}
+{{- printf "%s-%s" ($fullname | trunc (int (sub 62 (len $itemName))) | trimSuffix "-") $itemName | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "ghost.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -68,11 +81,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if and .Values.externalSecrets.enabled (not .Values.database.external.existingSecret) -}}
 {{- fail "database.external.existingSecret is required when externalSecrets.enabled is true" -}}
 {{- end -}}
-{{- if and .Values.externalSecrets.enabled (not .Values.externalSecrets.secretStoreRef.name) -}}
-{{- fail "externalSecrets.secretStoreRef.name is required when externalSecrets.enabled is true" -}}
-{{- end -}}
-{{- if and .Values.externalSecrets.enabled (not .Values.externalSecrets.data) -}}
-{{- fail "externalSecrets.data must contain at least one entry when externalSecrets.enabled is true" -}}
+{{- if and .Values.externalSecrets.enabled (not (or .Values.externalSecrets.items .Values.externalSecrets.data)) -}}
+{{- fail "externalSecrets.items or externalSecrets.data is required when externalSecrets.enabled=true" -}}
 {{- end -}}
 {{- end -}}
 

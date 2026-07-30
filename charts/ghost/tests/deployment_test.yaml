@@ -24,7 +24,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/library/ghost:6.53.0"
+          value: "docker.io/library/ghost:6.54.0"
 
   - it: should expose port 2368
     asserts:
@@ -80,6 +80,35 @@ tests:
           content:
             name: database__connection__host
             value: "test-mysql"
+
+  - it: should support installed adapters outside the content volume
+    set:
+      ghost:
+        extraEnv:
+          - name: paths__installedAdaptersPath
+            value: /opt/ghost/adapters
+      extraVolumes:
+        - name: installed-adapters
+          emptyDir: {}
+      extraVolumeMounts:
+        - name: installed-adapters
+          mountPath: /opt/ghost/adapters
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: paths__installedAdaptersPath
+            value: /opt/ghost/adapters
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: installed-adapters
+            mountPath: /opt/ghost/adapters
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: installed-adapters
+            emptyDir: {}
 
   - it: should mount content volume
     asserts:
