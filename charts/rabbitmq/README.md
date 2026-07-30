@@ -187,7 +187,9 @@ externalSecrets:
 
 ### Runtime efficiency
 
-- the default image is `docker.io/library/rabbitmq:4.3.2-alpine`; it contains the management, Prometheus, and Kubernetes peer-discovery plugins, and the chart enables only the plugins requested by values
+- the default image is `docker.io/library/rabbitmq:4.3.4-alpine`; it contains the management, Prometheus, and Kubernetes peer-discovery plugins, and the chart enables only the plugins requested by values
+- RabbitMQ 4.3.4 removes `unsafe-eval` and `unsafe-inline` from the Management UI Content Security Policy
+- `management.referrerPolicy=no-referrer` enables the upstream Referrer-Policy support with a privacy-preserving default; set it to `""` to defer to the browser default
 - `runtime.disableSchedulerBusyWait=true` is enabled by default to reduce idle CPU from Erlang scheduler spin-wait in containers
 - default Kubernetes probes use lightweight TCP checks against the active AMQP listener instead of recurring `rabbitmq-diagnostics` commands
 - use `runtime.additionalErlArgs` for extra Erlang VM flags and reserve `extraEnv` for explicit upstream environment variables or full overrides
@@ -197,14 +199,15 @@ externalSecrets:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `architecture` | `single-node` or `cluster` | `single-node` |
-| `image.repository` | RabbitMQ image repository | `rabbitmq` |
-| `image.tag` | RabbitMQ image tag | `4.3.2-alpine` |
+| `image.repository` | RabbitMQ image repository | `docker.io/library/rabbitmq` |
+| `image.tag` | RabbitMQ image tag | `4.3.4-alpine` |
 | `auth.username` | Application username | `user` |
 | `auth.password` | Application password | `""` |
 | `auth.erlangCookie` | Erlang cookie | `""` |
 | `auth.existingSecret` | Existing secret for credentials | `""` |
 | `queueDefaults.type` | `quorum` or `classic` | `quorum` |
 | `management.enabled` | Enable management plugin/UI | `true` |
+| `management.referrerPolicy` | Management UI Referrer-Policy header; empty uses browser default | `no-referrer` |
 | `management.ingress.enabled` | Enable management ingress | `false` |
 | `management.ingress.ingressClassName` | Ingress class for the Management UI | `traefik` |
 | `tls.enabled` | Enable TLS listeners | `false` |

@@ -32,6 +32,15 @@ app.kubernetes.io/name: {{ include "rabbitmq.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{- define "rabbitmq.validateAll" -}}
+{{- if hasKey .Values.podLabels "app.kubernetes.io/name" -}}
+  {{- fail "podLabels must not override the app.kubernetes.io/name selector label" -}}
+{{- end -}}
+{{- if hasKey .Values.podLabels "app.kubernetes.io/instance" -}}
+  {{- fail "podLabels must not override the app.kubernetes.io/instance selector label" -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "rabbitmq.secretName" -}}
 {{- if .Values.auth.existingSecret -}}
 {{- .Values.auth.existingSecret -}}
