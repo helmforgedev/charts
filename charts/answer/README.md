@@ -94,6 +94,8 @@ database:
 | `answer.externalContentDisplay` | `ask_before_display` | External content display policy used by auto-install |
 | `answer.autoInstall` | `true` | Enable unattended setup |
 | `answer.logLevel` | `INFO` | Log level (DEBUG, INFO, WARN, ERROR) |
+| `answer.notifications.newQuestionEmail.queueSize` | `1024` | Maximum buffered new-question email tasks |
+| `answer.notifications.newQuestionEmail.sendIntervalSeconds` | `0` | Delay between new-question email attempts; 0 disables throttling |
 | `admin.name` | `admin` | Admin username |
 | `admin.password` | `""` | Admin password (auto-generated) |
 | `admin.email` | `admin@example.com` | Admin email |

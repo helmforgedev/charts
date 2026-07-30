@@ -21,7 +21,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/apache/answer:2.0.1"
+          value: "docker.io/apache/answer:2.0.2"
 
   - it: should allow custom image tag
     template: templates/deployment.yaml
@@ -357,6 +357,23 @@ tests:
           content:
             name: TIMEZONE
             value: "UTC"
+
+  - it: should configure the new question email worker
+    template: templates/deployment.yaml
+    set:
+      answer.notifications.newQuestionEmail.queueSize: 2048
+      answer.notifications.newQuestionEmail.sendIntervalSeconds: 15
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NEW_QUESTION_NOTIFICATION_EMAIL_QUEUE_SIZE
+            value: "2048"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NEW_QUESTION_NOTIFICATION_EMAIL_SEND_INTERVAL_SECONDS
+            value: "15"
 
   - it: should set pod labels
     template: templates/deployment.yaml
