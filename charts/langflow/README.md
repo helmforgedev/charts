@@ -1,8 +1,17 @@
 # Langflow Helm Chart
 
 Langflow is a visual builder for AI workflows, RAG applications, agents, and integrations with model providers and vector databases.
-This HelmForge chart deploys the official `docker.io/langflowai/langflow:1.10.2` image with persistent local state by default and explicit
+This HelmForge chart deploys the official `docker.io/langflowai/langflow:1.11.1` image with persistent local state by default and explicit
 production paths for secret management, PostgreSQL-compatible databases, ingress, Gateway API, and horizontal scaling.
+
+Langflow 1.11 adds native v2 workflow execution, trusted JWT authentication with just-in-time user mapping, RBAC-aware interfaces, A2A and
+human-in-the-loop workflows, and additional provider and vector-store bundles. Version 1.11.1 also includes upstream fixes for authentication,
+tracing, MCP, SSRF protections, and component loading. Advanced runtime settings for these capabilities can be supplied through `app.env` or
+`app.envFrom`.
+
+The chart generates a strong Langflow secret key and initial superuser password on first install when `auth.existingSecret` and inline
+credentials are empty. These values are reused on upgrades. Runtime probes use Langflow's `/health_check` endpoint so a pod is not marked ready
+until application services and the database are healthy.
 
 ## Install
 
@@ -19,7 +28,7 @@ Set `networkPolicy.dnsEgressPeers` when your cluster DNS pods do not use the def
 
 ## Production Configuration
 
-Set a stable `LANGFLOW_SECRET_KEY` so encrypted provider credentials and JWT signing survive pod restarts:
+For production, use an existing Secret so credentials remain under your secret-management lifecycle:
 
 ```yaml
 auth:

@@ -64,29 +64,21 @@ spec:
               value: "true"
             - name: LANGFLOW_OPEN_BROWSER
               value: "false"
-            {{- if or .Values.auth.secretKey .Values.auth.existingSecret }}
             - name: LANGFLOW_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ default (include "langflow.fullname" .) .Values.auth.existingSecret }}
                   key: {{ .Values.auth.secretKeyKey }}
-            {{- end }}
-            {{- if or .Values.auth.superuser .Values.auth.existingSecret }}
             - name: LANGFLOW_SUPERUSER
               valueFrom:
                 secretKeyRef:
                   name: {{ default (include "langflow.fullname" .) .Values.auth.existingSecret }}
                   key: {{ .Values.auth.superuserKey }}
-                  optional: true
-            {{- end }}
-            {{- if or .Values.auth.superuserPassword .Values.auth.existingSecret }}
             - name: LANGFLOW_SUPERUSER_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ default (include "langflow.fullname" .) .Values.auth.existingSecret }}
                   key: {{ .Values.auth.superuserPasswordKey }}
-                  optional: true
-            {{- end }}
             {{- if or .Values.database.url .Values.database.existingSecret }}
             - name: LANGFLOW_DATABASE_URL
               valueFrom:
@@ -111,7 +103,9 @@ spec:
           {{- end }}
           {{- if .Values.probes.startup.enabled }}
           startupProbe:
-            tcpSocket: { port: http }
+            httpGet:
+              path: {{ .Values.probes.startup.path | quote }}
+              port: http
             initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
             failureThreshold: {{ .Values.probes.startup.failureThreshold }}
             periodSeconds: {{ .Values.probes.startup.periodSeconds }}
@@ -119,7 +113,9 @@ spec:
           {{- end }}
           {{- if .Values.probes.liveness.enabled }}
           livenessProbe:
-            tcpSocket: { port: http }
+            httpGet:
+              path: {{ .Values.probes.liveness.path | quote }}
+              port: http
             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
@@ -127,7 +123,9 @@ spec:
           {{- end }}
           {{- if .Values.probes.readiness.enabled }}
           readinessProbe:
-            tcpSocket: { port: http }
+            httpGet:
+              path: {{ .Values.probes.readiness.path | quote }}
+              port: http
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}

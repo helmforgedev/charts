@@ -34,14 +34,18 @@ Langflow has been deployed.
 
 4. Authentication
 
-{{- if or .Values.auth.secretKey .Values.auth.existingSecret }}
 - Auth Secret: {{ default (include "langflow.fullname" .) .Values.auth.existingSecret }}
 - Secret key entry: {{ .Values.auth.secretKeyKey }}
 - Superuser entry: {{ .Values.auth.superuserKey }}
 - Superuser password entry: {{ .Values.auth.superuserPasswordKey }}
+{{- if .Values.auth.existingSecret }}
+- Credentials are read from the existing Secret.
 {{- else }}
-- No chart-managed Langflow auth Secret is configured.
-- Set auth.existingSecret before exposing Langflow to users.
+- Missing credentials are generated on first install and preserved across upgrades.
+- Retrieve the generated superuser:
+  kubectl get secret {{ include "langflow.fullname" . }} -n {{ .Release.Namespace }} -o jsonpath="{.data.{{ .Values.auth.superuserKey }}}" | base64 --decode
+- Retrieve the generated password:
+  kubectl get secret {{ include "langflow.fullname" . }} -n {{ .Release.Namespace }} -o jsonpath="{.data.{{ .Values.auth.superuserPasswordKey }}}" | base64 --decode
 {{- end }}
 
 5. Scaling

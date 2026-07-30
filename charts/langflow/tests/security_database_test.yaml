@@ -4,6 +4,30 @@ templates:
   - templates/deployment.yaml
   - templates/secret.yaml
 tests:
+  - it: generates required credentials and wires them by default
+    asserts:
+      - isKind:
+          of: Secret
+        template: templates/secret.yaml
+      - isNotEmpty:
+          path: stringData.secret-key
+        template: templates/secret.yaml
+      - equal:
+          path: stringData.superuser
+          value: langflow
+        template: templates/secret.yaml
+      - isNotEmpty:
+          path: stringData.superuser-password
+        template: templates/secret.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LANGFLOW_SUPERUSER_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-langflow
+                key: superuser-password
+        template: templates/deployment.yaml
   - it: renders auth secret and wires Langflow secret env vars
     values:
       - secure-values.yaml
