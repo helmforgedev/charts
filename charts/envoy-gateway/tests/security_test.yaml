@@ -32,6 +32,13 @@ tests:
             port: 18002
         template: networkpolicy.yaml
         documentIndex: 0
+      - notContains:
+          path: spec.ingress[2].ports
+          content:
+            protocol: TCP
+            port: 18001
+        template: networkpolicy.yaml
+        documentIndex: 0
 
   - it: should not create NetworkPolicies when disabled
     set:
@@ -107,12 +114,12 @@ tests:
         documentIndex: 1
       - equal:
           path: spec.ingress[0].from[0].podSelector.matchLabels["app.kubernetes.io/name"]
-          value: envoy-gateway
+          value: envoy-ratelimit
         template: networkpolicy.yaml
         documentIndex: 1
       - equal:
-          path: spec.ingress[0].from[0].podSelector.matchLabels["app.kubernetes.io/instance"]
-          value: RELEASE-NAME
+          path: spec.ingress[0].from[0].podSelector.matchLabels["app.kubernetes.io/managed-by"]
+          value: envoy-gateway
         template: networkpolicy.yaml
         documentIndex: 1
       - equal:
@@ -131,6 +138,25 @@ tests:
         template: networkpolicy.yaml
         documentIndex: 2
       - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/name"]
+          value: envoy-ratelimit
+        template: networkpolicy.yaml
+        documentIndex: 2
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/managed-by"]
+          value: envoy-gateway
+        template: networkpolicy.yaml
+        documentIndex: 2
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/component"]
+          value: ratelimit
+        template: networkpolicy.yaml
+        documentIndex: 2
+      - notExists:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/instance"]
+        template: networkpolicy.yaml
+        documentIndex: 2
+      - equal:
           path: spec.egress[0].to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
           value: NAMESPACE
         template: networkpolicy.yaml
@@ -145,6 +171,26 @@ tests:
           value: RELEASE-NAME
         template: networkpolicy.yaml
         documentIndex: 2
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - namespaceSelector: {}
+                podSelector: {}
+            ports:
+              - protocol: TCP
+                port: 53
+              - protocol: UDP
+                port: 53
+        template: networkpolicy.yaml
+        documentIndex: 2
+      - contains:
+          path: spec.ingress[2].ports
+          content:
+            protocol: TCP
+            port: 18001
+        template: networkpolicy.yaml
+        documentIndex: 0
 
   - it: should create PrometheusRule when enabled
     set:

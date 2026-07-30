@@ -3,6 +3,9 @@ suite: Rate Limiting
 templates:
   - ratelimit-policies.yaml
   - configmap.yaml
+  - deployment-controller.yaml
+  - serviceaccount.yaml
+  - service-controller.yaml
 tests:
   # Redis subchart is rendered by Helm, not by helm-unittest.
   # Tests here cover configmap URL generation and rate limit policies.
@@ -20,8 +23,29 @@ tests:
         template: configmap.yaml
       - matchRegex:
           path: data["envoy-gateway.yaml"]
-          pattern: "redis://RELEASE-NAME-redis\."
+          pattern: "url: RELEASE-NAME-redis-client\."
         template: configmap.yaml
+      - equal:
+          path: metadata.name
+          value: envoy-gateway
+        template: deployment-controller.yaml
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: envoy-gateway
+        template: deployment-controller.yaml
+      - equal:
+          path: metadata.name
+          value: envoy-gateway
+        template: serviceaccount.yaml
+      - contains:
+          path: spec.ports
+          content:
+            name: ratelimit
+            port: 18001
+            targetPort: 18001
+            protocol: TCP
+        template: service-controller.yaml
+        documentIndex: 1
 
   - it: should use external redis url when externalRedis host set
     set:
@@ -35,7 +59,33 @@ tests:
     asserts:
       - matchRegex:
           path: data["envoy-gateway.yaml"]
-          pattern: "redis://my-redis\.infra\.svc\.cluster\.local:6379"
+          pattern: "url: my-redis\.infra\.svc\.cluster\.local:6379"
+        template: configmap.yaml
+
+  - it: should inject external Redis auth from the configured Secret
+    set:
+      rateLimiting:
+        enabled: true
+        externalRedis:
+          host: my-redis.infra.svc.cluster.local
+          auth:
+            enabled: true
+            secretName: redis-credentials
+            secretKey: redis-password
+      redis:
+        enabled: false
+    asserts:
+      - matchRegex:
+          path: data["envoy-gateway.yaml"]
+          pattern: "name: REDIS_AUTH"
+        template: configmap.yaml
+      - matchRegex:
+          path: data["envoy-gateway.yaml"]
+          pattern: "name: redis-credentials"
+        template: configmap.yaml
+      - matchRegex:
+          path: data["envoy-gateway.yaml"]
+          pattern: "key: redis-password"
         template: configmap.yaml
 
   - it: should not have rateLimit section in configmap when rate limiting disabled
@@ -45,7 +95,7 @@ tests:
     asserts:
       - notMatchRegex:
           path: data["envoy-gateway.yaml"]
-          pattern: "rateLimit"
+          pattern: "(?m)^rateLimit:$"
         template: configmap.yaml
 
   - it: should create rate limit policies with api preset

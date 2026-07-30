@@ -24,15 +24,17 @@ Deploy Redis StatefulSet with the chart:
 ```yaml
 rateLimiting:
   enabled: true
-  redis:
-    enabled: true
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
+
+redis:
+  enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  standalone:
     persistence:
       enabled: true
       size: 2Gi
@@ -51,8 +53,6 @@ Use an existing Redis instance:
 ```yaml
 rateLimiting:
   enabled: true
-  redis:
-    enabled: false
   externalRedis:
     host: redis.example.com
     port: 6379
@@ -60,6 +60,9 @@ rateLimiting:
       enabled: true
       secretName: redis-auth
       secretKey: password
+
+redis:
+  enabled: false
 ```
 
 Create the secret:
@@ -87,7 +90,8 @@ Creates `BackendTrafficPolicy` with a `targetRef.kind: Gateway` targeting the ac
 - **Scope**: Per client IP (x-real-ip header)
 - **Type**: Global (distributed across all proxy instances)
 
-Usage:
+Routes attached to that Gateway inherit the policy. No `ExtensionRef` filter is
+required:
 
 ```yaml
 apiVersion: gateway.networking.k8s.io/v1
@@ -95,16 +99,12 @@ kind: HTTPRoute
 metadata:
   name: my-api
 spec:
+  parentRefs:
+  - name: envoy-gateway
   rules:
   - backendRefs:
     - name: api-service
       port: 80
-    filters:
-    - type: ExtensionRef
-      extensionRef:
-        group: gateway.envoyproxy.io
-        kind: BackendTrafficPolicy
-        name: envoy-gateway-ratelimit-api
 ```
 
 ### Strict Preset (10 requests/minute)
@@ -210,18 +210,18 @@ kubectl exec -it envoy-gateway-redis-0 -- redis-cli ping
 ### View Rate Limit Metrics
 
 ```bash
-# Port-forward to controller
-kubectl port-forward svc/envoy-gateway-controller 8081:8081
+# Port-forward to the managed rate-limit service
+kubectl port-forward svc/envoy-ratelimit 19001:19001
 
 # Check rate limit metrics
-curl http://localhost:8081/metrics | grep ratelimit
+curl http://localhost:19001/metrics | grep ratelimit
 ```
 
 Key metrics:
 
-- `envoy_cluster_ratelimit_over_limit` — requests rejected by rate limiter
-- `envoy_cluster_ratelimit_ok` — requests allowed by rate limiter
-- `envoy_cluster_ratelimit_error` — rate limiter errors
+- `ratelimit_service_total_requests` — rate-limit gRPC checks
+- `ratelimit_service_response_time_seconds` — check latency
+- `ratelimit_service_should_rate_limit_error` — rate-limit service errors
 
 ## Troubleshooting
 
@@ -238,14 +238,15 @@ kubectl get pods -l app.kubernetes.io/component=redis
 # Check rate limit policy
 kubectl get backendtrafficpolicy
 
-# Verify HTTPRoute has ExtensionRef filter
-kubectl get httproute <route-name> -o yaml | grep -A 10 filters
+# Verify the policy target and that the route uses the same Gateway
+kubectl get backendtrafficpolicy <policy-name> -o yaml
+kubectl get httproute <route-name> -o yaml
 ```
 
 **Common Causes**:
 
 1. Redis pod not running
-2. Rate limit policy not attached to HTTPRoute
+2. Rate limit policy and HTTPRoute target different Gateways
 3. Wrong header selector (x-real-ip vs x-forwarded-for)
 4. External Redis not reachable
 

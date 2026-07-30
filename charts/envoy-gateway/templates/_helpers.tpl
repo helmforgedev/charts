@@ -76,10 +76,24 @@ app.kubernetes.io/component: controller
 Create the name of the service account to use
 */}}
 {{- define "envoy-gateway.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
+{{- if .Values.rateLimiting.enabled }}
+{{- "envoy-gateway" }}
+{{- else if .Values.serviceAccount.create }}
 {{- default (include "envoy-gateway.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
+{{- end }}
+{{- end }}
+
+{{/*
+Controller Deployment name. Envoy Gateway's global rate-limit infrastructure
+requires its owning controller Deployment to use the upstream canonical name.
+*/}}
+{{- define "envoy-gateway.controllerName" -}}
+{{- if .Values.rateLimiting.enabled }}
+{{- "envoy-gateway" }}
+{{- else }}
+{{- printf "%s-controller" (include "envoy-gateway.fullname" .) }}
 {{- end }}
 {{- end }}
 
@@ -206,14 +220,14 @@ SecurityPolicy target name - returns targetName or gateway name
 
 {{/*
 Rate limit Redis URL - returns subchart or external Redis URL.
-Subchart (redis.enabled=true): redis service is named "<release>-redis" by the helmforge/redis chart.
+Subchart (redis.enabled=true): redis service is named "<release>-redis-client" by the helmforge/redis chart.
 External (rateLimiting.externalRedis.host set): use the provided host/port.
 */}}
 {{- define "envoy-gateway.ratelimit.redisUrl" -}}
-{{- if .Values.redis.enabled }}
-{{- printf "redis://%s-redis.%s.svc.cluster.local:6379" .Release.Name .Release.Namespace }}
-{{- else if .Values.rateLimiting.externalRedis.host }}
-{{- printf "redis://%s:%d" .Values.rateLimiting.externalRedis.host (.Values.rateLimiting.externalRedis.port | int) }}
+{{- if .Values.rateLimiting.externalRedis.host }}
+{{- printf "%s:%d" .Values.rateLimiting.externalRedis.host (.Values.rateLimiting.externalRedis.port | int) }}
+{{- else if .Values.redis.enabled }}
+{{- printf "%s-redis-client.%s.svc.cluster.local:6379" .Release.Name .Release.Namespace }}
 {{- end }}
 {{- end }}
 
@@ -248,6 +262,12 @@ Central fail-fast validation entrypoint.
 {{- end -}}
 {{- if and .Values.rateLimiting.enabled (not .Values.redis.enabled) .Values.rateLimiting.externalRedis.host .Values.rateLimiting.externalRedis.auth.enabled (not .Values.rateLimiting.externalRedis.auth.secretName) -}}
 {{- fail "rateLimiting.externalRedis.auth.enabled requires rateLimiting.externalRedis.auth.secretName" -}}
+{{- end -}}
+{{- if and .Values.rateLimiting.enabled .Values.serviceAccount.create .Values.serviceAccount.name (ne .Values.serviceAccount.name "envoy-gateway") -}}
+{{- fail "rateLimiting.enabled requires serviceAccount.name to be empty or envoy-gateway" -}}
+{{- end -}}
+{{- if and .Values.rateLimiting.enabled (not .Values.serviceAccount.create) (ne .Values.serviceAccount.name "envoy-gateway") -}}
+{{- fail "rateLimiting.enabled with serviceAccount.create=false requires serviceAccount.name=envoy-gateway" -}}
 {{- end -}}
 {{- $podLabels := .Values.podLabels | default dict -}}
 {{- $selectorLabels := include "envoy-gateway.controller.selectorLabels" . | fromYaml -}}

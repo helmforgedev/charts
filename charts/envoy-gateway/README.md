@@ -1,7 +1,7 @@
 # Envoy Gateway
 
 A Helm chart for deploying [Envoy Gateway](https://gateway.envoyproxy.io/)
-v1.8.2 on Kubernetes. Envoy Gateway is a **Kubernetes operator** — it manages
+v1.8.3 on Kubernetes. Envoy Gateway is a **Kubernetes operator** — it manages
 Envoy proxy pods automatically in response to Gateway API resources.
 
 ## Installation
@@ -24,7 +24,7 @@ helm install envoy-gateway oci://ghcr.io/helmforgedev/helm/envoy-gateway
 
 Envoy Gateway and Gateway API experimental v1.5.1 CRDs are bundled in the local
 `crds` subchart and installed automatically by default. This includes
-`ListenerSet`, which Envoy Gateway v1.8.2 requires. Set `crds.enabled=false`
+`ListenerSet`, which Envoy Gateway v1.8.3 requires. Set `crds.enabled=false`
 only when a platform operator, GitOps controller, or another release manages
 all required CRDs. Helm installs CRDs on first install but does not upgrade or
 delete them automatically; review upstream CRD changes before chart upgrades.
@@ -164,7 +164,7 @@ highAvailability:
 |-----|---------|-------------|
 | `controller.replicaCount` | `1` | Number of controller replicas (overridden by profile) |
 | `controller.image.repository` | `docker.io/envoyproxy/gateway` | Controller image repository |
-| `controller.image.tag` | `v1.8.2` | Controller image tag |
+| `controller.image.tag` | `v1.8.3` | Controller image tag |
 | `controller.image.pullPolicy` | `IfNotPresent` | Image pull policy |
 | `controller.resources.requests.cpu` | `100m` | CPU request (overridden by profile) |
 | `controller.resources.requests.memory` | `128Mi` | Memory request (overridden by profile) |
@@ -182,7 +182,7 @@ highAvailability:
 |-----|---------|-------------|
 | `certgen.enabled` | `true` | Run certgen pre-install/pre-upgrade job for controller TLS certs |
 | `certgen.image.repository` | `docker.io/envoyproxy/gateway` | Certgen image (same as controller) |
-| `certgen.image.tag` | `v1.8.2` | Certgen image tag |
+| `certgen.image.tag` | `v1.8.3` | Certgen image tag |
 | `certgen.resources.requests.cpu` | `10m` | CPU request |
 | `certgen.resources.requests.memory` | `64Mi` | Memory request |
 | `certgen.resources.limits.cpu` | `100m` | CPU limit |
@@ -201,7 +201,7 @@ highAvailability:
 | `proxy.image.tag` | `distroless-v1.38.0` | Proxy image tag |
 | `proxy.image.pullPolicy` | `IfNotPresent` | Image pull policy |
 | `proxy.shutdownManager.image.repository` | `docker.io/envoyproxy/gateway` | Shutdown manager sidecar image repository |
-| `proxy.shutdownManager.image.tag` | `v1.8.2` | Shutdown manager sidecar image tag |
+| `proxy.shutdownManager.image.tag` | `v1.8.3` | Shutdown manager sidecar image tag |
 | `proxy.shutdownManager.image.pullPolicy` | `IfNotPresent` | Shutdown manager image pull policy |
 | `proxy.resources.requests.cpu` | `100m` | CPU request (overridden by profile) |
 | `proxy.resources.requests.memory` | `128Mi` | Memory request (overridden by profile) |
@@ -277,6 +277,8 @@ highAvailability:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `rateLimiting.enabled` | `false` | Enable rate limiting |
+| `rateLimiting.service.image.repository` | `docker.io/envoyproxy/ratelimit` | Rate limit service image repository |
+| `rateLimiting.service.image.tag` | `1e50889b` | Rate limit service image tag aligned with Envoy Gateway v1.8.3 |
 | `rateLimiting.externalRedis.host` | `""` | External Redis host |
 | `rateLimiting.externalRedis.port` | `6379` | External Redis port |
 | `rateLimiting.externalRedis.auth.enabled` | `false` | Enable Redis authentication |
@@ -320,7 +322,7 @@ highAvailability:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `serviceAccount.create` | `true` | Create ServiceAccount |
-| `serviceAccount.name` | `""` | ServiceAccount name (generated if empty) |
+| `serviceAccount.name` | `""` | ServiceAccount name (generated if empty; must be `envoy-gateway` when rate limiting is enabled) |
 | `serviceAccount.annotations` | `{}` | ServiceAccount annotations |
 | `rbac.create` | `true` | Create RBAC resources |
 
@@ -436,21 +438,34 @@ Major architectural redesign to align with the EG operator model.
 
 ## Upgrade Notes
 
-`docker.io/envoyproxy/gateway:v1.8.2` is the upstream patch update from
-`v1.8.1`. The automatically generated issue referenced `1.8.2`, but Docker Hub
+`docker.io/envoyproxy/gateway:v1.8.3` is the upstream patch update from
+`v1.8.2`. The automatically generated issue referenced `1.8.3`, but Docker Hub
 publishes the canonical Envoy Gateway image tag with the `v` prefix. This chart
 keeps the managed Envoy proxy image pinned to
 `docker.io/envoyproxy/envoy:distroless-v1.38.0`, which remains aligned with the
-upstream v1.8 compatibility matrix.
+upstream v1.8 compatibility matrix. The rate limit deployment now uses the
+upstream v1.8.3 default `docker.io/envoyproxy/ratelimit:1e50889b` and honors the
+`rateLimiting.service.image` override through the EnvoyGateway configuration.
+When rate limiting is enabled, the chart also uses the upstream-required
+`envoy-gateway` names for the controller Deployment and ServiceAccount. If the
+ServiceAccount is externally managed, set
+`serviceAccount.create=false,serviceAccount.name=envoy-gateway`.
+The controller Service exposes the rate-limit xDS port `18001`, bundled Redis
+uses its `-redis-client` endpoint, and Redis authentication is injected into the
+managed rate-limit Deployment through `REDIS_AUTH` from either the bundled or
+external Secret.
 
-Envoy Gateway v1.8.2 includes upstream bug fixes for Gateway API conditions,
-Backend TLS ALPN handling, ExternalName backends, Kubernetes 1.36 rate limit
-validation, EnvoyGateway config hot reload, and route timeout handling. It also
-tightens admission validation for `SecurityPolicy.spec.apiKeyAuth.extractFrom`:
-each entry must specify exactly one of `headers`, `params`, or `cookies`, and
-source names must be non-empty. Before upgrading production controllers, verify
-Gateway API and Envoy Gateway CRDs in staging, and test existing Gateway,
-HTTPRoute, EnvoyProxy, `BackendTrafficPolicy`, and `SecurityPolicy` resources.
+Envoy Gateway v1.8.3 updates its distroless base and fixes backend TLS 1.3
+defaults, mismatched or malformed listener certificates, IPv6 literal OIDC
+endpoints, translator status races, and Wasm fetch retries. It also moves
+EnvoyExtensionPolicy Lua source from per-route overrides to listener-level
+filters. This changes generated xDS Lua filter names and layout; update any
+EnvoyPatchPolicy or extension server that matches the previous
+`envoy.filters.http.lua/` keys. Review the
+[upstream v1.8.3 release notes](https://gateway.envoyproxy.io/news/releases/notes/v1.8.3)
+before upgrading, verify Gateway API and Envoy Gateway CRDs in staging, and test
+existing Gateway, HTTPRoute, EnvoyProxy, `BackendTrafficPolicy`,
+`SecurityPolicy`, EnvoyExtensionPolicy, and EnvoyPatchPolicy resources.
 
 ### Version 1.0.0
 

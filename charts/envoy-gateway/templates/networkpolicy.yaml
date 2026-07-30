@@ -33,6 +33,10 @@ spec:
       port: 18000
     - protocol: TCP
       port: 18002
+    {{- if .Values.rateLimiting.enabled }}
+    - protocol: TCP
+      port: 18001
+    {{- end }}
   egress:
   - to:
     - namespaceSelector: {}
@@ -74,7 +78,8 @@ spec:
   - from:
     - podSelector:
         matchLabels:
-          {{- include "envoy-gateway.selectorLabels" . | nindent 10 }}
+          app.kubernetes.io/name: envoy-ratelimit
+          app.kubernetes.io/managed-by: envoy-gateway
           app.kubernetes.io/component: ratelimit
     ports:
     - protocol: TCP
@@ -93,7 +98,8 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      {{- include "envoy-gateway.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/name: envoy-ratelimit
+      app.kubernetes.io/managed-by: envoy-gateway
       app.kubernetes.io/component: ratelimit
   policyTypes:
   - Ingress
@@ -124,5 +130,13 @@ spec:
     - protocol: TCP
       port: {{ .Values.rateLimiting.externalRedis.port }}
   {{- end }}
+  - to:
+    - namespaceSelector: {}
+      podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
 {{- end }}
 {{- end }}

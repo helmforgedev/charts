@@ -112,7 +112,24 @@ tests:
         template: configmap.yaml
       - matchRegex:
           path: data["envoy-gateway.yaml"]
-          pattern: "redis://"
+          pattern: "redis-client\\."
+        template: configmap.yaml
+      - matchRegex:
+          path: data["envoy-gateway.yaml"]
+          pattern: "image: docker.io/envoyproxy/ratelimit:1e50889b"
+        template: configmap.yaml
+
+  - it: should configure a custom rate limit service image
+    set:
+      rateLimiting:
+        service:
+          image:
+            repository: registry.example.com/platform/ratelimit
+            tag: "custom"
+    asserts:
+      - matchRegex:
+          path: data["envoy-gateway.yaml"]
+          pattern: "image: registry.example.com/platform/ratelimit:custom"
         template: configmap.yaml
 
   - it: should not have rateLimit section in configmap when rate limiting disabled
@@ -122,5 +139,5 @@ tests:
     asserts:
       - notMatchRegex:
           path: data["envoy-gateway.yaml"]
-          pattern: "rateLimit"
+          pattern: "(?m)^rateLimit:$"
         template: configmap.yaml

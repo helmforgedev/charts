@@ -16,6 +16,40 @@ data:
       type: Kubernetes
       kubernetes:
         envoyDeploymentSpec: {}
+        rateLimitDeployment:
+          container:
+            image: {{ printf "%s:%s" .Values.rateLimiting.service.image.repository .Values.rateLimiting.service.image.tag }}
+          {{- if and .Values.rateLimiting.enabled .Values.rateLimiting.externalRedis.host .Values.rateLimiting.externalRedis.auth.enabled }}
+          patch:
+            type: StrategicMerge
+            value:
+              spec:
+                template:
+                  spec:
+                    containers:
+                      - name: envoy-ratelimit
+                        env:
+                          - name: REDIS_AUTH
+                            valueFrom:
+                              secretKeyRef:
+                                name: {{ .Values.rateLimiting.externalRedis.auth.secretName }}
+                                key: {{ .Values.rateLimiting.externalRedis.auth.secretKey }}
+          {{- else if and .Values.rateLimiting.enabled .Values.redis.enabled .Values.redis.auth.enabled }}
+          patch:
+            type: StrategicMerge
+            value:
+              spec:
+                template:
+                  spec:
+                    containers:
+                      - name: envoy-ratelimit
+                        env:
+                          - name: REDIS_AUTH
+                            valueFrom:
+                              secretKeyRef:
+                                name: {{ printf "%s-redis-auth" .Release.Name }}
+                                key: redis-password
+          {{- end }}
     {{- if .Values.rateLimiting.enabled }}
     rateLimit:
       backend:
