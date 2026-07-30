@@ -137,3 +137,12 @@ Image string with tag fallback to appVersion.
 {{- define "minecraft.image" -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag }}
 {{- end }}
+
+{{/*
+Validate required runtime settings before rendering workloads.
+*/}}
+{{- define "minecraft.validate" -}}
+{{- if not .Values.server.eula -}}
+{{- fail "server.eula must be true to accept the Minecraft EULA" -}}
+{{- end -}}
+{{- end -}}

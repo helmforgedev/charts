@@ -5,6 +5,8 @@
 This chart deploys Minecraft Java Edition servers using the official community-standard
 `docker.io/itzg/minecraft-server` image. It supports vanilla, Paper, Forge, Fabric, Quilt, Geyser/Floodgate cross-play,
 RCON operations, persistent worlds, metrics, External Secrets, and S3-compatible backups.
+The 2026.7.2 runtime also exposes IPv6 stack preference, a replaceable process
+runner, and layered generic packs distributed as OCI artifacts.
 
 ## Architecture
 
@@ -33,6 +35,10 @@ world data at a time.
 - Keep RCON enabled for operational automation, backups, and graceful save coordination.
 - Use External Secrets only when explicitly enabled and require an existing RCON secret to avoid credential drift.
 - Use the same `itzg/minecraft-server` image for backup worker jobs so RCON tooling stays aligned with the server image.
+- Map `server.preferIPv6` and `server.runner` directly to the upstream runtime
+  contract while preserving safe defaults.
+- Pass generic pack OCI references and optional registry authentication paths
+  without copying credentials into Helm values.
 
 ## Production Boundary
 

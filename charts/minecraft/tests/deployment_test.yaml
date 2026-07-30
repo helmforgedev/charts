@@ -30,7 +30,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: docker.io/itzg/minecraft-server:2026.7.0
+          value: docker.io/itzg/minecraft-server:2026.7.2
 
   - it: should set EULA to true
     asserts:
@@ -49,6 +49,38 @@ tests:
           content:
             name: TYPE
             value: PAPER
+
+  - it: should configure IPv6 preference and a custom server runner
+    set:
+      server.preferIPv6: true
+      server.runner: /opt/minecraft/custom-runner
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PREFER_IPv6
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SERVER_RUNNER
+            value: /opt/minecraft/custom-runner
+
+  - it: should configure OCI generic packs
+    set:
+      mods.genericPacks: oci://ghcr.io/example/base:1,oci://ghcr.io/example/mods:1
+      mods.genericPacksOciAuthFile: /run/secrets/registry/config.json
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GENERIC_PACKS
+            value: oci://ghcr.io/example/base:1,oci://ghcr.io/example/mods:1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GENERIC_PACKS_OCI_AUTH_FILE
+            value: /run/secrets/registry/config.json
 
   - it: should set JVM memory
     set:
