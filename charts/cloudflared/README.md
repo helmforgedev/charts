@@ -176,6 +176,18 @@ topologySpreadConstraints:
 - **Routing is dashboard-managed** — this chart does not configure ingress rules; use the Cloudflare dashboard to map public hostnames to internal services
 - **No ingress template** — cloudflared replaces traditional ingress controllers
 
+## Upgrade Notes
+
+Cloudflared 2026.7.3 is a security and connectivity maintenance release. It
+updates `golang.org/x/text` and related dependencies for a CVE fix, aligns
+connectivity prechecks with the curves used for edge connections, and protects
+Windows service tokens with `--token-file`. The Kubernetes tunnel command and
+chart values contract are unchanged.
+
+Review the
+[official 2026.7.3 release](https://github.com/cloudflare/cloudflared/releases/tag/2026.7.3)
+before production rollout.
+
 ## Security Scan
 
 🟢 Security Scan: `cloudflared`
