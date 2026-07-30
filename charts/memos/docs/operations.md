@@ -67,6 +67,7 @@ Before upgrading:
 ```bash
 helm upgrade memos helmforge/memos -f values.yaml
 kubectl rollout status statefulset/memos
+kubectl exec statefulset/memos -- wget -qO- http://127.0.0.1:5230/healthz
 kubectl logs statefulset/memos --tail=100
 ```
 
