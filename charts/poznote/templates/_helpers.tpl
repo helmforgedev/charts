@@ -117,6 +117,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
 {{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}
 {{- end -}}
+{{- $reservedEnv := list "HTTP_WEB_PORT" "TZ" "POZNOTE_DEBUG" "POZNOTE_OIDC_CLIENT_ID" "POZNOTE_OIDC_CLIENT_SECRET" "POZNOTE_OIDC_DISABLE_NORMAL_LOGIN" "POZNOTE_HIDE_RESTRICT_USERS" -}}
+{{- range .Values.app.env -}}
+{{- if has .name $reservedEnv -}}
+{{- fail (printf "app.env must not override chart-managed environment variable %s" .name) -}}
+{{- end -}}
+{{- end -}}
 {{- if .Values.podLabels -}}
 {{- if hasKey .Values.podLabels "app.kubernetes.io/name" -}}
 {{- fail "podLabels must not override the selector label app.kubernetes.io/name" -}}

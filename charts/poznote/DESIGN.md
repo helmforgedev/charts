@@ -14,10 +14,16 @@ Scaling above one pod is blocked because Poznote uses SQLite for persistence and
 The chart uses the official upstream image:
 
 ```text
-ghcr.io/timothepoznanski/poznote:6.35.0
+ghcr.io/timothepoznanski/poznote:6.45.0
 ```
 
-The tag maps to the upstream `6.35.0` release and publishes Linux `amd64` and `arm64` manifests.
+The tag maps to the upstream `6.45.0` release and publishes Linux `amd64` and `arm64` manifests.
+
+Upstream also publishes a `6.45.0-rootless` variant. It is not the chart
+default because its startup script requires the mounted data directory itself
+to be owned by UID/GID 1000. New Kubernetes PVCs and volumes upgraded from the
+default image do not guarantee that ownership without a privileged recursive
+ownership migration.
 
 ## Database
 

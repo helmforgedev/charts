@@ -71,7 +71,7 @@ ingress:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Image repository | `ghcr.io/timothepoznanski/poznote` |
-| `image.tag` | Image tag | `6.35.0` |
+| `image.tag` | Image tag | `6.45.0` |
 | `image.pullPolicy` | Pull policy | `IfNotPresent` |
 
 #### Application Parameters
@@ -108,6 +108,7 @@ ingress:
 | `secrets.oidcClientId` | Inline OIDC client ID | `""` |
 | `secrets.oidcClientSecret` | Inline OIDC client secret | `""` |
 | `poznote.oidc.disableNormalLogin` | Force SSO-only login | `false` |
+| `poznote.sharing.hideRestrictUsers` | Hide user restriction controls in sharing dialogs | `false` |
 
 ## Examples
 
@@ -140,10 +141,14 @@ This chart intentionally does NOT:
 
 ## Upgrade Notes
 
-Poznote `6.35.0` adds the optional AI assistant and improves the mobile
-navigation. No Kubernetes-facing configuration changes are required by this
-chart, but back up the `data` PVC
-before upgrading because it stores the SQLite database, notes, attachments, and
+Poznote `6.45.0` adds the Diary, user quotas, safer concurrent REST writes,
+expanded user administration, per-user display controls, and many editor and
+sharing improvements introduced since `6.35.0`. The chart now exposes
+`poznote.sharing.hideRestrictUsers` for deployments that should hide user
+restriction controls in sharing dialogs.
+
+No upstream storage migration is required. Back up the `data` PVC before
+upgrading because it stores the SQLite database, notes, attachments, and
 application configuration.
 
 ## Security Scan

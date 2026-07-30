@@ -35,7 +35,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "ghcr.io/timothepoznanski/poznote:6.35.0"
+          value: "ghcr.io/timothepoznanski/poznote:6.45.0"
 
   - it: should expose HTTP port 80
     template: templates/deployment.yaml
@@ -97,6 +97,28 @@ tests:
           content:
             name: POZNOTE_OIDC_DISABLE_NORMAL_LOGIN
             value: "true"
+
+  - it: should hide user restriction controls when enabled
+    template: templates/deployment.yaml
+    set:
+      poznote.sharing.hideRestrictUsers: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POZNOTE_HIDE_RESTRICT_USERS
+            value: "true"
+
+  - it: should reject overrides of chart-managed environment variables
+    template: templates/deployment.yaml
+    set:
+      app:
+        env:
+          - name: POZNOTE_HIDE_RESTRICT_USERS
+            value: "false"
+    asserts:
+      - failedTemplate:
+          errorMessage: app.env must not override chart-managed environment variable POZNOTE_HIDE_RESTRICT_USERS
 
   - it: should mount data volume at upstream data path
     template: templates/deployment.yaml
