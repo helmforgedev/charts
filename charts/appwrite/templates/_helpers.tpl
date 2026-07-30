@@ -468,6 +468,55 @@ startupProbe:
 {{- end }}
 {{- end -}}
 
+{{/* ---- Side-effect-free HTTP probes for the Appwrite API ---- */}}
+{{- define "appwrite.apiLivenessProbe" -}}
+{{- if .Values.livenessProbe.enabled }}
+livenessProbe:
+  httpGet:
+    path: /v1/health/version
+    port: http
+    httpHeaders:
+      - name: Host
+        value: {{ include "appwrite.domain" . | quote }}
+  initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+  periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+  timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+  failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+{{- end }}
+{{- end -}}
+
+{{- define "appwrite.apiReadinessProbe" -}}
+{{- if .Values.readinessProbe.enabled }}
+readinessProbe:
+  httpGet:
+    path: /v1/health/version
+    port: http
+    httpHeaders:
+      - name: Host
+        value: {{ include "appwrite.domain" . | quote }}
+  initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+  periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+  timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+  failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+{{- end }}
+{{- end -}}
+
+{{- define "appwrite.apiStartupProbe" -}}
+{{- if .Values.startupProbe.enabled }}
+startupProbe:
+  httpGet:
+    path: /v1/health/version
+    port: http
+    httpHeaders:
+      - name: Host
+        value: {{ include "appwrite.domain" . | quote }}
+  initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+  periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+  timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+  failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+{{- end }}
+{{- end -}}
+
 {{/* ---- Backup helpers ---- */}}
 
 {{- define "appwrite.backupSecretName" -}}

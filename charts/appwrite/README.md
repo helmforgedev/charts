@@ -5,6 +5,7 @@ Self-hosted backend-as-a-service platform for web, mobile, and Flutter developer
 ## Features
 
 - Appwrite API server, console, and realtime WebSocket service
+- Side-effect-free API health probes using `/v1/health/version`
 - 12 background workers for audits, webhooks, deletes, databases, builds, certificates, functions, mails, messaging, migrations, and stats
 - Schedulers for functions, messages, and executions
 - Maintenance task for automated housekeeping
@@ -58,10 +59,10 @@ When ingress is enabled, requests are routed by path:
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `image.repository` | `appwrite/appwrite` | Appwrite server image |
-| `image.tag` | `""` (uses appVersion) | Image tag |
-| `console.image.repository` | `appwrite/console` | Console image |
-| `console.image.tag` | `8.7.5` | Console image tag |
+| `image.repository` | `docker.io/appwrite/appwrite` | Appwrite server image |
+| `image.tag` | `1.9.6` | Image tag |
+| `console.image.repository` | `docker.io/appwrite/console` | Console image |
+| `console.image.tag` | `8.7.30` | Console image tag |
 | `appwrite.locale` | `en` | Application locale |
 | `appwrite.domain` | `""` (auto-detected) | Appwrite domain |
 | `appwrite.openSslKeyV1` | `""` (auto-generated) | 64-char hex encryption key |
@@ -78,11 +79,12 @@ See [`values.yaml`](values.yaml) for the full configuration reference.
 
 ## Upgrade Notes
 
-Appwrite 1.9.5 requires the upstream database migration step even when upgrading
-from Appwrite 1.9.0. After `helm upgrade`, run the Appwrite migrate command
-against an Appwrite API pod before returning production traffic to the release,
-for example with `kubectl exec deploy/<release>-appwrite-api -- appwrite migrate`
-adjusted to the release name and namespace.
+Appwrite 1.9.6 repairs missing Functions and Sites Git-provider attributes left
+by upgrades from 1.9.5 and makes migration batches idempotent. After
+`helm upgrade`, run the Appwrite migrate command against an Appwrite API pod
+before returning production traffic to the release, for example with
+`kubectl exec deploy/<release>-appwrite-api -- appwrite migrate` adjusted to the
+release name and namespace.
 
 ## External Database
 

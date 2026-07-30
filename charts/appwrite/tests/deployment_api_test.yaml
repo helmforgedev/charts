@@ -18,7 +18,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/appwrite/appwrite:1.9.5"
+          value: "docker.io/appwrite/appwrite:1.9.6"
 
   - it: should run http.php entrypoint
     template: templates/deployment-api.yaml
@@ -37,15 +37,35 @@ tests:
             containerPort: 80
             protocol: TCP
 
-  - it: should have probes by default
+  - it: should use the side-effect-free version endpoint for API probes
     template: templates/deployment-api.yaml
+    set:
+      appwrite.domain: appwrite.example.com
     asserts:
-      - isNotNull:
-          path: spec.template.spec.containers[0].livenessProbe
-      - isNotNull:
-          path: spec.template.spec.containers[0].readinessProbe
-      - isNotNull:
-          path: spec.template.spec.containers[0].startupProbe
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet
+          value:
+            path: /v1/health/version
+            port: http
+            httpHeaders:
+              - name: Host
+                value: appwrite.example.com
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet
+          value:
+            path: /v1/health/version
+            port: http
+            httpHeaders:
+              - name: Host
+                value: appwrite.example.com
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet
+          value:
+            path: /v1/health/version
+            port: http
+            httpHeaders:
+              - name: Host
+                value: appwrite.example.com
 
   - it: should wait for database and redis before starting
     template: templates/deployment-api.yaml
