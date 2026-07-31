@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: netbox validation
+templates:
+  - validate.yaml
+tests:
+  - it: rejects ingress without hosts
+    set:
+      ingress:
+        enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.hosts must not be empty when ingress.enabled=true
+  - it: rejects ServiceMonitor without native metrics
+    set:
+      metrics:
+        serviceMonitor:
+          enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: netbox.metricsEnabled must be true when ServiceMonitor is enabled
+  - it: rejects HTTPRoutes without a parent
+    set:
+      gatewayAPI:
+        enabled: true
+        httpRoutes:
+          - hostnames:
+              - netbox.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: gatewayAPI.httpRoutes[0].parentRefs must not be empty
+  - it: rejects unsafe multi-replica media
+    set:
+      web:
+        replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: web.replicaCount > 1 requires persistence.accessModes to include ReadWriteMany
+  - it: rejects selector label overrides
+    set:
+      podLabels:
+        app.kubernetes.io/name: invalid
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels must not override app.kubernetes.io/name
+  - it: rejects empty External Secrets items
+    set:
+      externalSecrets:
+        enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.items must not be empty when enabled
+  - it: rejects an external database without a password source
+    set:
+      postgresql:
+        enabled: false
+      database:
+        mode: external
+        external:
+          host: postgresql.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: external database mode requires database.external.password or database.external.existingSecret
+  - it: rejects an external cache without a password source
+    set:
+      redis:
+        enabled: false
+      cache:
+        mode: external
+        external:
+          host: redis.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: external cache mode requires cache.external.password or cache.external.existingSecret
+  - it: rejects External Secrets items without a store
+    set:
+      externalSecrets:
+        enabled: true
+        items:
+          - spec:
+              data:
+                - secretKey: password
+                  remoteRef:
+                    key: test/password
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.items[0].spec requires secretStoreRef or sourceRef

@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: netbox observability
+templates:
+  - servicemonitor.yaml
+  - networkpolicy.yaml
+tests:
+  - it: scrapes native metrics
+    template: servicemonitor.yaml
+    set:
+      netbox:
+        metricsEnabled: true
+      metrics:
+        serviceMonitor:
+          enabled: true
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+      - equal:
+          path: spec.endpoints[0].path
+          value: /metrics
+  - it: renders database and cache egress
+    template: networkpolicy.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        egress:
+          enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.ingress[0].from[0].podSelector
+          value: {}
+      - equal:
+          path: spec.egress[1].to[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: postgresql
+      - equal:
+          path: spec.egress[2].to[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: redis
+  - it: requires explicit peers for external data services
+    template: networkpolicy.yaml
+    set:
+      postgresql:
+        enabled: false
+      redis:
+        enabled: false
+      database:
+        mode: external
+        external:
+          host: postgresql.example.com
+          existingSecret: netbox-postgresql
+      cache:
+        mode: external
+        external:
+          host: redis.example.com
+          existingSecret: netbox-redis
+      networkPolicy:
+        enabled: true
+        egress:
+          enabled: true
+    asserts:
+      - lengthEqual:
+          path: spec.egress
+          count: 1

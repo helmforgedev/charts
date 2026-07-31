@@ -1,0 +1,88 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: netbox workloads
+templates:
+  - configmap.yaml
+  - secret.yaml
+  - externalsecret.yaml
+  - deployment-web.yaml
+  - deployment-worker.yaml
+  - cronjob-housekeeping.yaml
+  - pvc.yaml
+tests:
+  - it: uses the exact official NetBox image
+    template: deployment-web.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/netboxcommunity/netbox:v4.6.5-5.0.2
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.httpHeaders[0].value
+          value: localhost
+  - it: mounts persistent media
+    template: deployment-web.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          value: /opt/netbox/netbox/media
+  - it: renders a separate rq worker
+    template: deployment-worker.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].command[2]
+          value: rqworker
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/component"]
+          value: worker
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey
+          value: kubernetes.io/hostname
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.memory
+          value: 256Mi
+  - it: propagates envFrom to the migration gate
+    template: deployment-worker.yaml
+    set:
+      netbox:
+        extraEnvFrom:
+          - configMapRef:
+              name: netbox-runtime
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].envFrom[0].configMapRef.name
+          value: netbox-runtime
+  - it: renders nightly housekeeping
+    template: cronjob-housekeeping.yaml
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.schedule
+          value: "0 0 * * *"
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          value: housekeeping
+  - it: propagates pull secrets to housekeeping
+    template: cronjob-housekeeping.yaml
+    set:
+      imagePullSecrets:
+        - name: registry-auth
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.imagePullSecrets[0].name
+          value: registry-auth
+  - it: retains chart-managed media on uninstall
+    template: pvc.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep

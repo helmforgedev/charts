@@ -1,0 +1,192 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "netbox.fullname" . }}
+  namespace: {{ include "netbox.namespace" . | quote }}
+  labels:
+    {{- include "netbox.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  replicas: {{ .Values.web.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "netbox.componentSelectorLabels" (dict "root" . "component" "web") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "netbox.componentSelectorLabels" (dict "root" . "component" "web") | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/external-secrets: {{ include (print $.Template.BasePath "/externalsecret.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "netbox.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: wait-for-dependencies
+          image: docker.io/library/busybox:1.37.0
+          command: [sh, -ec]
+          args:
+            - |
+              until nc -z -w2 "$DB_HOST" "$DB_PORT"; do echo "waiting for PostgreSQL"; sleep 2; done
+              until nc -z -w2 "$REDIS_HOST" "$REDIS_PORT"; do echo "waiting for Redis"; sleep 2; done
+          env:
+            - name: DB_HOST
+              value: {{ include "netbox.databaseHost" . | quote }}
+            - name: DB_PORT
+              value: {{ include "netbox.databasePort" . | quote }}
+            - name: REDIS_HOST
+              value: {{ include "netbox.cacheHost" . | quote }}
+            - name: REDIS_PORT
+              value: {{ include "netbox.cachePort" . | quote }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+        {{- with .Values.extraInitContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      containers:
+        - name: netbox
+          image: {{ include "netbox.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            {{- include "netbox.commonEnv" . | nindent 12 }}
+            - name: GRANIAN_WORKERS
+              value: {{ .Values.web.workers | quote }}
+            - name: GRANIAN_REQUEST_TIMEOUT
+              value: {{ .Values.web.requestTimeout | quote }}
+            {{- if .Values.auth.superuser.enabled }}
+            - name: SKIP_SUPERUSER
+              value: "false"
+            - name: SUPERUSER_NAME
+              value: {{ .Values.auth.superuser.name | quote }}
+            - name: SUPERUSER_EMAIL
+              value: {{ .Values.auth.superuser.email | quote }}
+            - name: SUPERUSER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "netbox.superuserSecretName" . }}
+                  key: {{ .Values.auth.superuser.passwordKey }}
+            {{- with .Values.auth.superuser.apiToken }}
+            - name: SUPERUSER_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "netbox.superuserSecretName" $ }}
+                  key: {{ $.Values.auth.superuser.apiTokenKey }}
+            {{- end }}
+            {{- else }}
+            - name: SKIP_SUPERUSER
+              value: "true"
+            {{- end }}
+          {{- with .Values.netbox.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: /login/
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: localhost
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /login/
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: localhost
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /login/
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: localhost
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.web.resources | nindent 12 }}
+          volumeMounts:
+            - name: media
+              mountPath: /opt/netbox/netbox/media
+            {{- range $name, $_ := .Values.netbox.extraConfiguration }}
+            - name: configuration
+              mountPath: {{ printf "/etc/netbox/config/%s" $name }}
+              subPath: {{ $name }}
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+        - name: media
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "netbox.mediaClaim" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if .Values.netbox.extraConfiguration }}
+        - name: configuration
+          configMap:
+            name: {{ include "netbox.suffixedName" (dict "base" (include "netbox.fullname" .) "suffix" "-config") }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

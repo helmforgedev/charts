@@ -1,0 +1,65 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.housekeeping.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "netbox.suffixedName" (dict "base" (include "netbox.fullname" .) "suffix" "-housekeeping") }}
+  namespace: {{ include "netbox.namespace" . | quote }}
+  labels:
+    {{- include "netbox.labels" . | nindent 4 }}
+    app.kubernetes.io/component: housekeeping
+spec:
+  schedule: {{ .Values.housekeeping.schedule | quote }}
+  concurrencyPolicy: {{ .Values.housekeeping.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.housekeeping.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.housekeeping.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "netbox.componentSelectorLabels" (dict "root" . "component" "housekeeping") | nindent 12 }}
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: {{ include "netbox.serviceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          containers:
+            - name: housekeeping
+              image: {{ include "netbox.image" . | quote }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                - /opt/netbox/venv/bin/python
+                - /opt/netbox/netbox/manage.py
+                - housekeeping
+              securityContext:
+                {{- toYaml .Values.securityContext | nindent 16 }}
+              env:
+                {{- include "netbox.commonEnv" . | nindent 16 }}
+                - name: SKIP_SUPERUSER
+                  value: "true"
+              {{- with .Values.netbox.extraEnvFrom }}
+              envFrom:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              resources:
+                {{- toYaml .Values.housekeeping.resources | nindent 16 }}
+              volumeMounts:
+                {{- range $name, $_ := .Values.netbox.extraConfiguration }}
+                - name: configuration
+                  mountPath: {{ printf "/etc/netbox/config/%s" $name }}
+                  subPath: {{ $name }}
+                  readOnly: true
+                {{- end }}
+          {{- if .Values.netbox.extraConfiguration }}
+          volumes:
+            - name: configuration
+              configMap:
+                name: {{ include "netbox.suffixedName" (dict "base" (include "netbox.fullname" .) "suffix" "-config") }}
+          {{- end }}
+{{- end }}

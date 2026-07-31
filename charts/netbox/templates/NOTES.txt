@@ -1,0 +1,60 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+1. Summary
+   NetBox has been installed.
+   Image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+   Service: {{ include "netbox.fullname" . }}.{{ include "netbox.namespace" . }}.svc.cluster.local:{{ .Values.service.port }}
+
+2. Access
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+   URL: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else if .Values.gatewayAPI.enabled }}
+{{- range .Values.gatewayAPI.httpRoutes }}
+{{- range .hostnames }}
+   Hostname: {{ . }}
+{{- end }}
+{{- end }}
+{{- else }}
+   kubectl port-forward -n {{ include "netbox.namespace" . }} svc/{{ include "netbox.fullname" . }} 8080:{{ .Values.service.port }}
+   Open: http://127.0.0.1:8080/
+{{- end }}
+
+3. Workloads
+   Web:
+   kubectl logs -n {{ include "netbox.namespace" . }} deploy/{{ include "netbox.fullname" . }}
+{{- if .Values.worker.enabled }}
+   Worker:
+   kubectl logs -n {{ include "netbox.namespace" . }} deploy/{{ include "netbox.suffixedName" (dict "base" (include "netbox.fullname" .) "suffix" "-worker") }}
+{{- end }}
+
+4. Initial Administrator
+{{- if .Values.auth.superuser.enabled }}
+   Username: {{ .Values.auth.superuser.name }}
+   Password Secret: {{ include "netbox.superuserSecretName" . }}
+   kubectl get secret -n {{ include "netbox.namespace" . }} {{ include "netbox.superuserSecretName" . }} -o jsonpath="{.data.{{ .Values.auth.superuser.passwordKey }}}" | base64 -d
+{{- else }}
+   Bootstrap is disabled. Create an account with manage.py createsuperuser.
+{{- end }}
+
+5. Validation
+   Run Helm tests:
+   helm test {{ .Release.Name }} -n {{ include "netbox.namespace" . }}
+
+6. Troubleshooting
+   Inspect workloads:
+   kubectl get deployments,cronjobs -n {{ include "netbox.namespace" . }} -l app.kubernetes.io/instance={{ .Release.Name }}
+   Inspect recent events:
+   kubectl get events -n {{ include "netbox.namespace" . }} --sort-by=.lastTimestamp
+
+7. Production Reminders
+   1. Back up PostgreSQL and the media PVC together.
+   2. Do not expose Redis database 0, which carries background jobs, to untrusted clients.
+   3. Use ReadWriteMany media storage or external object storage before scaling web replicas.
+
+8. Resources
+   Chart: https://helmforge.dev/docs/charts/netbox
+   Source: https://github.com/helmforgedev/charts/tree/main/charts/netbox
+   NetBox: https://netboxlabs.com/docs/netbox/
+
+Happy Helmforging :)

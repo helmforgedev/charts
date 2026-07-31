@@ -1,0 +1,30 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and .Values.podDisruptionBudget.enabled (gt (int .Values.web.replicaCount) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "netbox.fullname" . }}
+  namespace: {{ include "netbox.namespace" . | quote }}
+  labels:
+    {{- include "netbox.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: {{ .Values.podDisruptionBudget.maxUnavailable }}
+  selector:
+    matchLabels:
+      {{- include "netbox.componentSelectorLabels" (dict "root" . "component" "web") | nindent 6 }}
+{{- end }}
+{{- if and .Values.podDisruptionBudget.enabled .Values.worker.enabled (gt (int .Values.worker.replicaCount) 1) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "netbox.suffixedName" (dict "base" (include "netbox.fullname" .) "suffix" "-worker") }}
+  namespace: {{ include "netbox.namespace" . | quote }}
+  labels:
+    {{- include "netbox.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: {{ .Values.podDisruptionBudget.maxUnavailable }}
+  selector:
+    matchLabels:
+      {{- include "netbox.componentSelectorLabels" (dict "root" . "component" "worker") | nindent 6 }}
+{{- end }}

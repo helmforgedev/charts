@@ -1,0 +1,147 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.worker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "netbox.suffixedName" (dict "base" (include "netbox.fullname" .) "suffix" "-worker") }}
+  namespace: {{ include "netbox.namespace" . | quote }}
+  labels:
+    {{- include "netbox.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  replicas: {{ .Values.worker.replicaCount }}
+  strategy:
+    {{- toYaml .Values.worker.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "netbox.componentSelectorLabels" (dict "root" . "component" "worker") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "netbox.componentSelectorLabels" (dict "root" . "component" "worker") | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/external-secrets: {{ include (print $.Template.BasePath "/externalsecret.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "netbox.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: wait-for-migrations
+          image: {{ include "netbox.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/bash
+            - -ec
+          args:
+            - |
+              until /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py migrate --check >/dev/null 2>&1; do
+                echo "waiting for NetBox database migrations"
+                sleep 5
+              done
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            {{- include "netbox.commonEnv" . | nindent 12 }}
+            - name: SKIP_SUPERUSER
+              value: "true"
+          {{- with .Values.netbox.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+      containers:
+        - name: worker
+          image: {{ include "netbox.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /opt/netbox/venv/bin/python
+            - /opt/netbox/netbox/manage.py
+            - rqworker
+            {{- range .Values.worker.queues }}
+            - {{ . | quote }}
+            {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            {{- include "netbox.commonEnv" . | nindent 12 }}
+            - name: SKIP_SUPERUSER
+              value: "true"
+          {{- with .Values.netbox.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+          volumeMounts:
+            - name: media
+              mountPath: /opt/netbox/netbox/media
+            {{- range $name, $_ := .Values.netbox.extraConfiguration }}
+            - name: configuration
+              mountPath: {{ printf "/etc/netbox/config/%s" $name }}
+              subPath: {{ $name }}
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: media
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "netbox.mediaClaim" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if .Values.netbox.extraConfiguration }}
+        - name: configuration
+          configMap:
+            name: {{ include "netbox.suffixedName" (dict "base" (include "netbox.fullname" .) "suffix" "-config") }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if and .Values.persistence.enabled (not (has "ReadWriteMany" .Values.persistence.accessModes)) }}
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  {{- include "netbox.componentSelectorLabels" (dict "root" . "component" "web") | nindent 18 }}
+              topologyKey: kubernetes.io/hostname
+      {{- else }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
