@@ -1,0 +1,233 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pimcore.fullname" . }}
+  namespace: {{ include "pimcore.namespace" . | quote }}
+  labels:
+    {{- include "pimcore.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  replicas: {{ .Values.web.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pimcore.componentSelectorLabels" (dict "root" . "component" "web") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pimcore.componentSelectorLabels" (dict "root" . "component" "web") | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "pimcore.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        {{- if .Values.project.persistence.enabled }}
+        - name: prepare-project
+          image: {{ include "pimcore.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [sh, -ec]
+          args:
+            - |
+              set -eu
+              if [ -f /project/bin/console ]; then
+                echo "Pimcore project already prepared"
+                exit 0
+              fi
+              if [ -f /var/www/html/bin/console ]; then
+                cp -R /var/www/html/. /project/
+              {{- if .Values.project.bootstrap.enabled }}
+              else
+                export COMPOSER_HOME=/tmp/composer
+                composer create-project "pimcore/skeleton:{{ .Values.project.bootstrap.skeletonVersion }}" /tmp/pimcore --no-scripts --no-interaction --prefer-dist
+                cp -R /tmp/pimcore/. /project/
+              {{- else }}
+              else
+                echo "application image does not contain /var/www/html/bin/console" >&2
+                exit 1
+              {{- end }}
+              fi
+              mkdir -p /project/public/var /project/var
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: project
+              mountPath: /project
+        {{- end }}
+        - name: wait-for-dependencies
+          image: docker.io/library/busybox:1.37.0
+          command: [sh, -ec]
+          args:
+            - |
+              until nc -z -w2 "$DB_HOST" "$DB_PORT"; do echo "waiting for MariaDB"; sleep 2; done
+              until nc -z -w2 "$RABBITMQ_HOST" "$RABBITMQ_PORT"; do echo "waiting for RabbitMQ"; sleep 2; done
+              {{- if .Values.cache.enabled }}
+              until nc -z -w2 "$REDIS_HOST" "$REDIS_PORT"; do echo "waiting for Redis"; sleep 2; done
+              {{- end }}
+          env:
+            - name: DB_HOST
+              value: {{ include "pimcore.databaseHost" . | quote }}
+            - name: DB_PORT
+              value: {{ include "pimcore.databasePort" . | quote }}
+            - name: RABBITMQ_HOST
+              value: {{ include "pimcore.queueHost" . | quote }}
+            - name: RABBITMQ_PORT
+              value: {{ include "pimcore.queuePort" . | quote }}
+            {{- if .Values.cache.enabled }}
+            - name: REDIS_HOST
+              value: {{ include "pimcore.cacheHost" . | quote }}
+            - name: REDIS_PORT
+              value: {{ .Values.cache.external.port | quote }}
+            {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+        {{- with .Values.extraInitContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      containers:
+        - name: php-fpm
+          image: {{ include "pimcore.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [sh, -ec]
+          args:
+            - |
+              {{ include "pimcore.command" . | nindent 14 }}
+            - --
+            - php-fpm
+            - -F
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            {{- include "pimcore.commonEnv" . | nindent 12 }}
+          {{- with .Values.pimcore.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: fpm
+              containerPort: 9000
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.web.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.project.persistence.enabled }}
+            - name: project
+              mountPath: /var/www/html
+            {{- end }}
+            - name: assets
+              mountPath: /var/www/html/public/var
+            - name: nginx-config
+              mountPath: /usr/local/etc/php-fpm.d/zz-health.conf
+              subPath: zz-health.conf
+              readOnly: true
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        - name: nginx
+          image: {{ include "pimcore.nginxImage" . | quote }}
+          imagePullPolicy: {{ .Values.nginx.image.pullPolicy }}
+          command: [nginx]
+          args: ["-c", "/etc/nginx/custom/nginx.conf", "-g", "daemon off;"]
+          securityContext:
+            {{- toYaml .Values.nginxSecurityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.nginx.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.project.persistence.enabled }}
+            - name: project
+              mountPath: /var/www/html
+              readOnly: true
+            {{- end }}
+            - name: assets
+              mountPath: /var/www/html/public/var
+              readOnly: true
+            - name: nginx-config
+              mountPath: /etc/nginx/custom
+              readOnly: true
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+        {{- if .Values.project.persistence.enabled }}
+        - name: project
+          persistentVolumeClaim:
+            claimName: {{ include "pimcore.projectClaim" . }}
+        {{- end }}
+        - name: assets
+          {{- if .Values.assets.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "pimcore.assetsClaim" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: nginx-config
+          configMap:
+            name: {{ include "pimcore.suffixedName" (dict "base" (include "pimcore.fullname" .) "suffix" "-nginx") }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

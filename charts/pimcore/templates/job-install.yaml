@@ -1,0 +1,69 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.install.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "pimcore.suffixedName" (dict "base" (include "pimcore.fullname" .) "suffix" "-install") }}
+  namespace: {{ include "pimcore.namespace" . | quote }}
+  labels:
+    {{- include "pimcore.labels" . | nindent 4 }}
+    app.kubernetes.io/component: install
+  annotations:
+    helm.sh/hook: post-install
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: {{ .Values.install.hookDeletePolicy | quote }}
+spec:
+  backoffLimit: {{ .Values.install.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.install.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "pimcore.componentSelectorLabels" (dict "root" . "component" "install") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "pimcore.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: install
+          image: {{ include "pimcore.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [sh, -ec]
+          args:
+            - |
+              {{ include "pimcore.command" . | nindent 14 }}
+            - --
+            - php
+            - /var/www/html/vendor/bin/pimcore-install
+            - {{ printf "--install-profile=%s" .Values.install.profile | quote }}
+            - --no-interaction
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            {{- include "pimcore.commonEnv" . | nindent 12 }}
+          {{- with .Values.pimcore.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- if .Values.project.persistence.enabled }}
+            - name: project
+              mountPath: /var/www/html
+            {{- end }}
+            - name: assets
+              mountPath: /var/www/html/public/var
+      volumes:
+        {{- if .Values.project.persistence.enabled }}
+        - name: project
+          persistentVolumeClaim:
+            claimName: {{ include "pimcore.projectClaim" . }}
+        {{- end }}
+        - name: assets
+          {{- if .Values.assets.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "pimcore.assetsClaim" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}

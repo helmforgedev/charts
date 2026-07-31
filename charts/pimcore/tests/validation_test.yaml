@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: pimcore validation
+templates:
+  - validate.yaml
+tests:
+  - it: rejects ingress without hosts
+    set:
+      ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.hosts must not be empty when ingress.enabled=true
+  - it: rejects HTTPRoutes without a parent
+    set:
+      gatewayAPI:
+        enabled: true
+        httpRoutes:
+          - hostnames:
+              - pimcore.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: gatewayAPI.httpRoutes[0].parentRefs must not be empty
+  - it: rejects unsafe project persistence scaling
+    set:
+      web.replicaCount: 2
+      assets.persistence.accessModes:
+        - ReadWriteMany
+    asserts:
+      - failedTemplate:
+          errorMessage: web.replicaCount > 1 requires project persistence with ReadWriteMany or an immutable project image
+  - it: rejects unsafe asset persistence scaling
+    set:
+      web.replicaCount: 2
+      project.persistence.accessModes:
+        - ReadWriteMany
+    asserts:
+      - failedTemplate:
+          errorMessage: web.replicaCount > 1 requires assets.persistence.accessModes to include ReadWriteMany
+  - it: rejects installer without product registration
+    set:
+      install.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: install.enabled requires auth.existingSecret or productKey, instanceIdentifier, and encryptionSecret
+  - it: rejects external database without credentials
+    set:
+      mariadb.enabled: false
+      database:
+        mode: external
+        external:
+          host: mariadb.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: external database requires host and password or existingSecret
+  - it: rejects external queue without credentials
+    set:
+      rabbitmq.enabled: false
+      queue:
+        mode: external
+        external:
+          host: rabbitmq.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: external queue requires host and password or existingSecret
+  - it: rejects disabled bundled Mercure without an external URL
+    set:
+      mercure.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: pimcore.mercureURL is required when bundled Mercure is disabled
+  - it: rejects selector label overrides
+    set:
+      podLabels:
+        app.kubernetes.io/name: invalid
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels must not override app.kubernetes.io/name
+  - it: rejects empty External Secrets items
+    set:
+      externalSecrets.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.items must not be empty when enabled

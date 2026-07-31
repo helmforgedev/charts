@@ -1,0 +1,87 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.mercure.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pimcore.suffixedName" (dict "base" (include "pimcore.fullname" .) "suffix" "-mercure") }}
+  namespace: {{ include "pimcore.namespace" . | quote }}
+  labels:
+    {{- include "pimcore.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mercure
+spec:
+  replicas: {{ .Values.mercure.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pimcore.componentSelectorLabels" (dict "root" . "component" "mercure") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pimcore.componentSelectorLabels" (dict "root" . "component" "mercure") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "pimcore.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mercure
+          image: {{ include "pimcore.mercureImage" . | quote }}
+          imagePullPolicy: {{ .Values.mercure.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: SERVER_NAME
+              value: ":3000"
+            - name: MERCURE_PUBLISHER_JWT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pimcore.secretName" . }}
+                  key: {{ .Values.auth.mercureJWTKey }}
+            - name: MERCURE_SUBSCRIBER_JWT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pimcore.secretName" . }}
+                  key: {{ .Values.auth.mercureJWTKey }}
+            - name: MERCURE_EXTRA_DIRECTIVES
+              value: {{ ternary "anonymous" "" .Values.mercure.anonymous | quote }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.mercure.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pimcore.suffixedName" (dict "base" (include "pimcore.fullname" .) "suffix" "-mercure") }}
+  namespace: {{ include "pimcore.namespace" . | quote }}
+  labels:
+    {{- include "pimcore.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mercure
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+  selector:
+    {{- include "pimcore.componentSelectorLabels" (dict "root" . "component" "mercure") | nindent 4 }}
+{{- end }}

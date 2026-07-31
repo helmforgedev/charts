@@ -1,0 +1,105 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.worker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pimcore.suffixedName" (dict "base" (include "pimcore.fullname" .) "suffix" "-worker") }}
+  namespace: {{ include "pimcore.namespace" . | quote }}
+  labels:
+    {{- include "pimcore.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  replicas: {{ .Values.worker.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pimcore.componentSelectorLabels" (dict "root" . "component" "worker") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pimcore.componentSelectorLabels" (dict "root" . "component" "worker") | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "pimcore.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: messenger
+          image: {{ include "pimcore.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [sh, -ec]
+          args:
+            - |
+              {{ include "pimcore.command" . | nindent 14 }}
+            - --
+            - php
+            - /var/www/html/bin/console
+            - messenger:consume
+            {{- range .Values.worker.transports }}
+            - {{ . | quote }}
+            {{- end }}
+            - {{ printf "--memory-limit=%s" .Values.worker.memoryLimit | quote }}
+            - {{ printf "--time-limit=%d" (int .Values.worker.timeLimit) | quote }}
+            - --no-interaction
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            {{- include "pimcore.commonEnv" . | nindent 12 }}
+          {{- with .Values.pimcore.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.project.persistence.enabled }}
+            - name: project
+              mountPath: /var/www/html
+            {{- end }}
+            - name: assets
+              mountPath: /var/www/html/public/var
+      volumes:
+        {{- if .Values.project.persistence.enabled }}
+        - name: project
+          persistentVolumeClaim:
+            claimName: {{ include "pimcore.projectClaim" . }}
+        {{- end }}
+        - name: assets
+          {{- if .Values.assets.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "pimcore.assetsClaim" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

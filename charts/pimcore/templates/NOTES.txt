@@ -1,0 +1,203 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+Pimcore has been installed.
+
+1. Installation summary
+=======================
+
+Release: {{ .Release.Name }}
+Namespace: {{ include "pimcore.namespace" . }}
+Chart: {{ .Chart.Name }} {{ .Chart.Version }}
+Pimcore target: {{ .Chart.AppVersion }}
+Application image: {{ include "pimcore.image" . }}
+Web replicas: {{ .Values.web.replicaCount }}
+Project bootstrap: {{ ternary "enabled" "disabled" .Values.project.bootstrap.enabled }}
+Installer Job: {{ ternary "enabled" "disabled" .Values.install.enabled }}
+Messenger workers: {{ ternary "enabled" "disabled" .Values.worker.enabled }}
+Maintenance CronJob: {{ ternary "enabled" "disabled" .Values.maintenance.enabled }}
+Mercure: {{ ternary "enabled" "disabled" .Values.mercure.enabled }}
+
+2. Access
+=========
+
+Service: {{ include "pimcore.fullname" . }}
+Type: {{ .Values.service.type }}
+Port: {{ .Values.service.port }}
+Cluster URL:
+  http://{{ include "pimcore.fullname" . }}.{{ include "pimcore.namespace" . }}.svc.{{ .Values.clusterDomain }}:{{ .Values.service.port }}
+
+Port-forward:
+  kubectl port-forward -n {{ include "pimcore.namespace" . }} svc/{{ include "pimcore.fullname" . }} 8080:{{ .Values.service.port }}
+
+Runtime health:
+  curl -fsS http://127.0.0.1:8080/healthz
+
+PHP-FPM readiness:
+  curl -fsS http://127.0.0.1:8080/readyz
+
+After installation, open Pimcore Studio:
+  http://127.0.0.1:8080/pimcore-studio
+
+{{- if .Values.ingress.enabled }}
+Ingress hosts:
+{{- range .Values.ingress.hosts }}
+  - {{ .host }}
+{{- end }}
+{{- end }}
+{{- if .Values.gatewayAPI.enabled }}
+Gateway API routes:
+{{- range .Values.gatewayAPI.httpRoutes }}
+  - {{ default "default" .name }}
+{{- end }}
+{{- end }}
+
+3. Getting started
+==================
+
+The official pimcore/pimcore image is a PHP runtime, not a complete project
+image. This chart handles that boundary explicitly.
+
+Evaluation workflow:
+
+  1. Keep project.bootstrap.enabled=true and project.persistence.enabled=true.
+  2. Wait until the project skeleton is present:
+
+     kubectl exec -n {{ include "pimcore.namespace" . }} deploy/{{ include "pimcore.fullname" . }} -c php-fpm -- test -f bin/console
+
+  3. Register this instance with Pimcore.
+  4. Store the matching product key, instance identifier, and encryption
+     secret in a Kubernetes Secret.
+  5. Upgrade with auth.existingSecret and install.enabled=true.
+  6. Disable install.enabled after the installer Job succeeds.
+  7. Enable worker.enabled and maintenance.enabled.
+
+Production workflow:
+
+  1. Build an immutable project image FROM {{ include "pimcore.image" . }}.
+  2. Include composer.lock, vendor, project configuration, and bin/console.
+  3. Set image.repository and image.tag to that immutable image.
+  4. Set project.bootstrap.enabled=false.
+  5. Set project.persistence.enabled=false.
+  6. Keep user assets on RWX storage or an external object store.
+  7. Run the installer only for a new database.
+  8. Enable workers and maintenance after schema initialization.
+
+4. Credentials and registration
+===============================
+
+Application Secret: {{ include "pimcore.secretName" . }}
+Administrator username: {{ .Values.auth.adminUser }}
+Administrator password key: {{ .Values.auth.adminPasswordKey }}
+Product key key: {{ .Values.auth.productKeyKey }}
+Instance identifier key: {{ .Values.auth.instanceIdentifierKey }}
+Encryption secret key: {{ .Values.auth.encryptionSecretKey }}
+
+Read the generated administrator password:
+
+  kubectl get secret -n {{ include "pimcore.namespace" . }} {{ include "pimcore.secretName" . }} -o jsonpath="{.data.{{ .Values.auth.adminPasswordKey }}}" | base64 -d
+
+Never reuse one product key across independent Pimcore instances. The product
+key, instance identifier, and encryption secret must be generated as one
+matching registration set.
+
+5. Configuration summary
+========================
+
+Database mode: {{ .Values.database.mode }}
+Database host: {{ include "pimcore.databaseHost" . }}
+Queue mode: {{ .Values.queue.mode }}
+Queue host: {{ include "pimcore.queueHost" . }}
+Redis integration: {{ ternary .Values.cache.mode "disabled" .Values.cache.enabled }}
+Project persistence: {{ ternary "enabled" "disabled" .Values.project.persistence.enabled }}
+Asset persistence: {{ ternary "enabled" "disabled" .Values.assets.persistence.enabled }}
+Asset access modes: {{ join ", " .Values.assets.persistence.accessModes }}
+Symfony environment: {{ .Values.pimcore.environment }}
+OpenSearch configured: {{ ternary "yes" "no" (not (empty .Values.pimcore.opensearchDSN)) }}
+
+Pimcore skeleton does not activate Redis-backed cache or sessions by default.
+The chart exposes Redis connection variables when cache.enabled=true; the
+project image must configure Symfony to consume them.
+
+Generic Data Index projects may require OpenSearch. Configure
+pimcore.opensearchDSN or project-specific environment variables explicitly.
+
+6. Validation commands
+======================
+
+Helm status:
+  helm status {{ .Release.Name }} -n {{ include "pimcore.namespace" . }}
+
+All resources:
+  kubectl get all,pvc -n {{ include "pimcore.namespace" . }}
+
+Web rollout:
+  kubectl rollout status -n {{ include "pimcore.namespace" . }} deploy/{{ include "pimcore.fullname" . }}
+
+Web readiness:
+  kubectl wait -n {{ include "pimcore.namespace" . }} --for=condition=available deploy/{{ include "pimcore.fullname" . }} --timeout=300s
+
+Service endpoints:
+  kubectl get endpoints -n {{ include "pimcore.namespace" . }} {{ include "pimcore.fullname" . }}
+
+Pimcore system requirements:
+  kubectl exec -n {{ include "pimcore.namespace" . }} deploy/{{ include "pimcore.fullname" . }} -c php-fpm -- php bin/console pimcore:system:requirements:check
+
+Messenger workers:
+  kubectl get pods -n {{ include "pimcore.namespace" . }} -l app.kubernetes.io/component=worker
+
+Maintenance jobs:
+  kubectl get cronjob,job -n {{ include "pimcore.namespace" . }} -l app.kubernetes.io/name={{ include "pimcore.name" . }}
+
+7. Troubleshooting
+==================
+
+Inspect pods:
+  kubectl get pods -n {{ include "pimcore.namespace" . }} -o wide
+
+Describe the web pod:
+  kubectl describe pod -n {{ include "pimcore.namespace" . }} -l app.kubernetes.io/component=web
+
+PHP-FPM logs:
+  kubectl logs -n {{ include "pimcore.namespace" . }} deploy/{{ include "pimcore.fullname" . }} -c php-fpm
+
+nginx logs:
+  kubectl logs -n {{ include "pimcore.namespace" . }} deploy/{{ include "pimcore.fullname" . }} -c nginx
+
+Bootstrap logs:
+  kubectl logs -n {{ include "pimcore.namespace" . }} deploy/{{ include "pimcore.fullname" . }} -c prepare-project
+
+Worker logs:
+  kubectl logs -n {{ include "pimcore.namespace" . }} -l app.kubernetes.io/component=worker --all-containers
+
+Recent events:
+  kubectl get events -n {{ include "pimcore.namespace" . }} --sort-by=.lastTimestamp
+
+Common causes:
+
+  - Product registration errors mean the three registration values do not
+    match this instance.
+  - Installer failures usually require checking MariaDB collation, credentials,
+    and product registration before retrying.
+  - A 404 before installation is expected in runtime/bootstrap mode; healthz
+    and readyz still verify nginx and PHP-FPM.
+  - Composer bootstrap requires outbound HTTPS and should not be used for
+    production rollouts.
+  - Multi-replica web deployments require immutable project images and shared
+    asset storage.
+  - Workers must start only after the database is installed.
+
+8. Resources
+============
+
+HelmForge chart documentation:
+  https://helmforge.dev/docs/charts/pimcore
+
+Pimcore documentation:
+  https://docs.pimcore.com/platform/
+
+Pimcore source:
+  https://github.com/pimcore/pimcore
+
+Chart issues:
+  https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)

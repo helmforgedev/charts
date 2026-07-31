@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: pimcore service
+templates:
+  - service.yaml
+tests:
+  - it: exposes only web pods
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: web
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+  - it: renders dual stack
+    set:
+      service:
+        ipFamilyPolicy: RequireDualStack
+        ipFamilies:
+          - IPv4
+          - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: RequireDualStack
+      - lengthEqual:
+          path: spec.ipFamilies
+          count: 2

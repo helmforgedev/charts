@@ -1,0 +1,163 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: pimcore workloads
+templates:
+  - configmap.yaml
+  - secret.yaml
+  - deployment-web.yaml
+  - deployment-worker.yaml
+  - cronjob-maintenance.yaml
+  - deployment-mercure.yaml
+  - job-install.yaml
+  - pvc.yaml
+tests:
+  - it: runs the exact official hardened runtime with nginx
+    template: deployment-web.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/pimcore/pimcore:php8.5.9-max-v5.2-hardened
+      - equal:
+          path: spec.template.spec.containers[1].image
+          value: docker.io/library/nginx:1.30.4-alpine3.24
+      - equal:
+          path: spec.template.spec.containers[1].ports[0].containerPort
+          value: 8080
+      - equal:
+          path: spec.template.spec.containers[1].readinessProbe.httpGet.path
+          value: /readyz
+  - it: prepares project code before starting the runtime
+    template: deployment-web.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: prepare-project
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: project
+            mountPath: /project
+  - it: mounts persistent project and assets
+    template: deployment-web.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          value: RELEASE-NAME-pimcore-project
+      - equal:
+          path: spec.template.spec.volumes[1].persistentVolumeClaim.claimName
+          value: RELEASE-NAME-pimcore-assets
+  - it: preserves application code from an immutable project image
+    template: deployment-web.yaml
+    set:
+      project.bootstrap.enabled: false
+      project.persistence.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-dependencies
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: project
+            mountPath: /var/www/html
+      - notContains:
+          path: spec.template.spec.containers[1].volumeMounts
+          content:
+            name: project
+            mountPath: /var/www/html
+            readOnly: true
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: project
+            emptyDir: {}
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: assets
+            mountPath: /var/www/html/public/var
+  - it: renders Symfony Messenger workers
+    template: deployment-worker.yaml
+    set:
+      worker.enabled: true
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/component"]
+          value: worker
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: messenger:consume
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: pimcore_core
+  - it: mounts assets without a project volume for immutable project images
+    template: deployment-worker.yaml
+    set:
+      worker.enabled: true
+      project.bootstrap.enabled: false
+      project.persistence.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 1
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: project
+            mountPath: /var/www/html
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: assets
+            mountPath: /var/www/html/public/var
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: assets
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME-pimcore-assets
+  - it: renders the five-minute maintenance job
+    template: cronjob-maintenance.yaml
+    set:
+      maintenance.enabled: true
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.schedule
+          value: "*/5 * * * *"
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].args
+          content: pimcore:maintenance
+  - it: renders Mercure with the secret-backed JWT
+    template: deployment-mercure.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: spec.template.spec.containers[0].env[1].valueFrom.secretKeyRef.key
+          value: mercure-jwt-key
+        documentIndex: 0
+  - it: renders the installer only when explicitly enabled
+    template: job-install.yaml
+    set:
+      install.enabled: true
+      auth.productKey: valid-placeholder
+      auth.instanceIdentifier: 00000000-0000-4000-8000-000000000001
+      auth.encryptionSecret: def00000-placeholder
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: post-install
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --no-interaction
+  - it: creates both project and asset claims
+    template: pvc.yaml
+    asserts:
+      - hasDocuments:
+          count: 2

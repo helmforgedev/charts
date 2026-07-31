@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: pimcore routing
+templates:
+  - ingress.yaml
+  - gateway-httproute.yaml
+tests:
+  - it: omits ingress by default
+    template: ingress.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders ingress class and host
+    template: ingress.yaml
+    set:
+      ingress:
+        enabled: true
+        ingressClassName: nginx
+        hosts:
+          - host: pimcore.example.com
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.rules[0].host
+          value: pimcore.example.com
+  - it: defaults HTTPRoute backend to the service
+    template: gateway-httproute.yaml
+    set:
+      gatewayAPI:
+        enabled: true
+        httpRoutes:
+          - parentRefs:
+              - name: shared-gateway
+            hostnames:
+              - pimcore.example.com
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 80
+      - equal:
+          path: spec.parentRefs[0].name
+          value: shared-gateway

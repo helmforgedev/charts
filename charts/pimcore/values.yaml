@@ -1,0 +1,475 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# -- Override the chart name.
+nameOverride: ""
+# -- Override the full release name.
+fullnameOverride: ""
+# -- Override the namespace for namespaced resources.
+namespaceOverride: ""
+# -- Kubernetes cluster DNS domain.
+clusterDomain: cluster.local
+# -- Labels added to every resource.
+commonLabels: {}
+
+image:
+  # -- Pimcore application image. For production, build project code into an
+  # image based on the official runtime and override this repository.
+  repository: docker.io/pimcore/pimcore
+  # -- Exact official PHP 8.5 hardened runtime tag.
+  tag: "php8.5.9-max-v5.2-hardened"
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+# -- Image pull secrets.
+imagePullSecrets: []
+
+nginx:
+  image:
+    # -- Official nginx image repository.
+    repository: docker.io/library/nginx
+    # -- Exact nginx image tag.
+    tag: "1.30.4-alpine3.24"
+    # -- Image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Maximum accepted request body size.
+  clientMaxBodySize: 100m
+  # -- nginx resources.
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
+
+project:
+  # -- Bootstrap the pinned Pimcore skeleton when the application image has no
+  # project code. Intended for evaluation and first installation, not HA.
+  bootstrap:
+    enabled: true
+    skeletonVersion: "2026.2.0"
+  persistence:
+    # -- Persist bootstrapped project code. Disable for immutable project images.
+    enabled: true
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 4Gi
+    existingClaim: ""
+    annotations: {}
+
+web:
+  # -- Number of web replicas. Bootstrap persistence requires one replica unless
+  # the project PVC supports ReadWriteMany.
+  replicaCount: 1
+  # -- Web pod resources for PHP-FPM.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+worker:
+  # -- Enable Pimcore Symfony Messenger consumers after installation.
+  enabled: false
+  # -- Number of worker replicas.
+  replicaCount: 1
+  # -- Queue transports consumed by the worker.
+  transports:
+    - pimcore_generic_execution_engine
+    - pimcore_generic_data_index_queue
+    - scheduler_generic_data_index
+    - pimcore_core
+    - pimcore_maintenance
+    - pimcore_scheduled_tasks
+    - pimcore_image_optimize
+    - pimcore_asset_update
+  # -- Worker memory limit passed to Symfony Messenger.
+  memoryLimit: 250M
+  # -- Worker time limit in seconds before graceful recycling.
+  timeLimit: 3600
+  # -- Worker pod resources.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+maintenance:
+  # -- Run pimcore:maintenance as a CronJob after installation.
+  enabled: false
+  # -- Maintenance schedule.
+  schedule: "*/5 * * * *"
+  # -- CronJob concurrency policy.
+  concurrencyPolicy: Forbid
+  # -- Successful job history limit.
+  successfulJobsHistoryLimit: 1
+  # -- Failed job history limit.
+  failedJobsHistoryLimit: 3
+  # -- Maintenance resources.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+install:
+  # -- Run the official non-interactive installer as a Helm hook Job. Requires
+  # a valid product key, matching instance identifier, and encryption secret.
+  enabled: false
+  # -- Installer profile in the application image.
+  profile: 'App\Installer\SkeletonProfile'
+  # -- Hook delete policy.
+  hookDeletePolicy: before-hook-creation
+  # -- Job backoff limit.
+  backoffLimit: 1
+  # -- Job active deadline in seconds.
+  activeDeadlineSeconds: 1800
+
+pimcore:
+  # -- Symfony environment.
+  environment: prod
+  # -- Enable Symfony debug mode.
+  debug: false
+  # -- Trusted proxy CIDRs.
+  trustedProxies: "127.0.0.1,REMOTE_ADDR"
+  # -- Trusted hosts regular expression. Empty accepts all hosts.
+  trustedHosts: ""
+  # -- Public Mercure URL. Empty derives it from the web Service.
+  mercureURL: ""
+  # -- Optional OpenSearch DSN for projects that install Generic Data Index.
+  opensearchDSN: ""
+  # -- Additional environment variables for all Pimcore PHP workloads.
+  extraEnv: []
+  # -- Additional envFrom sources for all Pimcore PHP workloads.
+  extraEnvFrom: []
+
+auth:
+  # -- Existing Secret with Pimcore registration and administrator values.
+  existingSecret: ""
+  # -- Key containing APPLICATION_SECRET.
+  applicationSecretKey: application-secret
+  # -- Key containing PIMCORE_ADMIN_PASSWORD.
+  adminPasswordKey: admin-password
+  # -- Key containing PIMCORE_PRODUCT_KEY.
+  productKeyKey: product-key
+  # -- Key containing PIMCORE_INSTANCE_IDENTIFIER.
+  instanceIdentifierKey: instance-identifier
+  # -- Key containing PIMCORE_ENCRYPTION_SECRET.
+  encryptionSecretKey: encryption-secret
+  # -- Key containing MERCURE_JWT_KEY.
+  mercureJWTKey: mercure-jwt-key
+  # -- Application secret. Generated and retained when empty.
+  applicationSecret: ""
+  # -- Initial administrator username.
+  adminUser: admin
+  # -- Initial administrator password. Generated and retained when empty.
+  adminPassword: ""
+  # -- Registered Pimcore product key. Required when install.enabled=true.
+  productKey: ""
+  # -- UUID registered with the product key.
+  instanceIdentifier: ""
+  # -- Defuse encryption key matching the product registration.
+  encryptionSecret: ""
+  # -- Mercure publisher/subscriber JWT key. Generated and retained when empty.
+  mercureJWT: ""
+
+database:
+  # -- Database mode: mariadb or external.
+  mode: mariadb
+  external:
+    # -- External MariaDB hostname.
+    host: ""
+    # -- External MariaDB port.
+    port: 3306
+    # -- External database name.
+    name: pimcore
+    # -- External database username.
+    username: pimcore
+    # -- Inline external database password.
+    password: ""
+    # -- Existing Secret holding the external database password.
+    existingSecret: ""
+    # -- Password key in the existing Secret.
+    existingSecretPasswordKey: password
+
+mariadb:
+  # -- Deploy the HelmForge MariaDB subchart.
+  enabled: true
+  architecture: standalone
+  auth:
+    database: pimcore
+    username: pimcore
+    password: ""
+    rootPassword: ""
+  config:
+    myCnf: |
+      [mariadb]
+      character-set-server=utf8mb4
+      collation-server=utf8mb4_unicode_520_ci
+      innodb-file-per-table=1
+  standalone:
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+    persistence:
+      enabled: true
+      size: 8Gi
+  startupProbe:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 60
+
+queue:
+  # -- Queue mode: rabbitmq or external.
+  mode: rabbitmq
+  external:
+    # -- External RabbitMQ hostname.
+    host: ""
+    # -- External AMQP port.
+    port: 5672
+    # -- External RabbitMQ username.
+    username: pimcore
+    # -- URL-encoded RabbitMQ virtual host.
+    vhost: "%2f"
+    # -- Inline external RabbitMQ password.
+    password: ""
+    # -- Existing Secret holding the password.
+    existingSecret: ""
+    # -- Password key in the existing Secret.
+    existingSecretPasswordKey: password
+
+rabbitmq:
+  # -- Deploy the HelmForge RabbitMQ subchart.
+  enabled: true
+  architecture: single-node
+  auth:
+    username: pimcore
+    password: ""
+    vhost: /
+  management:
+    enabled: false
+  queueDefaults:
+    type: quorum
+  singleNode:
+    persistence:
+      enabled: true
+      size: 4Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+cache:
+  # -- Expose a Redis DSN for project cache/session configuration.
+  enabled: false
+  mode: redis
+  external:
+    # -- External Redis hostname.
+    host: ""
+    # -- External Redis port.
+    port: 6379
+    # -- Inline external Redis password.
+    password: ""
+    # -- Existing Secret holding the password.
+    existingSecret: ""
+    # -- Password key in the existing Secret.
+    existingSecretPasswordKey: password
+    # -- Use TLS for Redis.
+    tls: false
+
+redis:
+  # -- Deploy the HelmForge Redis subchart.
+  enabled: false
+  architecture: standalone
+  auth:
+    enabled: true
+    password: ""
+  standalone:
+    persistence:
+      enabled: true
+      size: 2Gi
+
+mercure:
+  # -- Deploy Mercure for Pimcore Studio real-time updates.
+  enabled: true
+  image:
+    repository: docker.io/dunglas/mercure
+    tag: "v0.24.2"
+    pullPolicy: IfNotPresent
+  # -- Mercure replica count.
+  replicaCount: 1
+  # -- Allow anonymous subscribers. Disable and configure project authorization for production.
+  anonymous: true
+  # -- Mercure resources.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+assets:
+  persistence:
+    # -- Persist public Pimcore assets and generated variants.
+    enabled: true
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 20Gi
+    existingClaim: ""
+    annotations: {}
+
+service:
+  # -- Kubernetes Service type.
+  type: ClusterIP
+  # -- Service port.
+  port: 80
+  # -- Service annotations.
+  annotations: {}
+  # -- IP family policy. Empty uses the cluster default.
+  ipFamilyPolicy: ""
+  # -- IP families. Empty uses the cluster default.
+  ipFamilies: []
+
+ingress:
+  # -- Create an Ingress.
+  enabled: false
+  # -- Ingress class name.
+  ingressClassName: ""
+  # -- Ingress annotations.
+  annotations: {}
+  # -- Ingress hosts.
+  hosts: []
+  # -- Ingress TLS entries.
+  tls: []
+
+gatewayAPI:
+  # -- Create Gateway API HTTPRoutes.
+  enabled: false
+  # -- HTTPRoute definitions.
+  httpRoutes: []
+
+externalSecrets:
+  # -- Render ExternalSecret resources.
+  enabled: false
+  # -- Default refresh interval when an item does not set one.
+  refreshInterval: 1h
+  # -- Canonical HelmForge ExternalSecret items.
+  items: []
+
+networkPolicy:
+  # -- Create NetworkPolicies for Pimcore workloads.
+  enabled: false
+  # -- Allowed ingress peers for the web service.
+  ingressFrom: []
+  egress:
+    # -- Enforce explicit egress.
+    enabled: false
+    # -- Permit cluster DNS.
+    allowDNS: true
+    # -- Additional complete egress rules.
+    extraEgress: []
+
+podDisruptionBudget:
+  # -- Create PodDisruptionBudgets for multi-replica workloads.
+  enabled: true
+  # -- Maximum unavailable pods.
+  maxUnavailable: 1
+
+serviceAccount:
+  # -- Create a ServiceAccount.
+  create: true
+  # -- ServiceAccount name.
+  name: ""
+  # -- ServiceAccount annotations.
+  annotations: {}
+  # -- Automount the Kubernetes API token.
+  automountServiceAccountToken: false
+
+# -- Pod security context.
+podSecurityContext:
+  fsGroup: 33
+  fsGroupChangePolicy: OnRootMismatch
+# -- PHP container security context.
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+  runAsUser: 33
+  runAsGroup: 33
+  seccompProfile:
+    type: RuntimeDefault
+# -- nginx container security context.
+nginxSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+  runAsUser: 101
+  runAsGroup: 101
+  seccompProfile:
+    type: RuntimeDefault
+
+startupProbe:
+  # -- Enable the HTTP startup probe.
+  enabled: true
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 60
+livenessProbe:
+  # -- Enable the HTTP liveness probe.
+  enabled: true
+  periodSeconds: 20
+  timeoutSeconds: 3
+  failureThreshold: 6
+readinessProbe:
+  # -- Enable the HTTP readiness probe.
+  enabled: true
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 6
+
+# -- Pod termination grace period.
+terminationGracePeriodSeconds: 60
+# -- Labels added to pods.
+podLabels: {}
+# -- Annotations added to pods.
+podAnnotations: {}
+# -- Pod priority class.
+priorityClassName: ""
+# -- Node selector.
+nodeSelector: {}
+# -- Tolerations.
+tolerations: []
+# -- Affinity.
+affinity: {}
+# -- Topology spread constraints.
+topologySpreadConstraints: []
+# -- Extra init containers.
+extraInitContainers: []
+# -- Extra sidecar containers.
+extraContainers: []
+# -- Extra volumes.
+extraVolumes: []
+# -- Extra volume mounts.
+extraVolumeMounts: []
+# -- Extra Kubernetes manifests.
+extraManifests: []

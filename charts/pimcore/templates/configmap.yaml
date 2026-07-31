@@ -1,0 +1,99 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pimcore.suffixedName" (dict "base" (include "pimcore.fullname" .) "suffix" "-nginx") }}
+  namespace: {{ include "pimcore.namespace" . | quote }}
+  labels:
+    {{- include "pimcore.labels" . | nindent 4 }}
+data:
+  nginx.conf: |
+    pid /tmp/nginx.pid;
+    worker_processes auto;
+    error_log /dev/stderr notice;
+    events {
+      worker_connections 1024;
+    }
+    http {
+      include /etc/nginx/mime.types;
+      default_type application/octet-stream;
+      access_log /dev/stdout;
+      sendfile on;
+      keepalive_timeout 65;
+      client_body_temp_path /tmp/client_temp;
+      proxy_temp_path /tmp/proxy_temp;
+      fastcgi_temp_path /tmp/fastcgi_temp;
+      uwsgi_temp_path /tmp/uwsgi_temp;
+      scgi_temp_path /tmp/scgi_temp;
+      include /etc/nginx/custom/default.conf;
+    }
+  default.conf: |
+    upstream php-pimcore {
+      server 127.0.0.1:9000;
+    }
+    server {
+      listen 8080;
+      server_name _;
+      root /var/www/html/public;
+      index index.php;
+      client_max_body_size {{ .Values.nginx.clientMaxBodySize }};
+
+      location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 "ok\n";
+      }
+      location = /readyz {
+        access_log off;
+        include /etc/nginx/fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_pass php-pimcore;
+      }
+      {{- if .Values.mercure.enabled }}
+      location /hub {
+        proxy_pass {{ include "pimcore.mercureServerURL" . }};
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_buffering off;
+      }
+      {{- end }}
+      rewrite ^/cache-buster-(?:\d+)/(.*) /$1 last;
+      location ~* /var/assets/.*\.php(/|$) { return 404; }
+      location ~* /\.(?!well-known/) { deny all; }
+      location ~* (?:\.(?:bak|conf(ig)?|dist|fla|in[ci]|log|psd|sh|sql|sw[op])|~)$ { deny all; }
+      location ~* ^/admin/external { rewrite .* /index.php$is_args$args last; }
+      location ~* .*/(image|video)-thumb__\d+__.* {
+        try_files /var/tmp/thumbnails$uri /index.php;
+        expires 2w;
+        access_log off;
+        add_header Cache-Control "public";
+      }
+      location ~* ^(?!/admin|/asset/webdav|/studio/api)(.+?)\.((?:css|js)(?:\.map)?|jpe?g|gif|png|svgz?|eps|gz|json|zip|mp\d|m4a|ogg|ogv|webp|webm|pdf|csv|docx?|xlsx?|pptx?)$ {
+        try_files /var/assets$uri $uri =404;
+        expires 2w;
+        access_log off;
+        log_not_found off;
+        add_header Cache-Control "public";
+      }
+      location / {
+        error_page 404 /meta/404;
+        try_files $uri /index.php$is_args$args;
+      }
+      location ~ ^/index\.php(/|$) {
+        send_timeout 1800;
+        fastcgi_read_timeout 1800;
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        include /etc/nginx/fastcgi_params;
+        set $path_info $fastcgi_path_info;
+        fastcgi_param PATH_INFO $path_info;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        fastcgi_param DOCUMENT_ROOT $realpath_root;
+        fastcgi_param HTTP_PROXY "";
+        fastcgi_pass php-pimcore;
+        internal;
+      }
+    }
+  zz-health.conf: |
+    [www]
+    ping.path = /readyz
+    ping.response = ready

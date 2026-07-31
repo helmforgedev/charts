@@ -1,0 +1,71 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.maintenance.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "pimcore.suffixedName" (dict "base" (include "pimcore.fullname" .) "suffix" "-maintenance") }}
+  namespace: {{ include "pimcore.namespace" . | quote }}
+  labels:
+    {{- include "pimcore.labels" . | nindent 4 }}
+    app.kubernetes.io/component: maintenance
+spec:
+  schedule: {{ .Values.maintenance.schedule | quote }}
+  concurrencyPolicy: {{ .Values.maintenance.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.maintenance.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.maintenance.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "pimcore.componentSelectorLabels" (dict "root" . "component" "maintenance") | nindent 12 }}
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: {{ include "pimcore.serviceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          containers:
+            - name: maintenance
+              image: {{ include "pimcore.image" . | quote }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command: [sh, -ec]
+              args:
+                - |
+                  {{ include "pimcore.command" . | nindent 18 }}
+                - --
+                - php
+                - /var/www/html/bin/console
+                - pimcore:maintenance
+                - --no-interaction
+              securityContext:
+                {{- toYaml .Values.securityContext | nindent 16 }}
+              env:
+                {{- include "pimcore.commonEnv" . | nindent 16 }}
+              {{- with .Values.pimcore.extraEnvFrom }}
+              envFrom:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              resources:
+                {{- toYaml .Values.maintenance.resources | nindent 16 }}
+              volumeMounts:
+                {{- if .Values.project.persistence.enabled }}
+                - name: project
+                  mountPath: /var/www/html
+                {{- end }}
+                - name: assets
+                  mountPath: /var/www/html/public/var
+          volumes:
+            {{- if .Values.project.persistence.enabled }}
+            - name: project
+              persistentVolumeClaim:
+                claimName: {{ include "pimcore.projectClaim" . }}
+            {{- end }}
+            - name: assets
+              {{- if .Values.assets.persistence.enabled }}
+              persistentVolumeClaim:
+                claimName: {{ include "pimcore.assetsClaim" . }}
+              {{- else }}
+              emptyDir: {}
+              {{- end }}
+{{- end }}

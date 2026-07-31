@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Pimcore Helm chart values",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "nameOverride": { "type": "string" },
+    "fullnameOverride": { "type": "string" },
+    "namespaceOverride": { "type": "string" },
+    "clusterDomain": { "type": "string", "minLength": 1 },
+    "commonLabels": { "type": "object", "additionalProperties": { "type": "string" } },
+    "image": { "$ref": "#/definitions/image" },
+    "imagePullSecrets": { "type": "array", "items": { "type": "object" } },
+    "nginx": {
+      "type": "object",
+      "required": ["image", "clientMaxBodySize", "resources"],
+      "properties": {
+        "image": { "$ref": "#/definitions/image" },
+        "clientMaxBodySize": { "type": "string", "minLength": 1 },
+        "resources": { "type": "object" }
+      }
+    },
+    "project": {
+      "type": "object",
+      "required": ["bootstrap", "persistence"],
+      "properties": {
+        "bootstrap": {
+          "type": "object",
+          "required": ["enabled", "skeletonVersion"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "skeletonVersion": { "type": "string", "pattern": "^20[0-9]{2}\\.[0-9]+\\.[0-9]+$" }
+          }
+        },
+        "persistence": { "$ref": "#/definitions/persistence" }
+      }
+    },
+    "web": {
+      "type": "object",
+      "required": ["replicaCount", "resources"],
+      "properties": {
+        "replicaCount": { "type": "integer", "minimum": 1 },
+        "resources": { "type": "object" }
+      }
+    },
+    "worker": {
+      "type": "object",
+      "required": ["enabled", "replicaCount", "transports", "memoryLimit", "timeLimit", "resources"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicaCount": { "type": "integer", "minimum": 1 },
+        "transports": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "memoryLimit": { "type": "string", "minLength": 1 },
+        "timeLimit": { "type": "integer", "minimum": 60 },
+        "resources": { "type": "object" }
+      }
+    },
+    "maintenance": {
+      "type": "object",
+      "required": ["enabled", "schedule", "concurrencyPolicy", "successfulJobsHistoryLimit", "failedJobsHistoryLimit", "resources"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "schedule": { "type": "string", "minLength": 1 },
+        "concurrencyPolicy": { "type": "string", "enum": ["Allow", "Forbid", "Replace"] },
+        "successfulJobsHistoryLimit": { "type": "integer", "minimum": 0 },
+        "failedJobsHistoryLimit": { "type": "integer", "minimum": 0 },
+        "resources": { "type": "object" }
+      }
+    },
+    "install": {
+      "type": "object",
+      "required": ["enabled", "profile", "hookDeletePolicy", "backoffLimit", "activeDeadlineSeconds"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "profile": { "type": "string", "minLength": 1 },
+        "hookDeletePolicy": { "type": "string", "minLength": 1 },
+        "backoffLimit": { "type": "integer", "minimum": 0 },
+        "activeDeadlineSeconds": { "type": "integer", "minimum": 60 }
+      }
+    },
+    "pimcore": {
+      "type": "object",
+      "required": ["environment", "debug", "trustedProxies", "trustedHosts", "mercureURL", "opensearchDSN", "extraEnv", "extraEnvFrom"],
+      "properties": {
+        "environment": { "type": "string", "enum": ["prod", "dev", "test"] },
+        "debug": { "type": "boolean" },
+        "trustedProxies": { "type": "string" },
+        "trustedHosts": { "type": "string" },
+        "mercureURL": { "type": "string" },
+        "opensearchDSN": { "type": "string" },
+        "extraEnv": { "type": "array", "items": { "type": "object" } },
+        "extraEnvFrom": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "auth": { "type": "object" },
+    "database": {
+      "type": "object",
+      "required": ["mode", "external"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["mariadb", "external"] },
+        "external": { "type": "object" }
+      }
+    },
+    "mariadb": { "type": "object" },
+    "queue": {
+      "type": "object",
+      "required": ["mode", "external"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["rabbitmq", "external"] },
+        "external": { "type": "object" }
+      }
+    },
+    "rabbitmq": { "type": "object" },
+    "cache": {
+      "type": "object",
+      "required": ["enabled", "mode", "external"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "mode": { "type": "string", "enum": ["redis", "external"] },
+        "external": { "type": "object" }
+      }
+    },
+    "redis": { "type": "object" },
+    "mercure": {
+      "type": "object",
+      "required": ["enabled", "image", "replicaCount", "anonymous", "resources"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "image": { "$ref": "#/definitions/image" },
+        "replicaCount": { "type": "integer", "minimum": 1 },
+        "anonymous": { "type": "boolean" },
+        "resources": { "type": "object" }
+      }
+    },
+    "assets": {
+      "type": "object",
+      "required": ["persistence"],
+      "properties": { "persistence": { "$ref": "#/definitions/persistence" } }
+    },
+    "service": { "type": "object" },
+    "ingress": { "type": "object" },
+    "gatewayAPI": { "type": "object" },
+    "externalSecrets": { "type": "object" },
+    "networkPolicy": { "type": "object" },
+    "podDisruptionBudget": { "type": "object" },
+    "serviceAccount": { "type": "object" },
+    "podSecurityContext": { "type": "object" },
+    "securityContext": { "type": "object" },
+    "nginxSecurityContext": { "type": "object" },
+    "startupProbe": { "$ref": "#/definitions/probe" },
+    "livenessProbe": { "$ref": "#/definitions/probe" },
+    "readinessProbe": { "$ref": "#/definitions/probe" },
+    "terminationGracePeriodSeconds": { "type": "integer", "minimum": 1 },
+    "podLabels": { "type": "object" },
+    "podAnnotations": { "type": "object" },
+    "priorityClassName": { "type": "string" },
+    "nodeSelector": { "type": "object" },
+    "tolerations": { "type": "array", "items": { "type": "object" } },
+    "affinity": { "type": "object" },
+    "topologySpreadConstraints": { "type": "array", "items": { "type": "object" } },
+    "extraInitContainers": { "type": "array", "items": { "type": "object" } },
+    "extraContainers": { "type": "array", "items": { "type": "object" } },
+    "extraVolumes": { "type": "array", "items": { "type": "object" } },
+    "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
+    "extraManifests": { "type": "array", "items": { "type": "object" } }
+  },
+  "required": [
+    "image", "nginx", "project", "web", "worker", "maintenance", "install",
+    "pimcore", "auth", "database", "mariadb", "queue", "rabbitmq", "cache",
+    "redis", "mercure", "assets", "service"
+  ],
+  "definitions": {
+    "image": {
+      "type": "object",
+      "required": ["repository", "tag", "pullPolicy"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "minLength": 1, "not": { "enum": ["latest", "stable", "main", "master", "edge"] } },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "required": ["enabled", "storageClass", "accessModes", "size", "existingClaim", "annotations"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "storageClass": { "type": "string" },
+        "accessModes": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "size": { "type": "string", "pattern": "^[0-9]+(Ei|Pi|Ti|Gi|Mi|Ki)$" },
+        "existingClaim": { "type": "string" },
+        "annotations": { "type": "object" }
+      }
+    },
+    "probe": {
+      "type": "object",
+      "required": ["enabled", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}
