@@ -13,6 +13,8 @@ spec:
         helmforge.dev/runtime-fixture: "true"
     spec:
       restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: k3d-helmforge-tests-wsl-server-0
       containers:
         - name: prepare
           image: docker.io/library/busybox:1.37
@@ -21,6 +23,7 @@ spec:
             - -c
             - chown 1000:1000 /restore && chmod 0770 /restore
           securityContext:
+            readOnlyRootFilesystem: true
             runAsUser: 0
             runAsGroup: 0
             runAsNonRoot: false
@@ -53,6 +56,14 @@ spec:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Delete
   storageClassName: local-path
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - k3d-helmforge-tests-wsl-server-0
   hostPath:
     path: /tmp/helmforge-vaultwarden-runtime-restore
     type: DirectoryOrCreate

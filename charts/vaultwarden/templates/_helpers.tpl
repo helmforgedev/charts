@@ -48,7 +48,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $parsedDomain := urlParse $domain -}}
 {{- $basePath = get $parsedDomain "path" | default "" | trimSuffix "/" -}}
 {{- end -}}
-{{- if and $basePath (not (hasPrefix $basePath $configuredPath)) -}}
+{{- if and $basePath (not (or (eq $configuredPath $basePath) (hasPrefix (printf "%s/" $basePath) $configuredPath))) -}}
 {{- printf "%s%s" $basePath $configuredPath -}}
 {{- else -}}
 {{- $configuredPath -}}
