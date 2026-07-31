@@ -27,6 +27,8 @@ app.kubernetes.io/part-of: helmforge
 {{- define "pimcore.suffixedName" -}}{{- $max := int (max 1 (sub 63 (len .suffix))) -}}{{- printf "%s%s" (.base | trunc $max | trimSuffix "-") .suffix | trunc 63 | trimSuffix "-" -}}{{- end -}}
 {{- define "pimcore.serviceAccountName" -}}{{- if .Values.serviceAccount.create -}}{{- default (include "pimcore.fullname" .) .Values.serviceAccount.name -}}{{- else -}}{{- default "default" .Values.serviceAccount.name -}}{{- end -}}{{- end -}}
 {{- define "pimcore.image" -}}{{ printf "%s:%s" .Values.image.repository .Values.image.tag }}{{- end -}}
+{{- define "pimcore.runtimeImage" -}}{{ printf "%s:%s" .Values.project.runtimeImage.repository .Values.project.runtimeImage.tag }}{{- end -}}
+{{- define "pimcore.waitImage" -}}{{ printf "%s:%s" .Values.waitForDependencies.image.repository .Values.waitForDependencies.image.tag }}{{- end -}}
 {{- define "pimcore.nginxImage" -}}{{ printf "%s:%s" .Values.nginx.image.repository .Values.nginx.image.tag }}{{- end -}}
 {{- define "pimcore.mercureImage" -}}{{ printf "%s:%s" .Values.mercure.image.repository .Values.mercure.image.tag }}{{- end -}}
 {{- define "pimcore.secretName" -}}{{- default (include "pimcore.fullname" .) .Values.auth.existingSecret -}}{{- end -}}
@@ -43,16 +45,26 @@ app.kubernetes.io/part-of: helmforge
 {{- define "pimcore.queueHost" -}}{{- if eq .Values.queue.mode "rabbitmq" -}}{{ printf "%s-rabbitmq" .Release.Name }}{{- else -}}{{ .Values.queue.external.host }}{{- end -}}{{- end -}}
 {{- define "pimcore.queuePort" -}}{{- if eq .Values.queue.mode "rabbitmq" -}}5672{{- else -}}{{ .Values.queue.external.port }}{{- end -}}{{- end -}}
 {{- define "pimcore.queueUser" -}}{{- if eq .Values.queue.mode "rabbitmq" -}}{{ .Values.rabbitmq.auth.username }}{{- else -}}{{ .Values.queue.external.username }}{{- end -}}{{- end -}}
-{{- define "pimcore.queueVhost" -}}{{- if eq .Values.queue.mode "rabbitmq" -}}%2f{{- else -}}{{ .Values.queue.external.vhost }}{{- end -}}{{- end -}}
+{{- define "pimcore.queueVhost" -}}{{- if eq .Values.queue.mode "rabbitmq" -}}{{ urlquery .Values.rabbitmq.auth.vhost }}{{- else -}}{{ .Values.queue.external.vhost }}{{- end -}}{{- end -}}
 {{- define "pimcore.queueSecretName" -}}{{- if eq .Values.queue.mode "rabbitmq" -}}{{ printf "%s-rabbitmq-auth" .Release.Name }}{{- else if .Values.queue.external.existingSecret -}}{{ .Values.queue.external.existingSecret }}{{- else -}}{{ include "pimcore.suffixedName" (dict "base" (include "pimcore.fullname" .) "suffix" "-queue") }}{{- end -}}{{- end -}}
 {{- define "pimcore.queueSecretKey" -}}{{- if eq .Values.queue.mode "rabbitmq" -}}rabbitmq-password{{- else if .Values.queue.external.existingSecret -}}{{ .Values.queue.external.existingSecretPasswordKey }}{{- else -}}password{{- end -}}{{- end -}}
 
 {{- define "pimcore.cacheHost" -}}{{- if eq .Values.cache.mode "redis" -}}{{ printf "%s-redis-client" .Release.Name }}{{- else -}}{{ .Values.cache.external.host }}{{- end -}}{{- end -}}
+{{- define "pimcore.cachePort" -}}{{- if eq .Values.cache.mode "redis" -}}6379{{- else -}}{{ .Values.cache.external.port }}{{- end -}}{{- end -}}
+{{- define "pimcore.cacheTLS" -}}{{- if eq .Values.cache.mode "redis" -}}false{{- else -}}{{ .Values.cache.external.tls }}{{- end -}}{{- end -}}
 {{- define "pimcore.cacheSecretName" -}}{{- if eq .Values.cache.mode "redis" -}}{{ printf "%s-redis-auth" .Release.Name }}{{- else if .Values.cache.external.existingSecret -}}{{ .Values.cache.external.existingSecret }}{{- else -}}{{ include "pimcore.suffixedName" (dict "base" (include "pimcore.fullname" .) "suffix" "-cache") }}{{- end -}}{{- end -}}
 {{- define "pimcore.cacheSecretKey" -}}{{- if eq .Values.cache.mode "redis" -}}redis-password{{- else if .Values.cache.external.existingSecret -}}{{ .Values.cache.external.existingSecretPasswordKey }}{{- else -}}password{{- end -}}{{- end -}}
 
 {{- define "pimcore.mercureURL" -}}{{- if .Values.pimcore.mercureURL -}}{{ .Values.pimcore.mercureURL }}{{- else -}}{{ printf "http://%s/hub" (include "pimcore.fullname" .) }}{{- end -}}{{- end -}}
 {{- define "pimcore.mercureServerURL" -}}{{- if .Values.mercure.enabled -}}{{ printf "http://%s-mercure/.well-known/mercure" (include "pimcore.fullname" .) }}{{- else -}}{{ include "pimcore.mercureURL" . }}{{- end -}}{{- end -}}
+{{- define "pimcore.httpRouteName" -}}
+{{- if .route.name -}}
+{{- .route.name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $suffix := printf "-%d" .index -}}
+{{- printf "%s%s" (.fullname | trunc (int (sub 63 (len $suffix))) | trimSuffix "-") $suffix -}}
+{{- end -}}
+{{- end -}}
 
 {{- define "pimcore.externalSecretName" -}}
 {{- if .item.fullnameOverride -}}{{- .item.fullnameOverride | trunc 63 | trimSuffix "-" -}}
@@ -152,9 +164,9 @@ app.kubernetes.io/part-of: helmforge
 - name: REDIS_HOST
   value: {{ include "pimcore.cacheHost" . | quote }}
 - name: REDIS_PORT
-  value: {{ .Values.cache.external.port | quote }}
+  value: {{ include "pimcore.cachePort" . | quote }}
 - name: REDIS_TLS
-  value: {{ .Values.cache.external.tls | quote }}
+  value: {{ include "pimcore.cacheTLS" . | quote }}
 - name: REDIS_PASSWORD
   valueFrom:
     secretKeyRef:
@@ -168,13 +180,13 @@ app.kubernetes.io/part-of: helmforge
 
 {{- define "pimcore.command" -}}
 set -eu
-export DATABASE_URL="mysql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?serverVersion=mariadb-10.11.7&charset=utf8mb4"
+export DATABASE_URL="mysql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?serverVersion={{ .Values.database.serverVersion }}&charset=utf8mb4"
 export PIMCORE_MESSENGER_TRANSPORT_DSN_PREFIX="amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}/${RABBITMQ_VHOST}/"
 exec "$@"
 {{- end -}}
 
 {{- define "pimcore.validate" -}}
-{{- range $tag := list .Values.image.tag .Values.nginx.image.tag .Values.mercure.image.tag -}}
+{{- range $tag := list .Values.image.tag .Values.project.runtimeImage.tag .Values.waitForDependencies.image.tag .Values.nginx.image.tag .Values.mercure.image.tag -}}
 {{- if has $tag (list "latest" "stable" "main" "master" "edge") -}}{{ fail "all image tags must be immutable release tags" }}{{- end -}}
 {{- end -}}
 {{- if not (has .Values.database.mode (list "mariadb" "external")) -}}{{ fail "database.mode must be mariadb or external" }}{{- end -}}
@@ -186,6 +198,7 @@ exec "$@"
 {{- if and .Values.cache.enabled (eq .Values.cache.mode "redis") (not .Values.redis.enabled) -}}{{ fail "redis.enabled must be true when cache.enabled=true and cache.mode=redis" }}{{- end -}}
 {{- if and .Values.cache.enabled (eq .Values.cache.mode "external") (or (empty .Values.cache.external.host) (and (empty .Values.cache.external.existingSecret) (empty .Values.cache.external.password))) -}}{{ fail "external cache requires host and password or existingSecret" }}{{- end -}}
 {{- if and .Values.install.enabled (empty .Values.auth.existingSecret) (or (empty .Values.auth.productKey) (empty .Values.auth.instanceIdentifier) (empty .Values.auth.encryptionSecret)) -}}{{ fail "install.enabled requires auth.existingSecret or productKey, instanceIdentifier, and encryptionSecret" }}{{- end -}}
+{{- if ne (int .Values.mercure.replicaCount) 1 -}}{{ fail "mercure.replicaCount must remain 1 unless a clustered Mercure transport is implemented" }}{{- end -}}
 {{- if and (not .Values.mercure.enabled) (empty .Values.pimcore.mercureURL) -}}{{ fail "pimcore.mercureURL is required when bundled Mercure is disabled" }}{{- end -}}
 {{- if and .Values.project.bootstrap.enabled (not .Values.project.persistence.enabled) -}}{{ fail "project.bootstrap.enabled requires project.persistence.enabled" }}{{- end -}}
 {{- if and .Values.project.persistence.enabled (empty .Values.project.persistence.existingClaim) (gt (int .Values.web.replicaCount) 1) (not (has "ReadWriteMany" .Values.project.persistence.accessModes)) -}}{{ fail "web.replicaCount > 1 requires project persistence with ReadWriteMany or an immutable project image" }}{{- end -}}

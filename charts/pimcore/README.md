@@ -138,9 +138,9 @@ maintenance:
   enabled: true
 ```
 
-The web pod copies the immutable image project into a pod-local `emptyDir` so
-nginx and PHP-FPM see the same files. Workers and maintenance run directly from
-the same image.
+With project persistence disabled, nginx, PHP-FPM, workers, and maintenance use
+the project code directly from the immutable image. Only public assets remain
+mounted from their dedicated persistent volume.
 
 ## Database
 
@@ -162,6 +162,7 @@ mariadb:
 
 database:
   mode: external
+  serverVersion: mariadb-11.4.7
   external:
     host: mariadb.database.svc
     name: pimcore
@@ -171,7 +172,9 @@ database:
 ```
 
 The chart constructs `DATABASE_URL` at process start so passwords remain
-Secret-backed and do not appear in rendered manifests.
+Secret-backed and do not appear in rendered manifests. Set
+`database.serverVersion` to the exact Doctrine-compatible external engine
+version; the default matches the bundled MariaDB 12.3.2 dependency.
 
 ## RabbitMQ and workers
 
@@ -333,8 +336,9 @@ gatewayAPI:
 ## Network policy
 
 NetworkPolicy is opt-in. When egress enforcement is enabled, the chart permits
-DNS and chart-managed MariaDB, RabbitMQ, Redis, and Mercure traffic. Bootstrap
-also requires outbound HTTPS:
+DNS only to the configured cluster DNS namespace/pod selectors, plus
+chart-managed MariaDB, RabbitMQ, Redis, and Mercure traffic. Bootstrap also
+requires outbound HTTPS:
 
 ```yaml
 networkPolicy:
@@ -370,20 +374,24 @@ project.
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **88.82%** |
+| MITRE + NSA + SOC2 | **89.43%** |
 
 Security posture acceptable.
 
 Local details:
 
 - Tool: Kubescape v4.0.9
-- Command: `kubescape scan framework mitre,nsa,soc2 .tmp/pimcore-render.yaml`
-- Result: 0 critical and 0 high failed resources, resource summary score 88.82%.
+- Command: `kubescape scan framework "MITRE,NSA,SOC2" .tmp/pimcore-render.yaml`
+- Result: 0 critical and 0 high failed resources, resource summary score 89.43%.
 
 Runtime images are official, exact, multi-architecture tags. The default PHP
 image is the upstream hardened variant. Containers drop all Linux capabilities,
 disable privilege escalation, run as non-root users, and do not automount
-ServiceAccount tokens.
+ServiceAccount tokens. nginx and the Helm test use read-only root filesystems.
+PHP workloads retain a writable root because upstream Pimcore and Composer
+write project/runtime paths without a complete relocation contract; immutable
+project images should minimize those paths and keep application data on
+explicit volumes.
 
 ## Validation
 

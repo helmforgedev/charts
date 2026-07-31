@@ -27,6 +27,25 @@ tests:
       - equal:
           path: spec.template.spec.containers[1].readinessProbe.httpGet.path
           value: /readyz
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.initContainers[1].image
+          value: docker.io/library/busybox:1.37.0
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.readOnlyRootFilesystem
+          value: true
+  - it: permits rolling updates when project and assets support concurrent mounts
+    template: deployment-web.yaml
+    set:
+      project.persistence.accessModes:
+        - ReadWriteMany
+      assets.persistence.accessModes:
+        - ReadWriteMany
+    asserts:
+      - isNull:
+          path: spec.strategy
   - it: prepares project code before starting the runtime
     template: deployment-web.yaml
     asserts:
@@ -93,6 +112,34 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].args
           content: pimcore_core
+  - it: derives bundled service connection metadata from bundled values
+    template: deployment-worker.yaml
+    set:
+      worker.enabled: true
+      cache.enabled: true
+      redis.enabled: true
+      rabbitmq.auth.vhost: /pimcore
+      cache.external.port: 6380
+      cache.external.tls: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: RABBITMQ_VHOST
+            value: "%2Fpimcore"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PORT
+            value: "6379"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_TLS
+            value: "false"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "serverVersion=mariadb-12.3.2"
   - it: mounts assets without a project volume for immutable project images
     template: deployment-worker.yaml
     set:
@@ -140,6 +187,32 @@ tests:
           path: spec.template.spec.containers[0].env[1].valueFrom.secretKeyRef.key
           value: mercure-jwt-key
         documentIndex: 0
+      - equal:
+          path: spec.replicas
+          value: 1
+        documentIndex: 0
+  - it: propagates scheduling controls to Mercure
+    template: deployment-mercure.yaml
+    set:
+      imagePullSecrets:
+        - name: registry-credentials
+      priorityClassName: platform-critical
+      nodeSelector:
+        kubernetes.io/os: linux
+    asserts:
+      - contains:
+          path: spec.template.spec.imagePullSecrets
+          content:
+            name: registry-credentials
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: platform-critical
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.nodeSelector["kubernetes.io/os"]
+          value: linux
+        documentIndex: 0
   - it: renders the installer only when explicitly enabled
     template: job-install.yaml
     set:
@@ -153,6 +226,12 @@ tests:
       - equal:
           path: metadata.annotations["helm.sh/hook"]
           value: post-install
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-dependencies
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: docker.io/library/busybox:1.37.0
       - contains:
           path: spec.template.spec.containers[0].args
           content: --no-interaction

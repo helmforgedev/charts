@@ -9,6 +9,12 @@ metadata:
     app.kubernetes.io/component: web
 spec:
   replicas: {{ .Values.web.replicaCount }}
+  {{- $projectConcurrent := or (not .Values.project.persistence.enabled) (has "ReadWriteMany" .Values.project.persistence.accessModes) }}
+  {{- $assetsConcurrent := or (not .Values.assets.persistence.enabled) (has "ReadWriteMany" .Values.assets.persistence.accessModes) }}
+  {{- if not (and $projectConcurrent $assetsConcurrent) }}
+  strategy:
+    type: Recreate
+  {{- end }}
   selector:
     matchLabels:
       {{- include "pimcore.componentSelectorLabels" (dict "root" . "component" "web") | nindent 6 }}
@@ -69,7 +75,8 @@ spec:
               mountPath: /project
         {{- end }}
         - name: wait-for-dependencies
-          image: docker.io/library/busybox:1.37.0
+          image: {{ include "pimcore.waitImage" . | quote }}
+          imagePullPolicy: {{ .Values.waitForDependencies.image.pullPolicy }}
           command: [sh, -ec]
           args:
             - |
@@ -190,6 +197,8 @@ spec:
             - name: nginx-config
               mountPath: /etc/nginx/custom
               readOnly: true
+            - name: nginx-tmp
+              mountPath: /tmp
         {{- with .Values.extraContainers }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -209,6 +218,8 @@ spec:
         - name: nginx-config
           configMap:
             name: {{ include "pimcore.suffixedName" (dict "base" (include "pimcore.fullname" .) "suffix" "-nginx") }}
+        - name: nginx-tmp
+          emptyDir: {}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

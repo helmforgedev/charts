@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: pimcore network policy
+templates:
+  - networkpolicy.yaml
+tests:
+  - it: restricts DNS egress to the configured cluster DNS pods
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+    asserts:
+      - equal:
+          path: spec.egress[0].to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: kube-system
+      - equal:
+          path: spec.egress[0].to[0].podSelector.matchLabels["k8s-app"]
+          value: kube-dns
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53
+      - equal:
+          path: spec.egress[0].ports[1].protocol
+          value: TCP

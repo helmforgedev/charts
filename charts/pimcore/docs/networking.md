@@ -8,8 +8,9 @@ Ingress and Gateway API HTTPRoutes are optional. Terminate TLS at the routing
 layer and pass trusted proxy information appropriate to the cluster.
 
 NetworkPolicy is opt-in. Internal egress rules cover chart-managed MariaDB,
-RabbitMQ, optional Redis, Mercure, and DNS. Bootstrap requires outbound HTTPS;
-immutable production images do not.
+RabbitMQ, optional Redis, Mercure, and DNS restricted by
+`networkPolicy.egress.dns.namespaceSelector` and `podSelector`. Bootstrap
+requires outbound HTTPS; immutable production images do not.
 
 The chart exposes `/healthz` for nginx liveness and `/readyz` for PHP-FPM
 readiness. These runtime endpoints deliberately remain independent from

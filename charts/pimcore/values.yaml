@@ -22,6 +22,15 @@ image:
 # -- Image pull secrets.
 imagePullSecrets: []
 
+waitForDependencies:
+  image:
+    # -- Official BusyBox repository used for dependency readiness checks.
+    repository: docker.io/library/busybox
+    # -- Exact BusyBox image tag.
+    tag: "1.37.0"
+    # -- Image pull policy.
+    pullPolicy: IfNotPresent
+
 nginx:
   image:
     # -- Official nginx image repository.
@@ -42,6 +51,13 @@ nginx:
       memory: 128Mi
 
 project:
+  runtimeImage:
+    # -- Official Pimcore runtime used as the base for immutable project images.
+    repository: docker.io/pimcore/pimcore
+    # -- Exact official PHP 8.5 hardened runtime tag.
+    tag: "php8.5.9-max-v5.2-hardened"
+    # -- Image pull policy for build metadata consistency.
+    pullPolicy: IfNotPresent
   # -- Bootstrap the pinned Pimcore skeleton when the application image has no
   # project code. Intended for evaluation and first installation, not HA.
   bootstrap:
@@ -180,6 +196,8 @@ auth:
 database:
   # -- Database mode: mariadb or external.
   mode: mariadb
+  # -- Doctrine DBAL server version. Override with the exact external engine version.
+  serverVersion: mariadb-12.3.2
   external:
     # -- External MariaDB hostname.
     host: ""
@@ -310,6 +328,7 @@ mercure:
     tag: "v0.24.2"
     pullPolicy: IfNotPresent
   # -- Mercure replica count.
+  # The bundled local transport is intentionally single-replica.
   replicaCount: 1
   # -- Allow anonymous subscribers. Disable and configure project authorization for production.
   anonymous: true
@@ -381,6 +400,15 @@ networkPolicy:
     enabled: false
     # -- Permit cluster DNS.
     allowDNS: true
+    dns:
+      # -- Namespace selector for the cluster DNS pods.
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      # -- Pod selector for the cluster DNS pods.
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
     # -- Additional complete egress rules.
     extraEgress: []
 
@@ -413,6 +441,10 @@ securityContext:
   runAsNonRoot: true
   runAsUser: 33
   runAsGroup: 33
+  # Pimcore and Composer write project/runtime paths that are not fully
+  # relocatable in the upstream image. Keep writable until a project image
+  # explicitly provides and mounts every required writable directory.
+  readOnlyRootFilesystem: false
   seccompProfile:
     type: RuntimeDefault
 # -- nginx container security context.
@@ -424,6 +456,7 @@ nginxSecurityContext:
   runAsNonRoot: true
   runAsUser: 101
   runAsGroup: 101
+  readOnlyRootFilesystem: true
   seccompProfile:
     type: RuntimeDefault
 

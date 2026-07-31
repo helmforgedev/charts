@@ -11,6 +11,11 @@
     "commonLabels": { "type": "object", "additionalProperties": { "type": "string" } },
     "image": { "$ref": "#/definitions/image" },
     "imagePullSecrets": { "type": "array", "items": { "type": "object" } },
+    "waitForDependencies": {
+      "type": "object",
+      "required": ["image"],
+      "properties": { "image": { "$ref": "#/definitions/image" } }
+    },
     "nginx": {
       "type": "object",
       "required": ["image", "clientMaxBodySize", "resources"],
@@ -22,8 +27,9 @@
     },
     "project": {
       "type": "object",
-      "required": ["bootstrap", "persistence"],
+      "required": ["runtimeImage", "bootstrap", "persistence"],
       "properties": {
+        "runtimeImage": { "$ref": "#/definitions/image" },
         "bootstrap": {
           "type": "object",
           "required": ["enabled", "skeletonVersion"],
@@ -95,9 +101,10 @@
     "auth": { "type": "object" },
     "database": {
       "type": "object",
-      "required": ["mode", "external"],
+      "required": ["mode", "serverVersion", "external"],
       "properties": {
         "mode": { "type": "string", "enum": ["mariadb", "external"] },
+        "serverVersion": { "type": "string", "minLength": 1 },
         "external": { "type": "object" }
       }
     },
@@ -127,7 +134,7 @@
       "properties": {
         "enabled": { "type": "boolean" },
         "image": { "$ref": "#/definitions/image" },
-        "replicaCount": { "type": "integer", "minimum": 1 },
+        "replicaCount": { "type": "integer", "minimum": 1, "maximum": 1 },
         "anonymous": { "type": "boolean" },
         "resources": { "type": "object" }
       }
@@ -165,7 +172,7 @@
     "extraManifests": { "type": "array", "items": { "type": "object" } }
   },
   "required": [
-    "image", "nginx", "project", "web", "worker", "maintenance", "install",
+    "image", "imagePullSecrets", "waitForDependencies", "nginx", "project", "web", "worker", "maintenance", "install",
     "pimcore", "auth", "database", "mariadb", "queue", "rabbitmq", "cache",
     "redis", "mercure", "assets", "service"
   ],

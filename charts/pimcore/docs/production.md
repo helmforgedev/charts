@@ -1,9 +1,10 @@
 # Production operations
 
 Use an immutable project image, disable bootstrap and project persistence, and
-store public assets on RWX or project-configured object storage. Use a matching
-registration Secret in every environment belonging to the same registered
-instance.
+store public assets on RWX or project-configured object storage. Environments
+belonging to the same registered instance must reuse the product key, instance
+identifier, and encryption secret. Application, administrator, and Mercure
+credentials may remain environment-specific.
 
 Enable workers and maintenance only after schema installation. Scale web and
 workers independently. Configure resource requests from observed PHP-FPM and
