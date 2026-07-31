@@ -218,7 +218,7 @@ Use the generic extension values when platform-specific integration is needed:
 | `architecture` | Valkey topology: `standalone`, `replication`, `sentinel`, or `cluster` | `standalone` |
 | `clusterDomain` | Kubernetes cluster DNS domain used for internal service FQDNs | `cluster.local` |
 | `image.repository` | Valkey image repository | `docker.io/valkey/valkey` |
-| `image.tag` | Valkey image tag | `9.1.0` |
+| `image.tag` | Valkey image tag | `9.1.1` |
 | `auth.enabled` | Enable password authentication | `true` |
 | `auth.password` | Inline Valkey password | `""` |
 | `auth.existingSecret` | Existing Secret containing the Valkey password | `""` |
@@ -245,7 +245,7 @@ Use the generic extension values when platform-specific integration is needed:
 | `metrics.serviceMonitor.enabled` | Create ServiceMonitor | `false` |
 | `tests.enabled` | Render Helm test connection pod | `true` |
 | `tests.image.repository` | Helm test image repository | `docker.io/valkey/valkey` |
-| `tests.image.tag` | Helm test image tag | `9.1.0` |
+| `tests.image.tag` | Helm test image tag | `9.1.1` |
 | `automountServiceAccountToken` | Mount Kubernetes API service account token into pods | `false` |
 | `podSecurityContext.seccompProfile.type` | Pod seccomp profile | `RuntimeDefault` |
 | `securityContext.capabilities.drop` | Linux capabilities dropped by default | `["ALL"]` |
@@ -313,3 +313,4 @@ See `examples/`:
 - Valkey Sentinel: <https://valkey.io/docs/latest/operate/oss_and_stack/management/sentinel/>
 - Valkey Cluster: <https://valkey.io/docs/latest/operate/oss_and_stack/management/scaling/>
 - Valkey security: <https://valkey.io/docs/latest/operate/oss_and_stack/management/security/>
+- Valkey 9.1.1 security release: <https://github.com/valkey-io/valkey/releases/tag/9.1.1>
