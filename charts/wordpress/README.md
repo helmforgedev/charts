@@ -417,6 +417,7 @@ The chart creates an `HTTPRoute` that sends traffic to the WordPress Service.
 | `wpCron.cronJob.enabled` | `false` | Create deterministic WordPress cron CronJob |
 | `networkPolicy.enabled` | `false` | Create NetworkPolicy |
 | `networkPolicy.egress.enabled` | `false` | Manage egress allow list |
+| `networkPolicy.egress.extraEgress` | `[]` | Append complete custom egress rules with optional ports |
 | `metrics.enabled` | `false` | Enable Apache exporter sidecar |
 | `metrics.serviceMonitor.enabled` | `false` | Create ServiceMonitor |
 | `plugins.enabled` | `false` | Enable plugin installer support |

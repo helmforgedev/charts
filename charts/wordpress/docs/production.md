@@ -78,6 +78,7 @@ Use either Ingress or Gateway API. Do not enable both for the same hostname unle
 Enable `networkPolicy.enabled` to isolate inbound traffic.
 Enable `networkPolicy.egress.enabled` only after listing required destinations such as DNS, database, HTTPS APIs,
 object storage, and SMTP.
+Use `networkPolicy.egress.extraEgress` for destinations that need complete custom `to` and `ports` rules.
 
 Redis object cache is the recommended provider for the official WordPress image. Memcached can be used with the
 HelmForge Memcached subchart only when the WordPress image includes the required PHP extension.
