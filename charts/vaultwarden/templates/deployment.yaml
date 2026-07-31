@@ -120,6 +120,12 @@ spec:
               value: {{ .Values.vaultwarden.logLevel | quote }}
             - name: IP_HEADER
               value: {{ .Values.vaultwarden.proxy.ipHeader | quote }}
+            - name: IP_HEADER_TRUSTED_PROXIES
+              value: {{ .Values.vaultwarden.proxy.trustedProxies | quote }}
+            - name: UNAUTHENTICATED_RATELIMIT_SECONDS
+              value: {{ .Values.vaultwarden.rateLimit.unauthenticated.seconds | quote }}
+            - name: UNAUTHENTICATED_RATELIMIT_MAX_BURST
+              value: {{ .Values.vaultwarden.rateLimit.unauthenticated.maxBurst | quote }}
             {{- if eq (include "vaultwarden.databaseMode" .) "sqlite" }}
             - name: ENABLE_DB_WAL
               value: {{ ternary "true" "false" .Values.database.sqlite.enableWal | quote }}
@@ -201,7 +207,7 @@ spec:
           {{- if .Values.probes.liveness.enabled }}
           livenessProbe:
             httpGet:
-              path: {{ .Values.probes.liveness.path }}
+              path: {{ include "vaultwarden.probePath" (dict "root" . "path" .Values.probes.liveness.path) }}
               port: http
             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
@@ -211,7 +217,7 @@ spec:
           {{- if .Values.probes.readiness.enabled }}
           readinessProbe:
             httpGet:
-              path: {{ .Values.probes.readiness.path }}
+              path: {{ include "vaultwarden.probePath" (dict "root" . "path" .Values.probes.readiness.path) }}
               port: http
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
@@ -221,7 +227,7 @@ spec:
           {{- if .Values.probes.startup.enabled }}
           startupProbe:
             httpGet:
-              path: {{ .Values.probes.startup.path }}
+              path: {{ include "vaultwarden.probePath" (dict "root" . "path" .Values.probes.startup.path) }}
               port: http
             initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.startup.periodSeconds }}

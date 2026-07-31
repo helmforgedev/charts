@@ -40,6 +40,21 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "vaultwarden.probePath" -}}
+{{- $configuredPath := .path -}}
+{{- $domain := include "vaultwarden.domain" .root -}}
+{{- $basePath := "" -}}
+{{- if $domain -}}
+{{- $parsedDomain := urlParse $domain -}}
+{{- $basePath = get $parsedDomain "path" | default "" | trimSuffix "/" -}}
+{{- end -}}
+{{- if and $basePath (not (hasPrefix $basePath $configuredPath)) -}}
+{{- printf "%s%s" $basePath $configuredPath -}}
+{{- else -}}
+{{- $configuredPath -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "vaultwarden.adminSecretName" -}}
 {{- if .Values.admin.existingSecret -}}
 {{- .Values.admin.existingSecret -}}

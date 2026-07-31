@@ -25,7 +25,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/vaultwarden/server:1.36.0"
+          value: "docker.io/vaultwarden/server:1.37.1"
 
   - it: should have 1 replica
     template: deployment.yaml
@@ -67,6 +67,33 @@ tests:
       - isNotNull:
           path: spec.template.spec.containers[0].startupProbe
 
+  - it: should prefix probe paths with the domain subpath
+    template: deployment.yaml
+    set:
+      domain: https://example.com/vaultwarden
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /vaultwarden/alive
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /vaultwarden/alive
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /vaultwarden/alive
+
+  - it: should not duplicate the domain subpath in a custom probe path
+    template: deployment.yaml
+    set:
+      domain: https://example.com/vaultwarden
+      probes:
+        liveness:
+          path: /vaultwarden/health
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /vaultwarden/health
+
   - it: should mount data volume
     template: deployment.yaml
     asserts:
@@ -93,6 +120,29 @@ tests:
           content:
             name: ENABLE_WEBSOCKET
             value: "true"
+
+  - it: should configure trusted proxies and unauthenticated rate limits
+    template: deployment.yaml
+    set:
+      vaultwarden.proxy.trustedProxies: "10.0.0.0/8,192.168.0.0/16"
+      vaultwarden.rateLimit.unauthenticated.seconds: 120
+      vaultwarden.rateLimit.unauthenticated.maxBurst: 25
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: IP_HEADER_TRUSTED_PROXIES
+            value: "10.0.0.0/8,192.168.0.0/16"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UNAUTHENTICATED_RATELIMIT_SECONDS
+            value: "120"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UNAUTHENTICATED_RATELIMIT_MAX_BURST
+            value: "25"
 
   - it: should bind Rocket to a non-privileged port by default
     template: deployment.yaml

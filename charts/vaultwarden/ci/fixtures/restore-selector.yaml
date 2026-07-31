@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vaultwarden-runtime-restore-prepare
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        helmforge.dev/runtime-fixture: "true"
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: prepare
+          image: docker.io/library/busybox:1.37
+          command:
+            - sh
+            - -c
+            - chown 1000:1000 /restore && chmod 0770 /restore
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+                - FOWNER
+          volumeMounts:
+            - name: restore
+              mountPath: /restore
+      volumes:
+        - name: restore
+          hostPath:
+            path: /tmp/helmforge-vaultwarden-runtime-restore
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: vaultwarden-runtime-restore
+  labels:
+    restore-id: vaultwarden-prod-restore
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: local-path
+  hostPath:
+    path: /tmp/helmforge-vaultwarden-runtime-restore
+    type: DirectoryOrCreate

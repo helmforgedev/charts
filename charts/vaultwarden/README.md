@@ -59,6 +59,8 @@ helm install vaultwarden oci://ghcr.io/helmforgedev/helm/vaultwarden -f values.y
 
 - Vaultwarden repository: <https://github.com/dani-garcia/vaultwarden>
 - Vaultwarden configuration template: <https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template>
+- Vaultwarden 1.37.0 security release: <https://github.com/dani-garcia/vaultwarden/releases/tag/1.37.0>
+- Vaultwarden 1.37.1 hotfix release: <https://github.com/dani-garcia/vaultwarden/releases/tag/1.37.1>
 
 ## Best practices
 
@@ -100,6 +102,7 @@ helm install vaultwarden oci://ghcr.io/helmforgedev/helm/vaultwarden -f values.y
 - terminate TLS at ingress or reverse proxy
 - keep ingress hosts and `domain` aligned
 - if Vaultwarden is exposed behind a path or non-default HTTPS port, keep that full external URL in `domain`
+- health probes automatically include the path component from `domain`
 - keep `vaultwarden.proxy.ipHeader` aligned with your ingress controller or reverse proxy behavior
 - review ingress/controller timeouts if websocket notifications are important for your users
 
@@ -155,6 +158,9 @@ This chart intentionally maps the most important operational settings from the o
 - `ROCKET_ADDRESS`
 - `ROCKET_PORT`
 - `IP_HEADER`
+- `IP_HEADER_TRUSTED_PROXIES`
+- `UNAUTHENTICATED_RATELIMIT_SECONDS`
+- `UNAUTHENTICATED_RATELIMIT_MAX_BURST`
 - `ENABLE_DB_WAL`
 - `DB_CONNECTION_RETRIES`
 - `DATABASE_TIMEOUT`
@@ -176,7 +182,7 @@ The admin page should not use a plain-text `ADMIN_TOKEN` in real environments. P
 Simple generation options:
 
 ```bash
-docker run --rm -it vaultwarden/server:1.36.0 /vaultwarden hash
+docker run --rm -it vaultwarden/server:1.37.1 /vaultwarden hash
 ```
 
 ```bash
@@ -212,7 +218,7 @@ Official reference:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Vaultwarden image repository | `docker.io/vaultwarden/server` |
-| `image.tag` | Vaultwarden image tag | `1.36.0` |
+| `image.tag` | Vaultwarden image tag | `1.37.1` |
 | `domain` | Public Vaultwarden domain | `""` |
 | `database.mode` | `auto`, `sqlite`, `external`, `postgresql`, or `mysql` | `auto` |
 | `database.external.vendor` | External database vendor | `postgres` |
@@ -241,6 +247,9 @@ Official reference:
 | `vaultwarden.showPasswordHint` | Show password hints directly in the web UI | `false` |
 | `vaultwarden.websocket.enabled` | Enable websocket notifications | `true` |
 | `vaultwarden.proxy.ipHeader` | Header used to detect the client IP behind a reverse proxy | `X-Real-IP` |
+| `vaultwarden.proxy.trustedProxies` | Addresses allowed to supply the configured client IP header | `local` |
+| `vaultwarden.rateLimit.unauthenticated.seconds` | Average seconds between rate-limited unauthenticated requests from one IP | `60` |
+| `vaultwarden.rateLimit.unauthenticated.maxBurst` | Shared burst budget for rate-limited unauthenticated endpoints | `50` |
 | `admin.token` | Inline admin token | `""` |
 | `admin.existingSecret` | Existing secret containing the admin token | `""` |
 | `smtp.enabled` | Enable SMTP configuration | `false` |

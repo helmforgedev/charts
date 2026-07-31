@@ -10,6 +10,7 @@ Vaultwarden relies on a correct public domain for features such as attachment li
 - enable ingress with the same hostname
 - terminate TLS at ingress or reverse proxy
 - if the public URL includes a path or non-default port, keep that exact external URL in `domain`
+- the chart automatically prefixes health probe paths with the path component from `domain`
 
 ## Domain examples
 
@@ -73,6 +74,12 @@ Keep `vaultwarden.proxy.ipHeader` aligned with the actual reverse proxy behavior
 - `X-Real-IP` is a common default
 - use `X-Forwarded-For` only when that is what your ingress controller actually forwards
 - use `none` if you want Vaultwarden to rely only on the direct remote address
+
+Vaultwarden 1.37.0 and newer also require the direct peer to match
+`vaultwarden.proxy.trustedProxies` before accepting that header. The secure default
+`local` trusts non-global addresses, which covers most in-cluster ingress paths.
+Use explicit IP or CIDR entries when the proxy reaches Vaultwarden from a public
+address. Avoid `all` unless every path to the pod is controlled by a trusted proxy.
 
 <!-- @AI-METADATA
 type: chart-docs
