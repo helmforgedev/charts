@@ -77,7 +77,7 @@ backend process inside the AIO image.
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `mode` | Chart mode: `dev` or `production` | `dev` |
-| `image.tag` | Hoppscotch image tag | `2026.6.1` |
+| `image.tag` | Hoppscotch image tag | `2026.7.0` |
 | `namespaceOverride` | Namespace for chart-managed resources. Use with an external database; bundled PostgreSQL remains in the Helm release namespace. | `""` |
 | `replicaCount` | Number of replicas | `1` |
 | `ingress.enabled` | Enable Ingress | `false` |
@@ -105,10 +105,9 @@ backend process inside the AIO image.
 
 ## Upgrade Notes
 
-Hoppscotch `2026.6.1` fixes Desktop App authentication with self-hosted instances, supports arbitrary non-root container
-UIDs, captures response cookies for Agent-routed requests, and reduces JSON renderer overhead. This release is specifically
-published for self-hosted deployments. Back up the PostgreSQL database and keep `DATA_ENCRYPTION_KEY` stable before
-upgrading.
+Hoppscotch `2026.7.0` fixes collection data loss in personal workspaces and request loss when importing large team
+collections, adds fallback to initial values for empty environment variables, and includes security fixes. Back up the
+PostgreSQL database and keep `DATA_ENCRYPTION_KEY` stable before upgrading.
 The bundled PostgreSQL path now derives `DATABASE_URL` from the PostgreSQL
 user password Secret, bootstraps `pg_trgm` on fresh data directories, and runs
 a pre-upgrade hook to apply `pg_trgm` to existing bundled PostgreSQL PVCs before
