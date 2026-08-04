@@ -84,3 +84,60 @@ tests:
       - equal:
           path: spec.gatewayClassName
           value: my-class
+
+  - it: should allow HTTP routes from all namespaces
+    set:
+      gateway:
+        listeners:
+          http:
+            allowedRoutes:
+              namespaces:
+                from: All
+    asserts:
+      - equal:
+          path: spec.listeners[0].allowedRoutes.namespaces.from
+          value: All
+
+  - it: should restrict HTTP routes with a namespace selector
+    set:
+      gateway:
+        listeners:
+          http:
+            allowedRoutes:
+              namespaces:
+                from: Selector
+                selector:
+                  matchLabels:
+                    shared-gateway-access: "true"
+    asserts:
+      - equal:
+          path: spec.listeners[0].allowedRoutes.namespaces.selector.matchLabels.shared-gateway-access
+          value: "true"
+
+  - it: should configure allowed route kinds on the HTTPS listener
+    set:
+      gateway:
+        listeners:
+          https:
+            enabled: true
+            tls:
+              certificateRef:
+                name: my-tls-secret
+            allowedRoutes:
+              kinds:
+                - kind: HTTPRoute
+                  group: gateway.networking.k8s.io
+              namespaces:
+                from: Same
+    asserts:
+      - equal:
+          path: spec.listeners[1].allowedRoutes.kinds[0].kind
+          value: HTTPRoute
+      - equal:
+          path: spec.listeners[1].allowedRoutes.namespaces.from
+          value: Same
+
+  - it: should omit allowedRoutes when no policy is configured
+    asserts:
+      - notExists:
+          path: spec.listeners[0].allowedRoutes

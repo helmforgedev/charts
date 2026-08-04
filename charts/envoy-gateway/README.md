@@ -222,12 +222,14 @@ highAvailability:
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `gateway.create` | `false` | Create a default Gateway resource (triggers proxy provisioning) |
+| `gateway.create` | `true` | Create a default Gateway resource (triggers proxy provisioning) |
 | `gateway.name` | `""` | Gateway name (defaults to release name) |
 | `gateway.listeners.http.enabled` | `true` | Enable HTTP listener |
 | `gateway.listeners.http.port` | `80` | HTTP listener port |
+| `gateway.listeners.http.allowedRoutes` | `{}` | Route kinds and namespaces allowed to attach; empty uses the same-namespace Gateway API default |
 | `gateway.listeners.https.enabled` | `false` | Enable HTTPS listener |
 | `gateway.listeners.https.port` | `443` | HTTPS listener port |
+| `gateway.listeners.https.allowedRoutes` | `{}` | Route kinds and namespaces allowed to attach; empty uses the same-namespace Gateway API default |
 | `gateway.listeners.https.tls.mode` | `Terminate` | TLS mode (Terminate or Passthrough) |
 | `gateway.listeners.https.tls.certificateRef.name` | `""` | TLS Secret name (must be created separately) |
 
@@ -485,6 +487,6 @@ This chart intentionally does not support:
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **72.22223%** |
+| MITRE + NSA + SOC2 | **71.63059%** |
 
 > Security posture acceptable.

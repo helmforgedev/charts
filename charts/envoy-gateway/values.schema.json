@@ -791,6 +791,37 @@
         }
       }
     },
+    "gateway": {
+      "type": "object",
+      "description": "Default Gateway resource configuration",
+      "additionalProperties": false,
+      "required": ["create", "name", "listeners"],
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a default Gateway resource",
+          "default": true
+        },
+        "name": {
+          "type": "string",
+          "description": "Gateway name; defaults to the Helm release name",
+          "default": ""
+        },
+        "listeners": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["http", "https"],
+          "properties": {
+            "http": {
+              "$ref": "#/definitions/httpListener"
+            },
+            "https": {
+              "$ref": "#/definitions/httpsListener"
+            }
+          }
+        }
+      }
+    },
     "cleanup": {
       "type": "object",
       "description": "Cleanup hook configuration",
@@ -842,6 +873,103 @@
         "secretStoreRef": { "type": "object" },
         "target": { "type": "object" },
         "data": { "type": "array" }
+      }
+    }
+  },
+  "definitions": {
+    "allowedRoutes": {
+      "type": "object",
+      "description": "Gateway API constraints for Routes attaching to a listener",
+      "additionalProperties": false,
+      "properties": {
+        "kinds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind"],
+            "properties": {
+              "group": { "type": "string" },
+              "kind": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "namespaces": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "from": {
+              "type": "string",
+              "enum": ["All", "Same", "Selector"]
+            },
+            "selector": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "matchLabels": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" }
+                },
+                "matchExpressions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["key", "operator"],
+                    "properties": {
+                      "key": { "type": "string", "minLength": 1 },
+                      "operator": {
+                        "type": "string",
+                        "enum": ["In", "NotIn", "Exists", "DoesNotExist"]
+                      },
+                      "values": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "httpListener": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "port", "allowedRoutes"],
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 80 },
+        "allowedRoutes": { "$ref": "#/definitions/allowedRoutes" }
+      }
+    },
+    "httpsListener": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "port", "tls", "allowedRoutes"],
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 443 },
+        "allowedRoutes": { "$ref": "#/definitions/allowedRoutes" },
+        "tls": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "certificateRef"],
+          "properties": {
+            "mode": { "type": "string", "enum": ["Terminate", "Passthrough"] },
+            "certificateRef": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "namespace"],
+              "properties": {
+                "name": { "type": "string" },
+                "namespace": { "type": "string" }
+              }
+            }
+          }
+        }
       }
     }
   }
