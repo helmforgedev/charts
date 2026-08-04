@@ -13,7 +13,7 @@ pods can never accidentally receive HTTP traffic.
 
 ## Image choice
 
-The default `v4.6.5-5.0.2` tag combines an exact NetBox application release
+The default `v4.6.7-5.0.2` tag combines an exact NetBox application release
 with an exact netbox-docker support release. It is published for amd64 and
 arm64. NetBox 4.6.7 existed when the chart was authored, but no matching exact
 5.0.2 image was published, so the chart does not invent or use a moving tag.
