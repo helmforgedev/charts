@@ -144,7 +144,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
-| `image.tag` | `2.32.5` | n8n container image tag |
+| `image.tag` | `2.33.3` | n8n container image tag |
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
@@ -186,10 +186,11 @@ externalSecrets:
 
 ## Upgrade Notes
 
-n8n `2.32.5` adds public API, workflow export, and editor capabilities, and
-includes fixes across queue-mode MCP executions, S3 path signing, AI Assistant
-runs, credentials, and integrations. Review the
-[upstream 2.32.5 release notes](https://github.com/n8n-io/n8n/releases/tag/n8n%402.32.5)
+n8n `2.33.3` adds instance credentials, workflow review and publishing APIs,
+OpenTelemetry configuration APIs, scheduler controls, and database migrations
+for new execution and review data. It also fixes security-audit imports and MCP
+Server Trigger execution persistence. Review the
+[upstream 2.33.3 release notes](https://github.com/n8n-io/n8n/releases/tag/n8n%402.33.3)
 before upgrading, back up the database, and keep the encryption key stable
 before upgrading live deployments. This chart keeps the hardened non-root
 container defaults with resource requests and limits. Queue mode fails fast
@@ -198,7 +199,7 @@ must share the same PostgreSQL, MySQL, or external database as the main pod.
 Validate database and queue mode in a staging namespace before reusing
 production PVCs.
 
-When upgrading with `--reuse-values`, explicitly set `image.tag=2.32.5`.
+When upgrading with `--reuse-values`, explicitly set `image.tag=2.33.3`.
 Helm preserves the previous image override in that mode; also update
 `taskRunners.image.tag` when it was pinned separately.
 
