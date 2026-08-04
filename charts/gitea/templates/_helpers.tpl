@@ -371,3 +371,8 @@ Backup database password secret key
   {{- include "gitea.databaseSecretKey" . -}}
 {{- end -}}
 {{- end -}}
+
+{{/* Validate cross-field configuration before rendering workloads. */}}
+{{- define "gitea.validate" -}}
+{{- $databaseMode := include "gitea.databaseMode" . -}}
+{{- end -}}
