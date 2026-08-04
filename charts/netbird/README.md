@@ -4,7 +4,7 @@ Deploy [NetBird](https://github.com/netbirdio/netbird), a self-hosted WireGuard 
 
 This chart packages the current upstream combined architecture:
 
-- `netbirdio/netbird-server:0.75.0` for the management API, gRPC endpoint, signal, relay, metrics, health, and UDP STUN service
+- `netbirdio/netbird-server:0.76.1` for the management API, gRPC endpoint, signal, relay, metrics, health, and UDP STUN service
 - `netbirdio/dashboard:v2.90.3` for the web UI
 - a generated or externally supplied `config.yaml`
 - HelmForge PostgreSQL subchart as the default production store
@@ -110,7 +110,7 @@ Use `externalSecrets.items[]` to synchronize sensitive values such as `config.ya
 Local security scan:
 
 ```text
-Image: netbirdio/netbird-server:0.75.0
+Image: netbirdio/netbird-server:0.76.1
 Image: netbirdio/dashboard:v2.90.3
 Scanner: Kubescape v4.0.9, frameworks MITRE, NSA, SOC2
 Result: 86.86869 compliance score
@@ -121,11 +121,11 @@ repository security gate. Remaining findings are tracked as hardening trade-offs
 for optional NetworkPolicy enablement, upstream dashboard startup model, and
 operator-owned resource limit tuning across the database-backed topology.
 
-## Upgrade from 0.74.7
+## Upgrade from 0.75.0
 
-NetBird `0.75.0` improves the combined server's management, relay, and
-self-hosting paths. The redesigned desktop client announced in the upstream
-release is distributed separately and is not part of this server chart.
+NetBird `0.76.1` adds management-owned LLM pricing data and requires management
+and proxy components to move together. The chart's combined server image keeps
+those components on the same version. It also includes client and proxy fixes.
 
 Back up the configured database and `/var/lib/netbird`, then apply the new chart
 defaults while preserving your explicit overrides:
@@ -139,7 +139,7 @@ helm upgrade netbird helmforge/netbird \
 ```
 
 Using `--reuse-values` alone retains the previous default image tag. Remove any
-explicit `server.image.tag` override if you want the chart default `0.75.0`.
+explicit `server.image.tag` override if you want the chart default `0.76.1`.
 
 ## Validation
 
