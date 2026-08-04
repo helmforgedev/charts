@@ -87,3 +87,9 @@ Generate MEILI_MASTER_KEY: lookup existing secret or generate a new one.
 {{- randAlphaNum 32 -}}
 {{- end -}}
 {{- end -}}
+{{/* Validate cross-field configuration before rendering workloads. */}}
+{{- define "karakeep.validate" -}}
+{{- if and .Values.externalSecrets.enabled (not .Values.karakeep.existingSecret) -}}
+{{- fail "externalSecrets.enabled requires karakeep.existingSecret to be set to prevent credential drift between the chart-managed Secret and the ExternalSecret." -}}
+{{- end -}}
+{{- end -}}
