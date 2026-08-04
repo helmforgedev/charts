@@ -151,3 +151,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "uptime-kuma.backupSecretSecretKeyKey" -}}
 {{- .Values.backup.s3.existingSecretSecretKeyKey | default "secret-key" -}}
 {{- end -}}
+
+{{/* Validate values that must fail before rendering workloads. */}}
+{{- define "uptime-kuma.validate" -}}
+{{- if has .Values.image.tag (list "latest" "stable" "main" "master" "edge") -}}
+{{- fail "image.tag must be an immutable release tag" -}}
+{{- end -}}
+{{- end -}}
