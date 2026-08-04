@@ -4,7 +4,7 @@ Deploy [NoteDiscovery](https://github.com/gamosoft/NoteDiscovery), a
 self-hosted Markdown knowledge base with graph view, search, sharing, and MCP
 integration.
 
-This chart packages the official `ghcr.io/gamosoft/notediscovery:0.28.4` image
+This chart packages the official `ghcr.io/gamosoft/notediscovery:0.30.0` image
 and exposes the runtime settings that matter for Kubernetes: persistent note
 storage, generated or externally managed `config.yaml`, optional authentication,
 ingress/Gateway API exposure, network policy, pod disruption budget, and
@@ -151,10 +151,10 @@ volume.
 
 ## Upgrade Notes
 
-NoteDiscovery `0.28.4` adds a configurable default theme and fixes Markdown
-links to sibling notes. Set `notediscovery.defaultTheme` to a built-in or
-operator-mounted theme ID; a theme already stored in the browser continues to
-take precedence, and invalid IDs fall back to `light`.
+NoteDiscovery `0.30.0` serves browser libraries locally, adds cache-safe asset
+versioning, gzip and conditional responses, and fixes first-load Mermaid
+rendering. Releases 0.29.x also correct share-link schemes behind reverse
+proxies and raise normal editing rate limits.
 
 Generated configuration now stores plugin state under the writable data volume
 and bootstraps the official bundled plugins there. Existing Secrets should use
