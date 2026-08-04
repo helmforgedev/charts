@@ -6,6 +6,13 @@ Expand the name of the chart.
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{/* Validate values that must fail before rendering workloads. */}}
+{{- define "redis.validate" -}}
+{{- if has .Values.image.tag (list "latest" "stable" "main" "master" "edge") -}}
+{{- fail "image.tag must be an immutable release tag" -}}
+{{- end -}}
+{{- end -}}
+
 {{/*
 Create a default fully qualified app name.
 */}}
