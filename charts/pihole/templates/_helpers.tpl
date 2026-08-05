@@ -185,16 +185,16 @@ Returns list.
 {{- $lists = append $lists "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts" }}
 {{- else if eq $preset "balanced" }}
 {{- $lists = append $lists "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts" }}
-{{- $lists = append $lists "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/domains/multi.txt" }}
+{{- $lists = append $lists "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/multi.txt" }}
 {{- $lists = append $lists "https://raw.githubusercontent.com/PolishFiltersTeam/KADhosts/master/KADhosts.txt" }}
 {{- else if eq $preset "aggressive" }}
 {{- $lists = append $lists "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts" }}
-{{- $lists = append $lists "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/domains/pro.txt" }}
-{{- $lists = append $lists "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/domains/doh-vpn-proxy-bypass.txt" }}
-{{- $lists = append $lists "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/domains/tif.txt" }}
+{{- $lists = append $lists "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/pro.txt" }}
+{{- $lists = append $lists "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/doh-vpn-proxy-bypass.txt" }}
+{{- $lists = append $lists "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/tif.txt" }}
 {{- else if eq $preset "gaming-friendly" }}
 {{- $lists = append $lists "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts" }}
-{{- $lists = append $lists "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/domains/multi.txt" }}
+{{- $lists = append $lists "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/multi.txt" }}
 {{- end }}
 
 {{- range .Values.dns.adlists }}
