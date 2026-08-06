@@ -9,6 +9,9 @@ AppVersion: {{ .Chart.AppVersion }}
 Release:    {{ .Release.Name }}
 Namespace:  {{ .Release.Namespace }}
 
+Database:   {{ if .Values.ntfy.database.enabled }}PostgreSQL (Secret: {{ .Values.ntfy.database.existingSecret }}){{ else }}SQLite{{ end }}
+Persistence: {{ if .Values.persistence.enabled }}enabled{{ else }}disabled{{ end }}
+
 --------------------------------------------------------------------
 ACCESS INFORMATION
 --------------------------------------------------------------------
@@ -53,6 +56,9 @@ TROUBLESHOOTING
   kubectl logs -l app.kubernetes.io/name=ntfy -n {{ .Release.Namespace }} --all-containers --tail=100
   kubectl get all -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
   kubectl get pvc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+{{- if .Values.ntfy.database.enabled }}
+  kubectl get secret {{ .Values.ntfy.database.existingSecret }} -n {{ .Release.Namespace }}
+{{- end }}
 
 --------------------------------------------------------------------
 WARNINGS
@@ -62,6 +68,11 @@ WARNINGS
 
 NOTE: Ingress is not enabled. Access via port-forward (see above).
 For push notifications to mobile apps, ntfy needs a public HTTPS endpoint.
+{{- end }}
+{{- if and .Values.ntfy.database.enabled (not .Values.persistence.enabled) }}
+
+NOTE: Persistence is disabled. PostgreSQL stores database-backed state, but
+filesystem attachments and other local files will not survive pod replacement.
 {{- end }}
 
 --------------------------------------------------------------------

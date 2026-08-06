@@ -51,6 +51,16 @@ spec:
               containerPort: 80
               protocol: TCP
           env:
+            {{- if .Values.ntfy.database.enabled }}
+            {{- if not .Values.ntfy.database.existingSecret }}
+            {{- fail "ntfy.database.enabled requires ntfy.database.existingSecret" }}
+            {{- end }}
+            - name: NTFY_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ntfy.database.existingSecret }}
+                  key: {{ .Values.ntfy.database.existingSecretKey }}
+            {{- end }}
             {{- with .Values.ntfy.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

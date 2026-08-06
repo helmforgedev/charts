@@ -101,3 +101,28 @@ tests:
     asserts:
       - exists:
           path: spec.template.metadata.annotations["checksum/config"]
+
+  - it: should load the PostgreSQL URL from an existing Secret
+    template: templates/deployment.yaml
+    set:
+      ntfy.database.enabled: true
+      ntfy.database.existingSecret: ntfy-database
+      ntfy.database.existingSecretKey: database-url
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NTFY_DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: ntfy-database
+                key: database-url
+
+  - it: should reject PostgreSQL without an existing Secret
+    template: templates/deployment.yaml
+    set:
+      ntfy.database.enabled: true
+      ntfy.database.existingSecret: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "ntfy.database.enabled requires ntfy.database.existingSecret"

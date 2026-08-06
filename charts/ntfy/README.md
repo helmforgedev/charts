@@ -10,6 +10,8 @@ to phones and desktops via scripts — no signup, no fees.
 - **HTTP pub-sub** — send notifications via simple HTTP PUT/POST requests
 - **Cross-platform** — native Android, iOS apps and web push support
 - **Persistent storage** — SQLite cache and auth databases on PVC
+- **PostgreSQL support** — load the connection URL from a Kubernetes Secret
+- **External Secrets** — materialize database credentials through External Secrets Operator
 - **Prometheus metrics** — opt-in `/metrics` endpoint with ServiceMonitor
 - **Behind proxy** — trusts X-Forwarded-For headers by default
 - **Attachment support** — configurable file size and expiry limits
@@ -65,6 +67,9 @@ curl -s http://localhost:8080/test/json
 | `ntfy.enableMetrics` | `false` | Enable Prometheus `/metrics` endpoint |
 | `ntfy.banFeed.enabled` | `false` | Append confirmed abusive visitors to a ban-feed file |
 | `ntfy.banFeed.file` | `/var/cache/ntfy/ban.log` | Writable ban-feed file on the data volume |
+| `ntfy.database.enabled` | `false` | Use PostgreSQL instead of SQLite stores |
+| `ntfy.database.existingSecret` | `""` | Secret containing the PostgreSQL URL |
+| `ntfy.database.existingSecretKey` | `database-url` | Secret key containing the PostgreSQL URL |
 | `persistence.enabled` | `true` | Enable persistence for cache and auth |
 | `persistence.size` | `2Gi` | PVC size |
 | `service.type` | `ClusterIP` | Service type |
@@ -90,6 +95,68 @@ Then restrict default access:
 ntfy:
   authDefaultAccess: "deny-all"
 ```
+
+## PostgreSQL
+
+Create a Secret containing the complete PostgreSQL connection URL, then enable
+the database integration:
+
+```bash
+kubectl create secret generic ntfy-database \
+  --from-literal=database-url="$NTFY_DATABASE_URL"
+```
+
+```yaml
+ntfy:
+  database:
+    enabled: true
+    existingSecret: ntfy-database
+    existingSecretKey: database-url
+
+persistence:
+  enabled: false
+```
+
+The chart exposes the Secret key as `NTFY_DATABASE_URL` and omits ntfy's
+SQLite-only `cache-file`, `auth-file`, and `web-push-file` options. PostgreSQL
+stores messages, access control, and web push subscriptions. Keep persistence
+enabled if local attachments, the abuse ban-feed, or other file-backed options
+need to survive pod replacement.
+
+PostgreSQL alone does not make this chart highly available. The Deployment
+remains single-replica, and local attachment storage is not shared between
+pods. Configure and validate shared attachment storage before designing an HA
+deployment.
+
+### External Secrets Operator
+
+The same target Secret can be reconciled from a provider:
+
+```yaml
+ntfy:
+  database:
+    enabled: true
+    existingSecret: ntfy-database
+
+externalSecrets:
+  enabled: true
+  items:
+    - fullnameOverride: ntfy-database
+      spec:
+        secretStoreRef:
+          name: production-secrets
+          kind: ClusterSecretStore
+        target:
+          name: ntfy-database
+        data:
+          - secretKey: database-url
+            remoteRef:
+              key: ntfy/database
+              property: url
+```
+
+See the [External Secrets Operator documentation](https://external-secrets.io/latest/)
+for provider and SecretStore configuration.
 
 ## Prometheus Metrics
 
@@ -152,8 +219,8 @@ service:
 
 ## Limitations
 
-- **Single instance** — SQLite does not support concurrent writers
-- **No clustering** — designed as a single-node service
+- **Single replica** — the Deployment currently uses one replica regardless of database backend
+- **Local attachments** — filesystem attachment storage is not shared across pods
 
 ## More Information
 

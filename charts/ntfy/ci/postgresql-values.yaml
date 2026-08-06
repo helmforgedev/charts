@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: Apache-2.0
+ntfy:
+  database:
+    enabled: true
+    existingSecret: ntfy-database
+
+persistence:
+  enabled: false
+
+extraManifests:
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: ntfy-database
+      annotations:
+        helm.sh/hook: pre-install
+        helm.sh/hook-weight: "-10"
+        helm.sh/hook-delete-policy: before-hook-creation
+    type: Opaque
+    stringData:
+      database-url: postgres://ntfy:ci-password@ntfy-postgresql:5432/ntfy?sslmode=disable
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: ntfy-postgresql
+      annotations:
+        helm.sh/hook: pre-install
+        helm.sh/hook-weight: "-10"
+        helm.sh/hook-delete-policy: before-hook-creation
+    spec:
+      selector:
+        app.kubernetes.io/name: ntfy-postgresql
+      ports:
+        - name: postgresql
+          port: 5432
+          targetPort: postgresql
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: ntfy-postgresql
+      annotations:
+        helm.sh/hook: pre-install
+        helm.sh/hook-weight: "-5"
+        helm.sh/hook-delete-policy: before-hook-creation
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: ntfy-postgresql
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: ntfy-postgresql
+        spec:
+          containers:
+            - name: postgresql
+              image: docker.io/library/postgres:18.4-alpine3.24
+              imagePullPolicy: IfNotPresent
+              ports:
+                - name: postgresql
+                  containerPort: 5432
+              env:
+                - name: POSTGRES_DB
+                  value: ntfy
+                - name: POSTGRES_USER
+                  value: ntfy
+                - name: POSTGRES_PASSWORD
+                  value: ci-password
+  - apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: ntfy-postgresql-ready
+      annotations:
+        helm.sh/hook: pre-install
+        helm.sh/hook-weight: "0"
+        helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    spec:
+      backoffLimit: 3
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: wait
+              image: docker.io/library/postgres:18.4-alpine3.24
+              imagePullPolicy: IfNotPresent
+              command:
+                - sh
+                - -ec
+                - until pg_isready -h ntfy-postgresql -p 5432 -U ntfy -d ntfy; do sleep 1; done

@@ -8,7 +8,7 @@ Supported use cases:
 
 - personal or team notification endpoints
 - script-driven push notifications
-- single-instance deployments backed by persistent SQLite storage
+- single-instance deployments backed by persistent SQLite or external PostgreSQL
 - ingress or Gateway API exposure for public HTTPS access
 - optional Prometheus scraping through the ntfy metrics endpoint
 
@@ -21,6 +21,8 @@ flowchart LR
   svc --> pod[ntfy pod]
   pod --> cfg[ConfigMap server.yml]
   pod --> pvc[(PVC /var/cache/ntfy)]
+  pod -. optional database URL Secret .-> secret[Secret]
+  pod -. optional external database .-> postgres[(PostgreSQL)]
   pod -. optional ban feed .-> pvc
   pvc -. external consumer .-> ban[fail2ban or equivalent]
   prom[Prometheus] -. optional .-> svc
@@ -30,6 +32,8 @@ flowchart LR
 
 - Use the upstream `binwiederhier/ntfy` image.
 - Keep the workload single-replica because ntfy stores cache and auth data in local SQLite files.
+- Allow PostgreSQL to replace all SQLite stores without placing its connection URL in the ConfigMap.
+- Consume the PostgreSQL URL from a Kubernetes Secret and optionally reconcile it with External Secrets Operator.
 - Keep persistence enabled by default so message cache, attachments, and auth data survive restarts.
 - Render Gateway API HTTPRoutes as an opt-in exposure path alongside Ingress.
 - Keep Service dual-stack fields opt-in so clusters without dual-stack support use their defaults.
@@ -43,6 +47,7 @@ Recommended production controls:
 - set `ntfy.baseUrl` to the public HTTPS URL clients will use
 - enable authentication and set `ntfy.authDefaultAccess: deny-all` for private deployments
 - keep persistence enabled with a durable storage class
+- use a provider-managed Secret for PostgreSQL credentials
 - back up the PVC before upgrades
 - expose the service only through trusted ingress or Gateway policy
 - set explicit resources for shared clusters
@@ -51,6 +56,7 @@ Recommended production controls:
 ## Non-Goals
 
 - multi-replica SQLite coordination
+- automatic multi-replica or shared-attachment configuration for PostgreSQL deployments
 - user account reconciliation
 - installing Gateway API CRDs or controllers
 - installing Prometheus Operator CRDs

@@ -39,6 +39,65 @@ metrics:
 
 `ServiceMonitor` requires Prometheus Operator CRDs to exist in the cluster.
 
+## PostgreSQL
+
+ntfy can use PostgreSQL for its message cache, access control, and web push
+subscriptions. The connection URL is read from an existing Kubernetes Secret
+and is never stored in the ConfigMap:
+
+```yaml
+ntfy:
+  database:
+    enabled: true
+    existingSecret: ntfy-database
+    existingSecretKey: database-url
+
+persistence:
+  enabled: false
+```
+
+The Secret must contain a `database-url` key with a PostgreSQL connection URL.
+When PostgreSQL is enabled, the chart omits `cache-file`, `auth-file`, and
+`web-push-file`, as required by ntfy.
+
+Disabling persistence is appropriate only when no local file-backed features
+need durable storage. Keep it enabled for filesystem attachments, the ban-feed,
+or custom configuration that writes beneath `/var/cache/ntfy`.
+
+PostgreSQL does not by itself make the chart highly available. The chart keeps
+one replica, and local filesystem attachments are not shared.
+
+## External Secrets
+
+Use External Secrets Operator to reconcile the database Secret from a provider:
+
+```yaml
+ntfy:
+  database:
+    enabled: true
+    existingSecret: ntfy-database
+
+externalSecrets:
+  enabled: true
+  refreshInterval: 1h
+  items:
+    - fullnameOverride: ntfy-database
+      spec:
+        secretStoreRef:
+          name: production-secrets
+          kind: ClusterSecretStore
+        target:
+          name: ntfy-database
+        data:
+          - secretKey: database-url
+            remoteRef:
+              key: ntfy/database
+              property: url
+```
+
+See the [External Secrets Operator documentation](https://external-secrets.io/latest/)
+for provider setup.
+
 ## Abuse Ban-Feed
 
 ntfy 2.26.3 can emit confirmed abusive visitors to a file consumed by fail2ban
