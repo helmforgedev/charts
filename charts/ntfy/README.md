@@ -233,6 +233,6 @@ service:
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **72.72727%** |
+| MITRE + NSA + SOC2 | **74.242424%** |
 
 > Security posture acceptable.
