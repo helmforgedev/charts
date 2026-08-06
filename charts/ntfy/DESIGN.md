@@ -20,7 +20,7 @@ flowchart LR
   route --> svc[Service]
   svc --> pod[ntfy pod]
   pod --> cfg[ConfigMap server.yml]
-  pod --> pvc[(PVC /var/cache/ntfy)]
+  pod -. optional persistence .-> pvc[(PVC or emptyDir /var/cache/ntfy)]
   pod -. optional database URL Secret .-> secret[Secret]
   pod -. optional external database .-> postgres[(PostgreSQL)]
   pod -. optional ban feed .-> pvc

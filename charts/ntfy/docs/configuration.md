@@ -98,6 +98,11 @@ externalSecrets:
 See the [External Secrets Operator documentation](https://external-secrets.io/latest/)
 for provider setup.
 
+Secret rotation does not update `NTFY_DATABASE_URL` inside a running pod because
+Kubernetes injects environment variables only when containers start. Trigger a
+Deployment rollout after rotation, or use a compatible restart controller that
+restarts the workload when the target Secret changes.
+
 ## Abuse Ban-Feed
 
 ntfy 2.26.3 can emit confirmed abusive visitors to a file consumed by fail2ban

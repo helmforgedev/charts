@@ -158,6 +158,11 @@ externalSecrets:
 See the [External Secrets Operator documentation](https://external-secrets.io/latest/)
 for provider and SecretStore configuration.
 
+Because Kubernetes does not refresh environment variables in running
+containers, rotating the target Secret does not update `NTFY_DATABASE_URL` in
+an existing ntfy pod. Trigger a Deployment rollout after rotation, or configure
+a compatible restart controller to restart the workload when the Secret changes.
+
 ## Prometheus Metrics
 
 Enable the built-in Prometheus metrics endpoint:
