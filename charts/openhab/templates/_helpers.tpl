@@ -113,6 +113,21 @@ Validate pod labels do not override immutable selector labels.
 {{- end }}
 
 {{/*
+Validate persistent volume configuration.
+*/}}
+{{- define "openhab.validatePersistence" -}}
+{{- $volumes := dict "userdata" .Values.persistence.userdata "conf" .Values.persistence.conf "addons" .Values.persistence.addons }}
+{{- range $name, $volume := $volumes }}
+{{- if and (not $volume.enabled) (or $volume.existingClaim $volume.subPath) }}
+{{- fail (printf "persistence.%s must be enabled when existingClaim or subPath is configured." $name) }}
+{{- end }}
+{{- if and $volume.subPath (or (hasPrefix "/" $volume.subPath) (eq $volume.subPath ".") (eq $volume.subPath "..") (regexMatch "(^|/)\\.\\.(/|$)" $volume.subPath)) }}
+{{- fail (printf "persistence.%s.subPath must be a relative path without traversal segments." $name) }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
 Resolve the admin secret name.
 */}}
 {{- define "openhab.adminSecretName" -}}
@@ -135,6 +150,13 @@ Resolve the userdata PVC name.
 {{- end }}
 
 {{/*
+Resolve the userdata Kubernetes volume name.
+*/}}
+{{- define "openhab.userdataVolumeName" -}}
+userdata
+{{- end }}
+
+{{/*
 Resolve the conf PVC name.
 */}}
 {{- define "openhab.confPvcName" -}}
@@ -146,6 +168,13 @@ Resolve the conf PVC name.
 {{- end }}
 
 {{/*
+Resolve the conf Kubernetes volume name.
+*/}}
+{{- define "openhab.confVolumeName" -}}
+conf
+{{- end }}
+
+{{/*
 Resolve the addons PVC name.
 */}}
 {{- define "openhab.addonsPvcName" -}}
@@ -154,4 +183,11 @@ Resolve the addons PVC name.
 {{- else }}
 {{- printf "%s-addons" (include "openhab.fullname" .) }}
 {{- end }}
+{{- end }}
+
+{{/*
+Resolve the addons Kubernetes volume name.
+*/}}
+{{- define "openhab.addonsVolumeName" -}}
+addons
 {{- end }}

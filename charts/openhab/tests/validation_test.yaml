@@ -41,7 +41,6 @@ tests:
     asserts:
       - isKind:
           of: StatefulSet
-
   - it: should fail when podLabels override selector name
     values:
       - podlabels-selector-name-values.yaml
@@ -62,3 +61,18 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "podLabels must not override the selector label app.kubernetes.io/instance"
+
+  - it: should fail when a disabled volume has a configured subPath
+    set:
+      persistence.conf.enabled: false
+      persistence.conf.subPath: shared/openhab/conf
+    asserts:
+      - failedTemplate:
+          errorMessage: "persistence.conf must be enabled when existingClaim or subPath is configured."
+
+  - it: should fail when subPath contains traversal segments
+    set:
+      persistence.addons.subPath: shared/../addons
+    asserts:
+      - failedTemplate:
+          errorMessage: "persistence.addons.subPath must be a relative path without traversal segments."

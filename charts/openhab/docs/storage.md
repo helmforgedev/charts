@@ -48,18 +48,66 @@ Most users will keep this empty (addons installed via the UI go to `userdata`).
 
 **Minimum recommended size**: 2Gi.
 
-## Using Existing PVCs
+## Using Existing PVCs and Subdirectories
 
-If you have pre-existing data on PVCs, use `existingClaim`:
+Use `existingClaim` to mount an existing PVC. To use one PVC for all three
+openHAB directories, configure a separate relative `subPath` for each
+directory:
 
 ```yaml
 persistence:
   userdata:
-    existingClaim: my-openhab-userdata
+    existingClaim: openhab-data
+    subPath: userdata
   conf:
-    existingClaim: my-openhab-conf
+    existingClaim: openhab-data
+    subPath: conf
   addons:
-    existingClaim: my-openhab-addons
+    existingClaim: openhab-data
+    subPath: addons
+```
+
+`subPath` mounts a subdirectory rather than the root of the PVC. It must be a
+relative path without `..` segments. Because Kubernetes requires the target
+subdirectory to exist, the chart creates it in a preparatory init container
+when a `subPath` is configured and it is not already present.
+
+> **Why this is recommended:** ext4 creates a `lost+found` directory at the
+> root of a new filesystem. This is the default for Longhorn volumes. openHAB
+> therefore does not consider a PVC root containing `lost+found` empty, skips
+> its initialization, and subsequently fails to start. A dedicated `subPath`
+> avoids this issue.
+
+### Multiple openHAB Instances on One PVC
+
+`existingClaim` can also be used to run multiple openHAB instances on the same
+PVC. Each instance must use its own directory tree so that their data does not
+overlap, for example:
+
+```text
+/openhab-test/userdata
+/openhab-test/conf
+/openhab-test/addons
+
+/openhab-live/userdata
+/openhab-live/conf
+/openhab-live/addons
+```
+
+Configure the test instance like this; use the same configuration in the other
+release with `openhab-live` (or another unique path) instead:
+
+```yaml
+persistence:
+  userdata:
+    existingClaim: openhab-data
+    subPath: openhab-test/userdata
+  conf:
+    existingClaim: openhab-data
+    subPath: openhab-test/conf
+  addons:
+    existingClaim: openhab-data
+    subPath: openhab-test/addons
 ```
 
 ## Storage Class Recommendations
