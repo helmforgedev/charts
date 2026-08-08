@@ -18,6 +18,12 @@ The backup runs as a two-stage Kubernetes Job:
 
 Both containers run with the same UID/GID (9001) as openHAB, ensuring read access to the PVCs.
 
+> **Storage access mode:** The backup Job mounts the same PVCs as the openHAB
+> StatefulSet. If the Job and StatefulSet can run on different nodes, those
+> PVCs must support `ReadWriteMany` (RWX). With `ReadWriteOnce` (RWO), schedule
+> the backup Job on the StatefulSet's node, or use a backup mechanism that does
+> not require a simultaneous mount (for example, volume snapshots).
+
 ## Enabling Backup
 
 ```yaml

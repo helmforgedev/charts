@@ -140,10 +140,20 @@ Use feature flags instead to enable optional components.
 | `persistence.userdata.size` | userdata PVC size | `5Gi` |
 | `persistence.userdata.storageClass` | Storage class | `""` (cluster default) |
 | `persistence.userdata.existingClaim` | Use existing PVC | `""` |
+| `persistence.userdata.subPath` | Relative directory in the userdata PVC | `""` |
 | `persistence.conf.enabled` | Enable conf PVC | `true` |
 | `persistence.conf.size` | conf PVC size | `1Gi` |
+| `persistence.conf.existingClaim` | Use existing PVC | `""` |
+| `persistence.conf.subPath` | Relative directory in the conf PVC | `""` |
 | `persistence.addons.enabled` | Enable addons PVC | `true` |
 | `persistence.addons.size` | addons PVC size | `2Gi` |
+| `persistence.addons.existingClaim` | Use existing PVC | `""` |
+| `persistence.addons.subPath` | Relative directory in the addons PVC | `""` |
+
+> **Warning:** A new PVC may contain a `lost+found` directory at its root.
+> openHAB then does not recognize the mounted directory as empty on its first
+> start, skips initialization, and fails to start. Use a dedicated, empty
+> `subPath` instead of mounting the PVC root in this case.
 
 ### ConfigMap Parameters
 
