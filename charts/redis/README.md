@@ -227,11 +227,12 @@ Use the generic extension values when platform-specific integration is needed:
 | `auth.password` | Inline Redis password | `""` |
 | `auth.existingSecret` | Existing Secret containing the Redis password | `""` |
 | `auth.existingSecretPasswordKey` | Secret key used for the Redis password | `redis-password` |
+| `auth.sentinel` | Require password authentication on the Sentinel control plane | `false` |
 | `tls.enabled` | Enable Redis TLS settings. Requires `tls.existingSecret`. | `false` |
 | `standalone.persistence.enabled` | Enable persistence for standalone mode | `true` |
 | `replication.replicaCount` | Number of replica pods in replication mode | `2` |
 | `node.replicaCount` | Number of role-neutral Redis data nodes in Sentinel mode | `3` |
-| `node.persistence.enabled` | Persist Sentinel data-node AOF/RDB data | `false` |
+| `node.persistence.enabled` | Persist Sentinel data-node AOF/RDB data | `true` |
 | `sentinel.replicaCount` | Number of Sentinel pods | `3` |
 | `sentinel.masterSet` | Sentinel master set name used by Sentinel clients | `mymaster` |
 | `sentinel.quorum` | Sentinel quorum | `2` |

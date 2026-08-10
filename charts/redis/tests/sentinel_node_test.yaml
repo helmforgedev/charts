@@ -63,6 +63,29 @@ tests:
           path: data["node-entrypoint.sh"]
           pattern: "sentinel get-master-addr-by-name"
 
+  - it: should configure mutual TLS and TLS-aware Sentinel probes
+    set:
+      architecture: sentinel
+      tls.enabled: true
+      tls.existingSecret: redis-tls
+    asserts:
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "tls-auth-clients yes"
+        template: configmap.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].livenessProbe.exec.command[2]
+          pattern: "--tls.*--cert.*--key"
+        template: sentinel-statefulset.yaml
+
+  - it: should persist Sentinel data nodes by default
+    template: sentinel-node-statefulset.yaml
+    set:
+      architecture: sentinel
+    asserts:
+      - exists:
+          path: spec.volumeClaimTemplates[0]
+
   - it: should include startup and graceful failover safeguards
     set:
       architecture: sentinel

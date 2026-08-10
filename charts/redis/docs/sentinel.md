@@ -67,12 +67,18 @@ Data node pod names are role-neutral: `-node-0` is only the seed master at cold 
 |-----------|-------------|
 | `architecture` | Must be `sentinel` |
 | `node.replicaCount` | Number of Redis data nodes (use >= 2 for data HA) |
-| `node.persistence.enabled` | Data node PVCs (default `false`; peer discovery keeps topology safe without PVCs) |
+| `node.persistence.enabled` | Data node PVCs (default `true`; peer discovery still protects topology during discovery failures) |
+| `auth.sentinel` | Require password authentication on the Sentinel control plane |
 | `sentinel.replicaCount` | Number of Sentinel pods (independent of data nodes) |
 | `sentinel.masterSet` | Master set name that Sentinel clients use for primary discovery |
 | `sentinel.quorum` | Quorum for failover decisions |
 | `pdb.enabled` | Protection against planned disruption |
 | `metrics.enabled` | Exporter for monitoring |
+
+`auth.sentinel=false` keeps the Sentinel control plane unauthenticated while
+Redis data nodes remain protected by `auth.enabled`. Set it to `true` when
+Sentinel clients also need password authentication. When TLS is enabled,
+Sentinel requires a client certificate signed by the configured CA.
 
 ## Example
 
@@ -108,9 +114,9 @@ sentinel:
 
 ## Resilience and trade-offs
 
-### Default: persistence disabled
+### Default: persistence enabled
 
-`node.persistence.enabled` defaults to `false`. Data nodes use `emptyDir` for `/data`.
+`node.persistence.enabled` defaults to `true`. Each data node receives a PVC for `/data`.
 Anti-split-brain safety does not depend on the bootstrap marker surviving reschedules.
 When Sentinel is unreachable, each node probes peer `INFO replication` before choosing a role.
 
@@ -121,10 +127,10 @@ replica full-resync from an empty dataset. The chart mitigates this with
 `sentinel.startupFailoverGuard` (a fresh master refuses to resume while peers still
 hold data and forces a failover first). Residual data loss remains possible if these
 guards are disabled, if no replica is promotable, or if every data node restarts at
-the same time. Enable `node.persistence.enabled=true` when you need RDB/AOF to
-survive pod reschedules.
+the same time. Keep `node.persistence.enabled=true` when RDB/AOF and the
+bootstrap marker must survive pod reschedules.
 
-### Fail-closed with persistence enabled
+### Fail-closed behavior
 
 When persistence is enabled and a node was already bootstrapped, it refuses to start as an
 unconfirmed master if neither Sentinel nor any peer can confirm the current topology.
@@ -149,7 +155,7 @@ Sentinel is configured with `resolve-hostnames yes` and `announce-hostnames yes`
 
 Run on a lab cluster before production rollout. Shell bootstrap logic is not covered by helm unittest.
 
-1. Install with default values (`node.persistence.enabled=false`) and wait for Ready pods.
+1. Install with default values (`node.persistence.enabled=true`) and wait for Ready pods.
 2. Resolve the master via Sentinel and write a test key.
 3. Delete the current master pod; confirm another `-node-N` is promoted and the key survives.
 4. Scale Sentinel to 0 or block Sentinel traffic; delete and recreate `-node-0`.

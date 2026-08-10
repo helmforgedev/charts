@@ -259,14 +259,14 @@ tls-port {{ .Values.service.ports.sentinel }}
 tls-cert-file /tls/{{ .Values.tls.certFilename }}
 tls-key-file /tls/{{ .Values.tls.keyFilename }}
 tls-ca-cert-file /tls/{{ .Values.tls.caFilename }}
-tls-auth-clients no
+tls-auth-clients yes
 tls-replication yes
 {{- end }}
 {{- end -}}
 
 {{- define "redis.cliTlsArgs" -}}
 {{- if .Values.tls.enabled -}}
---tls --cacert /tls/{{ .Values.tls.caFilename }}
+--tls --cacert /tls/{{ .Values.tls.caFilename }} --cert /tls/{{ .Values.tls.certFilename }} --key /tls/{{ .Values.tls.keyFilename }}
 {{- end -}}
 {{- end -}}
 
@@ -349,11 +349,11 @@ annotations:
 {{- end -}}
 
 {{- define "redis.sentinelProbeCommand" -}}
-redis-cli -p {{ .Values.service.ports.sentinel }} ping
+redis-cli {{ include "redis.cliTlsArgs" . }} -p {{ .Values.service.ports.sentinel }} ping
 {{- end -}}
 
 {{- define "redis.sentinelReadyCommand" -}}
-redis-cli -p {{ .Values.service.ports.sentinel }} sentinel get-master-addr-by-name {{ .Values.sentinel.masterSet }} | grep -q .
+redis-cli {{ include "redis.cliTlsArgs" . }} -p {{ .Values.service.ports.sentinel }} sentinel get-master-addr-by-name {{ .Values.sentinel.masterSet }} | grep -q .
 {{- end -}}
 
 {{- define "redis.metricsVolumeMounts" -}}

@@ -80,8 +80,10 @@ data:
     PEERS="{{ include "redis.nodePeerFqdns" . }}"
     TLS_ARGS="{{ include "redis.cliTlsArgs" . }}"
     MARKER=/data/.helmforge-sentinel-node-bootstrapped
-    SELF_FQDN="$(hostname -f)"
+    SELF_FQDN="$(hostname -f 2>/dev/null || true)"
+    [ -n "$SELF_FQDN" ] || SELF_FQDN="$(hostname)"
     SELF_IP="$(hostname -i 2>/dev/null | awk '{ print $1 }')"
+    [ -n "$SELF_IP" ] || SELF_IP="$SELF_FQDN"
 
     # Data-plane auth flows through REDISCLI_AUTH set on the container (never on argv).
     # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
@@ -240,7 +242,9 @@ data:
     {
       echo "replica-announce-ip $SELF_FQDN"
       echo "replica-announce-port $REDIS_PORT"
-      [ -n "$master" ] && echo "replicaof $master $REDIS_PORT"
+      if [ -n "$master" ]; then
+        echo "replicaof $master $REDIS_PORT"
+      fi
     {{- if .Values.auth.enabled }}
       esc="$(printf '%s' "$REDIS_PASSWORD" | sed 's/[\\"]/\\&/g')"
       printf 'masterauth "%s"\n' "$esc"
@@ -262,8 +266,10 @@ data:
     SENTINEL_PORT={{ .Values.service.ports.sentinel }}
     MASTER_SET="{{ .Values.sentinel.masterSet }}"
     TLS_ARGS="{{ include "redis.cliTlsArgs" . }}"
-    SELF_FQDN="$(hostname -f)"
+    SELF_FQDN="$(hostname -f 2>/dev/null || true)"
+    [ -n "$SELF_FQDN" ] || SELF_FQDN="$(hostname)"
     SELF_IP="$(hostname -i 2>/dev/null | awk '{ print $1 }')"
+    [ -n "$SELF_IP" ] || SELF_IP="$SELF_FQDN"
 
     # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
     vcli() { redis-cli $TLS_ARGS "$@"; }

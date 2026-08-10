@@ -13,13 +13,13 @@ The `-primary` and `-replicas` Services are no longer created in sentinel mode. 
 
 Additionally:
 
-- `node.persistence.enabled` now defaults to `false` for sentinel data nodes.
+- `node.persistence.enabled` defaults to `true` for sentinel data nodes.
 - Data nodes probe peer `INFO replication` when Sentinel is unreachable, preventing split-brain on pod reschedule without PVCs.
 - Sentinel config includes `announce-hostnames yes` for stable hostname-based master discovery.
 
 ### Operational impact
 
-- Fresh installs no longer create node PVCs unless you set `node.persistence.enabled=true`.
+- Fresh installs create a PVC for every Sentinel data node by default.
 - With persistence enabled, nodes already bootstrapped fail closed when neither Sentinel nor peers can confirm the role until quorum or peer discovery recovers.
 - Enable persistence when RDB/AOF must survive pod reschedules; peer discovery covers topology safety.
 
@@ -39,10 +39,16 @@ Kubernetes StatefulSet names and PVC claim names are immutable. An in-place `hel
    architecture: sentinel
    node:
      replicaCount: 3  # was 1 primary + 2 replicas
+     persistence:
+       enabled: true
+       # Map storageClass, size, accessModes, and related settings from 1.x.
    sentinel:
      replicaCount: 3
      quorum: 2
    ```
+
+   Map `storageClass`, `size`, `accessModes`, and any other persistence settings
+   from the former primary and replica values before restoring data.
 
 6. **Restore data** into the new cluster if required, or let replicas resync from the seed master on a fresh install.
 
