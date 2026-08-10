@@ -71,7 +71,7 @@ ingress:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Image repository | `ghcr.io/timothepoznanski/poznote` |
-| `image.tag` | Image tag | `6.51.0` |
+| `image.tag` | Image tag | `6.57.1` |
 | `image.pullPolicy` | Pull policy | `IfNotPresent` |
 
 #### Application Parameters
@@ -141,10 +141,10 @@ This chart intentionally does NOT:
 
 ## Upgrade Notes
 
-Poznote `6.51.0` adds multiple diaries per workspace, checklist conversion for
-HTML notes, per-user Markdown colors, and pinned settings cards. It also removes
-fixed container names from upstream Compose examples, which does not affect the
-Kubernetes workload.
+Poznote `6.57.1` adds user webhooks, tenant-isolation controls, task management,
+optional S3 attachment and backup storage, an administrator activity log, and
+safer account deletion. The default local SQLite and filesystem deployment
+remains compatible; S3 integration is configured inside Poznote when needed.
 
 No upstream storage migration is required. Back up the `data` PVC before
 upgrading because it stores the SQLite database, notes, attachments, and
