@@ -43,6 +43,18 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
+{{- define "komga.validate" -}}
+{{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
+{{- fail "ingress.enabled requires at least one ingress.hosts entry" -}}
+{{- end -}}
+{{- if and .Values.gateway.enabled (not .Values.gateway.parentRefs) -}}
+{{- fail "gateway.enabled requires at least one gateway.parentRefs entry" -}}
+{{- end -}}
+{{- if and .Values.backup.enabled (not .Values.backup.s3.bucket) -}}
+{{- fail "backup.enabled requires backup.s3.bucket" -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Config PVC claim name */}}
 {{- define "komga.configClaimName" -}}
 {{- if .Values.persistence.config.existingClaim -}}
