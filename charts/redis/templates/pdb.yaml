@@ -6,10 +6,27 @@ metadata:
   name: {{ include "redis.fullname" . }}
   labels:
     {{- include "redis.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+  {{- include "redis.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
-  minAvailable: 1
+  maxUnavailable: 1
   selector:
     matchLabels:
-      {{- include "redis.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: redis
+      {{- include "redis.redisLabels" (dict "root" .) | nindent 6 }}
+{{- end }}
+{{- if and .Values.pdb.enabled (include "redis.isSentinel" .) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "redis.sentinelStatefulSetName" . }}
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sentinel
+  {{- include "redis.renderAnnotations" (dict "root" .) | nindent 2 }}
+spec:
+  minAvailable: {{ .Values.sentinel.quorum }}
+  selector:
+    matchLabels:
+      {{- include "redis.sentinelLabels" . | nindent 6 }}
 {{- end }}

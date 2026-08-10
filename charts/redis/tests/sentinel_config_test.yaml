@@ -14,7 +14,7 @@ tests:
     asserts:
       - matchRegex:
           path: data["sentinel.conf"]
-          pattern: "sentinel monitor mymaster test-redis-primary-0\\.test-redis-headless\\.redis-ns\\.svc\\.cluster\\.local 6379 2"
+          pattern: "sentinel monitor mymaster test-redis-node-0\\.test-redis-headless\\.redis-ns\\.svc\\.cluster\\.local 6379 2"
       - matchRegex:
           path: data["sentinel.conf"]
           pattern: "sentinel down-after-milliseconds mymaster 60000"
@@ -27,7 +27,7 @@ tests:
     asserts:
       - matchRegex:
           path: data["sentinel.conf"]
-          pattern: "sentinel monitor legacy-master test-redis-primary-0\\.test-redis-headless\\.redis-ns\\.svc\\.cluster\\.local 6379 2"
+          pattern: "sentinel monitor legacy-master test-redis-node-0\\.test-redis-headless\\.redis-ns\\.svc\\.cluster\\.local 6379 2"
       - matchRegex:
           path: data["sentinel.conf"]
           pattern: "sentinel down-after-milliseconds legacy-master 60000"
@@ -39,11 +39,14 @@ tests:
           pattern: "sentinel parallel-syncs legacy-master 1"
 
   - it: should use the custom Sentinel master set for auth-pass
-    template: sentinel-statefulset.yaml
+    template: configmap.yaml
     set:
       architecture: sentinel
       sentinel.masterSet: legacy-master
     asserts:
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "sentinel auth-pass legacy-master \\$\\{REDIS_PASSWORD\\}"
+          path: data["sentinel-entrypoint.sh"]
+          pattern: 'MASTER_SET="legacy-master"'
+      - matchRegex:
+          path: data["sentinel-entrypoint.sh"]
+          pattern: 'sentinel auth-pass %s'

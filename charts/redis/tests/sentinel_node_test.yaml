@@ -1,0 +1,96 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Sentinel Role-Neutral Nodes
+templates:
+  - configmap.yaml
+  - replication-primary-statefulset.yaml
+  - replication-replica-statefulset.yaml
+  - sentinel-node-statefulset.yaml
+  - sentinel-statefulset.yaml
+  - service.yaml
+release:
+  name: test
+  namespace: redis-ns
+tests:
+  - it: should render one role-neutral data-node StatefulSet in sentinel mode
+    template: sentinel-node-statefulset.yaml
+    set:
+      architecture: sentinel
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: metadata.name
+          value: test-redis-node
+      - equal:
+          path: spec.replicas
+          value: 3
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/role"]
+          value: node
+
+  - it: should not render the fixed primary StatefulSet in sentinel mode
+    template: replication-primary-statefulset.yaml
+    set:
+      architecture: sentinel
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render the fixed replica StatefulSet in sentinel mode
+    template: replication-replica-statefulset.yaml
+    set:
+      architecture: sentinel
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should configure symmetric authentication and stable hostnames
+    template: configmap.yaml
+    set:
+      architecture: sentinel
+      auth.enabled: true
+    asserts:
+      - matchRegex:
+          path: data["sentinel.conf"]
+          pattern: "sentinel announce-hostnames yes"
+      - matchRegex:
+          path: data["node-entrypoint.sh"]
+          pattern: "masterauth"
+      - matchRegex:
+          path: data["node-entrypoint.sh"]
+          pattern: "replica-announce-ip \\$SELF_FQDN"
+      - matchRegex:
+          path: data["node-entrypoint.sh"]
+          pattern: "sentinel get-master-addr-by-name"
+
+  - it: should include startup and graceful failover safeguards
+    set:
+      architecture: sentinel
+    asserts:
+      - matchRegex:
+          path: data["node-entrypoint.sh"]
+          pattern: "Anti-wipe guard"
+        template: configmap.yaml
+      - matchRegex:
+          path: data["node-entrypoint.sh"]
+          pattern: "Submit once"
+        template: configmap.yaml
+      - matchRegex:
+          path: data["node-prestop.sh"]
+          pattern: "Submit exactly one request"
+        template: configmap.yaml
+      - exists:
+          path: spec.template.spec.containers[0].lifecycle.preStop
+        template: sentinel-node-statefulset.yaml
+
+  - it: should expose Sentinel without a primary Service in sentinel mode
+    template: service.yaml
+    set:
+      architecture: sentinel
+    asserts:
+      - hasDocuments:
+          count: 3
+      - equal:
+          path: metadata.name
+          value: test-redis-sentinel
+        documentIndex: 2

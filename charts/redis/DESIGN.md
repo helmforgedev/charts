@@ -84,15 +84,14 @@ flowchart LR
   SentinelSvc --> Sentinel0[sentinel-0]
   SentinelSvc --> Sentinel1[sentinel-1]
   SentinelSvc --> Sentinel2[sentinel-2]
-  Sentinel0 --> Primary[redis-primary-0]
-  Sentinel1 --> Primary
-  Sentinel2 --> Primary
-  Replica[redis-replica-0] --> Primary
-  Primary --> PrimaryPVC[(Primary PVC)]
-  Replica --> ReplicaPVC[(Replica PVC)]
+  Sentinel0 --> Nodes[redis-node-0..N]
+  Sentinel1 --> Nodes
+  Sentinel2 --> Nodes
+  Nodes --> Data[(Optional per-node PVCs)]
 ```
 
-Sentinel is a distinct architecture because it changes the client contract. Sentinel pods wait for the primary before startup and use hostname resolution so custom cluster domains work consistently.
+Sentinel is a distinct architecture because it changes the client contract. Data nodes are role-neutral and discover the elected master through Sentinel or peer replication state.
+Stable announced hostnames, graceful failover, and the startup anti-wipe guard keep topology safe across pod IP churn and voluntary disruption.
 
 ### Redis Cluster
 
@@ -141,11 +140,11 @@ It does not try to replace dedicated Redis Cluster operational tooling for resha
 
 ### Sentinel Resources
 
-- primary and replica Redis resources
-- Sentinel StatefulSet
-- Sentinel service
-- Sentinel configuration with hostname resolution
-- startup wait loop for primary reachability
+- role-neutral Redis node StatefulSet, independently sized with `node.replicaCount`
+- Sentinel StatefulSet, independently sized with `sentinel.replicaCount`
+- Sentinel service as the client discovery contract
+- hostname-based Redis and Sentinel announcements
+- peer-aware bootstrap, graceful failover, and startup anti-wipe guard
 
 ### Cluster Resources
 

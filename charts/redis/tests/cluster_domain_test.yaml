@@ -18,7 +18,7 @@ tests:
     asserts:
       - matchRegex:
           path: data["sentinel.conf"]
-          pattern: "sentinel monitor mymaster test-redis-primary-0\\.test-redis-headless\\.custom-ns\\.svc\\.corp\\.internal 6379 2"
+          pattern: "sentinel monitor mymaster test-redis-node-0\\.test-redis-headless\\.custom-ns\\.svc\\.corp\\.internal 6379 2"
       - matchRegex:
           path: data["sentinel.conf"]
           pattern: "sentinel resolve-hostnames yes"
@@ -39,20 +39,15 @@ tests:
           path: spec.template.spec.containers[0].args[0]
           pattern: "svc\\.cluster\\.local"
 
-  - it: should wait for custom primary FQDN before starting sentinel
-    template: sentinel-statefulset.yaml
+  - it: should discover the custom seed FQDN before starting sentinel
+    template: configmap.yaml
     set:
       architecture: sentinel
       clusterDomain: corp.internal
     asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: REDIS_PRIMARY_HOST
-            value: test-redis-primary-0.test-redis-headless.custom-ns.svc.corp.internal
       - matchRegex:
-          path: spec.template.spec.containers[0].args[0]
-          pattern: "until redis-cli -h \"\\$REDIS_PRIMARY_HOST\""
+          path: data["sentinel-entrypoint.sh"]
+          pattern: 'SEED_MASTER="test-redis-node-0\.test-redis-headless\.custom-ns\.svc\.corp\.internal"'
 
   - it: should use custom cluster domain in cluster announce hostname
     template: cluster-statefulset.yaml

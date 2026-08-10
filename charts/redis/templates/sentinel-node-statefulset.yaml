@@ -1,0 +1,183 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if include "redis.isSentinel" . }}
+{{- if lt (int .Values.sentinel.replicaCount) 3 }}
+{{- fail "sentinel.replicaCount must be at least 3 for a reliable Sentinel quorum in HA configurations" }}
+{{- end }}
+{{- if gt (int .Values.sentinel.quorum) (int .Values.sentinel.replicaCount) }}
+{{- fail (printf "sentinel.quorum (%v) cannot exceed sentinel.replicaCount (%v)" .Values.sentinel.quorum .Values.sentinel.replicaCount) }}
+{{- end }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "redis.nodeStatefulSetName" . }}
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+  {{- include "redis.renderAnnotations" (dict "root" .) | nindent 2 }}
+spec:
+  serviceName: {{ include "redis.headlessServiceName" . }}
+  replicas: {{ .Values.node.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "redis.redisLabels" (dict "root" . "role" "node") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "redis.redisLabels" (dict "root" . "role" "node") | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.auth.enabled }}
+        checksum/auth-secret: {{ include "redis.authChecksum" . }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "redis.podSpec" (dict "root" . "role" "node") | nindent 6 }}
+      initContainers:
+        - name: wait-for-master
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "/scripts/node-entrypoint.sh", "--wait-only"]
+          {{- if .Values.auth.enabled }}
+          env:
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "redis.secretName" . }}
+                  key: {{ .Values.auth.existingSecretPasswordKey }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
+      containers:
+        - name: redis
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "/scripts/node-entrypoint.sh"]
+          {{- if .Values.sentinel.gracefulFailover.enabled }}
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "/scripts/node-prestop.sh"]
+          {{- end }}
+          ports:
+            - name: redis
+              containerPort: {{ .Values.service.ports.redis }}
+          env:
+            {{- if .Values.auth.enabled }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "redis.secretName" . }}
+                  key: {{ .Values.auth.existingSecretPasswordKey }}
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "redis.secretName" . }}
+                  key: {{ .Values.auth.existingSecretPasswordKey }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - {{ include "redis.nodeProbeCommand" . | quote }}
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - {{ include "redis.nodeProbeCommand" . | quote }}
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - {{ include "redis.nodeProbeCommand" . | quote }}
+            {{- toYaml .Values.startupProbe | nindent 12 }}
+          {{- with .Values.node.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/redis/redis.conf
+              subPath: redis-node.conf
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+            - name: data
+              mountPath: /data
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- if .Values.metrics.enabled }}
+        - name: metrics
+          image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
+          imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
+          env:
+            {{- include "redis.exporterEnv" . | nindent 12 }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.service.ports.metrics }}
+          {{- include "redis.metricsVolumeMounts" . | nindent 10 }}
+          {{- with .Values.metrics.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+        {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "redis.configMapName" . }}
+        - name: scripts
+          configMap:
+            name: {{ include "redis.configMapName" . }}
+            defaultMode: 0555
+            items:
+              - key: node-entrypoint.sh
+                path: node-entrypoint.sh
+              - key: node-prestop.sh
+                path: node-prestop.sh
+        {{- if not .Values.node.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+        {{- if .Values.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ .Values.tls.existingSecret }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+  {{- if .Values.node.persistence.enabled }}
+  volumeClaimTemplates:
+    {{- include "redis.volumeClaimTemplate" (dict "root" . "persistence" .Values.node.persistence) | nindent 4 }}
+  {{- end }}
+{{- end }}

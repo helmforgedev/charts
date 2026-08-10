@@ -39,7 +39,7 @@ helm install redis oci://ghcr.io/helmforgedev/helm/redis -f values.yaml
 |-------------|----------|-------------------|----------|
 | `standalone` | One Redis pod, lowest operational complexity, no HA contract | headless Service, client Service, StatefulSet | [docs/standalone.md](docs/standalone.md) |
 | `replication` | One fixed primary with read replicas, no automatic promotion | headless Service, primary Service, replica Service, primary and replica StatefulSets | [docs/replication.md](docs/replication.md) |
-| `sentinel` | Redis replication plus Sentinel primary discovery and failover for compatible clients | replication resources, Sentinel Service, Sentinel StatefulSet | [docs/sentinel.md](docs/sentinel.md) |
+| `sentinel` | Role-neutral Redis nodes plus Sentinel discovery and automatic failover | node StatefulSet, Sentinel Service, Sentinel StatefulSet | [docs/sentinel.md](docs/sentinel.md) |
 | `cluster` | Redis Cluster sharding and HA for Redis Cluster-compatible clients | headless Service, client Service, cluster StatefulSet, cluster init Job | [docs/cluster.md](docs/cluster.md) |
 
 ## How to choose the architecture
@@ -121,7 +121,7 @@ The chart creates a headless Service for stable StatefulSet pod DNS and topology
 |------|-----------------------|
 | `standalone` | `<release>-redis-client` |
 | `replication` | `<release>-redis-primary` for writes, `<release>-redis-replicas` for reads |
-| `sentinel` | `<release>-redis-sentinel` for Sentinel, plus replication services |
+| `sentinel` | `<release>-redis-sentinel`; Sentinel-aware clients discover the elected master |
 | `cluster` | `<release>-redis-client` |
 
 ### Cluster domain
@@ -155,6 +155,7 @@ Persistence is configured under each topology:
 - `standalone.persistence`
 - `replication.primary.persistence`
 - `replication.replica.persistence`
+- `node.persistence` for role-neutral Sentinel data nodes
 - `sentinel.persistence`
 - `cluster.persistence`
 
@@ -228,10 +229,14 @@ Use the generic extension values when platform-specific integration is needed:
 | `auth.existingSecretPasswordKey` | Secret key used for the Redis password | `redis-password` |
 | `tls.enabled` | Enable Redis TLS settings. Requires `tls.existingSecret`. | `false` |
 | `standalone.persistence.enabled` | Enable persistence for standalone mode | `true` |
-| `replication.replicaCount` | Number of replica pods in replication and sentinel modes | `2` |
+| `replication.replicaCount` | Number of replica pods in replication mode | `2` |
+| `node.replicaCount` | Number of role-neutral Redis data nodes in Sentinel mode | `3` |
+| `node.persistence.enabled` | Persist Sentinel data-node AOF/RDB data | `false` |
 | `sentinel.replicaCount` | Number of Sentinel pods | `3` |
 | `sentinel.masterSet` | Sentinel master set name used by Sentinel clients | `mymaster` |
 | `sentinel.quorum` | Sentinel quorum | `2` |
+| `sentinel.gracefulFailover.enabled` | Request failover before voluntary master shutdown | `true` |
+| `sentinel.startupFailoverGuard.enabled` | Prevent an empty recreated node from resuming as master | `true` |
 | `cluster.nodes` | Number of Redis Cluster nodes | `6` |
 | `cluster.replicasPerMaster` | Redis Cluster replicas per master | `1` |
 | `service.type` | Client Service type where applicable | `ClusterIP` |
@@ -279,6 +284,7 @@ See `examples/`:
 
 - `replication` and `sentinel` are different operational contracts.
 - `sentinel` requires Sentinel-compatible clients for automatic primary discovery.
+- Upgrading Sentinel deployments from 1.x is breaking; follow [UPGRADING.md](UPGRADING.md).
 - `cluster` requires Redis Cluster-compatible clients.
 - If `auth.password` is not set and `auth.existingSecret` is not used, the chart generates a password automatically.
 - If your cluster domain is not `cluster.local`, set `clusterDomain` before installing stateful topologies.

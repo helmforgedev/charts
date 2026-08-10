@@ -1,44 +1,449 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and .Values.tls.enabled (not .Values.tls.existingSecret) }}
+{{- fail "tls.enabled requires tls.existingSecret" }}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ include "redis.configMapName" . }}
   labels:
     {{- include "redis.labels" . | nindent 4 }}
+  {{- include "redis.renderAnnotations" (dict "root" .) | nindent 2 }}
 data:
+  {{- if eq .Values.architecture "standalone" }}
   redis-standalone.conf: |
     {{- include "redis.commonConfig" . | nindent 4 }}
     {{- with .Values.config.redis }}
     {{ . | nindent 4 }}
     {{- end }}
+  {{- end }}
+  {{- if eq .Values.architecture "replication" }}
   redis-primary.conf: |
     {{- include "redis.commonConfig" . | nindent 4 }}
+    {{- if .Values.tls.enabled }}
+    tls-replication yes
+    {{- end }}
     {{- with .Values.config.redis }}
     {{ . | nindent 4 }}
     {{- end }}
   redis-replica.conf: |
     {{- include "redis.commonConfig" . | nindent 4 }}
+    {{- if .Values.tls.enabled }}
+    tls-replication yes
+    {{- end }}
     replica-read-only yes
     {{- with .Values.config.redis }}
     {{ . | nindent 4 }}
     {{- end }}
-  redis-cluster.conf: |
+  {{- end }}
+  {{- if eq .Values.architecture "sentinel" }}
+  redis-node.conf: |
     {{- include "redis.commonConfig" . | nindent 4 }}
-    cluster-enabled yes
-    cluster-config-file nodes.conf
-    cluster-node-timeout 5000
-    appendonly yes
+    {{- if .Values.tls.enabled }}
+    tls-replication yes
+    {{- end }}
+    replica-read-only yes
     {{- with .Values.config.redis }}
     {{ . | nindent 4 }}
     {{- end }}
   sentinel.conf: |
+    # HelmForge managed sentinel config begin
+    {{- if .Values.tls.enabled }}
+    {{- include "redis.sentinelTlsConfig" . | nindent 4 }}
+    {{- else }}
     port {{ .Values.service.ports.sentinel }}
+    {{- end }}
     dir /tmp
     sentinel resolve-hostnames yes
-    sentinel monitor {{ .Values.sentinel.masterSet }} {{ include "redis.primaryPodFqdn" . }} {{ .Values.service.ports.redis }} {{ .Values.sentinel.quorum }}
+    sentinel announce-hostnames yes
+    sentinel monitor {{ .Values.sentinel.masterSet }} {{ include "redis.nodePodFqdn" . }} {{ .Values.service.ports.redis }} {{ .Values.sentinel.quorum }}
     sentinel down-after-milliseconds {{ .Values.sentinel.masterSet }} {{ .Values.sentinel.downAfterMilliseconds }}
     sentinel failover-timeout {{ .Values.sentinel.masterSet }} {{ .Values.sentinel.failoverTimeout }}
     sentinel parallel-syncs {{ .Values.sentinel.masterSet }} {{ .Values.sentinel.parallelSyncs }}
     {{- with .Values.config.sentinel }}
     {{ . | nindent 4 }}
     {{- end }}
+    # HelmForge managed sentinel config end
+  node-entrypoint.sh: |
+    #!/bin/sh
+    # Shared bootstrap for sentinel-mode data nodes.
+    # Usage: node-entrypoint.sh            -> discover role, write runtime config, exec redis-server
+    #        node-entrypoint.sh --wait-only -> bounded init-container wait (never blocks recovery)
+    set -eu
+
+    MODE="${1:-run}"
+    REDIS_PORT={{ .Values.service.ports.redis }}
+    SENTINEL_HOST="{{ include "redis.sentinelServiceFqdn" . }}"
+    SENTINEL_PORT={{ .Values.service.ports.sentinel }}
+    MASTER_SET="{{ .Values.sentinel.masterSet }}"
+    SEED_MASTER="{{ include "redis.nodePodFqdn" . }}"
+    PEERS="{{ include "redis.nodePeerFqdns" . }}"
+    TLS_ARGS="{{ include "redis.cliTlsArgs" . }}"
+    MARKER=/data/.helmforge-sentinel-node-bootstrapped
+    SELF_FQDN="$(hostname -f)"
+    SELF_IP="$(hostname -i 2>/dev/null | awk '{ print $1 }')"
+
+    # Data-plane auth flows through REDISCLI_AUTH set on the container (never on argv).
+    # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
+    vcli() { redis-cli $TLS_ARGS "$@"; }
+    {{- if and .Values.auth.enabled (not .Values.auth.sentinel) }}
+    # Sentinel control plane is unauthenticated: strip inherited credentials.
+    # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
+    scli() { env -u REDISCLI_AUTH redis-cli $TLS_ARGS -h "$SENTINEL_HOST" -p "$SENTINEL_PORT" "$@"; }
+    {{- else }}
+    # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
+    scli() { redis-cli $TLS_ARGS -h "$SENTINEL_HOST" -p "$SENTINEL_PORT" "$@"; }
+    {{- end }}
+
+    is_self() { [ "$1" = "$SELF_FQDN" ] || [ "$1" = "$SELF_IP" ]; }
+
+    sentinel_master() {
+      scli sentinel get-master-addr-by-name "$MASTER_SET" 2>/dev/null | awk 'NR == 1 { print $1 }'
+    }
+
+    peer_info() { vcli -h "$1" -p "$REDIS_PORT" info replication 2>/dev/null || true; }
+
+    peer_master() {
+      for peer in $PEERS; do
+        [ "$peer" = "$SELF_FQDN" ] && continue
+        info="$(peer_info "$peer")"
+        [ -z "$info" ] && continue
+        role="$(printf '%s\n' "$info" | sed -n 's/^role://p' | tr -d '\r')"
+        case "$role" in
+          master)
+            echo "$peer"
+            return 0
+            ;;
+          slave|replica)
+            mh="$(printf '%s\n' "$info" | sed -n 's/^master_host://p' | tr -d '\r')"
+            if [ -n "$mh" ]; then
+              echo "$mh"
+              return 0
+            fi
+            ;;
+        esac
+      done
+      return 1
+    }
+
+    peer_replicates_self() {
+      for peer in $PEERS; do
+        [ "$peer" = "$SELF_FQDN" ] && continue
+        info="$(peer_info "$peer")"
+        [ -z "$info" ] && continue
+        role="$(printf '%s\n' "$info" | sed -n 's/^role://p' | tr -d '\r')"
+        mh="$(printf '%s\n' "$info" | sed -n 's/^master_host://p' | tr -d '\r')"
+        case "$role" in
+          slave|replica) is_self "$mh" && return 0 ;;
+        esac
+      done
+      return 1
+    }
+
+    discover_master() {
+      i=0
+      while [ "$i" -lt 30 ]; do
+        m="$(sentinel_master)"
+        if [ -n "$m" ]; then
+          echo "$m"
+          return 0
+        fi
+        i=$((i + 1))
+        echo "waiting for Sentinel master discovery ($i/30)" >&2
+        sleep 2
+      done
+      peer_master
+    }
+
+    if [ "$MODE" = "--wait-only" ]; then
+      # Bounded, re-resolving wait: the previous unbounded ping loop could deadlock
+      # every replica behind a permanently dead master while Sentinel had no live
+      # replica left to promote. If the master cannot be confirmed in time, defer to
+      # the main container, which owns the fail-closed decision.
+      i=0
+      while [ "$i" -lt 24 ]; do
+        m="$(sentinel_master)"
+        [ -z "$m" ] && m="$(peer_master || true)"
+        if [ -z "$m" ] || is_self "$m"; then
+          exit 0
+        fi
+        if vcli -h "$m" -p "$REDIS_PORT" ping >/dev/null 2>&1; then
+          exit 0
+        fi
+        i=$((i + 1))
+        echo "waiting for master $m:$REDIS_PORT ($i/24)"
+        sleep 5
+      done
+      echo "master not confirmed after bounded wait; deferring to main container"
+      exit 0
+    fi
+
+    master="$(discover_master || true)"
+
+    {{- if .Values.sentinel.startupFailoverGuard.enabled }}
+    # Anti-wipe guard: a master pod recreated on an empty volume inside the
+    # down-after-milliseconds window is still designated master by Sentinel. Starting
+    # it empty would make every replica full-resync from an empty dataset. If peers
+    # still replicate from us and we have no bootstrap marker, force a failover so a
+    # data-bearing replica is promoted first, then join as its replica.
+    if [ -n "$master" ] && is_self "$master" && [ ! -f "$MARKER" ] && peer_replicates_self; then
+      echo "fresh data dir while topology still designates this pod as master and peers hold data"
+      echo "requesting Sentinel failover to avoid replicas resyncing from an empty dataset"
+      # The Service may route each call to a different Sentinel. Submit once and
+      # only poll afterwards so the quorum converges on one forced-failover epoch.
+      scli sentinel failover "$MASTER_SET" >/dev/null 2>&1 || true
+      i=0
+      while [ "$i" -lt {{ int .Values.sentinel.startupFailoverGuard.maxAttempts }} ]; do
+        sleep 3
+        m="$(sentinel_master)"
+        if [ -n "$m" ] && ! is_self "$m"; then
+          master="$m"
+          break
+        fi
+        i=$((i + 1))
+      done
+      if is_self "$master"; then
+        echo "WARNING: forced failover did not complete; starting as master (replicas may resync from an empty dataset)"
+      fi
+    fi
+    {{- end }}
+
+    if [ -n "$master" ]; then
+      if is_self "$master"; then
+        echo "this pod is the current master target; starting without replicaof"
+        master=""
+      else
+        echo "starting as replica of $master:$REDIS_PORT"
+      fi
+    elif [ -f "$MARKER" ]; then
+      echo "master discovery failed for an already bootstrapped node; refusing to start as an unconfirmed master"
+      exit 1
+    else
+      case "$(hostname)" in
+        *-0)
+          echo "Sentinel and peers unavailable during first bootstrap; starting as seed master"
+          ;;
+        *)
+          echo "Sentinel and peers unavailable during first bootstrap; seeding from $SEED_MASTER:$REDIS_PORT"
+          master="$SEED_MASTER"
+          ;;
+      esac
+    fi
+
+    # Secrets and per-pod directives are written to a 0600 runtime config instead of
+    # argv, so they never show up in /proc/<pid>/cmdline. replica-announce-* keeps
+    # Sentinel state hostname-based across failovers instead of decaying to pod IPs.
+    RUNTIME=/data/.redis-runtime.conf
+    umask 077
+    rm -f "$RUNTIME"
+    cp /etc/redis/redis.conf "$RUNTIME"
+    {
+      echo "replica-announce-ip $SELF_FQDN"
+      echo "replica-announce-port $REDIS_PORT"
+      [ -n "$master" ] && echo "replicaof $master $REDIS_PORT"
+    {{- if .Values.auth.enabled }}
+      esc="$(printf '%s' "$REDIS_PASSWORD" | sed 's/[\\"]/\\&/g')"
+      printf 'masterauth "%s"\n' "$esc"
+      printf 'requirepass "%s"\n' "$esc"
+    {{- end }}
+    } >> "$RUNTIME"
+    touch "$MARKER"
+    exec redis-server "$RUNTIME"
+  node-prestop.sh: |
+    #!/bin/sh
+    # Graceful demotion: when the active master receives SIGTERM (rollout, drain,
+    # delete), promote a replica through Sentinel before shutting down instead of
+    # letting clients eat the full down-after-milliseconds detection window.
+    # Total budget must stay below terminationGracePeriodSeconds. Never fails.
+    set -u
+
+    REDIS_PORT={{ .Values.service.ports.redis }}
+    SENTINEL_HOST="{{ include "redis.sentinelServiceFqdn" . }}"
+    SENTINEL_PORT={{ .Values.service.ports.sentinel }}
+    MASTER_SET="{{ .Values.sentinel.masterSet }}"
+    TLS_ARGS="{{ include "redis.cliTlsArgs" . }}"
+    SELF_FQDN="$(hostname -f)"
+    SELF_IP="$(hostname -i 2>/dev/null | awk '{ print $1 }')"
+
+    # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
+    vcli() { redis-cli $TLS_ARGS "$@"; }
+    {{- if and .Values.auth.enabled (not .Values.auth.sentinel) }}
+    # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
+    scli() { env -u REDISCLI_AUTH redis-cli $TLS_ARGS -h "$SENTINEL_HOST" -p "$SENTINEL_PORT" "$@"; }
+    {{- else }}
+    # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
+    scli() { redis-cli $TLS_ARGS -h "$SENTINEL_HOST" -p "$SENTINEL_PORT" "$@"; }
+    {{- end }}
+
+    role="$(vcli -p "$REDIS_PORT" info replication 2>/dev/null | sed -n 's/^role://p' | tr -d '\r')"
+    [ "$role" = "master" ] || exit 0
+
+    slaves="$(vcli -p "$REDIS_PORT" info replication 2>/dev/null | sed -n 's/^connected_slaves://p' | tr -d '\r')"
+    case "${slaves:-0}" in '' | *[!0-9]*) slaves=0 ;; esac
+    if [ "$slaves" -lt 1 ]; then
+      echo "active master has no connected replicas; nothing to promote"
+      exit 0
+    fi
+
+    echo "active master shutting down; requesting Sentinel failover"
+    # Submit exactly one request. SENTINEL_HOST is a load-balanced Service, so
+    # retrying the command can ask different Sentinels to start competing forced
+    # failovers and leave the election stuck in wait_start.
+    scli sentinel failover "$MASTER_SET" >/dev/null 2>&1 || true
+    i=0
+    while [ "$i" -lt {{ int .Values.sentinel.gracefulFailover.maxAttempts }} ]; do
+      sleep 3
+      m="$(scli sentinel get-master-addr-by-name "$MASTER_SET" 2>/dev/null | awk 'NR == 1 { print $1 }')"
+      if [ -n "$m" ] && [ "$m" != "$SELF_FQDN" ] && [ "$m" != "$SELF_IP" ]; then
+        echo "failover completed: new master is $m"
+        exit 0
+      fi
+      i=$((i + 1))
+    done
+    echo "failover not confirmed within budget; continuing shutdown"
+    exit 0
+  sentinel-entrypoint.sh: |
+    #!/bin/sh
+    set -eu
+
+    REDIS_PORT={{ .Values.service.ports.redis }}
+    SENTINEL_PORT={{ .Values.service.ports.sentinel }}
+    MASTER_SET="{{ .Values.sentinel.masterSet }}"
+    SEED_MASTER="{{ include "redis.nodePodFqdn" . }}"
+    PEERS="{{ include "redis.nodePeerFqdns" . }}"
+    TLS_ARGS="{{ include "redis.cliTlsArgs" . }}"
+    CONF=/data/sentinel.conf
+    BASE=/etc/redis-base/sentinel.conf
+
+    # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
+    {{- if .Values.auth.enabled }}
+    vcli() { REDISCLI_AUTH="$REDIS_PASSWORD" timeout 5 redis-cli $TLS_ARGS "$@"; }
+    {{- else }}
+    vcli() { timeout 5 redis-cli $TLS_ARGS "$@"; }
+    {{- end }}
+
+    find_current_master() {
+      for peer in $PEERS; do
+        info="$(vcli -h "$peer" -p "$REDIS_PORT" info replication 2>/dev/null || true)"
+        [ -z "$info" ] && continue
+        role="$(printf '%s\n' "$info" | sed -n 's/^role://p' | tr -d '\r')"
+        if [ "$role" = "master" ]; then
+          echo "$peer"
+          return 0
+        fi
+      done
+      return 1
+    }
+
+    if [ ! -f "$CONF" ]; then
+      # First boot of this Sentinel replica. The static seed (node-0) is only a
+      # cold-start hint: if a failover already happened and this pod lost its
+      # emptyDir, monitoring node-0 again would advertise a stale master until
+      # hello-channel gossip converges. Probe the data plane for the real master.
+      # Discover the node currently reporting role:master, not merely a reachable
+      # seed. After a failover the seed (node-0) is a live *replica*, and a
+      # Sentinel seeded on a replica never redirects to the real master — it would
+      # advertise that replica to clients. Fall back to the seed only if no node
+      # answers as master within the bounded budget.
+      master=""
+      i=0
+      while :; do
+        if m="$(find_current_master)"; then
+          master="$m"
+          break
+        fi
+        i=$((i + 1))
+        if [ "$i" -ge 6 ]; then
+          master="$SEED_MASTER"
+          echo "no master discovered after bounded wait; monitoring seed $master anyway"
+          break
+        fi
+        echo "waiting to discover current master ($i/6)"
+        sleep 3
+      done
+      cp "$BASE" "$CONF"
+      if [ "$master" != "$SEED_MASTER" ]; then
+        sed -i "s|^sentinel monitor $MASTER_SET .*|sentinel monitor $MASTER_SET $master $REDIS_PORT {{ int .Values.sentinel.quorum }}|" "$CONF"
+      fi
+    else
+      persisted_monitor="$(grep "^sentinel monitor $MASTER_SET " "$CONF" | tail -n 1 || true)"
+      append_sentinel_base() {
+        if [ -n "$persisted_monitor" ]; then
+          awk -v monitor="$persisted_monitor" '
+            /^sentinel monitor {{ .Values.sentinel.masterSet }} / { print monitor; next }
+            { print }
+          ' "$BASE" >> "$CONF"
+        else
+          cat "$BASE" >> "$CONF"
+        fi
+      }
+      if grep -q '^# HelmForge managed sentinel config begin$' "$CONF"; then
+        sed -i '/^# HelmForge managed sentinel config begin$/,/^# HelmForge managed sentinel config end$/d' "$CONF"
+      else
+        sed -i \
+          -e '/^port /d' \
+          -e '/^tls-port /d' \
+          -e '/^tls-cert-file /d' \
+          -e '/^tls-key-file /d' \
+          -e '/^tls-ca-cert-file /d' \
+          -e '/^tls-auth-clients /d' \
+          -e '/^tls-replication /d' \
+          -e '/^dir /d' \
+          -e '/^sentinel resolve-hostnames /d' \
+          -e '/^sentinel announce-hostnames /d' \
+          -e "/^sentinel monitor $MASTER_SET /d" \
+          -e "/^sentinel down-after-milliseconds $MASTER_SET /d" \
+          -e "/^sentinel failover-timeout $MASTER_SET /d" \
+          -e "/^sentinel parallel-syncs $MASTER_SET /d" \
+          "$CONF"
+      fi
+      append_sentinel_base
+    fi
+
+    # Stable per-pod identity: without an announced hostname, every emptyDir
+    # restart re-registers this Sentinel under a new IP+runid, and the dead entry
+    # is never garbage-collected, silently inflating the majority required for
+    # failover authorization. A stable address lets peers replace the old entry.
+    sed -i -e '/^sentinel announce-ip /d' -e '/^sentinel announce-port /d' "$CONF"
+    {
+      echo "sentinel announce-ip $(hostname -f)"
+      echo "sentinel announce-port $SENTINEL_PORT"
+    } >> "$CONF"
+    {{- if .Values.auth.enabled }}
+    esc="$(printf '%s' "$REDIS_PASSWORD" | sed 's/[\\"]/\\&/g')"
+    sed -i "/^sentinel auth-pass $MASTER_SET /d" "$CONF"
+    printf 'sentinel auth-pass %s "%s"\n' "$MASTER_SET" "$esc" >> "$CONF"
+    {{- end }}
+    sed -i -e '/^requirepass /d' -e '/^sentinel sentinel-pass /d' "$CONF"
+    {{- if and .Values.auth.enabled .Values.auth.sentinel }}
+    printf 'requirepass "%s"\n' "$esc" >> "$CONF"
+    printf 'sentinel sentinel-pass "%s"\n' "$esc" >> "$CONF"
+    {{- end }}
+
+    # Optional hardening: pin a stable Sentinel identity (runid). Sentinel only
+    # generates a random myid when none is set, so a deterministic one derived
+    # from the pod's ordinal name and this release keeps the id stable across
+    # emptyDir restarts without a PVC, so peers update the existing entry instead
+    # of accumulating dead ones. Inputs are DNS-independent (short hostname from
+    # the kernel, namespace/name baked at render time).
+    if ! grep -q '^sentinel myid ' "$CONF"; then
+      MYID="$(printf '%s' '{{ .Release.Namespace }}/{{ include "redis.fullname" . }}/'"$(hostname)" | sha1sum | awk '{ print $1 }')"
+      echo "sentinel myid $MYID" >> "$CONF"
+    fi
+    exec redis-sentinel "$CONF"
+  {{- end }}
+  {{- if eq .Values.architecture "cluster" }}
+  redis-cluster.conf: |
+    {{- include "redis.commonConfig" . | nindent 4 }}
+    cluster-enabled yes
+    cluster-config-file nodes.conf
+    cluster-node-timeout 5000
+    {{- if .Values.tls.enabled }}
+    tls-cluster yes
+    tls-replication yes
+    {{- end }}
+    appendonly yes
+    {{- with .Values.config.redis }}
+    {{ . | nindent 4 }}
+    {{- end }}
+  {{- end }}

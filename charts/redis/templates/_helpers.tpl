@@ -119,6 +119,10 @@ Common names.
 {{- printf "%s-sentinel" (include "redis.fullname" .) -}}
 {{- end -}}
 
+{{- define "redis.sentinelHeadlessServiceName" -}}
+{{- printf "%s-sentinel-headless" (include "redis.fullname" .) -}}
+{{- end -}}
+
 {{- define "redis.metricsServiceName" -}}
 {{- printf "%s-metrics" (include "redis.fullname" .) -}}
 {{- end -}}
@@ -137,6 +141,10 @@ Common names.
 
 {{- define "redis.clusterStatefulSetName" -}}
 {{- printf "%s-cluster" (include "redis.fullname" .) -}}
+{{- end -}}
+
+{{- define "redis.nodeStatefulSetName" -}}
+{{- printf "%s-node" (include "redis.fullname" .) -}}
 {{- end -}}
 
 {{- define "redis.configMapName" -}}
@@ -179,6 +187,19 @@ Common names.
 {{- printf "%s-0.%s" (include "redis.primaryStatefulSetName" .) (include "redis.headlessServiceFqdn" .) -}}
 {{- end -}}
 
+{{- define "redis.nodePodFqdn" -}}
+{{- printf "%s-0.%s" (include "redis.nodeStatefulSetName" .) (include "redis.headlessServiceFqdn" .) -}}
+{{- end -}}
+
+{{- define "redis.nodePeerFqdns" -}}
+{{- $root := . -}}
+{{- $fqdns := list -}}
+{{- range $i := until (int .Values.node.replicaCount) -}}
+{{- $fqdns = append $fqdns (printf "%s-%d.%s" (include "redis.nodeStatefulSetName" $root) $i (include "redis.headlessServiceFqdn" $root)) -}}
+{{- end -}}
+{{- join " " $fqdns -}}
+{{- end -}}
+
 {{- define "redis.clusterPodFqdn" -}}
 {{- printf "%s.%s" .podName (include "redis.headlessServiceFqdn" .root) -}}
 {{- end -}}
@@ -198,7 +219,12 @@ Secret value helpers.
 {{- else -}}
 {{- randAlphaNum 32 -}}
 {{- end -}}
+
 {{- end -}}
+{{- end -}}
+
+{{- define "redis.authChecksum" -}}
+{{- dict "password" .Values.auth.password "existingSecret" .Values.auth.existingSecret "key" .Values.auth.existingSecretPasswordKey "externalSecrets" .Values.externalSecrets | toJson | sha256sum -}}
 {{- end -}}
 
 {{/*
@@ -224,6 +250,24 @@ tls-key-file /tls/{{ .Values.tls.keyFilename }}
 tls-ca-cert-file /tls/{{ .Values.tls.caFilename }}
 tls-auth-clients no
 {{- end }}
+{{- end -}}
+
+{{- define "redis.sentinelTlsConfig" -}}
+{{- if .Values.tls.enabled }}
+port 0
+tls-port {{ .Values.service.ports.sentinel }}
+tls-cert-file /tls/{{ .Values.tls.certFilename }}
+tls-key-file /tls/{{ .Values.tls.keyFilename }}
+tls-ca-cert-file /tls/{{ .Values.tls.caFilename }}
+tls-auth-clients no
+tls-replication yes
+{{- end }}
+{{- end -}}
+
+{{- define "redis.cliTlsArgs" -}}
+{{- if .Values.tls.enabled -}}
+--tls --cacert /tls/{{ .Values.tls.caFilename }}
+{{- end -}}
 {{- end -}}
 
 {{/*
@@ -277,6 +321,47 @@ app.kubernetes.io/component: redis
 app.kubernetes.io/part-of: redis
 {{- if .role }}
 app.kubernetes.io/role: {{ .role }}
+{{- end }}
+{{- end -}}
+
+{{- define "redis.redisLabels" -}}
+{{- include "redis.componentLabels" . -}}
+{{- end -}}
+
+{{- define "redis.sentinelLabels" -}}
+{{ include "redis.selectorLabels" . }}
+app.kubernetes.io/component: sentinel
+{{- end -}}
+
+{{- define "redis.renderAnnotations" -}}
+{{- with .root.Values.annotations }}
+annotations:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
+{{- define "redis.podSpec" -}}
+{{- include "redis.podSpecCommon" .root -}}
+{{- end -}}
+
+{{- define "redis.nodeProbeCommand" -}}
+{{- include "redis.probeCommand" . -}}
+{{- end -}}
+
+{{- define "redis.sentinelProbeCommand" -}}
+redis-cli -p {{ .Values.service.ports.sentinel }} ping
+{{- end -}}
+
+{{- define "redis.sentinelReadyCommand" -}}
+redis-cli -p {{ .Values.service.ports.sentinel }} sentinel get-master-addr-by-name {{ .Values.sentinel.masterSet }} | grep -q .
+{{- end -}}
+
+{{- define "redis.metricsVolumeMounts" -}}
+{{- if .Values.tls.enabled }}
+volumeMounts:
+  - name: tls
+    mountPath: /tls
+    readOnly: true
 {{- end }}
 {{- end -}}
 

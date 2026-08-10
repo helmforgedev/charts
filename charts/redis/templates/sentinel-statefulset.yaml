@@ -6,64 +6,80 @@ metadata:
   name: {{ include "redis.sentinelStatefulSetName" . }}
   labels:
     {{- include "redis.labels" . | nindent 4 }}
+  {{- include "redis.renderAnnotations" (dict "root" .) | nindent 2 }}
 spec:
-  serviceName: {{ include "redis.sentinelServiceName" . }}
+  serviceName: {{ include "redis.sentinelHeadlessServiceName" . }}
   replicas: {{ .Values.sentinel.replicaCount }}
+  {{- with .Values.sentinel.podManagementPolicy }}
+  podManagementPolicy: {{ . }}
+  {{- end }}
   selector:
     matchLabels:
-      {{- include "redis.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: sentinel
+      {{- include "redis.sentinelLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "redis.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: sentinel
+        {{- include "redis.sentinelLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.podAnnotations }}
       annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.auth.enabled }}
+        checksum/auth-secret: {{ include "redis.authChecksum" . }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
     spec:
-      {{- include "redis.podSpecCommon" . | nindent 6 }}
+      {{- include "redis.podSpec" (dict "root" . "role" "sentinel") | nindent 6 }}
       containers:
         - name: sentinel
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["sh", "-ec"]
-          args:
-            - |
-              until redis-cli -h "$REDIS_PRIMARY_HOST" -p "$REDIS_PRIMARY_PORT" {{- if .Values.auth.enabled }} -a "$REDIS_PASSWORD" --no-auth-warning {{- end }} ping >/dev/null 2>&1; do
-                echo "waiting for primary $REDIS_PRIMARY_HOST:$REDIS_PRIMARY_PORT"
-                sleep 5
-              done
-              cp /etc/redis-base/sentinel.conf /tmp/sentinel.conf
-              {{- if .Values.auth.enabled }}
-              echo "sentinel auth-pass {{ .Values.sentinel.masterSet }} ${REDIS_PASSWORD}" >> /tmp/sentinel.conf
-              {{- end }}
-              exec redis-sentinel /tmp/sentinel.conf
+          command: ["sh", "/scripts/sentinel-entrypoint.sh"]
           ports:
             - name: sentinel
               containerPort: {{ .Values.service.ports.sentinel }}
-          {{- if .Values.auth.enabled }}
           env:
-            - name: REDIS_PRIMARY_HOST
-              value: {{ include "redis.primaryPodFqdn" . | quote }}
-            - name: REDIS_PRIMARY_PORT
-              value: {{ .Values.service.ports.redis | quote }}
+            {{- if .Values.auth.enabled }}
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "redis.secretName" . }}
                   key: {{ .Values.auth.existingSecretPasswordKey }}
-          {{- else }}
-          env:
-            - name: REDIS_PRIMARY_HOST
-              value: {{ include "redis.primaryPodFqdn" . | quote }}
-            - name: REDIS_PRIMARY_PORT
-              value: {{ .Values.service.ports.redis | quote }}
-          {{- end }}
+            {{- end }}
+            {{- if and .Values.auth.enabled .Values.auth.sentinel }}
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "redis.secretName" . }}
+                  key: {{ .Values.auth.existingSecretPasswordKey }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - {{ include "redis.sentinelProbeCommand" . | quote }}
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - {{ include "redis.sentinelReadyCommand" . | quote }}
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - {{ include "redis.sentinelProbeCommand" . | quote }}
+            {{- toYaml .Values.startupProbe | nindent 12 }}
           {{- with .Values.sentinel.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -74,10 +90,42 @@ spec:
             - name: config
               mountPath: /etc/redis-base/sentinel.conf
               subPath: sentinel.conf
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+            - name: data
+              mountPath: /data
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
       volumes:
         - name: config
           configMap:
             name: {{ include "redis.configMapName" . }}
+        - name: scripts
+          configMap:
+            name: {{ include "redis.configMapName" . }}
+            defaultMode: 0555
+            items:
+              - key: sentinel-entrypoint.sh
+                path: sentinel-entrypoint.sh
+        {{- if not .Values.sentinel.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+        {{- if .Values.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ .Values.tls.existingSecret }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
   {{- if .Values.sentinel.persistence.enabled }}
   volumeClaimTemplates:
     {{- include "redis.volumeClaimTemplate" (dict "root" . "persistence" .Values.sentinel.persistence) | nindent 4 }}
