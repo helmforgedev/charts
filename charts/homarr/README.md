@@ -5,7 +5,7 @@
 Helm chart for deploying [Homarr](https://homarr.dev/) modern application dashboard on Kubernetes using the official
 [`ghcr.io/homarr-labs/homarr`](https://github.com/homarr-labs/homarr/pkgs/container/homarr) container image.
 
-Current application version: `v1.73.0`.
+Current application version: `v1.74.0`.
 
 ## Features
 
@@ -173,7 +173,7 @@ backup:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `ghcr.io/homarr-labs/homarr` | Container image repository |
-| `image.tag` | `"v1.73.0"` | Homarr image tag |
+| `image.tag` | `"v1.74.0"` | Homarr image tag |
 | `replicaCount` | `1` | Number of replicas |
 | `homarr.logLevel` | `info` | Log level |
 | `homarr.authProviders` | `credentials` | Auth providers (credentials, ldap, oidc) |
@@ -265,9 +265,9 @@ writable and does not force a non-root UID or dropped capabilities by default. O
 
 ## Upgrade Notes
 
-This update moves the default image from `v1.72.0` to `v1.73.0`. Review upstream release notes before upgrading production
-environments. Homarr `v1.73.0` adds OIDC account linking, Navidrome media-server integration, widget improvements, and
-Beszel session recovery fixes. No breaking changes or new required environment variables were identified in the upstream
+This update moves the default image to `v1.74.0`. Review upstream release notes before upgrading production
+environments. Homarr `v1.74.0` adds persistent widget layouts, custom URI schemes, and integration reliability fixes.
+No breaking changes or new required environment variables were identified in the upstream
 release metadata.
 
 For PostgreSQL and MySQL, the chart sets `DB_DIALECT`, `DB_DRIVER`, and discrete database environment variables instead of
