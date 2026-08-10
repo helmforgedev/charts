@@ -3,6 +3,16 @@
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{/* Validate chart values before rendering resources. */}}
+{{- define "ntfy.validate" -}}
+{{- if and .Values.ntfy.database.enabled (empty .Values.ntfy.database.existingSecret) -}}
+{{- fail "ntfy.database.enabled requires ntfy.database.existingSecret" -}}
+{{- end -}}
+{{- if and .Values.externalSecrets.enabled (empty .Values.externalSecrets.items) -}}
+{{- fail "externalSecrets.items must contain at least one item when externalSecrets.enabled=true" -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "ntfy.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
