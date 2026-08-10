@@ -134,7 +134,6 @@ defaults while preserving your explicit overrides:
 ```bash
 helm repo update helmforge
 helm upgrade netbird helmforge/netbird \
-  --version 1.0.3 \
   --namespace netbird \
   --reset-then-reuse-values
 ```
