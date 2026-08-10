@@ -3,7 +3,7 @@
 Jenkins is an open source automation server for continuous integration and delivery.
 
 This HelmForge chart deploys the official `jenkins/jenkins` controller image
-at the pinned `2.568.1-lts-jdk21` release with production-oriented Kubernetes
+at the pinned `2.568.2-lts-jdk21` release with production-oriented Kubernetes
 defaults. It includes a StatefulSet
 controller, persistent Jenkins home, secure initial admin bootstrap, optional
 Jenkins Configuration as Code, optional plugin installation with
