@@ -1,11 +1,11 @@
 # Langflow Helm Chart
 
 Langflow is a visual builder for AI workflows, RAG applications, agents, and integrations with model providers and vector databases.
-This HelmForge chart deploys the official `docker.io/langflowai/langflow:1.11.1` image with persistent local state by default and explicit
+This HelmForge chart deploys the official `docker.io/langflowai/langflow:1.11.2` image with persistent local state by default and explicit
 production paths for secret management, PostgreSQL-compatible databases, ingress, Gateway API, and horizontal scaling.
 
 Langflow 1.11 adds native v2 workflow execution, trusted JWT authentication with just-in-time user mapping, RBAC-aware interfaces, A2A and
-human-in-the-loop workflows, and additional provider and vector-store bundles. Version 1.11.1 also includes upstream fixes for authentication,
+human-in-the-loop workflows, and additional provider and vector-store bundles. Version 1.11.2 also includes upstream fixes for authentication,
 tracing, MCP, SSRF protections, and component loading. Advanced runtime settings for these capabilities can be supplied through `app.env` or
 `app.envFrom`.
 
