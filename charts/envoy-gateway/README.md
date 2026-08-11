@@ -224,6 +224,7 @@ highAvailability:
 |-----|---------|-------------|
 | `gateway.create` | `true` | Create a default Gateway resource (triggers proxy provisioning) |
 | `gateway.name` | `""` | Gateway name (defaults to release name) |
+| `gateway.allowedListeners` | `{}` | ListenerSet namespace attachment policy; supports `None`, `Same`, `All`, and `Selector` |
 | `gateway.listeners.http.enabled` | `true` | Enable HTTP listener |
 | `gateway.listeners.http.port` | `80` | HTTP listener port |
 | `gateway.listeners.http.allowedRoutes` | `{}` | Route kinds and namespaces allowed to attach; empty uses the same-namespace Gateway API default |

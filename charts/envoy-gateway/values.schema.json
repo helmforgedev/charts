@@ -795,7 +795,7 @@
       "type": "object",
       "description": "Default Gateway resource configuration",
       "additionalProperties": false,
-      "required": ["create", "name", "listeners"],
+      "required": ["create", "name", "allowedListeners", "listeners"],
       "properties": {
         "create": {
           "type": "boolean",
@@ -806,6 +806,9 @@
           "type": "string",
           "description": "Gateway name; defaults to the Helm release name",
           "default": ""
+        },
+        "allowedListeners": {
+          "$ref": "#/definitions/allowedListeners"
         },
         "listeners": {
           "type": "object",
@@ -877,6 +880,66 @@
     }
   },
   "definitions": {
+    "allowedListeners": {
+      "type": "object",
+      "description": "Gateway API constraints for ListenerSets attaching to the Gateway",
+      "additionalProperties": false,
+      "properties": {
+        "namespaces": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from"],
+          "properties": {
+            "from": {
+              "type": "string",
+              "enum": ["All", "None", "Same", "Selector"]
+            },
+            "selector": {
+              "$ref": "#/definitions/labelSelector"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": { "from": { "const": "Selector" } },
+                "required": ["from"]
+              },
+              "then": { "required": ["selector"] },
+              "else": { "not": { "required": ["selector"] } }
+            }
+          ]
+        }
+      }
+    },
+    "labelSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "matchLabels": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "matchExpressions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key", "operator"],
+            "properties": {
+              "key": { "type": "string", "minLength": 1 },
+              "operator": {
+                "type": "string",
+                "enum": ["In", "NotIn", "Exists", "DoesNotExist"]
+              },
+              "values": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
     "allowedRoutes": {
       "type": "object",
       "description": "Gateway API constraints for Routes attaching to a listener",
