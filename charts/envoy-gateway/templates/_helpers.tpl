@@ -254,6 +254,9 @@ affinity:
 Central fail-fast validation entrypoint.
 */}}
 {{- define "envoy-gateway.validate" -}}
+{{- if and .Values.redis.enabled (ne .Values.redis.architecture "standalone") -}}
+{{- fail "redis.architecture must be standalone when the bundled rate-limiting backend is enabled" -}}
+{{- end -}}
 {{- if and .Values.externalSecrets.enabled (not .Values.rateLimiting.externalRedis.auth.secretName) -}}
 {{- fail "externalSecrets.enabled requires rateLimiting.externalRedis.auth.secretName to be set to prevent credential drift between the chart-managed Secret and the ExternalSecret." -}}
 {{- end -}}
