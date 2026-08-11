@@ -107,9 +107,19 @@ tests:
           content:
             name: tmp
             mountPath: /tmp
+            readOnly: false
       - equal:
           path: spec.template.spec.volumes[1].name
           value: tmp
       - equal:
           path: spec.template.spec.volumes[1].emptyDir
           value: {}
+  - it: rejects an extra volume mount that duplicates the reserved tmp path
+    template: templates/deployment.yaml
+    set:
+      extraVolumeMounts:
+        - name: custom-tmp
+          mountPath: /tmp
+    asserts:
+      - failedTemplate:
+          errorMessage: extraVolumeMounts must not use the reserved mountPath /tmp
