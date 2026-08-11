@@ -28,6 +28,10 @@ Disabling persistence is a breaking, explicit choice: users must set
 keeps disposable CI and demo installs available while preventing accidental loss
 of certificates, ACME accounts, provider credentials, and workflow state.
 
+Certificate workflows create temporary processing files under `/tmp`. The chart
+mounts a dedicated ephemeral `emptyDir` there so these workflows remain
+functional while `securityContext.readOnlyRootFilesystem` stays enabled.
+
 ## Exposure
 
 The chart supports Kubernetes Ingress and Gateway API HTTPRoute. TLS termination is expected at the ingress controller or gateway. Certimate itself remains an internal HTTP service.
