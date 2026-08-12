@@ -144,7 +144,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
-| `image.tag` | `2.33.3` | n8n container image tag |
+| `image.tag` | `2.34.4` | n8n container image tag |
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
@@ -159,7 +159,7 @@ externalSecrets:
 | `queue.concurrency` | `10` | Concurrent workflows per worker |
 | `queue.persistence.shareMainVolume` | `true` | Mount the main n8n data PVC into worker pods |
 | `terminationGracePeriodSeconds` | `75` | Kubernetes pod shutdown grace period |
-| `redis.enabled` | `false` | Deploy Redis subchart (`helmforge/redis` `1.6.19`) |
+| `redis.enabled` | `false` | Deploy Redis subchart (`helmforge/redis` `2.0.0`) |
 | `taskRunners.mode` | `external` | Task runner mode (`internal` or `external`) |
 | `taskRunners.image.repository` | `docker.io/n8nio/runners` | External task runner sidecar image repository |
 | `taskRunners.image.tag` | `""` | External task runner sidecar tag (defaults to `image.tag`) |
@@ -186,20 +186,14 @@ externalSecrets:
 
 ## Upgrade Notes
 
-n8n `2.33.3` adds instance credentials, workflow review and publishing APIs,
-OpenTelemetry configuration APIs, scheduler controls, and database migrations
-for new execution and review data. It also fixes security-audit imports and MCP
-Server Trigger execution persistence. Review the
-[upstream 2.33.3 release notes](https://github.com/n8n-io/n8n/releases/tag/n8n%402.33.3)
-before upgrading, back up the database, and keep the encryption key stable
-before upgrading live deployments. This chart keeps the hardened non-root
-container defaults with resource requests and limits. Queue mode fails fast
-when it resolves to SQLite or when Redis is not configured, because workers
-must share the same PostgreSQL, MySQL, or external database as the main pod.
-Validate database and queue mode in a staging namespace before reusing
-production PVCs.
+n8n `2.34.4` includes task-runner health-check fixes and the 2.34 maintenance
+updates. Review the
+[upstream 2.34.4 release notes](https://github.com/n8n-io/n8n/releases/tag/n8n%402.34.4)
+before upgrading. Back up the database, keep the encryption key stable, and
+validate task runners and queue workers in a staging namespace. This update also
+moves the bundled Redis dependency to HelmForge Redis `2.0.0`.
 
-When upgrading with `--reuse-values`, explicitly set `image.tag=2.33.3`.
+When upgrading with `--reuse-values`, explicitly set `image.tag=2.34.4`.
 Helm preserves the previous image override in that mode; also update
 `taskRunners.image.tag` when it was pinned separately.
 
