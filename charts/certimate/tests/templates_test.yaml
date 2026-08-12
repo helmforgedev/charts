@@ -123,3 +123,33 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: extraVolumeMounts must not use the reserved mountPath /tmp
+  - it: rejects persistence mounted at the reserved tmp path
+    template: templates/deployment.yaml
+    set:
+      persistence.mountPath: /tmp
+    asserts:
+      - failedTemplate:
+          errorMessage: persistence.mountPath must not use the reserved mountPath /tmp
+  - it: rejects an extra volume using the reserved tmp name
+    template: templates/deployment.yaml
+    set:
+      extraVolumes:
+        - name: tmp
+          emptyDir: {}
+    asserts:
+      - failedTemplate:
+          errorMessage: extraVolumes must not use the reserved volume name tmp
+  - it: bounds temporary storage when configured
+    template: templates/deployment.yaml
+    set:
+      tmpStorage.sizeLimit: 1Gi
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[1].emptyDir.sizeLimit
+          value: 1Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.ephemeral-storage
+          value: 1Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.ephemeral-storage
+          value: 1Gi

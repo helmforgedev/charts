@@ -12,6 +12,7 @@ This chart packages the official `certimate/certimate:v0.4.30` image and follows
 - default resource requests and memory limit for scheduler and Kubescape hygiene
 - restricted ServiceAccount token mounting by default
 - ephemeral writable `/tmp` storage while the container root filesystem remains read-only
+- optional `tmpStorage.sizeLimit` with matching ephemeral-storage request and limit
 - Kubernetes Ingress and Gateway API HTTPRoute support
 - optional NetworkPolicy with explicit additional egress for ACME DNS APIs, DNS, SMTP, webhooks, and target deployment systems
 - ExternalSecret support for environment variables or other integration secrets

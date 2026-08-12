@@ -30,7 +30,9 @@ of certificates, ACME accounts, provider credentials, and workflow state.
 
 Certificate workflows create temporary processing files under `/tmp`. The chart
 mounts a dedicated ephemeral `emptyDir` there so these workflows remain
-functional while `securityContext.readOnlyRootFilesystem` stays enabled.
+functional while `securityContext.readOnlyRootFilesystem` stays enabled. Operators
+can set `tmpStorage.sizeLimit` to bound the volume and apply the same value as the
+container's ephemeral-storage request and limit.
 
 ## Exposure
 

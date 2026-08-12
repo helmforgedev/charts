@@ -1,8 +1,23 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if eq .Values.persistence.mountPath "/tmp" }}
+{{- fail "persistence.mountPath must not use the reserved mountPath /tmp" }}
+{{- end }}
 {{- range .Values.extraVolumeMounts }}
 {{- if eq (get . "mountPath") "/tmp" }}
 {{- fail "extraVolumeMounts must not use the reserved mountPath /tmp" }}
 {{- end }}
+{{- end }}
+{{- range .Values.extraVolumes }}
+{{- if eq (get . "name") "tmp" }}
+{{- fail "extraVolumes must not use the reserved volume name tmp" }}
+{{- end }}
+{{- end }}
+{{- $resources := deepCopy .Values.resources }}
+{{- if .Values.tmpStorage.sizeLimit }}
+{{- if not (hasKey $resources "requests") }}{{- $_ := set $resources "requests" dict }}{{- end }}
+{{- if not (hasKey $resources "limits") }}{{- $_ := set $resources "limits" dict }}{{- end }}
+{{- $_ := set (get $resources "requests") "ephemeral-storage" .Values.tmpStorage.sizeLimit }}
+{{- $_ := set (get $resources "limits") "ephemeral-storage" .Values.tmpStorage.sizeLimit }}
 {{- end }}
 apiVersion: apps/v1
 kind: Deployment
@@ -110,7 +125,7 @@ spec:
             timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
             failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
           {{- end }}
-          {{- with .Values.resources }}
+          {{- with $resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -135,7 +150,12 @@ spec:
           emptyDir: {}
           {{- end }}
         - name: tmp
+          {{- if .Values.tmpStorage.sizeLimit }}
+          emptyDir:
+            sizeLimit: {{ .Values.tmpStorage.sizeLimit | quote }}
+          {{- else }}
           emptyDir: {}
+          {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
