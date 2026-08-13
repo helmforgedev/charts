@@ -106,7 +106,7 @@ through Ghost's environment-based configuration:
 ```yaml
 image:
   repository: registry.example.com/ghost-with-adapters
-  tag: "6.56.0"
+  tag: "6.57.1"
 
 ghost:
   extraEnv:
@@ -123,9 +123,9 @@ adapters when the container starts.
 | Key | Default | Description |
 |-----|---------|-------------|
 | `ghost.url` | `""` | Public URL of the Ghost instance |
-| `image.tag` | `6.56.0` | Ghost image tag |
+| `image.tag` | `6.57.1` | Ghost image tag |
 | `mysql.enabled` | `true` | Deploy MySQL subchart |
-| `mysql.image.tag` | `8.4.7` | MySQL image tag pinned to the Ghost-supported MySQL 8 major |
+| `mysql.image.tag` | `8.4.11` | MySQL image tag pinned to the Ghost-supported MySQL 8 major |
 | `persistence.enabled` | `true` | Enable content persistence |
 | `persistence.size` | `10Gi` | Content PVC size |
 | `backup.enabled` | `false` | Enable S3 content backups |
@@ -137,7 +137,7 @@ adapters when the container starts.
 
 ## Upgrade Notes
 
-Ghost `6.56.0` adds tier-specific editor previews and fixes newsletter links,
+Ghost `6.57.1` adds tier-specific editor previews and fixes newsletter links,
 bookmark cards, comments, and managed Stripe checkout. The release does not change the official image's port,
 content path, database contract, probes, or required environment variables.
 Files edited in Ghost Admin remain under `/var/lib/ghost/content/data`, so the
