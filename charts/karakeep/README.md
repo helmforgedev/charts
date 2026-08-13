@@ -5,11 +5,11 @@ the official `ghcr.io/karakeep-app/karakeep` container image. Karakeep provides
 bookmark management, full-text archive search, web page capture, and optional AI
 tagging in a single-writer application pod.
 
-Current application version: `0.33.1`.
+Current application version: `0.33.2`.
 
 ## Features
 
-- Official Karakeep image pinned to `0.33.1`
+- Official Karakeep image pinned to `0.33.2`
 - Optional Meilisearch sidecar for full-text search
 - Optional browserless Chromium sidecar for screenshots and page archiving
 - SQLite and uploaded content stored on a PersistentVolumeClaim
@@ -125,7 +125,7 @@ chromium:
 | Key | Default | Description |
 | --- | --- | --- |
 | `image.repository` | `ghcr.io/karakeep-app/karakeep` | Main Karakeep image |
-| `image.tag` | `"0.33.1"` | Main Karakeep image tag |
+| `image.tag` | `"0.33.2"` | Main Karakeep image tag |
 | `karakeep.nextAuthUrl` | `""` | Public URL of the Karakeep instance |
 | `karakeep.browserConnectOnDemand` | `true` | Connect to Chromium only when crawling needs it |
 | `karakeep.existingSecret` | `""` | Existing secret with auth and Meilisearch keys |
@@ -157,9 +157,9 @@ baseline.
 
 ## Upgrade Notes
 
-Karakeep `0.33.1` adds experimental semantic search and embedding-based
+Karakeep `0.33.2` adds experimental semantic search and embedding-based
 auto-tagging, database indexes, crawler and security fixes, and new optional AI
-settings. The bundled Meilisearch `v1.41.0` exceeds the upstream `1.13` minimum
+settings. The bundled Meilisearch `v1.53.0` exceeds the upstream `1.13` minimum
 for embeddings. Custom AI providers can pass `EMBEDDING_TEXT_MODEL`,
 `EMBEDDING_DIMENSIONS`, and `EMBEDDING_ENABLE_AUTO_INDEXING` through
 `karakeep.extraEnv`. Back up the `/data` PVC before upgrading because the
