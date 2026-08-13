@@ -60,7 +60,7 @@ kubectl port-forward svc/<release>-olivetin 1337:80
 | `configInit.enabled` | `true` | Prepare writable OliveTin runtime files before startup |
 | `configInit.resources` | requests/limits set | Resource guardrails for the config bootstrap init container |
 | `configInit.securityContext` | non-root | Security context for the config bootstrap init container |
-| `image.tag` | `3000.18.1` | OliveTin image tag |
+| `image.tag` | `3000.19.0` | OliveTin image tag |
 | `securityContext` | non-root | Security context for the OliveTin application container |
 | `olivetin.port` | `1337` | Application port, propagated through OliveTin's `PORT` environment variable |
 | `config` | `""` | OliveTin YAML configuration. Empty uses the chart-managed default config. |
@@ -106,7 +106,7 @@ See the [OliveTin documentation](https://docs.olivetin.app) for all available op
 ## Upgrade Notes
 
 OliveTin `3000.18.0` added `dnsname` action arguments and configuration issues
-in diagnostics. OliveTin `3000.18.1` adds dashboard categories, persistent log
+in diagnostics. OliveTin `3000.19.0` adds dashboard categories, persistent log
 filters, and support for the `PORT` environment variable. It also fixes
 `shellAfterCompleted` output injection, HTTP timeout and path traversal
 weaknesses, and unsafe theme permissions. Upstream reports no breaking changes.
