@@ -55,6 +55,16 @@ Open WebUI supports three database modes controlled by `database.mode`:
 | `sqlite` | Always uses embedded SQLite (single instance only) |
 | `external` | Uses `database.url` or `database.existingSecret` for an external PostgreSQL |
 
+## Upgrading from 0.8
+
+Open WebUI 0.9 introduced database schema changes. Back up the database and
+persistent data before upgrading to this chart version. Multi-replica or
+load-balanced installations must update all Open WebUI instances together;
+upstream does not support a rolling update across the incompatible schemas.
+
+Review the [Open WebUI 0.9 release notes](https://github.com/open-webui/open-webui/releases/tag/v0.9.0)
+before upgrading production installations.
+
 ### External PostgreSQL
 
 ```yaml
