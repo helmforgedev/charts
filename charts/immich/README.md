@@ -30,14 +30,17 @@ the k3d values file.
 
 ## Upgrading to Immich 3
 
-Immich 3 removes support for `pgvecto.rs`. Before upgrading an installation
-older than Immich `1.133.0`, complete the upstream VectorChord migration. Back
-up the database and uploads first, then upgrade normally; the server performs
-its application database migrations during startup. This chart's bundled
-PostgreSQL image already uses VectorChord.
+Immich 3 removes support for `pgvecto.rs`. Check the active database extension
+and effective `DB_VECTOR_EXTENSION` setting (`vectorchord` or `pgvector`). If
+the database still uses `pgvecto.rs`, complete the upstream migration before
+upgrading. Back up the database and uploads first; external PostgreSQL
+migrations must be performed outside Helm. The server performs its application
+database migrations during startup, and this chart's bundled PostgreSQL image
+already uses VectorChord.
 
 See the [Immich 3 migration guide](https://immich.app/blog/v3-migration) and
-[VectorChord upgrade instructions](https://docs.immich.app/install/upgrading/#migrating-to-vectorchord).
+[VectorChord upgrade instructions](https://docs.immich.app/install/upgrading/#migrating-to-vectorchord). External
+databases should follow the [standalone PostgreSQL migration guide](https://docs.immich.app/administration/postgres-standalone).
 
 ## Extra Server Volumes
 
