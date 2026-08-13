@@ -31,6 +31,19 @@ helm install superset helmforge/superset -f values.yaml
 helm install superset oci://ghcr.io/helmforgedev/helm/superset --version <version> -f values.yaml
 ```
 
+## Upgrading from Superset 4
+
+This chart crosses the Superset 5 and 6 major releases. Back up the metadata
+database before upgrading and plan for migration downtime. The chart's init Job
+runs `superset db upgrade` and `superset init` before the application workloads
+become ready. Superset 6 removes `AUTH_OID`; installations using it must move to
+OAuth, LDAP, or database authentication first. Custom frontend extensions may
+also need changes for the React upgrade introduced in Superset 5.
+
+Review the upstream [Superset 5 update notes](https://github.com/apache/superset/blob/5.0.0/UPDATING.md)
+and [Superset 6 update notes](https://github.com/apache/superset/blob/6.1.0/UPDATING.md)
+before upgrading production installations.
+
 ## Architecture
 
 ```text
