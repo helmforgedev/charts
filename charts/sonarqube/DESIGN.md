@@ -10,7 +10,7 @@ The chart uses a Deployment with `Recreate` strategy because a single SonarQube 
 Production deployments should back the application with PostgreSQL and persistent volumes.
 The chart can either connect to an external PostgreSQL endpoint or deploy the HelmForge PostgreSQL chart as an optional dependency.
 
-The default image is pinned to `docker.io/library/sonarqube:26.4.0.121862-community`.
+The default image is pinned to `docker.io/library/sonarqube:26.8.0.126808-community`.
 This line matches the default `communityBranchPlugin.version` of `26.4.0`, allowing the plugin automation to be enabled without version guesswork.
 
 `sonarqube.databaseMode=auto` chooses an external database when external settings are provided, then the HelmForge PostgreSQL subchart when `postgresql.enabled=true`.

@@ -101,7 +101,7 @@ communityBranchPlugin:
   version: "26.4.0"
 ```
 
-Keep the plugin major and minor version aligned with the SonarQube version. The default chart image is pinned to `26.4.0.121862-community` to match the default plugin line.
+Keep the plugin major and minor version aligned with the SonarQube version. The default chart image is pinned to `26.8.0.126808-community` to match the default plugin line.
 
 See [Community Branch Plugin](docs/community-branch-plugin.md).
 
@@ -165,7 +165,7 @@ networkPolicy:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/library/sonarqube` | Official SonarQube image repository |
-| `image.tag` | `26.4.0.121862-community` | SonarQube Community Build image tag |
+| `image.tag` | `26.8.0.126808-community` | SonarQube Community Build image tag |
 | `sonarqube.databaseMode` | `auto` | `auto`, `embedded`, `postgresql`, or `external` |
 | `postgresql.enabled` | `false` | Deploy HelmForge PostgreSQL as a subchart |
 | `waitForDatabase.enabled` | `true` | Wait for bundled PostgreSQL before starting SonarQube |
