@@ -71,7 +71,7 @@ ingress:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Image repository | `ghcr.io/timothepoznanski/poznote` |
-| `image.tag` | Image tag | `6.57.1` |
+| `image.tag` | Image tag | `6.59.2` |
 | `image.pullPolicy` | Pull policy | `IfNotPresent` |
 
 #### Application Parameters
@@ -141,7 +141,7 @@ This chart intentionally does NOT:
 
 ## Upgrade Notes
 
-Poznote `6.57.1` adds user webhooks, tenant-isolation controls, task management,
+Poznote `6.59.2` adds user webhooks, tenant-isolation controls, task management,
 optional S3 attachment and backup storage, an administrator activity log, and
 safer account deletion. The default local SQLite and filesystem deployment
 remains compatible; S3 integration is configured inside Poznote when needed.
