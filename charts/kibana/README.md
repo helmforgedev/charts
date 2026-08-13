@@ -21,7 +21,7 @@ helm install kibana helmforge/kibana
 ```
 
 Elastic recommends running the same Elastic Stack version across Kibana and
-Elasticsearch. The default chart version targets Kibana `9.4.2`.
+Elasticsearch. The default chart version targets Kibana `9.5.1`.
 
 ## HelmForge Elasticsearch Subchart
 
@@ -34,7 +34,7 @@ bundledElasticsearch:
 
 bundled-elasticsearch:
   image:
-    tag: "9.4.2"
+    tag: "9.5.1"
 ```
 
 For production, keep `bundledElasticsearch.enabled=false` and connect to an
@@ -98,7 +98,7 @@ gateway:
 | `image.repository` | Official Elastic Kibana image repository | `docker.elastic.co/kibana/kibana` |
 | `image.wolfiRepository` | Official Elastic Kibana Wolfi image repository | `docker.elastic.co/kibana/kibana-wolfi` |
 | `image.flavor` | Image flavor: `default` or `wolfi` | `default` |
-| `image.tag` | Kibana image tag | `9.4.2` |
+| `image.tag` | Kibana image tag | `9.5.1` |
 | `replicaCount` | Number of Kibana replicas | `1` |
 | `elasticsearch.hosts` | External Elasticsearch URLs used when bundled mode is disabled | `[http://elasticsearch:9200]` |
 | `bundledElasticsearch.enabled` | Enable HelmForge Elasticsearch dependency | `true` |
