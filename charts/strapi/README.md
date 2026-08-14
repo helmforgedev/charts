@@ -18,9 +18,9 @@ This chart is designed for a prebuilt Strapi project image. It does not build ap
 
 ## HelmForge Base Image
 
-This chart uses the official **HelmForge Strapi base image** (`docker.io/helmforge/strapi-base:5.51.1`) which provides:
+This chart uses the official **HelmForge Strapi base image** (`docker.io/helmforge/strapi-base:5.52.0`) which provides:
 
-- **Strapi 5.51.1** with all official plugins pre-installed
+- **Strapi 5.52.0** with all official plugins pre-installed
 - **Multi-database support** — SQLite, PostgreSQL, MySQL ready to use
 - **Health check endpoint** — HTTP health checks on `/_health` for proper Kubernetes integration
 - **Security hardened** — Non-root user (UID 1000), minimal attack surface
@@ -107,7 +107,7 @@ database:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `helmforge/strapi-base` | Container image for the Strapi project |
-| `image.tag` | `5.51.1` | HelmForge Strapi base image version |
+| `image.tag` | `5.52.0` | HelmForge Strapi base image version |
 | `strapi.url` | `""` | Public URL (auto-detected from ingress if empty) |
 | `strapi.port` | `1337` | Container port |
 | `strapi.telemetryDisabled` | `true` | Disable telemetry |
@@ -141,14 +141,14 @@ database:
 
 ## Notes
 
-- The default image is `helmforge/strapi-base:5.51.1`, HelmForge's production-ready Strapi image. Override it if your deployment uses a custom Strapi build.
+- The default image is `helmforge/strapi-base:5.52.0`, HelmForge's production-ready Strapi image. Override it if your deployment uses a custom Strapi build.
 - SQLite is supported for simple deployments, but server-based databases are recommended for production workloads.
 - Horizontal scaling is intentionally out of scope for this v1 chart because default local uploads persistence is single-writer oriented.
 - For ingress, set `ingress.ingressClassName` to the class used in your cluster, such as `traefik`, `nginx`, or another supported controller.
 
 ## Upgrade Notes
 
-Strapi `5.51.1` fixes document relation validation, database morph relations,
+Strapi `5.52.0` fixes document relation validation, database morph relations,
 admin audit filtering, recent-document serialization, and duplicate public
 assets. It also includes security-oriented dependency updates. The HelmForge
 base image preserves the existing runtime and database contract. Back up the
