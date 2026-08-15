@@ -137,9 +137,10 @@ adapters when the container starts.
 
 ## Upgrade Notes
 
-Ghost `6.57.1` adds tier-specific editor previews and fixes newsletter links,
-bookmark cards, comments, and managed Stripe checkout. The release does not change the official image's port,
-content path, database contract, probes, or required environment variables.
+Ghost `6.57.1` fixes member webhook payloads, subdirectory redirect loops,
+theme-setting resets, and related presentation issues. The release does not
+change the official image's port, content path, database contract, probes, or
+required environment variables.
 Files edited in Ghost Admin remain under `/var/lib/ghost/content/data`, so the
 chart's content PVC and S3 content backup already cover them. Review the
 upstream Ghost release notes before upgrading

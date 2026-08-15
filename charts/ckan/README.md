@@ -67,7 +67,7 @@ StatefulSet: solr (port 8983)
 | `postgresql.enabled` | `true` | Enable PostgreSQL subchart |
 | `redis.enabled` | `true` | Enable Redis subchart |
 
-This chart currently deploys CKAN `2.11.5` with HelmForge PostgreSQL `1.10.0` and Redis `1.6.14`.
+This chart currently deploys CKAN `2.11.5` with HelmForge PostgreSQL `2.0.4` and Redis `2.0.0`.
 It intentionally does not keep `Chart.lock`; dependencies are resolved by the release workflow.
 
 ## External Database

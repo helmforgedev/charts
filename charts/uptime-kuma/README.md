@@ -50,7 +50,7 @@ kubectl port-forward svc/<release>-uptime-kuma 3001:80
 
 ## MariaDB Mode
 
-The optional local database path uses the HelmForge MySQL subchart `2.0.0`
+The optional local database path uses the HelmForge MySQL subchart `2.0.3`
 as a MariaDB-compatible backend.
 
 ```yaml
@@ -129,7 +129,7 @@ externalSecrets:
 | `image.tag` | `2.5.0` | Uptime Kuma image tag |
 | `uptimeKuma.port` | `3001` | Application port |
 | `database.type` | `sqlite` | Database type (sqlite, mariadb) |
-| `mysql.enabled` | `false` | Deploy MySQL subchart (`helmforge/mysql` `2.0.0`) |
+| `mysql.enabled` | `false` | Deploy MySQL subchart (`helmforge/mysql` `2.0.3`) |
 | `persistence.enabled` | `true` | Enable persistence for /app/data |
 | `persistence.size` | `2Gi` | PVC size |
 | `ingress.enabled` | `false` | Enable ingress |

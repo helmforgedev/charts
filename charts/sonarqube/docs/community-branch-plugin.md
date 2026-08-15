@@ -25,7 +25,9 @@ communityBranchPlugin:
   webappUrl: https://artifacts.example.com/sonarqube-webapp.zip
 ```
 
-Keep the plugin major and minor version aligned with the SonarQube major and minor version.
+The chart validates plugin `26.4.0` with its default SonarQube image. When
+changing either version, consult the plugin compatibility notes and rerun the
+`ci/plugins.yaml` scenario before deployment.
 
 ## Additional Plugins
 

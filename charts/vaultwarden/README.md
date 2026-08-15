@@ -85,7 +85,7 @@ helm install vaultwarden oci://ghcr.io/helmforgedev/helm/vaultwarden -f values.y
 ### Database selection
 
 - for production, prefer `database.external` or one of the optional subcharts
-- optional local database subcharts are vendored from HelmForge dependencies: PostgreSQL chart `2.0.2` and MySQL chart `2.0.0`
+- optional local database subcharts are vendored from HelmForge dependencies: PostgreSQL chart `2.0.4` and MySQL chart `2.0.3`
 - `database.mode=auto` uses this precedence:
 - `database.external.host` or `database.external.existingSecret`
 - `postgresql.enabled=true`
@@ -227,8 +227,8 @@ Official reference:
 | `database.external.username` | External database username | `vaultwarden` |
 | `database.external.existingSecret` | Existing secret containing a complete `DATABASE_URL` | `""` |
 | `database.external.existingSecretUrlKey` | Secret key containing the `DATABASE_URL` value | `database-url` |
-| `postgresql.enabled` | Enable the local PostgreSQL subchart (`helmforge/postgresql` `2.0.2`) | `false` |
-| `mysql.enabled` | Enable the local MySQL subchart (`helmforge/mysql` `2.0.0`) | `false` |
+| `postgresql.enabled` | Enable the local PostgreSQL subchart (`helmforge/postgresql` `2.0.4`) | `false` |
+| `mysql.enabled` | Enable the local MySQL subchart (`helmforge/mysql` `2.0.3`) | `false` |
 | `vaultwarden.signupsAllowed` | Allow new user signups | `false` |
 | `vaultwarden.signupsVerify` | Require email verification for new signups | `false` |
 | `vaultwarden.signupsVerifyResendTime` | Seconds before another verification email can be sent | `3600` |

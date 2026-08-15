@@ -22,7 +22,7 @@ User
 
 ## Design Choices
 
-- Default installs use HelmForge PostgreSQL `2.0.2` and Redis `1.6.16`
+- Default installs use HelmForge PostgreSQL `2.0.4` and Redis `2.0.0`
   subcharts so database/cache lifecycle stays inside the HelmForge ecosystem.
 - `replicaCount` defaults to one because local uploaded-file storage is
   single-writer. Values greater than one are allowed only with S3-compatible

@@ -150,9 +150,9 @@ The chart uses HelmForge-maintained subcharts for optional stateful services:
 
 | Dependency | Version | Usage |
 |------------|---------|-------|
-| PostgreSQL | `2.0.2` | Production storage backend |
-| MySQL | `2.0.0` | Production storage backend alternative |
-| Redis | `1.6.16` | Session storage for distributed/HA deployments |
+| PostgreSQL | `2.0.4` | Production storage backend |
+| MySQL | `2.0.3` | Production storage backend alternative |
+| Redis | `2.0.0` | Session storage for distributed/HA deployments |
 
 ## Forward Auth Configuration
 

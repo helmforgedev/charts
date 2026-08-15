@@ -53,15 +53,13 @@ Then:
 
 ## Upstream Version Notes
 
-Drupal `11.4.5` is a security release that fixes moderately critical
-information-disclosure and cross-site scripting vulnerabilities. Drupal
-recommends updating 11.4.x sites immediately; no unrelated fixes are included
-in this release.
+Drupal `11.4.5` is a patch release with upstream bug fixes. Review the upstream
+release notes for the complete list of resolved issues and any known regressions.
 
 Before upgrading production workloads, test the site in staging with the same
 PHP extensions, Composer dependency set, storage class, and database mode used
-in production. Review the Drupal 11.4.5 release notes and security advisories
-before running database updates.
+in production. Review the Drupal 11.4.5 release notes before running database
+updates.
 
 ## Production Example
 

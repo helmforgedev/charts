@@ -54,10 +54,9 @@ kubectl port-forward svc/<release>-komga 25600:80
 
 ## Upgrade Notes
 
-Komga `1.26.3` adds a beta NextUI, native RAR5 support, and referential API v2 while preserving Kobo content
-restrictions more consistently, flattens hierarchical OpenAPI schemas, and
-updates application dependencies including Spring Boot. Back up the `/config`
-PVC before upgrading because Komga stores its SQLite databases there.
+Komga `1.26.3` is a maintenance release with build and translation updates.
+Back up the `/config` PVC before upgrading because Komga stores its SQLite
+databases there.
 
 ## Production Example
 

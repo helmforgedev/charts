@@ -11,7 +11,7 @@ Current application version: `v1.74.0`.
 
 - **Official Homarr image** from `ghcr.io/homarr-labs/homarr`
 - **Database backends** SQLite3 (default), PostgreSQL, or MySQL with auto-detection
-- **PostgreSQL and MySQL subcharts** optional bundled database deployments using HelmForge PostgreSQL `2.0.4` and MySQL `2.0.1`
+- **PostgreSQL and MySQL subcharts** optional bundled database deployments using HelmForge PostgreSQL `2.0.4` and MySQL `2.0.3`
 - **Encryption key management** auto-generated or existing secret for `SECRET_ENCRYPTION_KEY`
 - **Kubernetes integration** optional workload discovery via `ENABLE_KUBERNETES`
 - **External Redis** optional external Redis for multi-instance setups

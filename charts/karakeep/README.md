@@ -157,13 +157,10 @@ baseline.
 
 ## Upgrade Notes
 
-Karakeep `0.33.2` adds experimental semantic search and embedding-based
-auto-tagging, database indexes, crawler and security fixes, and new optional AI
-settings. The bundled Meilisearch `v1.53.0` exceeds the upstream `1.13` minimum
-for embeddings. Custom AI providers can pass `EMBEDDING_TEXT_MODEL`,
-`EMBEDDING_DIMENSIONS`, and `EMBEDDING_ENABLE_AUTO_INDEXING` through
-`karakeep.extraEnv`. Back up the `/data` PVC before upgrading because the
-application applies database changes during startup.
+Karakeep `0.33.2` improves SingleFile archive handling, custom Chrome migration,
+favicon extraction, CLI uploads, and completion-token configuration. Back up
+the `/data` PVC before upgrading and review the upstream release notes for the
+complete migration guidance.
 
 ## Quality Gates
 
