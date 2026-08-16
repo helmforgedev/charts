@@ -1,0 +1,90 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Museum API deployment
+templates:
+  - templates/museum-api-deployment.yaml
+tests:
+  - it: renders a Museum Deployment
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-ente-museum-api
+  - it: uses the official pinned server image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/ente/server:0472c929b6070e61fecaf2013d47efce2dcda462
+  - it: runs Museum as non-root with a read-only root filesystem
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+  - it: uses HTTP readiness against ping
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /ping
+  - it: uses TCP liveness independent of PostgreSQL
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+          value: http
+  - it: disables service account token mounting
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - it: omits replicas when Museum HPA is enabled
+    set:
+      autoscaling.museum.enabled: true
+      museum.api.skipBackgroundJobs: true
+      museum.worker.enabled: true
+    asserts:
+      - notExists:
+          path: spec.replicas
+  - it: includes user-provided Museum environment variables
+    set:
+      museum:
+        extraEnv:
+          - name: FEATURE_FLAG
+            value: enabled
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FEATURE_FLAG
+            value: enabled
+  - it: omits the migration gate for a single Museum process
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 1
+      - notExists:
+          path: spec.template.spec.containers[0].command
+  - it: serializes Museum startup in HA
+    set:
+      museum.api.replicaCount: 2
+      museum.api.skipBackgroundJobs: true
+      museum.worker.enabled: true
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 2
+      - equal:
+          path: spec.template.spec.containers[0].command[0]
+          value: /bin/sh
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: migration-gate
+      - equal:
+          path: spec.template.spec.containers[1].image
+          value: docker.io/library/postgres:18.4-trixie
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: migration-gate
+            emptyDir: {}

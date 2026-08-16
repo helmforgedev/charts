@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Ente fail-fast validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: rejects multiple cron-enabled Museum API replicas
+    set:
+      museum.api.replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: museum.api.replicaCount greater than 1 requires museum.api.skipBackgroundJobs=true
+  - it: requires a singleton worker when API jobs are skipped
+    set:
+      museum.api.skipBackgroundJobs: true
+    asserts:
+      - failedTemplate:
+          errorMessage: museum.api.skipBackgroundJobs=true requires museum.worker.enabled=true so scheduled maintenance still runs
+  - it: requires API jobs to be skipped when worker is enabled
+    set:
+      museum.worker.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: museum.worker.enabled=true requires museum.api.skipBackgroundJobs=true to prevent duplicate cron jobs
+  - it: rejects an unsafe HA topology without the migration gate
+    set:
+      museum.api.replicaCount: 2
+      museum.api.skipBackgroundJobs: true
+      museum.worker.enabled: true
+      museum.migrationGate.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: concurrent Museum processes require museum.migrationGate.enabled=true to serialize database migrations
+  - it: requires S3 access credentials
+    set:
+      storage.s3.accessKey: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: storage.s3.accessKey or storage.s3.existingSecret is required
+  - it: rejects placeholder S3 in production mode
+    set:
+      productionMode: true
+      museum.externalUrl: https://api.ente.test
+      storage.s3.endpoint: https://objects.ente.test
+    asserts:
+      - failedTemplate:
+          errorMessage: productionMode=true requires storage.s3.existingSecret or non-placeholder S3 credentials
+  - it: requires metrics before ServiceMonitor
+    set:
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: metrics.serviceMonitor.enabled=true requires metrics.enabled=true
+  - it: requires backup endpoint
+    set:
+      backup.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: backup.enabled=true requires backup.s3.endpoint
+  - it: requires routes when Gateway API is enabled
+    set:
+      gateway.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: gateway.enabled=true requires gateway.routes

@@ -1,0 +1,31 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and .Values.metrics.enabled .Values.metrics.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "ente.fullname" . }}
+  labels:
+    {{- include "ente.labels" . | nindent 4 }}
+    {{- with .Values.metrics.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.metrics.prometheusRule.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  groups:
+    - name: {{ include "ente.fullname" . }}.rules
+      rules:
+        - alert: EnteMuseumUnavailable
+          expr: up{namespace={{ .Release.Namespace | quote }},service={{ printf "%s-metrics" (include "ente.fullname" .) | quote }}} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: Ente Museum metrics target is unavailable
+            description: Museum has not been scrapeable for five minutes.
+        {{- with .Values.metrics.prometheusRule.rules }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+{{- end }}

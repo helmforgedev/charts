@@ -1,0 +1,32 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.museum.worker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ente.fullname" . }}-museum-worker
+  labels:
+    {{- include "ente.labels" . | nindent 4 }}
+    app.kubernetes.io/component: museum-worker
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "ente.componentLabels" (dict "root" . "component" "museum-worker") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ente.componentLabels" (dict "root" . "component" "museum-worker") | nindent 8 }}
+        {{- with .Values.museum.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ toJson (dict "museum" .Values.museum.config "database" .Values.database "storage" .Values.storage "smtp" .Values.smtp) | sha256sum }}
+        checksum/credentials: {{ toJson (dict "museum" .Values.museum.existingSecret "storage" .Values.storage.s3.existingSecret "database" .Values.database.external.existingSecret) | sha256sum }}
+        {{- with .Values.museum.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "ente.museumPodSpec" (dict "root" . "component" "museum-worker" "configKey" "museum-worker.yaml" "resources" .Values.museum.worker.resources) | nindent 6 }}
+{{- end }}

@@ -1,0 +1,111 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ente.fullname" . }}-config
+  labels:
+    {{- include "ente.labels" . | nindent 4 }}
+data:
+  museum-api.yaml: |
+    log-file: ""
+    log-level: {{ .Values.museum.config.logLevel | quote }}
+    http:
+      port: 8080
+      use-tls: false
+    apps:
+      public-albums: {{ .Values.web.apps.albums.externalUrl | quote }}
+      embed-albums: {{ .Values.web.apps.embed.externalUrl | quote }}
+      public-locker: {{ .Values.web.apps.share.externalUrl | quote }}
+      cast: {{ .Values.web.apps.cast.externalUrl | quote }}
+      accounts: {{ .Values.web.apps.accounts.externalUrl | quote }}
+      public-memories: {{ .Values.web.apps.memories.externalUrl | quote }}
+    db:
+      host: {{ include "ente.databaseHost" . | quote }}
+      port: {{ include "ente.databasePort" . }}
+      name: {{ include "ente.databaseName" . | quote }}
+      sslmode: {{ include "ente.databaseSslMode" . | quote }}
+    s3:
+      are_local_buckets: {{ .Values.storage.s3.localBuckets }}
+      use_path_style_urls: {{ .Values.storage.s3.usePathStyle }}
+      b2-eu-cen:
+        endpoint: {{ .Values.storage.s3.endpoint | quote }}
+        region: {{ .Values.storage.s3.region | quote }}
+        bucket: {{ .Values.storage.s3.bucket | quote }}
+    smtp:
+      host: {{ ternary .Values.smtp.host "" .Values.smtp.enabled | quote }}
+      port: {{ .Values.smtp.port }}
+      email: {{ ternary .Values.smtp.email "" .Values.smtp.enabled | quote }}
+      sender-name: {{ .Values.smtp.senderName | quote }}
+      encryption: {{ ternary .Values.smtp.encryption "" .Values.smtp.enabled | quote }}
+    webauthn:
+      rpid: {{ .Values.museum.config.webauthn.rpid | quote }}
+      rporigins:
+        {{- toYaml .Values.museum.config.webauthn.rporigins | nindent 8 }}
+    internal:
+      trusted-client-ip-header: {{ .Values.museum.config.trustedClientIpHeader | quote }}
+      admins:
+        {{- toYaml .Values.museum.config.admins | nindent 8 }}
+      disable-registration: {{ .Values.museum.config.disableRegistration }}
+    jobs:
+      cron:
+        skip: {{ .Values.museum.api.skipBackgroundJobs }}
+    {{- with .Values.museum.config.extraYaml }}
+    {{ . | nindent 4 }}
+    {{- end }}
+  museum-worker.yaml: |
+    log-file: ""
+    log-level: {{ .Values.museum.config.logLevel | quote }}
+    http:
+      port: 8080
+      use-tls: false
+    db:
+      host: {{ include "ente.databaseHost" . | quote }}
+      port: {{ include "ente.databasePort" . }}
+      name: {{ include "ente.databaseName" . | quote }}
+      sslmode: {{ include "ente.databaseSslMode" . | quote }}
+    s3:
+      are_local_buckets: {{ .Values.storage.s3.localBuckets }}
+      use_path_style_urls: {{ .Values.storage.s3.usePathStyle }}
+      b2-eu-cen:
+        endpoint: {{ .Values.storage.s3.endpoint | quote }}
+        region: {{ .Values.storage.s3.region | quote }}
+        bucket: {{ .Values.storage.s3.bucket | quote }}
+    smtp:
+      host: {{ ternary .Values.smtp.host "" .Values.smtp.enabled | quote }}
+      port: {{ .Values.smtp.port }}
+      email: {{ ternary .Values.smtp.email "" .Values.smtp.enabled | quote }}
+      sender-name: {{ .Values.smtp.senderName | quote }}
+      encryption: {{ ternary .Values.smtp.encryption "" .Values.smtp.enabled | quote }}
+    internal:
+      trusted-client-ip-header: {{ .Values.museum.config.trustedClientIpHeader | quote }}
+      admins:
+        {{- toYaml .Values.museum.config.admins | nindent 8 }}
+      disable-registration: {{ .Values.museum.config.disableRegistration }}
+    jobs:
+      cron:
+        skip: false
+    {{- with .Values.museum.config.extraYaml }}
+    {{ . | nindent 4 }}
+    {{- end }}
+  nginx.conf: |
+    pid /var/run/nginx.pid;
+    worker_processes auto;
+    error_log /dev/stderr notice;
+    events { worker_connections 1024; }
+    http {
+      include /etc/nginx/mime.types;
+      default_type application/octet-stream;
+      access_log /dev/stdout;
+      sendfile on;
+      {{- range $name, $app := .Values.web.apps }}
+      {{- if $app.enabled }}
+      server {
+        listen {{ $app.port }};
+        listen [::]:{{ $app.port }};
+        server_name _;
+        root /out/{{ $name }};
+        location / { try_files $uri $uri.html /index.html; }
+      }
+      {{- end }}
+      {{- end }}
+    }

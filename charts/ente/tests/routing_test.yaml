@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Ente routing
+templates:
+  - templates/ingress.yaml
+  - templates/gateway-httproute.yaml
+tests:
+  - it: omits routing resources by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: routes an Ingress host to Museum
+    set:
+      ingress:
+        enabled: true
+        hosts:
+          - host: api.ente.test
+            service: museum
+            paths:
+              - path: /
+    template: templates/ingress.yaml
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.name
+          value: RELEASE-NAME-ente-museum
+  - it: routes an Ingress host to Photos
+    set:
+      ingress:
+        enabled: true
+        hosts:
+          - host: photos.ente.test
+            service: photos
+            paths:
+              - path: /
+    template: templates/ingress.yaml
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.name
+          value: RELEASE-NAME-ente-photos
+  - it: renders an HTTPRoute with a shared parent
+    set:
+      gateway:
+        enabled: true
+        parentRefs:
+          - name: public
+        routes:
+          - name: museum
+            service: museum
+            hostnames:
+              - api.ente.test
+    template: templates/gateway-httproute.yaml
+    asserts:
+      - equal:
+          path: spec.parentRefs[0].name
+          value: public
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 8080
+  - it: rejects a route to a disabled web application
+    set:
+      ingress:
+        enabled: true
+        hosts:
+          - host: memories.ente.test
+            service: memories
+            paths:
+              - path: /
+    template: templates/ingress.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: route service "memories" references a disabled web application

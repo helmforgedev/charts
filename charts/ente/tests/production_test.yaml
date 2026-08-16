@@ -1,0 +1,106 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Ente production resources
+templates:
+  - templates/museum-worker-deployment.yaml
+  - templates/pdb.yaml
+  - templates/hpa.yaml
+  - templates/metrics.yaml
+  - templates/servicemonitor.yaml
+  - templates/prometheusrule.yaml
+  - templates/networkpolicy.yaml
+tests:
+  - it: omits the singleton worker by default
+    template: templates/museum-worker-deployment.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders one Recreate worker for HA
+    set:
+      museum.api.skipBackgroundJobs: true
+      museum.worker.enabled: true
+    template: templates/museum-worker-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+  - it: renders both PDBs for replicated workloads
+    set:
+      museum.api.replicaCount: 2
+      museum.api.skipBackgroundJobs: true
+      museum.worker.enabled: true
+      web.replicaCount: 2
+      pdb.museum.enabled: true
+      pdb.web.enabled: true
+    template: templates/pdb.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+  - it: renders two HPAs
+    set:
+      museum.api.skipBackgroundJobs: true
+      museum.worker.enabled: true
+      autoscaling.museum.enabled: true
+      autoscaling.web.enabled: true
+    template: templates/hpa.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+  - it: renders the metrics Service when enabled
+    set:
+      metrics.enabled: true
+    template: templates/metrics.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.ports[0].targetPort
+          value: metrics
+  - it: renders ServiceMonitor only when enabled
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+    template: templates/servicemonitor.yaml
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+  - it: renders PrometheusRule only when enabled
+    set:
+      metrics.enabled: true
+      metrics.prometheusRule.enabled: true
+    template: templates/prometheusrule.yaml
+    asserts:
+      - isKind:
+          of: PrometheusRule
+  - it: renders Museum and web NetworkPolicies
+    set:
+      networkPolicy.enabled: true
+    template: templates/networkpolicy.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+  - it: applies shared extra egress rules to Museum and web
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.allowDNS: false
+      networkPolicy.egress.allowSameNamespacePostgresql: false
+      networkPolicy.egress.allowObjectStorage: false
+      networkPolicy.extraEgress:
+        - to:
+            - ipBlock:
+                cidr: 10.42.0.0/16
+          ports:
+            - protocol: TCP
+              port: 443
+    template: templates/networkpolicy.yaml
+    asserts:
+      - equal:
+          path: spec.egress[0].to[0].ipBlock.cidr
+          value: 10.42.0.0/16
+        documentIndex: 0
+      - equal:
+          path: spec.egress[0].to[0].ipBlock.cidr
+          value: 10.42.0.0/16
+        documentIndex: 1

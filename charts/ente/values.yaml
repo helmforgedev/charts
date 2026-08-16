@@ -1,0 +1,571 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# Ente Photos Helm Chart
+# =============================================================================
+# Museum stores metadata and encryption material in PostgreSQL while encrypted
+# objects live in an external S3-compatible bucket. The S3 endpoint must be
+# reachable by both Museum and end-user clients through presigned URLs.
+# =============================================================================
+
+# -- Override the chart name used in Kubernetes object names.
+nameOverride: ""
+
+# -- Override the full release name used in Kubernetes object names.
+fullnameOverride: ""
+
+# -- Labels added to all resources created by this chart.
+commonLabels: {}
+
+# -- Reject evaluation placeholders and require a production credential contract.
+productionMode: false
+
+# -- Image pull secrets for private mirrors.
+imagePullSecrets: []
+
+museum:
+  image:
+    # -- Official Ente Museum image repository.
+    repository: ghcr.io/ente/server
+    # -- Immutable commit running in upstream Ente production.
+    tag: "0472c929b6070e61fecaf2013d47efce2dcda462"
+    # -- Museum image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Public Museum API origin used by the web applications.
+  externalUrl: https://api.ente.example.com
+  # -- Existing Secret containing Museum cryptographic keys.
+  existingSecret: ""
+  secretKeys:
+    # -- Key containing the base64-standard 32-byte email encryption key.
+    encryptionKey: encryption-key
+    # -- Key containing the base64-standard 64-byte email hash key.
+    hashKey: hash-key
+    # -- Key containing the base64url 32-byte JWT secret.
+    jwtSecret: jwt-secret
+  api:
+    # -- Number of externally served Museum API replicas.
+    replicaCount: 1
+    # -- Skip cron and cleanup jobs in API replicas. Automatically required when worker.enabled=true.
+    skipBackgroundJobs: false
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+  worker:
+    # -- Run a singleton Museum process for cron and background cleanup.
+    enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+  migrationGate:
+    # -- Serialize Museum startup through a PostgreSQL advisory lock in HA topologies.
+    enabled: true
+    image:
+      # -- Official PostgreSQL client image repository used by the migration gate.
+      repository: docker.io/library/postgres
+      # -- Pinned PostgreSQL client image tag.
+      tag: 18.4-trixie
+      # -- Migration gate image pull policy.
+      pullPolicy: IfNotPresent
+    # -- PostgreSQL advisory lock identifier shared by all Museum pods.
+    advisoryLockId: 724336836
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 999
+      runAsGroup: 999
+  config:
+    # -- Museum log level: panic, fatal, error, warn, info, debug, or trace.
+    logLevel: info
+    # -- Disable new user registration after initial bootstrap.
+    disableRegistration: false
+    # -- User IDs allowed to use Museum admin APIs. The first user is admin when empty.
+    admins: []
+    # -- Header trusted for the original client IP when Museum is behind a proxy.
+    trustedClientIpHeader: X-Forwarded-For
+    webauthn:
+      # -- WebAuthn relying-party ID. Set to the Accounts hostname for passkeys.
+      rpid: accounts.ente.example.com
+      # -- Allowed WebAuthn origins.
+      rporigins:
+        - https://accounts.ente.example.com
+    # -- Raw YAML merged at the end of museum.yaml for advanced upstream settings.
+    extraYaml: ""
+  service:
+    # -- Museum API Service type.
+    type: ClusterIP
+    # -- Museum API Service port.
+    port: 8080
+    # -- Museum metrics Service port.
+    metricsPort: 2112
+    # -- Service annotations.
+    annotations: {}
+    # -- Service IP family policy. Empty uses the cluster default.
+    ipFamilyPolicy: ""
+    # -- Ordered Service IP families.
+    ipFamilies: []
+  probes:
+    startup:
+      enabled: true
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 5
+      failureThreshold: 60
+    readiness:
+      enabled: true
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    liveness:
+      enabled: true
+      initialDelaySeconds: 20
+      periodSeconds: 20
+      timeoutSeconds: 3
+      failureThreshold: 3
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 10001
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []
+
+database:
+  # -- Database mode: auto | postgresql | external. Auto selects external config first, then the subchart.
+  mode: auto
+  external:
+    # -- External PostgreSQL hostname.
+    host: ""
+    # -- External PostgreSQL port.
+    port: 5432
+    # -- External PostgreSQL database name.
+    name: ente
+    # -- External PostgreSQL username.
+    username: ente
+    # -- External PostgreSQL password. Prefer existingSecret in production.
+    password: ""
+    # -- Existing Secret containing the external PostgreSQL password.
+    existingSecret: ""
+    # -- Password key in database.external.existingSecret.
+    existingSecretPasswordKey: database-password
+    # -- PostgreSQL sslmode. Use verify-full with managed production databases when possible.
+    sslMode: require
+
+# -- Deploy HelmForge PostgreSQL as the default durable metadata store.
+postgresql:
+  enabled: true
+  architecture: standalone
+  auth:
+    database: ente
+    username: ente
+    password: ""
+    postgresPassword: ""
+  standalone:
+    persistence:
+      enabled: true
+      size: 20Gi
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+storage:
+  s3:
+    # -- S3-compatible endpoint reachable by Museum and end-user clients.
+    endpoint: https://s3.example.com
+    # -- S3 region.
+    region: us-east-1
+    # -- Bucket used as Ente's primary hot storage.
+    bucket: ente
+    # -- Use path-style S3 URLs. Enable only when required by the provider.
+    usePathStyle: false
+    # -- Enable upstream local-bucket workarounds. Never enable for production.
+    localBuckets: false
+    # -- S3 access key. Prefer existingSecret in production.
+    accessKey: change-me
+    # -- S3 secret key. Prefer existingSecret in production.
+    secretKey: change-me
+    # -- Existing Secret containing S3 credentials.
+    existingSecret: ""
+    # -- Access-key field in storage.s3.existingSecret.
+    existingSecretAccessKeyKey: access-key
+    # -- Secret-key field in storage.s3.existingSecret.
+    existingSecretSecretKeyKey: secret-key
+
+smtp:
+  # -- Enable SMTP delivery for Ente one-time login codes.
+  enabled: false
+  # -- SMTP hostname.
+  host: ""
+  # -- SMTP port.
+  port: 587
+  # -- Sender email address.
+  email: ""
+  # -- Optional sender display name.
+  senderName: Ente
+  # -- SMTP encryption mode: tls | ssl | empty.
+  encryption: tls
+  # -- SMTP username. Prefer existingSecret in production.
+  username: ""
+  # -- SMTP password. Prefer existingSecret in production.
+  password: ""
+  # -- Existing Secret containing SMTP credentials.
+  existingSecret: ""
+  # -- Username key in smtp.existingSecret.
+  existingSecretUsernameKey: username
+  # -- Password key in smtp.existingSecret.
+  existingSecretPasswordKey: password
+
+externalSecrets:
+  # -- Render ExternalSecret resources for clusters running External Secrets Operator.
+  enabled: false
+  # -- ExternalSecret API version.
+  apiVersion: external-secrets.io/v1
+  # -- Default refresh interval applied when an item omits spec.refreshInterval.
+  refreshInterval: 1h
+  # -- Complete ExternalSecret definitions. Target names default to generated resource names.
+  items: []
+    # - name: ente-credentials
+    #   spec:
+    #     secretStoreRef:
+    #       name: production-secrets
+    #       kind: ClusterSecretStore
+    #     target:
+    #       name: ente-museum
+    #     dataFrom:
+    #       - extract:
+    #           key: ente/museum
+
+web:
+  image:
+    # -- Official Ente web bundle image repository.
+    repository: ghcr.io/ente/web
+    # -- Immutable upstream web build commit.
+    tag: "5ab0c5b4c7a89c4e470ef6f793600da33cebf35d"
+    # -- Web image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Number of web pods serving all enabled applications.
+  replicaCount: 1
+  apps:
+    photos:
+      enabled: true
+      port: 3000
+      externalUrl: https://photos.ente.example.com
+    accounts:
+      enabled: true
+      port: 3001
+      externalUrl: https://accounts.ente.example.com
+    albums:
+      enabled: true
+      port: 3002
+      externalUrl: https://albums.ente.example.com
+    auth:
+      enabled: false
+      port: 3003
+      externalUrl: https://auth.ente.example.com
+    cast:
+      enabled: false
+      port: 3004
+      externalUrl: https://cast.ente.example.com
+    share:
+      enabled: false
+      port: 3005
+      externalUrl: https://share.ente.example.com
+    embed:
+      enabled: false
+      port: 3006
+      externalUrl: https://embed.ente.example.com
+    memories:
+      enabled: false
+      port: 3010
+      externalUrl: https://memories.ente.example.com
+  service:
+    # -- Web application Service type.
+    type: ClusterIP
+    # -- Service port exposed for each enabled application.
+    port: 80
+    # -- Service annotations applied to each web Service.
+    annotations: {}
+    # -- Service IP family policy. Empty uses the cluster default.
+    ipFamilyPolicy: ""
+    # -- Ordered Service IP families.
+    ipFamilies: []
+  probes:
+    startup:
+      enabled: true
+      initialDelaySeconds: 2
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 30
+    readiness:
+      enabled: true
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+    liveness:
+      enabled: true
+      initialDelaySeconds: 20
+      periodSeconds: 20
+      timeoutSeconds: 3
+      failureThreshold: 3
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 101
+    runAsGroup: 101
+    fsGroup: 101
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 101
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  extraEnv: []
+
+ingress:
+  # -- Create one Kubernetes Ingress containing the configured routes.
+  enabled: false
+  # -- Ingress class name.
+  ingressClassName: ""
+  # -- Ingress annotations.
+  annotations: {}
+  # -- Routes to Museum or enabled web applications.
+  hosts: []
+    # - host: api.ente.example.com
+    #   service: museum
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS entries.
+  tls: []
+
+gateway:
+  # -- Create Gateway API HTTPRoutes for Museum and enabled web applications.
+  enabled: false
+  # -- API version for HTTPRoute.
+  apiVersion: gateway.networking.k8s.io/v1
+  # -- Parent Gateway references shared by routes that omit parentRefs.
+  parentRefs: []
+  # -- HTTPRoute definitions.
+  routes: []
+    # - name: museum
+    #   service: museum
+    #   hostnames:
+    #     - api.ente.example.com
+    #   parentRefs: []
+    #   annotations: {}
+
+networkPolicy:
+  # -- Create NetworkPolicies for Museum and web pods.
+  enabled: false
+  # -- Additional complete egress rules applied to both Museum and web pods.
+  extraEgress: []
+  ingress:
+    # -- Allow traffic to published application ports from all sources.
+    allowExternal: true
+    # -- Additional complete ingress rules for Museum.
+    museumExtraRules: []
+    # -- Additional complete ingress rules for web.
+    webExtraRules: []
+  egress:
+    # -- Allow DNS through TCP and UDP port 53.
+    allowDNS: true
+    # -- Allow Museum to reach same-namespace PostgreSQL pods.
+    allowSameNamespacePostgresql: true
+    # -- Allow HTTP/HTTPS egress for S3-compatible storage.
+    allowObjectStorage: true
+    # -- Additional complete Museum egress rules, required for private S3 or SMTP CIDRs.
+    museumExtraRules: []
+    # -- Additional complete web egress rules.
+    webExtraRules: []
+
+pdb:
+  museum:
+    # -- Create a PDB for Museum API replicas. Requires at least two replicas.
+    enabled: false
+    # -- Maximum unavailable Museum API pods.
+    maxUnavailable: 1
+  web:
+    # -- Create a PDB for web replicas. Requires at least two replicas.
+    enabled: false
+    # -- Maximum unavailable web pods.
+    maxUnavailable: 1
+
+autoscaling:
+  museum:
+    # -- Create an HPA for Museum API replicas.
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: ""
+    behavior: {}
+  web:
+    # -- Create an HPA for web replicas.
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: ""
+    behavior: {}
+
+metrics:
+  # -- Expose Museum's native Prometheus endpoint on a dedicated Service.
+  enabled: false
+  service:
+    annotations: {}
+  serviceMonitor:
+    # -- Create a ServiceMonitor. Requires Prometheus Operator CRDs.
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+    annotations: {}
+    relabelings: []
+    metricRelabelings: []
+  prometheusRule:
+    # -- Create baseline Museum alerting rules. Requires Prometheus Operator CRDs.
+    enabled: false
+    labels: {}
+    annotations: {}
+    rules: []
+
+backup:
+  # -- Back up PostgreSQL to an S3-compatible bucket with a CronJob.
+  enabled: false
+  # -- Cron schedule for PostgreSQL backups.
+  schedule: "0 3 * * *"
+  # -- Suspend the backup schedule.
+  suspend: false
+  # -- CronJob concurrency policy.
+  concurrencyPolicy: Forbid
+  # -- Successful Job history retained.
+  successfulJobsHistoryLimit: 3
+  # -- Failed Job history retained.
+  failedJobsHistoryLimit: 3
+  # -- Job retry limit.
+  backoffLimit: 1
+  # -- PostgreSQL client image used for pg_dump.
+  postgresqlImage: docker.io/library/postgres:18.4-trixie
+  # -- MinIO client image used for S3 upload.
+  uploaderImage: docker.io/helmforge/mc:1.0.0
+  # -- Additional pg_dump arguments.
+  pgDumpArgs: "--format=custom --compress=9"
+  resources: {}
+  s3:
+    # -- Backup S3 endpoint. It may differ from Ente object storage.
+    endpoint: ""
+    # -- Backup bucket.
+    bucket: ""
+    # -- Object prefix inside the backup bucket.
+    prefix: ente/postgresql
+    # -- Existing Secret containing backup S3 credentials.
+    existingSecret: ""
+    # -- Access key field in backup.s3.existingSecret.
+    existingSecretAccessKeyKey: access-key
+    # -- Secret key field in backup.s3.existingSecret.
+    existingSecretSecretKeyKey: secret-key
+    # -- Inline backup access key. Prefer an existing Secret.
+    accessKey: ""
+    # -- Inline backup secret key. Prefer an existing Secret.
+    secretKey: ""
+
+test:
+  # -- Image used by the Helm test hook.
+  image: docker.io/curlimages/curl:8.21.0
+  # -- Resources for the Helm test pod.
+  resources: {}
+
+# -- Additional Kubernetes manifests rendered with tpl support.
+extraManifests: []
+
+waitForDatabase:
+  # -- Image used by the database reachability init container.
+  image: docker.io/library/busybox:1.37
+  pullPolicy: IfNotPresent
+  resources: {}
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 65532
+    seccompProfile:
+      type: RuntimeDefault
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: true
+  # -- ServiceAccount name. Generated when empty.
+  name: ""
+  # -- ServiceAccount annotations.
+  annotations: {}
+  # -- Mount the Kubernetes API token into pods.
+  automountServiceAccountToken: false
+
+# -- Pod scheduling priority class.
+priorityClassName: ""
+
+# -- Node selector shared by Ente workloads.
+nodeSelector: {}
+
+# -- Tolerations shared by Ente workloads.
+tolerations: []
+
+# -- Affinity shared by Ente workloads.
+affinity: {}
+
+# -- Topology spread constraints shared by Ente workloads.
+topologySpreadConstraints: []
+
+# -- Grace period used by Ente workload pods.
+terminationGracePeriodSeconds: 30

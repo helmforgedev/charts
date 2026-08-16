@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Ente Helm chart values",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["productionMode", "museum", "database", "postgresql", "storage", "smtp", "externalSecrets", "web", "ingress", "gateway", "networkPolicy", "pdb", "autoscaling", "metrics", "backup", "test", "serviceAccount"],
+  "definitions": {
+    "stringMap": {"type": "object", "additionalProperties": {"type": "string"}},
+    "image": {
+      "type": "object", "additionalProperties": false, "required": ["repository", "tag", "pullPolicy"],
+      "properties": {
+        "repository": {"type": "string", "minLength": 1},
+        "tag": {"type": "string", "minLength": 1, "not": {"enum": ["latest"]}},
+        "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
+    "probe": {
+      "type": "object", "additionalProperties": false, "required": ["enabled", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+      "properties": {
+        "enabled": {"type": "boolean"}, "initialDelaySeconds": {"type": "integer", "minimum": 0},
+        "periodSeconds": {"type": "integer", "minimum": 1}, "timeoutSeconds": {"type": "integer", "minimum": 1},
+        "failureThreshold": {"type": "integer", "minimum": 1}
+      }
+    },
+    "resources": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "requests": {"type": "object", "additionalProperties": {"type": ["string", "number"]}},
+        "limits": {"type": "object", "additionalProperties": {"type": ["string", "number"]}}
+      }
+    },
+    "service": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"]},
+        "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "metricsPort": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "annotations": {"$ref": "#/definitions/stringMap"},
+        "ipFamilyPolicy": {"type": "string", "enum": ["", "SingleStack", "PreferDualStack", "RequireDualStack"]},
+        "ipFamilies": {"type": "array", "maxItems": 2, "uniqueItems": true, "items": {"type": "string", "enum": ["IPv4", "IPv6"]}}
+      }
+    },
+    "webApp": {
+      "type": "object", "additionalProperties": false, "required": ["enabled", "port", "externalUrl"],
+      "properties": {
+        "enabled": {"type": "boolean"}, "port": {"type": "integer", "minimum": 1024, "maximum": 65535},
+        "externalUrl": {"type": "string", "pattern": "^https?://"}
+      }
+    },
+    "autoscalingComponent": {
+      "type": "object", "additionalProperties": false,
+      "required": ["enabled", "minReplicas", "maxReplicas", "targetCPUUtilizationPercentage", "targetMemoryUtilizationPercentage", "behavior"],
+      "properties": {
+        "enabled": {"type": "boolean"}, "minReplicas": {"type": "integer", "minimum": 1},
+        "maxReplicas": {"type": "integer", "minimum": 1},
+        "targetCPUUtilizationPercentage": {"type": ["integer", "string"]},
+        "targetMemoryUtilizationPercentage": {"type": ["integer", "string"]}, "behavior": {"type": "object"}
+      }
+    },
+    "pdbComponent": {
+      "type": "object", "additionalProperties": false, "required": ["enabled", "maxUnavailable"],
+      "properties": {"enabled": {"type": "boolean"}, "maxUnavailable": {"type": ["integer", "string"]}}
+    }
+  },
+  "properties": {
+    "nameOverride": {"type": "string"}, "fullnameOverride": {"type": "string"},
+    "commonLabels": {"$ref": "#/definitions/stringMap"}, "productionMode": {"type": "boolean"},
+    "imagePullSecrets": {"type": "array", "items": {"type": "object"}},
+    "museum": {
+      "type": "object", "additionalProperties": false,
+      "required": ["image", "externalUrl", "existingSecret", "secretKeys", "api", "worker", "migrationGate", "config", "service", "probes", "podAnnotations", "podLabels", "podSecurityContext", "securityContext", "extraEnv", "extraVolumes", "extraVolumeMounts"],
+      "properties": {
+        "image": {"$ref": "#/definitions/image"}, "externalUrl": {"type": "string", "pattern": "^https?://"},
+        "existingSecret": {"type": "string"},
+        "secretKeys": {
+          "type": "object", "additionalProperties": false, "required": ["encryptionKey", "hashKey", "jwtSecret"],
+          "properties": {"encryptionKey": {"type": "string", "minLength": 1}, "hashKey": {"type": "string", "minLength": 1}, "jwtSecret": {"type": "string", "minLength": 1}}
+        },
+        "api": {
+          "type": "object", "additionalProperties": false, "required": ["replicaCount", "skipBackgroundJobs", "resources"],
+          "properties": {"replicaCount": {"type": "integer", "minimum": 1}, "skipBackgroundJobs": {"type": "boolean"}, "resources": {"$ref": "#/definitions/resources"}}
+        },
+        "worker": {
+          "type": "object", "additionalProperties": false, "required": ["enabled", "resources"],
+          "properties": {"enabled": {"type": "boolean"}, "resources": {"$ref": "#/definitions/resources"}}
+        },
+        "migrationGate": {
+          "type": "object", "additionalProperties": false,
+          "required": ["enabled", "image", "advisoryLockId", "resources", "securityContext"],
+          "properties": {
+            "enabled": {"type": "boolean"}, "image": {"$ref": "#/definitions/image"},
+            "advisoryLockId": {"type": "integer", "minimum": 1},
+            "resources": {"$ref": "#/definitions/resources"}, "securityContext": {"type": "object"}
+          }
+        },
+        "config": {
+          "type": "object", "additionalProperties": false,
+          "required": ["logLevel", "disableRegistration", "admins", "trustedClientIpHeader", "webauthn", "extraYaml"],
+          "properties": {
+            "logLevel": {"type": "string", "enum": ["panic", "fatal", "error", "warn", "info", "debug", "trace"]},
+            "disableRegistration": {"type": "boolean"}, "admins": {"type": "array", "items": {"type": ["integer", "string"]}},
+            "trustedClientIpHeader": {"type": "string"},
+            "webauthn": {
+              "type": "object", "additionalProperties": false, "required": ["rpid", "rporigins"],
+              "properties": {"rpid": {"type": "string"}, "rporigins": {"type": "array", "items": {"type": "string", "pattern": "^https?://"}}}
+            },
+            "extraYaml": {"type": "string"}
+          }
+        },
+        "service": {"$ref": "#/definitions/service"},
+        "probes": {
+          "type": "object", "additionalProperties": false, "required": ["startup", "readiness", "liveness"],
+          "properties": {"startup": {"$ref": "#/definitions/probe"}, "readiness": {"$ref": "#/definitions/probe"}, "liveness": {"$ref": "#/definitions/probe"}}
+        },
+        "podAnnotations": {"$ref": "#/definitions/stringMap"}, "podLabels": {"$ref": "#/definitions/stringMap"},
+        "podSecurityContext": {"type": "object"}, "securityContext": {"type": "object"},
+        "extraEnv": {"type": "array", "items": {"type": "object"}}, "extraVolumes": {"type": "array", "items": {"type": "object"}},
+        "extraVolumeMounts": {"type": "array", "items": {"type": "object"}}
+      }
+    },
+    "database": {
+      "type": "object", "additionalProperties": false, "required": ["mode", "external"],
+      "properties": {
+        "mode": {"type": "string", "enum": ["auto", "postgresql", "external"]},
+        "external": {
+          "type": "object", "additionalProperties": false,
+          "required": ["host", "port", "name", "username", "password", "existingSecret", "existingSecretPasswordKey", "sslMode"],
+          "properties": {
+            "host": {"type": "string"}, "port": {"type": "integer", "minimum": 1, "maximum": 65535}, "name": {"type": "string", "minLength": 1},
+            "username": {"type": "string", "minLength": 1}, "password": {"type": "string"}, "existingSecret": {"type": "string"},
+            "existingSecretPasswordKey": {"type": "string", "minLength": 1},
+            "sslMode": {"type": "string", "enum": ["disable", "allow", "prefer", "require", "verify-ca", "verify-full"]}
+          }
+        }
+      }
+    },
+    "postgresql": {"type": "object"},
+    "storage": {
+      "type": "object", "additionalProperties": false, "required": ["s3"],
+      "properties": {
+        "s3": {
+          "type": "object", "additionalProperties": false,
+          "required": ["endpoint", "region", "bucket", "usePathStyle", "localBuckets", "accessKey", "secretKey", "existingSecret", "existingSecretAccessKeyKey", "existingSecretSecretKeyKey"],
+          "properties": {
+            "endpoint": {"type": "string", "pattern": "^https?://"}, "region": {"type": "string", "minLength": 1}, "bucket": {"type": "string", "minLength": 1},
+            "usePathStyle": {"type": "boolean"}, "localBuckets": {"type": "boolean"}, "accessKey": {"type": "string"}, "secretKey": {"type": "string"},
+            "existingSecret": {"type": "string"}, "existingSecretAccessKeyKey": {"type": "string", "minLength": 1},
+            "existingSecretSecretKeyKey": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "smtp": {
+      "type": "object", "additionalProperties": false,
+      "required": ["enabled", "host", "port", "email", "senderName", "encryption", "username", "password", "existingSecret", "existingSecretUsernameKey", "existingSecretPasswordKey"],
+      "properties": {
+        "enabled": {"type": "boolean"}, "host": {"type": "string"}, "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "email": {"type": "string"}, "senderName": {"type": "string"}, "encryption": {"type": "string", "enum": ["", "tls", "ssl"]},
+        "username": {"type": "string"}, "password": {"type": "string"}, "existingSecret": {"type": "string"},
+        "existingSecretUsernameKey": {"type": "string", "minLength": 1}, "existingSecretPasswordKey": {"type": "string", "minLength": 1}
+      }
+    },
+    "externalSecrets": {
+      "type": "object", "additionalProperties": false, "required": ["enabled", "apiVersion", "refreshInterval", "items"],
+      "properties": {
+        "enabled": {"type": "boolean"}, "apiVersion": {"type": "string", "minLength": 1}, "refreshInterval": {"type": "string", "minLength": 1},
+        "items": {
+          "type": "array", "items": {
+            "type": "object", "additionalProperties": false, "required": ["spec"],
+            "properties": {"name": {"type": "string"}, "labels": {"$ref": "#/definitions/stringMap"}, "annotations": {"$ref": "#/definitions/stringMap"}, "spec": {"type": "object"}}
+          }
+        }
+      }
+    },
+    "web": {
+      "type": "object", "additionalProperties": false,
+      "required": ["image", "replicaCount", "apps", "service", "probes", "podAnnotations", "podLabels", "podSecurityContext", "securityContext", "resources", "extraEnv"],
+      "properties": {
+        "image": {"$ref": "#/definitions/image"}, "replicaCount": {"type": "integer", "minimum": 1},
+        "apps": {
+          "type": "object", "additionalProperties": false, "required": ["photos", "accounts", "albums", "auth", "cast", "share", "embed", "memories"],
+          "properties": {
+            "photos": {"$ref": "#/definitions/webApp"}, "accounts": {"$ref": "#/definitions/webApp"}, "albums": {"$ref": "#/definitions/webApp"},
+            "auth": {"$ref": "#/definitions/webApp"}, "cast": {"$ref": "#/definitions/webApp"}, "share": {"$ref": "#/definitions/webApp"},
+            "embed": {"$ref": "#/definitions/webApp"}, "memories": {"$ref": "#/definitions/webApp"}
+          }
+        },
+        "service": {"$ref": "#/definitions/service"},
+        "probes": {
+          "type": "object", "additionalProperties": false, "required": ["startup", "readiness", "liveness"],
+          "properties": {"startup": {"$ref": "#/definitions/probe"}, "readiness": {"$ref": "#/definitions/probe"}, "liveness": {"$ref": "#/definitions/probe"}}
+        },
+        "podAnnotations": {"$ref": "#/definitions/stringMap"}, "podLabels": {"$ref": "#/definitions/stringMap"},
+        "podSecurityContext": {"type": "object"}, "securityContext": {"type": "object"}, "resources": {"$ref": "#/definitions/resources"},
+        "extraEnv": {"type": "array", "items": {"type": "object"}}
+      }
+    },
+    "ingress": {
+      "type": "object", "additionalProperties": false, "required": ["enabled", "ingressClassName", "annotations", "hosts", "tls"],
+      "properties": {
+        "enabled": {"type": "boolean"}, "ingressClassName": {"type": "string"}, "annotations": {"$ref": "#/definitions/stringMap"},
+        "hosts": {"type": "array", "items": {
+          "type": "object", "additionalProperties": false, "required": ["host", "service", "paths"],
+          "properties": {
+            "host": {"type": "string", "minLength": 1},
+            "service": {"type": "string", "enum": ["museum", "photos", "accounts", "albums", "auth", "cast", "share", "embed", "memories"]},
+            "paths": {"type": "array", "minItems": 1, "items": {
+              "type": "object", "additionalProperties": false,
+              "properties": {"path": {"type": "string"}, "pathType": {"type": "string", "enum": ["Exact", "Prefix", "ImplementationSpecific"]}}
+            }}
+          }
+        }},
+        "tls": {"type": "array", "items": {"type": "object"}}
+      }
+    },
+    "gateway": {
+      "type": "object", "additionalProperties": false, "required": ["enabled", "apiVersion", "parentRefs", "routes"],
+      "properties": {
+        "enabled": {"type": "boolean"}, "apiVersion": {"type": "string", "minLength": 1}, "parentRefs": {"type": "array", "items": {"type": "object"}},
+        "routes": {"type": "array", "items": {
+          "type": "object", "additionalProperties": false, "required": ["name", "service"],
+          "properties": {
+            "name": {"type": "string", "minLength": 1},
+            "service": {"type": "string", "enum": ["museum", "photos", "accounts", "albums", "auth", "cast", "share", "embed", "memories"]},
+            "hostnames": {"type": "array", "items": {"type": "string"}}, "parentRefs": {"type": "array", "items": {"type": "object"}},
+            "annotations": {"$ref": "#/definitions/stringMap"}
+          }
+        }}
+      }
+    },
+    "networkPolicy": {
+      "type": "object", "additionalProperties": false, "required": ["enabled", "extraEgress", "ingress", "egress"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "extraEgress": {"type": "array", "items": {"type": "object"}},
+        "ingress": {
+          "type": "object", "additionalProperties": false, "required": ["allowExternal", "museumExtraRules", "webExtraRules"],
+          "properties": {"allowExternal": {"type": "boolean"}, "museumExtraRules": {"type": "array", "items": {"type": "object"}}, "webExtraRules": {"type": "array", "items": {"type": "object"}}}
+        },
+        "egress": {
+          "type": "object", "additionalProperties": false,
+          "required": ["allowDNS", "allowSameNamespacePostgresql", "allowObjectStorage", "museumExtraRules", "webExtraRules"],
+          "properties": {
+            "allowDNS": {"type": "boolean"}, "allowSameNamespacePostgresql": {"type": "boolean"}, "allowObjectStorage": {"type": "boolean"},
+            "museumExtraRules": {"type": "array", "items": {"type": "object"}}, "webExtraRules": {"type": "array", "items": {"type": "object"}}
+          }
+        }
+      }
+    },
+    "pdb": {
+      "type": "object", "additionalProperties": false, "required": ["museum", "web"],
+      "properties": {"museum": {"$ref": "#/definitions/pdbComponent"}, "web": {"$ref": "#/definitions/pdbComponent"}}
+    },
+    "autoscaling": {
+      "type": "object", "additionalProperties": false, "required": ["museum", "web"],
+      "properties": {"museum": {"$ref": "#/definitions/autoscalingComponent"}, "web": {"$ref": "#/definitions/autoscalingComponent"}}
+    },
+    "metrics": {
+      "type": "object", "additionalProperties": false, "required": ["enabled", "service", "serviceMonitor", "prometheusRule"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "service": {"type": "object", "additionalProperties": false, "required": ["annotations"], "properties": {"annotations": {"$ref": "#/definitions/stringMap"}}},
+        "serviceMonitor": {
+          "type": "object", "additionalProperties": false,
+          "required": ["enabled", "interval", "scrapeTimeout", "labels", "annotations", "relabelings", "metricRelabelings"],
+          "properties": {
+            "enabled": {"type": "boolean"}, "interval": {"type": "string", "minLength": 1}, "scrapeTimeout": {"type": "string", "minLength": 1},
+            "labels": {"$ref": "#/definitions/stringMap"}, "annotations": {"$ref": "#/definitions/stringMap"},
+            "relabelings": {"type": "array", "items": {"type": "object"}}, "metricRelabelings": {"type": "array", "items": {"type": "object"}}
+          }
+        },
+        "prometheusRule": {
+          "type": "object", "additionalProperties": false, "required": ["enabled", "labels", "annotations", "rules"],
+          "properties": {"enabled": {"type": "boolean"}, "labels": {"$ref": "#/definitions/stringMap"}, "annotations": {"$ref": "#/definitions/stringMap"}, "rules": {"type": "array", "items": {"type": "object"}}}
+        }
+      }
+    },
+    "backup": {
+      "type": "object", "additionalProperties": false,
+      "required": ["enabled", "schedule", "suspend", "concurrencyPolicy", "successfulJobsHistoryLimit", "failedJobsHistoryLimit", "backoffLimit", "postgresqlImage", "uploaderImage", "pgDumpArgs", "resources", "s3"],
+      "properties": {
+        "enabled": {"type": "boolean"}, "schedule": {"type": "string", "minLength": 1}, "suspend": {"type": "boolean"},
+        "concurrencyPolicy": {"type": "string", "enum": ["Allow", "Forbid", "Replace"]},
+        "successfulJobsHistoryLimit": {"type": "integer", "minimum": 0}, "failedJobsHistoryLimit": {"type": "integer", "minimum": 0},
+        "backoffLimit": {"type": "integer", "minimum": 0}, "postgresqlImage": {"type": "string", "minLength": 1},
+        "uploaderImage": {"type": "string", "minLength": 1}, "pgDumpArgs": {"type": "string"}, "resources": {"$ref": "#/definitions/resources"},
+        "s3": {
+          "type": "object", "additionalProperties": false,
+          "required": ["endpoint", "bucket", "prefix", "existingSecret", "existingSecretAccessKeyKey", "existingSecretSecretKeyKey", "accessKey", "secretKey"],
+          "properties": {
+            "endpoint": {"type": "string"}, "bucket": {"type": "string"}, "prefix": {"type": "string"}, "existingSecret": {"type": "string"},
+            "existingSecretAccessKeyKey": {"type": "string", "minLength": 1}, "existingSecretSecretKeyKey": {"type": "string", "minLength": 1},
+            "accessKey": {"type": "string"}, "secretKey": {"type": "string"}
+          }
+        }
+      }
+    },
+    "test": {
+      "type": "object", "additionalProperties": false, "required": ["image", "resources"],
+      "properties": {"image": {"type": "string", "minLength": 1}, "resources": {"$ref": "#/definitions/resources"}}
+    },
+    "extraManifests": {"type": "array", "items": {"type": "object"}},
+    "waitForDatabase": {
+      "type": "object", "additionalProperties": false, "required": ["image", "pullPolicy", "resources", "securityContext"],
+      "properties": {
+        "image": {"type": "string", "minLength": 1}, "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]},
+        "resources": {"$ref": "#/definitions/resources"}, "securityContext": {"type": "object"}
+      }
+    },
+    "serviceAccount": {
+      "type": "object", "additionalProperties": false, "required": ["create", "name", "annotations", "automountServiceAccountToken"],
+      "properties": {"create": {"type": "boolean"}, "name": {"type": "string"}, "annotations": {"$ref": "#/definitions/stringMap"}, "automountServiceAccountToken": {"type": "boolean"}}
+    },
+    "priorityClassName": {"type": "string"}, "nodeSelector": {"type": "object"},
+    "tolerations": {"type": "array", "items": {"type": "object"}}, "affinity": {"type": "object"},
+    "topologySpreadConstraints": {"type": "array", "items": {"type": "object"}},
+    "terminationGracePeriodSeconds": {"type": "integer", "minimum": 0}
+  }
+}
