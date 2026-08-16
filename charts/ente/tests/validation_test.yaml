@@ -36,6 +36,13 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: storage.s3.accessKey or storage.s3.existingSecret is required
+  - it: rejects the bundled dependency in external database mode
+    set:
+      database.mode: external
+      database.external.host: ente-rw.database.svc.cluster.local
+    asserts:
+      - failedTemplate:
+          errorMessage: database.mode=external requires postgresql.enabled=false to avoid deploying an unused PostgreSQL dependency
   - it: rejects placeholder S3 in production mode
     set:
       productionMode: true
@@ -44,6 +51,17 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: productionMode=true requires storage.s3.existingSecret or non-placeholder S3 credentials
+  - it: rejects enabled web application placeholders in production mode
+    set:
+      productionMode: true
+      museum.externalUrl: https://api.ente.test
+      storage.s3.endpoint: https://objects.ente.test
+      storage.s3.existingSecret: ente-s3
+      web.apps.accounts.externalUrl: https://accounts.ente.test
+      web.apps.photos.externalUrl: https://photos.ente.test
+    asserts:
+      - failedTemplate:
+          errorMessage: productionMode=true requires a real web.apps.albums.externalUrl
   - it: requires metrics before ServiceMonitor
     set:
       metrics.serviceMonitor.enabled: true

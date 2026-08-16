@@ -100,7 +100,9 @@ A production installation needs:
 4. HTTPS hosts for Photos, Accounts, and Albums.
 5. Durable Museum cryptographic secrets.
 6. Durable PostgreSQL.
-7. SMTP for one-time login codes.
+7. SMTP is strongly recommended for one-time login codes. Without SMTP, Museum
+   writes the codes to its logs and the installation is not suitable for normal
+   production authentication.
 
 Set `productionMode=true` to reject evaluation placeholders and local-bucket
 workarounds.
@@ -148,13 +150,13 @@ Create `values-production.yaml`:
 productionMode: true
 
 museum:
-  externalUrl: https://api.ente.example.com
+  externalUrl: https://api.ente.company.tld
   existingSecret: ente-museum
   config:
     webauthn:
-      rpid: accounts.ente.example.com
+      rpid: accounts.ente.company.tld
       rporigins:
-        - https://accounts.ente.example.com
+        - https://accounts.ente.company.tld
 
 storage:
   s3:
@@ -165,9 +167,9 @@ storage:
 
 smtp:
   enabled: true
-  host: smtp.example.com
+  host: smtp.company.tld
   port: 587
-  email: ente@example.com
+  email: ente@company.tld
   senderName: Ente
   encryption: tls
   existingSecret: ente-smtp
@@ -175,32 +177,32 @@ smtp:
 web:
   apps:
     photos:
-      externalUrl: https://photos.ente.example.com
+      externalUrl: https://photos.ente.company.tld
     accounts:
-      externalUrl: https://accounts.ente.example.com
+      externalUrl: https://accounts.ente.company.tld
     albums:
-      externalUrl: https://albums.ente.example.com
+      externalUrl: https://albums.ente.company.tld
 
 ingress:
   enabled: true
   ingressClassName: nginx
   hosts:
-    - host: api.ente.example.com
+    - host: api.ente.company.tld
       service: museum
       paths:
         - path: /
           pathType: Prefix
-    - host: photos.ente.example.com
+    - host: photos.ente.company.tld
       service: photos
       paths:
         - path: /
           pathType: Prefix
-    - host: accounts.ente.example.com
+    - host: accounts.ente.company.tld
       service: accounts
       paths:
         - path: /
           pathType: Prefix
-    - host: albums.ente.example.com
+    - host: albums.ente.company.tld
       service: albums
       paths:
         - path: /
@@ -208,10 +210,10 @@ ingress:
   tls:
     - secretName: ente-tls
       hosts:
-        - api.ente.example.com
-        - photos.ente.example.com
-        - accounts.ente.example.com
-        - albums.ente.example.com
+        - api.ente.company.tld
+        - photos.ente.company.tld
+        - accounts.ente.company.tld
+        - albums.ente.company.tld
 ```
 
 ## PostgreSQL modes
@@ -426,9 +428,18 @@ networkPolicy:
     allowDNS: true
     allowSameNamespacePostgresql: true
     allowObjectStorage: true
+    objectStoragePorts:
+      - 443
 ```
 
-For external PostgreSQL, private S3, or restricted SMTP, add shared rules to
+The default object-storage rule permits public IPv4 and IPv6 destinations on
+TCP 443 while excluding private and link-local ranges. For a private or
+in-cluster S3 endpoint, replace
+`networkPolicy.egress.objectStorageDestinations` with explicit `ipBlock`,
+`namespaceSelector`, or `podSelector` peers. Add plaintext ports such as 80 or
+9000 to `objectStoragePorts` only when the endpoint and network are trusted.
+
+For external PostgreSQL or restricted SMTP, add shared rules to
 `networkPolicy.extraEgress` or Museum-only rules to
 `networkPolicy.egress.museumExtraRules`. NetworkPolicy cannot authorize a DNS
 hostname directly; use stable provider CIDRs or a controlled egress gateway.

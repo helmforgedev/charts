@@ -48,6 +48,15 @@ tests:
     asserts:
       - hasDocuments:
           count: 2
+  - it: rejects an HPA without a metric target
+    set:
+      autoscaling.web.enabled: true
+      autoscaling.web.targetCPUUtilizationPercentage: ""
+      autoscaling.web.targetMemoryUtilizationPercentage: ""
+    template: templates/hpa.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: autoscaling.web requires targetCPUUtilizationPercentage or targetMemoryUtilizationPercentage when enabled
   - it: renders the metrics Service when enabled
     set:
       metrics.enabled: true
@@ -74,6 +83,9 @@ tests:
     asserts:
       - isKind:
           of: PrometheusRule
+      - lengthEqual:
+          path: spec.groups[0].rules
+          count: 2
   - it: renders Museum and web NetworkPolicies
     set:
       networkPolicy.enabled: true
@@ -81,6 +93,14 @@ tests:
     asserts:
       - hasDocuments:
           count: 2
+      - equal:
+          path: spec.egress[2].ports[0].port
+          value: 443
+        documentIndex: 0
+      - contains:
+          path: spec.egress[2].to[0].ipBlock.except
+          content: 169.254.0.0/16
+        documentIndex: 0
   - it: applies shared extra egress rules to Museum and web
     set:
       networkPolicy.enabled: true

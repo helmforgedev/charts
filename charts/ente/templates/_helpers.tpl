@@ -61,6 +61,7 @@ app.kubernetes.io/component: {{ .component }}
   {{- end -}}
 {{- else if eq $mode "external" -}}
   {{- if not .Values.database.external.host -}}{{- fail "database.mode=external requires database.external.host" -}}{{- end -}}
+  {{- if .Values.postgresql.enabled -}}{{- fail "database.mode=external requires postgresql.enabled=false to avoid deploying an unused PostgreSQL dependency" -}}{{- end -}}
 external
 {{- else if eq $mode "postgresql" -}}
   {{- if not .Values.postgresql.enabled -}}{{- fail "database.mode=postgresql requires postgresql.enabled=true" -}}{{- end -}}
@@ -189,6 +190,9 @@ postgresql
   {{- if hasSuffix ".example.com" .Values.storage.s3.endpoint -}}{{- fail "productionMode=true requires a real storage.s3.endpoint" -}}{{- end -}}
   {{- if and (not .Values.storage.s3.existingSecret) (or (eq .Values.storage.s3.accessKey "change-me") (eq .Values.storage.s3.secretKey "change-me")) -}}{{- fail "productionMode=true requires storage.s3.existingSecret or non-placeholder S3 credentials" -}}{{- end -}}
   {{- if .Values.storage.s3.localBuckets -}}{{- fail "productionMode=true forbids storage.s3.localBuckets" -}}{{- end -}}
+  {{- range $name, $app := .Values.web.apps -}}
+    {{- if and $app.enabled (hasSuffix ".example.com" $app.externalUrl) -}}{{- fail (printf "productionMode=true requires a real web.apps.%s.externalUrl" $name) -}}{{- end -}}
+  {{- end -}}
 {{- end -}}
 {{- if and .Values.smtp.enabled (not .Values.smtp.host) -}}{{- fail "smtp.enabled=true requires smtp.host" -}}{{- end -}}
 {{- if and .Values.smtp.enabled (not .Values.smtp.email) -}}{{- fail "smtp.enabled=true requires smtp.email" -}}{{- end -}}

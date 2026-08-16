@@ -48,6 +48,50 @@ encryption key, hash key, and JWT secret.
 7. Confirm object counts and application logs.
 8. Only then perform the production cutover.
 
+Bind the restored credentials and endpoints explicitly. This prevents the
+restore release from creating a new PostgreSQL instance or generating new
+Museum keys.
+
+```yaml
+museum:
+  existingSecret: ente-restored-museum
+
+storage:
+  s3:
+    endpoint: https://s3-restore.company.tld
+    region: us-east-1
+    bucket: ente-restore-test
+    existingSecret: ente-restored-s3
+
+database:
+  mode: external
+  external:
+    host: ente-restore-rw.database.svc.cluster.local
+    port: 5432
+    name: ente
+    username: ente
+    existingSecret: ente-restored-postgresql
+    existingSecretPasswordKey: database-password
+    sslMode: require
+
+postgresql:
+  enabled: false
+```
+
+Render the release before starting Museum and inspect the exact Secret
+references, database host, S3 endpoint, and bucket:
+
+```bash
+helm template ente-restore oci://ghcr.io/helmforgedev/helm/ente \
+  -f restore-values.yaml > ente-restore-rendered.yaml
+yq 'select(.kind == "Deployment" and .metadata.name == "ente-restore-ente-museum-api") |
+  .spec.template.spec.containers[0].env[] |
+  select(.valueFrom.secretKeyRef) |
+  .valueFrom.secretKeyRef.name' ente-restore-rendered.yaml
+yq 'select(.kind == "ConfigMap" and .metadata.name == "ente-restore-ente-config") |
+  .data."museum-api.yaml"' ente-restore-rendered.yaml
+```
+
 ## Restore drills
 
 Run a complete restore drill at least quarterly. A successful scheduled Job is
