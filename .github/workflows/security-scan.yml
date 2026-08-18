@@ -58,7 +58,14 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Build Helm dependencies
-        run: helm dependency build charts/${{ matrix.chart }}
+        env:
+          CHART: ${{ matrix.chart }}
+        run: |
+          [[ "$CHART" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]] || {
+            echo "::error::Invalid chart name"
+            exit 1
+          }
+          helm dependency build "charts/$CHART"
 
       - name: Install Kubescape
         run: |
@@ -72,15 +79,22 @@ jobs:
 
       - name: Run security scan
         id: scan
+        env:
+          CHART: ${{ matrix.chart }}
         run: |
-          REPORT="/tmp/${{ matrix.chart }}-scan.json"
-          RENDERED="/tmp/${{ matrix.chart }}-rendered.yaml"
+          [[ "$CHART" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]] || {
+            echo "::error::Invalid chart name"
+            exit 1
+          }
 
-          helm template kubescape "charts/${{ matrix.chart }}" --include-crds > "$RENDERED"
+          REPORT="/tmp/${CHART}-scan.json"
+          RENDERED="/tmp/${CHART}-rendered.yaml"
+
+          helm template kubescape "charts/$CHART" --include-crds > "$RENDERED"
           KINDS=$(awk '/^kind:[[:space:]]/ { print $2 }' "$RENDERED" | sort -u)
           KINDS_CSV=$(printf '%s\n' "$KINDS" | paste -sd, -)
 
-          echo "chart=${{ matrix.chart }}" >> "$GITHUB_OUTPUT"
+          echo "chart=$CHART" >> "$GITHUB_OUTPUT"
           echo "kinds=$KINDS_CSV" >> "$GITHUB_OUTPUT"
 
           if ! printf '%s\n' "$KINDS" | grep -Eq \
@@ -88,13 +102,13 @@ jobs:
             echo "applicable=false" >> "$GITHUB_OUTPUT"
             echo "score=N/A" >> "$GITHUB_OUTPUT"
             echo "score_int=100" >> "$GITHUB_OUTPUT"
-            echo "Kubescape is not applicable to ${{ matrix.chart }}; rendered kinds: $KINDS_CSV"
+            echo "Kubescape is not applicable to $CHART; rendered kinds: $KINDS_CSV"
             exit 0
           fi
 
           echo "applicable=true" >> "$GITHUB_OUTPUT"
 
-          kubescape scan framework "MITRE,NSA,SOC2" "charts/${{ matrix.chart }}" \
+          kubescape scan framework "MITRE,NSA,SOC2" "$RENDERED" \
             --format json -o "$REPORT" || true
 
           SCORE=$(jq '.summaryDetails.complianceScore // 0' "$REPORT" 2>/dev/null || echo "0")
@@ -103,18 +117,24 @@ jobs:
 
           echo "score=$SCORE" >> "$GITHUB_OUTPUT"
           echo "score_int=$SCORE_INT" >> "$GITHUB_OUTPUT"
-          echo "Security score for ${{ matrix.chart }}: $SCORE"
+          echo "Security score for $CHART: $SCORE"
 
       - name: Post scan results
         if: ${{ !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' }}
         uses: actions/github-script@v9
+        env:
+          CHART: ${{ matrix.chart }}
+          APPLICABLE: ${{ steps.scan.outputs.applicable }}
+          SCORE: ${{ steps.scan.outputs.score }}
+          SCORE_INT: ${{ steps.scan.outputs.score_int }}
+          KINDS: ${{ steps.scan.outputs.kinds }}
         with:
           script: |
-            const chart = '${{ matrix.chart }}';
-            const applicable = '${{ steps.scan.outputs.applicable }}' === 'true';
-            const score = '${{ steps.scan.outputs.score }}';
-            const scoreInt = parseInt('${{ steps.scan.outputs.score_int }}');
-            const kinds = '${{ steps.scan.outputs.kinds }}';
+            const chart = process.env.CHART;
+            const applicable = process.env.APPLICABLE === 'true';
+            const score = process.env.SCORE;
+            const scoreInt = parseInt(process.env.SCORE_INT, 10);
+            const kinds = process.env.KINDS;
 
             const body = applicable ? `### Security Scan: \`${chart}\`
 
@@ -154,6 +174,9 @@ jobs:
 
       - name: Fail if score too low
         if: steps.scan.outputs.applicable == 'true' && steps.scan.outputs.score_int < 50
+        env:
+          CHART: ${{ matrix.chart }}
+          SCORE: ${{ steps.scan.outputs.score }}
         run: |
-          echo "::error::Security score for ${{ matrix.chart }} is ${{ steps.scan.outputs.score }}% (minimum: 50%)"
+          echo "::error::Security score for $CHART is $SCORE% (minimum: 50%)"
           exit 1

@@ -79,7 +79,8 @@ kubectl api-resources --api-group=gateway.envoyproxy.io
 
 `helm show crds` returns all 18 CRDs from the default packaged bundle, so the
 wait is exhaustive rather than a two-object spot check. Use the exact installed
-chart version.
+chart version. This file-based wait is only valid for the default full bundle;
+`helm show crds` does not evaluate subchart conditions.
 
 ### Diff and install Envoy Gateway
 
@@ -171,10 +172,14 @@ helm upgrade --install envoy-gateway-crds \
   --set crds.gatewayAPI.enabled=false \
   --set crds.envoyGateway.enabled=true \
   --set safeUpgradePolicy.management=external
+
+kubectl get crd -o name | grep '\.gateway\.envoyproxy\.io$' |
+  xargs kubectl wait --for=condition=Established --timeout=120s
 ```
 
 Do not overwrite provider CRDs with an unknown/newer bundle or a different
-channel.
+channel. The API-group-scoped wait avoids waiting for Gateway API CRDs that the
+provider-managed release did not install.
 
 ## Upgrading
 

@@ -21,7 +21,7 @@ Helm creates missing CRDs but does not upgrade or delete existing CRDs.
 
 List the selected CRDs:
 
-  kubectl get crd -l gateway.networking.k8s.io/policy=direct
+  kubectl get crd | grep gateway.networking.k8s.io
   kubectl get crd | grep gateway.envoyproxy.io
 
 Verify Gateway API metadata:
@@ -46,6 +46,18 @@ Established. For the default bundle:
   kubectl wait --for=condition=Established \
     --timeout=120s \
     -f envoy-gateway-crds-installed.yaml
+
+The file-based command above is only for the default full bundle. For a
+partial bundle, wait only for the enabled API group:
+
+{{- if .Values.crds.gatewayAPI.enabled }}
+  kubectl get crd -o name | grep '\.gateway\.networking\.k8s\.io$' | \
+    xargs kubectl wait --for=condition=Established --timeout=120s
+{{- end }}
+{{- if .Values.crds.envoyGateway.enabled }}
+  kubectl get crd -o name | grep '\.gateway\.envoyproxy\.io$' | \
+    xargs kubectl wait --for=condition=Established --timeout=120s
+{{- end }}
 
 Confirm Kubernetes discovery:
 
@@ -99,9 +111,10 @@ uses the APIs.
 7. Migration warning
 =====================
 
-Existing Envoy Gateway 1.10.1 installations must first upgrade to the bridge
-application release. Do not install the standalone policy over a policy owned by
-the application release. Follow the UID-preserving ownership transfer in:
+Existing installations of Envoy Gateway application chart 1.10.1 must first
+upgrade to the bridge application release. Do not install the standalone policy
+over a policy owned by the application release. Follow the UID-preserving
+ownership transfer in:
 
   https://helmforge.dev/docs/charts/envoy-gateway-crds#migration-from-1101
 

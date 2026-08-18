@@ -1,8 +1,8 @@
-# Migration From Envoy Gateway 1.10.1
+# Migration From Envoy Gateway Application Chart 1.10.1
 
-Use the command-by-command procedure in the
-[Envoy Gateway chart documentation](https://helmforge.dev/docs/charts/envoy-gateway#crd-migration-from-chart-1101).
-The summary below defines the invariants that the migration must preserve.
+This is the self-contained migration procedure from application chart 1.10.1
+to 2.0.0. It preserves CRD, custom-resource, policy, and binding UIDs while
+moving lifecycle ownership to `envoy-gateway-crds` 1.0.0.
 
 ## Why A Bridge Release Is Required
 
@@ -23,6 +23,12 @@ the change record.
 At minimum, capture:
 
 ```shell
+export NAMESPACE=envoy-gateway
+export APP_RELEASE=envoy-gateway
+export CRD_RELEASE=envoy-gateway-crds
+export BRIDGE_VERSION=2.0.0
+export CRD_CHART_VERSION=1.0.0
+
 helm status envoy-gateway --namespace envoy-gateway
 kubectl get crd -o json > crds-before.json
 kubectl get gatewayclasses,gateways,httproutes -A -o json > gateway-api-before.json
@@ -33,21 +39,127 @@ kubectl get validatingadmissionpolicy,validatingadmissionpolicybinding \
 
 ## Migration Procedure
 
-1. Upgrade Envoy Gateway to the published bridge release with
-   `crds.enabled=true`.
-2. Verify the policy and binding now contain `helm.sh/resource-policy: keep`.
-3. Render the standalone CRDs with policy management disabled.
-4. Run server-side dry-run, then apply using field manager
-   `helmforge-envoy-gateway-crds`.
-5. Wait for all 18 CRDs to become Established.
-6. Install `envoy-gateway-crds` with `--skip-crds` and policy disabled.
-7. Upgrade the application bridge release with `crds.enabled=false`.
-8. Verify the policy and binding still exist and no UID changed.
-9. Compare the live policy specifications with the standalone template.
-10. Adopt the two policy resources with Helm `--take-ownership`, or use the
-    audited metadata fallback documented below.
-11. Enable policy management in the standalone release.
-12. Re-run the complete UID, count, discovery, controller, and traffic checks.
+### 1. Install the application bridge
+
+Keep the bundled dependency enabled so application chart 2.0.0 records the
+keep policy in both the live resources and the Helm release revision:
+
+```shell
+helm upgrade "$APP_RELEASE" \
+  oci://ghcr.io/helmforgedev/helm/envoy-gateway \
+  --version "$BRIDGE_VERSION" \
+  --namespace "$NAMESPACE" \
+  --reuse-values \
+  --set crds.enabled=true \
+  --wait \
+  --timeout 10m
+
+for kind in validatingadmissionpolicy validatingadmissionpolicybinding; do
+  kubectl get "$kind" safe-upgrades.gateway.networking.k8s.io \
+    -o jsonpath='{.metadata.annotations.helm\.sh/resource-policy}{"\n"}'
+done
+```
+
+Both checks must print `keep`. Stop if either does not.
+
+### 2. Apply the locked CRD bundle
+
+Render the standalone bundle without competing for policy ownership, perform a
+server-side dry-run, then apply it with the dedicated field manager:
+
+```shell
+helm template "$CRD_RELEASE" \
+  oci://ghcr.io/helmforgedev/helm/envoy-gateway-crds \
+  --version "$CRD_CHART_VERSION" \
+  --include-crds \
+  --set safeUpgradePolicy.management=disabled \
+  > envoy-gateway-crds.yaml
+
+kubectl apply --server-side --dry-run=server \
+  --field-manager=helmforge-envoy-gateway-crds \
+  -f envoy-gateway-crds.yaml
+kubectl apply --server-side \
+  --field-manager=helmforge-envoy-gateway-crds \
+  -f envoy-gateway-crds.yaml
+kubectl wait --for=condition=Established --timeout=120s \
+  -f envoy-gateway-crds.yaml
+```
+
+Do not add `--force-conflicts` without auditing `metadata.managedFields` and
+confirming every conflict belongs to the known v1.9.0/v1.6.1 bundle.
+
+### 3. Create the standalone release
+
+The CRDs now exist and were updated server-side. Record the release without
+asking Helm to create them again and without adopting the policy yet:
+
+```shell
+helm upgrade --install "$CRD_RELEASE" \
+  oci://ghcr.io/helmforgedev/helm/envoy-gateway-crds \
+  --version "$CRD_CHART_VERSION" \
+  --namespace "$NAMESPACE" \
+  --create-namespace \
+  --skip-crds \
+  --set safeUpgradePolicy.management=disabled
+```
+
+### 4. Disable the old dependency
+
+```shell
+helm upgrade "$APP_RELEASE" \
+  oci://ghcr.io/helmforgedev/helm/envoy-gateway \
+  --version "$BRIDGE_VERSION" \
+  --namespace "$NAMESPACE" \
+  --reuse-values \
+  --set crds.enabled=false \
+  --wait \
+  --timeout 10m
+```
+
+Confirm the application release no longer contains the policy while both live
+objects remain present:
+
+```shell
+if helm get manifest "$APP_RELEASE" --namespace "$NAMESPACE" |
+  grep -q 'safe-upgrades.gateway.networking.k8s.io'; then
+  echo "application release still contains the policy" >&2
+  exit 1
+fi
+kubectl get validatingadmissionpolicy,validatingadmissionpolicybinding \
+  safe-upgrades.gateway.networking.k8s.io
+```
+
+### 5. Transfer policy ownership
+
+Compare the live specifications with the standalone render before adoption:
+
+```shell
+helm template "$CRD_RELEASE" \
+  oci://ghcr.io/helmforgedev/helm/envoy-gateway-crds \
+  --version "$CRD_CHART_VERSION" \
+  --namespace "$NAMESPACE" \
+  --skip-crds \
+  --set safeUpgradePolicy.management=managed \
+  > policy-standalone.yaml
+
+helm upgrade "$CRD_RELEASE" \
+  oci://ghcr.io/helmforgedev/helm/envoy-gateway-crds \
+  --version "$CRD_CHART_VERSION" \
+  --namespace "$NAMESPACE" \
+  --skip-crds \
+  --take-ownership \
+  --set safeUpgradePolicy.management=managed
+```
+
+`--take-ownership` requires Helm 3.17 or later. Older clients must use the
+audited metadata fallback below.
+
+### 6. Verify preservation
+
+Capture the same objects and stable name/UID inventories after migration, then
+compare them with the preflight files. Every UID and resource count must be
+unchanged. Also verify discovery, bundle metadata, controller availability, and
+existing Gateway traffic before closing the change.
 
 ## Ownership Adoption
 

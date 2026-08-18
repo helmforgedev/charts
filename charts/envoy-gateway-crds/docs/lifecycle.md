@@ -22,6 +22,16 @@ kubectl wait --for=condition=Established \
 The wait checks all 18 CRDs in the packaged default bundle. Refresh discovery
 before diffing the application chart.
 
+`helm show crds` does not evaluate subchart conditions, so that file-based wait
+is only valid for the default full bundle. For a partial bundle, wait for the
+enabled API group instead. For example, provider-managed Gateway API mode
+installs only the Envoy Gateway extension group:
+
+```shell
+kubectl get crd -o name | grep '\.gateway\.envoyproxy\.io$' |
+  xargs kubectl wait --for=condition=Established --timeout=120s
+```
+
 ## Upgrades
 
 Helm does not upgrade objects from `crds/`. Render the selected CRDs with the

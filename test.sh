@@ -480,16 +480,14 @@ kubescape_scan() {
     return 0
   fi
 
-  rm -f "$rendered"
-
-  (cd "$ROOT_DIR" && kubescape scan framework "MITRE,NSA,SOC2" "charts/$chart") 2>&1 | tee "$report"
+  kubescape scan framework "MITRE,NSA,SOC2" "$rendered" 2>&1 | tee "$report"
 
   local score
   local score_int
   score="$(grep -E 'Overall compliance-score|Resource Summary' "$report" | grep -Eo '[0-9]+([.][0-9]+)?%' | tail -1 | tr -d '%' || true)"
   score="${score:-0}"
   score_int="$(printf '%s\n' "$score" | awk '{print int($1)}')"
-  rm -f "$report"
+  rm -f "$rendered" "$report"
 
   info "Kubescape score for $chart: $score%"
   [[ "$score_int" -ge "$KUBESCAPE_MIN_SCORE" ]]
