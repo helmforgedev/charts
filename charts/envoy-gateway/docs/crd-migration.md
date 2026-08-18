@@ -76,6 +76,8 @@ kubectl version
 Create a change-record directory and capture cluster-scoped objects:
 
 ```shell
+set -euo pipefail
+
 mkdir -p envoy-gateway-crd-migration
 for crd in $REQUIRED_CRDS; do
   kubectl get crd "$crd" -o json
@@ -90,6 +92,8 @@ Capture every stored Gateway API and Envoy Gateway custom resource. A missing
 resource type should stop the preflight instead of being silently ignored:
 
 ```shell
+set -euo pipefail
+
 for resource in $(kubectl api-resources \
   --api-group=gateway.networking.k8s.io \
   --verbs=list \
@@ -108,6 +112,8 @@ done > envoy-gateway-crd-migration/envoy-api-before.json
 Create stable name/UID inventories for later comparison:
 
 ```shell
+set -euo pipefail
+
 jq -r '.items[] | [.metadata.name, .metadata.uid] | @tsv' \
   envoy-gateway-crd-migration/crds-before.json \
   | sort > envoy-gateway-crd-migration/crd-uids-before.tsv
@@ -117,6 +123,10 @@ jq -rs '[.[].items[]] | .[] |
   @tsv' envoy-gateway-crd-migration/gateway-api-before.json \
   envoy-gateway-crd-migration/envoy-api-before.json \
   | sort > envoy-gateway-crd-migration/resource-uids-before.tsv
+
+jq -r '.items[] | [.kind, .metadata.name, .metadata.uid] | @tsv' \
+  envoy-gateway-crd-migration/policy-before.json \
+  | sort > envoy-gateway-crd-migration/policy-uids-before.tsv
 ```
 
 ## 2. Upgrade To The Bridge With Bundled CRDs Enabled
@@ -177,10 +187,9 @@ kubectl apply \
   --field-manager=helmforge-envoy-gateway-crds \
   -f envoy-gateway-crd-migration/envoy-gateway-crds.yaml
 
-kubectl wait \
-  --for=condition=Established \
-  --timeout=120s \
-  -f envoy-gateway-crd-migration/envoy-gateway-crds.yaml
+for crd in $REQUIRED_CRDS; do
+  kubectl wait --for=condition=Established --timeout=120s "crd/$crd"
+done
 ```
 
 Do not add `--force-conflicts` by default. If the dry-run reports conflicts,
@@ -284,6 +293,8 @@ Never edit Helm release Secrets and never use a hook to transfer ownership.
 Capture the post-migration state and compare it to the preflight inventory:
 
 ```shell
+set -euo pipefail
+
 for crd in $REQUIRED_CRDS; do
   kubectl get crd "$crd" -o json
 done | jq -s '{apiVersion: "v1", kind: "List", items: .}' \
@@ -293,11 +304,21 @@ jq -r '.items[] | [.metadata.name, .metadata.uid] | @tsv' \
   | sort > envoy-gateway-crd-migration/crd-uids-after.tsv
 diff -u envoy-gateway-crd-migration/crd-uids-before.tsv \
   envoy-gateway-crd-migration/crd-uids-after.tsv
+
+kubectl get validatingadmissionpolicy,validatingadmissionpolicybinding \
+  safe-upgrades.gateway.networking.k8s.io \
+  -o json > envoy-gateway-crd-migration/policy-after.json
+jq -r '.items[] | [.kind, .metadata.name, .metadata.uid] | @tsv' \
+  envoy-gateway-crd-migration/policy-after.json \
+  | sort > envoy-gateway-crd-migration/policy-uids-after.tsv
+diff -u envoy-gateway-crd-migration/policy-uids-before.tsv \
+  envoy-gateway-crd-migration/policy-uids-after.tsv
 ```
 
 Repeat the custom-resource inventory from step 1 into
 `resource-uids-after.tsv`, then compare it with `resource-uids-before.tsv`.
-Both diffs must be empty. Also verify:
+The CRD, custom-resource, and policy-resource UID diffs must all be empty. Also
+verify:
 
 ```shell
 kubectl get crd gateways.gateway.networking.k8s.io \

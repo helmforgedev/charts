@@ -12,9 +12,9 @@ API resources.
 > or replace the safe-upgrade policy. Use this order:
 >
 > 1. Upgrade Kubernetes first when it is outside the supported 1.33-1.36 range.
-> 2. Upgrade Envoy Gateway to 2.0.0 with `crds.enabled=true` so Helm records the
+> 2. Capture all CRD, custom-resource, policy, and binding UIDs.
+> 3. Upgrade Envoy Gateway to 2.0.0 with `crds.enabled=true` so Helm records the
 >    keep policy.
-> 3. Capture all CRD, custom-resource, policy, and binding UIDs.
 > 4. Install `envoy-gateway-crds` 1.0.0 with policy management disabled and
 >    server-side apply its locked bundle.
 > 5. Upgrade Envoy Gateway 2.0.0 with `crds.enabled=false`.
@@ -34,11 +34,15 @@ API resources.
 helm repo add helmforge https://repo.helmforge.dev
 helm repo update
 helm upgrade --install envoy-gateway-crds helmforge/envoy-gateway-crds \
+  --version 1.0.0 \
   --namespace envoy-gateway \
   --create-namespace
+helm show crds helmforge/envoy-gateway-crds \
+  --version 1.0.0 > envoy-gateway-crds-installed.yaml
 kubectl wait --for=condition=Established --timeout=120s \
-  crd/gateways.gateway.networking.k8s.io \
-  crd/envoyproxies.gateway.envoyproxy.io
+  -f envoy-gateway-crds-installed.yaml
+kubectl api-resources --api-group=gateway.networking.k8s.io
+kubectl api-resources --api-group=gateway.envoyproxy.io
 helm upgrade --install envoy-gateway helmforge/envoy-gateway \
   --namespace envoy-gateway \
   --set crds.enabled=false
@@ -49,11 +53,15 @@ helm upgrade --install envoy-gateway helmforge/envoy-gateway \
 ```bash
 helm upgrade --install envoy-gateway-crds \
   oci://ghcr.io/helmforgedev/helm/envoy-gateway-crds \
+  --version 1.0.0 \
   --namespace envoy-gateway \
   --create-namespace
+helm show crds oci://ghcr.io/helmforgedev/helm/envoy-gateway-crds \
+  --version 1.0.0 > envoy-gateway-crds-installed.yaml
 kubectl wait --for=condition=Established --timeout=120s \
-  crd/gateways.gateway.networking.k8s.io \
-  crd/envoyproxies.gateway.envoyproxy.io
+  -f envoy-gateway-crds-installed.yaml
+kubectl api-resources --api-group=gateway.networking.k8s.io
+kubectl api-resources --api-group=gateway.envoyproxy.io
 helm upgrade --install envoy-gateway \
   oci://ghcr.io/helmforgedev/helm/envoy-gateway \
   --namespace envoy-gateway \
@@ -506,14 +514,14 @@ that range.
 
 The safe sequence is:
 
-1. Upgrade this application release with `crds.enabled=true`.
-2. Verify `helm.sh/resource-policy=keep` on the safe-upgrade policy and binding.
-3. Capture all CRD and custom-resource names, UIDs, and counts.
+1. Capture all CRD, custom-resource, policy, and binding names, UIDs, and counts.
+2. Upgrade this application release with `crds.enabled=true`.
+3. Verify `helm.sh/resource-policy=keep` on the safe-upgrade policy and binding.
 4. Apply the matching standalone CRD bundle server-side.
 5. Install the standalone release with policy management disabled.
 6. Upgrade this release with `crds.enabled=false`.
-7. Verify every CRD and custom-resource UID remains unchanged.
-8. Adopt the policy and binding into the standalone release.
+7. Adopt the policy and binding into the standalone release.
+8. Verify every captured UID and resource count remains unchanged.
 
 Do not skip step 1: patching only the live object is insufficient because Helm
 uses the prior release manifest when deciding what to delete. Exact commands,
