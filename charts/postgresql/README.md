@@ -334,7 +334,7 @@ Operational documents:
 |-----------|-------------|---------|
 | `architecture` | `standalone` or `replication` | `standalone` |
 | `image.repository` | PostgreSQL image repository | `docker.io/library/postgres` |
-| `image.tag` | PostgreSQL image tag | `18.4-trixie` |
+| `image.tag` | PostgreSQL image tag | `18.6-trixie` |
 | `auth.database` | App database created at bootstrap | `app` |
 | `auth.username` | App user created at bootstrap | `app` |
 | `auth.existingSecret` | Existing secret for passwords | `""` |
@@ -391,6 +391,16 @@ Operational documents:
 | `serviceAccount.automountServiceAccountToken` | Mount Kubernetes API credentials into PostgreSQL and backup pods | `false` |
 | `service.ipFamilyPolicy` | Service IP family policy: `SingleStack`, `PreferDualStack`, or `RequireDualStack` | omitted |
 | `service.ipFamilies` | Ordered Service IP families: `IPv4`, `IPv6` | omitted |
+
+## Upgrade Notes
+
+PostgreSQL `18.6` is the August 2026 security and bug-fix release; upstream did
+not publish 18.5 because of a post-wrap regression. Back up the cluster and
+review the [official PostgreSQL 18.6 release notes](https://www.postgresql.org/docs/release/18.6/)
+before upgrading. A dump and restore is not required when upgrading from an
+earlier PostgreSQL 18 release, but test extensions, authentication, replication,
+and application queries in staging. The backup CronJob client image is upgraded
+to the same `18.6-trixie` tag as the server.
 
 ## CI scenarios
 
