@@ -12,13 +12,20 @@ Envoy Gateway (EG) is a Kubernetes operator built on the Gateway API. This chart
 - Watches EG-specific CRDs (SecurityPolicy, BackendTrafficPolicy, etc.)
 - Provisions and configures Envoy proxy pods automatically
 
-### CRD subchart (managed by this chart by default)
+### Standalone CRD lifecycle release
 
-- Installs Envoy Gateway v1.9.0 and its supported Gateway API v1.6.1 CRDs
-- Excludes the unrelated `gateway.networking.x-k8s.io` experimental APIs, whose
-  CEL schema requires Kubernetes 1.32
-- Includes the Gateway API safe-upgrade admission policy
-- Can be disabled with `crds.enabled=false` for externally managed CRDs
+- Installs 8 Envoy Gateway v1.9.0 and 10 Gateway API v1.6.1 Experimental CRDs
+  before the application release
+- Owns the Gateway API safe-upgrade admission policy and binding
+- Applies CRD upgrades server-side before controller upgrades because Helm does
+  not upgrade objects from `crds/`
+- Establishes the discovery boundary required by a validated first `helm diff`
+
+The local CRD subchart remains enabled by default only as the migration bridge
+from application chart 1.10.1. Existing users first upgrade with
+`crds.enabled=true`, then follow [the ownership-preserving CRD migration](crd-migration.md)
+before setting it to `false`. New installations apply `envoy-gateway-crds`
+first and install this application release with `crds.enabled=false`.
 
 ### Certgen Job (managed by this chart)
 
@@ -31,7 +38,7 @@ Envoy Gateway (EG) is a Kubernetes operator built on the Gateway API. This chart
 - Registers the controller with the Gateway API
 - References the EnvoyProxy CRD for proxy shape configuration
 
-### EnvoyProxy CRD (managed by this chart)
+### EnvoyProxy resource (managed by this chart)
 
 - Configures how EG provisions proxy pods:
   - `proxy.kind: Deployment|DaemonSet`

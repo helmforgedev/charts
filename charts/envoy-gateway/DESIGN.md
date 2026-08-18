@@ -24,13 +24,18 @@ provisions Envoy proxies for ingress/egress traffic.
 ## CRDs
 
 The chart deploys an `EnvoyProxy` CR and other `gateway.envoyproxy.io` resources,
-so the **operator CRDs** ship in the chart's `crds/` and Helm installs them when
-absent. The supported upstream **Gateway API** v1.6.1 CRDs
-(`gateway.networking.k8s.io`, including `ListenerSet` from the experimental
-channel) are bundled in the local CRD subchart by default. The unrelated
-`gateway.networking.x-k8s.io` experimental APIs are excluded because their CEL
-schema requires Kubernetes 1.32 while the chart supports Kubernetes 1.26 and
-newer. Platform-managed installations can disable the subchart. See the README.
+so all required APIs must be discoverable before application rendering. New
+installations use the separate `envoy-gateway-crds` release, which contains the
+8 Envoy Gateway v1.9.0 CRDs, 10 Gateway API v1.6.1 Experimental CRDs, and the
+safe-upgrade admission policy. Kubernetes support follows the upstream Envoy
+Gateway v1.9 matrix: versions 1.33 through 1.36.
+
+The local CRD subchart remains temporarily enabled by default as a bridge for
+chart 1.10.1 users. Its policy and binding carry
+`helm.sh/resource-policy: keep`, allowing the dependency to be disabled before
+those resources are adopted by the standalone release. With
+`crds.enabled=false`, the application validates all 18 GVKs and, when connected
+to a cluster, the exact bundle metadata. See the README and migration guide.
 
 ## Optional rate limiting
 

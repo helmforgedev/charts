@@ -279,4 +279,83 @@ Central fail-fast validation entrypoint.
 {{- fail (printf "podLabels must not override selector label %s" $key) -}}
 {{- end -}}
 {{- end -}}
+{{- if not .Values.crds.enabled -}}
+{{- $requiredGVKs := list
+  "gateway.networking.k8s.io/v1/BackendTLSPolicy"
+  "gateway.networking.k8s.io/v1/GatewayClass"
+  "gateway.networking.k8s.io/v1/Gateway"
+  "gateway.networking.k8s.io/v1/GRPCRoute"
+  "gateway.networking.k8s.io/v1/HTTPRoute"
+  "gateway.networking.k8s.io/v1/ListenerSet"
+  "gateway.networking.k8s.io/v1/ReferenceGrant"
+  "gateway.networking.k8s.io/v1/TCPRoute"
+  "gateway.networking.k8s.io/v1/TLSRoute"
+  "gateway.networking.k8s.io/v1/UDPRoute"
+  "gateway.envoyproxy.io/v1alpha1/Backend"
+  "gateway.envoyproxy.io/v1alpha1/BackendTrafficPolicy"
+  "gateway.envoyproxy.io/v1alpha1/ClientTrafficPolicy"
+  "gateway.envoyproxy.io/v1alpha1/EnvoyExtensionPolicy"
+  "gateway.envoyproxy.io/v1alpha1/EnvoyPatchPolicy"
+  "gateway.envoyproxy.io/v1alpha1/EnvoyProxy"
+  "gateway.envoyproxy.io/v1alpha1/HTTPRouteFilter"
+  "gateway.envoyproxy.io/v1alpha1/SecurityPolicy"
+-}}
+{{- $missingGVKs := list -}}
+{{- range $gvk := $requiredGVKs -}}
+{{- if not ($.Capabilities.APIVersions.Has $gvk) -}}
+{{- $missingGVKs = append $missingGVKs $gvk -}}
+{{- end -}}
+{{- end -}}
+{{- if $missingGVKs -}}
+{{- fail (printf "crds.enabled=false requires the complete Envoy Gateway v1.9.0 / Gateway API v1.6.1 Experimental bundle; missing discoverable APIs: %s. Install envoy-gateway-crds first, wait for all CRDs to become Established, then retry without --disable-validation" (join ", " $missingGVKs)) -}}
+{{- end -}}
+
+{{- /* `lookup` is empty in client-only rendering. When connected to a cluster,
+validate the exact bundle metadata in addition to discovery. */ -}}
+{{- $incompatible := list -}}
+{{- $gatewayCRDs := list
+  "backendtlspolicies.gateway.networking.k8s.io"
+  "gatewayclasses.gateway.networking.k8s.io"
+  "gateways.gateway.networking.k8s.io"
+  "grpcroutes.gateway.networking.k8s.io"
+  "httproutes.gateway.networking.k8s.io"
+  "listenersets.gateway.networking.k8s.io"
+  "referencegrants.gateway.networking.k8s.io"
+  "tcproutes.gateway.networking.k8s.io"
+  "tlsroutes.gateway.networking.k8s.io"
+  "udproutes.gateway.networking.k8s.io"
+-}}
+{{- range $name := $gatewayCRDs -}}
+{{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" $name -}}
+{{- if $crd -}}
+{{- $version := dig "metadata" "annotations" "gateway.networking.k8s.io/bundle-version" "" $crd -}}
+{{- $channel := dig "metadata" "annotations" "gateway.networking.k8s.io/channel" "" $crd -}}
+{{- if or (ne $version "v1.6.1") (ne $channel "experimental") -}}
+{{- $incompatible = append $incompatible (printf "%s (bundle-version=%q, channel=%q)" $name $version $channel) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- $envoyCRDs := list
+  "backends.gateway.envoyproxy.io"
+  "backendtrafficpolicies.gateway.envoyproxy.io"
+  "clienttrafficpolicies.gateway.envoyproxy.io"
+  "envoyextensionpolicies.gateway.envoyproxy.io"
+  "envoypatchpolicies.gateway.envoyproxy.io"
+  "envoyproxies.gateway.envoyproxy.io"
+  "httproutefilters.gateway.envoyproxy.io"
+  "securitypolicies.gateway.envoyproxy.io"
+-}}
+{{- range $name := $envoyCRDs -}}
+{{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" $name -}}
+{{- if $crd -}}
+{{- $version := dig "metadata" "annotations" "helmforge.dev/bundle-version" "" $crd -}}
+{{- if ne $version "v1.9.0" -}}
+{{- $incompatible = append $incompatible (printf "%s (helmforge.dev/bundle-version=%q)" $name $version) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if $incompatible -}}
+{{- fail (printf "crds.enabled=false found an incompatible external CRD bundle: %s. Apply the matching envoy-gateway-crds bundle server-side before upgrading the controller" (join ", " $incompatible)) -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}

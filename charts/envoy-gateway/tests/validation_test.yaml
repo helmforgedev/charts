@@ -2,12 +2,83 @@
 suite: Validation
 templates:
   - validate.yaml
+kubernetesProvider:
+  scheme:
+    "apiextensions.k8s.io/v1/CustomResourceDefinition":
+      gvr:
+        group: apiextensions.k8s.io
+        version: v1
+        resource: customresourcedefinitions
+      namespaced: false
 tests:
   - it: should accept externally managed CRDs
     set:
       crds.enabled: false
+    capabilities: &complete-crd-capabilities
+      apiVersions:
+        - gateway.networking.k8s.io/v1/BackendTLSPolicy
+        - gateway.networking.k8s.io/v1/GatewayClass
+        - gateway.networking.k8s.io/v1/Gateway
+        - gateway.networking.k8s.io/v1/GRPCRoute
+        - gateway.networking.k8s.io/v1/HTTPRoute
+        - gateway.networking.k8s.io/v1/ListenerSet
+        - gateway.networking.k8s.io/v1/ReferenceGrant
+        - gateway.networking.k8s.io/v1/TCPRoute
+        - gateway.networking.k8s.io/v1/TLSRoute
+        - gateway.networking.k8s.io/v1/UDPRoute
+        - gateway.envoyproxy.io/v1alpha1/Backend
+        - gateway.envoyproxy.io/v1alpha1/BackendTrafficPolicy
+        - gateway.envoyproxy.io/v1alpha1/ClientTrafficPolicy
+        - gateway.envoyproxy.io/v1alpha1/EnvoyExtensionPolicy
+        - gateway.envoyproxy.io/v1alpha1/EnvoyPatchPolicy
+        - gateway.envoyproxy.io/v1alpha1/EnvoyProxy
+        - gateway.envoyproxy.io/v1alpha1/HTTPRouteFilter
+        - gateway.envoyproxy.io/v1alpha1/SecurityPolicy
     asserts:
       - notFailedTemplate: {}
+
+  - it: should reject an incomplete externally managed CRD bundle
+    set:
+      crds.enabled: false
+    capabilities:
+      apiVersions:
+        - gateway.networking.k8s.io/v1/BackendTLSPolicy
+        - gateway.networking.k8s.io/v1/GatewayClass
+        - gateway.networking.k8s.io/v1/Gateway
+        - gateway.networking.k8s.io/v1/GRPCRoute
+        - gateway.networking.k8s.io/v1/HTTPRoute
+        - gateway.networking.k8s.io/v1/ListenerSet
+        - gateway.networking.k8s.io/v1/ReferenceGrant
+        - gateway.networking.k8s.io/v1/TCPRoute
+        - gateway.networking.k8s.io/v1/TLSRoute
+        - gateway.networking.k8s.io/v1/UDPRoute
+        - gateway.envoyproxy.io/v1alpha1/Backend
+        - gateway.envoyproxy.io/v1alpha1/BackendTrafficPolicy
+        - gateway.envoyproxy.io/v1alpha1/ClientTrafficPolicy
+        - gateway.envoyproxy.io/v1alpha1/EnvoyExtensionPolicy
+        - gateway.envoyproxy.io/v1alpha1/EnvoyPatchPolicy
+        - gateway.envoyproxy.io/v1alpha1/HTTPRouteFilter
+        - gateway.envoyproxy.io/v1alpha1/SecurityPolicy
+    asserts:
+      - failedTemplate:
+          errorMessage: "crds.enabled=false requires the complete Envoy Gateway v1.9.0 / Gateway API v1.6.1 Experimental bundle; missing discoverable APIs: gateway.envoyproxy.io/v1alpha1/EnvoyProxy. Install envoy-gateway-crds first, wait for all CRDs to become Established, then retry without --disable-validation"
+
+  - it: should reject incompatible externally managed CRD metadata
+    set:
+      crds.enabled: false
+    capabilities: *complete-crd-capabilities
+    kubernetesProvider:
+      objects:
+        - apiVersion: apiextensions.k8s.io/v1
+          kind: CustomResourceDefinition
+          metadata:
+            name: gateways.gateway.networking.k8s.io
+            annotations:
+              gateway.networking.k8s.io/bundle-version: v1.5.1
+              gateway.networking.k8s.io/channel: experimental
+    asserts:
+      - failedTemplate:
+          errorMessage: 'crds.enabled=false found an incompatible external CRD bundle: gateways.gateway.networking.k8s.io (bundle-version="v1.5.1", channel="experimental"). Apply the matching envoy-gateway-crds bundle server-side before upgrading the controller'
   - it: should reject rate limiting without redis backend
     set:
       rateLimiting:
