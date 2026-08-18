@@ -209,7 +209,7 @@ Operational documents:
 |-----------|-------------|---------|
 | `architecture` | `standalone` or `replication` | `standalone` |
 | `image.repository` | MySQL image repository | `docker.io/library/mysql` |
-| `image.tag` | MySQL image tag | `9.7.2` |
+| `image.tag` | MySQL image tag | `26.7.0` |
 | `auth.database` | App database created at bootstrap | `app` |
 | `auth.username` | App user created at bootstrap | `app` |
 | `auth.existingSecret` | Existing secret for passwords | `""` |
@@ -261,6 +261,17 @@ Operational documents:
 | `metrics.enabled` | Enable `mysqld-exporter` sidecar | `false` |
 | `metrics.serviceMonitor.enabled` | Enable ServiceMonitor | `false` |
 | `extraManifests` | Extra Kubernetes manifests rendered after chart resources | `[]` |
+
+## Upgrade Notes
+
+MySQL `26.7.0` introduces Oracle's calendar-based version numbering after the
+9.7 series and includes server, InnoDB, replication, Group Replication, and
+client fixes. Back up all databases and run MySQL Shell's upgrade checker before
+upgrading a persistent production instance. Review the
+[official MySQL 26.7.0 release notes](https://dev.mysql.com/doc/relnotes/mysql/26.7/en/news-26-7-0.html)
+for removed or changed server options, then validate authentication plugins,
+replication state, and application queries in staging. The backup CronJob client
+image is upgraded to the same version as the server.
 
 ## CI scenarios
 
