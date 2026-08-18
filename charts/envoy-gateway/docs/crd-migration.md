@@ -1,4 +1,4 @@
-# CRD Migration From Chart 1.10.1
+# CRD Migration From Chart 1.10.1 to 2.0.0
 
 This procedure moves the Envoy Gateway v1.9.0 and Gateway API v1.6.1
 Experimental CRD lifecycle out of the application release without deleting or
@@ -12,7 +12,8 @@ missing objects but never tracked, upgraded, rolled back, or deleted them. The
 same subchart rendered a safe-upgrade `ValidatingAdmissionPolicy` and binding as
 normal Helm resources owned by the application release.
 
-The bridge release changes three contracts:
+Chart 2.0.0 is intentionally a major release. The bridge changes three
+contracts:
 
 - Kubernetes support is corrected to the upstream Envoy Gateway v1.9 matrix:
   1.33 through 1.36.
@@ -40,8 +41,8 @@ Set the placeholders used below:
 export NAMESPACE=envoy-gateway
 export APP_RELEASE=envoy-gateway
 export CRD_RELEASE=envoy-gateway-crds
-export BRIDGE_VERSION=BRIDGE_CHART_VERSION
-export CRD_CHART_VERSION=CRD_CHART_VERSION
+export BRIDGE_VERSION=2.0.0
+export CRD_CHART_VERSION=1.0.0
 
 REQUIRED_CRDS='backendtlspolicies.gateway.networking.k8s.io
 gatewayclasses.gateway.networking.k8s.io

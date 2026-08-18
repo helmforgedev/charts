@@ -5,6 +5,27 @@ v1.9.0 on Kubernetes 1.33 through 1.36. Envoy Gateway is a **Kubernetes
 operator** — it manages Envoy proxy pods automatically in response to Gateway
 API resources.
 
+> [!WARNING]
+> **Upgrading from chart 1.x to 2.0.0 requires a staged CRD migration.**
+>
+> Do not upgrade directly with `crds.enabled=false`, uninstall the bundled CRDs,
+> or replace the safe-upgrade policy. Use this order:
+>
+> 1. Upgrade Kubernetes first when it is outside the supported 1.33-1.36 range.
+> 2. Upgrade Envoy Gateway to 2.0.0 with `crds.enabled=true` so Helm records the
+>    keep policy.
+> 3. Capture all CRD, custom-resource, policy, and binding UIDs.
+> 4. Install `envoy-gateway-crds` 1.0.0 with policy management disabled and
+>    server-side apply its locked bundle.
+> 5. Upgrade Envoy Gateway 2.0.0 with `crds.enabled=false`.
+> 6. Transfer the policy and binding to the standalone release, then verify all
+>    captured UIDs and Gateway traffic.
+>
+> CRD schema upgrades are forward-only. Do not use Helm rollback to downgrade
+> the bundle or return the application to a pre-2.0.0 revision. Follow the
+> [complete 1.x to 2.0.0 migration procedure](docs/crd-migration.md) before
+> changing production releases.
+
 ## Installation
 
 ### HTTPS Repository
@@ -473,9 +494,11 @@ Major architectural redesign to align with the EG operator model.
 
 ## Upgrade Notes
 
-### Mandatory CRD Migration From 1.10.1
+### Mandatory CRD Migration From 1.10.1 to 2.0.0
 
-This release is the required bridge between the application-owned policy and
+Chart 2.0.0 is a major release because it raises the Kubernetes minimum from
+1.26 to 1.33 and changes the CRD lifecycle and ownership contract. It is the
+required bridge between the application-owned policy and
 the standalone `envoy-gateway-crds` release. It also corrects the supported
 Kubernetes range from the former `>=1.26` declaration to the upstream v1.9
 matrix: Kubernetes 1.33 through 1.36. Upgrade the cluster first if it is outside
