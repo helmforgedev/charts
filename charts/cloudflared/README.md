@@ -178,14 +178,13 @@ topologySpreadConstraints:
 
 ## Upgrade Notes
 
-Cloudflared 2026.7.3 is a security and connectivity maintenance release. It
-updates `golang.org/x/text` and related dependencies for a CVE fix, aligns
-connectivity prechecks with the curves used for edge connections, and protects
-Windows service tokens with `--token-file`. The Kubernetes tunnel command and
-chart values contract are unchanged.
+Cloudflared 2026.8.2 fixes the HTTP-origin path regressions introduced in
+2026.8.0 and 2026.8.1. Those releases could strip trailing slashes or normalize
+encoded paths, causing redirect loops or changing application URLs. The
+Kubernetes tunnel command and chart values contract are unchanged.
 
 Review the
-[official 2026.7.3 release](https://github.com/cloudflare/cloudflared/releases/tag/2026.7.3)
+[official 2026.8.2 release](https://github.com/cloudflare/cloudflared/releases/tag/2026.8.2)
 before production rollout.
 
 ## Security Scan
