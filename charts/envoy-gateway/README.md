@@ -24,14 +24,22 @@ helm install envoy-gateway oci://ghcr.io/helmforgedev/helm/envoy-gateway
 
 Envoy Gateway v1.9.0 and its supported Gateway API v1.6.1 CRDs are bundled in
 the local `crds` subchart and installed automatically by default. This includes
-the experimental `ListenerSet`, `TCPRoute`, `TLSRoute`, and `UDPRoute` APIs.
-The unrelated `gateway.networking.x-k8s.io` experimental APIs are excluded so
-the chart remains compatible with its Kubernetes 1.26 minimum; Gateway API
-v1.6.1 generates those APIs with CEL functions that require Kubernetes 1.32.
-Set `crds.enabled=false`
-only when a platform operator, GitOps controller, or another release manages
-all required CRDs. Helm installs CRDs on first install but does not upgrade or
-delete them automatically; review upstream CRD changes before chart upgrades.
+`ListenerSet`, `TCPRoute`, `TLSRoute`, and `UDPRoute`, which are also present in
+the v1.6.1 Standard bundle. The bundled definitions retain the upstream
+experimental-channel schema used by Envoy Gateway v1.9.0. The separate
+`gateway.networking.x-k8s.io` experimental APIs are excluded so the chart
+remains compatible with its Kubernetes 1.26 minimum; Gateway API v1.6.1
+generates those APIs with CEL functions that require Kubernetes 1.32. Set
+`crds.enabled=false` only when a platform operator, GitOps controller, or
+another release manages all required CRDs. Helm installs CRDs on first install
+but does not upgrade or delete them automatically; review upstream CRD changes
+before chart upgrades.
+
+For platform-managed CRDs, prefer `crds.enabled=false`; this also disables the
+subchart's safe-upgrade admission policy. Helm's `--skip-crds` flag skips the
+raw CRD files but still renders templates. If the platform also manages the
+safe-upgrade policy, combine `--skip-crds` with
+`--set crds.gatewayAPI.safeUpgradePolicy.enabled=false`.
 
 ```bash
 # Install CRDs and the controller with the development profile.
@@ -155,7 +163,7 @@ highAvailability:
 |-----|---------|-------------|
 | `profile` | `custom` | Profile preset (dev, production-ha, custom) |
 | `namespaceOverride` | `""` | Namespace for chart-managed resources; target namespace must already exist |
-| `crds.enabled` | `true` | Install bundled Envoy Gateway and Gateway API experimental CRDs |
+| `crds.enabled` | `true` | Install bundled Envoy Gateway and supported Gateway API v1.6.1 CRDs |
 | `nameOverride` | `""` | Override chart name |
 | `fullnameOverride` | `""` | Override full name |
 | `imagePullSecrets` | `[]` | Image pull secrets |
