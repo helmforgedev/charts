@@ -7,6 +7,9 @@ This chart is installed before the HelmForge Envoy Gateway application chart.
 The separate release lets Kubernetes discovery register every custom API before
 `helm-diff` validates the application resources.
 
+The initial lifecycle chart release is 1.0.0. It must be published before the
+Envoy Gateway application chart 2.0.0 migration release.
+
 ## Compatibility
 
 | Component | Version |
