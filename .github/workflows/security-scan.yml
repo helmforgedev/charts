@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - 'charts/**/templates/**'
+      - 'charts/**/crds/**'
       - 'charts/**/values.yaml'
       - 'charts/**/Chart.yaml'
       - 'charts/**/Chart.lock'
@@ -73,6 +74,25 @@ jobs:
         id: scan
         run: |
           REPORT="/tmp/${{ matrix.chart }}-scan.json"
+          RENDERED="/tmp/${{ matrix.chart }}-rendered.yaml"
+
+          helm template kubescape "charts/${{ matrix.chart }}" --include-crds > "$RENDERED"
+          KINDS=$(awk '/^kind:[[:space:]]/ { print $2 }' "$RENDERED" | sort -u)
+          KINDS_CSV=$(printf '%s\n' "$KINDS" | paste -sd, -)
+
+          echo "chart=${{ matrix.chart }}" >> "$GITHUB_OUTPUT"
+          echo "kinds=$KINDS_CSV" >> "$GITHUB_OUTPUT"
+
+          if ! printf '%s\n' "$KINDS" | grep -Eq \
+            '^(Pod|Deployment|StatefulSet|DaemonSet|Job|CronJob|ReplicaSet|ReplicationController)$'; then
+            echo "applicable=false" >> "$GITHUB_OUTPUT"
+            echo "score=N/A" >> "$GITHUB_OUTPUT"
+            echo "score_int=100" >> "$GITHUB_OUTPUT"
+            echo "Kubescape is not applicable to ${{ matrix.chart }}; rendered kinds: $KINDS_CSV"
+            exit 0
+          fi
+
+          echo "applicable=true" >> "$GITHUB_OUTPUT"
 
           kubescape scan framework "MITRE,NSA,SOC2" "charts/${{ matrix.chart }}" \
             --format json -o "$REPORT" || true
@@ -81,9 +101,8 @@ jobs:
           # Use floor truncation (not round) so 49.6 doesn't pass a 50-minimum gate
           SCORE_INT=$(echo "$SCORE" | awk '{print int($1)}')
 
-          echo "score=$SCORE" >> $GITHUB_OUTPUT
-          echo "score_int=$SCORE_INT" >> $GITHUB_OUTPUT
-          echo "chart=${{ matrix.chart }}" >> $GITHUB_OUTPUT
+          echo "score=$SCORE" >> "$GITHUB_OUTPUT"
+          echo "score_int=$SCORE_INT" >> "$GITHUB_OUTPUT"
           echo "Security score for ${{ matrix.chart }}: $SCORE"
 
       - name: Post scan results
@@ -92,20 +111,24 @@ jobs:
         with:
           script: |
             const chart = '${{ matrix.chart }}';
+            const applicable = '${{ steps.scan.outputs.applicable }}' === 'true';
             const score = '${{ steps.scan.outputs.score }}';
             const scoreInt = parseInt('${{ steps.scan.outputs.score_int }}');
+            const kinds = '${{ steps.scan.outputs.kinds }}';
 
-            let emoji = '🟢';
-            if (scoreInt < 50) emoji = '🔴';
-            else if (scoreInt < 70) emoji = '🟡';
-
-            const body = `### ${emoji} Security Scan: \`${chart}\`
+            const body = applicable ? `### Security Scan: \`${chart}\`
 
             | Framework | Score |
             |---|---|
             | MITRE + NSA + SOC2 | **${score}%** |
 
-            ${scoreInt < 50 ? '> ⚠️ Score below 50% — review security posture before merge.' : '> ✅ Security posture acceptable.'}`;
+            ${scoreInt < 50 ? '> Score below 50%; review security posture before merge.' : '> Security posture acceptable.'}` : `### Security Scan: \`${chart}\`
+
+            | Framework | Result |
+            |---|---|
+            | MITRE + NSA + SOC2 | **N/A** |
+
+            > No Kubescape-scannable workload is rendered. Inventory: ${kinds}.`;
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -130,7 +153,7 @@ jobs:
             }
 
       - name: Fail if score too low
-        if: steps.scan.outputs.score_int < 50
+        if: steps.scan.outputs.applicable == 'true' && steps.scan.outputs.score_int < 50
         run: |
           echo "::error::Security score for ${{ matrix.chart }} is ${{ steps.scan.outputs.score }}% (minimum: 50%)"
           exit 1
