@@ -25,10 +25,12 @@ provisions Envoy proxies for ingress/egress traffic.
 
 The chart deploys an `EnvoyProxy` CR and other `gateway.envoyproxy.io` resources,
 so the **operator CRDs** ship in the chart's `crds/` and Helm installs them when
-absent. The upstream **Gateway API** CRDs (`gateway.networking.k8s.io`, including
-`ListenerSet` from the experimental channel that EG v1.8 watches) are a shared,
-cluster-scoped prerequisite — installed once per cluster, not bundled (they are
-large and are typically platform-managed, e.g. via Argo CD). See the README.
+absent. The supported upstream **Gateway API** v1.6.1 CRDs
+(`gateway.networking.k8s.io`, including `ListenerSet` from the experimental
+channel) are bundled in the local CRD subchart by default. The unrelated
+`gateway.networking.x-k8s.io` experimental APIs are excluded because their CEL
+schema requires Kubernetes 1.32 while the chart supports Kubernetes 1.26 and
+newer. Platform-managed installations can disable the subchart. See the README.
 
 ## Optional rate limiting
 
@@ -43,7 +45,8 @@ the operator provisions/sizes the Envoy fleet accordingly.
 
 ## What this chart deliberately does NOT do
 
-- It does not bundle the shared Gateway API CRDs (cluster prerequisite).
+- It does not bundle unrelated Gateway API `gateway.networking.x-k8s.io`
+  experimental CRDs.
 - It does not manage the Envoy data-plane pods directly (the operator does).
 
 ## References
