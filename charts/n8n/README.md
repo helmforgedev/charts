@@ -144,7 +144,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
-| `image.tag` | `2.34.5` | n8n container image tag |
+| `image.tag` | `2.35.3` | n8n container image tag |
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
@@ -186,14 +186,14 @@ externalSecrets:
 
 ## Upgrade Notes
 
-n8n `2.34.5` includes task-runner health-check fixes and the 2.34 maintenance
+n8n `2.35.3` includes core, scaling-mode, queue, and task-runner maintenance
 updates. Review the
-[upstream 2.34.5 release notes](https://github.com/n8n-io/n8n/releases/tag/n8n%402.34.5)
+[upstream 2.35.3 release notes](https://github.com/n8n-io/n8n/releases/tag/n8n%402.35.3)
 before upgrading. Back up the database, keep the encryption key stable, and
 validate task runners and queue workers in a staging namespace. This update also
 moves the bundled Redis dependency to HelmForge Redis `2.0.0`.
 
-When upgrading with `--reuse-values`, explicitly set `image.tag=2.34.5`.
+When upgrading with `--reuse-values`, explicitly set `image.tag=2.35.3`.
 Helm preserves the previous image override in that mode; also update
 `taskRunners.image.tag` when it was pinned separately.
 
