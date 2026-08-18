@@ -115,6 +115,86 @@ tests:
             name: addons
             mountPath: /openhab/addons
 
+  - it: should mount all data directories from configured PVC subpaths
+    set:
+      persistence.userdata.subPath: shared/openhab/userdata
+      persistence.userdata.existingClaim: smarthome-data
+      persistence.conf.subPath: shared/openhab/conf
+      persistence.conf.existingClaim: smarthome-data
+      persistence.addons.subPath: shared/openhab/addons
+      persistence.addons.existingClaim: smarthome-data
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: userdata
+            mountPath: /openhab/userdata
+            subPath: shared/openhab/userdata
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: conf
+            mountPath: /openhab/conf
+            subPath: shared/openhab/conf
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: addons
+            mountPath: /openhab/addons
+            subPath: shared/openhab/addons
+      - equal:
+          path: spec.template.spec.volumes
+          value:
+            - name: userdata
+              persistentVolumeClaim:
+                claimName: smarthome-data
+            - name: conf
+              persistentVolumeClaim:
+                claimName: smarthome-data
+            - name: addons
+              persistentVolumeClaim:
+                claimName: smarthome-data
+
+  - it: should preserve built-in volume names when mounting an existing claim
+    set:
+      persistence.userdata.existingClaim: shared-data
+      extraVolumeMounts:
+        - name: userdata
+          mountPath: /mnt/openhab-data
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: userdata
+            persistentVolumeClaim:
+              claimName: shared-data
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: userdata
+            mountPath: /mnt/openhab-data
+
+  - it: should create subpaths before mounting a newly created PVC
+    set:
+      persistence.userdata.subPath: openhab/userdata
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: create-persistence-subpaths
+      - equal:
+          path: spec.template.spec.initContainers[0].command
+          value:
+            - /bin/mkdir
+            - -p
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: /persistence/userdata/openhab/userdata
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: userdata
+            mountPath: /persistence/userdata
+
   - it: should not mount karaf port when karaf disabled
     asserts:
       - notContains:
