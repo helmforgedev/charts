@@ -168,7 +168,7 @@ broker:
 
   extraConfig: |
     # Create a dedicated plaintext listener for health checks
-    listener 9000 0.0.0.0
+    listener 9000
     protocol mqtt
 
     # Silence the TCP connection logs
