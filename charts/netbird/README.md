@@ -4,7 +4,7 @@ Deploy [NetBird](https://github.com/netbirdio/netbird), a self-hosted WireGuard 
 
 This chart packages the current upstream combined architecture:
 
-- `netbirdio/netbird-server:0.77.0` for the management API, gRPC endpoint, signal, relay, metrics, health, and UDP STUN service
+- `netbirdio/netbird-server:0.77.1` for the management API, gRPC endpoint, signal, relay, metrics, health, and UDP STUN service
 - `netbirdio/dashboard:v2.90.10` for the web UI
 - a generated or externally supplied `config.yaml`
 - HelmForge PostgreSQL subchart as the default production store
@@ -110,7 +110,7 @@ Use `externalSecrets.items[]` to synchronize sensitive values such as `config.ya
 Local security scan:
 
 ```text
-Image: netbirdio/netbird-server:0.77.0
+Image: netbirdio/netbird-server:0.77.1
 Image: netbirdio/dashboard:v2.90.10
 Scanner: Kubescape v4.0.9, frameworks MITRE, NSA, SOC2
 Result: 86.86869 compliance score
@@ -121,12 +121,13 @@ repository security gate. Remaining findings are tracked as hardening trade-offs
 for optional NetworkPolicy enablement, upstream dashboard startup model, and
 operator-owned resource limit tuning across the database-backed topology.
 
-## Upgrade to 0.77.0
+## Upgrade to 0.77.1
 
-NetBird `0.77.0` updates Agent Network behavior, client bootstrap flows, and
-management components. The chart's combined server image keeps management,
+NetBird `0.77.1` fixes Linux session extension and SSH authentication, rejects
+unsupported one-off setup-key limits, and skips unnecessary store migrations
+for PostgreSQL deployments. The chart's combined server image keeps management,
 signal, relay, and proxy components on the same version. Review the
-[upstream 0.77.0 release](https://github.com/netbirdio/netbird/releases/tag/v0.77.0)
+[upstream 0.77.1 release](https://github.com/netbirdio/netbird/releases/tag/v0.77.1)
 before upgrading.
 
 Back up the configured database and `/var/lib/netbird`, then apply the new chart
@@ -140,7 +141,7 @@ helm upgrade netbird helmforge/netbird \
 ```
 
 Using `--reuse-values` alone retains the previous default image tag. Remove any
-explicit `server.image.tag` override if you want the chart default `0.77.0`.
+explicit `server.image.tag` override if you want the chart default `0.77.1`.
 
 ## Validation
 
