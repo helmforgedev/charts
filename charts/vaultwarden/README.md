@@ -60,7 +60,7 @@ helm install vaultwarden oci://ghcr.io/helmforgedev/helm/vaultwarden -f values.y
 - Vaultwarden repository: <https://github.com/dani-garcia/vaultwarden>
 - Vaultwarden configuration template: <https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template>
 - Vaultwarden 1.37.0 security release: <https://github.com/dani-garcia/vaultwarden/releases/tag/1.37.0>
-- Vaultwarden 1.37.1 hotfix release: <https://github.com/dani-garcia/vaultwarden/releases/tag/1.37.1>
+- Vaultwarden 1.37.2 release: <https://github.com/dani-garcia/vaultwarden/releases/tag/1.37.2>
 
 ## Best practices
 
@@ -182,7 +182,7 @@ The admin page should not use a plain-text `ADMIN_TOKEN` in real environments. P
 Simple generation options:
 
 ```bash
-docker run --rm -it vaultwarden/server:1.37.1 /vaultwarden hash
+docker run --rm -it vaultwarden/server:1.37.2 /vaultwarden hash
 ```
 
 ```bash
@@ -218,7 +218,7 @@ Official reference:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Vaultwarden image repository | `docker.io/vaultwarden/server` |
-| `image.tag` | Vaultwarden image tag | `1.37.1` |
+| `image.tag` | Vaultwarden image tag | `1.37.2` |
 | `domain` | Public Vaultwarden domain | `""` |
 | `database.mode` | `auto`, `sqlite`, `external`, `postgresql`, or `mysql` | `auto` |
 | `database.external.vendor` | External database vendor | `postgres` |
