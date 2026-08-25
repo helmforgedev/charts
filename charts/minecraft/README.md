@@ -257,10 +257,10 @@ Spigot servers, provide the platform-specific Floodgate plugin through
 
 ## Upgrade Notes
 
-`docker.io/itzg/minecraft-server:2026.8.0` adds GTNH daily-build support, Java 25 knockd fixes, and retains native `PREFER_IPv6` and
-custom `SERVER_RUNNER` support, moves Vanilla installation to
-`mc-image-helper`, adds OCI generic-pack references, and includes GTNH,
-CurseForge HTTP, Java 17 compatibility, and dependency fixes. Configure the
+`docker.io/itzg/minecraft-server:2026.8.2` fixes Modrinth packs that require
+server-side mods, corrects `STOP_SERVER_DELAY_COMMAND`, and updates the bundled
+Minecraft helper tools. It retains native `PREFER_IPv6` and custom
+`SERVER_RUNNER` support. Configure the
 first two features with `server.preferIPv6` and `server.runner`.
 Review the upstream release notes before upgrading production servers, take a
 world backup, and verify plugins, mods, datapacks, proxy settings, and pinned
