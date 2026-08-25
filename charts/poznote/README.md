@@ -71,7 +71,7 @@ ingress:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Image repository | `ghcr.io/timothepoznanski/poznote` |
-| `image.tag` | Image tag | `6.65.3` |
+| `image.tag` | Image tag | `6.68.1` |
 | `image.pullPolicy` | Pull policy | `IfNotPresent` |
 
 #### Application Parameters
@@ -141,9 +141,10 @@ This chart intentionally does NOT:
 
 ## Upgrade Notes
 
-Poznote `6.65.3` includes shared-note access controls, Git Sync improvements,
-and UI maintenance accumulated since 6.59.2. Review the
-[upstream 6.65.3 release](https://github.com/timothepoznanski/poznote/releases/tag/6.65.3)
+Poznote `6.68.1` adds workspace-scoped AI and tags, per-user AI providers,
+checklists on the tasks page, and fixes sidebar links after workspace switches.
+Review the
+[upstream 6.68.1 release](https://github.com/timothepoznanski/poznote/releases/tag/6.68.1)
 before upgrading. The default local SQLite and filesystem deployment remains
 compatible; S3 integration is configured inside Poznote when needed.
 
