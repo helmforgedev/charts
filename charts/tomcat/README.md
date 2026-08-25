@@ -75,10 +75,11 @@ For authenticated or TLS-secured JMX, mount the required files with `extraVolume
 When `jmx.rmiPort` differs from `jmx.port`, the chart exposes the RMI endpoint
 through `service.ports.jmxRmi` so the registry and RMI Service ports stay unique.
 
-Tomcat 11.0.25 fixes HTTP/2 prioritization, OpenSSL FFM symbol lookup, EL parser
-reuse, and a low-severity denial of service in the bundled WebSocket chat
-example. Custom clustering that uses `EncryptInterceptor` must account for its
-new `AES/GCM/NoPadding` default before a rolling upgrade.
+Tomcat 11.0.25 requires an authority on every HTTP/2 request, resets EL parser
+state before reuse, and limits buffering in the bundled WebSocket chat example.
+HTTP/2 stream prioritization and the OpenSSL FFM symbol-lookup fix were delivered
+in Tomcat 11.0.0-M18. Custom clustering that uses `EncryptInterceptor` must
+account for its new `AES/GCM/NoPadding` default before a rolling upgrade.
 
 ## Production Notes
 
