@@ -106,7 +106,7 @@ through Ghost's environment-based configuration:
 ```yaml
 image:
   repository: registry.example.com/ghost-with-adapters
-  tag: "6.57.1"
+  tag: "6.59.0"
 
 ghost:
   extraEnv:
@@ -123,7 +123,7 @@ adapters when the container starts.
 | Key | Default | Description |
 |-----|---------|-------------|
 | `ghost.url` | `""` | Public URL of the Ghost instance |
-| `image.tag` | `6.57.1` | Ghost image tag |
+| `image.tag` | `6.59.0` | Ghost image tag |
 | `mysql.enabled` | `true` | Deploy MySQL subchart |
 | `mysql.image.tag` | `8.4.11` | MySQL image tag pinned to the Ghost-supported MySQL 8 major |
 | `persistence.enabled` | `true` | Enable content persistence |
@@ -137,8 +137,9 @@ adapters when the container starts.
 
 ## Upgrade Notes
 
-Ghost `6.57.1` fixes member webhook payloads, subdirectory redirect loops,
-theme-setting resets, and related presentation issues. The release does not
+Ghost `6.59.0` adds Docker Secrets configuration support and fixes MySQL
+migrations on versions older than 8.0.28, outbound-request crashes, member
+imports, newsletter filters, and donation checkout. The release does not
 change the official image's port, content path, database contract, probes, or
 required environment variables.
 Files edited in Ghost Admin remain under `/var/lib/ghost/content/data`, so the
