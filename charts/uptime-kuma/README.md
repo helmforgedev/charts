@@ -126,7 +126,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/louislam/uptime-kuma` | Uptime Kuma container image |
-| `image.tag` | `2.5.0` | Uptime Kuma image tag |
+| `image.tag` | `2.5.3` | Uptime Kuma image tag |
 | `uptimeKuma.port` | `3001` | Application port |
 | `database.type` | `sqlite` | Database type (sqlite, mariadb) |
 | `mysql.enabled` | `false` | Deploy MySQL subchart (`helmforge/mysql` `2.0.3`) |
@@ -141,9 +141,9 @@ externalSecrets:
 
 ## Upgrade Notes
 
-Uptime Kuma `2.5.0` adds NTP monitoring and notification providers, widens
+Uptime Kuma `2.5.3` includes the 2.5.0 NTP monitoring and notification providers, widens
 daily statistics counters, and includes dependency security updates. The
-default `database.type=sqlite` path remains aligned with upstream behavior.
+2.5.3 hotfix corrects the reported application version. The default `database.type=sqlite` path remains aligned with upstream behavior.
 Keep persistence enabled and back up `/app/data` before upgrading live
 instances.
 
