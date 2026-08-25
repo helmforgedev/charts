@@ -5,7 +5,7 @@
 Helm chart for deploying [Homarr](https://homarr.dev/) modern application dashboard on Kubernetes using the official
 [`ghcr.io/homarr-labs/homarr`](https://github.com/homarr-labs/homarr/pkgs/container/homarr) container image.
 
-Current application version: `v1.75.0`.
+Current application version: `v1.76.0`.
 
 ## Features
 
@@ -173,7 +173,7 @@ backup:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `ghcr.io/homarr-labs/homarr` | Container image repository |
-| `image.tag` | `"v1.75.0"` | Homarr image tag |
+| `image.tag` | `"v1.76.0"` | Homarr image tag |
 | `replicaCount` | `1` | Number of replicas |
 | `homarr.logLevel` | `info` | Log level |
 | `homarr.authProviders` | `credentials` | Auth providers (credentials, ldap, oidc) |
@@ -265,12 +265,12 @@ writable and does not force a non-root UID or dropped capabilities by default. O
 
 ## Upgrade Notes
 
-This update moves the default image to `v1.75.0`. Review the
-[upstream v1.75.0 release](https://github.com/homarr-labs/homarr/releases/tag/v1.75.0)
-before upgrading production environments. Homarr `v1.75.0` fixes startup when
-IPv6 is disabled in the container and includes integration and UI maintenance
-fixes. No breaking changes or new required environment variables were identified
-in the upstream release metadata.
+This update moves the default image to `v1.76.0`. Review the
+[upstream v1.76.0 release](https://github.com/homarr-labs/homarr/releases/tag/v1.76.0)
+before upgrading production environments. Homarr `v1.76.0` fixes startup
+ownership handling for default IDs, TrueNAS capacity reporting, Home Assistant
+widget responsiveness, and several monitoring widgets. No breaking changes or
+new required environment variables were identified in the upstream release metadata.
 
 For PostgreSQL and MySQL, the chart sets `DB_DIALECT`, `DB_DRIVER`, and discrete database environment variables instead of
 rendering a full `DB_URL`; this avoids requiring URL-encoded passwords in Kubernetes Secrets.
