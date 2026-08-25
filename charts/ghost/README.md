@@ -137,11 +137,11 @@ adapters when the container starts.
 
 ## Upgrade Notes
 
-Ghost `6.59.0` adds Docker Secrets configuration support and fixes MySQL
-migrations on versions older than 8.0.28, outbound-request crashes, member
-imports, newsletter filters, and donation checkout. The release does not
-change the official image's port, content path, database contract, probes, or
-required environment variables.
+Ghost `6.58.0` added Docker Secrets configuration support and fixed
+outbound-request crashes and member imports. Ghost `6.59.0` fixes MySQL
+migrations on versions older than 8.0.28, newsletter filters, and donation
+checkout. These releases do not change the official image's port, content
+path, database contract, probes, or required environment variables.
 Files edited in Ghost Admin remain under `/var/lib/ghost/content/data`, so the
 chart's content PVC and S3 content backup already cover them. Review the
 upstream Ghost release notes before upgrading
