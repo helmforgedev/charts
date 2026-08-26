@@ -18,7 +18,7 @@ persistence:
 
 ## MariaDB via MySQL Subchart
 
-Use the HelmForge MySQL subchart `2.0.0` as a MariaDB-compatible backend:
+Use the HelmForge MySQL subchart `2.0.3` as a MariaDB-compatible backend:
 
 ```yaml
 database:

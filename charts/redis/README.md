@@ -222,7 +222,7 @@ Use the generic extension values when platform-specific integration is needed:
 | `architecture` | Redis topology: `standalone`, `replication`, `sentinel`, or `cluster` | `standalone` |
 | `clusterDomain` | Kubernetes cluster DNS domain used for internal service FQDNs | `cluster.local` |
 | `image.repository` | Redis image repository | `docker.io/library/redis` |
-| `image.tag` | Redis image tag | `8.10.0` |
+| `image.tag` | Redis image tag | `8.10.1` |
 | `auth.enabled` | Enable password authentication | `true` |
 | `auth.password` | Inline Redis password | `""` |
 | `auth.existingSecret` | Existing Secret containing the Redis password | `""` |
@@ -291,12 +291,17 @@ See `examples/`:
 - If your cluster domain is not `cluster.local`, set `clusterDomain` before installing stateful topologies.
 - For production, verify storage, credentials, scheduling, network policy, monitoring, backup strategy, and client compatibility before exposing Redis to applications.
 
+Redis 8.10.1 is an upstream security release addressing memory-safety issues in
+RDB loading, Vector Sets, TLS, and blocked-client handling, including an RDB
+slot validation issue that could lead to remote code execution. Back up data
+and complete a controlled rollout promptly.
+
 ## Official product references
 
 - Redis Sentinel: <https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/>
 - Redis Cluster: <https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/>
 - Redis security: <https://redis.io/docs/latest/operate/oss_and_stack/management/security/>
-- Redis 8.10.0 release: <https://github.com/redis/redis/releases/tag/8.10.0>
+- Redis 8.10.1 security release: <https://github.com/redis/redis/releases/tag/8.10.1>
 
 ### 🟢 Security Scan: `redis`
 

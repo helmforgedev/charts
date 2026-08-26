@@ -1,7 +1,7 @@
 # GitHub MCP Server Helm Chart
 
 The GitHub MCP Server exposes GitHub APIs through the Model Context Protocol.
-This chart deploys the official `ghcr.io/github/github-mcp-server:v1.2.0` image in streamable HTTP mode for internal agent platforms,
+This chart deploys the official `ghcr.io/github/github-mcp-server:v1.9.0` image in streamable HTTP mode for internal agent platforms,
 IDE integrations, and automation gateways.
 
 ## Install

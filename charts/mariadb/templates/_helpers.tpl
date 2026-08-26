@@ -464,24 +464,6 @@ terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
 nodeSelector:
   {{- toYaml . | nindent 2 }}
 {{- end }}
-{{- if .Values.affinity }}
-affinity:
-  {{- toYaml .Values.affinity | nindent 2 }}
-{{- else if and (eq .Values.architecture "replication") .Values.replication.scheduling.enableDefaultPodAntiAffinity }}
-affinity:
-  podAntiAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 100
-        podAffinityTerm:
-          topologyKey: kubernetes.io/hostname
-          labelSelector:
-            matchLabels:
-              {{- include "mariadb.selectorLabels" . | nindent 14 }}
-{{- end }}
-{{- with .Values.tolerations }}
-tolerations:
-  {{- toYaml . | nindent 2 }}
-{{- end }}
 {{- if .Values.topologySpreadConstraints }}
 topologySpreadConstraints:
   {{- toYaml .Values.topologySpreadConstraints | nindent 2 }}
@@ -495,6 +477,40 @@ topologySpreadConstraints:
         {{- include "mariadb.selectorLabels" . | nindent 8 }}
 {{- end }}
 {{- end -}}
+
+{{- define "mariadb.affinity" -}}
+{{- $root := .root }}
+{{- $instance := .instance }}
+{{- if and (eq $root.Values.architecture "replication") $instance.affinity }}
+affinity:
+  {{- toYaml $instance.affinity | nindent 2 }}
+{{- else if $root.Values.affinity }}
+affinity:
+  {{- toYaml $root.Values.affinity | nindent 2 }}
+{{- else if and (eq $root.Values.architecture "replication") $root.Values.replication.scheduling.enableDefaultPodAntiAffinity }}
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              {{- include "mariadb.selectorLabels" $root | nindent 14 }}
+{{- end }}
+{{- end -}}
+
+{{- define "mariadb.tolerations" -}}
+{{- $root := .root }}
+{{- $instance := .instance }}
+{{- if and (eq $root.Values.architecture "replication") $instance.tolerations }}
+tolerations:
+  {{- toYaml $instance.tolerations | nindent 2 }}
+{{- else if $root.Values.tolerations }}
+tolerations:
+  {{- toYaml $root.Values.tolerations | nindent 2 }}
+{{- end }}
+{{- end }}
 
 {{- define "mariadb.pdbEnabled" -}}
 {{- if eq .Values.architecture "replication" -}}

@@ -1,0 +1,111 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ente.fullname" . }}-museum
+  labels:
+    {{- include "ente.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "ente.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - museum-api
+          - museum-worker
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    {{- if .Values.networkPolicy.ingress.allowExternal }}
+    - ports:
+        - protocol: TCP
+          port: 8080
+        {{- if .Values.metrics.enabled }}
+        - protocol: TCP
+          port: 2112
+        {{- end }}
+    {{- end }}
+    {{- with .Values.networkPolicy.ingress.museumExtraRules }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  egress:
+    {{- if .Values.networkPolicy.egress.allowDNS }}
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.allowSameNamespacePostgresql }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+      ports:
+        - protocol: TCP
+          port: {{ include "ente.databasePort" . }}
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.allowObjectStorage }}
+    - to:
+        {{- toYaml .Values.networkPolicy.egress.objectStorageDestinations | nindent 8 }}
+      ports:
+        {{- range .Values.networkPolicy.egress.objectStoragePorts }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+    {{- end }}
+    {{- with .Values.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.museumExtraRules }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ente.fullname" . }}-web
+  labels:
+    {{- include "ente.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "ente.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: web
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    {{- if .Values.networkPolicy.ingress.allowExternal }}
+    - ports:
+        {{- range $name, $app := .Values.web.apps }}
+        {{- if $app.enabled }}
+        - protocol: TCP
+          port: {{ $app.port }}
+        {{- end }}
+        {{- end }}
+    {{- end }}
+    {{- with .Values.networkPolicy.ingress.webExtraRules }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  egress:
+    {{- if .Values.networkPolicy.egress.allowDNS }}
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+    {{- with .Values.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.webExtraRules }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

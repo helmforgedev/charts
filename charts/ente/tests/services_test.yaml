@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Ente services
+templates:
+  - templates/services.yaml
+tests:
+  - it: renders Museum and three default web Services
+    asserts:
+      - hasDocuments:
+          count: 4
+  - it: maps Museum to its HTTP container port
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+  - it: applies dual-stack fields to Museum
+    set:
+      museum:
+        service:
+          ipFamilyPolicy: PreferDualStack
+          ipFamilies:
+            - IPv6
+            - IPv4
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+      - lengthEqual:
+          path: spec.ipFamilies
+          count: 2
+  - it: omits a disabled web application Service
+    set:
+      web.apps.albums.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 3
+  - it: adds an enabled optional application Service
+    set:
+      web.apps.memories.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 5

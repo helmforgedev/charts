@@ -5,7 +5,7 @@
 This chart deploys Minecraft Java Edition servers using the official community-standard
 `docker.io/itzg/minecraft-server` image. It supports vanilla, Paper, Forge, Fabric, Quilt, Geyser/Floodgate cross-play,
 RCON operations, persistent worlds, metrics, External Secrets, and S3-compatible backups.
-The 2026.8.0 runtime also exposes IPv6 stack preference, a replaceable process
+The 2026.8.2 runtime also exposes IPv6 stack preference, a replaceable process
 runner, and layered generic packs distributed as OCI artifacts.
 
 ## Architecture

@@ -1,0 +1,44 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- range $component := list "museum" "web" }}
+{{- $config := get $.Values.autoscaling $component }}
+{{- if $config.enabled }}
+{{- if and (not $config.targetCPUUtilizationPercentage) (not $config.targetMemoryUtilizationPercentage) }}
+{{- fail (printf "autoscaling.%s requires targetCPUUtilizationPercentage or targetMemoryUtilizationPercentage when enabled" $component) }}
+{{- end }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "ente.fullname" $ }}-{{ ternary "museum-api" "web" (eq $component "museum") }}
+  labels:
+    {{- include "ente.labels" $ | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "ente.fullname" $ }}-{{ ternary "museum-api" "web" (eq $component "museum") }}
+  minReplicas: {{ $config.minReplicas }}
+  maxReplicas: {{ $config.maxReplicas }}
+  metrics:
+    {{- with $config.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ . }}
+    {{- end }}
+    {{- with $config.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ . }}
+    {{- end }}
+  {{- with $config.behavior }}
+  behavior:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}

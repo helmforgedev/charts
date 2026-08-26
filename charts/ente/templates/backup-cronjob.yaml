@@ -1,0 +1,121 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "ente.fullname" . }}-postgresql-backup
+  labels:
+    {{- include "ente.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  suspend: {{ .Values.backup.suspend }}
+  concurrencyPolicy: {{ .Values.backup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "ente.componentLabels" (dict "root" . "component" "backup") | nindent 12 }}
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "ente.serviceAccountName" . }}
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            fsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: dump
+              image: {{ .Values.backup.postgresqlImage | quote }}
+              command: ["sh", "-ec"]
+              args:
+                - pg_dump {{ .Values.backup.pgDumpArgs }} --file=/backup/ente.dump
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 65532
+              env:
+                - name: PGHOST
+                  value: {{ include "ente.databaseHost" . | quote }}
+                - name: PGPORT
+                  value: {{ include "ente.databasePort" . | quote }}
+                - name: PGDATABASE
+                  value: {{ include "ente.databaseName" . | quote }}
+                - name: PGUSER
+                  value: {{ include "ente.databaseUsername" . | quote }}
+                - name: PGSSLMODE
+                  value: {{ include "ente.databaseSslMode" . | quote }}
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "ente.databaseSecretName" . }}
+                      key: {{ include "ente.databaseSecretKey" . }}
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+                - name: tmp
+                  mountPath: /tmp
+          containers:
+            - name: upload
+              image: {{ .Values.backup.uploaderImage | quote }}
+              command: ["sh", "-ec"]
+              args:
+                - |
+                  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+                  mc alias set backup "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}"
+                  mc cp /backup/ente.dump "backup/${S3_BUCKET}/${S3_PREFIX}/ente-${stamp}.dump"
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 65532
+              env:
+                - name: MC_CONFIG_DIR
+                  value: /tmp/.mc
+                - name: S3_ENDPOINT
+                  value: {{ .Values.backup.s3.endpoint | quote }}
+                - name: S3_BUCKET
+                  value: {{ .Values.backup.s3.bucket | quote }}
+                - name: S3_PREFIX
+                  value: {{ .Values.backup.s3.prefix | trimAll "/" | quote }}
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "ente.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretAccessKeyKey }}
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "ente.backupSecretName" . }}
+                      key: {{ .Values.backup.s3.existingSecretSecretKeyKey }}
+              {{- with .Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: backup
+              emptyDir: {}
+            - name: tmp
+              emptyDir: {}
+{{- end }}

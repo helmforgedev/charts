@@ -21,8 +21,8 @@ helm install docmost oci://ghcr.io/helmforgedev/helm/docmost
 ## Features
 
 - **Official Docmost image** based on `docmost/docmost`
-- **PostgreSQL subchart** bundled PostgreSQL `2.0.2` for default installs
-- **Redis subchart** bundled Redis `1.6.16` for default installs
+- **PostgreSQL subchart** bundled PostgreSQL `2.0.4` for default installs
+- **Redis subchart** bundled Redis `2.0.0` for default installs
 - **External services** support for managed PostgreSQL and Redis
 - **Local or S3 storage** for uploaded files
 - **Ingress support** configurable ingress with TLS

@@ -1,0 +1,93 @@
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ente-external-postgresql
+type: Opaque
+stringData:
+  database-password: change-me
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ente-external-postgresql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ente-external-postgresql
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ente-external-postgresql
+        helmforge.dev/runtime-fixture: "true"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgresql
+          image: docker.io/library/postgres:18.4-trixie
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/18/docker
+            - name: POSTGRES_DB
+              value: ente
+            - name: POSTGRES_USER
+              value: ente
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ente-external-postgresql
+                  key: database-password
+          ports:
+            - name: postgresql
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - --username=ente
+                - --dbname=ente
+            periodSeconds: 2
+            timeoutSeconds: 2
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql
+            - name: run
+              mountPath: /var/run/postgresql
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ente-external-postgresql
+spec:
+  selector:
+    app.kubernetes.io/name: ente-external-postgresql
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql

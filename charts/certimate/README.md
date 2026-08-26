@@ -2,7 +2,7 @@
 
 Deploy [Certimate](https://github.com/certimate-go/certimate), a self-hosted certificate automation platform for ACME issuance, deployment, renewal, and monitoring.
 
-This chart packages the official `certimate/certimate:v0.4.30` image and follows the upstream container contract: HTTP on port `8090` and durable PocketBase data under `/app/pb_data`.
+This chart packages the official `certimate/certimate:v0.4.31` image and follows the upstream container contract: HTTP on port `8090` and durable PocketBase data under `/app/pb_data`.
 
 ## Production Defaults
 
@@ -11,6 +11,8 @@ This chart packages the official `certimate/certimate:v0.4.30` image and follows
 - explicit `persistence.ephemeral=true` opt-in for disposable emptyDir installs
 - default resource requests and memory limit for scheduler and Kubescape hygiene
 - restricted ServiceAccount token mounting by default
+- ephemeral writable `/tmp` storage while the container root filesystem remains read-only
+- optional `tmpStorage.sizeLimit` with matching ephemeral-storage request and limit
 - Kubernetes Ingress and Gateway API HTTPRoute support
 - optional NetworkPolicy with explicit additional egress for ACME DNS APIs, DNS, SMTP, webhooks, and target deployment systems
 - ExternalSecret support for environment variables or other integration secrets
@@ -71,9 +73,10 @@ Back up the PersistentVolumeClaim before upgrades. Certimate stores its
 PocketBase database, uploaded certificate material, ACME account state, workflow
 definitions, and provider credentials under `/app/pb_data`.
 
-Certimate 0.4.30 adds AxisNow and Proxmox Backup Server deployment providers and
-fixes Kubernetes Secret certificate deployment. It does not change the container
-port, storage path, or chart configuration contract.
+Certimate 0.4.31 adds the Huawei iBMC deployment provider and fixes Kubernetes
+Secret certificate deployment against API resources that were previously not
+discovered correctly. It does not change the container port, storage path, or
+chart configuration contract.
 
 Certimate's upstream deployment uses PocketBase-local state. This chart does not
 ship PostgreSQL, MySQL, or Redis subcharts because the product does not expose an
@@ -89,7 +92,7 @@ ACME endpoints required by your workflows.
 Local security scan:
 
 ```text
-Image: certimate/certimate:v0.4.30
+Image: certimate/certimate:v0.4.31
 Scanner: Kubescape v4.0.9, frameworks MITRE, NSA, SOC2
 Result: 93.93939 compliance score
 ```

@@ -6,7 +6,7 @@ Important runtime note:
 
 - This chart uses `docker.io/library/drupal`.
 - Drupal upstream does not currently publish its own upstream-maintained runtime container image.
-- HelmForge pins the Docker Official Apache image explicitly to `11.4.4-php8.5-apache-bookworm`, which is published by the Docker Official Drupal image repository.
+- HelmForge pins the Docker Official Apache image explicitly to `11.4.5-php8.5-apache-bookworm`, which is published by the Docker Official Drupal image repository.
 - The chart prepares runtime, persistence, ingress, backup automation, and database connectivity, then guides the final site installation through Drupal's web installer.
 
 ## Install
@@ -44,7 +44,7 @@ Then:
 
 ## Why This Chart Is Different
 
-- **Pinned production image** — uses `drupal:11.4.4-php8.5-apache-bookworm`, keeping the Drupal release, PHP runtime, and Debian base explicit
+- **Pinned production image** — uses `drupal:11.4.5-php8.5-apache-bookworm`, keeping the Drupal release, PHP runtime, and Debian base explicit
 - **Seeded `sites/` persistence** — preserves installer output and uploads without masking Drupal core files from the image
 - **Built-in backup automation** — archives `sites/` and backs up either MySQL or SQLite to S3-compatible storage
 - **Safe scaling model** — single replica by default, with fail-fast guardrails for multi-replica or HPA use
@@ -53,15 +53,13 @@ Then:
 
 ## Upstream Version Notes
 
-Drupal `11.4.4` is a security release that fixes moderately critical
-information-disclosure and cross-site scripting vulnerabilities. Drupal
-recommends updating 11.4.x sites immediately; no unrelated fixes are included
-in this release.
+Drupal `11.4.5` is a patch release with upstream bug fixes. Review the upstream
+release notes for the complete list of resolved issues and any known regressions.
 
 Before upgrading production workloads, test the site in staging with the same
 PHP extensions, Composer dependency set, storage class, and database mode used
-in production. Review the Drupal 11.4.4 release notes and security advisories
-before running database updates.
+in production. Review the Drupal 11.4.5 release notes before running database
+updates.
 
 ## Production Example
 
@@ -149,7 +147,7 @@ mysql:
 |-----|---------|-------------|
 | `replicaCount` | `1` | Number of Drupal replicas. |
 | `image.repository` | `docker.io/library/drupal` | Drupal image repository. |
-| `image.tag` | `11.4.4-php8.5-apache-bookworm` | Drupal image tag. |
+| `image.tag` | `11.4.5-php8.5-apache-bookworm` | Drupal image tag. |
 | `database.mode` | `auto` | Database mode: `auto`, `external`, `mysql`, or `sqlite`. |
 | `mysql.enabled` | `true` | Deploy bundled MySQL. |
 | `mysql.auth.database` | `drupal` | Database name created by the MySQL subchart. |

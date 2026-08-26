@@ -1,8 +1,30 @@
 # Envoy Gateway
 
 A Helm chart for deploying [Envoy Gateway](https://gateway.envoyproxy.io/)
-v1.8.3 on Kubernetes. Envoy Gateway is a **Kubernetes operator** — it manages
-Envoy proxy pods automatically in response to Gateway API resources.
+v1.9.0 on Kubernetes 1.33 through 1.36. Envoy Gateway is a **Kubernetes
+operator** — it manages Envoy proxy pods automatically in response to Gateway
+API resources.
+
+> [!WARNING]
+> **Upgrading from chart 1.x to 2.0.0 requires a staged CRD migration.**
+>
+> Do not upgrade directly with `crds.enabled=false`, uninstall the bundled CRDs,
+> or replace the safe-upgrade policy. Use this order:
+>
+> 1. Upgrade Kubernetes first when it is outside the supported 1.33-1.36 range.
+> 2. Capture all CRD, custom-resource, policy, and binding UIDs.
+> 3. Upgrade Envoy Gateway to 2.0.0 with `crds.enabled=true` so Helm records the
+>    keep policy.
+> 4. Install `envoy-gateway-crds` 1.0.0 with policy management disabled and
+>    server-side apply its locked bundle.
+> 5. Upgrade Envoy Gateway 2.0.0 with `crds.enabled=false`.
+> 6. Transfer the policy and binding to the standalone release, then verify all
+>    captured UIDs and Gateway traffic.
+>
+> CRD schema upgrades are forward-only. Do not use Helm rollback to downgrade
+> the bundle or return the application to a pre-2.0.0 revision. Follow the
+> [complete 1.x to 2.0.0 migration procedure](docs/crd-migration.md) before
+> changing production releases.
 
 ## Installation
 
@@ -11,27 +33,64 @@ Envoy proxy pods automatically in response to Gateway API resources.
 ```bash
 helm repo add helmforge https://repo.helmforge.dev
 helm repo update
-helm install envoy-gateway helmforge/envoy-gateway
+helm upgrade --install envoy-gateway-crds helmforge/envoy-gateway-crds \
+  --version 1.0.0 \
+  --namespace envoy-gateway \
+  --create-namespace
+helm show crds helmforge/envoy-gateway-crds \
+  --version 1.0.0 > envoy-gateway-crds-installed.yaml
+kubectl wait --for=condition=Established --timeout=120s \
+  -f envoy-gateway-crds-installed.yaml
+kubectl api-resources --api-group=gateway.networking.k8s.io
+kubectl api-resources --api-group=gateway.envoyproxy.io
+helm upgrade --install envoy-gateway helmforge/envoy-gateway \
+  --namespace envoy-gateway \
+  --set crds.enabled=false
 ```
 
 ### OCI Registry
 
 ```bash
-helm install envoy-gateway oci://ghcr.io/helmforgedev/helm/envoy-gateway
+helm upgrade --install envoy-gateway-crds \
+  oci://ghcr.io/helmforgedev/helm/envoy-gateway-crds \
+  --version 1.0.0 \
+  --namespace envoy-gateway \
+  --create-namespace
+helm show crds oci://ghcr.io/helmforgedev/helm/envoy-gateway-crds \
+  --version 1.0.0 > envoy-gateway-crds-installed.yaml
+kubectl wait --for=condition=Established --timeout=120s \
+  -f envoy-gateway-crds-installed.yaml
+kubectl api-resources --api-group=gateway.networking.k8s.io
+kubectl api-resources --api-group=gateway.envoyproxy.io
+helm upgrade --install envoy-gateway \
+  oci://ghcr.io/helmforgedev/helm/envoy-gateway \
+  --namespace envoy-gateway \
+  --set crds.enabled=false
 ```
 
 ## Quick Start
 
-Envoy Gateway and Gateway API experimental v1.5.1 CRDs are bundled in the local
-`crds` subchart and installed automatically by default. This includes
-`ListenerSet`, which Envoy Gateway v1.8.3 requires. Set `crds.enabled=false`
-only when a platform operator, GitOps controller, or another release manages
-all required CRDs. Helm installs CRDs on first install but does not upgrade or
-delete them automatically; review upstream CRD changes before chart upgrades.
+Envoy Gateway v1.9.0 requires Gateway API v1.6.1 Experimental and supports
+Kubernetes 1.33 through 1.36. New installations use the standalone
+`envoy-gateway-crds` release first, wait for discovery, then install this chart
+with `crds.enabled=false`. This makes the first `helm diff` work with Kubernetes
+validation enabled and gives CRDs an explicit forward-only lifecycle.
+
+The bundled `crds` subchart remains enabled by default only as a migration
+bridge for users upgrading from chart 1.10.1. Existing users must first upgrade
+to this release with `crds.enabled=true`; that revision records
+`helm.sh/resource-policy: keep` on the safe-upgrade policy and binding. They can
+then install the standalone release, disable the old dependency, and transfer
+policy ownership without deleting or recreating any CRD or custom resource.
+
+Do not disable the bundled dependency directly from 1.10.1. Follow the
+[mandatory migration procedure](docs/crd-migration.md).
 
 ```bash
-# Install CRDs and the controller with the development profile.
-helm install envoy-gateway oci://ghcr.io/helmforgedev/helm/envoy-gateway \
+# Install the controller after the standalone CRD release is Established.
+helm upgrade --install envoy-gateway oci://ghcr.io/helmforgedev/helm/envoy-gateway \
+  --namespace envoy-gateway \
+  --set crds.enabled=false \
   --set profile=dev \
   --set gateway.create=true \
   --set gatewayAPI.examples.enabled=true
@@ -47,12 +106,12 @@ curl -H "Host: example.local" http://$GATEWAY_IP/
 
 ## How It Works
 
-1. **Chart installs**: bundled CRDs, GatewayClass, certgen job, controller Deployment, RBAC
-2. **certgen job** runs as a pre-install hook and generates TLS certs for the controller
-3. **Controller** starts and watches for `Gateway` resources
-4. When `gateway.create: true`, a **Gateway** resource is created → EG automatically provisions Envoy proxy pods and a Service
-5. Users create **HTTPRoute**, **TCPRoute**, **GRPCRoute** resources that attach to the Gateway
-6. Policies (SecurityPolicy, BackendTrafficPolicy, ClientTrafficPolicy) attach to Gateway or HTTPRoute resources
+1. **CRD release installs**: 18 CRDs and the Gateway API safe-upgrade policy
+2. **Application chart validates**: required discovery and bundle metadata
+3. **certgen job** runs as a pre-install hook and generates TLS certs for the controller
+4. **Controller** starts and watches for `Gateway` resources
+5. When `gateway.create: true`, a **Gateway** resource is created and EG provisions Envoy proxy pods and a Service
+6. Users create Routes and policies that attach to Gateway API resources
 
 Proxy pods are named `envoy-<namespace>-<gateway-name>-<uid>` and are managed entirely by the EG operator — not by this chart.
 
@@ -151,7 +210,7 @@ highAvailability:
 |-----|---------|-------------|
 | `profile` | `custom` | Profile preset (dev, production-ha, custom) |
 | `namespaceOverride` | `""` | Namespace for chart-managed resources; target namespace must already exist |
-| `crds.enabled` | `true` | Install bundled Envoy Gateway and Gateway API experimental CRDs |
+| `crds.enabled` | `true` | Migration bridge: retain bundled CRDs until the standalone release has been installed and ownership transferred |
 | `nameOverride` | `""` | Override chart name |
 | `fullnameOverride` | `""` | Override full name |
 | `imagePullSecrets` | `[]` | Image pull secrets |
@@ -164,7 +223,7 @@ highAvailability:
 |-----|---------|-------------|
 | `controller.replicaCount` | `1` | Number of controller replicas (overridden by profile) |
 | `controller.image.repository` | `docker.io/envoyproxy/gateway` | Controller image repository |
-| `controller.image.tag` | `v1.8.3` | Controller image tag |
+| `controller.image.tag` | `v1.9.0` | Controller image tag |
 | `controller.image.pullPolicy` | `IfNotPresent` | Image pull policy |
 | `controller.resources.requests.cpu` | `100m` | CPU request (overridden by profile) |
 | `controller.resources.requests.memory` | `128Mi` | Memory request (overridden by profile) |
@@ -182,7 +241,7 @@ highAvailability:
 |-----|---------|-------------|
 | `certgen.enabled` | `true` | Run certgen pre-install/pre-upgrade job for controller TLS certs |
 | `certgen.image.repository` | `docker.io/envoyproxy/gateway` | Certgen image (same as controller) |
-| `certgen.image.tag` | `v1.8.3` | Certgen image tag |
+| `certgen.image.tag` | `v1.9.0` | Certgen image tag |
 | `certgen.resources.requests.cpu` | `10m` | CPU request |
 | `certgen.resources.requests.memory` | `64Mi` | Memory request |
 | `certgen.resources.limits.cpu` | `100m` | CPU limit |
@@ -198,10 +257,10 @@ highAvailability:
 | `proxy.kind` | `Deployment` | Proxy workload kind: `Deployment` or `DaemonSet` |
 | `proxy.replicaCount` | `1` | Number of proxy replicas (Deployment mode only, overridden by profile) |
 | `proxy.image.repository` | `docker.io/envoyproxy/envoy` | Proxy image repository |
-| `proxy.image.tag` | `distroless-v1.38.0` | Proxy image tag |
+| `proxy.image.tag` | `distroless-v1.39.0` | Proxy image tag |
 | `proxy.image.pullPolicy` | `IfNotPresent` | Image pull policy |
 | `proxy.shutdownManager.image.repository` | `docker.io/envoyproxy/gateway` | Shutdown manager sidecar image repository |
-| `proxy.shutdownManager.image.tag` | `v1.8.3` | Shutdown manager sidecar image tag |
+| `proxy.shutdownManager.image.tag` | `v1.9.0` | Shutdown manager sidecar image tag |
 | `proxy.shutdownManager.image.pullPolicy` | `IfNotPresent` | Shutdown manager image pull policy |
 | `proxy.resources.requests.cpu` | `100m` | CPU request (overridden by profile) |
 | `proxy.resources.requests.memory` | `128Mi` | Memory request (overridden by profile) |
@@ -224,6 +283,7 @@ highAvailability:
 |-----|---------|-------------|
 | `gateway.create` | `true` | Create a default Gateway resource (triggers proxy provisioning) |
 | `gateway.name` | `""` | Gateway name (defaults to release name) |
+| `gateway.allowedListeners` | `{}` | ListenerSet namespace attachment policy; supports `None`, `Same`, `All`, and `Selector` |
 | `gateway.listeners.http.enabled` | `true` | Enable HTTP listener |
 | `gateway.listeners.http.port` | `80` | HTTP listener port |
 | `gateway.listeners.http.allowedRoutes` | `{}` | Route kinds and namespaces allowed to attach; empty uses the same-namespace Gateway API default |
@@ -280,7 +340,7 @@ highAvailability:
 |-----|---------|-------------|
 | `rateLimiting.enabled` | `false` | Enable rate limiting |
 | `rateLimiting.service.image.repository` | `docker.io/envoyproxy/ratelimit` | Rate limit service image repository |
-| `rateLimiting.service.image.tag` | `1e50889b` | Rate limit service image tag aligned with Envoy Gateway v1.8.3 |
+| `rateLimiting.service.image.tag` | `17b1956c` | Rate limit service image tag aligned with Envoy Gateway v1.9.0 |
 | `rateLimiting.externalRedis.host` | `""` | External Redis host |
 | `rateLimiting.externalRedis.port` | `6379` | External Redis port |
 | `rateLimiting.externalRedis.auth.enabled` | `false` | Enable Redis authentication |
@@ -442,13 +502,48 @@ Major architectural redesign to align with the EG operator model.
 
 ## Upgrade Notes
 
-`docker.io/envoyproxy/gateway:v1.8.3` is the upstream patch update from
-`v1.8.2`. The automatically generated issue referenced `1.8.3`, but Docker Hub
+### Mandatory CRD Migration From 1.10.1 to 2.0.0
+
+Chart 2.0.0 is a major release because it raises the Kubernetes minimum from
+1.26 to 1.33 and changes the CRD lifecycle and ownership contract. It is the
+required bridge between the application-owned policy and
+the standalone `envoy-gateway-crds` release. It also corrects the supported
+Kubernetes range from the former `>=1.26` declaration to the upstream v1.9
+matrix: Kubernetes 1.33 through 1.36. Upgrade the cluster first if it is outside
+that range.
+
+The safe sequence is:
+
+1. Capture all CRD, custom-resource, policy, and binding names, UIDs, and counts.
+2. Upgrade this application release with `crds.enabled=true`.
+3. Verify `helm.sh/resource-policy=keep` on the safe-upgrade policy and binding.
+4. Apply the matching standalone CRD bundle server-side.
+5. Install the standalone release with policy management disabled.
+6. Upgrade this release with `crds.enabled=false`.
+7. Adopt the policy and binding into the standalone release.
+8. Verify every captured UID and resource count remains unchanged.
+
+Do not skip step 1: patching only the live object is insufficient because Helm
+uses the prior release manifest when deciding what to delete. Exact commands,
+Helm 3 fallback, recovery, rollback, and verification are in
+[CRD migration from 1.10.1](docs/crd-migration.md).
+
+After ownership transfer, never roll back to an application revision from
+before the bridge: it reintroduces the old policy resources. Upgrade a
+compatible application version with `crds.enabled=false` instead.
+
+When `crds.enabled=false`, rendering fails early unless all 18 required GVKs
+are discoverable. A server-connected install, upgrade, or server-side diff also
+checks Gateway API bundle `v1.6.1`/`experimental` and Envoy Gateway bundle
+`v1.9.0` annotations.
+
+`docker.io/envoyproxy/gateway:v1.9.0` is the upstream minor update from
+`v1.8.3`. The automatically generated issue referenced `1.9.0`, but Docker Hub
 publishes the canonical Envoy Gateway image tag with the `v` prefix. This chart
-keeps the managed Envoy proxy image pinned to
-`docker.io/envoyproxy/envoy:distroless-v1.38.0`, which remains aligned with the
-upstream v1.8 compatibility matrix. The rate limit deployment now uses the
-upstream v1.8.3 default `docker.io/envoyproxy/ratelimit:1e50889b` and honors the
+pins the managed Envoy proxy image to
+`docker.io/envoyproxy/envoy:distroless-v1.39.0`, aligned with the upstream v1.9
+compatibility matrix. The rate limit deployment uses the upstream v1.9.0
+default `docker.io/envoyproxy/ratelimit:17b1956c` and honors the
 `rateLimiting.service.image` override through the EnvoyGateway configuration.
 When rate limiting is enabled, the chart also uses the upstream-required
 `envoy-gateway` names for the controller Deployment and ServiceAccount. If the
@@ -459,17 +554,17 @@ uses its `-redis-client` endpoint, and Redis authentication is injected into the
 managed rate-limit Deployment through `REDIS_AUTH` from either the bundled or
 external Secret.
 
-Envoy Gateway v1.8.3 updates its distroless base and fixes backend TLS 1.3
-defaults, mismatched or malformed listener certificates, IPv6 literal OIDC
-endpoints, translator status races, and Wasm fetch retries. It also moves
-EnvoyExtensionPolicy Lua source from per-route overrides to listener-level
-filters. This changes generated xDS Lua filter names and layout; update any
-EnvoyPatchPolicy or extension server that matches the previous
-`envoy.filters.http.lua/` keys. Review the
-[upstream v1.8.3 release notes](https://gateway.envoyproxy.io/news/releases/notes/v1.8.3)
-before upgrading, verify Gateway API and Envoy Gateway CRDs in staging, and test
-existing Gateway, HTTPRoute, EnvoyProxy, `BackendTrafficPolicy`,
-`SecurityPolicy`, EnvoyExtensionPolicy, and EnvoyPatchPolicy resources.
+Envoy Gateway v1.9.0 requires Gateway API v1.6 CRDs and includes stricter CEL
+validation for client IP detection, API key extraction, and policy merge
+targets. Lua extensions are disabled by default and tracing client sampling now
+defaults to zero. EndpointSlice indexing is enabled by default and can increase
+controller memory use on large clusters. Review the
+[upstream v1.9.0 release notes](https://gateway.envoyproxy.io/news/releases/notes/v1.9.0/)
+before upgrading. The supported CRD set is Gateway API v1.6.1 Experimental.
+Apply the standalone CRD bundle server-side before the controller upgrade,
+correct resources rejected by the new validations, and test existing
+Gateway, route, EnvoyProxy, `BackendTrafficPolicy`, `SecurityPolicy`,
+EnvoyExtensionPolicy, and EnvoyPatchPolicy resources in staging.
 
 ### Version 1.0.0
 

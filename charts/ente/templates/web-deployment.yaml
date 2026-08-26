@@ -1,0 +1,148 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $firstApp := include "ente.firstWebApp" . | fromJson }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ente.fullname" . }}-web
+  labels:
+    {{- include "ente.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  {{- if not .Values.autoscaling.web.enabled }}
+  replicas: {{ .Values.web.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "ente.componentLabels" (dict "root" . "component" "web") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ente.componentLabels" (dict "root" . "component" "web") | nindent 8 }}
+        {{- with .Values.web.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ toJson (dict "museumOrigin" .Values.museum.externalUrl "apps" .Values.web.apps) | sha256sum }}
+        {{- with .Values.web.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "ente.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- toYaml .Values.web.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        - name: prepare-web-content
+          image: {{ include "ente.webImage" . | quote }}
+          imagePullPolicy: {{ .Values.web.image.pullPolicy }}
+          command: ["sh", "-ec"]
+          args:
+            - cp -R /out/. /work/
+          securityContext:
+            {{- toYaml .Values.web.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: web-content
+              mountPath: /work
+      containers:
+        - name: web
+          image: {{ include "ente.webImage" . | quote }}
+          imagePullPolicy: {{ .Values.web.image.pullPolicy }}
+          command: ["sh", "-ec"]
+          args:
+            - find /out -name '*.js' -exec sed -i "s#ENTE_API_ORIGIN_PLACEHOLDER#${ENTE_API_ORIGIN}#g" {} +; exec nginx -c /etc/ente/nginx.conf -g 'daemon off;'
+          securityContext:
+            {{- toYaml .Values.web.securityContext | nindent 12 }}
+          env:
+            - name: ENTE_API_ORIGIN
+              value: {{ .Values.museum.externalUrl | quote }}
+            {{- with .Values.web.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            {{- range $name, $app := .Values.web.apps }}
+            {{- if $app.enabled }}
+            - name: {{ $name }}
+              containerPort: {{ $app.port }}
+              protocol: TCP
+            {{- end }}
+            {{- end }}
+          {{- if .Values.web.probes.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: /
+              port: {{ $firstApp.name }}
+            initialDelaySeconds: {{ .Values.web.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.web.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.web.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.web.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.web.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ $firstApp.name }}
+            periodSeconds: {{ .Values.web.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.web.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.web.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.web.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ $firstApp.name }}
+            initialDelaySeconds: {{ .Values.web.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.web.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.web.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.web.probes.liveness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.web.resources | nindent 12 }}
+          volumeMounts:
+            - name: web-content
+              mountPath: /out
+            - name: nginx-config
+              mountPath: /etc/ente/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: nginx-run
+              mountPath: /var/run
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: web-content
+          emptyDir: {}
+        - name: nginx-config
+          configMap:
+            name: {{ include "ente.fullname" . }}-config
+        - name: nginx-cache
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

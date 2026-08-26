@@ -8,7 +8,7 @@ The default configuration deploys Ghost with the HelmForge MySQL dependency:
 mysql:
   enabled: true
   image:
-    tag: "8.4.7"
+    tag: "8.4.11"
   auth:
     database: ghost
     username: ghost

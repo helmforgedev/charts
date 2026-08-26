@@ -20,7 +20,7 @@ helm install metrics-server oci://ghcr.io/helmforgedev/helm/metrics-server -n ku
 
 ## What this chart covers
 
-- official Metrics Server image pinned to `v0.8.1`
+- official Metrics Server image pinned to `v0.9.0`
 - Kubernetes Metrics API `APIService`
 - required ServiceAccount, ClusterRole, ClusterRoleBinding, and delegated authentication RoleBinding
 - typed kubelet flag modeling instead of a single unstructured args list
@@ -77,7 +77,7 @@ This avoids ownership conflicts while still deploying the Metrics Server workloa
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `registry.k8s.io/metrics-server/metrics-server` | Official image repository |
-| `image.tag` | `v0.8.1` | Metrics Server image tag |
+| `image.tag` | `v0.9.0` | Metrics Server image tag |
 | `replicaCount` | `1` | Deployment replicas |
 | `apiService.create` | `true` | Create `v1beta1.metrics.k8s.io` APIService |
 | `apiService.insecureSkipTLSVerify` | `true` | Skip APIService backend TLS verification unless `caBundle` is set |

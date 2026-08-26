@@ -1,0 +1,196 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+1. Ente Photos installation summary
+===================================
+
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Chart version: {{ .Chart.Version }}
+Museum image: {{ include "ente.museumImage" . }}
+Web image: {{ include "ente.webImage" . }}
+
+Museum API replicas: {{ .Values.museum.api.replicaCount }}
+Museum background worker: {{ ternary "enabled" "disabled" .Values.museum.worker.enabled }}
+Web replicas: {{ .Values.web.replicaCount }}
+Production validation: {{ ternary "enabled" "disabled" .Values.productionMode }}
+
+2. Access Ente
+==============
+
+Museum API origin: {{ .Values.museum.externalUrl }}
+
+{{- if .Values.ingress.enabled }}
+Ingress routes:
+{{- range .Values.ingress.hosts }}
+- https://{{ .host }} -> {{ .service }}
+{{- end }}
+{{- else if .Values.gateway.enabled }}
+Gateway API routes:
+{{- range $route := .Values.gateway.routes }}
+{{- range .hostnames }}
+- https://{{ . }} -> {{ $route.service }}
+{{- end }}
+{{- end }}
+{{- else }}
+No external route was created. Use port-forwarding for local access:
+
+Museum:
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "ente.fullname" . }}-museum 8080:{{ .Values.museum.service.port }}
+  curl http://127.0.0.1:8080/ping
+
+{{- range $name, $app := .Values.web.apps }}
+{{- if $app.enabled }}
+{{ title $name }}:
+  kubectl port-forward -n {{ $.Release.Namespace }} svc/{{ include "ente.fullname" $ }}-{{ $name }} 3000:{{ $.Values.web.service.port }}
+  Open http://127.0.0.1:3000
+{{- end }}
+{{- end }}
+{{- end }}
+
+3. Durable data and secrets
+===========================
+
+PostgreSQL mode: {{ include "ente.databaseMode" . }}
+PostgreSQL host: {{ include "ente.databaseHost" . }}:{{ include "ente.databasePort" . }}
+PostgreSQL database: {{ include "ente.databaseName" . }}
+S3 endpoint: {{ .Values.storage.s3.endpoint }}
+S3 bucket: {{ .Values.storage.s3.bucket }}
+S3 path-style URLs: {{ .Values.storage.s3.usePathStyle }}
+
+Museum cryptographic Secret: {{ include "ente.museumSecretName" . }}
+S3 credential Secret: {{ include "ente.s3SecretName" . }}
+Database credential Secret: {{ include "ente.databaseSecretName" . }}
+
+These assets form one recovery set:
+1. Museum cryptographic Secret and configuration.
+2. PostgreSQL data.
+3. Every object in the Ente S3 bucket.
+
+Back up all three. S3 objects cannot be decrypted without PostgreSQL and the
+Museum keys. Do not delete or rotate encryption-key, hash-key, or jwt-secret
+during an ordinary upgrade.
+
+4. Object storage validation
+============================
+
+Museum's /ping endpoint checks PostgreSQL but does not check S3. A Ready Museum
+pod does not prove that uploads work.
+
+Verify all of the following before inviting users:
+1. The S3 endpoint is reachable by Museum pods.
+2. The same endpoint is reachable by browsers and mobile clients.
+3. The configured credentials can read, write, and delete objects.
+4. Bucket CORS allows every Ente web origin.
+5. CORS allows GET, HEAD, POST, PUT, and DELETE.
+6. CORS allows Content-Type, Content-MD5, and UPLOAD-URL headers.
+7. File-data buckets do not use object lock or versioning.
+
+Inspect Museum's generated S3 configuration:
+  kubectl get configmap -n {{ .Release.Namespace }} {{ include "ente.fullname" . }}-config \
+    -o jsonpath='{.data.museum-api\.yaml}'
+
+5. High availability and jobs
+=============================
+
+{{- if .Values.museum.worker.enabled }}
+HA job topology is enabled:
+- Museum API pods skip cron and cleanup jobs.
+- One Museum worker runs cron and cleanup jobs.
+- The worker uses a Recreate strategy to avoid overlap.
+- The PostgreSQL advisory-lock sidecar serializes Museum migrations.
+
+Verify the topology:
+  kubectl get deploy -n {{ .Release.Namespace }} \
+    {{ include "ente.fullname" . }}-museum-api \
+    {{ include "ente.fullname" . }}-museum-worker
+{{- else }}
+Single-process job topology is enabled. The Museum API pod also runs scheduled
+jobs. Do not increase museum.api.replicaCount without enabling the singleton
+worker and museum.api.skipBackgroundJobs.
+{{- end }}
+
+The bundled PostgreSQL architecture is durable but is not automatic database
+failover. Use an external PostgreSQL service or operator for database HA.
+
+6. Authentication and email
+============================
+
+SMTP: {{ ternary "enabled" "disabled" .Values.smtp.enabled }}
+Registration disabled: {{ .Values.museum.config.disableRegistration }}
+WebAuthn relying-party ID: {{ .Values.museum.config.webauthn.rpid }}
+
+Ente uses one-time codes for login. Without SMTP, Museum writes those codes to
+its logs. Configure SMTP before production use:
+
+  kubectl logs -n {{ .Release.Namespace }} \
+    deploy/{{ include "ente.fullname" . }}-museum-api -c museum
+
+After creating the first administrator, consider setting:
+
+  museum:
+    config:
+      disableRegistration: true
+
+Keep the Accounts external URL and WebAuthn origins aligned with the TLS host.
+
+7. Validation and troubleshooting
+==================================
+
+Run the chart smoke test:
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }} --logs
+
+List Ente resources:
+  kubectl get deploy,pod,svc,pdb,networkpolicy -n {{ .Release.Namespace }} \
+    -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Check Museum readiness:
+  kubectl run ente-ping --rm -i --restart=Never \
+    -n {{ .Release.Namespace }} \
+    --image=docker.io/curlimages/curl:8.21.0 -- \
+    curl -fsS http://{{ include "ente.fullname" . }}-museum:{{ .Values.museum.service.port }}/ping
+
+Inspect API logs:
+  kubectl logs -n {{ .Release.Namespace }} \
+    deploy/{{ include "ente.fullname" . }}-museum-api -c museum --tail=200
+
+Inspect worker logs:
+  kubectl logs -n {{ .Release.Namespace }} \
+    deploy/{{ include "ente.fullname" . }}-museum-worker -c museum --tail=200
+
+{{- if .Values.museum.worker.enabled }}
+Inspect migration-gate logs:
+  kubectl logs -n {{ .Release.Namespace }} \
+    deploy/{{ include "ente.fullname" . }}-museum-api -c migration-gate --tail=200
+{{- end }}
+
+Inspect web logs:
+  kubectl logs -n {{ .Release.Namespace }} \
+    deploy/{{ include "ente.fullname" . }}-web -c web --tail=200
+
+Inspect recent events:
+  kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+
+8. Production checklist and documentation
+==========================================
+
+Before production:
+1. Set productionMode=true and resolve every validation error.
+2. Use existing Secrets or External Secrets Operator.
+3. Configure a real HTTPS Museum origin and web hosts.
+4. Configure external S3 with tested CORS.
+5. Configure SMTP and verify one-time-code delivery.
+6. Enable backup and test a complete restore.
+7. Use an external HA PostgreSQL service when database failover is required.
+8. Enable NetworkPolicy and add private S3/SMTP egress rules when needed.
+9. Enable metrics and alerts only when Prometheus Operator is installed.
+10. Run an account, upload, download, public-album, and upgrade test.
+
+Chart documentation:
+  https://helmforge.dev/docs/charts/ente
+
+Upstream self-hosting documentation:
+  https://help.ente.io/self-hosting
+
+Chart source:
+  https://github.com/helmforgedev/charts/tree/main/charts/ente
+
+Happy Helmforging :)

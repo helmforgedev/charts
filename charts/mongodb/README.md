@@ -129,7 +129,7 @@ user initialization path.
 |-----------|-------------|---------|
 | `architecture` | `standalone`, `replicaset`, or `sharded` | `standalone` |
 | `image.repository` | MongoDB image | `mongo` |
-| `image.tag` | Image tag | `8.3.7` |
+| `image.tag` | Image tag | `8.3.8` |
 | `nameOverride` | Override chart name | `""` |
 | `fullnameOverride` | Override full release name | `""` |
 
@@ -260,7 +260,7 @@ See the [`examples/`](examples/) directory:
 
 ## Upgrade Notes
 
-MongoDB `8.3.7` is a security and reliability patch within the MongoDB `8.3`
+MongoDB `8.3.8` is a security and reliability patch within the MongoDB `8.3`
 release line. It addresses upstream CVEs plus authorization, input validation,
 memory-bound, query-planning, and crash fixes. Review the
 [MongoDB 8.3 release notes](https://www.mongodb.com/docs/manual/release-notes/8.3/)

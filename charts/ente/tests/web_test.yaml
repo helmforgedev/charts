@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Ente web deployment
+templates:
+  - templates/web-deployment.yaml
+tests:
+  - it: renders the web Deployment
+    asserts:
+      - isKind:
+          of: Deployment
+  - it: uses the official pinned web image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/ente/web:5ab0c5b4c7a89c4e470ef6f793600da33cebf35d
+  - it: prepares web content before startup
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: prepare-web-content
+  - it: runs nginx with a read-only root filesystem
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+  - it: exposes the three default applications
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers[0].ports
+          count: 3
+  - it: exposes an optional application when enabled
+    set:
+      web.apps.memories.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: memories
+            containerPort: 3010
+            protocol: TCP
+  - it: passes the public Museum origin to web
+    set:
+      museum.externalUrl: https://api.photos.test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ENTE_API_ORIGIN
+            value: https://api.photos.test
+  - it: omits replicas when web HPA is enabled
+    set:
+      autoscaling.web.enabled: true
+    asserts:
+      - notExists:
+          path: spec.replicas

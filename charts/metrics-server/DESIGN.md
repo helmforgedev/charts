@@ -6,7 +6,7 @@ This chart installs Metrics Server and the Kubernetes API aggregation resources 
 
 ## Decisions
 
-The chart uses Metrics Server `v0.8.1`, the latest upstream application release found during implementation.
+The chart uses Metrics Server `v0.9.0`, the latest upstream application release found during implementation.
 The official upstream Helm chart was still published at app version `0.8.0`, so this chart intentionally follows the newer application release while keeping the same upstream operational contract.
 
 Kubelet TLS verification is secure by default.

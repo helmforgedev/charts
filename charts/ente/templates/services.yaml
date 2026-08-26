@@ -1,0 +1,61 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ente.fullname" . }}-museum
+  labels:
+    {{- include "ente.labels" . | nindent 4 }}
+    app.kubernetes.io/component: museum-api
+  {{- with .Values.museum.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.museum.service.type }}
+  {{- with .Values.museum.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.museum.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: http
+      port: {{ .Values.museum.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "ente.componentLabels" (dict "root" . "component" "museum-api") | nindent 4 }}
+{{- range $name, $app := .Values.web.apps }}
+{{- if $app.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ente.fullname" $ }}-{{ $name }}
+  labels:
+    {{- include "ente.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: web
+    app.kubernetes.io/service: {{ $name }}
+  {{- with $.Values.web.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ $.Values.web.service.type }}
+  {{- with $.Values.web.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with $.Values.web.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: http
+      port: {{ $.Values.web.service.port }}
+      targetPort: {{ $name }}
+      protocol: TCP
+  selector:
+    {{- include "ente.componentLabels" (dict "root" $ "component" "web") | nindent 4 }}
+{{- end }}
+{{- end }}

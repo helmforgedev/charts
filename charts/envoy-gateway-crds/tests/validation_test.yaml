@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: lifecycle validation
+templates:
+  - validate.yaml
+tests:
+  - it: rejects a release with no CRD bundles
+    set:
+      crds.gatewayAPI.enabled: false
+      crds.envoyGateway.enabled: false
+      safeUpgradePolicy.management: disabled
+    asserts:
+      - failedTemplate:
+          errorMessage: "at least one CRD bundle must be enabled: crds.gatewayAPI.enabled or crds.envoyGateway.enabled"
+
+  - it: rejects managed policy with provider-managed Gateway API
+    set:
+      crds.gatewayAPI.enabled: false
+      crds.envoyGateway.enabled: true
+      safeUpgradePolicy.management: managed
+    asserts:
+      - failedTemplate:
+          errorMessage: "safeUpgradePolicy.management=managed requires crds.gatewayAPI.enabled=true; use external or disabled for provider-managed Gateway API CRDs"
+
+  - it: accepts the provider-managed Gateway API contract
+    set:
+      crds.gatewayAPI.enabled: false
+      crds.envoyGateway.enabled: true
+      safeUpgradePolicy.management: external
+    asserts:
+      - hasDocuments:
+          count: 0

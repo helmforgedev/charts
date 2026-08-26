@@ -60,7 +60,7 @@ helm install vaultwarden oci://ghcr.io/helmforgedev/helm/vaultwarden -f values.y
 - Vaultwarden repository: <https://github.com/dani-garcia/vaultwarden>
 - Vaultwarden configuration template: <https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template>
 - Vaultwarden 1.37.0 security release: <https://github.com/dani-garcia/vaultwarden/releases/tag/1.37.0>
-- Vaultwarden 1.37.1 hotfix release: <https://github.com/dani-garcia/vaultwarden/releases/tag/1.37.1>
+- Vaultwarden 1.37.2 release: <https://github.com/dani-garcia/vaultwarden/releases/tag/1.37.2>
 
 ## Best practices
 
@@ -85,7 +85,7 @@ helm install vaultwarden oci://ghcr.io/helmforgedev/helm/vaultwarden -f values.y
 ### Database selection
 
 - for production, prefer `database.external` or one of the optional subcharts
-- optional local database subcharts are vendored from HelmForge dependencies: PostgreSQL chart `2.0.2` and MySQL chart `2.0.0`
+- optional local database subcharts are vendored from HelmForge dependencies: PostgreSQL chart `2.0.4` and MySQL chart `2.0.3`
 - `database.mode=auto` uses this precedence:
 - `database.external.host` or `database.external.existingSecret`
 - `postgresql.enabled=true`
@@ -182,7 +182,7 @@ The admin page should not use a plain-text `ADMIN_TOKEN` in real environments. P
 Simple generation options:
 
 ```bash
-docker run --rm -it vaultwarden/server:1.37.1 /vaultwarden hash
+docker run --rm -it vaultwarden/server:1.37.2 /vaultwarden hash
 ```
 
 ```bash
@@ -218,7 +218,7 @@ Official reference:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Vaultwarden image repository | `docker.io/vaultwarden/server` |
-| `image.tag` | Vaultwarden image tag | `1.37.1` |
+| `image.tag` | Vaultwarden image tag | `1.37.2` |
 | `domain` | Public Vaultwarden domain | `""` |
 | `database.mode` | `auto`, `sqlite`, `external`, `postgresql`, or `mysql` | `auto` |
 | `database.external.vendor` | External database vendor | `postgres` |
@@ -227,8 +227,8 @@ Official reference:
 | `database.external.username` | External database username | `vaultwarden` |
 | `database.external.existingSecret` | Existing secret containing a complete `DATABASE_URL` | `""` |
 | `database.external.existingSecretUrlKey` | Secret key containing the `DATABASE_URL` value | `database-url` |
-| `postgresql.enabled` | Enable the local PostgreSQL subchart (`helmforge/postgresql` `2.0.2`) | `false` |
-| `mysql.enabled` | Enable the local MySQL subchart (`helmforge/mysql` `2.0.0`) | `false` |
+| `postgresql.enabled` | Enable the local PostgreSQL subchart (`helmforge/postgresql` `2.0.4`) | `false` |
+| `mysql.enabled` | Enable the local MySQL subchart (`helmforge/mysql` `2.0.3`) | `false` |
 | `vaultwarden.signupsAllowed` | Allow new user signups | `false` |
 | `vaultwarden.signupsVerify` | Require email verification for new signups | `false` |
 | `vaultwarden.signupsVerifyResendTime` | Seconds before another verification email can be sent | `3600` |
@@ -282,6 +282,9 @@ Official reference:
 | `ingress.ingressClassName` | Ingress class name | `traefik` |
 | `networkPolicy.enabled` | Enable NetworkPolicy rendering | `false` |
 | `resources` | Pod resources | `{}` |
+| `deployment.strategy.type` | Select the deployment strategy type. Could be RollingUpdate or Recreate | `RollingUpdate` |
+| `deployment.strategy.rollingUpdate.maxSurge` | Set the maxSurge for RollingUpdate strategy | `25%` |
+| `deployment.strategy.rollingUpdate.maxUnavailable` | Set the maxUnavailable for RollingUpdate strategy | `25%` |
 
 ## CI scenarios
 

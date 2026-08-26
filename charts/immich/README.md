@@ -6,7 +6,7 @@ and the upstream VectorChord PostgreSQL image recommended by Immich.
 
 ## Highlights
 
-- Official Immich images pinned to `v2.7.5`.
+- Official Immich images pinned to `v3.1.0`.
 - Internal PostgreSQL uses `ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0`.
 - Internal cache uses the HelmForge Redis chart aliased as `valkey` for
   Redis/Valkey-compatible protocol support.
@@ -27,6 +27,20 @@ helm install immich oci://ghcr.io/helmforgedev/helm/immich
 Persistent storage is enabled by default for uploads, PostgreSQL, internal cache, and
 machine-learning model cache. For local smoke tests, disable persistence with
 the k3d values file.
+
+## Upgrading to Immich 3
+
+Immich 3 removes support for `pgvecto.rs`. Check the active database extension
+and effective `DB_VECTOR_EXTENSION` setting (`vectorchord` or `pgvector`). If
+the database still uses `pgvecto.rs`, complete the upstream migration before
+upgrading. Back up the database and uploads first; external PostgreSQL
+migrations must be performed outside Helm. The server performs its application
+database migrations during startup, and this chart's bundled PostgreSQL image
+already uses VectorChord.
+
+See the [Immich 3 migration guide](https://immich.app/blog/v3-migration) and
+[VectorChord upgrade instructions](https://docs.immich.app/install/upgrading/#migrating-to-vectorchord). External
+databases should follow the [standalone PostgreSQL migration guide](https://docs.immich.app/administration/postgres-standalone).
 
 ## Extra Server Volumes
 

@@ -25,7 +25,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/vaultwarden/server:1.37.1"
+          value: "docker.io/vaultwarden/server:1.37.2"
 
   - it: should have 1 replica
     template: deployment.yaml
@@ -186,3 +186,44 @@ tests:
           content:
             name: ROCKET_PORT
             value: "8080"
+
+  - it: should default to RollingUpdate strategy with default maxSurge/maxUnavailable
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+      - equal:
+          path: spec.strategy.rollingUpdate.maxSurge
+          value: "25%"
+      - equal:
+          path: spec.strategy.rollingUpdate.maxUnavailable
+          value: "25%"
+
+  - it: should allow custom RollingUpdate maxSurge and maxUnavailable
+    template: deployment.yaml
+    set:
+      deployment.strategy.type: RollingUpdate
+      deployment.strategy.rollingUpdate.maxSurge: 1
+      deployment.strategy.rollingUpdate.maxUnavailable: 0
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+      - equal:
+          path: spec.strategy.rollingUpdate.maxSurge
+          value: 1
+      - equal:
+          path: spec.strategy.rollingUpdate.maxUnavailable
+          value: 0
+
+  - it: should set Recreate strategy and omit rollingUpdate block
+    template: deployment.yaml
+    set:
+      deployment.strategy.type: Recreate
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - isNull:
+          path: spec.strategy.rollingUpdate

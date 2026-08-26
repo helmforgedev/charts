@@ -1,0 +1,38 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.gateway.enabled }}
+{{- $routeNames := dict }}
+{{- range $route := .Values.gateway.routes }}
+{{- $routeName := printf "%s-%s" (include "ente.fullname" $) $route.name | trunc 63 | trimSuffix "-" }}
+{{- if hasKey $routeNames $routeName }}
+{{- fail (printf "gateway.routes render duplicate HTTPRoute name %q" $routeName) }}
+{{- end }}
+{{- $_ := set $routeNames $routeName true }}
+---
+apiVersion: {{ $.Values.gateway.apiVersion }}
+kind: HTTPRoute
+metadata:
+  name: {{ $routeName }}
+  labels:
+    {{- include "ente.labels" $ | nindent 4 }}
+  {{- with $route.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- toYaml (default $.Values.gateway.parentRefs $route.parentRefs) | nindent 4 }}
+  {{- with $route.hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: {{ include "ente.routeServiceName" (dict "root" $ "service" $route.service) }}
+          port: {{ include "ente.routeServicePort" (dict "root" $ "service" $route.service) }}
+          weight: 1
+{{- end }}
+{{- end }}

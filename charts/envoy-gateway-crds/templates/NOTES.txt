@@ -1,0 +1,129 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+Envoy Gateway CRD lifecycle release has been installed.
+
+1. Installation summary
+=======================
+
+- Release: {{ .Release.Name }}
+- Namespace: {{ .Release.Namespace }}
+- Chart: {{ .Chart.Name }} {{ .Chart.Version }}
+- Envoy Gateway compatibility: {{ .Chart.AppVersion }}
+- Kubernetes compatibility: 1.33 through 1.36
+- Gateway API bundle: {{ ternary "v1.6.1 Experimental" "external" .Values.crds.gatewayAPI.enabled }}
+- Envoy Gateway bundle: {{ ternary "v1.9.0" "external" .Values.crds.envoyGateway.enabled }}
+- Safe-upgrade policy: {{ .Values.safeUpgradePolicy.management }}
+
+CRDs installed from crds/ are intentionally outside the Helm release manifest.
+Helm creates missing CRDs but does not upgrade or delete existing CRDs.
+
+2. Verify the CRDs
+==================
+
+List the selected CRDs:
+
+  kubectl get crd | grep gateway.networking.k8s.io
+  kubectl get crd | grep gateway.envoyproxy.io
+
+Verify Gateway API metadata:
+
+  kubectl get crd gateways.gateway.networking.k8s.io \
+    -o go-template='version={{`{{ index .metadata.annotations "gateway.networking.k8s.io/bundle-version" }}`}} channel={{`{{ index .metadata.annotations "gateway.networking.k8s.io/channel" }}`}}{{`{{ "\n" }}`}}'
+
+Verify Envoy Gateway metadata:
+
+  kubectl get crd envoyproxies.gateway.envoyproxy.io \
+    -o go-template='version={{`{{ index .metadata.annotations "helmforge.dev/bundle-version" }}`}}{{`{{ "\n" }}`}}'
+
+3. Wait for discovery
+=====================
+
+Before installing or diffing Envoy Gateway, wait for every CRD to become
+Established. For the default bundle:
+
+  helm show crds oci://ghcr.io/helmforgedev/helm/envoy-gateway-crds \
+    --version {{ .Chart.Version }} > envoy-gateway-crds-installed.yaml
+
+  kubectl wait --for=condition=Established \
+    --timeout=120s \
+    -f envoy-gateway-crds-installed.yaml
+
+The file-based command above is only for the default full bundle. For a
+partial bundle, wait only for the enabled API group:
+
+{{- if .Values.crds.gatewayAPI.enabled }}
+  kubectl get crd -o name | grep '\.gateway\.networking\.k8s\.io$' | \
+    xargs kubectl wait --for=condition=Established --timeout=120s
+{{- end }}
+{{- if .Values.crds.envoyGateway.enabled }}
+  kubectl get crd -o name | grep '\.gateway\.envoyproxy\.io$' | \
+    xargs kubectl wait --for=condition=Established --timeout=120s
+{{- end }}
+
+Confirm Kubernetes discovery:
+
+  kubectl api-resources --api-group=gateway.networking.k8s.io
+  kubectl api-resources --api-group=gateway.envoyproxy.io
+
+4. Install Envoy Gateway
+========================
+
+Install the application only after discovery contains the required APIs:
+
+  helm upgrade --install envoy-gateway \
+    oci://ghcr.io/helmforgedev/helm/envoy-gateway \
+    --namespace envoy-gateway \
+    --create-namespace \
+    --set crds.enabled=false
+
+The first application diff can now retain Kubernetes validation:
+
+  helm diff upgrade envoy-gateway \
+    oci://ghcr.io/helmforgedev/helm/envoy-gateway \
+    --namespace envoy-gateway \
+    --allow-unreleased \
+    --set crds.enabled=false
+
+5. Upgrade CRDs
+===============
+
+Never rely on helm upgrade to update objects from crds/. Follow the documented
+server-side apply procedure before upgrading the application controller.
+
+Perform a server-side dry-run first. Do not use --force-conflicts without
+auditing field ownership and the installed bundle version/channel.
+
+CRD downgrade is unsupported. A Helm rollback of this release does not and must
+not downgrade CRD schemas.
+
+6. Uninstall behavior
+=====================
+
+Uninstalling this release preserves:
+
+- All selected CRDs.
+- Every custom resource stored through those CRDs.
+- The safe-upgrade policy and binding when managed.
+
+This is intentional protection against cluster-wide data loss. Follow the
+manual removal procedure only after confirming no controller or custom resource
+uses the APIs.
+
+7. Migration warning
+=====================
+
+Existing installations of Envoy Gateway application chart 1.10.1 must first
+upgrade to the bridge application release. Do not install the standalone policy
+over a policy owned by the application release. Follow the UID-preserving
+ownership transfer in:
+
+  https://helmforge.dev/docs/charts/envoy-gateway-crds#migration-from-1101
+
+8. Resources
+============
+
+- Chart documentation: https://helmforge.dev/docs/charts/envoy-gateway-crds
+- Envoy Gateway documentation: https://gateway.envoyproxy.io
+- Gateway API CRD management: https://gateway-api.sigs.k8s.io/guides/crd-management
+- Support: https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)

@@ -97,9 +97,13 @@ replication:
 | `standalone.persistence.size` | `8Gi` | Standalone PVC size |
 | `replication.source.resourcesPreset` | `small` | Default source resource requests and limits |
 | `replication.source.persistence.size` | `20Gi` | Source PVC size |
+| `replication.source.affinity` | `{}` | Affinity for the source pod |
+| `replication.source.tolerations` | `[]` | Tolerations for the source pod |
 | `replication.readReplicas.replicaCount` | `2` | Number of read replicas |
 | `replication.readReplicas.resourcesPreset` | `small` | Default replica resource requests and limits |
 | `replication.readReplicas.persistence.size` | `20Gi` | Replica PVC size |
+| `replication.readReplicas.affinity` | `{}` | Affinity for the replica pods |
+| `replication.readReplicas.tolerations` | `[]` | Tolerations for the replica pods |
 | `replication.binlog.format` | `ROW` | Binlog format |
 | `service.type` | `ClusterIP` | Service type |
 | `service.port` | `3306` | MariaDB port |

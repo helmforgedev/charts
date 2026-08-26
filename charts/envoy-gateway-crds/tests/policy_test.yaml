@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Gateway API safe-upgrade policy
+templates:
+  - safe-upgrade-policy.yaml
+tests:
+  - it: renders the policy and binding in managed mode
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: ValidatingAdmissionPolicy
+        documentIndex: 0
+      - isKind:
+          of: ValidatingAdmissionPolicyBinding
+        documentIndex: 1
+
+  - it: keeps the policy during uninstall and ownership migration
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+        documentIndex: 1
+
+  - it: renders no policy resources in external mode
+    set:
+      safeUpgradePolicy.management: external
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders no policy resources in disabled mode
+    set:
+      safeUpgradePolicy.management: disabled
+    asserts:
+      - hasDocuments:
+          count: 0

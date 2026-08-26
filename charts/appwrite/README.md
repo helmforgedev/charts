@@ -62,7 +62,7 @@ When ingress is enabled, requests are routed by path:
 | `image.repository` | `docker.io/appwrite/appwrite` | Appwrite server image |
 | `image.tag` | `1.9.6` | Image tag |
 | `console.image.repository` | `docker.io/appwrite/console` | Console image |
-| `console.image.tag` | `8.7.30` | Console image tag |
+| `console.image.tag` | `8.7.38` | Console image tag |
 | `appwrite.locale` | `en` | Application locale |
 | `appwrite.domain` | `""` (auto-detected) | Appwrite domain |
 | `appwrite.openSslKeyV1` | `""` (auto-generated) | 64-char hex encryption key |

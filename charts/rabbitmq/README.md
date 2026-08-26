@@ -187,8 +187,8 @@ externalSecrets:
 
 ### Runtime efficiency
 
-- the default image is `docker.io/library/rabbitmq:4.3.4-alpine`; it contains the management, Prometheus, and Kubernetes peer-discovery plugins, and the chart enables only the plugins requested by values
-- RabbitMQ 4.3.4 removes `unsafe-eval` and `unsafe-inline` from the Management UI Content Security Policy
+- the default image is `docker.io/library/rabbitmq:4.3.5-alpine`; it contains the management, Prometheus, and Kubernetes peer-discovery plugins, and the chart enables only the plugins requested by values
+- RabbitMQ 4.3.5 fixes quorum queue recovery, AMQP 1.0 validation, rolling-upgrade queries, direct reply-to duplicates, and protocol frame limits
 - `management.referrerPolicy=no-referrer` enables the upstream Referrer-Policy support with a privacy-preserving default; set it to `""` to defer to the browser default
 - `runtime.disableSchedulerBusyWait=true` is enabled by default to reduce idle CPU from Erlang scheduler spin-wait in containers
 - default Kubernetes probes use lightweight TCP checks against the active AMQP listener instead of recurring `rabbitmq-diagnostics` commands
@@ -200,7 +200,7 @@ externalSecrets:
 |-----------|-------------|---------|
 | `architecture` | `single-node` or `cluster` | `single-node` |
 | `image.repository` | RabbitMQ image repository | `docker.io/library/rabbitmq` |
-| `image.tag` | RabbitMQ image tag | `4.3.4-alpine` |
+| `image.tag` | RabbitMQ image tag | `4.3.5-alpine` |
 | `auth.username` | Application username | `user` |
 | `auth.password` | Application password | `""` |
 | `auth.erlangCookie` | Erlang cookie | `""` |

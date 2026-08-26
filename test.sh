@@ -38,9 +38,11 @@ UNITTEST_OK=1
 KUBECONFORM_OK=1
 ARTIFACTHUB_OK=1
 KUBESCAPE_OK=1
+KUBESCAPE_NOT_APPLICABLE=0
 RUNTIME_OK=1
 CONTEXT_OK=0
 UNITTEST_RAN=0
+KUBECONFORM_CRD_SCHEMA_DIR=""
 
 usage() {
   cat <<'EOF'
@@ -279,8 +281,49 @@ ensure_helm_unittest() {
   fi
 
   info "Installing helm-unittest plugin"
-  helm plugin install https://github.com/helm-unittest/helm-unittest --verify=false
+  helm plugin install https://github.com/helm-unittest/helm-unittest
 }
+
+selected_charts_include_crd_lifecycle() {
+  local chart
+  for chart in "${CHARTS_TO_CHECK[@]}"; do
+    if grep -Eq 'helmforge.dev/chart-kind:[[:space:]]*crd-lifecycle' "$CHARTS_DIR/$chart/Chart.yaml"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+prepare_kubeconform_crd_schema() {
+  command -v jq >/dev/null 2>&1 || {
+    fail "jq is required to prepare the Kubernetes CustomResourceDefinition schema"
+    exit 1
+  }
+
+  KUBECONFORM_CRD_SCHEMA_DIR="$(mktemp -d)"
+  local swagger="$KUBECONFORM_CRD_SCHEMA_DIR/swagger.json"
+  local schema="$KUBECONFORM_CRD_SCHEMA_DIR/customresourcedefinition_v1.json"
+
+  download_file \
+    "https://raw.githubusercontent.com/kubernetes/kubernetes/v1.33.0/api/openapi-spec/swagger.json" \
+    "$swagger"
+  jq '{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/io.k8s.apiextensions-apiserver.pkg.apis.apiextensions.v1.CustomResourceDefinition",
+    "definitions": .definitions
+  }' "$swagger" > "$schema"
+}
+
+cleanup_kubeconform_crd_schema() {
+  if [[ -n "$KUBECONFORM_CRD_SCHEMA_DIR" && -d "$KUBECONFORM_CRD_SCHEMA_DIR" ]]; then
+    rm -f \
+      "$KUBECONFORM_CRD_SCHEMA_DIR/swagger.json" \
+      "$KUBECONFORM_CRD_SCHEMA_DIR/customresourcedefinition_v1.json"
+    rmdir "$KUBECONFORM_CRD_SCHEMA_DIR"
+  fi
+}
+
+trap cleanup_kubeconform_crd_schema EXIT
 
 run_check() {
   local label="$1"
@@ -320,9 +363,22 @@ helm_dependency_build() {
   helm dependency build "$chart_path"
 }
 
+helm_template_chart() {
+  local release="$1"
+  local chart_path="$2"
+  shift 2
+
+  local args=(template "$release" "$chart_path")
+  if grep -Eq 'helmforge.dev/chart-kind:[[:space:]]*crd-lifecycle' "$chart_path/Chart.yaml"; then
+    args+=(--include-crds)
+  fi
+
+  helm "${args[@]}" "$@"
+}
+
 template_default() {
   local chart_path="$1"
-  helm template test-release "$chart_path"
+  helm_template_chart test-release "$chart_path"
 }
 
 template_ci_values() {
@@ -335,7 +391,7 @@ template_ci_values() {
   for ci_file in "$chart_path"/ci/*.yaml; do
     ci_found=1
     info "Rendering $chart with $ci_file"
-    helm template test-release "$chart_path" -f "$ci_file" >/dev/null || return 1
+    helm_template_chart test-release "$chart_path" -f "$ci_file" >/dev/null || return 1
   done
   shopt -u nullglob
 
@@ -347,15 +403,24 @@ template_ci_values() {
 }
 
 kubeconform_render() {
-  kubeconform -strict -summary \
-    -schema-location default \
-    -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+  local args=(
+    -strict
+    -summary
+    -schema-location default
+    -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
     -exit-on-error
+  )
+  if [[ -n "$KUBECONFORM_CRD_SCHEMA_DIR" ]]; then
+    args+=(
+      -schema-location "$KUBECONFORM_CRD_SCHEMA_DIR/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json"
+    )
+  fi
+  kubeconform "${args[@]}"
 }
 
 kubeconform_default() {
   local chart_path="$1"
-  helm template test-release "$chart_path" | kubeconform_render
+  helm_template_chart test-release "$chart_path" | kubeconform_render
 }
 
 kubeconform_ci_values() {
@@ -368,7 +433,7 @@ kubeconform_ci_values() {
   for ci_file in "$chart_path"/ci/*.yaml; do
     ci_found=1
     info "Kubeconform validating $chart with $ci_file"
-    helm template test-release "$chart_path" -f "$ci_file" | kubeconform_render || return 1
+    helm_template_chart test-release "$chart_path" -f "$ci_file" | kubeconform_render || return 1
   done
   shopt -u nullglob
 
@@ -389,19 +454,40 @@ artifacthub_lint() {
   (cd "$ROOT_DIR" && ah lint -p "charts/$chart")
 }
 
+verify_chart_bundle() {
+  local chart="$1"
+  local verifier="$CHARTS_DIR/$chart/scripts/verify-bundle.sh"
+  [[ -f "$verifier" ]] || return 0
+  bash "$verifier"
+}
+
 kubescape_scan() {
   local chart="$1"
   local report
+  local rendered
   report="$(mktemp)"
+  rendered="$(mktemp)"
 
-  (cd "$ROOT_DIR" && kubescape scan framework "MITRE,NSA,SOC2" "charts/$chart") 2>&1 | tee "$report"
+  (cd "$ROOT_DIR" && helm_template_chart kubescape "charts/$chart") > "$rendered"
+
+  local kinds
+  kinds="$(awk '/^kind:[[:space:]]/ { print $2 }' "$rendered" | sort -u)"
+  if ! printf '%s\n' "$kinds" | grep -Eq \
+    '^(Pod|Deployment|StatefulSet|DaemonSet|Job|CronJob|ReplicaSet|ReplicationController)$'; then
+    rm -f "$rendered" "$report"
+    KUBESCAPE_NOT_APPLICABLE=1
+    info "Kubescape is not applicable to $chart; rendered kinds: $(printf '%s\n' "$kinds" | paste -sd, -)"
+    return 0
+  fi
+
+  kubescape scan framework "MITRE,NSA,SOC2" "$rendered" 2>&1 | tee "$report"
 
   local score
   local score_int
   score="$(grep -E 'Overall compliance-score|Resource Summary' "$report" | grep -Eo '[0-9]+([.][0-9]+)?%' | tail -1 | tr -d '%' || true)"
   score="${score:-0}"
   score_int="$(printf '%s\n' "$score" | awk '{print int($1)}')"
-  rm -f "$report"
+  rm -f "$rendered" "$report"
 
   info "Kubescape score for $chart: $score%"
   [[ "$score_int" -ge "$KUBESCAPE_MIN_SCORE" ]]
@@ -543,6 +629,10 @@ validate_chart() {
     LINT_OK=0
   fi
 
+  if ! run_check "[$chart] vendored bundle integrity" verify_chart_bundle "$chart"; then
+    TEMPLATE_OK=0
+  fi
+
   if ! run_check "[$chart] helm template (default values)" run_quiet template_default "$chart_path"; then
     TEMPLATE_OK=0
   fi
@@ -641,6 +731,8 @@ print_checklist_snippet() {
   if [[ "$RUN_KUBESCAPE" -eq 0 ]]; then
     kubescape_box="[ ]"
     kubescape_note=" (skipped by --skip-kubescape)"
+  elif [[ "$KUBESCAPE_NOT_APPLICABLE" -eq 1 ]]; then
+    kubescape_note=" (not applicable for one or more selected charts: no rendered Pod or workload controller)"
   fi
 
   if [[ "$RUN_RUNTIME" -eq 0 ]]; then
@@ -774,6 +866,10 @@ main() {
   [[ "$RUN_KUBECONFORM" -eq 0 ]] || ensure_command kubeconform
   [[ "$RUN_ARTIFACTHUB" -eq 0 ]] || ensure_command ah
   [[ "$RUN_KUBESCAPE" -eq 0 ]] || ensure_command kubescape
+
+  if [[ "$RUN_KUBECONFORM" -eq 1 ]] && selected_charts_include_crd_lifecycle; then
+    prepare_kubeconform_crd_schema
+  fi
 
   if [[ "$RUN_UNITTEST" -eq 1 ]] && selected_charts_have_tests; then
     ensure_helm_unittest
