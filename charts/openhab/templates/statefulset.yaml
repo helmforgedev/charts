@@ -9,6 +9,37 @@
 {{- $hasItems := and .Values.configMaps.items.enabled (gt (len (.Values.configMaps.items.files | default dict)) 0) }}
 {{- $hasConfigMaps := or $hasSitemaps $hasThings $hasItems }}
 {{- $hasPersistenceSubPath := or (and .Values.persistence.userdata.enabled .Values.persistence.userdata.subPath) (and .Values.persistence.conf.enabled .Values.persistence.conf.subPath) (and .Values.persistence.addons.enabled .Values.persistence.addons.subPath) }}
+{{- $persistenceVolumeNames := list }}
+{{- $persistenceVolumeClaims := dict }}
+{{- $subPathVolumeNames := list }}
+{{- if .Values.persistence.userdata.enabled }}
+{{- $volumeName := include "openhab.userdataVolumeName" . }}
+{{- $persistenceVolumeNames = append $persistenceVolumeNames $volumeName }}
+{{- $_ := set $persistenceVolumeClaims $volumeName (include "openhab.userdataPvcName" .) }}
+{{- if .Values.persistence.userdata.subPath }}
+{{- $subPathVolumeNames = append $subPathVolumeNames $volumeName }}
+{{- end }}
+{{- end }}
+{{- if .Values.persistence.conf.enabled }}
+{{- $volumeName := include "openhab.confVolumeName" . }}
+{{- if not (has $volumeName $persistenceVolumeNames) }}
+{{- $persistenceVolumeNames = append $persistenceVolumeNames $volumeName }}
+{{- $_ := set $persistenceVolumeClaims $volumeName (include "openhab.confPvcName" .) }}
+{{- end }}
+{{- if and .Values.persistence.conf.subPath (not (has $volumeName $subPathVolumeNames)) }}
+{{- $subPathVolumeNames = append $subPathVolumeNames $volumeName }}
+{{- end }}
+{{- end }}
+{{- if .Values.persistence.addons.enabled }}
+{{- $volumeName := include "openhab.addonsVolumeName" . }}
+{{- if not (has $volumeName $persistenceVolumeNames) }}
+{{- $persistenceVolumeNames = append $persistenceVolumeNames $volumeName }}
+{{- $_ := set $persistenceVolumeClaims $volumeName (include "openhab.addonsPvcName" .) }}
+{{- end }}
+{{- if and .Values.persistence.addons.subPath (not (has $volumeName $subPathVolumeNames)) }}
+{{- $subPathVolumeNames = append $subPathVolumeNames $volumeName }}
+{{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -63,28 +94,20 @@ spec:
           command: ["/bin/mkdir", "-p"]
           args:
             {{- if and .Values.persistence.userdata.enabled .Values.persistence.userdata.subPath }}
-            - {{ printf "/persistence/userdata/%s" .Values.persistence.userdata.subPath | quote }}
+            - {{ printf "/persistence/%s/%s" (include "openhab.userdataVolumeName" .) .Values.persistence.userdata.subPath | quote }}
             {{- end }}
             {{- if and .Values.persistence.conf.enabled .Values.persistence.conf.subPath }}
-            - {{ printf "/persistence/conf/%s" .Values.persistence.conf.subPath | quote }}
+            - {{ printf "/persistence/%s/%s" (include "openhab.confVolumeName" .) .Values.persistence.conf.subPath | quote }}
             {{- end }}
             {{- if and .Values.persistence.addons.enabled .Values.persistence.addons.subPath }}
-            - {{ printf "/persistence/addons/%s" .Values.persistence.addons.subPath | quote }}
+            - {{ printf "/persistence/%s/%s" (include "openhab.addonsVolumeName" .) .Values.persistence.addons.subPath | quote }}
             {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
           volumeMounts:
-            {{- if and .Values.persistence.userdata.enabled .Values.persistence.userdata.subPath }}
-            - name: {{ include "openhab.userdataVolumeName" . }}
-              mountPath: /persistence/userdata
-            {{- end }}
-            {{- if and .Values.persistence.conf.enabled .Values.persistence.conf.subPath }}
-            - name: {{ include "openhab.confVolumeName" . }}
-              mountPath: /persistence/conf
-            {{- end }}
-            {{- if and .Values.persistence.addons.enabled .Values.persistence.addons.subPath }}
-            - name: {{ include "openhab.addonsVolumeName" . }}
-              mountPath: /persistence/addons
+            {{- range $volumeName := $subPathVolumeNames }}
+            - name: {{ $volumeName }}
+              mountPath: {{ printf "/persistence/%s" $volumeName }}
             {{- end }}
       {{- end }}
       {{- if $hasConfigMaps }}
@@ -169,14 +192,14 @@ spec:
               {{- end }}
             {{- end }}
             {{- if .Values.persistence.conf.enabled }}
-            - name: {{ include "openhab.confVolumeName" . }}
+            - name: {{ include "openhab.confVolumeName" $ }}
               mountPath: /openhab/conf
               {{- with .Values.persistence.conf.subPath }}
               subPath: {{ . | quote }}
               {{- end }}
             {{- end }}
             {{- if .Values.persistence.addons.enabled }}
-            - name: {{ include "openhab.addonsVolumeName" . }}
+            - name: {{ include "openhab.addonsVolumeName" $ }}
               mountPath: /openhab/addons
               {{- with .Values.persistence.addons.subPath }}
               subPath: {{ . | quote }}
@@ -186,23 +209,10 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
       volumes:
-        {{- if .Values.persistence.userdata.enabled }}
-        {{- $volumeName := include "openhab.userdataVolumeName" . }}
+        {{- range $volumeName := $persistenceVolumeNames }}
         - name: {{ $volumeName }}
           persistentVolumeClaim:
-            claimName: {{ include "openhab.userdataPvcName" . }}
-        {{- end }}
-        {{- if .Values.persistence.conf.enabled }}
-        {{- $volumeName := include "openhab.confVolumeName" . }}
-        - name: {{ $volumeName }}
-          persistentVolumeClaim:
-            claimName: {{ include "openhab.confPvcName" . }}
-        {{- end }}
-        {{- if .Values.persistence.addons.enabled }}
-        {{- $volumeName := include "openhab.addonsVolumeName" . }}
-        - name: {{ $volumeName }}
-          persistentVolumeClaim:
-            claimName: {{ include "openhab.addonsPvcName" . }}
+            claimName: {{ index $persistenceVolumeClaims $volumeName }}
         {{- end }}
         {{- if $hasSitemaps }}
         - name: sitemaps

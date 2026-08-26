@@ -171,7 +171,13 @@ Resolve the conf PVC name.
 Resolve the conf Kubernetes volume name.
 */}}
 {{- define "openhab.confVolumeName" -}}
+{{- $confClaim := include "openhab.confPvcName" . -}}
+{{- $userdataClaim := include "openhab.userdataPvcName" . -}}
+{{- if and .Values.persistence.userdata.enabled (eq $confClaim $userdataClaim) -}}
+userdata
+{{- else -}}
 conf
+{{- end -}}
 {{- end }}
 
 {{/*
@@ -189,5 +195,14 @@ Resolve the addons PVC name.
 Resolve the addons Kubernetes volume name.
 */}}
 {{- define "openhab.addonsVolumeName" -}}
+{{- $addonsClaim := include "openhab.addonsPvcName" . -}}
+{{- $userdataClaim := include "openhab.userdataPvcName" . -}}
+{{- $confClaim := include "openhab.confPvcName" . -}}
+{{- if and .Values.persistence.userdata.enabled (eq $addonsClaim $userdataClaim) -}}
+userdata
+{{- else if and .Values.persistence.conf.enabled (eq $addonsClaim $confClaim) -}}
+conf
+{{- else -}}
 addons
+{{- end -}}
 {{- end }}

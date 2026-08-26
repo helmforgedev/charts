@@ -172,6 +172,37 @@ tests:
             mountPath: /openhab/conf
             readOnly: true
 
+  - it: should declare a shared backup claim once and reuse its volume
+    set:
+      backup.enabled: true
+      backup.include.userdata: true
+      backup.include.conf: true
+      persistence.userdata.existingClaim: openhab-data
+      persistence.userdata.subPath: userdata
+      persistence.conf.existingClaim: openhab-data
+      persistence.conf.subPath: conf
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: userdata
+            mountPath: /openhab/userdata
+            readOnly: true
+            subPath: userdata
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: userdata
+            mountPath: /openhab/conf
+            readOnly: true
+            subPath: conf
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.volumes[0]
+          value:
+            name: userdata
+            persistentVolumeClaim:
+              claimName: openhab-data
+
   - it: should not mount conf volume when include.conf is false
     set:
       backup.enabled: true

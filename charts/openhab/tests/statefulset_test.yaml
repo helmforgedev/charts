@@ -133,13 +133,13 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
-            name: conf
+            name: userdata
             mountPath: /openhab/conf
             subPath: shared/openhab/conf
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
-            name: addons
+            name: userdata
             mountPath: /openhab/addons
             subPath: shared/openhab/addons
       - equal:
@@ -148,12 +148,60 @@ tests:
             - name: userdata
               persistentVolumeClaim:
                 claimName: smarthome-data
+      - equal:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          value:
+            - name: userdata
+              mountPath: /persistence/userdata
+      - equal:
+          path: spec.template.spec.initContainers[0].args
+          value:
+            - /persistence/userdata/shared/openhab/userdata
+            - /persistence/userdata/shared/openhab/conf
+            - /persistence/userdata/shared/openhab/addons
+
+  - it: should deduplicate only persistence areas that share a claim
+    set:
+      persistence.userdata.existingClaim: userdata-data
+      persistence.conf.existingClaim: shared-config
+      persistence.addons.existingClaim: shared-config
+      persistence.conf.subPath: conf
+      persistence.addons.subPath: addons
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes
+          value:
+            - name: userdata
+              persistentVolumeClaim:
+                claimName: userdata-data
             - name: conf
               persistentVolumeClaim:
-                claimName: smarthome-data
+                claimName: shared-config
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: conf
+            mountPath: /openhab/addons
+            subPath: addons
+
+  - it: should keep three volumes when persistence claims are distinct
+    set:
+      persistence.userdata.existingClaim: userdata-data
+      persistence.conf.existingClaim: conf-data
+      persistence.addons.existingClaim: addons-data
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes
+          value:
+            - name: userdata
+              persistentVolumeClaim:
+                claimName: userdata-data
+            - name: conf
+              persistentVolumeClaim:
+                claimName: conf-data
             - name: addons
               persistentVolumeClaim:
-                claimName: smarthome-data
+                claimName: addons-data
 
   - it: should preserve built-in volume names when mounting an existing claim
     set:

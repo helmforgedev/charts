@@ -1,5 +1,19 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- if .Values.backup.enabled }}
+{{- $backupVolumeNames := list }}
+{{- $backupVolumeClaims := dict }}
+{{- if .Values.backup.include.userdata }}
+{{- $volumeName := include "openhab.userdataVolumeName" . }}
+{{- $backupVolumeNames = append $backupVolumeNames $volumeName }}
+{{- $_ := set $backupVolumeClaims $volumeName (include "openhab.userdataPvcName" .) }}
+{{- end }}
+{{- if .Values.backup.include.conf }}
+{{- $volumeName := include "openhab.confVolumeName" . }}
+{{- if not (has $volumeName $backupVolumeNames) }}
+{{- $backupVolumeNames = append $backupVolumeNames $volumeName }}
+{{- $_ := set $backupVolumeClaims $volumeName (include "openhab.confPvcName" .) }}
+{{- end }}
+{{- end }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -43,7 +57,7 @@ spec:
               {{- end }}
               volumeMounts:
                 {{- if .Values.backup.include.userdata }}
-                - name: userdata
+                - name: {{ include "openhab.userdataVolumeName" . }}
                   mountPath: /openhab/userdata
                   readOnly: true
                   {{- with .Values.persistence.userdata.subPath }}
@@ -51,7 +65,7 @@ spec:
                   {{- end }}
                 {{- end }}
                 {{- if .Values.backup.include.conf }}
-                - name: conf
+                - name: {{ include "openhab.confVolumeName" . }}
                   mountPath: /openhab/conf
                   readOnly: true
                   {{- with .Values.persistence.conf.subPath }}
@@ -96,15 +110,10 @@ spec:
                 - name: backup-temp
                   mountPath: /tmp
           volumes:
-            {{- if .Values.backup.include.userdata }}
-            - name: userdata
+            {{- range $volumeName := $backupVolumeNames }}
+            - name: {{ $volumeName }}
               persistentVolumeClaim:
-                claimName: {{ include "openhab.userdataPvcName" . }}
-            {{- end }}
-            {{- if .Values.backup.include.conf }}
-            - name: conf
-              persistentVolumeClaim:
-                claimName: {{ include "openhab.confPvcName" . }}
+                claimName: {{ index $backupVolumeClaims $volumeName }}
             {{- end }}
             - name: backup-scripts
               configMap:
