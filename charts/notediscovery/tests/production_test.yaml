@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: notediscovery production contract
+templates:
+  - templates/configmap.yaml
+  - templates/deployment.yaml
+  - templates/pdb.yaml
+  - templates/secret.yaml
+tests:
+  - it: pins the current stable image and uses the Recreate strategy
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/gamosoft/notediscovery:0.31.4
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+  - it: stores authenticated production configuration in a Secret
+    template: templates/secret.yaml
+    set:
+      auth.enabled: true
+      auth.secretKey: ci-production-session-secret-with-stable-entropy
+      auth.password: CiProductionPassword2026!
+      notediscovery.allowedOrigins[0]: https://notes.example.com
+      notediscovery.debug: false
+    asserts:
+      - isKind:
+          of: Secret
+      - matchRegex:
+          path: stringData["config.yaml"]
+          pattern: 'allowed_origins:'
+      - matchRegex:
+          path: stringData["config.yaml"]
+          pattern: 'debug: false'
+      - matchRegex:
+          path: stringData["config.yaml"]
+          pattern: 'enabled: true'
+  - it: protects the supported single replica from voluntary disruption
+    template: templates/pdb.yaml
+    set:
+      pdb.enabled: true
+    asserts:
+      - equal:
+          path: spec.minAvailable
+          value: 1
