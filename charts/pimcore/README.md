@@ -3,7 +3,7 @@
 Production-oriented deployment of [Pimcore](https://pimcore.com), the
 PHP/Symfony platform for PIM, MDM, DAM, CDP, DXP/CMS, and digital commerce.
 
-This chart targets Pimcore `2026.2.8` and pins the official multi-architecture
+This chart targets Pimcore `2026.2.10` and pins the official multi-architecture
 PHP 8.5 runtime `pimcore/pimcore:php8.5.9-max-v5.2-hardened`. It models the
 upstream topology instead of treating the runtime image as a complete
 application:
@@ -120,7 +120,7 @@ Deploy it with bootstrap and project persistence disabled:
 ```yaml
 image:
   repository: registry.example.com/platform/pimcore-project
-  tag: "2026.2.8-1"
+  tag: "2026.2.10-1"
 
 project:
   bootstrap:

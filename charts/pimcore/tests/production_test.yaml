@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: pimcore production profile
+templates:
+  - configmap.yaml
+  - deployment-web.yaml
+  - secret.yaml
+  - networkpolicy.yaml
+tests:
+  - it: renders a hardened production profile with explicit credentials
+    values:
+      - ../ci/production-values.yaml
+    template: deployment-web.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.readOnlyRootFilesystem
+          value: true
+  - it: stores production credentials in a Secret
+    values:
+      - ../ci/production-values.yaml
+    template: secret.yaml
+    asserts:
+      - isKind:
+          of: Secret
+      - exists:
+          path: stringData.application-secret
+      - exists:
+          path: stringData.admin-password
+      - exists:
+          path: stringData.mercure-jwt-key
+  - it: enables network isolation for the production profile
+    values:
+      - ../ci/production-values.yaml
+    template: networkpolicy.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
