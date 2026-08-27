@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: booklore production contract
+templates:
+  - templates/deployment.yaml
+  - templates/networkpolicy.yaml
+  - templates/pdb.yaml
+tests:
+  - it: renders the supported production storage and browser origin contract
+    template: templates/deployment.yaml
+    set:
+      app.allowedOrigins: https://library.example.com
+      persistence.bookdrop.enabled: true
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ALLOWED_ORIGINS
+            value: https://library.example.com
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: bookdrop
+            mountPath: /bookdrop
+  - it: isolates ingress and database egress when network policy is enabled
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 3306
+  - it: protects the single supported replica from voluntary disruption
+    template: templates/pdb.yaml
+    set:
+      pdb.enabled: true
+    asserts:
+      - equal:
+          path: spec.minAvailable
+          value: 1

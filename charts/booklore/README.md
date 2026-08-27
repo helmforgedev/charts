@@ -39,6 +39,14 @@ access. See [examples/](examples/) for ready-to-use configurations.
 | books | /books | 50Gi | Library book files |
 | bookdrop | /bookdrop | disabled | BookDrop import folder |
 
+## Production
+
+Production deployments should pin the public browser origin, source database
+credentials from a Secret, protect all three persistent data domains, and keep
+the application at one replica unless shared-storage concurrency has been
+validated independently. See [docs/production.md](docs/production.md) and
+[examples/production.yaml](examples/production.yaml).
+
 ## Security Scan: `booklore`
 
 | Framework | Score |
