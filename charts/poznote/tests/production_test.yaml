@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Production profile
+templates:
+  - templates/deployment.yaml
+  - templates/pvc.yaml
+  - templates/pdb.yaml
+  - templates/networkpolicy.yaml
+  - templates/ingress.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: keeps the single-replica SQLite deployment persistent
+    values:
+      - ../ci/production-values.yaml
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - it: creates retained application storage
+    values:
+      - ../ci/production-values.yaml
+    template: templates/pvc.yaml
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: spec.resources.requests.storage
+          value: 10Gi
+  - it: protects the single pod from voluntary disruption
+    values:
+      - ../ci/production-values.yaml
+    template: templates/pdb.yaml
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.minAvailable
+          value: 1
+  - it: enables ingress and egress isolation
+    values:
+      - ../ci/production-values.yaml
+    template: templates/networkpolicy.yaml
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+  - it: exposes the production hostname over TLS
+    values:
+      - ../ci/production-values.yaml
+    template: templates/ingress.yaml
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.tls[0].secretName
+          value: notes-tls

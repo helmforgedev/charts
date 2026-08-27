@@ -71,7 +71,7 @@ ingress:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Image repository | `ghcr.io/timothepoznanski/poznote` |
-| `image.tag` | Image tag | `6.68.1` |
+| `image.tag` | Image tag | `6.68.3` |
 | `image.pullPolicy` | Pull policy | `IfNotPresent` |
 
 #### Application Parameters
@@ -116,12 +116,14 @@ ingress:
 - [Ingress Exposure](examples/ingress.yaml)
 - [Gateway API Exposure](examples/gateway-api.yaml)
 - [OIDC Secured](examples/secured.yaml)
+- [Production](examples/production.yaml)
 
 ## Architecture Guides
 
 - [Storage Guide](docs/storage.md)
 - [Exposure Guide](docs/exposure.md)
 - [Authentication Guide](docs/authentication.md)
+- [Production Guide](docs/production.md)
 
 ## Connecting to Poznote
 
@@ -141,10 +143,9 @@ This chart intentionally does NOT:
 
 ## Upgrade Notes
 
-Poznote `6.68.1` adds workspace-scoped AI and tags, per-user AI providers,
-checklists on the tasks page, and fixes sidebar links after workspace switches.
-Review the
-[upstream 6.68.1 release](https://github.com/timothepoznanski/poznote/releases/tag/6.68.1)
+Poznote `6.68.3` improves search and replace in rendered Markdown previews and
+fixes indented code blocks that contain inline Markdown. Review the
+[upstream 6.68.3 release](https://github.com/timothepoznanski/poznote/releases/tag/6.68.3)
 before upgrading. The default local SQLite and filesystem deployment remains
 compatible; S3 integration is configured inside Poznote when needed.
 
