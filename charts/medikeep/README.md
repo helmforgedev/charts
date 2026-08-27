@@ -139,10 +139,7 @@ make validate-chart CHART=medikeep
 
 | Framework | Score |
 |---|---|
-| Overall | **91.00%** |
-| MITRE | **100.00%** |
-| NSA | **88.33%** |
-| SOC2 | **88.00%** |
+| MITRE + NSA + SOC2 | **92.42424%** |
 
 > Security posture acceptable.
 
@@ -150,4 +147,5 @@ make validate-chart CHART=medikeep
 
 - [Authentication and Secrets](docs/authentication.md)
 - [Exposure](docs/exposure.md)
+- [Production](docs/production.md)
 - [Storage](docs/storage.md)

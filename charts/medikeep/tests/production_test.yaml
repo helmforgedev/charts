@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: medikeep production contract
+templates:
+  - templates/deployment.yaml
+  - templates/networkpolicy.yaml
+  - templates/pdb.yaml
+tests:
+  - it: keeps production debugging disabled and sensitive logs ephemeral
+    template: templates/deployment.yaml
+    set:
+      app.debug: false
+      app.enableApiDocs: false
+      persistence.logs.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DEBUG
+            value: "false"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ENABLE_API_DOCS
+            value: "false"
+      - equal:
+          path: spec.template.spec.volumes[2].emptyDir
+          value: {}
+  - it: isolates application traffic and database egress
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 5432
+  - it: protects the supported single replica from voluntary disruption
+    template: templates/pdb.yaml
+    set:
+      pdb.enabled: true
+    asserts:
+      - equal:
+          path: spec.minAvailable
+          value: 1
