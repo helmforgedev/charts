@@ -114,7 +114,7 @@ also verifies database-backed Django startup.
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **85.43%** |
+| MITRE + NSA + SOC2 | **85.42568%** |
 
 Security posture acceptable.
 
@@ -122,7 +122,7 @@ Local details:
 
 - Tool: Kubescape v4.0.9
 - Command: `kubescape scan framework mitre,nsa,soc2 .tmp/netbox-render.yaml`
-- Result: 0 critical failed resources, resource summary score 85.43%.
+- Result: 0 critical failed resources, resource summary score 85.42568%.
 
 ## Examples
 

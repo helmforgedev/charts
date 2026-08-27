@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: netbox production contract
+templates:
+  - configmap.yaml
+  - secret.yaml
+  - externalsecret.yaml
+  - deployment-web.yaml
+  - deployment-worker.yaml
+  - cronjob-housekeeping.yaml
+  - servicemonitor.yaml
+tests:
+  - it: renders the current stable NetBox image for the web workload
+    template: deployment-web.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/netboxcommunity/netbox:v4.6.9-5.0.2
+  - it: disables outbound release checks in isolated deployments
+    template: deployment-web.yaml
+    set:
+      netbox.isolatedDeployment: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ISOLATED_DEPLOYMENT
+            value: "true"
+  - it: retains the worker and housekeeping operational workloads
+    template: deployment-worker.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+    documentSelector:
+      path: metadata.name
+      value: RELEASE-NAME-netbox-worker
+  - it: renders housekeeping with concurrency protection
+    template: cronjob-housekeeping.yaml
+    asserts:
+      - equal:
+          path: spec.concurrencyPolicy
+          value: Forbid
+  - it: exposes metrics only when both application and monitor are enabled
+    template: servicemonitor.yaml
+    set:
+      netbox.metricsEnabled: true
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - isKind:
+          of: ServiceMonitor
