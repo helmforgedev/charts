@@ -10,3 +10,38 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: persistence.existingClaim is supported only when architecture is standalone
+
+  - it: rejects arbiter outside replicaset architecture
+    set:
+      architecture: standalone
+      arbiter.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: arbiter.enabled is supported only when architecture is replicaset
+
+  - it: rejects arbiter with fewer than two data-bearing members
+    set:
+      architecture: replicaset
+      replicaSet.members: 1
+      arbiter.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: arbiter.enabled requires an even replicaSet.members value between 2 and 6
+
+  - it: rejects arbiter with an odd number of data-bearing members
+    set:
+      architecture: replicaset
+      replicaSet.members: 3
+      arbiter.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: arbiter.enabled requires an even replicaSet.members value between 2 and 6
+
+  - it: rejects arbiter when the replica set would exceed seven voting members
+    set:
+      architecture: replicaset
+      replicaSet.members: 8
+      arbiter.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: arbiter.enabled requires an even replicaSet.members value between 2 and 6

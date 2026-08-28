@@ -8,7 +8,7 @@ metadata:
     {{- include "mongodb.labels" . | nindent 4 }}
     app.kubernetes.io/component: rs-init
   annotations:
-    "helm.sh/hook": post-install
+    "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "5"
     "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
 spec:
@@ -50,9 +50,11 @@ spec:
 
               FULLNAME="{{ include "mongodb.fullname" . }}"
               HEADLESS="{{ include "mongodb.headlessServiceName" . }}"
+              ARBITER_HEADLESS="{{ include "mongodb.arbiterHeadlessServiceName" . }}"
               NAMESPACE="{{ .Release.Namespace }}"
               RS_NAME="{{ .Values.replicaSet.name }}"
               MEMBERS={{ include "mongodb.replicaCount" . }}
+              ARBITER_ENABLED="{{ .Values.arbiter.enabled }}"
               PORT={{ .Values.port }}
 
               {{- if .Values.auth.enabled }}
@@ -61,34 +63,89 @@ spec:
               AUTH_ARGS=""
               {{- end }}
 
-              PRIMARY="${FULLNAME}-0.${HEADLESS}.${NAMESPACE}.svc.cluster.local:${PORT}"
+              SEED="${FULLNAME}-0.${HEADLESS}.${NAMESPACE}.svc.cluster.local:${PORT}"
+              ARBITER="${FULLNAME}-arbiter-0.${ARBITER_HEADLESS}.${NAMESPACE}.svc.cluster.local:${PORT}"
 
-              echo "Waiting for primary to be ready..."
-              until mongosh --host "$PRIMARY" $AUTH_ARGS --quiet --eval "db.adminCommand('ping')" 2>/dev/null; do
+              echo "Waiting for the seed member to be ready..."
+              until mongosh --host "$SEED" $AUTH_ARGS --quiet --eval "db.adminCommand('ping')" 2>/dev/null; do
                 echo "  Waiting for ${FULLNAME}-0..."
                 sleep 5
               done
 
               echo "Checking if replica set is already initialized..."
-              RS_STATUS=$(mongosh --host "$PRIMARY" $AUTH_ARGS --quiet --eval "
+              RS_STATUS=$(mongosh --host "$SEED" $AUTH_ARGS --quiet --eval "
                 try { rs.status().ok } catch(e) { 0 }
               " 2>/dev/null || echo "0")
 
               if [ "$RS_STATUS" = "1" ]; then
-                echo "Replica set already initialized. Checking members..."
+                echo "Replica set already initialized. Reconciling members..."
 
-                CURRENT_MEMBERS=$(mongosh --host "$PRIMARY" $AUTH_ARGS --quiet --eval "
-                  rs.status().members.length
+                PRIMARY=""
+                for attempt in $(seq 1 60); do
+                  PRIMARY=$(mongosh --host "$SEED" $AUTH_ARGS --quiet --eval "db.hello().primary || ''" 2>/dev/null || true)
+                  if [ -n "$PRIMARY" ]; then
+                    break
+                  fi
+                  sleep 2
+                done
+                if [ -z "$PRIMARY" ]; then
+                  echo "ERROR: Replica set has no elected primary for reconciliation." >&2
+                  exit 1
+                fi
+
+                preserve_implicit_write_concern() {
+                  mongosh --host "$PRIMARY" $AUTH_ARGS --quiet --eval "
+                    const current = db.adminCommand({ getDefaultRWConcern: 1 });
+                    if (current.defaultWriteConcernSource === 'implicit') {
+                      const votingMembers = rs.conf().members.filter((member) => member.votes !== 0);
+                      const arbiters = votingMembers.filter((member) => member.arbiterOnly === true).length;
+                      const dataBearing = votingMembers.length - arbiters;
+                      const votingMajority = Math.floor(votingMembers.length / 2) + 1;
+                      const writeConcern = arbiters > 0 && dataBearing <= votingMajority ? 1 : 'majority';
+                      const result = db.adminCommand({
+                        setDefaultRWConcern: 1,
+                        defaultWriteConcern: { w: writeConcern },
+                        writeConcern: { w: 'majority' }
+                      });
+                      if (result.ok !== 1) {
+                        throw new Error('failed to preserve the implicit default write concern');
+                      }
+                      print('Promoted implicit default write concern to global: ' + writeConcern);
+                    } else {
+                      print('Keeping operator-managed global default write concern.');
+                    }
+                  "
+                }
+
+                for i in $(seq 0 $((MEMBERS - 1))); do
+                  MEMBER="${FULLNAME}-${i}.${HEADLESS}.${NAMESPACE}.svc.cluster.local:${PORT}"
+                  MEMBER_EXISTS=$(mongosh --host "$PRIMARY" $AUTH_ARGS --quiet --eval "
+                    rs.conf().members.some((member) => member.host === '${MEMBER}')
+                  " 2>/dev/null)
+                  if [ "$MEMBER_EXISTS" != "true" ]; then
+                    echo "Adding data-bearing member: $MEMBER"
+                    mongosh --host "$PRIMARY" $AUTH_ARGS --quiet --eval "rs.add('${MEMBER}')"
+                  fi
+                done
+
+                ARBITER_EXISTS=$(mongosh --host "$PRIMARY" $AUTH_ARGS --quiet --eval "
+                  rs.conf().members.some((member) => member.host === '${ARBITER}' && member.arbiterOnly === true)
                 " 2>/dev/null)
 
-                echo "Current members: $CURRENT_MEMBERS, expected: $MEMBERS"
-
-                if [ "$CURRENT_MEMBERS" -lt "$MEMBERS" ]; then
-                  for i in $(seq "$CURRENT_MEMBERS" $((MEMBERS - 1))); do
-                    MEMBER="${FULLNAME}-${i}.${HEADLESS}.${NAMESPACE}.svc.cluster.local:${PORT}"
-                    echo "Adding member: $MEMBER"
-                    mongosh --host "$PRIMARY" $AUTH_ARGS --quiet --eval "rs.add('${MEMBER}')"
+                if [ "$ARBITER_ENABLED" = "true" ]; then
+                  until mongosh --host "$ARBITER" --quiet --eval "db.adminCommand('ping')" 2>/dev/null; do
+                    echo "  Waiting for arbiter..."
+                    sleep 5
                   done
+                  if [ "$ARBITER_EXISTS" != "true" ]; then
+                    echo "Adding arbiter: $ARBITER"
+                    preserve_implicit_write_concern
+                    mongosh --host "$PRIMARY" $AUTH_ARGS --quiet --eval "rs.addArb('${ARBITER}')"
+                  fi
+                elif [ "$ARBITER_EXISTS" = "true" ]; then
+                  echo "Removing disabled arbiter: $ARBITER"
+                  preserve_implicit_write_concern
+                  mongosh --host "$PRIMARY" $AUTH_ARGS --quiet --eval "rs.remove('${ARBITER}')"
                 fi
 
                 echo "Replica set is configured."
@@ -105,7 +162,15 @@ spec:
                 MEMBERS_JSON="${MEMBERS_JSON}{_id:${i},host:'${MEMBER}'}"
               done
 
-              mongosh --host "$PRIMARY" $AUTH_ARGS --quiet --eval "
+              if [ "$ARBITER_ENABLED" = "true" ]; then
+                until mongosh --host "$ARBITER" --quiet --eval "db.adminCommand('ping')" 2>/dev/null; do
+                  echo "  Waiting for arbiter..."
+                  sleep 5
+                done
+                MEMBERS_JSON="${MEMBERS_JSON},{_id:${MEMBERS},host:'${ARBITER}',arbiterOnly:true}"
+              fi
+
+              mongosh --host "$SEED" $AUTH_ARGS --quiet --eval "
                 rs.initiate({
                   _id: '${RS_NAME}',
                   members: [${MEMBERS_JSON}]
@@ -114,8 +179,8 @@ spec:
 
               echo "Waiting for replica set to elect primary..."
               for attempt in $(seq 1 60); do
-                IS_PRIMARY=$(mongosh --host "$PRIMARY" $AUTH_ARGS --quiet --eval "
-                  rs.isMaster().ismaster
+                IS_PRIMARY=$(mongosh --host "$SEED" $AUTH_ARGS --quiet --eval "
+                  rs.status().members.some((member) => member.stateStr === 'PRIMARY')
                 " 2>/dev/null || echo "false")
                 if [ "$IS_PRIMARY" = "true" ]; then
                   echo "Primary elected. Replica set ready."
@@ -124,6 +189,6 @@ spec:
                 sleep 2
               done
 
-              echo "WARNING: Primary election timed out but rs.initiate succeeded."
-              exit 0
+              echo "ERROR: Primary election timed out after replica set initialization." >&2
+              exit 1
 {{- end }}

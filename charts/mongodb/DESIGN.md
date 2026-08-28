@@ -18,7 +18,10 @@ line behavior, and official image lifecycle.
 
 Standalone and replica set modes use StatefulSets so pod identity and storage are
 stable. Replica set mode adds a Helm hook Job that initializes the replica set
-after members are reachable. Sharded mode deploys config servers and shard
+after members are reachable. When enabled, the arbiter runs in a separate
+single-replica StatefulSet with stable DNS and ephemeral local storage. The
+post-install/post-upgrade hook registers it as `arbiterOnly` and reconciles its
+presence without routing client traffic to it. Sharded mode deploys config servers and shard
 members as StatefulSets, mongos as a Deployment, and a hook Job that initializes
 the cluster and registers shards.
 
@@ -43,6 +46,11 @@ another MongoDB-approved migration plan. Increasing replica set members should b
 validated with client connection strings and election behavior. Sharded clusters
 require shard key design, balancer monitoring, and capacity planning outside the
 chart.
+
+The chart never removes data-bearing replica set members automatically. An
+operator must use MongoDB's member-removal procedure before lowering
+`replicaSet.members`. Arbiter enablement is narrower: the hook safely reconciles
+the single known arbiter hostname on install and upgrade.
 
 The backup CronJob performs logical `mongodump` archives to S3-compatible object
 storage. It is suitable for scheduled full backups and restore drills, but it is

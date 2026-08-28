@@ -13,6 +13,12 @@ Validate cross-field settings that JSON Schema cannot express.
 {{- if and .Values.persistence.existingClaim (ne .Values.architecture "standalone") -}}
 {{- fail "persistence.existingClaim is supported only when architecture is standalone" -}}
 {{- end -}}
+{{- if and .Values.arbiter.enabled (ne .Values.architecture "replicaset") -}}
+{{- fail "arbiter.enabled is supported only when architecture is replicaset" -}}
+{{- end -}}
+{{- if and .Values.arbiter.enabled (or (lt (int .Values.replicaSet.members) 2) (gt (int .Values.replicaSet.members) 6) (ne (mod (int .Values.replicaSet.members) 2) 0)) -}}
+{{- fail "arbiter.enabled requires an even replicaSet.members value between 2 and 6" -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
@@ -76,6 +82,20 @@ Headless service name (for StatefulSet DNS).
 */}}
 {{- define "mongodb.headlessServiceName" -}}
 {{- printf "%s-headless" (include "mongodb.fullname" .) -}}
+{{- end -}}
+
+{{/*
+Arbiter StatefulSet name.
+*/}}
+{{- define "mongodb.arbiterName" -}}
+{{- printf "%s-arbiter" (include "mongodb.fullname" .) -}}
+{{- end -}}
+
+{{/*
+Arbiter headless service name.
+*/}}
+{{- define "mongodb.arbiterHeadlessServiceName" -}}
+{{- printf "%s-headless" (include "mongodb.arbiterName" .) -}}
 {{- end -}}
 
 {{/*

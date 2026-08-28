@@ -12,6 +12,7 @@
   Persistence:  {{ .Values.persistence.enabled }}
   Metrics:      {{ .Values.metrics.enabled }}
   Backup:       {{ .Values.backup.enabled }}
+  Arbiter:      {{ .Values.arbiter.enabled }}
   External Secrets: {{ .Values.externalSecrets.enabled }}
 
 {{- if include "mongodb.isStandalone" . }}
@@ -25,7 +26,7 @@
 
 2. Connect
 ----------
-  Replica Set: {{ .Values.replicaSet.name }} ({{ include "mongodb.replicaCount" . }} members)
+  Replica Set: {{ .Values.replicaSet.name }} ({{ include "mongodb.replicaCount" . }} data-bearing members{{ if .Values.arbiter.enabled }} + 1 arbiter{{ end }})
 
   Connection string:
     mongodb://{{ if .Values.auth.enabled }}{{ .Values.auth.rootUser }}:$(kubectl get secret -n {{ $namespace }} {{ include "mongodb.secretName" . }} -o jsonpath='{.data.mongodb-root-password}' | base64 -d)@{{ end }}{{ range $i := until (int (include "mongodb.replicaCount" .)) }}{{ if $i }},{{ end }}{{ $fullname }}-{{ $i }}.{{ $fullname }}-headless.{{ $namespace }}.svc.cluster.local:{{ $.Values.port }}{{ end }}/admin?replicaSet={{ .Values.replicaSet.name }}
@@ -71,6 +72,11 @@
 
   Check logs:
     kubectl logs -n {{ $namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --tail=200
+{{- if and (include "mongodb.isReplicaSet" .) .Values.arbiter.enabled }}
+
+  Verify arbiter membership:
+    kubectl exec -n {{ $namespace }} {{ $fullname }}-0 -- mongosh --quiet{{ if .Values.auth.enabled }} --username {{ .Values.auth.rootUser }} --password "$(kubectl get secret -n {{ $namespace }} {{ include "mongodb.secretName" . }} -o jsonpath='{.data.mongodb-root-password}' | base64 -d)" --authenticationDatabase admin{{ end }} --eval 'rs.conf().members.map(({host, arbiterOnly}) => ({host, arbiterOnly}))'
+{{- end }}
 
 5. Metrics
 ----------

@@ -49,6 +49,7 @@ Read before choosing an architecture:
 
 - **Official `mongo` image** — no vendor lock-in, standard paths (`/data/db`)
 - **Auto keyFile generation** — replica set internal auth handled automatically
+- **Optional arbiter** — one lightweight voting member for cost-constrained replica sets
 - **Helm hook Jobs** — idempotent `rs.initiate()` and shard registration
 - **Prometheus exporter** — optional `percona/mongodb_exporter` sidecar + ServiceMonitor
 - **Built-in S3 backups** — scheduled `mongodump` archive upload for standalone, replica set, and sharded topologies
@@ -121,6 +122,22 @@ compatible with `--configsvr` or `--shardsvr`. Production sharded authentication
 requires an operator-managed bootstrap flow outside this chart's automatic root
 user initialization path.
 
+### Replica Set with Arbiter
+
+```yaml
+architecture: replicaset
+replicaSet:
+  members: 2
+arbiter:
+  enabled: true
+```
+
+This topology creates two persistent data-bearing members and one arbiter with
+ephemeral local storage. MongoDB recommends three data-bearing members when
+capacity permits. Use an arbiter only when the cost of a third data copy is the
+deciding constraint, and review the
+[official arbiter considerations](https://www.mongodb.com/docs/manual/core/replica-set-arbiter/).
+
 ## Parameters
 
 ### Global
@@ -150,6 +167,8 @@ user initialization path.
 |-----------|-------------|---------|
 | `replicaSet.name` | Replica set name | `rs0` |
 | `replicaSet.members` | Number of data-bearing members | `3` |
+| `arbiter.enabled` | Add one non-data-bearing voting member | `false` |
+| `arbiter.resources` | Arbiter container resources | `{}` |
 
 ### Sharded Cluster Parameters
 
@@ -241,6 +260,7 @@ user initialization path.
 |-------------|-----------|
 | standalone | Secret, 2x Service (headless + client), StatefulSet |
 | replicaset | 2x Secret (auth + keyfile), 2x Service, StatefulSet, Job (rs-init) |
+| replicaset + arbiter | 2x Secret, 3x Service, 2x StatefulSet, Job (rs-init) |
 | sharded | 2x Secret, 4x Service, 3x StatefulSet (config + shards), Deployment (mongos), Job (init) |
 
 ## Examples
@@ -249,6 +269,7 @@ See the [`examples/`](examples/) directory:
 
 - [`standalone-simple.yaml`](examples/standalone-simple.yaml) — Minimal standalone instance
 - [`replicaset-production.yaml`](examples/replicaset-production.yaml) — Production RS with monitoring, init scripts, and anti-affinity
+- [`replicaset-arbiter.yaml`](examples/replicaset-arbiter.yaml) — Two data members with one voting arbiter
 - [`sharded-cluster.yaml`](examples/sharded-cluster.yaml) — Full sharded cluster
 
 ## Architecture Guides
@@ -269,6 +290,19 @@ are compatible with the target `mongod` version before reusing existing PVCs.
 Keep replica set keyFiles and root credentials stable across `helm upgrade`;
 those values are initialized by MongoDB and should be rotated with MongoDB
 administrative commands instead of changing chart values.
+
+Enabling or disabling `arbiter.enabled` on an existing replica set reconciles
+the arbiter membership through the post-upgrade hook. Increasing
+`replicaSet.members` adds missing data-bearing members. Reducing that value does
+not remove members from the MongoDB configuration; remove members safely with
+MongoDB administrative procedures before scaling down the StatefulSet.
+
+MongoDB requires a global default write concern before a reconfiguration that
+would change its implicit value. When arbiter reconciliation encounters an
+implicit default, the hook preserves the currently effective value (`w: 1` or
+`majority`) by promoting it to a global default. Existing operator-managed
+global defaults are not changed. MongoDB 5.0 and newer do not allow a global
+default write concern to be unset after it is established.
 
 ## Security Scan
 

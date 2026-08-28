@@ -15,6 +15,7 @@ Common cases:
 
 - multiple data-bearing members
 - automatic `rs.initiate()` bootstrap via Helm hook job
+- an optional non-data-bearing arbiter for an odd number of election votes
 - internal member authentication with key file
 - a standard MongoDB replica set topology
 - optional metrics and `ServiceMonitor`
@@ -42,6 +43,7 @@ secondaries replicating from it, and elections on failure.
 ## Common risks
 
 - running only 2 members and expecting safe elections
+- treating an arbiter as a replacement for data redundancy
 - forgetting the replica set connection string in clients
 - scheduling all members in the same node or zone
 - ignoring backup and restore testing because failover exists
@@ -62,6 +64,8 @@ secondaries replicating from it, and elections on failure.
 | `architecture` | Must be `replicaset` |
 | `replicaSet.name` | Replica set name used by members and clients |
 | `replicaSet.members` | Number of data-bearing members |
+| `arbiter.enabled` | Add one non-data-bearing voting member |
+| `arbiter.resources` | Resource settings for the arbiter container |
 | `auth.replicaSetKey` | Internal auth key when not using existing secret |
 | `auth.existingKeySecret` | Existing secret for key file |
 | `persistence.*` | Storage settings for the members |
@@ -92,6 +96,42 @@ metrics:
   serviceMonitor:
     enabled: true
 ```
+
+## Arbiter topology
+
+MongoDB recommends three data-bearing members. When capacity constraints make a
+third data copy impractical, the chart can deploy two data-bearing members and
+one arbiter:
+
+```yaml
+architecture: replicaset
+
+replicaSet:
+  members: 2
+
+arbiter:
+  enabled: true
+```
+
+The arbiter uses the official MongoDB image, the same internal keyFile, stable
+StatefulSet DNS, and ephemeral local storage. It votes in elections but does not
+store the application data set and cannot become primary. The chart permits one
+arbiter with an even number of 2 to 6 data-bearing members. Review MongoDB's
+[arbiter limitations](https://www.mongodb.com/docs/manual/core/replica-set-arbiter/),
+especially majority write behavior and reduced fault tolerance.
+
+The post-upgrade hook adds or removes the arbiter when `arbiter.enabled`
+changes. It can add missing data-bearing members, but deliberately does not
+remove them. Follow MongoDB's member-removal procedure before reducing
+`replicaSet.members`.
+
+Adding or removing an arbiter can change MongoDB's implicit default write
+concern. Before that reconfiguration, the hook preserves the currently effective
+implicit value by promoting it to a global default. If the operator already set
+a global default, the hook leaves it unchanged. MongoDB 5.0 and newer do not
+allow the global default write concern to be unset afterward. Review
+[`setDefaultRWConcern`](https://www.mongodb.com/docs/manual/reference/command/setDefaultRWConcern/)
+before changing `arbiter.enabled` on an existing deployment.
 
 ## When to move to another architecture
 
