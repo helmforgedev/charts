@@ -34,7 +34,16 @@ spec:
         - protocol: TCP
           port: 53
     {{- end }}
-    - ports:
+    - to:
+        {{- if .Values.postgresql.enabled }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ .Values.postgresql.nameOverride | default "postgresql" }}
+              app.kubernetes.io/instance: {{ .Release.Name }}
+        {{- else }}
+        {{- toYaml .Values.networkPolicy.egress.databaseTo | nindent 8 }}
+        {{- end }}
+      ports:
         - protocol: TCP
           port: {{ include "medikeep.dbPort" . }}
     {{- with .Values.networkPolicy.egress.extraTo }}

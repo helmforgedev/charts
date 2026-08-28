@@ -12,6 +12,8 @@ Set a strong initial administrator password before the first startup and rotate
 it after login. Supply `SECRET_KEY` and the initial password through
 `secrets.existingSecret`; supply database credentials through
 `postgresql.auth.existingSecret` or `database.external.existingSecret`.
+The bundled PostgreSQL Secret must contain `postgres-password` and
+`user-password`, unless the corresponding key names are overridden.
 
 Keep `app.debug=false` and `app.enableApiDocs=false` unless API documentation is
 protected by an authenticated internal route.
@@ -39,7 +41,9 @@ availability.
 Terminate TLS at Ingress or Gateway API, restrict the route to intended users,
 and enable NetworkPolicy. If egress is restricted further, retain DNS,
 PostgreSQL, identity-provider, and any upstream synchronization destinations in
-the allowlist.
+the allowlist. The chart automatically selects bundled PostgreSQL pods; set
+`networkPolicy.egress.databaseTo` to explicit peers when using an external
+database.
 
 <!-- @AI-METADATA
 type: chart-docs

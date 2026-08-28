@@ -116,7 +116,11 @@ secret-key
 
 {{- define "medikeep.dbSecretName" -}}
 {{- if .Values.postgresql.enabled -}}
+{{- if .Values.postgresql.auth.existingSecret -}}
+{{- .Values.postgresql.auth.existingSecret -}}
+{{- else -}}
 {{- printf "%s-postgresql-auth" .Release.Name -}}
+{{- end -}}
 {{- else if .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecret -}}
 {{- else -}}
@@ -126,7 +130,7 @@ secret-key
 
 {{- define "medikeep.dbSecretPasswordKey" -}}
 {{- if .Values.postgresql.enabled -}}
-user-password
+{{- .Values.postgresql.auth.existingSecretUserPasswordKey | default "user-password" -}}
 {{- else if .Values.database.external.existingSecret -}}
 {{- .Values.database.external.existingSecretPasswordKey | default "password" -}}
 {{- else -}}
@@ -196,6 +200,12 @@ password
 {{- end -}}
 {{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
 {{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}
+{{- end -}}
+{{- if and (or .Values.ingress.enabled .Values.gatewayAPI.enabled) (not .Values.secrets.existingSecret) (empty .Values.secrets.adminDefaultPassword) -}}
+{{- fail "public exposure requires secrets.existingSecret or secrets.adminDefaultPassword to prevent the upstream default administrator password" -}}
+{{- end -}}
+{{- if and .Values.networkPolicy.enabled .Values.networkPolicy.egress.enabled (not .Values.postgresql.enabled) (empty .Values.networkPolicy.egress.databaseTo) -}}
+{{- fail "networkPolicy.egress.databaseTo is required for an external database when egress isolation is enabled" -}}
 {{- end -}}
 {{- if .Values.podLabels -}}
 {{- if hasKey .Values.podLabels "app.kubernetes.io/name" -}}

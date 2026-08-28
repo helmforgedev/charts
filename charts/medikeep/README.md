@@ -63,7 +63,13 @@ postgresql:
   auth:
     database: medical_records
     username: medapp
+    existingSecret: medikeep-postgresql
+    existingSecretPostgresPasswordKey: postgres-password
+    existingSecretUserPasswordKey: user-password
 ```
+
+The referenced Secret must contain the PostgreSQL superuser and application
+password keys shown above.
 
 To use an external PostgreSQL instance:
 

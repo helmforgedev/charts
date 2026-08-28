@@ -27,9 +27,8 @@ tests:
           value: {}
   - it: isolates application traffic and database egress
     template: templates/networkpolicy.yaml
-    set:
-      networkPolicy.enabled: true
-      networkPolicy.egress.enabled: true
+    values:
+      - ../ci/production-values.yaml
     asserts:
       - contains:
           path: spec.policyTypes
@@ -37,6 +36,15 @@ tests:
       - equal:
           path: spec.egress[1].ports[0].port
           value: 5432
+      - equal:
+          path: spec.ingress[0].from[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: ingress-nginx
+      - equal:
+          path: spec.egress[1].to[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: postgresql
+      - equal:
+          path: spec.egress[1].to[0].podSelector.matchLabels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
   - it: protects the supported single replica from voluntary disruption
     template: templates/pdb.yaml
     set:

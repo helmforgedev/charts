@@ -29,3 +29,20 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "externalSecrets.items must contain at least one item when externalSecrets.enabled=true"
+  - it: rejects public exposure with the upstream default administrator password
+    set:
+      ingress.enabled: true
+      ingress.hosts[0].host: medikeep.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: "public exposure requires secrets.existingSecret or secrets.adminDefaultPassword to prevent the upstream default administrator password"
+  - it: requires an external database destination under egress isolation
+    set:
+      postgresql.enabled: false
+      database.external.host: postgres.example.com
+      database.external.password: external-password
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "networkPolicy.egress.databaseTo is required for an external database when egress isolation is enabled"
