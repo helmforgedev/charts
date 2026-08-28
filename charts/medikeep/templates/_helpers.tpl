@@ -201,7 +201,7 @@ password
 {{- if and .Values.ingress.enabled (not .Values.ingress.hosts) -}}
 {{- fail "ingress.hosts must contain at least one host when ingress.enabled=true" -}}
 {{- end -}}
-{{- if and (or .Values.ingress.enabled .Values.gatewayAPI.enabled) (not .Values.secrets.existingSecret) (empty .Values.secrets.adminDefaultPassword) -}}
+{{- if and (or .Values.ingress.enabled .Values.gatewayAPI.enabled (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer")) (not .Values.secrets.existingSecret) (empty .Values.secrets.adminDefaultPassword) -}}
 {{- fail "public exposure requires secrets.existingSecret or secrets.adminDefaultPassword to prevent the upstream default administrator password" -}}
 {{- end -}}
 {{- if and .Values.networkPolicy.enabled .Values.networkPolicy.egress.enabled (not .Values.postgresql.enabled) (empty .Values.networkPolicy.egress.databaseTo) -}}
