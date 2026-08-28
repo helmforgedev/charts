@@ -103,3 +103,56 @@ tests:
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
           pattern: setDefaultRWConcern
+
+  - it: preserves write concern before scaling a PSA topology from two to four data members
+    template: templates/job-rs-init.yaml
+    set:
+      architecture: replicaset
+      replicaSet.members: 4
+      arbiter.enabled: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'MEMBERS=4'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'echo "Adding data-bearing member: \$MEMBER"\s+preserve_implicit_write_concern'
+
+  - it: bounds the arbiter StatefulSet name for a maximum-length fullname override
+    template: templates/arbiter-statefulset.yaml
+    set:
+      architecture: replicaset
+      replicaSet.members: 2
+      arbiter.enabled: true
+      fullnameOverride: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: '^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$'
+
+  - it: bounds the arbiter Service name for a maximum-length fullname override
+    template: templates/arbiter-service.yaml
+    set:
+      architecture: replicaset
+      replicaSet.members: 2
+      arbiter.enabled: true
+      fullnameOverride: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: '^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$'
+
+  - it: reuses the bounded arbiter name in the reconciliation hook
+    template: templates/job-rs-init.yaml
+    set:
+      architecture: replicaset
+      replicaSet.members: 2
+      arbiter.enabled: true
+      fullnameOverride: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'ARBITER_NAME="[a-z0-9-]{1,63}"'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'ARBITER="\$\{ARBITER_NAME\}-0\.'

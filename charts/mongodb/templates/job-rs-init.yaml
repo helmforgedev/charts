@@ -50,6 +50,7 @@ spec:
 
               FULLNAME="{{ include "mongodb.fullname" . }}"
               HEADLESS="{{ include "mongodb.headlessServiceName" . }}"
+              ARBITER_NAME="{{ include "mongodb.arbiterName" . }}"
               ARBITER_HEADLESS="{{ include "mongodb.arbiterHeadlessServiceName" . }}"
               NAMESPACE="{{ .Release.Namespace }}"
               RS_NAME="{{ .Values.replicaSet.name }}"
@@ -64,7 +65,7 @@ spec:
               {{- end }}
 
               SEED="${FULLNAME}-0.${HEADLESS}.${NAMESPACE}.svc.cluster.local:${PORT}"
-              ARBITER="${FULLNAME}-arbiter-0.${ARBITER_HEADLESS}.${NAMESPACE}.svc.cluster.local:${PORT}"
+              ARBITER="${ARBITER_NAME}-0.${ARBITER_HEADLESS}.${NAMESPACE}.svc.cluster.local:${PORT}"
 
               echo "Waiting for the seed member to be ready..."
               until mongosh --host "$SEED" $AUTH_ARGS --quiet --eval "db.adminCommand('ping')" 2>/dev/null; do
@@ -124,6 +125,7 @@ spec:
                   " 2>/dev/null)
                   if [ "$MEMBER_EXISTS" != "true" ]; then
                     echo "Adding data-bearing member: $MEMBER"
+                    preserve_implicit_write_concern
                     mongosh --host "$PRIMARY" $AUTH_ARGS --quiet --eval "rs.add('${MEMBER}')"
                   fi
                 done

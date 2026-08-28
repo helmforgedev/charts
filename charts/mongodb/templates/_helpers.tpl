@@ -88,7 +88,7 @@ Headless service name (for StatefulSet DNS).
 Arbiter StatefulSet name.
 */}}
 {{- define "mongodb.arbiterName" -}}
-{{- printf "%s-arbiter" (include "mongodb.fullname" .) -}}
+{{- printf "%s-arbiter" (include "mongodb.fullname" . | trunc 46 | trimSuffix "-") -}}
 {{- end -}}
 
 {{/*

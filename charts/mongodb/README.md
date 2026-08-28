@@ -301,8 +301,10 @@ MongoDB requires a global default write concern before a reconfiguration that
 would change its implicit value. When arbiter reconciliation encounters an
 implicit default, the hook preserves the currently effective value (`w: 1` or
 `majority`) by promoting it to a global default. Existing operator-managed
-global defaults are not changed. MongoDB 5.0 and newer do not allow a global
-default write concern to be unset after it is established.
+global defaults are not changed. The same preservation runs before adding a
+missing data-bearing member because scale-up can also change the implicit
+default. MongoDB 5.0 and newer do not allow a global default write concern to be
+unset after it is established.
 
 ## Security Scan
 

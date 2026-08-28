@@ -128,8 +128,9 @@ remove them. Follow MongoDB's member-removal procedure before reducing
 Adding or removing an arbiter can change MongoDB's implicit default write
 concern. Before that reconfiguration, the hook preserves the currently effective
 implicit value by promoting it to a global default. If the operator already set
-a global default, the hook leaves it unchanged. MongoDB 5.0 and newer do not
-allow the global default write concern to be unset afterward. Review
+a global default, the hook leaves it unchanged. This preservation also runs
+before `rs.add()` when scale-up adds a missing data-bearing member. MongoDB 5.0
+and newer do not allow the global default write concern to be unset afterward. Review
 [`setDefaultRWConcern`](https://www.mongodb.com/docs/manual/reference/command/setDefaultRWConcern/)
 before changing `arbiter.enabled` on an existing deployment.
 
