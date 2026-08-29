@@ -1,0 +1,119 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Frontend exposure
+templates:
+  - templates/ingress.yaml
+  - templates/gateway-httproute.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: omits Ingress by default
+    template: templates/ingress.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders a configured Ingress
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: nginx
+      ingress.hosts:
+        - host: matterbridge.example.test
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.rules[0].host
+          value: matterbridge.example.test
+
+  - it: routes Ingress to frontend Service
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: matterbridge.example.test
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.name
+          value: test-matterbridge
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.number
+          value: 8283
+
+  - it: renders Ingress TLS
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: matterbridge.example.test
+      ingress.tls:
+        - secretName: ingress-tls
+          hosts:
+            - matterbridge.example.test
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: ingress-tls
+
+  - it: omits HTTPRoute by default
+    template: templates/gateway-httproute.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders a Gateway API HTTPRoute
+    template: templates/gateway-httproute.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - name: frontend
+          parentRefs:
+            - name: gateway
+          hostnames:
+            - matterbridge.example.test
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: apiVersion
+          value: gateway.networking.k8s.io/v1
+      - equal:
+          path: metadata.name
+          value: test-matterbridge-frontend
+
+  - it: gives HTTPRoute the default frontend backend
+    template: templates/gateway-httproute.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - parentRefs:
+            - name: gateway
+    asserts:
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: test-matterbridge
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 8283
+
+  - it: supports multiple named HTTPRoutes
+    template: templates/gateway-httproute.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - name: internal
+          parentRefs:
+            - name: internal-gateway
+        - name: admin
+          parentRefs:
+            - name: admin-gateway
+    asserts:
+      - hasDocuments:
+          count: 2

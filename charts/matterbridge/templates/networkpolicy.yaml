@@ -1,0 +1,55 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "matterbridge.fullname" . }}
+  labels:
+    {{- include "matterbridge.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "matterbridge.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if .Values.networkPolicy.egress.enabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    - from:
+        {{- if .Values.networkPolicy.ingressFrom }}
+        {{- toYaml .Values.networkPolicy.ingressFrom | nindent 8 }}
+        {{- else }}
+        - namespaceSelector: {}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: http
+        {{- if .Values.matterService.enabled }}
+        {{- $basePort := int .Values.matterbridge.matterPort }}
+        {{- range $offset := until (int .Values.matterbridge.matterPortRangeSize) }}
+        {{- $port := add $basePort $offset }}
+        {{- range $protocol := $.Values.matterService.protocols }}
+        - protocol: {{ $protocol }}
+          port: {{ $port }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  egress:
+    {{- if .Values.networkPolicy.egress.allowDNS }}
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.extraTo }}
+    - to:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,206 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: StatefulSet
+templates:
+  - templates/statefulset.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: renders a singleton StatefulSet
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.podManagementPolicy
+          value: OrderedReady
+
+  - it: uses the pinned official image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/luligu/matterbridge:3.10.7
+
+  - it: bypasses the root entrypoint and uses the persistent home
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command[0]
+          value: matterbridge
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --homedir
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: /data
+
+  - it: defaults to bridge mode
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --bridge
+
+  - it: supports childbridge mode and custom profile
+    set:
+      matterbridge.mode: childbridge
+      matterbridge.profile: upstairs
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --childbridge
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: upstairs
+
+  - it: uses pod networking and ClusterFirst by default
+    asserts:
+      - equal:
+          path: spec.template.spec.hostNetwork
+          value: false
+      - equal:
+          path: spec.template.spec.dnsPolicy
+          value: ClusterFirst
+
+  - it: selects host-network DNS automatically
+    set:
+      network.hostNetwork: true
+    asserts:
+      - equal:
+          path: spec.template.spec.hostNetwork
+          value: true
+      - equal:
+          path: spec.template.spec.dnsPolicy
+          value: ClusterFirstWithHostNet
+
+  - it: accepts an explicit DNS policy
+    set:
+      network.dnsPolicy: Default
+    asserts:
+      - equal:
+          path: spec.template.spec.dnsPolicy
+          value: Default
+
+  - it: applies hardened pod security defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+
+  - it: applies hardened container security defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: does not mount a service account token
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: mounts persistent data and temporary storage
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /data
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tmp
+            mountPath: /tmp
+
+  - it: uses official health endpoint for every probe
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /health
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /health
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /health
+
+  - it: disables probes independently
+    set:
+      startupProbe.enabled: false
+      readinessProbe.enabled: false
+      livenessProbe.enabled: false
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe
+      - notExists:
+          path: spec.template.spec.containers[0].readinessProbe
+      - notExists:
+          path: spec.template.spec.containers[0].livenessProbe
+
+  - it: renders runtime interface flags and extra arguments
+    set:
+      matterbridge.mdnsInterface: eth1
+      matterbridge.ipv4Address: 192.0.2.10
+      matterbridge.ipv6Address: 2001:db8::10
+      matterbridge.extraArgs:
+        - --debug
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: eth1
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: 192.0.2.10
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: 2001:db8::10
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --debug
+
+  - it: supports extra environment sources
+    set:
+      extraEnvFrom:
+        - secretRef:
+            name: plugin-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].envFrom
+          content:
+            secretRef:
+              name: plugin-secret
+
+  - it: switches probes to HTTPS and mounts certificate secret
+    set:
+      frontend.tls.enabled: true
+      frontend.tls.existingSecret: frontend-tls
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.scheme
+          value: HTTPS
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --ssl
+      - equal:
+          path: spec.template.spec.volumes[2].secret.secretName
+          value: frontend-tls
+
+  - it: uses ephemeral data when persistence is disabled
+    set:
+      persistence.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].emptyDir
+          value: {}

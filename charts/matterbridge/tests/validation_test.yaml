@@ -1,0 +1,99 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: rejects reserved selector name in common labels
+    set:
+      commonLabels:
+        app.kubernetes.io/name: duplicate
+    asserts:
+      - failedTemplate:
+          errorMessage: commonLabels must not override the selector label app.kubernetes.io/name
+
+  - it: rejects reserved selector instance in common labels
+    set:
+      commonLabels:
+        app.kubernetes.io/instance: duplicate
+    asserts:
+      - failedTemplate:
+          errorMessage: commonLabels must not override the selector label app.kubernetes.io/instance
+
+  - it: rejects floating image tags
+    set:
+      image.tag: latest
+    asserts:
+      - failedTemplate:
+          errorMessage: image.tag must be a pinned stable release tag
+
+  - it: rejects Ingress without hosts
+    set:
+      ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.hosts must contain at least one host when ingress.enabled=true
+
+  - it: rejects Gateway API without routes
+    set:
+      gatewayAPI.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: gatewayAPI.httpRoutes must contain at least one route when gatewayAPI.enabled=true
+
+  - it: rejects External Secrets without items
+    set:
+      externalSecrets.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.items must contain at least one item when externalSecrets.enabled=true
+
+  - it: rejects NetworkPolicy with host network
+    set:
+      network.hostNetwork: true
+      networkPolicy.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: networkPolicy.enabled requires network.hostNetwork=false because host-network policy enforcement is CNI-dependent
+
+  - it: rejects frontend TLS without a Secret
+    set:
+      frontend.tls.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: frontend.tls.existingSecret is required when frontend.tls.enabled=true
+
+  - it: rejects an existing claim when persistence is disabled
+    set:
+      persistence.enabled: false
+      persistence.existingClaim: data
+    asserts:
+      - failedTemplate:
+          errorMessage: persistence.enabled must be true when persistence.existingClaim is set
+
+  - it: rejects an overflowing Matter port range
+    set:
+      matterbridge.matterPort: 65530
+      matterbridge.matterPortRangeSize: 10
+    asserts:
+      - failedTemplate:
+          errorMessage: matterbridge.matterPort plus matterPortRangeSize exceeds port 65535
+
+  - it: rejects frontend overlap with Matter ports
+    set:
+      frontend.port: 5541
+    asserts:
+      - failedTemplate:
+          errorMessage: frontend.port must not overlap the reserved Matter port range
+
+  - it: rejects selector name override in pod labels
+    set:
+      podLabels:
+        app.kubernetes.io/name: bad
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels must not override the selector label app.kubernetes.io/name
+
+  - it: accepts default values
+    asserts:
+      - hasDocuments:
+          count: 0

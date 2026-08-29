@@ -1,0 +1,65 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "matterbridge.fullname" . }}
+  labels:
+    {{- include "matterbridge.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "matterbridge.selectorLabels" . | nindent 4 }}
+{{- if .Values.matterService.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "matterbridge.nameWithSuffix" (dict "base" (include "matterbridge.fullname" .) "suffix" "-matter") }}
+  labels:
+    {{- include "matterbridge.labels" . | nindent 4 }}
+  {{- with .Values.matterService.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.matterService.type }}
+  {{- if and (or (eq .Values.matterService.type "LoadBalancer") (eq .Values.matterService.type "NodePort")) .Values.matterService.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ .Values.matterService.externalTrafficPolicy }}
+  {{- end }}
+  {{- with .Values.matterService.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.matterService.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    {{- $basePort := int .Values.matterbridge.matterPort }}
+    {{- range $offset := until (int .Values.matterbridge.matterPortRangeSize) }}
+    {{- $port := add $basePort $offset }}
+    {{- range $protocol := $.Values.matterService.protocols }}
+    - name: {{ printf "m-%s-%d" (lower $protocol | trunc 1) $offset }}
+      port: {{ $port }}
+      targetPort: {{ $port }}
+      protocol: {{ $protocol }}
+    {{- end }}
+    {{- end }}
+  selector:
+    {{- include "matterbridge.selectorLabels" . | nindent 4 }}
+{{- end }}

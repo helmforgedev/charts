@@ -1,0 +1,314 @@
+# SPDX-License-Identifier: Apache-2.0
+# =============================================================================
+# Matterbridge Helm chart values
+# =============================================================================
+
+# -- Override the chart name used in resource names.
+nameOverride: ""
+
+# -- Override the fully qualified release name.
+fullnameOverride: ""
+
+# -- Labels added to every resource created by the chart.
+commonLabels: {}
+
+# -- Number of Matterbridge replicas. Matterbridge is stateful and only one replica is supported.
+replicaCount: 1
+
+image:
+  # -- Official Matterbridge container repository.
+  repository: docker.io/luligu/matterbridge
+  # -- Pinned stable Matterbridge image tag.
+  tag: "3.10.7"
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registry mirrors.
+imagePullSecrets: []
+
+matterbridge:
+  # -- Runtime mode. Bridge exposes one Matter bridge; childbridge exposes enabled plugins separately.
+  mode: bridge
+  # -- Optional instance profile used to isolate multiple independent Matterbridge installations.
+  profile: ""
+  # -- Matter commissioning base port. Additional nodes increment from this port.
+  matterPort: 5540
+  # -- Number of consecutive Matter ports reserved from matterPort.
+  matterPortRangeSize: 20
+  # -- Optional host interface name used for mDNS on multi-homed nodes.
+  mdnsInterface: ""
+  # -- Optional IPv4 listener address. Empty lets Matterbridge select all suitable addresses.
+  ipv4Address: ""
+  # -- Optional IPv6 listener address. Empty lets Matterbridge select all suitable addresses.
+  ipv6Address: ""
+  # -- Matterbridge application log level.
+  logger: info
+  # -- Matter protocol log level.
+  matterLogger: info
+  # -- Disable ANSI escape sequences in Kubernetes logs.
+  noAnsi: true
+  # -- Write Matterbridge logs to the persistent data volume.
+  fileLogger: false
+  # -- Write Matter protocol logs to the persistent data volume.
+  matterFileLogger: false
+  # -- Disable the virtual restart, update and reboot devices.
+  disableVirtualDevices: false
+  # -- Reset Matter sessions during graceful shutdown. Enable only for controller reconnection issues.
+  resetSessions: false
+  # -- Additional Matterbridge CLI arguments appended after chart-managed arguments.
+  extraArgs: []
+
+frontend:
+  # -- Frontend HTTP or HTTPS port.
+  port: 8283
+  # -- Frontend bind address. Empty lets Matterbridge bind all IPv4 and IPv6 addresses.
+  bindAddress: ""
+  tls:
+    # -- Enable HTTPS using an existing Secret mounted into Matterbridge's certificate directory.
+    enabled: false
+    # -- Existing Secret containing cert.pem and key.pem; ca.pem is optional.
+    existingSecret: ""
+
+network:
+  # -- Use the node network namespace. Enable for normal Matter mDNS and LAN IPv6 discovery; disabled by default for Pod Security baseline compatibility.
+  hostNetwork: false
+  # -- Pod DNS policy. Empty selects ClusterFirstWithHostNet for host networking and ClusterFirst otherwise.
+  dnsPolicy: ""
+
+service:
+  # -- Kubernetes Service type for the management frontend.
+  type: ClusterIP
+  # -- Frontend Service port.
+  port: 8283
+  # -- Service annotations.
+  annotations: {}
+  # -- Service IP family policy. Empty uses the cluster default.
+  # @default -- omitted
+  ipFamilyPolicy: ""
+  # -- Ordered Service IP families. Empty uses the cluster default.
+  ipFamilies: []
+
+matterService:
+  # -- Publish the Matter TCP/UDP port range through a Service. Intended for advanced pod-network deployments.
+  enabled: false
+  # -- Matter Service type.
+  type: LoadBalancer
+  # -- Service protocols generated for every reserved Matter port.
+  protocols:
+    - UDP
+    - TCP
+  # -- Preserve source addresses for LoadBalancer or NodePort traffic.
+  externalTrafficPolicy: Local
+  # -- Matter Service annotations.
+  annotations: {}
+  # -- Matter Service IP family policy. Empty uses the cluster default.
+  # @default -- omitted
+  ipFamilyPolicy: ""
+  # -- Ordered Matter Service IP families. Empty uses the cluster default.
+  ipFamilies: []
+
+persistence:
+  # -- Persist plugins, configuration, Matter fabrics and certificates in one PVC mounted at /data.
+  enabled: true
+  # -- Existing PVC to mount instead of creating one.
+  existingClaim: ""
+  # -- Storage class. Empty uses the cluster default.
+  storageClass: ""
+  # -- PVC access modes.
+  accessModes:
+    - ReadWriteOnce
+  # -- PVC requested size.
+  size: 2Gi
+  # -- Retain the chart-created PVC when the Helm release is uninstalled.
+  retain: true
+  # -- Additional PVC annotations, for example Velero or storage-provider metadata.
+  annotations: {}
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: true
+  # -- ServiceAccount name override.
+  name: ""
+  # -- ServiceAccount annotations.
+  annotations: {}
+  # -- Mount the Kubernetes API token into the Matterbridge pod.
+  automountServiceAccountToken: false
+
+podSecurityContext:
+  # -- Run Matterbridge as the non-root node user included in the official image.
+  runAsNonRoot: true
+  # -- Matterbridge runtime UID.
+  runAsUser: 1000
+  # -- Matterbridge runtime GID.
+  runAsGroup: 1000
+  # -- Group applied to persistent volume contents.
+  fsGroup: 1000
+  # -- Avoid recursively changing ownership when the volume root already matches fsGroup.
+  fsGroupChangePolicy: OnRootMismatch
+  # -- Default seccomp profile.
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  # -- Prevent privilege escalation.
+  allowPrivilegeEscalation: false
+  # -- Keep the container image filesystem read-only; writable state lives under /data and /tmp.
+  readOnlyRootFilesystem: true
+  # -- Drop all Linux capabilities.
+  capabilities:
+    drop:
+      - ALL
+
+startupProbe:
+  # -- Enable the startup probe against the official health endpoint.
+  enabled: true
+  # -- Initial delay before startup checks.
+  initialDelaySeconds: 5
+  # -- Probe interval.
+  periodSeconds: 5
+  # -- Probe timeout.
+  timeoutSeconds: 5
+  # -- Consecutive failures allowed during plugin restoration and first boot.
+  failureThreshold: 60
+  # -- Success threshold.
+  successThreshold: 1
+
+readinessProbe:
+  # -- Enable the readiness probe against the official health endpoint.
+  enabled: true
+  # -- Initial delay before readiness checks.
+  initialDelaySeconds: 0
+  # -- Probe interval.
+  periodSeconds: 10
+  # -- Probe timeout.
+  timeoutSeconds: 5
+  # -- Consecutive failures before the pod becomes unready.
+  failureThreshold: 3
+  # -- Success threshold.
+  successThreshold: 1
+
+livenessProbe:
+  # -- Enable the liveness probe against the official health endpoint.
+  enabled: true
+  # -- Initial delay after startup succeeds.
+  initialDelaySeconds: 0
+  # -- Probe interval aligned with the upstream Docker healthcheck.
+  periodSeconds: 60
+  # -- Probe timeout.
+  timeoutSeconds: 10
+  # -- Consecutive failures before restart.
+  failureThreshold: 5
+  # -- Success threshold.
+  successThreshold: 1
+
+ingress:
+  # -- Expose the Matterbridge frontend with Kubernetes Ingress. This does not expose Matter or mDNS.
+  enabled: false
+  # -- Ingress class name. Empty uses the cluster default.
+  ingressClassName: ""
+  # -- Ingress annotations.
+  annotations: {}
+  # -- Ingress host and path rules.
+  hosts: []
+    # - host: matterbridge.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+  # -- Ingress TLS configuration.
+  tls: []
+
+gatewayAPI:
+  # -- Render Gateway API HTTPRoutes for the frontend. This does not expose Matter or mDNS.
+  enabled: false
+  # -- HTTPRoute definitions.
+  httpRoutes: []
+    # - name: ""
+    #   labels: {}
+    #   annotations: {}
+    #   parentRefs:
+    #     - name: shared-gateway
+    #       namespace: gateway-system
+    #       sectionName: https
+    #   hostnames:
+    #     - matterbridge.example.com
+    #   rules: []
+
+externalSecrets:
+  # -- Render ExternalSecret resources for TLS or plugin-specific Secrets.
+  enabled: false
+  # -- Default refresh interval for items that omit spec.refreshInterval.
+  refreshInterval: 1h
+  # -- Complete ExternalSecret definitions.
+  items: []
+
+networkPolicy:
+  # -- Render a NetworkPolicy. Must be used with network.hostNetwork=false.
+  enabled: false
+  # -- Allowed peers for frontend ingress. Empty permits all namespaces.
+  ingressFrom: []
+  egress:
+    # -- Enforce egress rules. Matterbridge plugins often require LAN, MQTT and cloud access.
+    enabled: false
+    # -- Permit DNS over UDP and TCP port 53.
+    allowDNS: true
+    # -- Additional destination peers applied as a to block.
+    extraTo: []
+    # -- Complete additional egress rules with to and ports support.
+    extraEgress: []
+
+# -- CPU and memory resources. Increase memory for large plugin/device fleets.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+# -- Grace period for Matter storage, sessions and mDNS shutdown.
+terminationGracePeriodSeconds: 60
+
+# -- StatefulSet revision history limit.
+revisionHistoryLimit: 3
+
+# -- Pod annotations, including log collector or backup metadata.
+podAnnotations: {}
+
+# -- Additional pod labels. Selector labels cannot be overridden.
+podLabels: {}
+
+# -- Pod priority class name.
+priorityClassName: ""
+
+# -- Node selector. Production host-network deployments should target a node attached to the Matter LAN.
+nodeSelector: {}
+
+# -- Pod affinity and anti-affinity rules.
+affinity: {}
+
+# -- Pod tolerations.
+tolerations: []
+
+# -- Pod topology spread constraints.
+topologySpreadConstraints: []
+
+# -- Additional environment variables for Matterbridge.
+extraEnv: []
+
+# -- Additional environment sources, including Secrets created by externalSecrets.items.
+extraEnvFrom: []
+
+# -- Additional volumes for plugin-specific configuration or device access.
+extraVolumes: []
+
+# -- Additional volume mounts for the Matterbridge container.
+extraVolumeMounts: []
+
+# -- Additional init containers.
+extraInitContainers: []
+
+# -- Additional sidecar containers.
+extraContainers: []
+
+# -- Additional Kubernetes manifests rendered with the release.
+extraManifests: []

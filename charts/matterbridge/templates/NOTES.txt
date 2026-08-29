@@ -1,0 +1,114 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+=============================================================================
+Matterbridge {{ .Chart.AppVersion }} deployed successfully
+=============================================================================
+
+1. STATUS:
+  Workload: StatefulSet/{{ include "matterbridge.fullname" . }}
+  Namespace: {{ .Release.Namespace }}
+  Runtime mode: {{ .Values.matterbridge.mode }}
+  Network mode: {{ ternary "host network" "pod network" .Values.network.hostNetwork }}
+  Persistent data: {{ ternary (include "matterbridge.pvcName" .) "ephemeral emptyDir" .Values.persistence.enabled }}
+
+2. FRONTEND:
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+{{- $paths := default (list (dict "path" "/")) .paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}{{ (first $paths).path | default "/" }}
+{{- end }}
+{{- else if .Values.gatewayAPI.enabled }}
+{{- range .Values.gatewayAPI.httpRoutes }}
+{{- range .hostnames }}
+  https://{{ . }}/
+{{- end }}
+{{- end }}
+{{- else }}
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "matterbridge.fullname" . }} 8283:{{ .Values.service.port }}
+  Open http{{ ternary "s" "" .Values.frontend.tls.enabled }}://localhost:8283
+{{- end }}
+
+3. MATTER NETWORKING:
+{{- if .Values.network.hostNetwork }}
+  Host networking is enabled. Matterbridge can use node LAN interfaces for
+  mDNS, IPv6 and Matter commissioning. Keep this pod on a trusted LAN node.
+{{- else }}
+  Pod networking is enabled. The frontend and health checks work, but normal
+  Matter commissioning requires multicast and IPv6 reachability that most
+  Kubernetes CNIs do not provide across the LAN boundary.
+
+  For a typical home or building LAN, set:
+    network.hostNetwork=true
+
+  Alternatively, configure a multicast-aware CNI or reflector and enable
+  matterService for the Matter TCP/UDP port range. A Service alone does not
+  transport mDNS multicast.
+{{- end }}
+
+4. COMMISSIONING:
+  1. Wait until the pod is Ready.
+  2. Open the frontend and install/configure the required plugins.
+  3. Use the QR code or manual pairing code shown by Matterbridge.
+  4. Pair the bridge from an Apple Home, Google Home, Alexa, SmartThings or
+     another Matter controller on the reachable LAN.
+
+  Retrieve recent commissioning logs carefully:
+    kubectl logs -n {{ .Release.Namespace }} {{ include "matterbridge.fullname" . }}-0 --tail=100
+
+  Pairing codes are credentials. Do not paste them into tickets or public logs.
+
+5. PERSISTENCE AND BACKUP:
+{{- if .Values.persistence.enabled }}
+  Matter fabrics, plugin configuration, certificates and installed plugins are
+  stored together at /data on PVC {{ include "matterbridge.pvcName" . }}.
+
+  Stop Matterbridge before taking a filesystem-level snapshot:
+    kubectl scale -n {{ .Release.Namespace }} statefulset/{{ include "matterbridge.fullname" . }} --replicas=0
+    # Snapshot or back up the PVC with your storage platform.
+    kubectl scale -n {{ .Release.Namespace }} statefulset/{{ include "matterbridge.fullname" . }} --replicas=1
+
+  The chart retains its created PVC on uninstall by default. Verify the backup
+  before upgrades, storage migrations and destructive plugin changes.
+{{- else }}
+  Persistence is disabled. /data uses an ephemeral emptyDir and all plugins,
+  Matter fabrics, certificates and configuration are lost when the pod is
+  replaced or removed. Enable persistence before commissioning real devices.
+{{- end }}
+
+6. SECURITY:
+  The container runs as UID/GID 1000 with all capabilities dropped, a read-only
+  root filesystem, RuntimeDefault seccomp and no service-account token.
+
+  The Matterbridge frontend does not provide chart-managed authentication.
+  Keep the ClusterIP private or put authentication and TLS at a trusted reverse
+  proxy. Ingress and Gateway API expose only the frontend, never Matter or mDNS.
+
+7. OPERATIONS:
+  Health:
+    kubectl exec -n {{ .Release.Namespace }} {{ include "matterbridge.fullname" . }}-0 -- \
+      node -e "fetch('http://127.0.0.1:{{ .Values.frontend.port }}/health').then(r=>{if(!r.ok)process.exit(1)})"
+
+  Events:
+    kubectl get events -n {{ .Release.Namespace }} --sort-by=.lastTimestamp
+
+  Logs:
+    kubectl logs -n {{ .Release.Namespace }} {{ include "matterbridge.fullname" . }}-0 --follow
+
+  Restart:
+    kubectl rollout restart -n {{ .Release.Namespace }} statefulset/{{ include "matterbridge.fullname" . }}
+
+8. LIMITS:
+  Matterbridge is a singleton application. replicaCount values other than 1 are
+  rejected because active-active pods would conflict over fabric state,
+  persisted files, mDNS identity and Matter ports.
+
+  Matterbridge has no native Prometheus endpoint. Use Kubernetes health,
+  restart and resource metrics instead of scraping the frontend.
+
+9. DOCUMENTATION:
+  Chart: https://helmforge.dev/docs/charts/matterbridge
+  Networking: https://helmforge.dev/docs/charts/matterbridge#networking
+  Upstream: https://github.com/Luligu/matterbridge
+  Plugins: https://github.com/Luligu/matterbridge/blob/main/README.md
+
+=============================================================================
+Happy Helmforging :)

@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Notes
+templates:
+  - templates/NOTES.txt
+release:
+  name: test
+  namespace: matterbridge-system
+tests:
+  - it: defaults an omitted Ingress path to root
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: matterbridge.example.test
+    asserts:
+      - matchRegexRaw:
+          pattern: "http://matterbridge\\.example\\.test/"
+
+  - it: prints persistent backup guidance by default
+    asserts:
+      - matchRegexRaw:
+          pattern: "stored together at /data on PVC test-matterbridge-data"
+      - matchRegexRaw:
+          pattern: "statefulset/test-matterbridge --replicas=0"
+
+  - it: warns about data loss for ephemeral storage
+    set:
+      persistence.enabled: false
+    asserts:
+      - matchRegexRaw:
+          pattern: "Persistence is disabled"
+      - notMatchRegexRaw:
+          pattern: "stored together at /data on PVC"

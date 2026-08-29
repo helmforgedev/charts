@@ -1,0 +1,129 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Services and persistence
+templates:
+  - templates/service.yaml
+  - templates/pvc.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: renders frontend Service by default
+    template: templates/service.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: renders a ClusterIP frontend service
+    template: templates/service.yaml
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - equal:
+          path: spec.ports[0].port
+          value: 8283
+
+  - it: configures frontend dual stack
+    template: templates/service.yaml
+    documentIndex: 0
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies:
+        - IPv6
+        - IPv4
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv6
+
+  - it: creates one retained PVC
+    template: templates/pvc.yaml
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+      - isNotEmpty:
+          path: metadata.annotations
+      - equal:
+          path: spec.resources.requests.storage
+          value: 2Gi
+
+  - it: configures PVC storage class and access mode
+    template: templates/pvc.yaml
+    set:
+      persistence.storageClass: fast
+      persistence.accessModes:
+        - ReadWriteMany
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: fast
+      - contains:
+          path: spec.accessModes
+          content: ReadWriteMany
+
+  - it: omits PVC when persistence is disabled
+    template: templates/pvc.yaml
+    set:
+      persistence.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: omits PVC for an existing claim
+    template: templates/pvc.yaml
+    set:
+      persistence.existingClaim: existing-data
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders the optional Matter service
+    template: templates/service.yaml
+    documentIndex: 1
+    set:
+      matterService.enabled: true
+      matterService.type: ClusterIP
+      matterbridge.matterPortRangeSize: 2
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: test-matterbridge-matter
+      - lengthEqual:
+          path: spec.ports
+          count: 4
+
+  - it: includes TCP and UDP for the Matter base port
+    template: templates/service.yaml
+    documentIndex: 1
+    set:
+      matterService.enabled: true
+      matterService.type: ClusterIP
+      matterbridge.matterPortRangeSize: 1
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 5540
+      - equal:
+          path: spec.ports[0].protocol
+          value: UDP
+      - equal:
+          path: spec.ports[1].protocol
+          value: TCP
+
+  - it: sets local traffic policy for LoadBalancer
+    template: templates/service.yaml
+    documentIndex: 1
+    set:
+      matterService.enabled: true
+    asserts:
+      - equal:
+          path: spec.externalTrafficPolicy
+          value: Local

@@ -1,0 +1,219 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Integrations
+templates:
+  - templates/externalsecret.yaml
+  - templates/networkpolicy.yaml
+  - templates/serviceaccount.yaml
+release:
+  name: test
+  namespace: default
+tests:
+  - it: creates a dedicated ServiceAccount by default
+    template: templates/serviceaccount.yaml
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: automountServiceAccountToken
+          value: false
+
+  - it: omits ServiceAccount when disabled
+    template: templates/serviceaccount.yaml
+    set:
+      serviceAccount.create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: omits ExternalSecret by default
+    template: templates/externalsecret.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders external-secrets.io v1
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - name: plugin
+          spec:
+            secretStoreRef:
+              name: fake
+              kind: ClusterSecretStore
+            data:
+              - secretKey: token
+                remoteRef:
+                  key: plugin
+    asserts:
+      - isKind:
+          of: ExternalSecret
+      - equal:
+          path: apiVersion
+          value: external-secrets.io/v1
+      - equal:
+          path: metadata.name
+          value: test-matterbridge-plugin
+
+  - it: applies default refresh interval and target name
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - name: plugin
+          spec:
+            secretStoreRef:
+              name: fake
+              kind: ClusterSecretStore
+            dataFrom:
+              - extract:
+                  key: plugin
+    asserts:
+      - equal:
+          path: spec.refreshInterval
+          value: 1h
+      - equal:
+          path: spec.target.name
+          value: test-matterbridge-plugin
+
+  - it: preserves an item fullname override literally
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: shared-plugin-secret
+          spec:
+            secretStoreRef:
+              name: fake
+              kind: ClusterSecretStore
+            dataFrom:
+              - extract:
+                  key: plugin
+    asserts:
+      - equal:
+          path: metadata.name
+          value: shared-plugin-secret
+
+  - it: renders multiple ExternalSecret items
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - name: first
+          spec:
+            secretStoreRef:
+              name: fake
+              kind: ClusterSecretStore
+            dataFrom:
+              - extract:
+                  key: first
+        - name: second
+          spec:
+            secretStoreRef:
+              name: fake
+              kind: ClusterSecretStore
+            dataFrom:
+              - extract:
+                  key: second
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: rejects duplicate ExternalSecret names
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - name: plugin
+          spec:
+            secretStoreRef:
+              name: fake
+              kind: ClusterSecretStore
+            dataFrom:
+              - extract:
+                  key: first
+        - name: plugin
+          spec:
+            secretStoreRef:
+              name: fake
+              kind: ClusterSecretStore
+            dataFrom:
+              - extract:
+                  key: second
+    asserts:
+      - failedTemplate:
+          errorMessage: 'externalSecrets.items render duplicate ExternalSecret name "test-matterbridge-plugin"; set name or fullnameOverride to a unique value'
+
+  - it: rejects External Secret item without a store reference
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - name: plugin
+          spec:
+            data:
+              - secretKey: token
+                remoteRef:
+                  key: plugin
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.items[].spec.secretStoreRef.name or item sourceRef.storeRef.name/sourceRef.generatorRef.name is required when externalSecrets.enabled=true
+
+  - it: omits NetworkPolicy by default
+    template: templates/networkpolicy.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders ingress-only NetworkPolicy
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+      - notContains:
+          path: spec.policyTypes
+          content: Egress
+
+  - it: permits DNS when restrictive egress is enabled
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53
+      - equal:
+          path: spec.egress[0].ports[0].protocol
+          value: UDP
+
+  - it: adds Matter ports when Matter Service is enabled
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      matterService.enabled: true
+      matterbridge.matterPortRangeSize: 1
+    asserts:
+      - lengthEqual:
+          path: spec.ingress[0].ports
+          count: 3
+
+  - it: supports explicit frontend ingress peers
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.ingressFrom:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-system
+    asserts:
+      - isNotEmpty:
+          path: spec.ingress[0].from[0].namespaceSelector.matchLabels

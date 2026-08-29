@@ -75,6 +75,7 @@ Common categories include:
 - **Identity and access**: Keycloak, Authelia, OAuth2 Proxy, and application charts with ingress/auth patterns.
 - **Operations and automation**: n8n, Cronicle, FastMCP Server, Cloudflared, Velero, DDNS Updater, Envoy Gateway, and Envoy Gateway CRDs.
 - **Content and collaboration**: WordPress, Ghost, Drupal, Gitea, Wallabag, Castopod, Komga, and Open WebUI.
+- **Home automation**: Matterbridge and openHAB for Matter and broad smart-home platform integration.
 - **Reusable platform workloads**: the [`generic`](charts/generic) chart for internal services, workers, jobs, and sidecars.
 
 ## Validation

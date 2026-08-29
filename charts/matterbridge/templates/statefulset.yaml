@@ -1,0 +1,230 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "matterbridge.fullname" . }}
+  labels:
+    {{- include "matterbridge.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  serviceName: {{ include "matterbridge.fullname" . }}
+  podManagementPolicy: OrderedReady
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "matterbridge.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "matterbridge.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "matterbridge.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      hostNetwork: {{ .Values.network.hostNetwork }}
+      {{- if .Values.network.dnsPolicy }}
+      dnsPolicy: {{ .Values.network.dnsPolicy }}
+      {{- else if .Values.network.hostNetwork }}
+      dnsPolicy: ClusterFirstWithHostNet
+      {{- else }}
+      dnsPolicy: ClusterFirst
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.extraInitContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: matterbridge
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - matterbridge
+          args:
+            - --docker
+            - --homedir
+            - /data
+            - {{ printf "--%s" .Values.matterbridge.mode | quote }}
+            - --frontend
+            - {{ .Values.frontend.port | quote }}
+            - --port
+            - {{ .Values.matterbridge.matterPort | quote }}
+            - --logger
+            - {{ .Values.matterbridge.logger | quote }}
+            - --matterlogger
+            - {{ .Values.matterbridge.matterLogger | quote }}
+            {{- with .Values.matterbridge.profile }}
+            - --profile
+            - {{ . | quote }}
+            {{- end }}
+            {{- with .Values.matterbridge.mdnsInterface }}
+            - --mdnsinterface
+            - {{ . | quote }}
+            {{- end }}
+            {{- with .Values.matterbridge.ipv4Address }}
+            - --ipv4address
+            - {{ . | quote }}
+            {{- end }}
+            {{- with .Values.matterbridge.ipv6Address }}
+            - --ipv6address
+            - {{ . | quote }}
+            {{- end }}
+            {{- with .Values.frontend.bindAddress }}
+            - --bind
+            - {{ . | quote }}
+            {{- end }}
+            {{- if .Values.frontend.tls.enabled }}
+            - --ssl
+            {{- end }}
+            {{- if .Values.matterbridge.noAnsi }}
+            - --no-ansi
+            {{- end }}
+            {{- if .Values.matterbridge.fileLogger }}
+            - --filelogger
+            {{- end }}
+            {{- if .Values.matterbridge.matterFileLogger }}
+            - --matterfilelogger
+            {{- end }}
+            {{- if .Values.matterbridge.disableVirtualDevices }}
+            - --novirtual
+            {{- end }}
+            {{- if .Values.matterbridge.resetSessions }}
+            - --reset-sessions
+            {{- end }}
+            {{- range .Values.matterbridge.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
+          env:
+            - name: HOME
+              value: /data
+            - name: NPM_CONFIG_PREFIX
+              value: /data/.npm-global
+            - name: NPM_CONFIG_CACHE
+              value: /data/.npm-cache
+            - name: PATH
+              value: /data/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.frontend.port }}
+              protocol: TCP
+            - name: matter-udp
+              containerPort: {{ .Values.matterbridge.matterPort }}
+              protocol: UDP
+            - name: matter-tcp
+              containerPort: {{ .Values.matterbridge.matterPort }}
+              protocol: TCP
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+              scheme: {{ ternary "HTTPS" "HTTP" .Values.frontend.tls.enabled }}
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+            successThreshold: {{ .Values.startupProbe.successThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+              scheme: {{ ternary "HTTPS" "HTTP" .Values.frontend.tls.enabled }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+            successThreshold: {{ .Values.readinessProbe.successThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+              scheme: {{ ternary "HTTPS" "HTTP" .Values.frontend.tls.enabled }}
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+            successThreshold: {{ .Values.livenessProbe.successThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.frontend.tls.enabled }}
+            - name: frontend-tls
+              mountPath: /data/.matterbridge/certs
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "matterbridge.pvcName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+        {{- if .Values.frontend.tls.enabled }}
+        - name: frontend-tls
+          secret:
+            secretName: {{ .Values.frontend.tls.existingSecret }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
