@@ -55,7 +55,9 @@ Read before choosing an architecture:
 - **Built-in S3 backups** — scheduled `mongodump` archive upload for standalone, replica set, and sharded topologies
 - **Init scripts** — `.sh` and `.js` files via ConfigMap (`/docker-entrypoint-initdb.d/`)
 - **Custom mongod.conf** — mount via ConfigMap
-- **Security defaults** — `fsGroup: 999`, startup/liveness/readiness probes; optional strict non-root `securityContext`, `podSecurityContext`, and `initContainerSecurityContext` for clusters that require it
+- **Security defaults** — `fsGroup: 999`, startup/liveness/readiness probes; optional strict
+  non-root `securityContext`, `podSecurityContext`, and keyfile init-container
+  `initContainerSecurityContext` for clusters that require it
 - **Extra manifests** — inject arbitrary K8s resources with Helm templating
 
 ## Configuration
@@ -252,7 +254,7 @@ deciding constraint, and review the
 | `extraManifests` | Arbitrary K8s manifests | `[]` |
 | `podSecurityContext` | Pod-level security context (`fsGroup: 999` by default) | `{"fsGroup":999}` |
 | `securityContext` | Container-level security context (empty for compatibility) | `{}` |
-| `initContainerSecurityContext` | Security context for init containers (root with all capabilities except CHOWN dropped, privilege escalation disabled) | `{"runAsNonRoot":false,"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"],"add":["CHOWN"]}}` |
+| `initContainerSecurityContext` | Init container security context (root, CHOWN only) | `{"runAsNonRoot":false,"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"],"add":["CHOWN"]}}` |
 | `nodeSelector` | Node selector | `{}` |
 | `tolerations` | Tolerations | `[]` |
 | `affinity` | Affinity rules | `{}` |
