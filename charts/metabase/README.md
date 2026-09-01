@@ -83,7 +83,7 @@ Metabase image, so proxy-based environments can mirror both images:
 ```yaml
 image:
   repository: registry.example.com/proxy/metabase/metabase
-  tag: v0.63.14
+  tag: v0.63.15
 
 waitForDatabase:
   image:
@@ -150,7 +150,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/metabase/metabase` | Metabase container image repository |
-| `image.tag` | `v0.63.14` | Metabase container image tag |
+| `image.tag` | `v0.63.15` | Metabase container image tag |
 | `waitForDatabase.image.repository` | `docker.io/library/busybox` | Wait-for-db init container image repository |
 | `waitForDatabase.image.tag` | `1.37` | Wait-for-db init container image tag |
 | `waitForDatabase.image.pullPolicy` | `IfNotPresent` | Wait-for-db init container image pull policy |
@@ -184,10 +184,8 @@ externalSecrets:
 
 ## Upgrade Notes
 
-Metabase `v0.63.14` is the public maintenance release that incorporates the
-security-hardening changes from private releases 63.3 through 63.13, plus
-administration, database, and querying fixes. Back up the Metabase application
-database and review the [official Metabase 63 changelog](https://www.metabase.com/changelog/63#metabase-6314)
+Metabase `v0.63.15` is a public maintenance release. Back up the Metabase application
+database and review the [official Metabase 63 changelog](https://www.metabase.com/changelog/63#metabase-6315)
 before upgrading. Keep the encryption key stable and validate the `/api/health`
 endpoint after rollout.
 
