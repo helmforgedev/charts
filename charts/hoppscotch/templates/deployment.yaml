@@ -39,14 +39,24 @@ spec:
       securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
       initContainers:
         - name: wait-for-db
-          image: docker.io/library/busybox:1.37
+          image: docker.io/library/postgres:18.6-trixie
           imagePullPolicy: IfNotPresent
           command:
             - sh
             - -c
             - |
-              until nc -z -w2 {{ include "hoppscotch.databaseHost" . }} {{ include "hoppscotch.databasePort" . }} >/dev/null 2>&1; do
-                echo "waiting for database..."; sleep 2;
+              ready_checks=0
+              while [ "$ready_checks" -lt 5 ]; do
+                if pg_isready \
+                  --host={{ include "hoppscotch.databaseHost" . }} \
+                  --port={{ include "hoppscotch.databasePort" . }} \
+                  --username={{ include "hoppscotch.databaseUsername" . }} \
+                  --dbname={{ include "hoppscotch.databaseName" . }}; then
+                  ready_checks=$((ready_checks + 1))
+                else
+                  ready_checks=0
+                fi
+                sleep 2
               done
           securityContext: {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           resources:

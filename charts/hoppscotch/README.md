@@ -77,7 +77,7 @@ backend process inside the AIO image.
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `mode` | Chart mode: `dev` or `production` | `dev` |
-| `image.tag` | Hoppscotch image tag | `2026.7.0` |
+| `image.tag` | Hoppscotch image tag | `2026.8.0` |
 | `namespaceOverride` | Namespace for chart-managed resources. Use with an external database; bundled PostgreSQL remains in the Helm release namespace. | `""` |
 | `replicaCount` | Number of replicas | `1` |
 | `ingress.enabled` | Enable Ingress | `false` |
@@ -105,8 +105,8 @@ backend process inside the AIO image.
 
 ## Upgrade Notes
 
-Hoppscotch `2026.7.0` fixes collection data loss in personal workspaces and request loss when importing large team
-collections, adds fallback to initial values for empty environment variables, and includes security fixes. Back up the
+Hoppscotch `2026.8.0` unifies REST and GraphQL workspaces, adds data collection
+runs, and includes security and maintenance fixes. Back up the
 PostgreSQL database and keep `DATA_ENCRYPTION_KEY` stable before upgrading.
 The bundled PostgreSQL path now derives `DATABASE_URL` from the PostgreSQL
 user password Secret, bootstraps `pg_trgm` on fresh data directories, and runs
