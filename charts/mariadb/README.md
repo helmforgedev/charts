@@ -82,7 +82,7 @@ replication:
 |-----|---------|-------------|
 | `architecture` | `standalone` | Deployment mode: standalone or replication |
 | `image.repository` | `mariadb` | MariaDB image |
-| `image.tag` | `12.3.2` | MariaDB version |
+| `image.tag` | `12.3.3` | MariaDB version |
 | `auth.rootPassword` | `""` | Root password (auto-generated if empty) |
 | `auth.database` | `app` | Application database |
 | `auth.username` | `app` | Application user |
@@ -124,6 +124,11 @@ replication:
 | `externalSecrets.data` | `[]` | Remote key mappings |
 
 ## Dual-Stack Services
+
+MariaDB 12.3.3 is a maintenance and hardening release. It adds optional,
+backward-compatible SST TLS settings without changing the chart defaults. Back
+up databases and validate startup, replication, and restore behavior before
+production rollout.
 
 All 6 Service objects (client, metrics, source, source-metrics, replicas, replicas-metrics)
 carry the same `ipFamilyPolicy` and `ipFamilies` settings.
