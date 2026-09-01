@@ -64,3 +64,27 @@ tests:
           content:
             name: DB_HOST
             value: test-mongodb-mongos
+
+  - it: should apply initContainerSecurityContext to the backup init container
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://minio.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+      initContainerSecurityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+    template: templates/backup-cronjob.yaml
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].securityContext.runAsUser
+          value: 999
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].securityContext.allowPrivilegeEscalation
+          value: false

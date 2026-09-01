@@ -252,7 +252,7 @@ deciding constraint, and review the
 | `extraManifests` | Arbitrary K8s manifests | `[]` |
 | `podSecurityContext` | Pod-level security context (`fsGroup: 999` by default) | `{"fsGroup":999}` |
 | `securityContext` | Container-level security context (empty for compatibility) | `{}` |
-| `initContainerSecurityContext` | Security context for init containers (empty for compatibility) | `{}` |
+| `initContainerSecurityContext` | Security context for init containers (root with all capabilities except CHOWN dropped, privilege escalation disabled) | `{"runAsNonRoot":false,"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"],"add":["CHOWN"]}}` |
 | `nodeSelector` | Node selector | `{}` |
 | `tolerations` | Tolerations | `[]` |
 | `affinity` | Affinity rules | `{}` |

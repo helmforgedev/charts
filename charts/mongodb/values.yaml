@@ -196,8 +196,11 @@ podSecurityContext:
 securityContext: {}
 
 # -- Security context applied to init containers (such as the replica-set
-# keyfile bootstrap container). Defaults to the image default user (root).
-# For strict non-root deployments set runAsNonRoot and a non-root uid/gid, e.g.:
+# keyfile bootstrap container). The default runs as the image default user
+# (root) but drops all capabilities except CHOWN and disables privilege
+# escalation, which is the minimum needed for the keyfile bootstrap step.
+# For strict non-root deployments override with runAsNonRoot and a non-root
+# uid/gid, e.g.:
 #   initContainerSecurityContext:
 #     runAsUser: 999
 #     runAsGroup: 999
@@ -206,7 +209,15 @@ securityContext: {}
 # NOTE: when running the keyfile init container as a non-root user, set
 # auth.replicaSetKeySecretPermissions to a group-readable mode (e.g. 0440) so
 # the non-root user (a member of fsGroup) can read the keyfile secret.
-initContainerSecurityContext: {}
+initContainerSecurityContext:
+  runAsNonRoot: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - CHOWN
+
 
 # =============================================================================
 # Service

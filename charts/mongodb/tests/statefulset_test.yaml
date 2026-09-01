@@ -113,13 +113,20 @@ tests:
           path: spec.template.spec.initContainers[0].securityContext.runAsNonRoot
           value: true
 
-  - it: should leave the keyfile init container root by default for compatibility
+  - it: should harden the keyfile init container by default (root with CHOWN only)
     template: statefulset.yaml
     set:
       architecture: replicaset
     asserts:
-      - isNull:
-          path: spec.template.spec.initContainers[0].securityContext
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.add[0]
+          value: CHOWN
 
   - it: should use the configured keyfile secret permissions by default
     template: statefulset.yaml
