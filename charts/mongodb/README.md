@@ -55,7 +55,7 @@ Read before choosing an architecture:
 - **Built-in S3 backups** — scheduled `mongodump` archive upload for standalone, replica set, and sharded topologies
 - **Init scripts** — `.sh` and `.js` files via ConfigMap (`/docker-entrypoint-initdb.d/`)
 - **Custom mongod.conf** — mount via ConfigMap
-- **Security defaults** — `fsGroup: 999`, startup/liveness/readiness probes
+- **Security defaults** — `fsGroup: 999`, startup/liveness/readiness probes; optional strict non-root `securityContext`, `podSecurityContext`, and `initContainerSecurityContext` for clusters that require it
 - **Extra manifests** — inject arbitrary K8s resources with Helm templating
 
 ## Configuration
@@ -160,6 +160,7 @@ deciding constraint, and review the
 | `auth.existingSecret` | Existing secret with credentials | `""` |
 | `auth.replicaSetKey` | KeyFile content (auto-generated if empty) | `""` |
 | `auth.existingKeySecret` | Existing secret with keyFile | `""` |
+| `auth.replicaSetKeySecretPermissions` | KeyFile secret volume permission bits (`0440` for non-root init) | `0400` |
 
 ### Replica Set
 
@@ -249,7 +250,9 @@ deciding constraint, and review the
 | `extraVolumes` | Extra volumes | `[]` |
 | `extraVolumeMounts` | Extra volume mounts | `[]` |
 | `extraManifests` | Arbitrary K8s manifests | `[]` |
-| `podSecurityContext.fsGroup` | Pod filesystem group | `999` |
+| `podSecurityContext` | Pod-level security context (`fsGroup: 999` by default) | `{"fsGroup":999}` |
+| `securityContext` | Container-level security context (empty for compatibility) | `{}` |
+| `initContainerSecurityContext` | Security context for init containers (empty for compatibility) | `{}` |
 | `nodeSelector` | Node selector | `{}` |
 | `tolerations` | Tolerations | `[]` |
 | `affinity` | Affinity rules | `{}` |

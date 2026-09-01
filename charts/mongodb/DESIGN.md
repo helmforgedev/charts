@@ -61,7 +61,16 @@ those are required.
 
 The chart defaults to authentication on, namespaced Secrets, explicit probes,
 and a MongoDB filesystem group (`fsGroup: 999`). It exposes no public ingress.
-Network isolation, TLS termination, storage encryption, and external credential
+To preserve compatibility with images and workloads that expect the upstream
+default root user, the chart ships with empty container-level `securityContext`
+and configurable `podSecurityContext`/`initContainerSecurityContext`. Operators
+with strict no-root policies can enable them via values: set `securityContext`
+and `podSecurityContext` to run the application containers as a non-root user
+(UID/GID `999`, the official image's `mongodb` user) with
+`allowPrivilegeEscalation: false`, and set `initContainerSecurityContext`
+(plus `auth.replicaSetKeySecretPermissions: 0440`) so the keyfile bootstrap
+container also runs non-root. The chart exposes no public ingress. Network
+isolation, TLS termination, storage encryption, and external credential
 rotation are cluster/operator responsibilities. External Secrets support is
 available for clusters that manage credentials through ESO.
 

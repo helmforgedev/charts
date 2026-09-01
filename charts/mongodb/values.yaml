@@ -45,6 +45,10 @@ auth:
   replicaSetKey: ""
   # -- Existing secret containing the keyFile (key: mongodb-replica-set-key)
   existingKeySecret: ""
+  # -- Filesystem permission bits for the replica-set keyFile secret volume.
+  # Raise to a group-readable mode (e.g. 0440) when the keyfile init container
+  # runs as a non-root user (see initContainerSecurityContext).
+  replicaSetKeySecretPermissions: 0400
   # -- Additional users to create on first startup.
   # Each entry creates a user with readWrite access to its database.
   # The database is also created automatically.
@@ -190,10 +194,19 @@ podSecurityContext:
   fsGroup: 999
 
 securityContext: {}
-  # runAsUser: 999
-  # runAsNonRoot: true
-  # allowPrivilegeEscalation: false
-  # readOnlyRootFilesystem: false
+
+# -- Security context applied to init containers (such as the replica-set
+# keyfile bootstrap container). Defaults to the image default user (root).
+# For strict non-root deployments set runAsNonRoot and a non-root uid/gid, e.g.:
+#   initContainerSecurityContext:
+#     runAsUser: 999
+#     runAsGroup: 999
+#     runAsNonRoot: true
+#     allowPrivilegeEscalation: false
+# NOTE: when running the keyfile init container as a non-root user, set
+# auth.replicaSetKeySecretPermissions to a group-readable mode (e.g. 0440) so
+# the non-root user (a member of fsGroup) can read the keyfile secret.
+initContainerSecurityContext: {}
 
 # =============================================================================
 # Service
