@@ -47,7 +47,7 @@ StatefulSet: solr (port 8983)
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `ckan/ckan-base` | CKAN container image |
-| `image.tag` | `2.11.5` | Image tag |
+| `image.tag` | `2.12.0` | Image tag |
 | `ckan.siteUrl` | `http://localhost:5000` | Public site URL |
 | `ckan.sysadminName` | `admin` | Sysadmin username |
 | `ckan.sysadminPassword` | `""` (auto) | Sysadmin password |
@@ -67,8 +67,15 @@ StatefulSet: solr (port 8983)
 | `postgresql.enabled` | `true` | Enable PostgreSQL subchart |
 | `redis.enabled` | `true` | Enable Redis subchart |
 
-This chart currently deploys CKAN `2.11.5` with HelmForge PostgreSQL `2.0.4` and Redis `2.0.0`.
+This chart currently deploys CKAN `2.12.0` with HelmForge PostgreSQL `2.0.5` and Redis `2.0.1`.
 It intentionally does not keep `Chart.lock`; dependencies are resolved by the release workflow.
+
+## Upgrade Notes
+
+CKAN 2.12.0 is a minor application upgrade. Back up the CKAN database and
+persistent storage, review the upstream 2.11.6 and 2.12.0 release notes, and
+test extensions against CKAN 2.12 before production rollout. Keep the Solr,
+PostgreSQL, and Redis services available while CKAN performs its upgrade steps.
 
 ## External Database
 
