@@ -321,11 +321,16 @@ spec:
         - bash
         - -c
         - |
+          set -e
           cp /etc/mongodb/keyfile-readonly/replica-set-key /etc/mongodb/keyfile/replica-set-key
           chmod 400 /etc/mongodb/keyfile/replica-set-key
-          chown 999:999 /etc/mongodb/keyfile/replica-set-key
+          if [ "$(id -u)" = "0" ]; then
+            chown 999:999 /etc/mongodb/keyfile/replica-set-key
+          fi
+      {{- with .root.Values.initContainerSecurityContext }}
       securityContext:
-        runAsUser: 0
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumeMounts:
         - name: keyfile-readonly
           mountPath: /etc/mongodb/keyfile-readonly
@@ -444,6 +449,10 @@ spec:
       resources:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .root.Values.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     {{- end }}
   volumes:
     {{- if .root.Values.config }}
@@ -460,7 +469,7 @@ spec:
     - name: keyfile-readonly
       secret:
         secretName: {{ include "mongodb.keySecretName" .root }}
-        defaultMode: 0400
+        defaultMode: {{ .root.Values.auth.replicaSetKeySecretPermissions }}
     - name: keyfile
       emptyDir: {}
     {{- end }}

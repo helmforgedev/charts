@@ -60,6 +60,83 @@ tests:
           path: spec.template.spec.securityContext.fsGroup
           value: 999
 
+  - it: should not set a container security context by default for compatibility
+    template: statefulset.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.containers[0].securityContext
+
+  - it: should allow configuring a non-root pod and container security context
+    template: statefulset.yaml
+    set:
+      podSecurityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        runAsNonRoot: true
+        fsGroup: 999
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 999
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 999
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+
+  - it: should apply a configurable security context to the keyfile init container
+    template: statefulset.yaml
+    set:
+      architecture: replicaset
+      initContainerSecurityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsUser
+          value: 999
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+          value: true
+
+  - it: should harden the keyfile init container by default (root with CHOWN only)
+    template: statefulset.yaml
+    set:
+      architecture: replicaset
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.add[0]
+          value: CHOWN
+
+  - it: should use the configured keyfile secret permissions by default
+    template: statefulset.yaml
+    set:
+      architecture: replicaset
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].secret.defaultMode
+          value: 0400
+
   - it: should have probes
     template: statefulset.yaml
     asserts:
