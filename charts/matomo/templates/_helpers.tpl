@@ -45,7 +45,7 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 
 {{- define "initContainers.wait-for-db.image" -}}
-{{- printf "%s:%s" .Values.database.waitForConnection.image.repository (.Values.database.waitForConnection.image.tag -}}
+{{- printf "%s:%s" .Values.database.waitForConnection.image.repository (.Values.database.waitForConnection.image.tag) -}}
 {{- end -}}
 
 {{- define "matomo.serviceAccountName" -}}
