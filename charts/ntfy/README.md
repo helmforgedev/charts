@@ -222,6 +222,15 @@ service:
     - IPv6
 ```
 
+## Upgrade Notes
+
+ntfy 2.28.0 hardens message and cache limits. Titles are limited to 1 KiB,
+combined tags to 512 bytes, and cache replay to 10 MiB. Cache replay now counts
+toward daily visitor bandwidth and can return HTTP 429; large deployments may
+need to review `visitor-attachment-daily-bandwidth-limit`. Clients should also
+handle `X-Messages-Truncated` on capped replay responses. Back up persistent
+state and validate publishing and replay workflows before rollout.
+
 ## Limitations
 
 - **Single replica** — the Deployment currently uses one replica regardless of database backend
