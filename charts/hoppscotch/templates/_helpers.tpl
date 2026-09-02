@@ -309,6 +309,17 @@ databaseName
 {{- end -}}
 
 {{/*
+databaseUsername
+*/}}
+{{- define "hoppscotch.databaseUsername" -}}
+{{- if .Values.database.external.enabled -}}
+{{- .Values.database.external.username | default "hoppscotch" -}}
+{{- else -}}
+{{- .Values.postgresql.auth.username | default "hoppscotch" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 databaseSecretName — name of the secret holding database-url
 */}}
 {{- define "hoppscotch.databaseSecretName" -}}

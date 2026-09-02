@@ -27,7 +27,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: docker.io/hoppscotch/hoppscotch:2026.7.0
+          value: docker.io/hoppscotch/hoppscotch:2026.8.0
         template: deployment.yaml
 
   - it: should have wait-for-db init container
@@ -38,11 +38,11 @@ tests:
         template: deployment.yaml
       - equal:
           path: spec.template.spec.initContainers[0].image
-          value: docker.io/library/busybox:1.37
+          value: docker.io/library/postgres:18.6-trixie
         template: deployment.yaml
       - matchRegex:
           path: spec.template.spec.initContainers[0].command[2]
-          pattern: ">/dev/null 2>&1"
+          pattern: "pg_isready"
         template: deployment.yaml
 
   - it: should have migrate init container
@@ -53,7 +53,7 @@ tests:
         template: deployment.yaml
       - equal:
           path: spec.template.spec.initContainers[1].image
-          value: docker.io/hoppscotch/hoppscotch:2026.7.0
+          value: docker.io/hoppscotch/hoppscotch:2026.8.0
         template: deployment.yaml
 
   - it: should prepare writable runtime files for non-root startup
@@ -87,7 +87,7 @@ tests:
         template: deployment.yaml
       - equal:
           path: spec.template.spec.initContainers[2].image
-          value: docker.io/hoppscotch/hoppscotch:2026.7.0
+          value: docker.io/hoppscotch/hoppscotch:2026.8.0
         template: deployment.yaml
       - equal:
           path: spec.template.spec.initContainers[2].command[0]
@@ -152,7 +152,11 @@ tests:
     asserts:
       - matchRegex:
           path: spec.template.spec.initContainers[0].command[2]
-          pattern: "nc -z -w2 postgresql\\.database\\.svc\\.cluster\\.local 15432"
+          pattern: "--host=postgresql\\.database\\.svc\\.cluster\\.local"
+        template: deployment.yaml
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "--port=15432"
         template: deployment.yaml
 
   - it: should derive wait-for-db host and port from bracketed IPv6 external database URL
@@ -166,7 +170,11 @@ tests:
     asserts:
       - matchRegex:
           path: spec.template.spec.initContainers[0].command[2]
-          pattern: "nc -z -w2 2001:db8::1 15432"
+          pattern: "--host=2001:db8::1"
+        template: deployment.yaml
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: "--port=15432"
         template: deployment.yaml
 
   - it: should use writable XDG directories for Caddy storage
