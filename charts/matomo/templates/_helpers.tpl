@@ -44,6 +44,10 @@ app.kubernetes.io/part-of: helmforge
 {{- printf "%s:%s" .Values.image.repository (.Values.image.tag | default (printf "%s-apache" .Chart.AppVersion)) -}}
 {{- end -}}
 
+{{- define "initContainers.wait-for-db.image" -}}
+{{- printf "%s:%s" .Values.database.waitForConnection.image.repository (.Values.database.waitForConnection.image.tag) -}}
+{{- end -}}
+
 {{- define "matomo.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
 {{- default (include "matomo.fullname" .) .Values.serviceAccount.name -}}
