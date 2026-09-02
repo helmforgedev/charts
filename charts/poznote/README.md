@@ -71,7 +71,7 @@ ingress:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Image repository | `ghcr.io/timothepoznanski/poznote` |
-| `image.tag` | Image tag | `6.68.3` |
+| `image.tag` | Image tag | `6.68.7` |
 | `image.pullPolicy` | Pull policy | `IfNotPresent` |
 
 #### Application Parameters
@@ -143,9 +143,10 @@ This chart intentionally does NOT:
 
 ## Upgrade Notes
 
-Poznote `6.68.3` improves search and replace in rendered Markdown previews and
-fixes indented code blocks that contain inline Markdown. Review the
-[upstream 6.68.3 release](https://github.com/timothepoznanski/poznote/releases/tag/6.68.3)
+Poznote `6.68.4` through `6.68.7` include proxy share-link and attachment
+sanitization fixes, a critical backup-restore SQL execution fix, and stored XSS
+fixes. Review the
+[upstream 6.68.7 release](https://github.com/timothepoznanski/poznote/releases/tag/6.68.7)
 before upgrading. The default local SQLite and filesystem deployment remains
 compatible; S3 integration is configured inside Poznote when needed.
 
