@@ -283,16 +283,26 @@ exec /srv/app/start_ckan.sh
 
 {{- define "ckan.initContainers" -}}
 - name: wait-for-postgresql
-  image: docker.io/library/busybox:1.37
+  image: docker.io/library/postgres:18.6-trixie
   command:
     - sh
     - -c
     - |
       echo "Waiting for {{ include "ckan.databaseHost" . }}:{{ include "ckan.databasePort" . }} ..."
-      until nc -z -w2 {{ include "ckan.databaseHost" . }} {{ include "ckan.databasePort" . }}; do
+      ready_checks=0
+      while [ "$ready_checks" -lt 5 ]; do
+        if pg_isready \
+          --host={{ include "ckan.databaseHost" . }} \
+          --port={{ include "ckan.databasePort" . }} \
+          --username={{ include "ckan.databaseUsername" . }} \
+          --dbname={{ include "ckan.databaseName" . }}; then
+          ready_checks=$((ready_checks + 1))
+        else
+          ready_checks=0
+        fi
         sleep 2
       done
-      echo "PostgreSQL is reachable."
+      echo "PostgreSQL is accepting connections."
 {{- if .Values.solr.enabled }}
 - name: wait-for-solr
   image: docker.io/library/busybox:1.37
