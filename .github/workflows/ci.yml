@@ -37,18 +37,15 @@ jobs:
       - name: Detect changed charts
         id: changed
         run: |
-          # For 'synchronize' (new push), compare only new commits
-          # For 'opened/reopened', compare full PR against base
-          if [ -n "${{ github.event.before }}" ]; then
-            BASE_SHA="${{ github.event.before }}"
-          else
-            BASE_SHA="${{ github.event.pull_request.base.sha }}"
-          fi
+          set -euo pipefail
+          # Validate the full PR, including after a rebase or force-push.
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          CHANGED_FILES=$(git diff --name-only "$BASE_SHA" HEAD -- charts/)
 
-          CHANGED_DIRS=$(git diff --name-only "$BASE_SHA" HEAD -- charts/ \
-            | grep -v -E '(README\.md|examples/|docs/)' \
+          CHANGED_DIRS=$(printf '%s\n' "$CHANGED_FILES" \
+            | awk 'NF && !/(README\.md|examples\/|docs\/)/' \
             | cut -d'/' -f2 | sort -u \
-            | while read -r dir; do [ -f "charts/$dir/Chart.yaml" ] && echo "$dir"; done \
+            | while read -r dir; do if [ -f "charts/$dir/Chart.yaml" ]; then echo "$dir"; fi; done \
             | jq -R -s -c 'split("\n") | map(select(length > 0))')
 
           echo "charts=$CHANGED_DIRS" >> "$GITHUB_OUTPUT"
