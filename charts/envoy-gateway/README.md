@@ -360,10 +360,24 @@ highAvailability:
 |-----|---------|-------------|
 | `monitoring.enabled` | `false` | Enable monitoring |
 | `monitoring.prometheus.serviceMonitor` | `true` | Create Prometheus ServiceMonitor (controller only) |
+| `monitoring.prometheus.serviceMonitorLabels` | `{}` | Extra ServiceMonitor metadata labels for Prometheus selection; built-in chart labels take precedence |
 | `monitoring.prometheus.prometheusRule` | `false` | Create PrometheusRule with 6 alert rules |
 | `monitoring.grafana.dashboards` | `false` | Create Grafana dashboard ConfigMap |
 | `monitoring.accessLogs.enabled` | `true` | Enable access logs |
 | `monitoring.accessLogs.format` | `json` | Access log format (json or text) |
+
+To match a Prometheus `serviceMonitorSelector` such as `release: monitoring`:
+
+```yaml
+monitoring:
+  enabled: true
+  prometheus:
+    serviceMonitor: true
+    serviceMonitorLabels:
+      release: monitoring
+```
+
+These labels apply only to ServiceMonitor metadata. Its service selector remains unchanged.
 
 ### Security
 
