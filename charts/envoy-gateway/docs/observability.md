@@ -82,8 +82,16 @@ monitoring:
   enabled: true
   prometheus:
     serviceMonitor: true
-    namespace: monitoring  # Prometheus Operator namespace
+    serviceMonitorLabels:
+      release: monitoring
 ```
+
+Set `monitoring.prometheus.serviceMonitorLabels` to match your Prometheus
+`spec.serviceMonitorSelector.matchLabels`. The map defaults to `{}` and accepts
+string values. Built-in chart labels take precedence when keys overlap.
+These labels apply only to ServiceMonitor metadata; its service selector is unchanged.
+The ServiceMonitor uses the release namespace (or `namespaceOverride`), which must
+also be allowed by Prometheus `spec.serviceMonitorNamespaceSelector`.
 
 Verify ServiceMonitors:
 
