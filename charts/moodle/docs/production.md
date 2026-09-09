@@ -76,6 +76,56 @@ rendering more than one route. Ingress and HTTPRoute may coexist for migration.
 See [Gateway API](https://gateway-api.sigs.k8s.io/) for namespace attachment,
 TLS listener configuration and controller support.
 
+## Database selection
+
+PostgreSQL remains the default, so existing installations keep their backend.
+Select `database.type` and enable only the matching HelmForge subchart when
+deploying the database in Kubernetes. All three must be disabled for an external
+server. Selection is validated before Kubernetes resources are created.
+
+| Backend | Moodle driver | Minimum server | Bundled chart |
+| --- | --- | --- | --- |
+| `postgresql` | `pgsql` | PostgreSQL 16 | PostgreSQL |
+| `mysql` | `mysqli` | MySQL 8.4 | MySQL |
+| `mariadb` | `mariadb` | MariaDB 10.11 | MariaDB |
+
+For bundled MySQL:
+
+```yaml
+database:
+  type: mysql
+postgresql:
+  enabled: false
+mysql:
+  enabled: true
+  auth:
+    database: moodle
+    username: moodle
+    existingSecret: learning-mysql
+```
+
+The existing Secret must contain every credential required by the MySQL
+subchart, including its root password. For MariaDB, set `database.type: mariadb`,
+keep `mysql.enabled: false`, and enable `mariadb.enabled` with the corresponding
+MariaDB auth settings. See the database subchart documentation for exact keys.
+
+`database.name`, `username`, `host`, `port` and password Secret apply only to
+external databases. Bundled connections use the selected subchart's auth values,
+Service port and writable endpoint, including name overrides and replication
+topologies. Persistence, resources, backup, replication and database metrics are
+configured under `postgresql`, `mysql` or `mariadb` using that subchart's full
+contract. Standalone database pods do not provide database high availability.
+
+The application and database resource names must be distinct. In particular,
+the MariaDB subchart reuses a release name containing `mariadb`; if that is also
+the Moodle resource name, set `mariadb.fullnameOverride` to a distinct value,
+such as `learning-database`. The chart rejects this collision before deployment,
+including collisions introduced by explicit overrides for any database engine.
+
+Changing `database.type` does not migrate an installed site. Restore or transfer
+its data into a compatible target database before switching the connection.
+Never enable a fresh bundled database against existing production Moodledata.
+
 ## External PostgreSQL
 
 The chart supports PostgreSQL 16 or newer. Its optional PostgreSQL dependency
@@ -85,6 +135,7 @@ is the HelmForge chart, not a vendor-specific database container wrapper.
 postgresql:
   enabled: false
 database:
+  type: postgresql
   host: postgres.learning.svc.cluster.local
   port: 5432
   name: moodle
@@ -107,6 +158,49 @@ The chart does not provision an external database or rotate its passwords.
 Bundled PostgreSQL accepts the full subchart contract, including its persistence,
 resources and replication settings. For production, prefer a managed database
 or a database topology whose failover and backups you operate and test.
+
+## External MySQL and MariaDB
+
+For external MySQL, provision a dedicated database with utf8mb4 and an application
+user with DDL privileges for installation and upgrades:
+
+```yaml
+postgresql:
+  enabled: false
+mysql:
+  enabled: false
+mariadb:
+  enabled: false
+database:
+  type: mysql
+  host: mysql.example.com
+  port: 3306
+  name: moodle
+  username: moodle
+  existingSecret: learning-db
+  existingSecretPasswordKey: password
+  collation: utf8mb4_unicode_ci
+  mysqlSslMode: verify-full
+  tlsSecret: learning-db-ca
+  tlsCAKey: ca.crt
+```
+
+For external MariaDB, change the type to `mariadb` and supply its hostname.
+Port zero selects 3306 for these engines and 5432 for PostgreSQL. Custom ports
+are supported. Add the external destination and port to
+`networkPolicy.extraEgress` when NetworkPolicy is enabled.
+
+`database.mysqlSslMode` controls MySQL/MariaDB TLS: `disable` is the bundled
+local default; `require` requires encryption without verifying server identity;
+`verify-full` verifies the CA and hostname and requires `database.tlsSecret`.
+Use a DNS name present in the server certificate. The CA is shared by bootstrap,
+Moodle's native driver, cron, maintenance, readiness and metrics. The setting
+`database.sslMode` is PostgreSQL-only. The chart does not configure server-side
+TLS: provision it externally or configure the selected subchart's TLS contract.
+
+Use direct writable database connections that preserve connection-scoped
+advisory locks. Transaction-multiplexing proxies can invalidate lifecycle/task
+locks. Engine-level replication and failover must be operated separately.
 
 ## Redis sessions and MUC
 
@@ -161,7 +255,7 @@ the shared volume. Only local cache/request directories use per-container
 emptyDir. Redis or an object-storage plugin does not remove this filesystem
 requirement.
 
-Moodle uses PostgreSQL task locks. The chart does not configure a nonexistent
+Moodle uses the selected backend's PostgreSQL or MySQL/MariaDB task locks. The chart does not configure a nonexistent
 core Redis lock factory. Shared sessions, task locks and identical read-only code
 allow requests and cron execution across replicas.
 
@@ -177,7 +271,7 @@ your own multi-node environment.
 ## NetworkPolicy
 
 NetworkPolicy is opt-in. Its default policy permits web ingress to port 8080,
-DNS egress, the bundled PostgreSQL/Redis endpoints and HTTPS egress in archive
+DNS egress, the selected bundled database and Redis endpoints and HTTPS egress in archive
 mode. Configure `ingressFrom` to restrict traffic to your gateway/controller.
 
 Add explicit `extraEgress` rules for external databases, Redis, SMTP, identity

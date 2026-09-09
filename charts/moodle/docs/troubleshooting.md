@@ -19,7 +19,7 @@ against the official release checksum and investigate the mirror/cache.
 
 ## Database initialization wait
 
-Inspect PostgreSQL readiness and its initialization logs. Verify the selected
+Inspect the selected database's authenticated readiness and its initialization logs. Verify the selected
 Secret/key and database/user values. A TCP connection alone does not prove the
 application user and schema have been created.
 

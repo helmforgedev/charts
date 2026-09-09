@@ -30,18 +30,31 @@ app.kubernetes.io/part-of: helmforge
 {{- define "moodle.secretName" -}}{{ default (include "moodle.nameWithSuffix" (dict "base" (include "moodle.fullname" .) "suffix" "-admin")) .Values.moodle.existingSecret }}{{- end -}}
 {{- define "moodle.dataClaim" -}}{{ default (include "moodle.nameWithSuffix" (dict "base" (include "moodle.fullname" .) "suffix" "-data")) .Values.persistence.existingClaim }}{{- end -}}
 {{- define "moodle.dbHost" -}}
-{{- if .Values.postgresql.enabled -}}{{ include "postgresql.primaryServiceName" .Subcharts.postgresql }}{{- else -}}{{ .Values.database.host }}{{- end -}}
+{{- if .Values.postgresql.enabled -}}{{ include "postgresql.primaryServiceName" .Subcharts.postgresql }}{{- else if .Values.mysql.enabled -}}{{ include "mysql.sourceServiceName" .Subcharts.mysql }}{{- else if .Values.mariadb.enabled -}}{{ include "mariadb.sourceServiceName" .Subcharts.mariadb }}{{- else -}}{{ .Values.database.host }}{{- end -}}
 {{- end -}}
-{{- define "moodle.dbName" -}}{{ if .Values.postgresql.enabled }}{{ .Values.postgresql.auth.database }}{{ else }}{{ .Values.database.name }}{{ end }}{{- end -}}
-{{- define "moodle.dbUser" -}}{{ if .Values.postgresql.enabled }}{{ .Values.postgresql.auth.username }}{{ else }}{{ .Values.database.username }}{{ end }}{{- end -}}
-{{- define "moodle.dbSecret" -}}{{ if .Values.postgresql.enabled }}{{ include "postgresql.secretName" .Subcharts.postgresql }}{{ else }}{{ .Values.database.existingSecret }}{{ end }}{{- end -}}
-{{- define "moodle.dbKey" -}}{{ if .Values.postgresql.enabled }}{{ .Values.postgresql.auth.existingSecretUserPasswordKey }}{{ else }}{{ .Values.database.existingSecretPasswordKey }}{{ end }}{{- end -}}
+{{- define "moodle.dbBundled" -}}{{ if or .Values.postgresql.enabled .Values.mysql.enabled .Values.mariadb.enabled }}true{{ end }}{{- end -}}
+{{- define "moodle.dbPort" -}}
+{{- if .Values.postgresql.enabled }}{{ .Subcharts.postgresql.Values.service.port }}{{ else if .Values.mysql.enabled }}{{ .Subcharts.mysql.Values.service.port }}{{ else if .Values.mariadb.enabled }}{{ .Subcharts.mariadb.Values.service.port }}{{ else }}{{ default (ternary 5432 3306 (eq .Values.database.type "postgresql")) .Values.database.port }}{{ end -}}
+{{- end -}}
+{{- define "moodle.dbName" -}}{{ if include "moodle.dbBundled" . }}{{ (index .Values .Values.database.type).auth.database }}{{ else }}{{ .Values.database.name }}{{ end }}{{- end -}}
+{{- define "moodle.dbUser" -}}{{ if include "moodle.dbBundled" . }}{{ (index .Values .Values.database.type).auth.username }}{{ else }}{{ .Values.database.username }}{{ end }}{{- end -}}
+{{- define "moodle.dbSecret" -}}{{ if include "moodle.dbBundled" . }}{{ include (printf "%s.secretName" .Values.database.type) (index .Subcharts .Values.database.type) }}{{ else }}{{ .Values.database.existingSecret }}{{ end }}{{- end -}}
+{{- define "moodle.dbKey" -}}{{ if include "moodle.dbBundled" . }}{{ (index .Values .Values.database.type).auth.existingSecretUserPasswordKey }}{{ else }}{{ .Values.database.existingSecretPasswordKey }}{{ end }}{{- end -}}
 {{- define "moodle.redisHost" -}}{{ if .Values.redis.enabled }}{{ include "redis.clientServiceName" .Subcharts.redis }}{{ else }}{{ .Values.sessions.host }}{{ end }}{{- end -}}
 {{- define "moodle.redisSecret" -}}{{ if .Values.redis.enabled }}{{ include "redis.secretName" .Subcharts.redis }}{{ else }}{{ .Values.sessions.existingSecret }}{{ end }}{{- end -}}
 {{- define "moodle.redisKey" -}}{{ if .Values.redis.enabled }}{{ .Values.redis.auth.existingSecretPasswordKey }}{{ else }}{{ .Values.sessions.existingSecretPasswordKey }}{{ end }}{{- end -}}
 {{- define "moodle.externalSecretName" -}}{{ if .item.fullnameOverride }}{{ .item.fullnameOverride }}{{ else if .item.name }}{{ include "moodle.nameWithSuffix" (dict "base" (include "moodle.fullname" .root) "suffix" (printf "-%s" .item.name)) }}{{ else }}{{ include "moodle.secretName" .root }}{{ end }}{{- end -}}
 {{- define "moodle.httpRouteName" -}}{{ default (include "moodle.fullname" .root) .route.name }}{{- end -}}
 {{- define "moodle.validate" -}}
+{{- $enabled := 0 -}}
+{{- range $engine := list "postgresql" "mysql" "mariadb" -}}
+{{- if (index $.Values $engine).enabled -}}
+{{- $enabled = add $enabled 1 -}}
+{{- if ne $.Values.database.type $engine }}{{ fail (printf "%s.enabled requires database.type=%s and other database subcharts disabled" $engine $engine) }}{{ end -}}
+{{- if eq (include "moodle.fullname" $) (include (printf "%s.fullname" $engine) (index $.Subcharts $engine)) }}{{ fail (printf "Moodle and bundled %s resource names collide; set %s.fullnameOverride to a distinct name" $engine $engine) }}{{ end -}}
+{{- end -}}
+{{- end -}}
+{{- if gt $enabled 1 }}{{ fail "Enable only one database subchart" }}{{ end -}}
 {{- if and .Values.metrics.prometheusRule.enabled (not .Values.metrics.serviceMonitor.enabled) }}{{ fail "metrics.prometheusRule.enabled requires metrics.serviceMonitor.enabled=true" }}{{ end -}}
 {{- if and .Values.metrics.serviceMonitor.enabled (not .Values.metrics.enabled) }}{{ fail "metrics.serviceMonitor.enabled requires metrics.enabled=true" }}{{ end -}}
 {{- if and .Values.ingress.enabled (empty .Values.ingress.hosts) }}{{ fail "ingress.hosts must contain at least one host when ingress.enabled=true" }}{{ end -}}
@@ -50,8 +63,8 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 {{- if and .Values.externalSecrets.enabled (empty .Values.externalSecrets.items) }}{{ fail "externalSecrets.items must contain at least one item when externalSecrets.enabled=true" }}{{ end -}}
 {{- if and .Values.gatewayAPI.enabled (empty .Values.gatewayAPI.httpRoutes) }}{{ fail "gatewayAPI.httpRoutes must not be empty" }}{{ end -}}
-{{- if not .Values.postgresql.enabled -}}
-{{- if or (empty .Values.database.host) (empty .Values.database.existingSecret) }}{{ fail "External PostgreSQL requires database.host and database.existingSecret" }}{{ end -}}
+{{- if not (include "moodle.dbBundled" .) -}}
+{{- if or (empty .Values.database.host) (empty .Values.database.existingSecret) }}{{ fail "External database requires database.host and database.existingSecret" }}{{ end -}}
 {{- end -}}
 {{- if and .Values.sessions.enabled (not .Values.redis.enabled) (empty .Values.sessions.host) }}{{ fail "Redis sessions require redis.enabled or sessions.host" }}{{ end -}}
 {{- if and .Values.redis.enabled (or (not .Values.sessions.enabled) (ne .Values.redis.architecture "standalone")) }}{{ fail "Bundled Redis requires sessions.enabled=true and redis.architecture=standalone" }}{{ end -}}
@@ -60,6 +73,7 @@ app.kubernetes.io/part-of: helmforge
 {{- end -}}
 {{- if and .Values.pdb.enabled (not .Values.autoscaling.enabled) (lt (int .Values.replicaCount) 2) }}{{ fail "pdb.enabled requires multiple replicas" }}{{ end -}}
 {{- if and .Values.moodle.sslProxy (not (hasPrefix "https://" .Values.moodle.wwwroot)) }}{{ fail "moodle.sslProxy requires an HTTPS moodle.wwwroot" }}{{ end -}}
-{{- if and (hasPrefix "verify-" .Values.database.sslMode) (empty .Values.database.tlsSecret) }}{{ fail "Verified PostgreSQL TLS requires database.tlsSecret" }}{{ end -}}
+{{- if and (eq .Values.database.type "postgresql") (hasPrefix "verify-" .Values.database.sslMode) (empty .Values.database.tlsSecret) }}{{ fail "Verified PostgreSQL TLS requires database.tlsSecret" }}{{ end -}}
+{{- if and (ne .Values.database.type "postgresql") (eq .Values.database.mysqlSslMode "verify-full") (empty .Values.database.tlsSecret) }}{{ fail "Verified MySQL/MariaDB TLS requires database.tlsSecret" }}{{ end -}}
 {{- if and (eq .Values.source.mode "archive") (empty .Values.source.sha256) }}{{ fail "source.sha256 is required for archive mode" }}{{ end -}}
 {{- end -}}

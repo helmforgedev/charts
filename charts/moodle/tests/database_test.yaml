@@ -1,0 +1,133 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: database selection and credentials
+templates:
+  - templates/deployment.yaml
+  - templates/configmap.yaml
+  - templates/networkpolicy.yaml
+  - templates/validate.yaml
+tests:
+  - it: preserves the default PostgreSQL endpoint and credentials
+    template: templates/deployment.yaml
+    asserts:
+      - equal: {path: "spec.template.spec.containers[0].env[1].value", value: "5432"}
+      - equal: {path: "spec.template.spec.containers[0].env[4].valueFrom.secretKeyRef.key", value: user-password}
+  - it: selects the MySQL writable service with an existing secret
+    template: templates/deployment.yaml
+    set:
+      database.type: mysql
+      postgresql.enabled: false
+      mysql.enabled: true
+      mysql.fullnameOverride: learning-mysql
+      mysql.architecture: replication
+      mysql.auth.existingSecret: mysql-auth
+      mysql.auth.existingSecretUserPasswordKey: app-password
+    asserts:
+      - equal: {path: "spec.template.spec.containers[0].env[0].value", value: learning-mysql-source}
+      - equal: {path: "spec.template.spec.containers[0].env[1].value", value: "3306"}
+      - equal: {path: "spec.template.spec.containers[0].env[4].valueFrom.secretKeyRef.name", value: mysql-auth}
+      - equal: {path: "spec.template.spec.containers[0].env[4].valueFrom.secretKeyRef.key", value: app-password}
+  - it: selects MariaDB with subchart names and application credentials
+    template: templates/deployment.yaml
+    set:
+      database.type: mariadb
+      postgresql.enabled: false
+      mariadb.enabled: true
+      mariadb.fullnameOverride: learning-mariadb
+      mariadb.auth.username: educator
+    asserts:
+      - equal: {path: "spec.template.spec.containers[0].env[0].value", value: learning-mariadb}
+      - equal: {path: "spec.template.spec.containers[0].env[1].value", value: "3306"}
+      - equal: {path: "spec.template.spec.containers[0].env[3].value", value: educator}
+      - equal: {path: "spec.template.spec.containers[0].env[4].valueFrom.secretKeyRef.key", value: mariadb-user-password}
+  - it: accepts an external MySQL custom port and secret key
+    template: templates/deployment.yaml
+    set:
+      database.type: mysql
+      postgresql.enabled: false
+      database.host: mysql.example.com
+      database.port: 3307
+      database.existingSecret: db-auth
+      database.existingSecretPasswordKey: db-password
+    asserts:
+      - equal: {path: "spec.template.spec.containers[0].env[0].value", value: mysql.example.com}
+      - equal: {path: "spec.template.spec.containers[0].env[1].value", value: "3307"}
+      - equal: {path: "spec.template.spec.containers[0].env[4].valueFrom.secretKeyRef.key", value: db-password}
+  - it: defaults external MariaDB to port 3306
+    template: templates/deployment.yaml
+    set:
+      database.type: mariadb
+      postgresql.enabled: false
+      database.host: mariadb.example.com
+      database.existingSecret: db-auth
+    asserts:
+      - equal: {path: "spec.template.spec.containers[0].env[1].value", value: "3306"}
+  - it: rejects a database subchart that does not match the selected driver
+    template: templates/validate.yaml
+    set:
+      database.type: mysql
+      mysql.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: postgresql.enabled requires database.type=postgresql and other database subcharts disabled
+  - it: requires external credentials when every database subchart is disabled
+    template: templates/validate.yaml
+    set:
+      database.type: mariadb
+      postgresql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: External database requires database.host and database.existingSecret
+  - it: rejects verified MySQL TLS without a CA secret
+    template: templates/validate.yaml
+    set:
+      database.type: mysql
+      database.mysqlSslMode: verify-full
+      postgresql.enabled: false
+      mysql.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: Verified MySQL/MariaDB TLS requires database.tlsSecret
+  - it: follows the bundled database listener port in network policy
+    template: templates/networkpolicy.yaml
+    set:
+      database.type: mysql
+      postgresql.enabled: false
+      mysql.enabled: true
+      mysql.nameOverride: learning-db
+      mysql.service.port: 3307
+      networkPolicy.enabled: true
+    asserts:
+      - equal: {path: "spec.egress[2].ports[0].port", value: 3307}
+      - equal: {path: "spec.egress[2].to[0].podSelector.matchLabels['app.kubernetes.io/name']", value: learning-db}
+  - it: rejects colliding MySQL and application resource names
+    template: templates/validate.yaml
+    release:
+      name: moodle-mysql
+    set:
+      database.type: mysql
+      postgresql.enabled: false
+      mysql.enabled: true
+      mysql.fullnameOverride: moodle-mysql
+    asserts:
+      - failedTemplate:
+          errorMessage: Moodle and bundled mysql resource names collide; set mysql.fullnameOverride to a distinct name
+  - it: rejects colliding MariaDB and application resource names
+    template: templates/validate.yaml
+    release:
+      name: moodle-mariadb
+    set:
+      database.type: mariadb
+      postgresql.enabled: false
+      mariadb.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: Moodle and bundled mariadb resource names collide; set mariadb.fullnameOverride to a distinct name
+  - it: rejects colliding PostgreSQL and application resource names
+    template: templates/validate.yaml
+    release:
+      name: moodle-postgresql
+    set:
+      postgresql.fullnameOverride: moodle-postgresql
+    asserts:
+      - failedTemplate:
+          errorMessage: Moodle and bundled postgresql resource names collide; set postgresql.fullnameOverride to a distinct name

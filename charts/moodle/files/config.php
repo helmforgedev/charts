@@ -4,17 +4,25 @@ unset($CFG);
 $CFG = new stdClass();
 $settings = json_decode(file_get_contents('/opt/helmforge/settings.json'), true, 512, JSON_THROW_ON_ERROR);
 $app = $settings['moodle'];
-$CFG->dbtype = 'pgsql';
+$CFG->dbtype = ['postgresql' => 'pgsql', 'mysql' => 'mysqli', 'mariadb' => 'mariadb'][$settings['database']['type']];
 $CFG->dblibrary = 'native';
 $CFG->dbhost = getenv('DB_HOST');
 $CFG->dbname = getenv('DB_NAME');
 $CFG->dbuser = getenv('DB_USER');
 $CFG->dbpass = getenv('DB_PASSWORD');
 $CFG->prefix = $settings['database']['prefix'];
-$CFG->dboptions = ['dbpersist' => false, 'dbport' => (int)getenv('DB_PORT'), 'dbsocket' => false,
-    'ssl' => $settings['database']['sslMode']];
-if ($settings['database']['tlsSecret'] !== '') {
-    $CFG->dboptions['sslrootcert'] = '/opt/database-tls/ca.crt';
+$CFG->dboptions = ['dbpersist' => false, 'dbport' => (int)getenv('DB_PORT'), 'dbsocket' => false];
+if ($settings['database']['type'] === 'postgresql') {
+    $CFG->dboptions['ssl'] = $settings['database']['sslMode'];
+    if ($settings['database']['tlsSecret'] !== '') {
+        $CFG->dboptions['sslrootcert'] = '/opt/database-tls/ca.crt';
+    }
+} else {
+    $CFG->dboptions['dbcollation'] = $settings['database']['collation'];
+    $CFG->dboptions['connecttimeout'] = 5;
+    if ($settings['database']['mysqlSslMode'] !== 'disable') {
+        $CFG->dboptions['ssl'] = $settings['database']['mysqlSslMode'];
+    }
 }
 $CFG->wwwroot = $app['wwwroot'];
 $CFG->dataroot = '/var/moodledata';
@@ -28,7 +36,8 @@ $CFG->cookiehttponly = true;
 $CFG->disableupdateautodeploy = $app['disableUpdateAutodeploy'];
 $CFG->noemailever = $app['noEmailEver'];
 $CFG->timezone = $app['timezone'];
-$CFG->lock_factory = '\\core\\lock\\postgres_lock_factory';
+$CFG->lock_factory = $settings['database']['type'] === 'postgresql'
+    ? '\\core\\lock\\postgres_lock_factory' : '\\core\\lock\\mysql_lock_factory';
 $CFG->debug = 0;
 $CFG->debugdisplay = false;
 if ($settings['sessions']['enabled']) {

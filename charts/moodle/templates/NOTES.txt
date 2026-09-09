@@ -61,15 +61,18 @@ Inspect first installation:
   kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "moodle.fullname" . }} -c prepare-code
   kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "moodle.fullname" . }} -c install-database
 
-The installer uses PostgreSQL locking and refuses to erase existing data.
+The installer uses database advisory locking and refuses to erase existing data.
 Database/code version mismatches require the explicit maintenance procedure.
 
 4. Storage and database
 =======================
-PostgreSQL host: {{ include "moodle.dbHost" . }}
+Database engine: {{ .Values.database.type }}
+Database deployment: {{ ternary "HelmForge subchart" "external" (not (empty (include "moodle.dbBundled" .))) }}
+Database host: {{ include "moodle.dbHost" . }}
+Database port: {{ include "moodle.dbPort" . }}
 Database: {{ include "moodle.dbName" . }}
 Database credentials Secret: {{ include "moodle.dbSecret" . }}
-PostgreSQL TLS mode: {{ .Values.database.sslMode }}
+Database TLS mode: {{ ternary .Values.database.sslMode .Values.database.mysqlSslMode (eq .Values.database.type "postgresql") }}
 Persistence: {{ ternary "enabled" "disabled" .Values.persistence.enabled }}
 {{- if .Values.persistence.enabled }}
 Data PVC: {{ include "moodle.dataClaim" . }}
