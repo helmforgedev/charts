@@ -3,7 +3,7 @@
 **Chart:** `matterbridge`
 **Issue:** helmforgedev/charts#1077
 **Initial chart version:** `1.0.0`
-**Application version:** `3.10.7`
+**Application version:** `3.10.8`
 **Maturity:** stable
 **Complexity:** medium
 
@@ -20,7 +20,7 @@ advanced pod-network users can add a UDP Service and CNI/reflector integration.
 
 ### P1-1: Stable Official Runtime
 
-- Pin `docker.io/luligu/matterbridge:3.10.7`.
+- Pin `docker.io/luligu/matterbridge:3.10.8`.
 - Configure frontend port 8283 and Matter base port 5540.
 - Preserve the upstream `matterbridge --docker` command contract.
 - Support an optional profile and additional CLI arguments.
@@ -151,7 +151,7 @@ Optional Matter Service (UDP range for portable mode)
 
 ## Validation Strategy
 
-1. `make image-verify IMAGE=docker.io/luligu/matterbridge:3.10.7`.
+1. `make image-verify IMAGE=docker.io/luligu/matterbridge:3.10.8`.
 2. `make deps-check CHART=matterbridge` (expected: no dependencies).
 3. `make validate-chart CHART=matterbridge` for the full static and k3d gate.
 4. `make standards-check CHART=matterbridge` and template standards check.
