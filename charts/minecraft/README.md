@@ -257,8 +257,16 @@ Spigot servers, provide the platform-specific Floodgate plugin through
 
 ## Upgrade Notes
 
-`docker.io/itzg/minecraft-server:2026.8.2` fixes Modrinth packs that require
-server-side mods, corrects `STOP_SERVER_DELAY_COMMAND`, and updates the bundled
+The 2026.9.0 image stops startup after failed custom-server, BuildTools, Sponge,
+modpack or FTB installer downloads instead of continuing with incomplete artifacts.
+It also rejects archive path traversal, fixes Forge/NeoForge reinstall defaults,
+FTB Fabric detection, percentage-memory arithmetic and CurseForge pruning.
+Confirm modpack downloads and installer success before rolling out. The dated
+image pins the container distribution, not the game: pin `server.version`
+separately to keep an image update from downloading a newer Minecraft release.
+
+Earlier image releases fixed Modrinth packs that require
+server-side mods, corrected `STOP_SERVER_DELAY_COMMAND`, and updated the bundled
 Minecraft helper tools. It retains native `PREFER_IPv6` and custom
 `SERVER_RUNNER` support. Configure the
 first two features with `server.preferIPv6` and `server.runner`.
