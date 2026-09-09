@@ -37,11 +37,13 @@ helm install heimdall oci://ghcr.io/helmforgedev/helm/heimdall
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **72.72727%** |
+| MITRE + NSA + SOC2 | **72.73%** |
 
 > Security posture acceptable with operator-provided resource limits, security contexts, and network policy.
 
 ## Configuration
+
+Set a non-empty `image.repository` and `image.tag`; the chart rejects empty values before creating a workload.
 
 ### Minimal
 
