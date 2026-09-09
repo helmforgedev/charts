@@ -5,7 +5,7 @@
 Helm chart for deploying [Homarr](https://homarr.dev/) modern application dashboard on Kubernetes using the official
 [`ghcr.io/homarr-labs/homarr`](https://github.com/homarr-labs/homarr/pkgs/container/homarr) container image.
 
-Current application version: `v1.76.2`.
+Current application version: `v1.77.0`.
 
 ## Features
 
@@ -173,7 +173,7 @@ backup:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `ghcr.io/homarr-labs/homarr` | Container image repository |
-| `image.tag` | `"v1.76.2"` | Homarr image tag |
+| `image.tag` | `"v1.77.0"` | Homarr image tag |
 | `replicaCount` | `1` | Number of replicas |
 | `homarr.logLevel` | `info` | Log level |
 | `homarr.authProviders` | `credentials` | Auth providers (credentials, ldap, oidc) |
@@ -265,12 +265,12 @@ writable and does not force a non-root UID or dropped capabilities by default. O
 
 ## Upgrade Notes
 
-This update moves the default image to `v1.76.2`. Review the
-[upstream v1.76.2 release](https://github.com/homarr-labs/homarr/releases/tag/v1.76.2)
-before upgrading production environments. Homarr `v1.76.1` and `v1.76.2`
-contain documentation, user-interface, and maintenance fixes. No breaking
-changes or new required environment variables were identified in the upstream
-release metadata.
+This update moves the default image to `v1.77.0`. Review the
+[upstream v1.77.0 release](https://github.com/homarr-labs/homarr/releases/tag/v1.77.0)
+before upgrading production environments. The comparison from `v1.76.2` contains
+translation and documentation updates plus an announcement of the separate v2 beta.
+The chart remains on stable v1. No database, storage, port, or required environment
+variable changes were identified in the upstream comparison.
 
 For PostgreSQL and MySQL, the chart sets `DB_DIALECT`, `DB_DRIVER`, and discrete database environment variables instead of
 rendering a full `DB_URL`; this avoids requiring URL-encoded passwords in Kubernetes Secrets.
@@ -311,9 +311,9 @@ kubectl logs -l app.kubernetes.io/name=homarr -n <namespace> --all-containers --
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **86.580086%** |
+| MITRE + NSA + SOC2 | **84.85%** |
 
-> ✅ Security posture acceptable.
+Security posture acceptable. Validated with Kubescape 4.0.13 against the rendered default manifests.
 
 <!-- @AI-METADATA
 type: chart-readme
