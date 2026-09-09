@@ -1,7 +1,7 @@
 # changedetection.io Chart Design
 
 This chart packages changedetection.io as a practical single-instance
-Kubernetes workload with persistent SQLite storage and optional browser
+Kubernetes workload with persistent JSON datastore and optional browser
 rendering.
 
 ## Architecture
@@ -22,7 +22,7 @@ User or automation
 ## Design Choices
 
 - The workload is a `Deployment` with one replica and `Recreate` strategy
-  because changedetection.io stores runtime state in SQLite under
+  because changedetection.io stores runtime state in JSON files under
   `/datastore`.
 - Persistence is enabled by default so watches, history, and snapshots survive
   upgrades and pod rescheduling.
@@ -46,7 +46,7 @@ state and temporary files.
 
 ## Non-Goals
 
-- Horizontal scaling is not supported while upstream uses SQLite for runtime
+- Horizontal scaling is not supported while upstream uses a file-based datastore for runtime
   state.
 - The chart does not manage notification provider credentials directly. Use
   Kubernetes Secrets or External Secrets Operator.
