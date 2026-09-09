@@ -26,6 +26,7 @@ app.kubernetes.io/part-of: helmforge
 {{- else -}}{{ default "default" .Values.serviceAccount.name }}{{- end -}}
 {{- end -}}
 {{- define "moodle.image" -}}{{ printf "%s:%s@%s" .Values.image.repository .Values.image.tag .Values.image.digest }}{{- end -}}
+{{- define "moodle.metricsSecret" -}}{{ default (include "moodle.nameWithSuffix" (dict "base" (include "moodle.fullname" .) "suffix" "-metrics")) .Values.metrics.existingSecret }}{{- end -}}
 {{- define "moodle.secretName" -}}{{ default (include "moodle.nameWithSuffix" (dict "base" (include "moodle.fullname" .) "suffix" "-admin")) .Values.moodle.existingSecret }}{{- end -}}
 {{- define "moodle.dataClaim" -}}{{ default (include "moodle.nameWithSuffix" (dict "base" (include "moodle.fullname" .) "suffix" "-data")) .Values.persistence.existingClaim }}{{- end -}}
 {{- define "moodle.dbHost" -}}
@@ -41,6 +42,8 @@ app.kubernetes.io/part-of: helmforge
 {{- define "moodle.externalSecretName" -}}{{ if .item.fullnameOverride }}{{ .item.fullnameOverride }}{{ else if .item.name }}{{ include "moodle.nameWithSuffix" (dict "base" (include "moodle.fullname" .root) "suffix" (printf "-%s" .item.name)) }}{{ else }}{{ include "moodle.secretName" .root }}{{ end }}{{- end -}}
 {{- define "moodle.httpRouteName" -}}{{ default (include "moodle.fullname" .root) .route.name }}{{- end -}}
 {{- define "moodle.validate" -}}
+{{- if and .Values.metrics.prometheusRule.enabled (not .Values.metrics.serviceMonitor.enabled) }}{{ fail "metrics.prometheusRule.enabled requires metrics.serviceMonitor.enabled=true" }}{{ end -}}
+{{- if and .Values.metrics.serviceMonitor.enabled (not .Values.metrics.enabled) }}{{ fail "metrics.serviceMonitor.enabled requires metrics.enabled=true" }}{{ end -}}
 {{- if and .Values.ingress.enabled (empty .Values.ingress.hosts) }}{{ fail "ingress.hosts must contain at least one host when ingress.enabled=true" }}{{ end -}}
 {{- range $labels := list .Values.podLabels .Values.commonLabels -}}
 {{- if or (hasKey $labels "app.kubernetes.io/name") (hasKey $labels "app.kubernetes.io/instance") }}{{ fail "podLabels and commonLabels must not override selector labels" }}{{ end -}}

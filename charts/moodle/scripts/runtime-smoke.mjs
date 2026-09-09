@@ -18,6 +18,16 @@ for(const pod of web) {
   const settings=JSON.parse(config.data['settings.json']);
   const credentials=JSON.stringify({username:settings.moodle.adminUser,password:Buffer.from(secret.data[ref.key],'base64').toString('utf8')});
   process.stdout.write(runWithInput(credentials,'exec','-i',name,'-c','moodle','--','php','/opt/helmforge/smoke.php',service.metadata.name,String(service.spec.ports.find(p=>p.name==='http').port)));
+  if(settings.metrics.enabled) {
+    const metricsService=services.find(s=>s.metadata.labels?.['app.kubernetes.io/component']==='metrics');
+    const allServices=JSON.parse(k('get','services','-o','json')).items;
+    const monitor=allServices.find(s=>s.metadata.name==='moodle-monitor');
+    if(!metricsService) throw new Error('Metrics Service is missing');
+    process.stdout.write(execFileSync('kubectl',['--context',context,'--namespace',namespace,
+      'exec',name,'-c','moodle','--','php','/opt/helmforge/metrics-smoke.php',metricsService.metadata.name,
+      `${service.metadata.name}:${service.spec.ports.find(p=>p.name==='http').port}`,...(monitor?['moodle-monitor']:[])],
+      {encoding:'utf8',timeout:240000,maxBuffer:4*1024*1024}));
+  }
   if(pod.spec.containers.some(c=>c.name==='cron')) {
     let completed=false;
     for(let attempt=0;attempt<15;attempt++) {

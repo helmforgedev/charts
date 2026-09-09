@@ -84,6 +84,14 @@ spec:
               value: {{ .Values.source.imagePath | quote }}
             - name: DOWNLOAD_TIMEOUT
               value: {{ .Values.source.downloadTimeout | quote }}
+            - name: METRICS_ENABLED
+              value: {{ .Values.metrics.enabled | quote }}
+            - name: METRICS_PLUGIN_MODE
+              value: {{ .Values.metrics.plugin.mode | quote }}
+            - name: METRICS_PLUGIN_URL
+              value: {{ .Values.metrics.plugin.url | quote }}
+            - name: METRICS_PLUGIN_SHA256
+              value: {{ .Values.metrics.plugin.sha256 | quote }}
           volumeMounts:
             - name: code
               mountPath: /var/www/html
@@ -132,6 +140,11 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+            {{- if .Values.metrics.enabled }}
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+            {{- end }}
           startupProbe:
             httpGet: {path: /healthz.php, port: http}
             periodSeconds: 5
@@ -177,6 +190,15 @@ spec:
         {{- end }}
         {{- end }}
       volumes:
+        {{- if .Values.metrics.enabled }}
+        - name: metrics-token
+          secret:
+            secretName: {{ include "moodle.metricsSecret" . }}
+            defaultMode: 0440
+            items:
+              - key: {{ .Values.metrics.existingSecretTokenKey }}
+                path: token
+        {{- end }}
         - name: code
           emptyDir: {}
         - name: data

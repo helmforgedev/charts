@@ -23,6 +23,12 @@ limits and local temporary directories.
 - Cron shares the web pod so the default RWO data volume is safe. Moodle's
   database locks coordinate parallel cron processes across replicas.
 - Redis sessions are optional and separate from administrator-managed MUC caches.
+- Optional tool_monitoring code is pinned and checksum-verified. Its bearer token
+  is Secret-mounted and its endpoint is confined to a private Apache listener.
+  ServiceMonitor discovery and PrometheusRule evaluation use Prometheus Operator.
+- Monitoring plugin schema changes follow the same explicit maintenance lifecycle
+  as Moodle core. Replicated exporters report global counts, requiring replica
+  deduplication before aggregation.
 - Multiple replicas/HPA require shared writable data and Redis sessions.
 - Database backups alone are not full-site backups. The chart provides a
   coordinated backup/restore runbook and does not advertise automated site backup.

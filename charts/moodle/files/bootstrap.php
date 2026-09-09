@@ -40,4 +40,11 @@ if (!$result || pg_num_rows($result) !== 1 || (float)pg_fetch_result($result, 0,
     fwrite(STDERR, "Moodle database/code version mismatch. Follow the documented maintenance upgrade or restore procedure; automatic upgrades are disabled.\n"); exit(1);
 }
 echo "Moodle database is installed and matches the immutable code version\n";
+require '/opt/helmforge/metrics-check.php';
+moodle_check_metrics($db);
+if ($settings['metrics']['enabled']) {
+    $process = proc_open([PHP_BINARY, '/opt/helmforge/metrics-configure.php'],
+        [0 => ['file', '/dev/null', 'r'], 1 => STDOUT, 2 => STDERR], $pipes);
+    if (!is_resource($process) || proc_close($process) !== 0) { exit(1); }
+}
 pg_close($db);

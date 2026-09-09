@@ -1,0 +1,87 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: authenticated application metrics
+templates:
+  - templates/service-metrics.yaml
+  - templates/servicemonitor.yaml
+  - templates/secret-metrics.yaml
+  - templates/prometheusrule.yaml
+  - templates/deployment.yaml
+  - templates/configmap.yaml
+  - templates/validate.yaml
+tests:
+  - it: omits metrics resources by default
+    templates:
+      - templates/service-metrics.yaml
+      - templates/servicemonitor.yaml
+      - templates/secret-metrics.yaml
+      - templates/prometheusrule.yaml
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: requires an enabled endpoint for the ServiceMonitor
+    set:
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: metrics.serviceMonitor.enabled requires metrics.enabled=true
+    template: templates/validate.yaml
+  - it: creates a ClusterIP metrics service using a separate port
+    set:
+      metrics.enabled: true
+    asserts:
+      - equal: {path: "spec.type", value: ClusterIP}
+      - equal: {path: "spec.ports[0].port", value: 9090}
+      - equal: {path: "spec.ports[0].targetPort", value: metrics}
+    template: templates/service-metrics.yaml
+  - it: mounts a custom token Secret without putting its value in the environment
+    set:
+      metrics.enabled: true
+      metrics.existingSecret: monitoring-auth
+      metrics.existingSecretTokenKey: bearer
+    asserts:
+      - equal: {path: "spec.template.spec.volumes[0].secret.secretName", value: monitoring-auth}
+      - equal: {path: "spec.template.spec.volumes[0].secret.items[0].key", value: bearer}
+      - equal: {path: "spec.template.spec.containers[0].volumeMounts[0].readOnly", value: true}
+    template: templates/deployment.yaml
+  - it: does not generate a Secret when an existing one is selected
+    set:
+      metrics.enabled: true
+      metrics.existingSecret: monitoring-auth
+    asserts:
+      - hasDocuments: {count: 0}
+    template: templates/secret-metrics.yaml
+  - it: configures authenticated discovery and user labels
+    set:
+      metrics.enabled: true
+      metrics.existingSecret: monitoring-auth
+      metrics.existingSecretTokenKey: bearer
+      metrics.serviceMonitor.enabled: true
+      metrics.serviceMonitor.labels.release: monitoring
+      metrics.serviceMonitor.interval: 1m
+      metrics.serviceMonitor.scrapeTimeout: 15s
+    asserts:
+      - equal: {path: "spec.endpoints[0].authorization.credentials.name", value: monitoring-auth}
+      - equal: {path: "spec.endpoints[0].authorization.credentials.key", value: bearer}
+      - equal: {path: "spec.endpoints[0].path", value: /r.php/monitoringexporter_prometheus/metrics}
+      - equal: {path: "spec.endpoints[0].interval", value: 1m}
+      - equal: {path: "metadata.labels.release", value: monitoring}
+    template: templates/servicemonitor.yaml
+  - it: avoids task alerts when the task metric is disabled
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+      metrics.prometheusRule.enabled: true
+      metrics.enabledMetrics: [courses]
+    asserts:
+      - lengthEqual: {path: "spec.groups[0].rules", count: 1}
+      - equal: {path: "spec.groups[0].rules[0].alert", value: MoodleMetricsUnavailable}
+    template: templates/prometheusrule.yaml
+  - it: adds task alerts with their own duration
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+      metrics.prometheusRule.enabled: true
+      metrics.prometheusRule.overdueTasksFor: 30m
+    asserts:
+      - equal: {path: "spec.groups[0].rules[1].alert", value: MoodleTasksOverdue}
+      - equal: {path: "spec.groups[0].rules[1].for", value: 30m}
+    template: templates/prometheusrule.yaml

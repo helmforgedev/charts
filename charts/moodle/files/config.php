@@ -53,4 +53,20 @@ if ($settings['smtp']['hosts'] !== '') {
 }
 $CFG->noreplyaddress = $settings['smtp']['noReplyAddress'];
 require '/opt/helmforge/extra-config.php';
+if ($settings['metrics']['enabled']) {
+    $token = trim(file_get_contents('/opt/metrics-auth/token'));
+    if ($token === '') { throw new RuntimeException('Metrics token must not be empty'); }
+    $CFG->forced_plugin_settings['monitoringexporter_prometheus']['prometheus_token'] = $token;
+    // Prometheus connects to pod IPs on the private listener. Present Moodle's
+    // canonical origin internally so its routing does not redirect the scrape.
+    // SERVER_PORT is supplied by Apache, not a forwarded client header.
+    if (($_SERVER['SERVER_PORT'] ?? '') === '9090') {
+        $origin = parse_url($CFG->wwwroot);
+        $_SERVER['HTTP_HOST'] = $origin['host'] . (isset($origin['port']) ? ':' . $origin['port'] : '');
+        $_SERVER['SERVER_NAME'] = $origin['host'];
+        $_SERVER['SERVER_PORT'] = (string)($origin['port'] ?? ($origin['scheme'] === 'https' ? 443 : 80));
+        $_SERVER['HTTPS'] = $origin['scheme'] === 'https' ? 'on' : 'off';
+        $CFG->reverseproxy = false;
+    }
+}
 require_once(__DIR__ . '/lib/setup.php');

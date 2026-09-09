@@ -19,6 +19,7 @@ verified before extraction. MoodleHQ's image supplies the runtime, not the LMS.
 - Persistent Moodledata and fail-fast shared-storage requirements for scaling.
 - Ingress, Gateway API, dual-stack Services, NetworkPolicy, HPA and PDB.
 - Existing Secrets, canonical External Secrets integration and SMTP configuration.
+- Authenticated Moodle metrics, isolated listener, ServiceMonitor and alert rules.
 - Complete backup/restore, upgrade, immutable plugin and Bitnami migration guides.
 
 ## Install
@@ -124,6 +125,7 @@ a Kubernetes configuration assessment, not an image vulnerability scan.
 - [production](docs/production.md)
 - [backup-restore](docs/backup-restore.md)
 - [troubleshooting](docs/troubleshooting.md)
+- [observability](docs/observability.md)
 
 ## Complete values reference
 
@@ -353,6 +355,32 @@ Explicit maintenance window; stops web/task pods before running an operator-requ
 | `maintenance.runId` | `manual-1` | Unique operation identifier. Change for each operation to create a new Job. |
 | `maintenance.action` | `checks` | Upstream CLI operation: upgrade, checks, purge-caches, enable, or disable. |
 | `maintenance.activeDeadlineSeconds` | `1800` | Maximum execution time; unsuccessful upgrades stay in maintenance. |
+
+### metrics
+
+Optional authenticated Moodle application metrics through tool_monitoring.
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `metrics.enabled` | `false` | Install/configure the plugin and expose a private metrics listener. |
+| `metrics.existingSecret` | `""` | Existing Secret containing the bearer token; empty generates a retained Secret. |
+| `metrics.existingSecretTokenKey` | `token` | Key containing a nonempty token in the metrics Secret. |
+| `metrics.plugin.mode` | `archive` | archive downloads pinned source; image requires the plugin in the application image. |
+| `metrics.plugin.url` | `https://codeload.github.com/daniil-berg/moodle-tool_monitoring/tar.gz/23c45f66b6c3ed409b0749017b3387c1744016cc` | Immutable upstream tool_monitoring 1.1.0 archive. |
+| `metrics.plugin.sha256` | `dc7a5256e93e10b0514fcb752767e2554b7aa0cd24e8c8d74e54c33b358028e1` | SHA-256 checked before extracting plugin code. |
+| `metrics.enabledMetrics` | `["courses","overdue_tasks","quiz_attempts_in_progress","user_accounts","users_online"]` | Helm-managed built-ins; administrators manage custom metrics. |
+| `metrics.serviceMonitor.enabled` | `false` | Create an authenticated ServiceMonitor for the private metrics Service. |
+| `metrics.serviceMonitor.labels` | `{}` | Labels matching the Prometheus serviceMonitorSelector. |
+| `metrics.serviceMonitor.annotations` | `{}` | Extra ServiceMonitor annotations. |
+| `metrics.serviceMonitor.interval` | `60s` | Scrape interval; metrics query Moodle's database. |
+| `metrics.serviceMonitor.scrapeTimeout` | `20s` | Per-scrape timeout, lower than interval. |
+| `metrics.serviceMonitor.relabelings` | `[]` | Target relabeling rules. |
+| `metrics.serviceMonitor.metricRelabelings` | `[]` | Metric relabeling rules; avoid summing global Moodle counts across web replicas. |
+| `metrics.ingressFrom` | `[]` | Allowed metrics clients when NetworkPolicy is enabled; empty permits any client on port 9090. |
+| `metrics.prometheusRule.enabled` | `false` | Create scrape availability and persistent overdue-task alerts; requires ServiceMonitor. |
+| `metrics.prometheusRule.labels` | `{}` | Labels matching the Prometheus ruleSelector. |
+| `metrics.prometheusRule.unavailableFor` | `5m` | How long all scrape targets must be missing or down before alerting. |
+| `metrics.prometheusRule.overdueTasksFor` | `15m` | How long overdue tasks must remain present before alerting. |
 
 ### smtp
 
@@ -585,4 +613,4 @@ Network isolation; additional external endpoints use explicit extraEgress rules.
 - [Moodle documentation](https://docs.moodle.org/502/en/Main_page)
 - [PostgreSQL](../postgresql/README.md)
 - [Redis](../redis/README.md)
-- [Research](../../new-charts-requests/moodle/RESEARCH.md)
+- [Research](docs/research.md)

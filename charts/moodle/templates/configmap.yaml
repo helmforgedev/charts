@@ -7,7 +7,7 @@ metadata:
     {{- include "moodle.labels" . | nindent 4 }}
 data:
   settings.json: |
-    {{- dict "moodle" (omit .Values.moodle "adminPassword" "extraConfig" "extraEnv" "extraEnvFrom") "database" .Values.database "sessions" .Values.sessions "smtp" .Values.smtp | toPrettyJson | nindent 4 }}
+    {{- dict "moodle" (omit .Values.moodle "adminPassword" "extraConfig" "extraEnv" "extraEnvFrom") "database" .Values.database "sessions" .Values.sessions "smtp" .Values.smtp "metrics" .Values.metrics | toPrettyJson | nindent 4 }}
   extra-config.php: |
     <?php
     // SPDX-License-Identifier: Apache-2.0
@@ -39,6 +39,9 @@ data:
     DefaultRuntimeDir /tmp
     Mutex file:/tmp default
     Listen 8080
+    {{- if .Values.metrics.enabled }}
+    Listen 9090
+    {{- end }}
     IncludeOptional /etc/apache2/mods-enabled/*.load
     IncludeOptional /etc/apache2/mods-enabled/*.conf
     User www-data
@@ -80,6 +83,19 @@ data:
         Require all granted
       </FilesMatch>
     </Directory>
+    {{- if .Values.metrics.enabled }}
+    <LocationMatch "^/(r.php/)?monitoringexporter_prometheus/">
+      Require all denied
+    </LocationMatch>
+    <VirtualHost *:9090>
+      <Location />
+        Require all denied
+      </Location>
+      <LocationMatch "^/r.php/monitoringexporter_prometheus/metrics$">
+        Require all granted
+      </LocationMatch>
+    </VirtualHost>
+    {{- end }}
   prepare.sh: |
     {{- .Files.Get "files/prepare.sh" | nindent 4 }}
   config.php: |
@@ -88,6 +104,12 @@ data:
     {{- .Files.Get "files/database.php" | nindent 4 }}
   bootstrap.php: |
     {{- .Files.Get "files/bootstrap.php" | nindent 4 }}
+  metrics-check.php: |
+    {{- .Files.Get "files/metrics-check.php" | nindent 4 }}
+  metrics-configure.php: |
+    {{- .Files.Get "files/metrics-configure.php" | nindent 4 }}
+  metrics-smoke.php: |
+    {{- .Files.Get "files/metrics-smoke.php" | nindent 4 }}
   maintenance.php: |
     {{- .Files.Get "files/maintenance.php" | nindent 4 }}
   runner.sh: |
@@ -113,6 +135,8 @@ data:
         if (!$result || (float)pg_fetch_result($result, 0, 0) !== (float)$version) {
             throw new RuntimeException('Database version does not match code');
         }
+        require '/opt/helmforge/metrics-check.php';
+        moodle_check_metrics($db);
         if (is_file('/var/moodledata/climaintenance.html')) {
             http_response_code(503);
             echo "maintenance\n";

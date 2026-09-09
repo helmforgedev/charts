@@ -60,7 +60,23 @@ Redis session storage is distinct from MUC cache mapping. Core PostgreSQL locks
 coordinate tasks; the chart must not invent a Redis lock factory. Reverseproxy
 defaults false because ordinary host-preserving Ingress does not require it.
 
-## Operational risks
+## Prometheus integration
+
+The selected integration is
+[tool_monitoring](https://github.com/daniil-berg/moodle-tool_monitoring), release
+1.1.0, pinned to commit `23c45f66b6c3ed409b0749017b3387c1744016cc`.
+Its Moodle-native metrics manager supports the chart's PostgreSQL deployment
+and its Prometheus exporter supports bearer authentication. The chart isolates
+the endpoint on a dedicated listener and supplies a ServiceMonitor and optional
+PrometheusRule. See [observability](observability.md) for the lifecycle contract.
+
+[SysBind moodle_exporter](https://github.com/SysBind/moodle_exporter) was also
+evaluated; its database discovery and fixed PostgreSQL port/table-prefix
+assumptions do not match this chart's configurable connection contract.
+[ATComputing moodledb-exporter](https://github.com/atcomputing/moodledb-exporter)
+targets MySQL, while this chart supports PostgreSQL. Neither exporter is bundled.
+
+## Artifact and infrastructure risks
 
 Archive preparation requires HTTPS egress and adds startup latency. An immutable
 operator-built image is needed for offline operation or additional plugins.

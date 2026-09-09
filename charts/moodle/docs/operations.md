@@ -50,6 +50,11 @@ A PostgreSQL advisory lock serializes installation across replicas. The lock is
 held while the upstream `install_database.php` runs. It is released when the
 connection closes, including abnormal termination.
 
+`database.connectTimeout` bounds the combined wait for database connectivity and
+the installer lock. Size it for the complete first installation when starting
+multiple replicas together. The HA example uses 600 seconds; allow a longer
+Helm timeout, such as `--timeout 15m`, for downloads and schema creation.
+
 Installation creates schema only when the Moodle configuration table is absent.
 It never drops existing tables. A partial installation fails for administrator
 inspection rather than trying to erase and recreate a database.

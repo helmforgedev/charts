@@ -20,6 +20,7 @@ switch ($action) {
         cli([$dir . 'maintenance.php', '--enable']);
         cli([$dir . 'upgrade.php', '--non-interactive']);
         cli([$dir . 'purge_caches.php']);
+        cli(['/opt/helmforge/metrics-configure.php']);
         echo "Upgrade completed; maintenance remains enabled until explicitly disabled.\n";
         break;
     case 'checks': cli([$dir . 'checks.php']); break;

@@ -215,6 +215,52 @@ maintenance:
   action: checks
   # -- Maximum execution time; unsuccessful upgrades stay in maintenance.
   activeDeadlineSeconds: 1800
+# -- Optional authenticated Moodle application metrics through tool_monitoring.
+metrics:
+  # -- Install/configure the plugin and expose a private metrics listener.
+  enabled: false
+  # -- Existing Secret containing the bearer token; empty generates a retained Secret.
+  existingSecret: ""
+  # -- Key containing a nonempty token in the metrics Secret.
+  existingSecretTokenKey: token
+  # -- Upstream plugin distribution; keep installed plugins through maintenance operations.
+  plugin:
+    # -- archive downloads pinned source; image requires the plugin in the application image.
+    mode: archive
+    # -- Immutable upstream tool_monitoring 1.1.0 archive.
+    url: https://codeload.github.com/daniil-berg/moodle-tool_monitoring/tar.gz/23c45f66b6c3ed409b0749017b3387c1744016cc
+    # -- SHA-256 checked before extracting plugin code.
+    sha256: dc7a5256e93e10b0514fcb752767e2554b7aa0cd24e8c8d74e54c33b358028e1
+  # -- Built-in metrics managed by Helm; custom plugin metrics remain administrator-managed.
+  enabledMetrics: [courses, overdue_tasks, quiz_attempts_in_progress, user_accounts, users_online]
+  # -- Prometheus Operator discovery; requires its CRDs and an existing Prometheus instance.
+  serviceMonitor:
+    # -- Create an authenticated ServiceMonitor for the private metrics Service.
+    enabled: false
+    # -- Labels matching the Prometheus serviceMonitorSelector.
+    labels: {}
+    # -- Extra ServiceMonitor annotations.
+    annotations: {}
+    # -- Scrape interval; metrics query Moodle's database.
+    interval: 60s
+    # -- Per-scrape timeout, lower than interval.
+    scrapeTimeout: 20s
+    # -- Target relabeling rules.
+    relabelings: []
+    # -- Metric relabeling rules; avoid summing global Moodle counts across web replicas.
+    metricRelabelings: []
+  # -- Allowed metrics clients when NetworkPolicy is enabled; empty permits any client on port 9090.
+  ingressFrom: []
+  # -- Optional alerts evaluated by an existing Prometheus Operator stack.
+  prometheusRule:
+    # -- Create scrape availability and persistent overdue-task alerts; requires ServiceMonitor.
+    enabled: false
+    # -- Labels matching the Prometheus ruleSelector.
+    labels: {}
+    # -- How long all scrape targets must be missing or down before alerting.
+    unavailableFor: 5m
+    # -- How long overdue tasks must remain present before alerting.
+    overdueTasksFor: 15m
 # -- Outbound SMTP settings.
 smtp:
   # -- SMTP server hostname with optional port, for example smtp.example.com:587.

@@ -40,6 +40,11 @@
 {{- end }}
 {{- end -}}
 {{- define "moodle.mounts" -}}
+{{- if .Values.metrics.enabled }}
+- name: metrics-token
+  mountPath: /opt/metrics-auth
+  readOnly: true
+{{- end }}
 - name: code
   mountPath: /var/www/html
   readOnly: true
