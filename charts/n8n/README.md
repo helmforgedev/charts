@@ -150,14 +150,14 @@ externalSecrets:
 | `n8n.diagnosticsEnabled` | `false` | Share anonymous diagnostics with n8n |
 | `n8n.gracefulShutdownTimeout` | `60` | Graceful shutdown timeout in seconds for main and workers |
 | `database.mode` | `auto` | Database mode (auto, sqlite, external, postgresql) |
-| `postgresql.enabled` | `false` | Deploy PostgreSQL subchart (`helmforge/postgresql` `2.0.4`) |
+| `postgresql.enabled` | `false` | Deploy PostgreSQL subchart (`helmforge/postgresql` `2.0.5`) |
 | `postgresql.initdb.scripts` | n8n extension bootstrap | Creates PostgreSQL extensions required by n8n migrations |
 | `queue.enabled` | `false` | Enable queue mode (requires Redis and a non-SQLite database) |
 | `queue.workers` | `1` | Number of worker replicas |
 | `queue.concurrency` | `10` | Concurrent workflows per worker |
 | `queue.persistence.shareMainVolume` | `true` | Mount the main n8n data PVC into worker pods |
 | `terminationGracePeriodSeconds` | `75` | Kubernetes pod shutdown grace period |
-| `redis.enabled` | `false` | Deploy Redis subchart (`helmforge/redis` `2.0.0`) |
+| `redis.enabled` | `false` | Deploy Redis subchart (`helmforge/redis` `2.0.1`) |
 | `taskRunners.mode` | `external` | Task runner mode (`internal` or `external`) |
 | `taskRunners.image.repository` | `docker.io/n8nio/runners` | External task runner sidecar image repository |
 | `taskRunners.image.tag` | `""` | External task runner sidecar tag (defaults to `image.tag`) |
