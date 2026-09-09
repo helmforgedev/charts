@@ -108,7 +108,7 @@ designation. It changes the default text-index disk format to v2 and updates
 aggregation, constraint handling, query correctness and merge behavior. Test
 existing table engines and application queries, take a verified backup, and
 plan rollback before allowing a new version to write production data.
-Operators that coordinate mixed-version replicas must review text_index_version
+Operators that coordinate mixed-version replicas must review text_index_serialization_version
 compatibility before enabling the new format; this chart remains standalone.
 The experimental disk-backed Keeper feature is not enabled by this chart.
 See the [official 26.8 presentation](https://presentations.clickhouse.com/2026-release-26.8/)
