@@ -6,7 +6,7 @@ Self-hosted backend-as-a-service platform for web, mobile, and Flutter developer
 
 - Appwrite API server, console, and realtime WebSocket service
 - Side-effect-free API health probes using `/v1/health/version`
-- 12 background workers for audits, webhooks, deletes, databases, builds, certificates, functions, mails, messaging, migrations, and stats
+- 15 background workers for jobs, screenshots, executions, notifications, webhooks, deletes, databases, builds, certificates, functions, mails, messaging, migrations, and stats
 - Schedulers for functions, messages, and executions
 - Maintenance task for automated housekeeping
 - MariaDB subchart (HelmForge) or external database
@@ -39,9 +39,9 @@ This chart deploys Appwrite as multiple Kubernetes Deployments, each running a d
 | Component | Entrypoint | Replicas |
 |-----------|-----------|----------|
 | API | `app/http.php` | Configurable |
-| Console | `appwrite/console` image | 1 |
+| Console | `appwrite/new` image | 1 |
 | Realtime | `app/realtime.php` | Configurable |
-| Workers (12) | `app/worker.php` | Configurable per worker |
+| Workers (15) | `app/worker.php` | Configurable per worker |
 | Schedulers (3) | `app/tasks.php` | 1 each |
 | Maintenance | `app/tasks.php maintenance` | 1 |
 
@@ -60,9 +60,9 @@ When ingress is enabled, requests are routed by path:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/appwrite/appwrite` | Appwrite server image |
-| `image.tag` | `1.9.6` | Image tag |
-| `console.image.repository` | `docker.io/appwrite/console` | Console image |
-| `console.image.tag` | `8.7.38` | Console image tag |
+| `image.tag` | `2.0.0` | Image tag |
+| `console.image.repository` | `docker.io/appwrite/new` | Console image |
+| `console.image.tag` | `1.1.16` | Console image tag |
 | `appwrite.locale` | `en` | Application locale |
 | `appwrite.domain` | `""` (auto-detected) | Appwrite domain |
 | `appwrite.openSslKeyV1` | `""` (auto-generated) | 64-char hex encryption key |
@@ -79,12 +79,32 @@ See [`values.yaml`](values.yaml) for the full configuration reference.
 
 ## Upgrade Notes
 
-Appwrite 1.9.6 repairs missing Functions and Sites Git-provider attributes left
-by upgrades from 1.9.5 and makes migration batches idempotent. After
-`helm upgrade`, run the Appwrite migrate command against an Appwrite API pod
-before returning production traffic to the release, for example with
-`kubectl exec deploy/<release>-appwrite-api -- appwrite migrate` adjusted to the
-release name and namespace.
+### Appwrite 2.0.0
+
+Back up MariaDB, all shared PVCs and the application Secret before upgrading from
+1.9.x. Keep traffic paused during the upgrade and migration. This chart retains
+MariaDB explicitly; the upstream installer's new PostgreSQL default does not move
+existing data between engines.
+
+Use `helm upgrade --reset-then-reuse-values` (or explicitly set the new image tag),
+then run `kubectl exec -n <namespace> deploy/<release>-appwrite-api -c api -- migrate`.
+Verify the API, worker logs and existing projects before restoring traffic. For
+rollback, restore the database, volumes, Secret and matching old images together.
+
+Console IV uses `appwrite/new:1.1.16` on port 3000 with the API on the same origin;
+the console Service still exposes port 80. `worker-audits` was removed upstream:
+set `workers.audits.enabled=false` in retained values. Jobs, screenshots,
+executions and notifications now have separate worker toggles, alongside the
+remaining workers. Disabled workers do not process their respective queues.
+
+Generated encryption and JWT Secret entries are retained on upgrade. Supplying a
+new `appwrite.openSslKeyV1` overrides the retained key and requires an application
+key-rotation procedure; it is not an automatic data re-encryption mechanism.
+
+DocumentsDB, VectorsDB, embeddings and execution-log dual writes remain disabled.
+This chart does not provision the extra engines, embedding server, executor or
+orchestrator needed for those features and Functions/Sites execution. Provision
+and configure those dependencies separately before opting in through extraEnv.
 
 ## External Database
 
@@ -129,7 +149,7 @@ cache:
 
 ## Workers
 
-All 12 workers are enabled by default. Disable unused workers to save resources:
+All 15 workers are enabled by default. Disable unused workers to save resources:
 
 ```yaml
 workers:
@@ -146,13 +166,13 @@ workers:
 - [Standalone with ingress](examples/standalone.yaml)
 - [External database](examples/external-database.yaml)
 
-### 🟢 Security Scan: `appwrite`
+### Security Scan: `appwrite`
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **79.31097%** |
+| MITRE + NSA + SOC2 | **79.50%** |
 
-> ✅ Security posture acceptable.
+Kubescape v4.0.13; default manifests including MariaDB and Redis.
 
 <!-- @AI-METADATA
 type: chart-readme

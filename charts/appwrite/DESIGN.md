@@ -12,7 +12,7 @@ companion deployments the platform needs:
 - **api** — the HTTP API (port 80) and the entrypoint clients talk to.
 - **realtime** — websocket pub/sub for live updates.
 - **console** — the admin web UI.
-- **workers** — a set of background workers (audits, builds, certificates,
+- **workers** — a set of background workers (jobs, screenshots, executions, notifications, builds, certificates,
   databases, deletes, functions, mails, messaging, migrations, webhooks, ...).
 - **scheduler / maintenance** — periodic and housekeeping tasks.
 
