@@ -220,9 +220,10 @@ Apache access logs and PHP errors go to stdout/stderr. Collect cron and worker
 logs independently. Monitor database availability, PVC utilization, PHP process
 memory, request latency, queue age and scheduled-task failures.
 
-The chart does not invent a native Prometheus endpoint for Moodle. Use your
-existing Kubernetes and PostgreSQL monitoring and an explicitly selected Moodle
-monitoring plugin if application metrics are required.
+Enable `metrics.enabled` for authenticated application metrics through the
+pinned `tool_monitoring` plugin. See the [observability guide](observability.md)
+for its private listener, ServiceMonitor and optional PrometheusRule. Continue
+using Kubernetes and PostgreSQL monitoring for infrastructure signals.
 
 The bundled behavioral smoke checks health bodies, a rendered login form,
 private-path protection and filesystem permissions:
