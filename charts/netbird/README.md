@@ -4,7 +4,7 @@ Deploy [NetBird](https://github.com/netbirdio/netbird), a self-hosted WireGuard 
 
 This chart packages the current upstream combined architecture:
 
-- `netbirdio/netbird-server:0.77.1` for the management API, gRPC endpoint, signal, relay, metrics, health, and UDP STUN service
+- `netbirdio/netbird-server:0.78.1` for the management API, gRPC endpoint, signal, relay, metrics, health, and UDP STUN service
 - `netbirdio/dashboard:v2.90.10` for the web UI
 - a generated or externally supplied `config.yaml`
 - HelmForge PostgreSQL subchart as the default production store
@@ -105,30 +105,32 @@ SQLite remains available for lab installs with `database.mode=sqlite` and
 
 Use `externalSecrets.items[]` to synchronize sensitive values such as `config.yaml`, owner bootstrap credentials, OIDC client secrets, or database credentials from an external secret store.
 
-## Security Scan
+### Security Scan: `netbird`
 
-Local security scan:
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **86.87%** |
 
-```text
-Image: netbirdio/netbird-server:0.77.1
-Image: netbirdio/dashboard:v2.90.10
-Scanner: Kubescape v4.0.9, frameworks MITRE, NSA, SOC2
-Result: 86.86869 compliance score
-```
+Rendered-manifest scan using Kubescape 4.0.13.
 
 The local scan reported no critical failures and an overall score above the
 repository security gate. Remaining findings are tracked as hardening trade-offs
 for optional NetworkPolicy enablement, upstream dashboard startup model, and
 operator-owned resource limit tuning across the database-backed topology.
 
-## Upgrade to 0.77.1
+## Upgrade to 0.78.1
 
-NetBird `0.77.1` fixes Linux session extension and SSH authentication, rejects
-unsupported one-off setup-key limits, and skips unnecessary store migrations
-for PostgreSQL deployments. The chart's combined server image keeps management,
-signal, relay, and proxy components on the same version. Review the
-[upstream 0.77.1 release](https://github.com/netbirdio/netbird/releases/tag/v0.77.1)
-before upgrading.
+NetBird `0.78.1` includes the 0.78.0 Go/QUIC updates, embedded proxy Rosenpass
+support in permissive mode, lazy proxy connections and the SQLite network-map
+fix for peer-based routers. Review both the
+[0.78.0 release](https://github.com/netbirdio/netbird/releases/tag/v0.78.0) and
+[0.78.1 release](https://github.com/netbirdio/netbird/releases/tag/v0.78.1).
+
+Remote debug jobs now require an explicit opt-in on the peer
+(`--allow-remote-jobs` or managed `allowRemoteJobs`). The chart does not enable
+remote jobs on clients. To opt out of the proxy's new Rosenpass behavior, supply
+`NB_PROXY_ROSENPASS=false` through `server.env`. Test real peers, routes and
+reverse-proxy services in staging before upgrading production.
 
 Back up the configured database and `/var/lib/netbird`, then apply the new chart
 defaults while preserving your explicit overrides:
@@ -141,8 +143,14 @@ helm upgrade netbird helmforge/netbird \
 ```
 
 Using `--reuse-values` alone retains the previous default image tag. Remove any
-explicit `server.image.tag` override if you want the chart default `0.77.1`.
+explicit `server.image.tag` override if you want the chart default `0.78.1`.
 
+The combined server's port-9000 `/health` endpoint checks the advertised public
+relay address and standalone listener list. It can return 503 in a private
+installation even while the multiplexed API and relay are serving requests.
+Use API authentication, OIDC discovery, relay connectivity and metrics for local
+smoke checks; validate public relay reachability separately in the deployed
+network. The chart's existing TCP probe policy is unchanged.
 ## Validation
 
 ```bash
