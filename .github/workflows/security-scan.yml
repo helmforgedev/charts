@@ -69,10 +69,11 @@ jobs:
 
       - name: Install Kubescape
         run: |
-          KUBESCAPE_VERSION="4.0.9"
+          KUBESCAPE_VERSION="4.0.13"
           curl -fsSL \
             -o /tmp/kubescape.tar.gz \
             "https://github.com/kubescape/kubescape/releases/download/v${KUBESCAPE_VERSION}/kubescape_${KUBESCAPE_VERSION}_linux_amd64.tar.gz"
+          echo "2dd928aeb16c138688ba5caf549297698e81feddcd06cc0f052f40c88ad094fa  /tmp/kubescape.tar.gz" | sha256sum --check
           tar -xzf /tmp/kubescape.tar.gz -C /tmp kubescape
           install -m 0755 /tmp/kubescape /usr/local/bin/kubescape
           kubescape version
@@ -109,9 +110,9 @@ jobs:
           echo "applicable=true" >> "$GITHUB_OUTPUT"
 
           kubescape scan framework "MITRE,NSA,SOC2" "$RENDERED" \
-            --format json -o "$REPORT" || true
+            --format json -o "$REPORT"
 
-          SCORE=$(jq '.summaryDetails.complianceScore // 0' "$REPORT" 2>/dev/null || echo "0")
+          SCORE=$(jq -ers 'select(length == 1) | .[0].summaryDetails.complianceScore | select(type == "number" and . >= 0 and . <= 100)' "$REPORT")
           # Use floor truncation (not round) so 49.6 doesn't pass a 50-minimum gate
           SCORE_INT=$(echo "$SCORE" | awk '{print int($1)}')
 

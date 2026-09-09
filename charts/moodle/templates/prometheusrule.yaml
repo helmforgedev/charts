@@ -1,0 +1,39 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and .Values.metrics.enabled .Values.metrics.prometheusRule.enabled }}
+{{- $service := include "moodle.nameWithSuffix" (dict "base" (include "moodle.fullname" .) "suffix" "-metrics") }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "moodle.fullname" . }}
+  labels:
+    {{- include "moodle.labels" . | nindent 4 }}
+    {{- with .Values.metrics.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: {{ include "moodle.fullname" . }}.application
+      rules:
+        - alert: MoodleMetricsUnavailable
+          expr: |
+            absent(up{namespace={{ .Release.Namespace | quote }},service={{ $service | quote }}}) or max(up{namespace={{ .Release.Namespace | quote }},service={{ $service | quote }}}) == 0
+          for: {{ .Values.metrics.prometheusRule.unavailableFor }}
+          labels:
+            severity: warning
+            namespace: {{ .Release.Namespace }}
+            service: {{ $service }}
+          annotations:
+            summary: Moodle application metrics are unavailable
+            description: Check the monitoring plugin, bearer token, network policy and Prometheus discovery.
+        {{- if has "overdue_tasks" .Values.metrics.enabledMetrics }}
+        - alert: MoodleTasksOverdue
+          expr: |
+            max by (namespace, service, type) (tool_monitoring_overdue_tasks{namespace={{ .Release.Namespace | quote }},service={{ $service | quote }}}) > 0
+          for: {{ .Values.metrics.prometheusRule.overdueTasksFor }}
+          labels:
+            severity: warning
+          annotations:
+            summary: Moodle tasks remain overdue
+            description: Inspect scheduled and ad-hoc workers, task failures and maintenance state.
+        {{- end }}
+{{- end }}

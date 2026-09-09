@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Moodle hpa
+templates:
+  - templates/*.yaml
+tests:
+  - it: disabled by default
+    asserts:
+      - hasDocuments:
+          count: 0
+    template: templates/hpa.yaml
+  - it: targets Moodle web deployment
+    set:
+      replicaCount: 2
+      persistence.accessModes:
+        - ReadWriteMany
+      sessions.enabled: true
+      sessions.host: redis.example.com
+      autoscaling.enabled: true
+    asserts:
+      - equal:
+          path: spec.scaleTargetRef.kind
+          value: Deployment
+      - equal:
+          path: spec.minReplicas
+          value: 2
+    template: templates/hpa.yaml

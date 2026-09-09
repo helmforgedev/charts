@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Moodle networkpolicy
+templates:
+  - templates/*.yaml
+tests:
+  - it: disabled by default
+    asserts:
+      - hasDocuments:
+          count: 0
+    template: templates/networkpolicy.yaml
+  - it: isolates ingress and egress
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - equal:
+          path: spec.policyTypes
+          value:
+            - Ingress
+            - Egress
+    template: templates/networkpolicy.yaml
+  - it: includes extra SMTP egress
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.extraEgress:
+        - ports:
+            - port: 587
+              protocol: TCP
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            ports:
+              - port: 587
+                protocol: TCP
+    template: templates/networkpolicy.yaml

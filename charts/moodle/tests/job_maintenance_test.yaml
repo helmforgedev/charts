@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Moodle job-maintenance
+templates:
+  - templates/*.yaml
+tests:
+  - it: does not run by default
+    asserts:
+      - hasDocuments:
+          count: 0
+    template: templates/job-maintenance.yaml
+  - it: runs only explicit lifecycle action
+    set:
+      maintenance.enabled: true
+      maintenance.action: upgrade
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value:
+            - php
+            - /opt/helmforge/maintenance.php
+            - upgrade
+      - equal:
+          path: spec.backoffLimit
+          value: 0
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: prepare-code
+    template: templates/job-maintenance.yaml

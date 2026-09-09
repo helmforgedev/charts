@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Moodle pdb
+templates:
+  - templates/*.yaml
+tests:
+  - it: disabled by default
+    asserts:
+      - hasDocuments:
+          count: 0
+    template: templates/pdb.yaml
+  - it: protects HA pods
+    set:
+      replicaCount: 2
+      persistence.accessModes:
+        - ReadWriteMany
+      sessions.enabled: true
+      sessions.host: redis.example.com
+      pdb.enabled: true
+    asserts:
+      - equal:
+          path: spec.minAvailable
+          value: 1
+    template: templates/pdb.yaml
