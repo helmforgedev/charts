@@ -1,0 +1,31 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.maintenance.enabled }}
+{{- $deployment := include (print $.Template.BasePath "/deployment.yaml") . | fromYaml }}
+{{- $pod := deepCopy $deployment.spec.template.spec }}
+{{- $_ := set $pod "restartPolicy" "Never" }}
+{{- $_ := set $pod "initContainers" (list (first $pod.initContainers)) }}
+{{- $container := deepCopy (first $pod.containers) }}
+{{- $_ := set $container "name" "maintenance" }}
+{{- $_ := set $container "command" (list "php" "/opt/helmforge/maintenance.php" .Values.maintenance.action) }}
+{{- $_ := set $container "resources" .Values.initResources }}
+{{- range list "ports" "startupProbe" "livenessProbe" "readinessProbe" }}
+{{- $_ := unset $container . }}
+{{- end }}
+{{- $_ := set $pod "containers" (list $container) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "moodle.nameWithSuffix" (dict "base" (include "moodle.fullname" .) "suffix" (printf "-maint-%s" .Values.maintenance.runId)) }}
+  labels:
+    {{- include "moodle.labels" . | nindent 4 }}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ .Values.maintenance.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ printf "%s-maintenance" (include "moodle.name" .) | quote }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      {{- toYaml $pod | nindent 6 }}
+{{- end }}

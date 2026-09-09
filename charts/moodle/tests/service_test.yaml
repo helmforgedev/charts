@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Moodle service
+templates:
+  - templates/*.yaml
+tests:
+  - it: omits unspecified IP family defaults
+    asserts:
+      - notExists:
+          path: spec.ipFamilyPolicy
+      - notExists:
+          path: spec.ipFamilies
+    template: templates/service.yaml
+  - it: renders SingleStack
+    set:
+      service.ipFamilyPolicy: SingleStack
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: SingleStack
+    template: templates/service.yaml
+  - it: renders PreferDualStack
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+    template: templates/service.yaml
+  - it: renders RequireDualStack
+    set:
+      service.ipFamilyPolicy: RequireDualStack
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: RequireDualStack
+    template: templates/service.yaml
+  - it: preserves IP family order
+    set:
+      service.ipFamilies:
+        - IPv6
+        - IPv4
+    asserts:
+      - equal:
+          path: spec.ipFamilies
+          value:
+            - IPv6
+            - IPv4
+    template: templates/service.yaml
+  - it: uses unprivileged named container target
+    set:
+      service.port: 8088
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 8088
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+    template: templates/service.yaml

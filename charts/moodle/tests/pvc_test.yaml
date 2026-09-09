@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Moodle pvc
+templates:
+  - templates/*.yaml
+tests:
+  - it: retains data on uninstall
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+    template: templates/pvc.yaml
+  - it: does not create existing claim
+    set:
+      persistence.existingClaim: existing
+    asserts:
+      - hasDocuments:
+          count: 0
+    template: templates/pvc.yaml
+  - it: can disable persistence for tests
+    set:
+      persistence.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+    template: templates/pvc.yaml
+  - it: allows explicit default-class opt out
+    set:
+      persistence.storageClass: '-'
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: ''
+    template: templates/pvc.yaml
+  - it: selects requested storage class
+    set:
+      persistence.storageClass: cephfs
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: cephfs
+    template: templates/pvc.yaml

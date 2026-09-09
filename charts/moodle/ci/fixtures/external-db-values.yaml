@@ -1,0 +1,79 @@
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: Service
+metadata:
+  name: moodle-external-db
+spec:
+  selector:
+    app: moodle-external-db
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: moodle-external-db
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: moodle-external-db
+  template:
+    metadata:
+      labels:
+        app: moodle-external-db
+        helmforge.dev/runtime-fixture: "true"
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      initContainers:
+        - name: prepare-tls
+          image: docker.io/library/postgres:18.6-trixie
+          command: [sh, -ec, 'cp /source/tls.crt /source/tls.key /tls/; chmod 600 /tls/tls.key']
+          volumeMounts:
+            - {name: tls-source, mountPath: /source, readOnly: true}
+            - {name: tls, mountPath: /tls}
+      containers:
+        - name: postgres
+          image: docker.io/library/postgres:18.6-trixie
+          args: [postgres, -c, ssl=on, -c, ssl_cert_file=/tls/tls.crt, -c, ssl_key_file=/tls/tls.key]
+          env:
+            - {name: POSTGRES_DB, value: moodle}
+            - {name: POSTGRES_USER, value: moodle}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: moodle-external-db, key: password}
+          readinessProbe:
+            exec:
+              command: [pg_isready, -h, 127.0.0.1, -U, moodle, -d, moodle]
+            periodSeconds: 3
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql}
+            - {name: tls, mountPath: /tls, readOnly: true}
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: tls
+          emptyDir: {}
+        - name: tls-source
+          secret:
+            secretName: moodle-external-db
+---
+# Public lab-only credentials and certificate; never use for production.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: moodle-external-db
+type: Opaque
+stringData:
+  password: MoodleFixture-2026!
+  tls.crt: "-----BEGIN CERTIFICATE-----\r\nMIIDOjCCAiKgAwIBAgIUaruYBK5W8gcix5rnbqjAq/yX7/kwDQYJKoZIhvcNAQEL\r\nBQAwHTEbMBkGA1UEAwwSbW9vZGxlLWV4dGVybmFsLWRiMB4XDTI2MDkwOTExNTgx\r\nNloXDTM2MDkwNjExNTgxNlowHTEbMBkGA1UEAwwSbW9vZGxlLWV4dGVybmFsLWRi\r\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsaS24VAlOQx+6PnjSFJ1\r\nrIYQFdZZIcR0whzNZqBop/EdKmcSg5gKw8YXOK44/xVzRAdZw4eWok8CZfPCiVdI\r\niQ/3Cf6YvAI2ZHHP1yOO+W6e7GeJmo1w01RI8iJ8fF4q4LLJjF4v1JLLObzziILa\r\nuPZp3QRH3wbIERQ21GurqZsk1Dr4h/L/QWxhOAU90EYt18mitZXQX4jnS8fj38bc\r\nWuWXfDouam7nfepCYh8I7CyPcuAYFMpXAY43TjMefyfIAeW2XMTnqt6XY2xNsIrT\r\nyr3dDmEtdy6woRQN8iFQSJd5r+bbpgZ5Mhs44YzzfnSVOLdb5Zh2vvY78ucwIpEy\r\nrwIDAQABo3IwcDAdBgNVHQ4EFgQUqTlAxkYS97I4L8SluSHbjxcwy3swHwYDVR0j\r\nBBgwFoAUqTlAxkYS97I4L8SluSHbjxcwy3swDwYDVR0TAQH/BAUwAwEB/zAdBgNV\r\nHREEFjAUghJtb29kbGUtZXh0ZXJuYWwtZGIwDQYJKoZIhvcNAQELBQADggEBAEs7\r\nVuDfTN5nECheW/o6wabtUGMawRBxk1r6d60S2c1gS1fX+0sxYxClm5iC6X64I7mr\r\nb/VQlOOmwNp9bITVnhP1tm2ZqLXb5zEdj8WrEyPWexG8vaD72sdKIRRdWqLitjPr\r\nKX6EtXAslSqMZIbN8KbrGQLJ+VNVzNei9dibz9TO6gydeOTc3gWGFNhFf9zTxj99\r\nTctK2HDwbvvreoNZxcPvmUxDysC2WI+VsfiLoF6C4OOJu7rQCGVHbYWh9uzfWpap\r\nkAOWEFcC5/+E4yMxwVFCx1XWC513qjb1Hi3KsQc2cB56QZXT5LtlNgwq5i8KFooe\r\nzFYMjOk7AYWMuWyW/34=\r\n-----END CERTIFICATE-----\r\n"
+  tls.key: "-----BEGIN PRIVATE KEY-----\r\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCxpLbhUCU5DH7o\r\n+eNIUnWshhAV1lkhxHTCHM1moGin8R0qZxKDmArDxhc4rjj/FXNEB1nDh5aiTwJl\r\n88KJV0iJD/cJ/pi8AjZkcc/XI475bp7sZ4majXDTVEjyInx8XirgssmMXi/Ukss5\r\nvPOIgtq49mndBEffBsgRFDbUa6upmyTUOviH8v9BbGE4BT3QRi3XyaK1ldBfiOdL\r\nx+Pfxtxa5Zd8Oi5qbud96kJiHwjsLI9y4BgUylcBjjdOMx5/J8gB5bZcxOeq3pdj\r\nbE2witPKvd0OYS13LrChFA3yIVBIl3mv5tumBnkyGzjhjPN+dJU4t1vlmHa+9jvy\r\n5zAikTKvAgMBAAECggEAU6a5y53e+V9N/810XqEd8pDq0C2wqTsGtEW134bX4YWj\r\n80y4JimZoBkO5Ez+X/gs4DMJ7Q5TO7ky6ul/iQcGDCztatJt/9KW5HPHqIqBECos\r\nQix7WsESCSHee88LidEaJddrG2Na6KH7ewPkNjtQXdsDfOVAJuDdo1U+gIb3PhUc\r\notcv5QTMAddx4uy0xarOEKecVrm0GYESZugVXIj2cgag8md7sQTKp8mF0W4l0xzl\r\nkSk7UoEq57avH3+bPPjub3LAjZ50Xn09YL7OF5cFIbBTDLlxgHNXDif3t/rKMEFz\r\nqhywP2CJE14FZplNoOi5TrFDQEXkhu0SO+y/5OlnEQKBgQDdwBgq6oie6MIZbEjv\r\nhAPfXnp3ofgNlzuuiN2DKCo0osKQyoRiLDFhJ4Rnxj4uzfJcvpmdflGRuGebsEkE\r\ne4ZDq1bu+SpJfYAq484c75BCUzB65yoyjHDW3Ii9spKhLbVVD+E4N4p/eRdbYfNk\r\n1j7MyLWo8zCEwWfbGM5WXVMqpwKBgQDNFKbXTVPOAz7AUqlNziyw+evwv/ds/9qE\r\nAgN3/zSkHGaoWheQoRUniNLB47DP40q1UiThCVLoXgzLXOPh4jdZ0D9kqgOaT+We\r\n/euHS4RYtHgImN9QYCdts4fJ/WxfmDYM3v8oJZqbKnXT0i59C2KiNaLvNz9ImC7h\r\nyQJMH5mguQKBgE7ikTZjLKrrPnFw1hluqzoBECwS0H11OWQDiFmqJimHZRPBF4sd\r\nEYvwVOfd3C0mUnuvylH+p+Hg6eq2saMIlmDoSQrGVMbEAJ5BYAdnKbiOg4aVSaul\r\nzlaBKZviNMtlyUYzWfl3uKtUVnzJwZ4zoS+UjxtFOBNiAiItFuoeVQGtAoGAILW7\r\nirmttT01RA2rLVrGLBAgvsyPlVYVr1p23SvaZJaXFSERgyL+MckT/JLpf678GoGY\r\nmkAXdjKSDdmqCzw+odeiVNb9Lh6yPDK532F/IXrfblebvsEnaMrqzJ/cKj8n19O1\r\nlNyylS8njfqHKbCoMcEmVMtWD6keSSr7b9LWeRkCgYEAkqnm+XDo9qXcDKGWnHOg\r\nqVsqFyeqHDDG0NY8o7k/E2B4aYmFl5JMm+c6fm817yqCU/9z/eJx4MWwn7k21CFZ\r\n6MA4M5AUhZTknSe2Bi3iaKtS1JQLnIVqYp7KxK4U5yUqqyhzIPguJo8vzKITPM5x\r\nuk6w8zsJYcwMJ6/CZEyC9sU=\r\n-----END PRIVATE KEY-----\r\n"
+  ca.crt: "-----BEGIN CERTIFICATE-----\r\nMIIDOjCCAiKgAwIBAgIUaruYBK5W8gcix5rnbqjAq/yX7/kwDQYJKoZIhvcNAQEL\r\nBQAwHTEbMBkGA1UEAwwSbW9vZGxlLWV4dGVybmFsLWRiMB4XDTI2MDkwOTExNTgx\r\nNloXDTM2MDkwNjExNTgxNlowHTEbMBkGA1UEAwwSbW9vZGxlLWV4dGVybmFsLWRi\r\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsaS24VAlOQx+6PnjSFJ1\r\nrIYQFdZZIcR0whzNZqBop/EdKmcSg5gKw8YXOK44/xVzRAdZw4eWok8CZfPCiVdI\r\niQ/3Cf6YvAI2ZHHP1yOO+W6e7GeJmo1w01RI8iJ8fF4q4LLJjF4v1JLLObzziILa\r\nuPZp3QRH3wbIERQ21GurqZsk1Dr4h/L/QWxhOAU90EYt18mitZXQX4jnS8fj38bc\r\nWuWXfDouam7nfepCYh8I7CyPcuAYFMpXAY43TjMefyfIAeW2XMTnqt6XY2xNsIrT\r\nyr3dDmEtdy6woRQN8iFQSJd5r+bbpgZ5Mhs44YzzfnSVOLdb5Zh2vvY78ucwIpEy\r\nrwIDAQABo3IwcDAdBgNVHQ4EFgQUqTlAxkYS97I4L8SluSHbjxcwy3swHwYDVR0j\r\nBBgwFoAUqTlAxkYS97I4L8SluSHbjxcwy3swDwYDVR0TAQH/BAUwAwEB/zAdBgNV\r\nHREEFjAUghJtb29kbGUtZXh0ZXJuYWwtZGIwDQYJKoZIhvcNAQELBQADggEBAEs7\r\nVuDfTN5nECheW/o6wabtUGMawRBxk1r6d60S2c1gS1fX+0sxYxClm5iC6X64I7mr\r\nb/VQlOOmwNp9bITVnhP1tm2ZqLXb5zEdj8WrEyPWexG8vaD72sdKIRRdWqLitjPr\r\nKX6EtXAslSqMZIbN8KbrGQLJ+VNVzNei9dibz9TO6gydeOTc3gWGFNhFf9zTxj99\r\nTctK2HDwbvvreoNZxcPvmUxDysC2WI+VsfiLoF6C4OOJu7rQCGVHbYWh9uzfWpap\r\nkAOWEFcC5/+E4yMxwVFCx1XWC513qjb1Hi3KsQc2cB56QZXT5LtlNgwq5i8KFooe\r\nzFYMjOk7AYWMuWyW/34=\r\n-----END CERTIFICATE-----\r\n"

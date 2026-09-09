@@ -1,0 +1,215 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "moodle.fullname" . }}
+  labels:
+    {{- include "moodle.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.maintenance.enabled }}
+  replicas: 0
+  {{- else if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  strategy:
+    {{- if has "ReadWriteMany" .Values.persistence.accessModes }}
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    {{- else }}
+    type: Recreate
+    {{- end }}
+  selector:
+    matchLabels:
+      {{- include "moodle.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "moodle.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "moodle.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      initContainers:
+        - name: prepare-code
+          image: {{ include "moodle.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [sh, /opt/helmforge/prepare.sh]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.initResources | nindent 12 }}
+          env:
+            - name: SOURCE_MODE
+              value: {{ .Values.source.mode | quote }}
+            - name: SOURCE_URL
+              value: {{ .Values.source.url | quote }}
+            - name: SOURCE_SHA256
+              value: {{ .Values.source.sha256 | quote }}
+            - name: SOURCE_IMAGE_PATH
+              value: {{ .Values.source.imagePath | quote }}
+            - name: DOWNLOAD_TIMEOUT
+              value: {{ .Values.source.downloadTimeout | quote }}
+          volumeMounts:
+            - name: code
+              mountPath: /var/www/html
+            - name: config
+              mountPath: /opt/helmforge
+              readOnly: true
+            - name: init-tmp
+              mountPath: /tmp
+        - name: install-database
+          image: {{ include "moodle.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [php, /opt/helmforge/bootstrap.php]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.initResources | nindent 12 }}
+          env:
+            {{- include "moodle.env" . | nindent 12 }}
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "moodle.secretName" . }}
+                  key: {{ .Values.moodle.existingSecretPasswordKey }}
+          {{- with .Values.moodle.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- include "moodle.mounts" . | nindent 12 }}
+            - name: init-tmp
+              mountPath: /tmp
+      containers:
+        - name: moodle
+          image: {{ include "moodle.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [apache2, -f, /opt/helmforge/apache.conf, -DFOREGROUND]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            {{- include "moodle.env" . | nindent 12 }}
+          {{- with .Values.moodle.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          startupProbe:
+            httpGet: {path: /healthz.php, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          livenessProbe:
+            httpGet: {path: /healthz.php, port: http}
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: {path: /readyz.php, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 8
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "moodle.mounts" . | nindent 12 }}
+            - name: web-tmp
+              mountPath: /tmp
+        {{- range $name := list "cron" "adhoc" }}
+        {{- $worker := index $.Values $name }}
+        {{- if $worker.enabled }}
+        - name: {{ $name }}
+          image: {{ include "moodle.image" $ | quote }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          command: [sh, /opt/helmforge/runner.sh, {{ $name | quote }}, {{ (get $worker "interval" | default (get $worker "keepAlive")) | quote }}]
+          securityContext:
+            {{- toYaml $.Values.securityContext | nindent 12 }}
+          env:
+            {{- include "moodle.env" $ | nindent 12 }}
+          {{- with $.Values.moodle.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml $worker.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "moodle.mounts" $ | nindent 12 }}
+            - name: {{ $name }}-tmp
+              mountPath: /tmp
+        {{- end }}
+        {{- end }}
+      volumes:
+        - name: code
+          emptyDir: {}
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "moodle.dataClaim" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: config
+          configMap:
+            name: {{ include "moodle.fullname" . }}
+            defaultMode: 0444
+        {{- range list "init" "web" "cron" "adhoc" }}
+        - name: {{ . }}-tmp
+          emptyDir: {}
+        {{- end }}
+        {{- if .Values.database.tlsSecret }}
+        - name: database-tls
+          secret:
+            secretName: {{ .Values.database.tlsSecret }}
+            items:
+              - key: {{ .Values.database.tlsCAKey }}
+                path: ca.crt
+        {{- end }}
+        {{- if .Values.sessions.tlsSecret }}
+        - name: redis-tls
+          secret:
+            secretName: {{ .Values.sessions.tlsSecret }}
+            items:
+              - key: {{ .Values.sessions.tlsCAKey }}
+                path: ca.crt
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}

@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Moodle ingress
+templates:
+  - templates/*.yaml
+tests:
+  - it: does not render by default
+    asserts:
+      - hasDocuments:
+          count: 0
+    template: templates/ingress.yaml
+  - it: omits empty class
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: learn.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - notExists:
+          path: spec.ingressClassName
+    template: templates/ingress.yaml
+  - it: sets explicit ingress class
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: learn.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+      ingress.ingressClassName: nginx
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+    template: templates/ingress.yaml

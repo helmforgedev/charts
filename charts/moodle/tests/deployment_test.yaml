@@ -1,0 +1,154 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Moodle deployment
+templates:
+  - templates/*.yaml
+tests:
+  - it: runs non-root without API token
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 33
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+    template: templates/deployment.yaml
+  - it: uses immutable official image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: >-
+            docker.io/moodlehq/moodle-php-apache:8.4-bookworm@sha256:922af51668352004b4255cdc1f726a63f0cee7c1354eaf66dd8d5f2c7cc379b5
+    template: templates/deployment.yaml
+  - it: separates verified code preparation from database installation
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: prepare-code
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: install-database
+    template: templates/deployment.yaml
+  - it: mounts code read-only in application
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].readOnly
+          value: true
+    template: templates/deployment.yaml
+  - it: recreates RWO deployments
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+    template: templates/deployment.yaml
+  - it: rolls safely with shared storage
+    set:
+      replicaCount: 2
+      persistence.accessModes:
+        - ReadWriteMany
+      sessions.enabled: true
+      sessions.host: redis.example.com
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+      - equal:
+          path: spec.strategy.rollingUpdate.maxUnavailable
+          value: 0
+    template: templates/deployment.yaml
+  - it: runs cron by default
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: cron
+    template: templates/deployment.yaml
+  - it: can suspend cron
+    set:
+      cron.enabled: false
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 1
+    template: templates/deployment.yaml
+  - it: supports dedicated adhoc worker
+    set:
+      adhoc.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[2].name
+          value: adhoc
+    template: templates/deployment.yaml
+  - it: uses database-aware readiness and independent liveness
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /readyz.php
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /healthz.php
+    template: templates/deployment.yaml
+  - it: propagates node selection
+    set:
+      nodeSelector.pool: learning
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector.pool
+          value: learning
+    template: templates/deployment.yaml
+  - it: omits empty scheduling fields
+    asserts:
+      - notExists:
+          path: spec.template.spec.nodeSelector
+      - notExists:
+          path: spec.template.spec.affinity
+      - notExists:
+          path: spec.template.spec.priorityClassName
+    template: templates/deployment.yaml
+  - it: uses external PostgreSQL credentials
+    set:
+      postgresql.enabled: false
+      database.host: db.example.com
+      database.existingSecret: db-auth
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[0].value
+          value: db.example.com
+      - equal:
+          path: spec.template.spec.containers[0].env[4].valueFrom.secretKeyRef.name
+          value: db-auth
+    template: templates/deployment.yaml
+  - it: reads bootstrap password only in installer
+    set:
+      moodle.existingSecret: admin-auth
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].env[5].valueFrom.secretKeyRef.name
+          value: admin-auth
+    template: templates/deployment.yaml
+  - it: supports existing shared claim
+    set:
+      persistence.existingClaim: school-data
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[1].persistentVolumeClaim.claimName
+          value: school-data
+    template: templates/deployment.yaml
+  - it: omits replicas with HPA
+    set:
+      replicaCount: 2
+      persistence.accessModes:
+        - ReadWriteMany
+      sessions.enabled: true
+      sessions.host: redis.example.com
+      autoscaling.enabled: true
+    asserts:
+      - notExists:
+          path: spec.replicas
+    template: templates/deployment.yaml
+  - it: stops web pods for maintenance
+    set:
+      maintenance.enabled: true
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 0
+    template: templates/deployment.yaml

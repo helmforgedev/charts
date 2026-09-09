@@ -1,0 +1,125 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "moodle.fullname" . }}
+  labels:
+    {{- include "moodle.labels" . | nindent 4 }}
+data:
+  settings.json: |
+    {{- dict "moodle" (omit .Values.moodle "adminPassword" "extraConfig" "extraEnv" "extraEnvFrom") "database" .Values.database "sessions" .Values.sessions "smtp" .Values.smtp | toPrettyJson | nindent 4 }}
+  extra-config.php: |
+    <?php
+    // SPDX-License-Identifier: Apache-2.0
+    {{- .Values.moodle.extraConfig | nindent 4 }}
+  php.ini: |
+    ; SPDX-License-Identifier: Apache-2.0
+    memory_limit={{ .Values.php.memoryLimit }}
+    upload_max_filesize={{ .Values.php.uploadMaxFilesize }}
+    post_max_size={{ .Values.php.postMaxSize }}
+    max_input_vars={{ .Values.php.maxInputVars }}
+    max_execution_time={{ .Values.php.maxExecutionTime }}
+    date.timezone={{ .Values.moodle.timezone }}
+    display_errors=Off
+    log_errors=On
+    error_log=/proc/self/fd/2
+    expose_php=Off
+    session.save_path=/tmp
+    opcache.enable=1
+    opcache.validate_timestamps=0
+    opcache.memory_consumption=128
+    apc.enable_cli=1
+    pcov.enabled=0
+    {{- .Values.php.extraIni | nindent 4 }}
+  apache.conf: |
+    # SPDX-License-Identifier: Apache-2.0
+    ServerRoot /etc/apache2
+    ServerName localhost
+    PidFile /tmp/apache.pid
+    DefaultRuntimeDir /tmp
+    Mutex file:/tmp default
+    Listen 8080
+    IncludeOptional /etc/apache2/mods-enabled/*.load
+    IncludeOptional /etc/apache2/mods-enabled/*.conf
+    User www-data
+    Group www-data
+    ServerTokens Prod
+    ServerSignature Off
+    TraceEnable Off
+    ErrorLog /proc/self/fd/2
+    LogLevel warn
+    LogFormat "%h %l %u %t \"%r\" %>s %b" common
+    CustomLog /proc/self/fd/1 common
+    TypesConfig /etc/mime.types
+    DirectoryIndex disabled
+    DirectoryIndex index.php
+    <FilesMatch "\.php$">
+      SetHandler application/x-httpd-php
+    </FilesMatch>
+    StartServers 2
+    MinSpareServers 1
+    MaxSpareServers 2
+    MaxRequestWorkers {{ .Values.apache.maxRequestWorkers }}
+    MaxConnectionsPerChild 1000
+    <Directory />
+      AllowOverride None
+      Require all denied
+    </Directory>
+    DocumentRoot /var/www/html/public
+    <Directory /var/www/html/public>
+      Options -Indexes +FollowSymLinks
+      AllowOverride None
+      Require all granted
+      FallbackResource /r.php
+    </Directory>
+    Alias /healthz.php /opt/helmforge/healthz.php
+    Alias /readyz.php /opt/helmforge/readyz.php
+    <Directory /opt/helmforge>
+      Require all denied
+      <FilesMatch "^(healthz|readyz)\.php$">
+        Require all granted
+      </FilesMatch>
+    </Directory>
+  prepare.sh: |
+    {{- .Files.Get "files/prepare.sh" | nindent 4 }}
+  config.php: |
+    {{- .Files.Get "files/config.php" | nindent 4 }}
+  database.php: |
+    {{- .Files.Get "files/database.php" | nindent 4 }}
+  bootstrap.php: |
+    {{- .Files.Get "files/bootstrap.php" | nindent 4 }}
+  maintenance.php: |
+    {{- .Files.Get "files/maintenance.php" | nindent 4 }}
+  runner.sh: |
+    {{- .Files.Get "files/runner.sh" | nindent 4 }}
+  smoke.php: |
+    {{- .Files.Get "files/smoke.php" | nindent 4 }}
+  healthz.php: |
+    <?php
+    // SPDX-License-Identifier: Apache-2.0
+    header('Content-Type: text/plain');
+    echo "ok\n";
+  readyz.php: |
+    <?php
+    // SPDX-License-Identifier: Apache-2.0
+    header('Content-Type: text/plain');
+    try {
+        require '/opt/helmforge/database.php';
+        $db = moodle_connection();
+        $result = pg_query_params($db, 'SELECT value FROM ' . moodle_table('config') . ' WHERE name=$1', ['version']);
+        define('MOODLE_INTERNAL', true);
+        define('MATURITY_STABLE', 200);
+        require '/var/www/html/public/version.php';
+        if (!$result || (float)pg_fetch_result($result, 0, 0) !== (float)$version) {
+            throw new RuntimeException('Database version does not match code');
+        }
+        if (is_file('/var/moodledata/climaintenance.html')) {
+            http_response_code(503);
+            echo "maintenance\n";
+        } else {
+            echo "ready\n";
+        }
+    } catch (Throwable $e) {
+        http_response_code(503);
+        echo "not ready\n";
+    }

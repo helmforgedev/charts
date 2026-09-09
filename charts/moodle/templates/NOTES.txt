@@ -1,0 +1,161 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+Moodle deployment
+
+1. Installation summary
+=======================
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Chart: {{ .Chart.Name }} {{ .Chart.Version }}
+Moodle: {{ .Chart.AppVersion }}
+Runtime: {{ include "moodle.image" . }}
+Code distribution: {{ .Values.source.mode }}
+Public URL: {{ .Values.moodle.wwwroot }}
+Web replicas: {{ .Values.replicaCount }}
+Cron sidecar: {{ ternary "enabled" "disabled" .Values.cron.enabled }}
+Ad-hoc worker: {{ ternary "enabled" "disabled" .Values.adhoc.enabled }}
+Maintenance window: {{ ternary "enabled" "disabled" .Values.maintenance.enabled }}
+
+The official PHP image does not contain Moodle. This chart prepares verified
+application code separately and mounts it read-only in the PHP workloads.
+
+2. Access
+=========
+Public URL:
+  {{ .Values.moodle.wwwroot }}
+
+Local forwarding:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "moodle.fullname" . }} 8080:{{ .Values.service.port }}
+
+For default values open http://localhost:8080. For a real site, configure
+moodle.wwwroot and matching DNS/Ingress/HTTPRoute before directing users here.
+
+{{- if .Values.ingress.enabled }}
+Ingress hosts:
+{{- range .Values.ingress.hosts }}
+  {{ .host }}
+{{- end }}
+{{- end }}
+{{- if .Values.gatewayAPI.enabled }}
+Gateway routes:
+{{- range .Values.gatewayAPI.httpRoutes }}
+  {{ include "moodle.httpRouteName" (dict "root" $ "route" .) }}
+{{- end }}
+{{- end }}
+
+3. Credentials and first installation
+====================================
+Administrator: {{ .Values.moodle.adminUser }}
+Administrator Secret: {{ include "moodle.secretName" . }}
+Password key: {{ .Values.moodle.existingSecretPasswordKey }}
+
+Retrieve the bootstrap password in a trusted terminal:
+  kubectl -n {{ .Release.Namespace }} get secret {{ include "moodle.secretName" . }} -o jsonpath='{.data.{{ .Values.moodle.existingSecretPasswordKey }}}' | base64 --decode
+
+The password is used only for an empty-database installation. Updating this
+Secret later does not reset an existing Moodle administrator password.
+
+Wait for the application:
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "moodle.fullname" . }} --timeout=5m
+
+Inspect first installation:
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "moodle.fullname" . }} -c prepare-code
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "moodle.fullname" . }} -c install-database
+
+The installer uses PostgreSQL locking and refuses to erase existing data.
+Database/code version mismatches require the explicit maintenance procedure.
+
+4. Storage and database
+=======================
+PostgreSQL host: {{ include "moodle.dbHost" . }}
+Database: {{ include "moodle.dbName" . }}
+Database credentials Secret: {{ include "moodle.dbSecret" . }}
+PostgreSQL TLS mode: {{ .Values.database.sslMode }}
+Persistence: {{ ternary "enabled" "disabled" .Values.persistence.enabled }}
+{{- if .Values.persistence.enabled }}
+Data PVC: {{ include "moodle.dataClaim" . }}
+Access modes: {{ join ", " .Values.persistence.accessModes }}
+{{- end }}
+
+Mutable data is under /var/moodledata, outside the Apache public document root.
+Local PHP caches are disposable; course files and shared state are persistent.
+Never replace a data claim with an empty claim during an upgrade.
+
+5. Scheduled work
+=================
+{{- if .Values.cron.enabled }}
+Cron runs in its own container and shares code/data with the web container:
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "moodle.fullname" . }} -c cron --tail=100
+{{- else }}
+Cron is disabled. Arrange Moodle CLI cron elsewhere before operating the site.
+{{- end }}
+
+Check Moodle's operational status:
+  kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "moodle.fullname" . }} -c moodle -- php /var/www/html/admin/cli/checks.php
+
+Moodle task locks coordinate work across replicas. Drain active work before
+planned maintenance; pod grace periods do not guarantee arbitrarily long tasks.
+
+6. Health and troubleshooting
+============================
+Application smoke, including real PHP execution and login HTML:
+  kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "moodle.fullname" . }} -c moodle -- php /opt/helmforge/smoke.php {{ include "moodle.fullname" . }} {{ .Values.service.port }}
+
+Workloads:
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Web logs:
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "moodle.fullname" . }} -c moodle --tail=100
+
+Recent events:
+  kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
+
+HTTP liveness checks PHP independently of the database. Readiness verifies
+database/code compatibility. For learning workflows also test a representative
+course, file upload/download, authentication integration and notification.
+
+7. Maintenance and upgrades
+==========================
+Back up database, moodledata, code and deployment configuration together.
+Drain requests and tasks before enabling the chart's maintenance Job.
+
+Stop new tasks and wait:
+  kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "moodle.fullname" . }} -c moodle -- php /var/www/html/admin/cli/cron.php --disable-wait=600
+
+Enable Moodle maintenance:
+  kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "moodle.fullname" . }} -c moodle -- php /var/www/html/admin/cli/maintenance.php --enable
+
+Set maintenance.enabled=true, action=upgrade, and a new runId in your values.
+Use helm upgrade --wait --wait-for-jobs with an appropriate operation timeout.
+The Job leaves maintenance enabled after migration for deliberate verification.
+Use action=disable with a new runId, then set maintenance.enabled=false.
+
+After successful recovery of the web workload, re-enable cron:
+  kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "moodle.fullname" . }} -c moodle -- php /var/www/html/admin/cli/cron.php --enable
+
+Helm rollback does not revert a migrated database. Restore matching database,
+Moodledata and application code when a database rollback is required.
+
+8. Production checklist and documentation
+========================================
+- Use the real HTTPS wwwroot and trusted proxy settings.
+- Use existing Secrets or External Secrets for deterministic credentials.
+- Set database, Redis, SMTP and storage capacity for your workload.
+- Multiple replicas require actual RWX data storage and Redis sessions.
+- Configure MUC separately; Redis session enablement is not MUC configuration.
+- Keep reviewed plugins and themes in an immutable image.
+- Test restore procedures for both database and Moodledata.
+- Inspect all web, installer, cron and worker logs.
+{{- with .Values.service.ipFamilyPolicy }}
+- Service IP family policy: {{ . }}.
+{{- end }}
+
+Chart documentation:
+  https://helmforge.dev/docs/charts/moodle
+Upstream application:
+  https://moodle.org
+Upstream operations:
+  https://docs.moodle.org/502/en/Administration_via_command_line
+Support:
+  https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)

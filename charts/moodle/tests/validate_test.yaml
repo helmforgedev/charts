@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Moodle validate
+templates:
+  - templates/*.yaml
+tests:
+  - it: blocks unsafe scale
+    set:
+      replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: Multiple replicas and autoscaling require persistent ReadWriteMany moodledata and Redis sessions
+    template: templates/validate.yaml
+  - it: requires external database credentials
+    set:
+      postgresql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: External PostgreSQL requires database.host and database.existingSecret
+    template: templates/validate.yaml
+  - it: requires Redis endpoint
+    set:
+      sessions.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: Redis sessions require redis.enabled or sessions.host
+    template: templates/validate.yaml
+  - it: requires ingress hosts
+    set:
+      ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.hosts must contain at least one host when ingress.enabled=true
+    template: templates/validate.yaml
+  - it: requires HTTPS for proxy TLS
+    set:
+      moodle.sslProxy: true
+    asserts:
+      - failedTemplate:
+          errorMessage: moodle.sslProxy requires an HTTPS moodle.wwwroot
+    template: templates/validate.yaml
+  - it: rejects selector overrides
+    set:
+      podLabels:
+        app.kubernetes.io/name: other
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels and commonLabels must not override selector labels
+    template: templates/validate.yaml
+  - it: requires multiple replicas for PDB
+    set:
+      pdb.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: pdb.enabled requires multiple replicas
+    template: templates/validate.yaml
+  - it: requires ESO items
+    set:
+      externalSecrets.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.items must contain at least one item when externalSecrets.enabled=true
+    template: templates/validate.yaml
