@@ -85,6 +85,13 @@ security:
 
 ## Test with TLS enabled
 
+Generated account Secrets are preserved across upgrades. Elasticsearch stores
+account passwords in its security index after bootstrap; updating only the
+Kubernetes Secret does not rotate a live account. Use the supported password
+change API and synchronize the Secret deliberately when rotating credentials.
+TLS configuration uses the PEM `tls.key`, `tls.crt` and `ca.crt` files supplied
+by the chart's certificate paths.
+
 ```bash
 kubectl port-forward svc/<release>-elasticsearch 9200 -n <namespace>
 

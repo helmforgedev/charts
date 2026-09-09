@@ -161,7 +161,7 @@ dataTiers:
 | `namespaceOverride` | Namespace for chart-managed namespaced resources | `""` |
 | `clusterName` | Elasticsearch cluster name | `helmforge-cluster` |
 | `image.repository` | Elasticsearch image | `docker.io/library/elasticsearch` |
-| `image.tag` | Image tag | `9.5.2` |
+| `image.tag` | Image tag | `9.5.3` |
 | `nameOverride` | Override chart name | `""` |
 | `fullnameOverride` | Override full release name | `""` |
 
@@ -262,7 +262,7 @@ dataTiers:
 | Parameter | Description | Default |
 |---|---|---|
 | `kibana.enabled` | Deploy Kibana alongside Elasticsearch | `false` |
-| `kibana.image.tag` | Kibana version (must match ES version) | `9.5.2` |
+| `kibana.image.tag` | Kibana version (must match ES version) | `9.5.3` |
 | `kibana.replicaCount` | Kibana replica count | `1` |
 | `kibana.ingress.enabled` | Expose Kibana via Ingress | `false` |
 | `kibana.ingress.hosts` | Ingress hostnames | `[kibana.example.com]` |
@@ -311,13 +311,15 @@ Security posture acceptable.
 
 ## Upgrade Notes
 
-`docker.io/library/elasticsearch:9.5.2` is an upstream patch update from
-`9.5.1`. It improves settings and restore handling, index lifecycle reporting,
-ES|QL behavior during index deletion, and ingest concurrency. Review the
-[upstream Elasticsearch 9.5.2 release notes](https://www.elastic.co/docs/release-notes/elasticsearch#elasticsearch-9.5.2-release-notes)
-before upgrading production clusters, take a snapshot backup, and verify Kibana
-compatibility, plugins, ILM policies, and index templates in a staging
-environment before reusing existing PVCs.
+`docker.io/library/elasticsearch:9.5.3` updates translog shutdown cleanup,
+bulk indexing, authorization and vector-query handling. The optional bundled
+Kibana image is aligned to 9.5.3, including audit/session and saved-object fixes.
+Take a snapshot backup and verify plugins, ILM policies, index templates and
+existing vector indices in staging before reusing production PVCs.
+Generated credentials are retained during upgrades; changing a Kubernetes Secret
+alone does not rotate passwords already stored by Elasticsearch.
+See the [Elasticsearch release notes](https://www.elastic.co/docs/release-notes/elasticsearch#elasticsearch-9.5.3-release-notes)
+and [Kibana release notes](https://www.elastic.co/docs/release-notes/kibana#kibana-9.5.3-release-notes).
 
 ## Resources Generated
 
