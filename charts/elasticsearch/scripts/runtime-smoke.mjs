@@ -41,7 +41,9 @@ const kibana = pods.find(p => ready(p) && p.spec.containers.some(c => c.name ===
 if (kibana) {
   const address = kibana.status.podIP.includes(':') ? `[${kibana.status.podIP}]` : kibana.status.podIP;
   const status = JSON.parse(k(['exec', server.metadata.name, '-c', container.name, '--', 'curl', '-sf', '--max-time', '15', `http://${address}:5601/api/status`]));
-  assert.equal(status.version.number, version);
+  // Unauthenticated status deliberately redacts version metadata.
+  const packageInfo = JSON.parse(k(['exec', kibana.metadata.name, '-c', 'kibana', '--', 'cat', '/usr/share/kibana/package.json']));
+  assert.equal(packageInfo.version, version);
   assert.equal(status.status.overall.level, 'available');
 }
 if (action === 'smoke') request(index, 'DELETE');
