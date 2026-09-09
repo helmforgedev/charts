@@ -39,7 +39,8 @@ assert.equal(search.hits.hits[0]._id, 'fixture');
 request(index + '/_flush', 'POST');
 const kibana = pods.find(p => ready(p) && p.spec.containers.some(c => c.name === 'kibana'));
 if (kibana) {
-  const status = JSON.parse(k(['exec', kibana.metadata.name, '-c', 'kibana', '--', '/usr/share/kibana/node/bin/node', '-e', 'fetch("http://127.0.0.1:5601/api/status",{signal:AbortSignal.timeout(15000)}).then(async r=>{if(!r.ok)throw Error(String(r.status));console.log(JSON.stringify(await r.json()))}).catch(e=>{console.error(e.message);process.exit(1)})']));
+  const address = kibana.status.podIP.includes(':') ? `[${kibana.status.podIP}]` : kibana.status.podIP;
+  const status = JSON.parse(k(['exec', server.metadata.name, '-c', container.name, '--', 'curl', '-sf', '--max-time', '15', `http://${address}:5601/api/status`]));
   assert.equal(status.version.number, version);
   assert.equal(status.status.overall.level, 'available');
 }
