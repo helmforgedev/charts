@@ -2,6 +2,9 @@
 import assert from 'node:assert/strict';
 import {execFileSync, spawn} from 'node:child_process';
 import {setTimeout as delay} from 'node:timers/promises';
+if (Number(process.versions.node.split('.')[0]) < 22) {
+  throw new Error('Node.js >= 22 is required for the relay WebSocket smoke test');
+}
 const [context, namespace, release] = process.argv.slice(2);
 if (!context?.startsWith('k3d-helmforge-') || !namespace || !release) {
   throw new Error('Explicit HelmForge lab context, namespace and release required');

@@ -120,7 +120,7 @@ operator-owned resource limit tuning across the database-backed topology.
 
 ## Upgrade to 0.78.1
 
-NetBird `0.78.1` includes the 0.78.0 Go/QUIC updates, embedded proxy Rosenpass
+NetBird `0.78.1` includes the 0.78.0 Go/QUIC updates, reverse-proxy Rosenpass
 support in permissive mode, lazy proxy connections and the SQLite network-map
 fix for peer-based routers. Review both the
 [0.78.0 release](https://github.com/netbirdio/netbird/releases/tag/v0.78.0) and
@@ -128,9 +128,10 @@ fix for peer-based routers. Review both the
 
 Remote debug jobs now require an explicit opt-in on the peer
 (`--allow-remote-jobs` or managed `allowRemoteJobs`). The chart does not enable
-remote jobs on clients. To opt out of the proxy's new Rosenpass behavior, supply
-`NB_PROXY_ROSENPASS=false` through `server.env`. Test real peers, routes and
-reverse-proxy services in staging before upgrading production.
+remote jobs on clients. Rosenpass settings belong to the separately deployed
+NetBird Reverse Proxy; `server.env` configures the combined server. Configure
+`NB_PROXY_ROSENPASS=false` on that separate proxy if opting out. Test real peers,
+routes and reverse-proxy services in staging before upgrading production.
 
 Back up the configured database and `/var/lib/netbird`, then apply the new chart
 defaults while preserving your explicit overrides:
