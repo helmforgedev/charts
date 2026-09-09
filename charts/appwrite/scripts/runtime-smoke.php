@@ -24,6 +24,11 @@ if ($action !== 'verify') {
 }
 request('/account/sessions/email', 'POST', ['email' => $email, 'password' => $password], 201);
 check(request('/account')['$id'] === $id, 'Persisted account missing');
+if ($action !== 'verify') {
+    request('/teams', 'POST', ['teamId' => 'helmforgeteam', 'name' => 'HelmForge team'], 201);
+    request('/projects', 'POST', ['projectId' => 'helmforgeproject', 'name' => 'HelmForge project', 'teamId' => 'helmforgeteam'], 201);
+}
+check(request('/projects/helmforgeproject')['name'] === 'HelmForge project', 'Persisted project missing');
 $marker = '/storage/builds/helmforge-upstream-fixture.json';
 if ($action !== 'verify') {
     request('/account/prefs', 'PATCH', ['prefs' => ['upgrade' => 'retained-1.9.6-to-2.0.0']]);
@@ -36,4 +41,4 @@ $stored = json_decode(file_get_contents($marker), true, flags: JSON_THROW_ON_ERR
 check(openssl_decrypt(base64_decode($stored['cipher']), 'aes-256-gcm', getenv('_APP_OPENSSL_KEY_V1'), OPENSSL_RAW_DATA, base64_decode($stored['iv']), base64_decode($stored['tag'])) === 'retained-build-artifact', 'Build fixture or encryption key changed');
 request('/account/sessions/current', 'DELETE', expected: 204);
 if ($action === 'smoke') { unlink($marker); }
-echo "PASS: Appwrite $version health, anonymous account denial, account/login/preferences, persistent builds mount and retained encryption fixture.\n";
+echo "PASS: Appwrite $version health, anonymous account denial, account/login/project/preferences, persistent builds mount and retained encryption fixture.\n";

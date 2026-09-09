@@ -87,7 +87,7 @@ MariaDB explicitly; the upstream installer's new PostgreSQL default does not mov
 existing data between engines.
 
 Use `helm upgrade --reset-then-reuse-values` (or explicitly set the new image tag),
-then run `kubectl exec -n <namespace> deploy/<release>-appwrite-api -c api -- migrate`.
+then run `kubectl exec -n <namespace> deploy/<api-deployment> -c api -- migrate`.
 Verify the API, worker logs and existing projects before restoring traffic. For
 rollback, restore the database, volumes, Secret and matching old images together.
 
@@ -105,6 +105,26 @@ DocumentsDB, VectorsDB, embeddings and execution-log dual writes remain disabled
 This chart does not provision the extra engines, embedding server, executor or
 orchestrator needed for those features and Functions/Sites execution. Provision
 and configure those dependencies separately before opting in through extraEnv.
+
+Usage statistics now require ClickHouse. `appwrite.usageStats` defaults to
+`disabled`; to retain or enable usage reporting, provision a private ClickHouse
+service (the HelmForge ClickHouse chart can provide it) and supply its HTTP DSN
+through a Secret:
+
+```yaml
+appwrite:
+  usageStats: enabled
+  extraEnv:
+    - name: _APP_CONNECTIONS_DB_USAGE
+      valueFrom:
+        secretKeyRef:
+          name: appwrite-usage
+          key: dsn
+```
+
+The DSN has the form `http://user:password@clickhouse:8123/appwrite`; URL-encode
+credentials containing reserved characters. Run `usage-setup` in the API pod to
+verify schema initialization before enabling traffic. Plan retention of historical usage data separately from new usage schema setup.
 
 ## External Database
 

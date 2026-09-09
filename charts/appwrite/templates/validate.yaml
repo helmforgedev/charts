@@ -3,3 +3,14 @@
 {{- if .Values.workers.audits.enabled }}
 {{- fail "Appwrite 2.0 removed worker-audits; set workers.audits.enabled=false" }}
 {{- end }}
+{{- if eq .Values.appwrite.usageStats "enabled" }}
+{{- $configured := false }}
+{{- range concat .Values.appwrite.extraEnv .Values.extraEnv }}
+{{- if and (eq .name "_APP_CONNECTIONS_DB_USAGE") (or .value .valueFrom) }}
+{{- $configured = true }}
+{{- end }}
+{{- end }}
+{{- if not $configured }}
+{{- fail "appwrite.usageStats=enabled requires _APP_CONNECTIONS_DB_USAGE in appwrite.extraEnv or extraEnv (ClickHouse HTTP DSN)" }}
+{{- end }}
+{{- end }}

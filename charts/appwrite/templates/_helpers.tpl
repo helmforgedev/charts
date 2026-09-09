@@ -320,7 +320,7 @@ localhost
 - name: _APP_DB_PASS
   value: "$(DB_PASS)"
 - name: _APP_USAGE_STATS
-  value: {{ .Values.appwrite.usageStats | default "enabled" | quote }}
+  value: {{ .Values.appwrite.usageStats | default "disabled" | quote }}
 # Optional 2.0 services require infrastructure this chart does not provision.
 - name: _APP_DOCUMENTSDB
   value: disabled
