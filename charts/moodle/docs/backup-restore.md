@@ -141,7 +141,7 @@ Redis prefix and hostname. Disable email and external integrations.
 
 1. Verify archive checksums and list database/archive contents.
 2. Provision a new empty database with the required owner and extensions.
-3. Restore the custom-format dump with `pg_restore --exit-on-error`.
+3. Restore into that empty database using the matching engine command below.
 4. Restore moodledata into an empty PVC with UID/GID 33 and group-writable
    directories, preserving file names and contents.
 5. Deploy the exact matching code and configuration with
@@ -151,6 +151,23 @@ Redis prefix and hostname. Disable email and external integrations.
    courses, submissions and uploaded files.
 8. Run scheduled-task checks and a controlled cron cycle.
 9. Record elapsed recovery time and any excluded external data.
+
+Run only the command for the source engine. The protected client settings must
+point to the isolated restore server; create `moodle_restore` before importing.
+
+```bash
+# PostgreSQL custom-format archive; the service selects the restore database.
+PGSERVICE=moodle-restore pg_restore --exit-on-error \
+  --dbname='service=moodle-restore' moodle-recovery/database.dump
+
+# MySQL SQL dump.
+mysql --defaults-extra-file=/secure/mysql-restore.cnf \
+  moodle_restore < moodle-recovery/database.sql
+
+# MariaDB SQL dump.
+mariadb --defaults-extra-file=/secure/mariadb-restore.cnf \
+  moodle_restore < moodle-recovery/database.sql
+```
 
 Use a unique Redis prefix or an isolated Redis database; restored sessions must
 not overlap production sessions. Keep the restored site blocked from production
