@@ -4,13 +4,36 @@ templates:
   - templates/deployment.yaml
   - templates/secret.yaml
 tests:
+  - it: stops old instances before starting migrations and requires login
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+        template: templates/deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LANGFLOW_AUTO_LOGIN
+            value: "false"
+        template: templates/deployment.yaml
+  - it: allows explicit development automatic login
+    set:
+      auth.autoLogin: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LANGFLOW_AUTO_LOGIN
+            value: "true"
+        template: templates/deployment.yaml
   - it: generates required credentials and wires them by default
     asserts:
       - isKind:
           of: Secret
         template: templates/secret.yaml
-      - isNotEmpty:
+      - matchRegex:
           path: stringData.secret-key
+          pattern: "^[A-Za-z0-9_-]{43}=$"
         template: templates/secret.yaml
       - equal:
           path: stringData.superuser
