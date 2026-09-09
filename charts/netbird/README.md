@@ -151,6 +151,7 @@ installation even while the multiplexed API and relay are serving requests.
 Use API authentication, OIDC discovery, relay connectivity and metrics for local
 smoke checks; validate public relay reachability separately in the deployed
 network. The chart's existing TCP probe policy is unchanged.
+
 ## Validation
 
 ```bash
