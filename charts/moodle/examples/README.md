@@ -12,3 +12,11 @@
 Render each file with helm template before installing. Example hostnames are
 reserved domains: replace them with your institution's actual DNS names. The
 production HA example intentionally does not create external infrastructure.
+
+## Database choices
+
+The `bundled-postgresql`, `bundled-mysql` and `bundled-mariadb` examples select
+one HelmForge database subchart. The matching `external-*` examples disable
+all three subcharts and require the named database password and CA Secrets.
+Combine these connection examples with your production settings. Database
+selection does not migrate an existing Moodle database.

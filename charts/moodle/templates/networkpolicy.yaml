@@ -41,14 +41,13 @@ spec:
       ports:
         - {port: 53, protocol: UDP}
         - {port: 53, protocol: TCP}
-    {{- if .Values.postgresql.enabled }}
+    {{- if include "moodle.dbBundled" . }}
     - to:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/instance: {{ .Release.Name }}
-              app.kubernetes.io/name: postgresql
+              {{- include (printf "%s.selectorLabels" .Values.database.type) (index .Subcharts .Values.database.type) | nindent 14 }}
       ports:
-        - {port: 5432, protocol: TCP}
+        - {port: {{ ternary 5432 3306 (eq .Values.database.type "postgresql") }}, protocol: TCP}
     {{- end }}
     {{- if .Values.redis.enabled }}
     - to:

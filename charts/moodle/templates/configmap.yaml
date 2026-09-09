@@ -30,6 +30,11 @@ data:
     opcache.memory_consumption=128
     apc.enable_cli=1
     pcov.enabled=0
+    {{- if and (ne .Values.database.type "postgresql") .Values.database.tlsSecret }}
+    ; mysqlnd uses PHP's OpenSSL trust settings for Moodle's native driver.
+    openssl.cafile=/opt/database-tls/ca.crt
+    openssl.capath=/etc/ssl/certs
+    {{- end }}
     {{- .Values.php.extraIni | nindent 4 }}
   apache.conf: |
     # SPDX-License-Identifier: Apache-2.0
@@ -128,11 +133,11 @@ data:
     try {
         require '/opt/helmforge/database.php';
         $db = moodle_connection();
-        $result = pg_query_params($db, 'SELECT value FROM ' . moodle_table('config') . ' WHERE name=$1', ['version']);
+        $installed = moodle_scalar($db, 'SELECT value FROM ' . moodle_table('config') . ' WHERE name=?', ['version']);
         define('MOODLE_INTERNAL', true);
         define('MATURITY_STABLE', 200);
         require '/var/www/html/public/version.php';
-        if (!$result || (float)pg_fetch_result($result, 0, 0) !== (float)$version) {
+        if ($installed === null || (float)$installed !== (float)$version) {
             throw new RuntimeException('Database version does not match code');
         }
         require '/opt/helmforge/metrics-check.php';
@@ -147,3 +152,5 @@ data:
         http_response_code(503);
         echo "not ready\n";
     }
+  database-smoke.php: |
+    {{- .Files.Get "files/database-smoke.php" | nindent 4 }}

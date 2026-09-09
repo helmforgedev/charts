@@ -3,7 +3,7 @@
 - name: DB_HOST
   value: {{ include "moodle.dbHost" . | quote }}
 - name: DB_PORT
-  value: {{ ternary "5432" (toString .Values.database.port) .Values.postgresql.enabled | quote }}
+  value: {{ include "moodle.dbPort" . | quote }}
 - name: DB_NAME
   value: {{ include "moodle.dbName" . | quote }}
 - name: DB_USER
@@ -13,7 +13,7 @@
     secretKeyRef:
       name: {{ include "moodle.dbSecret" . }}
       key: {{ include "moodle.dbKey" . }}
-{{- if .Values.database.tlsSecret }}
+{{- if and .Values.database.tlsSecret (eq .Values.database.type "postgresql") }}
 - name: PGSSLROOTCERT
   value: /opt/database-tls/ca.crt
 {{- end }}

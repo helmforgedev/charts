@@ -6,7 +6,7 @@ A recoverable Moodle site consists of the database, moodledata, exact applicatio
 code/plugins and deployment configuration. A course backup is not a full-site
 backup. A PVC snapshot without a database recovery point is also insufficient.
 
-This chart does not enable an automatic site-backup CronJob. The PostgreSQL
+This chart does not enable an automatic site-backup CronJob. The selected database
 subchart may perform database backups, but those do not include Moodledata.
 Use your backup platform or the coordinated maintenance procedure below for
 complete recovery points. The site catalog therefore does not advertise this
@@ -54,6 +54,26 @@ that a request which started earlier has stopped writing.
 
 Take the database backup and the filesystem copy while writes remain quiesced.
 Do not resume between these two steps.
+
+## MySQL and MariaDB backup
+
+Keep the same quiescence and Moodledata snapshot procedure described below.
+Use the matching server vendor's dump client and a private client options file
+containing the connection, password and verified TLS settings:
+
+```bash
+mysqldump --defaults-extra-file=/secure/mysql-backup.cnf \
+  --single-transaction --quick --hex-blob --no-tablespaces moodle \
+  > moodle-recovery/database.sql
+# For MariaDB, use mariadb-dump with its own compatible client options file.
+```
+
+The transaction snapshot covers InnoDB data; keep DDL and Moodle writes stopped
+until both database and Moodledata snapshots complete. Validate the dump by
+restoring with `mysql` or `mariadb` into a separate empty database of the same
+engine, then run the restored Moodle checks. A successful dump command alone
+does not verify recoverability. Encrypt, checksum and restrict this dump just
+like the PostgreSQL archive. Adapt the checksum filename below to database.sql.
 
 ## PostgreSQL backup
 
@@ -145,12 +165,12 @@ Bitnami's environment variables and entrypoint are not an upstream Moodle API.
 Map the public URL, proxy settings, SMTP, administrator bootstrap and Secret
 references to this chart's explicit values.
 
-Bitnami commonly uses MariaDB. This chart's supported database backend is
-PostgreSQL. A MariaDB dump cannot be loaded into PostgreSQL with `pg_restore`.
-Perform an upstream-supported Moodle database transfer and verify it in an
-isolated environment before cutover, or retain the original deployment until
-a tested migration path is available. This chart does not automate cross-engine
-conversion.
+Bitnami commonly uses MariaDB. Select `database.type: mariadb` and connect to
+the restored MariaDB database, externally or through the HelmForge subchart.
+Preserving the engine avoids an unnecessary cross-engine conversion. A MariaDB
+dump cannot be loaded into PostgreSQL with `pg_restore`. If changing engines,
+perform an upstream-supported Moodle database transfer and verify it in an
+isolated environment. This chart does not automate cross-engine conversion.
 
 Do not mount a Bitnami application directory as moodledata. Separate the code
 tree from the actual data directory, preserve plugins/themes and use matching

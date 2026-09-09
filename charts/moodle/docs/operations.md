@@ -46,7 +46,8 @@ Default installation creates a PostgreSQL database and an administrator Secret.
 The installer waits for an authenticated database connection, rather than
 assuming an open TCP port means database initialization has finished.
 
-A PostgreSQL advisory lock serializes installation across replicas. The lock is
+A connection-scoped advisory lock serializes installation across replicas
+(PostgreSQL advisory locks or MySQL/MariaDB GET_LOCK). The lock is
 held while the upstream `install_database.php` runs. It is released when the
 connection closes, including abnormal termination.
 
@@ -223,7 +224,7 @@ memory, request latency, queue age and scheduled-task failures.
 Enable `metrics.enabled` for authenticated application metrics through the
 pinned `tool_monitoring` plugin. See the [observability guide](observability.md)
 for its private listener, ServiceMonitor and optional PrometheusRule. Continue
-using Kubernetes and PostgreSQL monitoring for infrastructure signals.
+using Kubernetes and database monitoring for infrastructure signals.
 
 The bundled behavioral smoke checks health bodies, a rendered login form,
 private-path protection and filesystem permissions:

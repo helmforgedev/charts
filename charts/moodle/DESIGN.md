@@ -16,9 +16,10 @@ limits and local temporary directories.
 - Apache runs as UID 33 on port 8080 with no added capabilities, no privilege
   escalation and read-only root/code. Its PHP handler is explicit and tested.
 - The public document root excludes config.php and CLI scripts.
-- PostgreSQL is the supported database backend. Other Moodle-supported engines
-  are not implicitly claimed as supported by this chart.
-- Installation uses PostgreSQL advisory locks; normal startup rejects database
+- PostgreSQL, MySQL and MariaDB use native Moodle drivers. Explicit selection
+  validates the matching HelmForge dependency or external connection. PostgreSQL
+  remains the default; selecting another engine does not convert existing data.
+- Installation uses connection-scoped PostgreSQL or MySQL/MariaDB advisory locks; normal startup rejects database
   version mismatch. An explicit maintenance Job handles schema changes.
 - Cron shares the web pod so the default RWO data volume is safe. Moodle's
   database locks coordinate parallel cron processes across replicas.

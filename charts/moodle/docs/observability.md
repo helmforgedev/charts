@@ -77,8 +77,9 @@ overdue tasks persisting for fifteen minutes. The overdue-task rule is omitted
 when its metric family is disabled. These rules describe exporter availability
 and task backlog; they do not replace HTTP probes or infrastructure alerts.
 
-PostgreSQL and Redis retain their own independent HelmForge exporter settings
-(`postgresql.metrics` and `redis.metrics`). Enable their ServiceMonitors separately
+PostgreSQL, MySQL, MariaDB and Redis retain their independent HelmForge exporter
+settings (`postgresql.metrics`, `mysql.metrics`, `mariadb.metrics` and
+`redis.metrics`). Enable their ServiceMonitors separately
 when database and cache infrastructure metrics are also required.
 
 ## Runtime evidence

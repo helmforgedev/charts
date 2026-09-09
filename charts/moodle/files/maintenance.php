@@ -3,10 +3,7 @@
 require '/opt/helmforge/database.php';
 $action = $argv[1] ?? 'checks';
 $db = moodle_connection();
-pg_query($db, "SET statement_timeout = '180s'");
-if (!pg_query($db, "SELECT pg_advisory_lock(741932, hashtext(current_database()))")) {
-    fwrite(STDERR, "Could not acquire lifecycle lock\n"); exit(1);
-}
+moodle_acquire_lifecycle_lock($db, time() + (int)moodle_settings()['database']['connectTimeout']);
 function cli(array $args): void {
     $process = proc_open(array_merge([PHP_BINARY], $args), [0 => ['file', '/dev/null', 'r'], 1 => STDOUT, 2 => STDERR], $pipes);
     if (!is_resource($process) || proc_close($process) !== 0) {
@@ -29,4 +26,4 @@ switch ($action) {
     case 'disable': cli([$dir . 'maintenance.php', '--disable']); break;
     default: fwrite(STDERR, "Unknown maintenance action\n"); exit(1);
 }
-pg_close($db);
+moodle_db_close($db);

@@ -1,7 +1,7 @@
 # Moodle
 
 Production-oriented [Moodle](https://moodle.org) LMS deployment with official
-upstream artifacts, PostgreSQL, protected bootstrap, read-only application code,
+upstream artifacts, PostgreSQL/MySQL/MariaDB, protected bootstrap, read-only application code,
 scheduled task processing and explicit maintenance operations.
 
 The chart targets Moodle **5.2.2** and PHP **8.4.25** through a digest-pinned
@@ -11,8 +11,9 @@ verified before extraction. MoodleHQ's image supplies the runtime, not the LMS.
 ## Features
 
 - Read-only Moodle code, non-root Apache on port 8080, dropped capabilities.
-- PostgreSQL subchart or external PostgreSQL with verified TLS support.
-- Serialized first installation using upstream CLI and PostgreSQL advisory locks.
+- PostgreSQL, MySQL or MariaDB: external servers or selectable HelmForge subcharts.
+- Verified database TLS, custom connection ports and existing credential Secrets.
+- Serialized first installation using upstream CLI and database advisory locks.
 - Explicit maintenance Job; normal startup refuses automatic schema migrations.
 - Independent cron and optional ad-hoc task containers sharing code and data.
 - Redis sessions with optional TLS; documented separation from MUC cache mapping.
@@ -39,7 +40,6 @@ helm repo update helmforge
 helm install moodle helmforge/moodle --namespace learning --create-namespace
 ```
 
-During development before the first release, install the local chart directory.
 The CI release pipeline owns the published chart version.
 
 ## Quick start
@@ -66,7 +66,7 @@ Changing a bootstrap password does not reset an existing Moodle account.
 - Kubernetes 1.26 or newer and Helm with OCI support.
 - Dynamic PVC provisioning or an existing data claim writable by UID/GID 33.
 - Outbound HTTPS for archive mode, or a compatible immutable application image.
-- PostgreSQL 16 or newer; the enabled subchart supplies PostgreSQL 18.6.
+- PostgreSQL 16+, MySQL 8.4+ or MariaDB 10.11+; PostgreSQL is enabled by default.
 - A real RWX backend and Redis sessions before enabling multiple web replicas.
 - Gateway API or External Secrets controllers only when those integrations are enabled.
 
@@ -98,7 +98,7 @@ ingress:
 ```
 
 Create the referenced admin/TLS Secrets beforehand. This example provides one
-web replica; it does not claim HA for standalone PostgreSQL or Redis.
+web replica; it does not claim HA for standalone databases or Redis.
 
 ## Deployment scenarios
 
@@ -112,11 +112,13 @@ operating procedures.
 
 | Framework | Score |
 | --- | --- |
-| MITRE + NSA + SOC2 | **94.242424%** |
+| MITRE + NSA + SOC2 | **93.63636%** |
 
-Security posture acceptable. Local Kubescape 4.0.9 scan of the default render
-on 2026-09-09, using the same frameworks as CI. Remaining findings concern
-opt-in NetworkPolicy and the bundled database's writable filesystem. This is
+Security posture acceptable. Local Kubescape 4.0.13 scan of the default render
+on 2026-09-09, using the same frameworks as CI. Findings include opt-in
+NetworkPolicy and the bundled database's writable filesystem. The scanner also
+flags the existing metrics smoke script's literal Bearer authorization header
+as a misplaced secret; actual tokens are read from Secrets at runtime. This is
 a Kubernetes configuration assessment, not an image vulnerability scan.
 
 ## Operational guides
@@ -129,7 +131,7 @@ a Kubernetes configuration assessment, not an image vulnerability scan.
 
 ## Complete values reference
 
-Bundled PostgreSQL and Redis also accept their full HelmForge subchart values.
+Bundled PostgreSQL, MySQL, MariaDB and Redis also accept their full HelmForge subchart values.
 Their schemas validate additional subchart settings; the tables below document
 every value explicitly set or exposed by the Moodle parent chart.
 
@@ -211,7 +213,7 @@ Moodle application settings.
 | `moodle.adminPassword` | `""` | Inline bootstrap password; generated and preserved when empty. |
 | `moodle.existingSecret` | `""` | Existing bootstrap secret. Password changes do not reset an installed account. |
 | `moodle.existingSecretPasswordKey` | `admin-password` | Bootstrap secret password key. |
-| `moodle.autoInstall` | `true` | Enable automated first installation into an empty PostgreSQL database. |
+| `moodle.autoInstall` | `true` | Enable automated first installation into an empty application database. |
 | `moodle.sslProxy` | `false` | Allow TLS termination at a trusted proxy; pair with HTTPS wwwroot. |
 | `moodle.reverseProxy` | `false` | Enable only when proxy rewrites Host; ordinary Ingress preserves Host. |
 | `moodle.disableUpdateAutodeploy` | `true` | Disable browser-based plugin installation and code updates. |
@@ -223,19 +225,22 @@ Moodle application settings.
 
 ### database
 
-PostgreSQL connection; disable postgresql.enabled to use an external server.
+Application database connection; disable every database subchart for an external server.
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
-| `database.host` | `""` | External PostgreSQL hostname; ignored with bundled PostgreSQL. |
-| `database.port` | `5432` | External PostgreSQL port. |
+| `database.type` | `postgresql` | Backend: postgresql, mysql or mariadb. Changing an installed site's backend requires a separate data migration. |
+| `database.host` | `""` | External database hostname; ignored when the selected subchart is enabled. |
+| `database.port` | `0` | External database port; zero selects 5432 for PostgreSQL or 3306 for MySQL/MariaDB. |
 | `database.name` | `moodle` | External database name. |
 | `database.username` | `moodle` | External database user. |
-| `database.existingSecret` | `""` | External database password Secret, required for external PostgreSQL. |
+| `database.existingSecret` | `""` | External database password Secret, required when all database subcharts are disabled. |
 | `database.existingSecretPasswordKey` | `password` | Password key in the external Secret. |
 | `database.prefix` | `mdl_` | Moodle table prefix; at most ten alphanumeric/underscore characters. |
-| `database.sslMode` | `prefer` | libpq SSL mode; use verify-full with a CA for production external databases. |
-| `database.tlsSecret` | `""` | Optional Secret containing PostgreSQL CA certificate. |
+| `database.sslMode` | `prefer` | PostgreSQL libpq SSL mode; use verify-full with a CA for external PostgreSQL. |
+| `database.mysqlSslMode` | `disable` | MySQL/MariaDB TLS mode: disable, require (encryption only), or verify-full (CA and hostname). |
+| `database.collation` | `utf8mb4_unicode_ci` | MySQL/MariaDB collation; Unicode utf8mb4 is required for full Moodle character support. |
+| `database.tlsSecret` | `""` | Optional Secret containing the database CA certificate. |
 | `database.tlsCAKey` | `ca.crt` | CA certificate key in database.tlsSecret. |
 | `database.connectTimeout` | `180` | Maximum wait for authenticated DB connectivity and installer lock. |
 
@@ -252,6 +257,34 @@ Bundled HelmForge PostgreSQL; full subchart values may be overridden.
 | `postgresql.auth.password` | `""` | Application password; generated by the subchart when empty. |
 | `postgresql.auth.existingSecret` | `""` | Existing PostgreSQL credentials Secret. |
 | `postgresql.auth.existingSecretUserPasswordKey` | `user-password` | Application password key. |
+
+### mysql
+
+Bundled HelmForge MySQL; full subchart values may be overridden.
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `mysql.enabled` | `false` | Deploy MySQL; requires database.type=mysql and the other database subcharts disabled. |
+| `mysql.architecture` | `standalone` | Standalone or replication; the Moodle connection always targets the writable Service. |
+| `mysql.auth.database` | `moodle` | Initial database name. |
+| `mysql.auth.username` | `moodle` | Initial application user. |
+| `mysql.auth.password` | `""` | Application password; generated by the subchart when empty. |
+| `mysql.auth.existingSecret` | `""` | Existing MySQL credentials Secret. |
+| `mysql.auth.existingSecretUserPasswordKey` | `mysql-user-password` | Application password key. |
+
+### mariadb
+
+Bundled HelmForge MariaDB; full subchart values may be overridden.
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `mariadb.enabled` | `false` | Deploy MariaDB; requires database.type=mariadb and the other database subcharts disabled. |
+| `mariadb.architecture` | `standalone` | Standalone or replication; the Moodle connection always targets the writable Service. |
+| `mariadb.auth.database` | `moodle` | Initial database name. |
+| `mariadb.auth.username` | `moodle` | Initial application user. |
+| `mariadb.auth.password` | `""` | Application password; generated by the subchart when empty. |
+| `mariadb.auth.existingSecret` | `""` | Existing MariaDB credentials Secret. |
+| `mariadb.auth.existingSecretUserPasswordKey` | `mariadb-user-password` | Application password key. |
 
 ### sessions
 
@@ -368,7 +401,7 @@ Optional authenticated Moodle application metrics through tool_monitoring.
 | `metrics.plugin.mode` | `archive` | archive downloads pinned source; image requires the plugin in the application image. |
 | `metrics.plugin.url` | `https://codeload.github.com/daniil-berg/moodle-tool_monitoring/tar.gz/23c45f66b6c3ed409b0749017b3387c1744016cc` | Immutable upstream tool_monitoring 1.1.0 archive. |
 | `metrics.plugin.sha256` | `dc7a5256e93e10b0514fcb752767e2554b7aa0cd24e8c8d74e54c33b358028e1` | SHA-256 checked before extracting plugin code. |
-| `metrics.enabledMetrics` | `["courses","overdue_tasks","quiz_attempts_in_progress","user_accounts","users_online"]` | Helm-managed built-ins; administrators manage custom metrics. |
+| `metrics.enabledMetrics` | `["courses","overdue_tasks","quiz_attempts_in_progress","user_accounts","users_online"]` | Built-in metrics managed by Helm; custom metrics remain administrator-managed. |
 | `metrics.serviceMonitor.enabled` | `false` | Create an authenticated ServiceMonitor for the private metrics Service. |
 | `metrics.serviceMonitor.labels` | `{}` | Labels matching the Prometheus serviceMonitorSelector. |
 | `metrics.serviceMonitor.annotations` | `{}` | Extra ServiceMonitor annotations. |
@@ -612,5 +645,7 @@ Network isolation; additional external endpoints use explicit extraEgress rules.
 
 - [Moodle documentation](https://docs.moodle.org/502/en/Main_page)
 - [PostgreSQL](../postgresql/README.md)
+- [MySQL](../mysql/README.md)
+- [MariaDB](../mariadb/README.md)
 - [Redis](../redis/README.md)
 - [Research](docs/research.md)
