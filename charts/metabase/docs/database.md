@@ -48,6 +48,8 @@ metabase:
 Back up this key with the database. Changing it after Metabase has stored credentials can make saved connection secrets
 unreadable.
 
+Connected Helm upgrades preserve the generated application key. Offline rendering cannot perform this lookup; use a stable existing Secret for GitOps. See the [upgrade notes](../README.md#upgrade-notes) before adding encryption to an existing unencrypted database on Metabase 0.63.16 or later.
+
 ## Backups
 
 The chart can create a PostgreSQL dump CronJob and upload the archive to S3-compatible storage:
