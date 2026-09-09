@@ -12,7 +12,7 @@ interface.
 
 Queue mode is intentionally rejected when the chart resolves to SQLite. SQLite
 stores state on the main pod volume and cannot safely back multiple worker pods.
-Use the PostgreSQL subchart, the MySQL subchart, or an external PostgreSQL/MySQL
+Use the PostgreSQL subchart or an external PostgreSQL
 database before enabling `queue.enabled`.
 
 ## Enable Queue Mode
@@ -50,7 +50,7 @@ queue:
 ```
 
 Worker pods wait for the main n8n readiness endpoint before starting. This keeps
-database migrations serialized on fresh PostgreSQL or MySQL subchart installs.
+database migrations serialized on fresh PostgreSQL subchart installs.
 
 The chart sets `N8N_GRACEFUL_SHUTDOWN_TIMEOUT=60` and keeps the pod
 `terminationGracePeriodSeconds` above that value so workers can stop cleanly

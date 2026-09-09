@@ -3,7 +3,7 @@
 ## Scope
 
 This chart deploys n8n for self-hosted workflow automation. It supports the
-zero-configuration SQLite path, HelmForge-managed PostgreSQL or MySQL, external
+zero-configuration SQLite path, HelmForge-managed PostgreSQL, external
 databases, Redis-backed queue mode, worker replicas, persistent data, ingress,
 Gateway API, External Secrets, and S3-compatible backup jobs.
 
@@ -15,7 +15,7 @@ flowchart LR
   route --> svc[n8n Service]
   svc --> main[n8n main Deployment]
   main --> data[(n8n PVC)]
-  main --> db[(SQLite, PostgreSQL, or MySQL)]
+  main --> db[(SQLite or PostgreSQL)]
   main --> redis[(Redis queue)]
   worker[n8n worker Deployment] --> redis
   worker --> db
@@ -31,7 +31,7 @@ flowchart LR
 
 - Use the upstream `docker.io/n8nio/n8n` image and pin explicit release tags.
 - Keep SQLite as the default so small installations can start without subcharts.
-- Use HelmForge PostgreSQL, MySQL, and Redis subcharts when operators enable
+- Use HelmForge PostgreSQL and Redis subcharts when operators enable
   managed dependencies.
 - Auto-detect database mode from external database settings and enabled
   subcharts, while still allowing explicit `database.mode` overrides.
@@ -53,14 +53,14 @@ flowchart LR
   not depend on the Python runtime inside the main `n8nio/n8n` image.
 - Use a single `gateway` block with Gateway API `parentRefs`, matching the
   consolidated HelmForge routing pattern and avoiding competing aliases.
-- Include database-aware backup scripts for SQLite, PostgreSQL, and MySQL.
+- Include database-aware backup scripts for SQLite and PostgreSQL.
 
 ## Production Boundary
 
 For production, operators should define:
 
 - a stable `n8n.encryptionKey` or existing Secret before first workflow use
-- PostgreSQL or MySQL instead of SQLite for larger or multi-pod deployments
+- PostgreSQL instead of SQLite for larger or multi-pod deployments
 - Redis and worker sizing when queue mode is enabled
 - webhook/editor URLs that match the public ingress or Gateway endpoint
 - resource requests and limits for main, worker, backup, database, and Redis pods
@@ -82,7 +82,7 @@ type: design
 title: n8n Chart Design
 description: Design document for the n8n Helm chart architecture, database modes, queue mode, backups, and production boundaries
 
-keywords: n8n, design, workflow, automation, queue, redis, postgresql, mysql, sqlite, backup, helm, kubernetes
+keywords: n8n, design, workflow, automation, queue, redis, postgresql, sqlite, backup, helm, kubernetes
 
 purpose: Document chart architecture, operational choices, production boundaries, and non-goals
 scope: Chart Design

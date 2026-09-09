@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Supported n8n storage backends
+templates:
+  - templates/deployment.yaml
+  - templates/secret.yaml
+tests:
+  - it: stops the previous SQLite process before starting its replacement
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+  - it: retains the PostgreSQL rollout strategy
+    template: templates/deployment.yaml
+    set:
+      postgresql.enabled: true
+      postgresql.auth.password: fixture-password
+    asserts:
+      - notExists:
+          path: spec.strategy
+  - it: rejects the legacy bundled MySQL setting
+    set:
+      mysql.enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "/mysql/enabled.*value must be false"
+  - it: rejects legacy explicit MySQL mode without falling back to SQLite
+    set:
+      database.mode: mysql
+    asserts:
+      - failedTemplate:
+          errorPattern: "/database/mode.*value must be one of"
+  - it: rejects an external MySQL server without changing its data
+    set:
+      database.external.host: mysql.example.internal
+      database.external.vendor: mysql
+    asserts:
+      - failedTemplate:
+          errorPattern: "/database/external/vendor.*value must be 'postgres'"
+  - it: rejects an external MariaDB server
+    set:
+      database.external.host: mariadb.example.internal
+      database.external.vendor: mariadb
+    asserts:
+      - failedTemplate:
+          errorPattern: "/database/external/vendor.*value must be 'postgres'"
