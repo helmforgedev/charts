@@ -1,98 +1,118 @@
 # Moodle validation evidence
 
 Validated on 2026-09-09 against Moodle 5.2.2 and the pinned MoodleHQ PHP 8.4
-runtime. Local Kubernetes context: `k3d-helmforge-tests-wsl`, Kubernetes 1.31.5.
+runtime. Kubernetes context: `k3d-helmforge-tests-wsl`, Kubernetes 1.31.5.
 
-## Full chart gate
-
-Validation covered dependency resolution and bundle integrity, strict lint,
-all CI renders, 64 unit tests, strict kubeconform with real CRD schemas,
-Artifact Hub lint and the eight runtime scenarios below.
-
-The all-scenario run passed every static layer and seven runtime scenarios;
-shared-storage startup exceeded the original 180-second installer-lock wait.
-The shared-storage CI profile and HA example now allow 600 seconds. The final
-gate repeated all static layers and the default/shared-storage scenarios:
+## Complete database-options gate
 
 ```bash
-make validate-chart CHART=moodle TIMEOUT=900 \
-  K3D_SCENARIOS="default ci/shared-storage-values.yaml"
+make validate-chart CHART=moodle TIMEOUT=900
 ```
 
-Result: `FULLY VALIDATED (12 layers)`, exit 0. The six unchanged runtime
-scenarios retain their passing evidence from the preceding all-scenario run.
-To reproduce every runtime scenario in one run, omit `K3D_SCENARIOS` and keep
-`TIMEOUT=900`. The successful shared-storage retry became ready in 293 seconds
-without container restarts.
+The validation workstream passed dependency resolution and bundle integrity,
+strict lint, every CI render, 76 unit tests in 14 suites, strict kubeconform with
+real CRD schemas, Artifact Hub lint and all 12 behavioral scenarios. All
+deployment examples also rendered successfully.
+
+The all-scenario run exposed a MariaDB/application resource-name collision.
+The final chart rejects such collisions, and the bundled CI cases use distinct
+database names. The final gate repeated every static layer, the default install
+and all five remaining scenarios. Six unchanged scenarios retain their passing
+evidence from the preceding run. The command above reproduces the complete
+matrix; the final executed gate selected these runtime cases:
+
+Its runtime selection was `default`, `ci/mariadb-values.yaml`,
+`ci/metrics-values.yaml`, `ci/mysql-values.yaml`, `ci/redis-worker-values.yaml`
+and `ci/shared-storage-values.yaml`.
+
+Result: FULLY VALIDATED. The scenarios below are the union of the successful
+runs against the final database implementation and the corrected name contract.
 
 | Runtime scenario | Result | Application evidence |
 | --- | --- | --- |
-| Default | PASS | Clean installation, administrator login, dashboard and cron |
-| Dual-stack values | PASS | Service policy accepted; installed application and login |
+| Default PostgreSQL | PASS | Native driver, installation, administrator login and cron |
+| Dual-stack values | PASS | Service policy, installed application and login |
 | External PostgreSQL | PASS | Installation and login with verify-full TLS and mounted CA |
-| External Secrets | PASS | SecretSynced/Ready and login with the synchronized password |
-| Ingress/Gateway API | PASS | Resources accepted; application checks through its Service |
-| Prometheus monitoring | PASS | Authentication, isolated listener, discovery, real course count changes and rule evaluation |
+| External MariaDB | PASS | Native driver, verified TLS, custom port, Secrets and real Prometheus collection |
+| External MySQL | PASS | Native driver, verified TLS, custom port, Secrets and real Prometheus collection |
+| External Secrets | PASS | SecretSynced/Ready and login with synchronized credentials |
+| Ingress/Gateway API | PASS | Accepted resources and application checks through the Service |
+| Bundled MariaDB | PASS | HelmForge subchart, non-default table prefix, login, cron and authenticated metrics |
+| Prometheus monitoring | PASS | PostgreSQL-backed application, discovery, course-count changes and rule evaluation |
+| Bundled MySQL | PASS | HelmForge subchart, non-default table prefix, login, cron and authenticated metrics |
 | Redis and worker | PASS | Redis-backed login, cron, ad-hoc container and NetworkPolicy |
 | Shared storage | PASS | Two replicas, serialized bootstrap, login, cron and shared file marker |
 
-Every application check verified exact health bodies, rendered login HTML,
-authenticated administrator dashboard, private configuration paths and
-read-only application code. Successful runtime scenarios completed without
-restarts or crash terminations. Test namespaces were removed afterwards.
+The server versions exercised were PostgreSQL 18.6, MySQL 9.7.2 and MariaDB
+12.3.3. Minimum supported versions are taken from Moodle's upstream requirements;
+this matrix does not test every server version between those minimums and the
+pinned versions.
 
-Transient fixture startup warnings included PostgreSQL readiness before startup,
-a Redis readiness timeout and a concurrent PVC binding update. The affected
-workloads recovered without container restarts and passed application checks.
+Every application scenario checked exact health bodies, rendered login HTML,
+authenticated administrator access, private configuration paths and read-only
+code. Two independent database connections verified lifecycle-lock exclusion
+and release after closing the lock holder. Successful scenarios had no container
+restarts or crash terminations. Transient database startup probe warnings were
+accepted only after the workloads became healthy. Lab namespaces were cleaned.
 
-## Prometheus monitoring
+## TLS and Prometheus
 
-The monitoring scenario ran Prometheus Operator 0.94.0 with a digest-pinned
-Prometheus 3.14.0 instance and tool_monitoring 1.1.0. It verified:
+External MySQL and MariaDB used port 3307, a custom password Secret key and a
+private test CA. Both the bootstrap connection and native Moodle driver rejected
+a resolvable hostname absent from the certificate. The native driver also
+rejected an untrusted CA. Its separate require mode established an encrypted
+connection without requiring a matching certificate hostname.
 
-- Missing and invalid bearer credentials returned 403; valid credentials returned 200.
-- All five configured metric families appeared in Prometheus exposition.
-- The public listener rejected the monitoring route; the metrics listener rejected login pages.
-- Prometheus discovered the ServiceMonitor and reported `up=1`.
-- Creating a real temporary course increased the collected count; removing it restored the count.
-- PrometheusRule resources were loaded and evaluated with healthy rule status.
+Prometheus Operator 0.94.0 and digest-pinned Prometheus 3.14.0 exercised
+ServiceMonitor and PrometheusRule resources with tool_monitoring 1.1.0:
 
-This certifies discovery, collection, authentication, listener isolation and rule
-evaluation. Notification delivery to an Alertmanager receiver was not exercised.
+- Missing/invalid bearer credentials returned 403; valid credentials returned 200.
+- All five configured metric families appeared.
+- The public listener rejected metrics and the private listener rejected login pages.
+- Prometheus discovered the target and reported up=1.
+- Creating a temporary Moodle course increased the collected count; cleanup restored it.
+- Rules loaded and evaluated with healthy status.
 
-## Persistence, backup and maintenance
+Real collection ran against PostgreSQL, MySQL and MariaDB. Alertmanager
+notification delivery was not exercised.
 
-- A Moodledata marker survived a Helm upgrade and pod replacement.
-- PostgreSQL pg_dump produced a custom-format archive with 5049 TOC entries.
-  pg_restore restored it into a separate database; the two initial users existed.
-- A Moodledata tar archive was extracted separately and its marker verified.
-- The maintenance Job ran Moodle's upgrade CLI against an already current
-  5.2.2 database and left maintenance enabled. A separate disable operation,
-  normal deployment and explicit cron enable restored authenticated access.
+## Maintenance and recovery checks
 
-The maintenance exercise was a same-version operation, not a version-to-version
-schema migration. The restore exercise verified both data domains separately;
-it did not certify a full production recovery or measure an RTO/RPO.
+The external MySQL installation completed a same-version maintenance upgrade
+Job, explicit disable Job and web-pod replacement. Administrator login, cron,
+verified TLS and real Prometheus collection passed after service resumed.
+MariaDB additionally exercised the maintenance adapter's purge-caches command.
+
+MySQL and MariaDB native dumps were restored into separate empty databases.
+Each restored database contained the two initial users and one site course;
+dump SHA-256 hashes were recorded. These checks verify native dump/restore
+artifacts and basic contents, not a complete production recovery or an RTO/RPO.
+
+The initial chart validation also verified PostgreSQL pg_dump/pg_restore,
+Moodledata archive extraction and a data marker surviving pod replacement.
+The filesystem recovery procedure is unchanged. Database engine conversion
+and version-to-version Moodle schema migration are not performed by this chart.
 
 ## Security and site
 
-Kubescape scored the default rendered Kubernetes configuration at 94.24%, with
-no critical or high findings. This is a Kubernetes configuration assessment,
-not an image vulnerability assessment.
+Kubescape 4.0.13 scored the default render at 93.63636% using MITRE, NSA and
+SOC2 policies. Findings include opt-in NetworkPolicy and the database's writable
+filesystem. The scanner also classified the existing metrics test's literal
+Bearer authorization header as a misplaced secret; its actual token is loaded
+from a Kubernetes Secret. This is a Kubernetes configuration assessment, not an
+image vulnerability scan.
 
-The site passed lint, formatting and build with Node 24.21.0 and Astro 7.2.9
-after npm ci. All 158 local references on the Moodle page resolved. Browser
-checks verified documentation and metrics/ServiceMonitor playground output without console warnings
-or errors. Cross-repository catalog parity was 97 charts.
+The synchronized site passed lint, formatting, build and local-link checks with
+Node 24.21.0. Browser checks covered database/subchart selection, external
+connection parameters and generated deployment output. Cross-repository catalog
+parity remains 97 charts.
 
 ## Validation boundaries
 
-- Shared-volume concurrency used a single-node lab claim. Real multi-node RWX
-  storage, failover, HPA load behavior and capacity require production testing.
-- Ingress and HTTPRoute resources were validated with real schemas. No external
-  Gateway controller traffic path or production certificate was certified.
-- Dual-stack values were accepted; this does not certify IPv6 connectivity.
-- SMTP delivery, SSO, custom plugins and operator-built offline images require
-  validation with their actual infrastructure and artifacts.
-- Automated full-site backup is not included. Follow the coordinated
-  [backup and restore procedure](backup-restore.md).
+- Shared-volume concurrency uses the single-node lab; production RWX failover,
+  database replication/failover, HPA load and capacity need infrastructure tests.
+- Ingress and HTTPRoute resources use real schemas, but no production gateway
+  traffic path or production certificate is certified.
+- Dual-stack values do not certify IPv6 connectivity.
+- SMTP, SSO, custom plugins and custom offline images need environment-specific tests.
+- Full-site backup requires the coordinated [recovery procedure](backup-restore.md).

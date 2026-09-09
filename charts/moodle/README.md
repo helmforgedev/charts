@@ -128,6 +128,7 @@ a Kubernetes configuration assessment, not an image vulnerability scan.
 - [backup-restore](docs/backup-restore.md)
 - [troubleshooting](docs/troubleshooting.md)
 - [observability](docs/observability.md)
+- [validation](docs/validation.md)
 
 ## Complete values reference
 
