@@ -9,8 +9,10 @@ if (!context?.startsWith('k3d-helmforge-') || !namespace || !release) {
 const target = ['--context',context,'-n',namespace];
 const kubectl = args => execFileSync('kubectl',[...target,...args],{encoding:'utf8',timeout:30000,stdio:['ignore','pipe','pipe']});
 const pods = JSON.parse(kubectl(['get','pods','-l',`app.kubernetes.io/instance=${release}`,'-o','json'])).items;
-const pod = pods.find(p => !p.metadata.deletionTimestamp && p.spec.containers.some(c => c.name === 'cloudflared'));
-assert.ok(pod,'cloudflared pod required');
+const pod = pods.find(p => !p.metadata.deletionTimestamp
+  && p.status.conditions?.some(c => c.type === 'Ready' && c.status === 'True')
+  && p.spec.containers.some(c => c.name === 'cloudflared'));
+assert.ok(pod,'Ready cloudflared pod required');
 const version = kubectl(['exec',pod.metadata.name,'-c','cloudflared','--','cloudflared','version']);
 assert.match(version,/cloudflared version 2026\.8\.3\b/);
 const container = pod.spec.containers.find(c => c.name === 'cloudflared');
