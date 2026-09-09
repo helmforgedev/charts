@@ -189,7 +189,6 @@ database and review the [official Metabase 63 changelog](https://www.metabase.co
 before upgrading. Keep the encryption key stable and validate the `/api/health`
 endpoint after rollout.
 
-
 The generated application encryption key is reused from the existing Kubernetes
 Secret during connected Helm upgrades. For GitOps or offline rendering, set
 `metabase.existingSecret` to a stable Secret; `helm template` cannot look up the
@@ -231,7 +230,8 @@ coordinate activation with users. See the
 |---|---|
 | MITRE + NSA + SOC2 | **86.36364%** |
 
-Rendered-manifest scan: 86.36% across MITRE, NSA and SOC2. Findings include writable filesystems, service account token mounting and network isolation; review production security settings for the application and PostgreSQL subchart.
+Rendered-manifest scan: 86.36% across MITRE, NSA and SOC2. Findings include writable filesystems, service account token mounting and network isolation;
+review production security settings for the application and PostgreSQL subchart.
 
 <!-- @AI-METADATA
 type: chart-readme
