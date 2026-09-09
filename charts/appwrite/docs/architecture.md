@@ -56,7 +56,7 @@ Periodic housekeeping task that cleans expired sessions, logs, and other tempora
 
 ## Data Flow
 
-```
+```text
                     ┌─────────┐
         Ingress ──> │ Console │  (/ paths)
            │        └─────────┘
