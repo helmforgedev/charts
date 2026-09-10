@@ -1,4 +1,10 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- define "valkey.validate" -}}
+{{- if and .Values.tls.enabled (not .Values.tls.existingSecret) -}}
+{{- fail "tls.enabled requires tls.existingSecret" -}}
+{{- end -}}
+{{- end -}}
+
 {{/*
 Expand the name of the chart.
 */}}
