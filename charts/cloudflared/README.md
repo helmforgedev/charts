@@ -178,24 +178,24 @@ topologySpreadConstraints:
 
 ## Upgrade Notes
 
-Cloudflared 2026.8.2 fixes the HTTP-origin path regressions introduced in
-2026.8.0 and 2026.8.1. Those releases could strip trailing slashes or normalize
-encoded paths, causing redirect loops or changing application URLs. The
-Kubernetes tunnel command and chart values contract are unchanged.
+Cloudflared 2026.8.3 updates its WebSocket dependency and distroless base image.
+It removes the hidden stdin reconnect test control and obsolete remote protocol
+percentage lookup. Automatic reconnection after real transport failures remains
+supported, and the chart's tunnel command and values contract are unchanged.
 
 Review the
-[official 2026.8.2 release](https://github.com/cloudflare/cloudflared/releases/tag/2026.8.2)
+[official 2026.8.3 release](https://github.com/cloudflare/cloudflared/releases/tag/2026.8.3)
 before production rollout.
 
 ## Security Scan
 
-🟢 Security Scan: `cloudflared`
+### Security Scan: `cloudflared`
 
 | Framework | Score |
 |---|---|
 | MITRE + NSA + SOC2 | **87.88%** |
 
-> ✅ Security posture acceptable.
+Security posture acceptable. Verified with Kubescape 4.0.13 against rendered default manifests.
 
 Local details:
 
@@ -205,10 +205,10 @@ Local details:
 | NSA | 85.00% |
 | SOC2 | 80.00% |
 
-The remaining local scan findings are expected for raw chart scanning and
-platform-level controls: NetworkPolicy is supplied by the platform layer, token
-Secret access is intentionally scoped to the pod, and raw-template static
-analysis does not fully evaluate Helm-rendered non-root defaults.
+The rendered-manifest scan reports non-root, service-account token mapping,
+and network-isolation findings. The container explicitly runs as UID 65532;
+the chart does not create a NetworkPolicy. Review the service account and
+platform network policies for the deployment environment.
 
 ## More Information
 
