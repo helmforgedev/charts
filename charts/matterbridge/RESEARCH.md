@@ -3,7 +3,7 @@
 **Chart request:** helmforgedev/charts#1077
 **Requester:** drieks
 **Upstream:** [Matterbridge on GitHub](https://github.com/Luligu/matterbridge)
-**Research date:** 2026-08-29
+**Research date:** 2026-09-09
 
 ## Product and Runtime
 
@@ -11,12 +11,15 @@ Matterbridge is an Apache-2.0 Matter plugin manager. It exposes devices from
 platforms such as Zigbee2MQTT, MQTT, Home Assistant, Homebridge and Shelly to
 Matter controllers including Apple Home, Google Home and Amazon Alexa.
 
-The stable upstream release selected for this chart is `3.10.7`, published on
-2026-08-28. The official pinned image is
-`docker.io/luligu/matterbridge:3.10.7`. HelmForge manifest verification
-confirmed `linux/amd64` and `linux/arm64` support. The manifest digest observed
-during implementation was
-`sha256:568d9fae6342aadbd62aa72560b6e6c070c33b1c0c5224fe2925a28c1cb4ebc6`.
+The stable upstream release selected for this chart is `3.10.8`, published on
+2026-09-04. The official pinned image is
+`docker.io/luligu/matterbridge:3.10.8`. HelmForge manifest verification
+confirmed `linux/amd64` and `linux/arm64` support. The selected standalone image
+reports OCI application version `3.10.8` and source revision `3a44ab8`.
+
+Year-based tags such as `2026.9.1` in the same repository are Home Assistant
+add-on images with an s6 `/init` entrypoint. They are a different distribution
+and are excluded by the upstream watcher for this standalone chart.
 
 The image is based on `node:24-trixie-slim`, runs as root, starts
 `matterbridge --docker`, and includes the `mb_health` binary. Its Docker
@@ -193,7 +196,7 @@ reflection as supported features.
 ## Primary Sources
 
 - [Matterbridge repository](https://github.com/Luligu/matterbridge)
-- [Matterbridge 3.10.7 release](https://github.com/Luligu/matterbridge/releases/tag/3.10.7)
+- [Matterbridge 3.10.8 release](https://github.com/Luligu/matterbridge/releases/tag/3.10.8)
 - [Official Docker documentation](https://github.com/Luligu/matterbridge/blob/main/README-DOCKER.md)
 - [Official Docker Compose file](https://github.com/Luligu/matterbridge/blob/main/docker/docker-compose.yml)
 - [Official health check source](https://github.com/Luligu/matterbridge/blob/main/packages/core/src/mb_health.ts)
