@@ -1,0 +1,44 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "bytestash.fullname" . }}
+  labels: {{ include "bytestash.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {{ include "bytestash.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if .Values.networkPolicy.egressIsolation }}
+    - Egress
+    {{- end }}
+  ingress:
+    - from:
+        {{- if .Values.networkPolicy.ingressFrom }}
+        {{- toYaml .Values.networkPolicy.ingressFrom | nindent 8 }}
+        {{- else }}
+        - podSelector: {}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: http
+  {{- if .Values.networkPolicy.egressIsolation }}
+  egress:
+    {{- if .Values.networkPolicy.dnsEgress }}
+    - to: {{ toYaml .Values.networkPolicy.dnsEgress | nindent 8 }}
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    {{- end }}
+    {{- if .Values.networkPolicy.webEgress }}
+    - to: {{ toYaml .Values.networkPolicy.webEgress | nindent 8 }}
+      ports:
+        {{- range .Values.networkPolicy.webPorts }}
+        - {protocol: TCP, port: {{ . }}}
+        {{- end }}
+    {{- end }}
+    {{- with .Values.networkPolicy.extraEgress }}{{ toYaml . | nindent 4 }}{{- end }}
+    {{- if not (or .Values.networkPolicy.dnsEgress .Values.networkPolicy.webEgress .Values.networkPolicy.extraEgress) }}[]{{- end }}
+  {{- end }}
+{{- end }}

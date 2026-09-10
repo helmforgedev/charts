@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: ByteStash validation
+templates:
+  - templates/secret.yaml
+tests:
+  - it: rejects incomplete OIDC
+    set:
+      oidc.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: OIDC requires HTTPS issuer, client ID and client Secret
+  - it: rejects empty protected bootstrap
+    set:
+      bootstrap.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: Disabling protected bootstrap requires an existing populated workspace claim
+  - it: rejects backup without durable data
+    set:
+      backup.enabled: true
+      persistence.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: backup requires persistent source storage
+  - it: rejects singleton pod volume with separate backup pod
+    set:
+      backup.enabled: true
+      persistence.accessModes:
+        - ReadWriteOncePod
+    asserts:
+      - failedTemplate:
+          errorMessage: online backup requires ReadWriteOnce or ReadWriteMany, not ReadWriteOncePod
+  - it: rejects bootstrap credential ambiguity
+    set:
+      bootstrap.existingSecret: managed
+      bootstrap.password: fixture-password
+    asserts:
+      - failedTemplate:
+          errorMessage: bootstrap.existingSecret cannot be combined with bootstrap.password
+  - it: protects reserved volumes
+    set:
+      extraVolumes:
+        - name: auth
+          emptyDir: {}
+    asserts:
+      - failedTemplate:
+          errorMessage: extraVolumes overlaps a chart-managed volume
+  - it: protects internal auth settings
+    set:
+      extraEnv:
+        - name: DISABLE_ACCOUNTS
+          value: 'true'
+    asserts:
+      - failedTemplate:
+          errorMessage: extraEnv cannot override chart-managed setting DISABLE_ACCOUNTS

@@ -1,0 +1,53 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "bytestash.fullname" . | trunc 40 | trimSuffix "-" }}-backup-storage-{{ .Release.Revision }}
+  labels:
+    {{- include "bytestash.labels" . | nindent 4 }}
+spec:
+  activeDeadlineSeconds: 300
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "bytestash.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: backup
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "bytestash.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext: {{ toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  {{- include "bytestash.selectorLabels" . | nindent 18 }}
+      containers:
+        - name: check-storage
+          image: {{ include "bytestash.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [node, -e, "require('fs').accessSync('/backups', require('fs').constants.W_OK); console.log('Backup storage bound and writable');"]
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.backup.resources | nindent 12 }}
+          volumeMounts:
+            - {name: backups, mountPath: /backups}
+      volumes:
+        - name: backups
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-backups" (include "bytestash.fullname" . | trunc 55 | trimSuffix "-")) .Values.backup.existingClaim }}
+{{- end }}

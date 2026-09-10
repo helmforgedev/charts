@@ -1,0 +1,139 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bytestash.fullname" . }}
+  labels:
+    {{- include "bytestash.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "bytestash.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "bytestash.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}{{ toYaml . | nindent 8 }}{{- end }}
+      annotations:
+        checksum/scripts: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/bootstrap: {{ toJson .Values.bootstrap | sha256sum }}
+        checksum/credentials: {{ toJson .Values.auth | sha256sum }}
+        checksum/oidc: {{ toJson .Values.oidc | sha256sum }}
+        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
+    spec:
+      serviceAccountName: {{ include "bytestash.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}{{- end }}
+      securityContext: {{ toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}{{- end }}
+      {{- if .Values.bootstrap.enabled }}
+      initContainers:
+        - name: bootstrap
+          image: {{ include "bytestash.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [node, /opt/helmforge/bootstrap.mjs]
+          env:
+            - {name: BOOTSTRAP_USERNAME, value: {{ .Values.bootstrap.username | quote }}}
+            - {name: DEBUG, value: "false"}
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.bootstrap.resources | nindent 12 }}
+          volumeMounts:
+            - {name: workspace, mountPath: /data/snippets}
+            - {name: bootstrap, mountPath: /run/bootstrap, readOnly: true}
+            - {name: scripts, mountPath: /opt/helmforge, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      {{- end }}
+      containers:
+        - name: bytestash
+          image: {{ include "bytestash.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - {name: http, containerPort: 5000}
+          env:
+            - {name: JWT_SECRET_FILE, value: /run/auth/jwt-secret}
+            - {name: TOKEN_EXPIRY, value: {{ .Values.auth.tokenExpiry | quote }}}
+            - {name: ADMIN_USERNAMES, value: {{ prepend .Values.auth.adminUsernames .Values.bootstrap.username | join "," | quote }}}
+            - {name: ALLOW_NEW_ACCOUNTS, value: {{ .Values.auth.allowNewAccounts | quote }}}
+            - {name: ALLOW_PASSWORD_CHANGES, value: {{ .Values.auth.allowPasswordChanges | quote }}}
+            - {name: DISABLE_ACCOUNTS, value: "false"}
+            - {name: DISABLE_INTERNAL_ACCOUNTS, value: "false"}
+            - {name: OIDC_ENABLED, value: {{ .Values.oidc.enabled | quote }}}
+            {{- if .Values.oidc.enabled }}
+            - {name: OIDC_ISSUER_URL, value: {{ .Values.oidc.issuerURL | quote }}}
+            - {name: OIDC_CLIENT_ID, value: {{ .Values.oidc.clientID | quote }}}
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "bytestash.oidcSecretName" . }}
+                  key: {{ .Values.oidc.clientSecretKey }}
+            - {name: OIDC_DISPLAY_NAME, value: {{ .Values.oidc.displayName | quote }}}
+            - {name: OIDC_SCOPES, value: {{ .Values.oidc.scopes | quote }}}
+            {{- if .Values.oidc.caConfigMap }}
+            - {name: NODE_EXTRA_CA_CERTS, value: /run/oidc-ca/ca.crt}
+            {{- end }}
+            {{- end }}
+            - {name: BASE_PATH, value: {{ .Values.server.basePath | quote }}}
+            - {name: DEBUG, value: "false"}
+            {{- with .Values.extraEnv }}{{ toYaml . | nindent 12 }}{{- end }}
+          {{- with .Values.envFrom }}
+          envFrom: {{ toYaml . | nindent 12 }}{{- end }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          {{- range $name, $probe := .Values.probes }}
+          {{- if $probe.enabled }}
+          {{ $name }}Probe:
+            httpGet: {path: {{ printf "%s%s" $.Values.server.basePath $probe.path | quote }}, port: http}
+            {{- omit $probe "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}{{- end }}
+          volumeMounts:
+            - {name: workspace, mountPath: /data/snippets}
+            - {name: auth, mountPath: /run/auth, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+            {{- if and .Values.oidc.enabled .Values.oidc.caConfigMap }}
+            - {name: oidc-ca, mountPath: /run/oidc-ca, readOnly: true}
+            {{- end }}
+        {{- with .Values.extraContainers }}{{ toYaml . | nindent 8 }}{{- end }}
+      volumes:
+        {{- if and .Values.oidc.enabled .Values.oidc.caConfigMap }}
+        - name: oidc-ca
+          configMap:
+            name: {{ .Values.oidc.caConfigMap }}
+            items: [{key: {{ .Values.oidc.caKey }}, path: ca.crt}]
+        {{- end }}
+        - name: workspace
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim: {claimName: {{ include "bytestash.claimName" . }}}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: auth
+          secret:
+            secretName: {{ include "bytestash.authSecretName" . }}
+            defaultMode: 288
+            items: [{key: {{ .Values.auth.jwtSecretKey }}, path: jwt-secret}]
+        {{- if .Values.bootstrap.enabled }}
+        - name: bootstrap
+          secret:
+            secretName: {{ include "bytestash.bootstrapSecretName" . }}
+            defaultMode: 288
+            items: [{key: {{ .Values.bootstrap.passwordKey }}, path: password}]
+        {{- end }}
+        - name: scripts
+          configMap: {name: {{ include "bytestash.fullname" . }}-scripts}
+        - name: tmp
+          emptyDir: {sizeLimit: 256Mi}
+        {{- with .Values.extraVolumes }}{{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints: {{ toYaml . | nindent 8 }}{{- end }}

@@ -1,0 +1,959 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ByteStash values",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name used in resource names."
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the complete resource name."
+    },
+    "commonLabels": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {},
+      "description": "Extra resource labels; selector labels are reserved."
+    },
+    "replicaCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1,
+      "description": "Replica Count."
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Repository."
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "enum": [
+              "latest",
+              "stable",
+              "main",
+              "master",
+              "dev"
+            ]
+          },
+          "description": "Verified stable image tag."
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ],
+          "description": "Kubernetes pull policy."
+        }
+      },
+      "description": "Image."
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {},
+      "description": "Registry credentials for a private mirror."
+    },
+    "auth": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing Secret containing the JWT signing key; recommended for GitOps."
+        },
+        "jwtSecret": {
+          "type": "string",
+          "anyOf": [
+            {
+              "maxLength": 0
+            },
+            {
+              "minLength": 32
+            }
+          ],
+          "description": "Inline JWT signing key, at least 32 characters. Empty generates and retains 64 random characters."
+        },
+        "jwtSecretKey": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9._-]+$",
+          "description": "Secret key containing the JWT signing material."
+        },
+        "tokenExpiry": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*(s|m|h|d)$",
+          "description": "Finite native JWT lifetime, for example 24h or 7d."
+        },
+        "allowNewAccounts": {
+          "type": "boolean",
+          "description": "Permit local registration after bootstrap. This does not restrict OIDC enrollment."
+        },
+        "allowPasswordChanges": {
+          "type": "boolean",
+          "description": "Allow native password changes; the bootstrap Secret is not a password reconciler."
+        },
+        "adminUsernames": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{3,30}$"
+          },
+          "description": "Additional exact native administrator usernames; the bootstrap username is included automatically."
+        }
+      },
+      "description": "Native local authentication and JWT session settings."
+    },
+    "oidc": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable native OpenID Connect; restrict new identities at the provider."
+        },
+        "issuerURL": {
+          "type": "string",
+          "description": "HTTPS discovery issuer."
+        },
+        "clientID": {
+          "type": "string",
+          "description": "Registered confidential client ID."
+        },
+        "clientSecret": {
+          "type": "string",
+          "description": "Inline client credential; prefer an existing Secret."
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing Secret containing the client credential."
+        },
+        "clientSecretKey": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9._-]+$",
+          "description": "Key holding the client credential."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Provider name displayed on login."
+        },
+        "scopes": {
+          "type": "string",
+          "pattern": "(^| )openid( |$)",
+          "description": "Space-separated requested scopes, including openid."
+        },
+        "caConfigMap": {
+          "type": "string",
+          "description": "Optional ConfigMap holding an additional trusted PEM CA bundle."
+        },
+        "caKey": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9._-]+$",
+          "description": "ConfigMap key containing the CA bundle."
+        }
+      },
+      "description": "Server."
+    },
+    "extraContainers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "image"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "image": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": true
+      },
+      "description": "Extra sidecars; use pinned images and restricted security contexts."
+    },
+    "extraVolumes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": true
+      },
+      "description": "Additional volumes; names must not overlap chart-managed volumes."
+    },
+    "server": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "basePath": {
+          "type": "string",
+          "pattern": "^(/[A-Za-z0-9_-]+)*$",
+          "description": "Native safe URL prefix, for example /snippets; empty serves at root. No trailing slash."
+        }
+      },
+      "description": "Server URL routing."
+    },
+    "extraEnv": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "value": {
+            "type": "string"
+          },
+          "valueFrom": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      },
+      "description": "Extra Env."
+    },
+    "envFrom": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Additional envFrom Secret/ConfigMap references."
+    },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a dedicated ServiceAccount with no API permissions."
+        },
+        "name": {
+          "type": "string",
+          "description": "Existing or overridden ServiceAccount name."
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {},
+          "description": "ServiceAccount annotations."
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean",
+          "description": "Automount Service Account Token."
+        }
+      },
+      "description": "Service Account."
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "ClusterIP",
+            "NodePort",
+            "LoadBalancer"
+          ],
+          "description": "Kubernetes Service type."
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Service port mapped to the fixed upstream container port 5000."
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {},
+          "description": "Service annotations."
+        },
+        "ipFamilyPolicy": {
+          "type": "string",
+          "enum": [
+            "",
+            "SingleStack",
+            "PreferDualStack",
+            "RequireDualStack"
+          ],
+          "description": "Service IP family policy; empty uses cluster default."
+        },
+        "ipFamilies": {
+          "type": "array",
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "IPv4",
+              "IPv6"
+            ]
+          },
+          "description": "Requested address families; RequireDualStack needs a dual-stack cluster."
+        }
+      },
+      "description": "Service."
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable Ingress. TLS is configured through ingress.tls."
+        },
+        "ingressClassName": {
+          "type": "string",
+          "description": "Ingress controller class; empty omits the field."
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {},
+          "description": "Annotations."
+        },
+        "hosts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "host",
+              "paths"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "host": {
+                "type": "string",
+                "minLength": 1
+              },
+              "paths": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "pathType"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "pattern": "^/"
+                    },
+                    "pathType": {
+                      "enum": [
+                        "Prefix",
+                        "Exact",
+                        "ImplementationSpecific"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "description": "Host/path rules; at least one explicit host is required when enabled."
+        },
+        "tls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "hosts",
+              "secretName"
+            ],
+            "properties": {
+              "hosts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "secretName": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          },
+          "description": "TLS host/Secret entries."
+        }
+      },
+      "description": "Ingress."
+    },
+    "gateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable a Gateway API v1 HTTPRoute. Install Gateway API CRDs and a controller first."
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {},
+          "description": "HTTPRoute annotations."
+        },
+        "parentRefs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "namespace": {
+                "type": "string"
+              },
+              "sectionName": {
+                "type": "string"
+              },
+              "group": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "port": {
+                "type": "integer"
+              }
+            },
+            "additionalProperties": false
+          },
+          "description": "Existing Gateway parent references, including namespace when appropriate."
+        },
+        "hostnames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Public DNS hostnames."
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^/",
+          "description": "Path."
+        },
+        "pathType": {
+          "type": "string",
+          "enum": [
+            "PathPrefix",
+            "Exact",
+            "RegularExpression"
+          ],
+          "description": "Gateway path match type."
+        }
+      },
+      "description": "Gateway."
+    },
+    "externalSecrets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enabled."
+        },
+        "refreshInterval": {
+          "type": "string",
+          "description": "Default operator refresh interval."
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "spec"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "fullnameOverride": {
+                "type": "string"
+              },
+              "labels": {
+                "type": "object"
+              },
+              "annotations": {
+                "type": "object"
+              },
+              "spec": {
+                "type": "object"
+              }
+            },
+            "additionalProperties": false
+          },
+          "description": "Items."
+        }
+      },
+      "description": "External Secrets."
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enabled."
+        },
+        "ingressFrom": {
+          "type": "array",
+          "items": {},
+          "description": "Allowed ingress peers. Empty permits pods in the same namespace only."
+        },
+        "egressIsolation": {
+          "type": "boolean",
+          "description": "Enable outbound isolation, allowing DNS and configured web ports."
+        },
+        "dnsEgress": {
+          "type": "array",
+          "items": {},
+          "description": "DNS peers; defaults to cluster pods in any namespace, restricted to DNS ports."
+        },
+        "webEgress": {
+          "type": "array",
+          "items": {},
+          "description": "Explicit HTTPS destinations for OIDC; empty denies web egress."
+        },
+        "webPorts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          },
+          "description": "Web Ports."
+        },
+        "extraEgress": {
+          "type": "array",
+          "items": {},
+          "description": "Additional egress rules, for example internal APIs on alternate ports."
+        }
+      },
+      "description": "Network Policy."
+    },
+    "probes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "startup": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enabled."
+            },
+            "path": {
+              "type": "string",
+              "description": "Path."
+            },
+            "periodSeconds": {
+              "type": "integer",
+              "description": "Period Seconds."
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "description": "Timeout Seconds."
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "description": "Failure Threshold."
+            }
+          },
+          "description": "Startup."
+        },
+        "liveness": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enabled."
+            },
+            "path": {
+              "type": "string",
+              "description": "Path."
+            },
+            "periodSeconds": {
+              "type": "integer",
+              "description": "Period Seconds."
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "description": "Timeout Seconds."
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "description": "Failure Threshold."
+            }
+          },
+          "description": "Liveness."
+        },
+        "readiness": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enabled."
+            },
+            "path": {
+              "type": "string",
+              "description": "Path."
+            },
+            "periodSeconds": {
+              "type": "integer",
+              "description": "Period Seconds."
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "description": "Timeout Seconds."
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "description": "Failure Threshold."
+            }
+          },
+          "description": "Readiness checks the initialized HTTP server."
+        }
+      },
+      "description": "Probes."
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Server resource requests and limits; increase with active users and snippet volume."
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "runAsNonRoot": {
+          "type": "boolean",
+          "description": "Run As Non Root."
+        },
+        "runAsUser": {
+          "type": "integer",
+          "description": "Run As User."
+        },
+        "runAsGroup": {
+          "type": "integer",
+          "description": "Run As Group."
+        },
+        "fsGroup": {
+          "type": "integer",
+          "description": "Fs Group."
+        },
+        "fsGroupChangePolicy": {
+          "type": "string",
+          "description": "Fs Group Change Policy."
+        },
+        "seccompProfile": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "Type."
+            }
+          },
+          "description": "Seccomp Profile."
+        }
+      },
+      "description": "Non-root pod identity with RuntimeDefault seccomp."
+    },
+    "securityContext": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Restricted container privileges; all configuration and assets are read-only."
+    },
+    "podLabels": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {},
+      "description": "Pod labels; immutable selector labels cannot be overridden."
+    },
+    "podAnnotations": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {},
+      "description": "Pod annotations, e.g. for an external Secret reloader."
+    },
+    "nodeSelector": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {},
+      "description": "Node selection constraints."
+    },
+    "tolerations": {
+      "type": "array",
+      "items": {},
+      "description": "Scheduling tolerations."
+    },
+    "affinity": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {},
+      "description": "Pod affinity or anti-affinity."
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "items": {},
+      "description": "Topology spreading across nodes or zones."
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Scheduling priority class."
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Grace period for HTTP shutdown."
+    },
+    "persistence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Persist SQLite data; disable only for disposable environments."
+        },
+        "existingClaim": {
+          "type": "string",
+          "description": "Existing Claim."
+        },
+        "storageClass": {
+          "type": "string",
+          "description": "Storage Class."
+        },
+        "size": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*(Mi|Gi|Ti)$",
+          "description": "Size."
+        },
+        "accessModes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "enum": [
+              "ReadWriteOnce",
+              "ReadWriteOncePod",
+              "ReadWriteMany"
+            ]
+          },
+          "description": "One application writer regardless of access mode. RWOP cannot be used with online backup pods."
+        },
+        "retain": {
+          "type": "boolean",
+          "description": "Keep generated data PVC on uninstall; namespace deletion is not prevented."
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {},
+          "description": "Annotations."
+        }
+      },
+      "description": "Complete SQLite directory mounted at /data/snippets."
+    },
+    "backup": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable verified SQLite online snapshots to a separate PVC."
+        },
+        "schedule": {
+          "type": "string",
+          "minLength": 9,
+          "description": "Cron schedule evaluated in UTC."
+        },
+        "retention": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365,
+          "description": "Number of completed snapshots to retain; excludes unrelated files."
+        },
+        "suspend": {
+          "type": "boolean",
+          "description": "Suspend new scheduled backup jobs."
+        },
+        "activeDeadlineSeconds": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 86400,
+          "description": "Deadline in seconds for one snapshot job."
+        },
+        "existingClaim": {
+          "type": "string",
+          "description": "Existing destination claim; never managed by this release."
+        },
+        "storageClass": {
+          "type": "string",
+          "description": "Destination storage class; dash disables dynamic provisioning."
+        },
+        "size": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*(Mi|Gi|Ti)$",
+          "description": "Destination capacity, sized for retained complete database copies."
+        },
+        "retain": {
+          "type": "boolean",
+          "description": "Keep generated backup claim on uninstall."
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "description": "Requested CPU."
+                },
+                "memory": {
+                  "type": "string",
+                  "description": "Requested memory."
+                }
+              },
+              "description": "Requested resources."
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "description": "Maximum CPU."
+                },
+                "memory": {
+                  "type": "string",
+                  "description": "Maximum memory."
+                }
+              },
+              "description": "Maximum resources."
+            }
+          },
+          "description": "Backup pod resource requests and limits."
+        }
+      },
+      "description": "Verified SQLite online snapshots on separate persistent storage."
+    },
+    "bootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Create the initial administrator before HTTP opens. Disable only when adopting an existing populated claim."
+        },
+        "username": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{3,30}$",
+          "description": "Initial local administrator username; preserve when reusing the database."
+        },
+        "password": {
+          "type": "string",
+          "anyOf": [
+            {
+              "maxLength": 0
+            },
+            {
+              "minLength": 8
+            }
+          ],
+          "description": "Initial password, minimum eight characters. Empty generates a retained 32-character credential."
+        },
+        "existingSecret": {
+          "type": "string",
+          "description": "Existing initial-password Secret, mounted only in the bootstrap init container."
+        },
+        "passwordKey": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9._-]+$",
+          "description": "Secret key holding the initial administrative password."
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "description": "Cpu."
+                },
+                "memory": {
+                  "type": "string",
+                  "description": "Memory."
+                }
+              },
+              "description": "Requests."
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "description": "Cpu."
+                },
+                "memory": {
+                  "type": "string",
+                  "description": "Memory."
+                }
+              },
+              "description": "Limits."
+            }
+          },
+          "description": "Resources."
+        }
+      },
+      "description": "Initial administrator created before the first HTTP listener starts."
+    }
+  }
+}
