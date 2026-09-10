@@ -1,0 +1,54 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+Pocket ID identity provider
+
+1. Installation summary
+=======================
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Image: {{ include "pocket-id.image" . }}
+
+2. Access
+=========
+Public origin: {{ .Values.server.publicUrl }}
+Configure trusted HTTPS at this exact origin before enrolling passkeys.
+Expose service {{ include "pocket-id.fullname" . }} through your TLS ingress or Gateway.
+
+3. Authentication
+=================
+Initial administrator: {{ .Values.bootstrap.username }}
+Generate the native one-hour, single-use access link privately when ready to enroll:
+kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "pocket-id.fullname" . }} -c pocket-id -- /app/pocket-id one-time-access-token {{ .Values.bootstrap.username }}
+The command output is a credential. Do not paste it into tickets or logs.
+Existing account state is preserved on restart. This is not a password-based application.
+
+4. Persistence and backup
+=========================
+Claim: {{ include "pocket-id.claimName" . }}
+Encryption Secret: {{ include "pocket-id.encryptionSecretName" . }}
+Retain the database, uploads and the same encryption key together.
+The application key protects sensitive fields; it does not encrypt the entire SQLite file.
+
+5. Availability and resources
+=============================
+One replica with Recreate upgrades. Plan maintenance downtime.
+Non-root application with read-only root filesystem and dedicated writable data/tmp volumes.
+
+6. Monitoring and network
+=========================
+Native health: /healthz
+Default egress is limited to cluster DNS. Explicitly allow required integration destinations.
+Actor traffic remains bound to loopback. NetworkPolicy requires a compatible CNI.
+
+7. Upgrade and recovery
+=======================
+Back up consistent state before upgrading; retain the original encryption key.
+helm upgrade {{ .Release.Name }} helmforge/pocket-id -n {{ .Release.Namespace }} -f values.yaml
+Never change the public WebAuthn origin casually: existing credentials depend on the relying party.
+Use the native one-time-access-token command for operator recovery after a setup link expires.
+
+8. Documentation and support
+============================
+https://helmforge.dev/docs/charts/pocket-id
+https://github.com/helmforgedev/charts/issues
+Database migrations are not reversed by Helm rollback.
+Happy Helmforging :)

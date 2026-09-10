@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Pocket ID admission boundaries
+templates:
+  - validate.yaml
+tests:
+  - it: refuses a database subchart without selecting PostgreSQL
+    set:
+      postgresql.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: Bundled PostgreSQL requires database.type=postgresql
+  - it: requires external connection credentials
+    set:
+      database.type: postgresql
+    asserts:
+      - failedTemplate:
+          errorMessage: External PostgreSQL requires database.host and database.passwordSecret
+  - it: refuses simultaneous bundled and external databases
+    set:
+      database.type: postgresql
+      database.host: external.example.com
+      postgresql.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: Bundled PostgreSQL and external database components are mutually exclusive
+  - it: refuses a monitor without the native exporter
+    set:
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: Monitoring resources require metrics.enabled
+  - it: refuses public and metrics listeners on the same port
+    set:
+      metrics.enabled: true
+      metrics.port: 1411
+    asserts:
+      - failedTemplate:
+          errorMessage: Native metrics and HTTP require separate ports
+  - it: refuses extra environment that bypasses private native bootstrap
+    set:
+      extraEnv:
+        - {name: HOST, value: '0.0.0.0'}
+    asserts:
+      - failedTemplate:
+          errorMessage: extraEnv cannot override managed setting HOST
+  - it: rejects pod selector overrides
+    set:
+      podLabels:
+        app.kubernetes.io/instance: different
+    asserts:
+      - failedTemplate:
+          errorMessage: Labels cannot override selector app.kubernetes.io/instance
