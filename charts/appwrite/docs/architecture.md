@@ -12,7 +12,7 @@ The main HTTP server handling all REST and GraphQL API requests. Runs `php -e ap
 
 ### Console
 
-The Appwrite web console (dashboard) served as a static SPA by the `appwrite/new` image. Always runs as a single replica.
+The Appwrite web console (dashboard) is served by `appwrite/new` on port 3000 with same-origin API access. Always runs as a single replica.
 
 ### Realtime
 
