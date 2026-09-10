@@ -1,0 +1,128 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Ryot protected native runtime
+templates:
+  - templates/deployment.yaml
+  - templates/auth-secret.yaml
+  - templates/bootstrap-secret.yaml
+  - templates/networkpolicy.yaml
+tests:
+  - it: preserves the official three-process entrypoint
+    template: templates/deployment.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: exec /usr/local/bin/run-container.sh
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - it: copies native Caddy without requiring file capabilities
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: runtime-binary
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: runtime-bin
+            mountPath: /usr/local/bin/caddy
+            subPath: caddy
+            readOnly: true
+  - it: isolates native release temporary files without hiding frontend assets
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: backend-tmp
+            mountPath: /home/ryot/tmp
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: home
+            mountPath: /home/ryot
+  - it: never mounts initial password into the public process
+    template: templates/deployment.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: bootstrap-auth
+            mountPath: /bootstrap-auth
+            readOnly: true
+      - contains:
+          path: spec.template.spec.initContainers[3].volumeMounts
+          content:
+            name: bootstrap-auth
+            mountPath: /bootstrap-auth
+            readOnly: true
+  - it: retains database admission when bootstrap is disabled
+    template: templates/deployment.yaml
+    set:
+      bootstrap.enabled: false
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.initContainers
+          count: 3
+      - equal:
+          path: spec.template.spec.initContainers[2].name
+          value: database-admission
+  - it: verifies external PostgreSQL TLS by default
+    template: templates/deployment.yaml
+    set:
+      postgresql.enabled: false
+      database.host: postgres.example.test
+      database.passwordSecret: application-password
+      database.caSecret: database-ca
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[2].env
+          content:
+            name: PGSSLMODE
+            value: verify-full
+      - contains:
+          path: spec.template.spec.initContainers[2].env
+          content:
+            name: PGSSLROOTCERT
+            value: /database-ca/ca.crt
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: database-ca
+            mountPath: /database-ca
+            readOnly: true
+  - it: omits generated administrator override when using an existing Secret
+    template: templates/auth-secret.yaml
+    set:
+      auth.existingSecret: retained-auth
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: omits generated initial password when using an existing Secret
+    template: templates/bootstrap-secret.yaml
+    set:
+      bootstrap.existingSecret: retained-password
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders scheduling controls
+    template: templates/deployment.yaml
+    set:
+      priorityClassName: stateful-applications
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: stateful-applications
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].maxSkew
+          value: 1

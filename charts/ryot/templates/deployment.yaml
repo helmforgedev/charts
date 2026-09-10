@@ -1,0 +1,132 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ryot.fullname" . }}
+  labels: {{ include "ryot.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {{ include "ryot.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ryot.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}{{ toYaml . | nindent 8 }}{{- end }}
+      annotations:
+        checksum/runtime: {{ printf "%s%s%s" (.Files.Get "files/database.mjs") (.Files.Get "files/database-guard.sh") (.Files.Get "files/bootstrap.mjs") | sha256sum }}
+        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
+    spec:
+      serviceAccountName: {{ include "ryot.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext: {{ toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}{{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}{{- end }}
+      initContainers:
+        - name: runtime-binary
+          image: {{ include "ryot.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [/bin/sh, -ceu]
+          args: ['cp /usr/local/bin/caddy /runtime-bin/caddy; chmod 0555 /runtime-bin/caddy']
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {requests: {cpu: 50m, memory: 32Mi}, limits: {cpu: 500m, memory: 64Mi}}
+          volumeMounts:
+            - {name: runtime-bin, mountPath: /runtime-bin}
+        - name: database-url
+          image: {{ include "ryot.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [node, /runtime-scripts/database.mjs]
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 500m, memory: 128Mi}}
+          env:
+            {{- include "ryot.databaseEnvironment" . | nindent 12 }}
+            - name: SERVER_ADMIN_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef: {name: {{ include "ryot.authSecretName" . }}, key: {{ .Values.auth.adminAccessTokenKey }}}
+          volumeMounts:
+            - {name: runtime-scripts, mountPath: /runtime-scripts, readOnly: true}
+            - {name: database-runtime, mountPath: /database-runtime}
+        - name: database-admission
+          image: {{ printf "%s:%s" .Values.database.clientImage.repository .Values.database.clientImage.tag | quote }}
+          imagePullPolicy: {{ .Values.database.clientImage.pullPolicy }}
+          command: [sh, /runtime-scripts/database-guard.sh]
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 500m, memory: 128Mi}}
+          env:
+            {{- include "ryot.databaseEnvironment" . | nindent 12 }}
+          volumeMounts:
+            {{- include "ryot.mounts" . | nindent 12 }}
+            - {name: runtime-scripts, mountPath: /runtime-scripts, readOnly: true}
+            - {name: bootstrap-state, mountPath: /bootstrap-state}
+        {{- if .Values.bootstrap.enabled }}
+        - name: bootstrap
+          image: {{ include "ryot.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [node, /runtime-scripts/bootstrap.mjs]
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          env:
+            {{- include "ryot.nativeEnvironment" . | nindent 12 }}
+            - {name: BOOTSTRAP_USERNAME, value: {{ .Values.bootstrap.username | quote }}}
+          volumeMounts:
+            {{- include "ryot.mounts" . | nindent 12 }}
+            - {name: runtime-scripts, mountPath: /runtime-scripts, readOnly: true}
+            - {name: bootstrap-state, mountPath: /bootstrap-state, readOnly: true}
+            - {name: bootstrap-auth, mountPath: /bootstrap-auth, readOnly: true}
+        {{- end }}
+      containers:
+        - name: ryot
+          image: {{ include "ryot.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [/bin/sh, -ceu]
+          args:
+            - 'export DATABASE_URL="$(cat /database-runtime/url)"; exec /usr/local/bin/run-container.sh'
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          env:
+            {{- include "ryot.nativeEnvironment" . | nindent 12 }}
+          ports: [{name: http, containerPort: {{ .Values.server.port }}}]
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          {{- range $name, $probe := .Values.probes }}
+          {{- if $probe.enabled }}
+          {{ $name }}Probe:
+            httpGet: {path: {{ $probe.path | quote }}, port: http}
+            {{- omit $probe "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}{{- end }}
+          volumeMounts:
+            {{- include "ryot.mounts" . | nindent 12 }}
+            - {name: runtime-bin, mountPath: /usr/local/bin/caddy, subPath: caddy, readOnly: true}
+      volumes:
+        - {name: runtime-bin, emptyDir: {sizeLimit: 128Mi}}
+        - {name: tmp, emptyDir: {sizeLimit: {{ .Values.runtime.temporarySize }}}}
+        - {name: backend-tmp, emptyDir: {sizeLimit: {{ .Values.runtime.temporarySize }}}}
+        - {name: home, emptyDir: {sizeLimit: {{ .Values.runtime.homeSize }}}}
+        - {name: database-runtime, emptyDir: {medium: Memory, sizeLimit: 1Mi}}
+        - {name: bootstrap-state, emptyDir: {medium: Memory, sizeLimit: 1Mi}}
+        - name: runtime-scripts
+          configMap: {name: {{ include "ryot.fullname" . | trunc 55 | trimSuffix "-" }}-runtime}
+        {{- if .Values.database.caSecret }}
+        - name: database-ca
+          secret:
+            secretName: {{ .Values.database.caSecret }}
+            defaultMode: 288
+            items: [{key: {{ .Values.database.caKey }}, path: ca.crt}]
+        {{- end }}
+        {{- if .Values.bootstrap.enabled }}
+        - name: bootstrap-auth
+          secret:
+            secretName: {{ include "ryot.bootstrapSecretName" . }}
+            defaultMode: 288
+            items: [{key: {{ .Values.bootstrap.passwordKey }}, path: password}]
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{ toYaml . | nindent 8 }}{{- end }}
