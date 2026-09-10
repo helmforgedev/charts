@@ -83,7 +83,7 @@ Metabase image, so proxy-based environments can mirror both images:
 ```yaml
 image:
   repository: registry.example.com/proxy/metabase/metabase
-  tag: v0.63.15
+  tag: v0.63.16
 
 waitForDatabase:
   image:
@@ -150,7 +150,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/metabase/metabase` | Metabase container image repository |
-| `image.tag` | `v0.63.15` | Metabase container image tag |
+| `image.tag` | `v0.63.16` | Metabase container image tag |
 | `waitForDatabase.image.repository` | `docker.io/library/busybox` | Wait-for-db init container image repository |
 | `waitForDatabase.image.tag` | `1.37` | Wait-for-db init container image tag |
 | `waitForDatabase.image.pullPolicy` | `IfNotPresent` | Wait-for-db init container image pull policy |
@@ -184,10 +184,31 @@ externalSecrets:
 
 ## Upgrade Notes
 
-Metabase `v0.63.15` is a public maintenance release. Back up the Metabase application
-database and review the [official Metabase 63 changelog](https://www.metabase.com/changelog/63#metabase-6315)
+Metabase `v0.63.16` is a public maintenance release. Back up the Metabase application
+database and review the [official Metabase 63 changelog](https://www.metabase.com/changelog/63#metabase-6316)
 before upgrading. Keep the encryption key stable and validate the `/api/health`
 endpoint after rollout.
+
+The generated application encryption key is reused from the existing Kubernetes
+Secret during connected Helm upgrades. For GitOps or offline rendering, set
+`metabase.existingSecret` to a stable Secret; `helm template` cannot look up the
+cluster's current key. An explicit `metabase.encryptionSecretKey` takes precedence
+and must not change after installation.
+
+Starting with 0.63.16, adding encryption to an existing unencrypted application
+database requires an explicit migration. Back up the database and key, stop all
+Metabase instances, and run the upstream `enable-encryption` JAR command with the
+same database environment and `MB_ENCRYPTION_SECRET_KEY` used by the deployment.
+Restart with that same key. Existing encrypted databases do not need this command.
+If encryption was already configured and Metabase reports an unencrypted database,
+investigate and restore a known-good backup; do not automatically re-encrypt it.
+See [Metabase encryption instructions](https://www.metabase.com/docs/latest/databases/encrypting-details-at-rest).
+
+For signed database sessions, inject `MB_SESSION_SECRET_KEY` through
+`metabase.extraEnv` using a Kubernetes `secretKeyRef`. Use a separate stable secret
+of at least 16 characters. Setting or changing it logs out existing sessions;
+coordinate activation with users. See the
+[session secret documentation](https://www.metabase.com/docs/latest/configuring-metabase/environment-variables#mb_session_secret_key).
 
 ## Examples
 
@@ -203,13 +224,14 @@ endpoint after rollout.
 - [Metabase documentation](https://www.metabase.com/docs/latest/)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/metabase)
 
-### 🟢 Security Scan: `metabase`
+### Security Scan: `metabase`
 
 | Framework | Score |
 |---|---|
 | MITRE + NSA + SOC2 | **86.36364%** |
 
-> ✅ Security posture acceptable.
+Rendered-manifest scan: 86.36% across MITRE, NSA and SOC2. Findings include writable filesystems, service account token mounting and network isolation;
+review production security settings for the application and PostgreSQL subchart.
 
 <!-- @AI-METADATA
 type: chart-readme
