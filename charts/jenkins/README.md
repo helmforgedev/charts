@@ -3,13 +3,17 @@
 Jenkins is an open source automation server for continuous integration and delivery.
 
 This HelmForge chart deploys the official `jenkins/jenkins` controller image
-at the pinned `2.568.2-lts-jdk21` release with production-oriented Kubernetes
+at the pinned `2.568.3-lts-jdk21` release with production-oriented Kubernetes
 defaults. It includes a StatefulSet
 controller, persistent Jenkins home, secure initial admin bootstrap, optional
 Jenkins Configuration as Code, optional plugin installation with
 `jenkins-plugin-cli`, optional RBAC for Kubernetes agents, dual-stack Service
 support, Gateway API, Ingress, NetworkPolicy, ExternalSecret, ServiceMonitor,
 PodDisruptionBudget, and Helm tests.
+
+Jenkins 2.568.3 includes the core fixes in the
+[September 2 security advisory](https://www.jenkins.io/security/advisory/2026-09-02/).
+The chart retains the LTS/JDK 21 distribution and existing plugin configuration.
 
 NetworkPolicy supports `networkPolicy.egress.extraEgress` for appending custom egress
 rules without replacing the chart-generated DNS, cluster, internet, and
@@ -86,7 +90,7 @@ Artifact Hub lint, markdown lint, security scans, and k3d runtime validation.
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **86.111115%** |
+| MITRE + NSA + SOC2 | **91.41%** |
 
 > Security posture acceptable with controller security contexts, non-root execution, optional NetworkPolicy, and operator-controlled plugin/JCasC inputs.
 
