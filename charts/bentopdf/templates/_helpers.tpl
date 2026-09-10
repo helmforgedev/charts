@@ -29,3 +29,7 @@ app.kubernetes.io/part-of: helmforge
 {{- if eq (int .Values.server.port) (int .Values.metrics.port) -}}{{ fail "server.port and metrics.port must differ" }}{{- end -}}
 {{- range $labels := list .Values.commonLabels .Values.podLabels -}}{{- range $key := list "app.kubernetes.io/name" "app.kubernetes.io/instance" -}}{{- if hasKey $labels $key -}}{{ fail (printf "selector label %s cannot be overridden" $key) }}{{- end -}}{{- end -}}{{- end -}}
 {{- end -}}
+
+{{- define "bentopdf.httpRouteName" -}}
+{{- if .route.name -}}{{ .route.name | trunc 63 | trimSuffix "-" }}{{- else if gt (int .index) 0 -}}{{ printf "%s-%v" (include "bentopdf.fullname" .root | trunc 55 | trimSuffix "-") .index }}{{- else -}}{{ include "bentopdf.fullname" .root }}{{- end -}}
+{{- end -}}
