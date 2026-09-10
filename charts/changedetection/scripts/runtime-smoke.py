@@ -75,7 +75,11 @@ try:
         raise AssertionError('No expected fetched snapshot: ' + str(watch.get('last_error')))
     if not browser and version == '0.60.3':
         from changedetectionio.validate_url import validate_fetch_url
-        assert not validate_fetch_url('http://127.0.0.1:18080/')[0], 'Restricted URL accepted by default'
+        try:
+            validate_fetch_url('http://127.0.0.1:18080/')
+            raise AssertionError('Restricted URL accepted by default')
+        except ValueError as error:
+            assert 'private/reserved IP address' in str(error), str(error)
     if action != 'smoke':
         marker.write_text(json.dumps({'uuid': uuid, 'history': list(history)[0]}))
     if browser and version == '0.60.3':
