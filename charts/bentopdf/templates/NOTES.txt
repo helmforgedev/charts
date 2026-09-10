@@ -1,0 +1,56 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+BentoPDF deployment
+
+1. Installation summary
+=======================
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Image: {{ include "bentopdf.image" . }}
+Browser-local PDF processing; no server document database or PVC.
+
+2. Access
+=========
+kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "bentopdf.fullname" . }} 8080:{{ .Values.service.port }}
+Open http://localhost:8080. Use a dedicated HTTPS hostname in production.
+Native login is not provided. Configure edge authentication when required.
+
+3. Configuration
+================
+config.disabledTools and config.editorDisabledCategories are public UI controls.
+Changes trigger a rollout. Build-time branding/BASE_URL cannot be overridden
+through environment variables in the already-built official image.
+
+4. Persistence and backup
+=========================
+Store values and image pins in version control. Documents stay on client
+devices. Reinstall the stateless service to restore it; no PVC is required.
+
+5. Scaling and availability
+===========================
+Replicas: {{ .Values.replicaCount }}
+Autoscaling: {{ .Values.autoscaling.enabled }}
+HPA requires metrics-server and measures static-serving container CPU.
+Use at least two replicas/minReplicas before enabling a disruption budget.
+Allow one surge pod for rolling upgrades and spread across failure domains.
+
+6. Monitoring
+=============
+NGINX exporter: {{ .Values.metrics.enabled }}
+ServiceMonitor: {{ .Values.metrics.serviceMonitor.enabled }}
+Metrics describe NGINX traffic, not PDF operations. Status is loopback-only.
+Prometheus selectors and NetworkPolicy peers must allow the monitor.
+
+7. Security and troubleshooting
+==============================
+Preserve CSP/COOP/COEP headers. HTTPS enables secure browser features.
+Default-deny pod egress does not block browser CDNs or make the image offline.
+Inspect browser console and network errors for WASM failures.
+kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "bentopdf.fullname" . }} -c bentopdf
+
+8. Upgrade and documentation
+============================
+helm upgrade {{ .Release.Name }} helmforge/bentopdf -n {{ .Release.Namespace }} -f values.yaml
+kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "bentopdf.fullname" . }}
+Read upstream release notes; reload old browser tabs if asset caches conflict.
+Documentation: https://helmforge.dev/docs/charts/bentopdf
+Happy Helmforging :)

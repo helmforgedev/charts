@@ -1,0 +1,246 @@
+# SPDX-License-Identifier: Apache-2.0
+# -- Override the short chart resource name.
+nameOverride: ''
+# -- Override the full release resource name.
+fullnameOverride: ''
+# -- Extra resource labels; selector labels are reserved.
+commonLabels: {}
+# -- Stateless replicas; PDF processing occurs in the browser.
+replicaCount: 1
+# -- Image.
+image:
+  # -- Repository.
+  repository: ghcr.io/alam00000/bentopdf
+  # -- Verified stable image tag.
+  tag: 2.8.8
+  # -- Kubernetes pull policy.
+  pullPolicy: IfNotPresent
+# -- Registry credentials for a private mirror.
+imagePullSecrets: []
+# -- NGINX listener; deploy the official image at the domain root.
+server:
+  # -- Service HTTP port.
+  port: 8080
+  # -- Enable the NGINX IPv6 listener; Service IP families are configured separately.
+  ipv6: true
+# -- Public runtime tool controls; these are not an authorization boundary.
+config:
+  # -- Disabled Tools.
+  disabledTools: []
+  # -- Native editor category IDs, for example annotation-shape or redaction.
+  editorDisabledCategories: []
+# -- Service Account.
+serviceAccount:
+  # -- Create a dedicated ServiceAccount with no API permissions.
+  create: true
+  # -- Existing or overridden ServiceAccount name.
+  name: ''
+  # -- HTTPRoute annotations.
+  annotations: {}
+  # -- Automount Service Account Token.
+  automountServiceAccountToken: false
+# -- Service.
+service:
+  # -- Kubernetes Service type.
+  type: ClusterIP
+  # -- Service HTTP port.
+  port: 8080
+  # -- HTTPRoute annotations.
+  annotations: {}
+  # -- Service IP family policy; empty uses cluster default.
+  ipFamilyPolicy: ''
+  # -- Requested address families; RequireDualStack needs a dual-stack cluster.
+  ipFamilies: []
+# -- Ingress.
+ingress:
+  # -- Protect voluntary disruptions. Requires at least two replicas; no singleton eviction deadlock.
+  enabled: false
+  # -- Ingress controller class; empty omits the field.
+  ingressClassName: ''
+  # -- HTTPRoute annotations.
+  annotations: {}
+  # -- Host/path rules; at least one explicit host is required when enabled.
+  hosts: []
+  # -- TLS host/Secret entries.
+  tls: []
+# -- Gateway.
+gateway:
+  # -- Protect voluntary disruptions. Requires at least two replicas; no singleton eviction deadlock.
+  enabled: false
+  # -- HTTPRoute annotations.
+  annotations: {}
+  # -- Existing Gateway parent references, including namespace when appropriate.
+  parentRefs: []
+  # -- Public DNS hostnames.
+  hostnames: []
+  # -- Path.
+  path: /
+  # -- Gateway path match type.
+  pathType: PathPrefix
+# -- Pod network isolation does not restrict browser CDN requests.
+networkPolicy:
+  # -- Protect voluntary disruptions. Requires at least two replicas; no singleton eviction deadlock.
+  enabled: true
+  # -- Allowed ingress peers; empty allows pods in this namespace only.
+  ingressFrom: []
+  # -- Isolate outbound pod traffic; browser CDN requests are unaffected.
+  egressIsolation: true
+  # -- Explicit extra egress rules; default empty denies all pod egress.
+  extraEgress: []
+# -- Probes.
+probes:
+  # -- Startup.
+  startup:
+    # -- Enabled.
+    enabled: true
+    # -- Path.
+    path: /
+    # -- Period Seconds.
+    periodSeconds: 5
+    # -- Timeout Seconds.
+    timeoutSeconds: 2
+    # -- Failure Threshold.
+    failureThreshold: 30
+  # -- Liveness.
+  liveness:
+    # -- Enabled.
+    enabled: true
+    # -- Path.
+    path: /
+    # -- Period Seconds.
+    periodSeconds: 20
+    # -- Timeout Seconds.
+    timeoutSeconds: 3
+    # -- Failure Threshold.
+    failureThreshold: 3
+  # -- Readiness checks the initialized HTTP server.
+  readiness:
+    # -- Enabled.
+    enabled: true
+    # -- Path.
+    path: /
+    # -- Period Seconds.
+    periodSeconds: 10
+    # -- Timeout Seconds.
+    timeoutSeconds: 3
+    # -- Failure Threshold.
+    failureThreshold: 3
+# -- Resources.
+resources:
+  # -- Requests.
+  requests:
+    # -- Cpu.
+    cpu: 50m
+    # -- Memory.
+    memory: 64Mi
+  # -- Limits.
+  limits:
+    # -- Cpu.
+    cpu: 500m
+    # -- Memory.
+    memory: 256Mi
+# -- Non-root pod identity with RuntimeDefault seccomp.
+podSecurityContext:
+  # -- Run As Non Root.
+  runAsNonRoot: true
+  # -- Run As User.
+  runAsUser: 101
+  # -- Run As Group.
+  runAsGroup: 101
+  # -- Fs Group.
+  fsGroup: 101
+  # -- Seccomp Profile.
+  seccompProfile:
+    # -- Type.
+    type: RuntimeDefault
+# -- Restricted container privileges; all configuration and assets are read-only.
+securityContext:
+  # -- Allow Privilege Escalation.
+  allowPrivilegeEscalation: false
+  # -- Read Only Root Filesystem.
+  readOnlyRootFilesystem: true
+  # -- Capabilities.
+  capabilities:
+    # -- Drop.
+    drop:
+      - ALL
+# -- Pod Disruption Budget.
+podDisruptionBudget:
+  # -- Protect voluntary disruptions. Requires at least two replicas; no singleton eviction deadlock.
+  enabled: false
+  # -- Maximum unavailable pods during voluntary disruption.
+  maxUnavailable: 1
+# -- Pod labels; immutable selector labels cannot be overridden.
+podLabels: {}
+# -- Pod annotations, e.g. for an external Secret reloader.
+podAnnotations: {}
+# -- Node selection constraints.
+nodeSelector: {}
+# -- Scheduling tolerations.
+tolerations: []
+# -- Pod affinity or anti-affinity.
+affinity: {}
+# -- Topology spreading across nodes or zones.
+topologySpreadConstraints: []
+# -- Scheduling priority class.
+priorityClassName: ''
+# -- Grace period for HTTP shutdown.
+terminationGracePeriodSeconds: 30
+# -- CPU scaling applies to static file serving, not browser PDF processing.
+autoscaling:
+  # -- Protect voluntary disruptions. Requires at least two replicas; no singleton eviction deadlock.
+  enabled: false
+  # -- Minimum stateless replicas; use at least two with a disruption budget.
+  minReplicas: 2
+  # -- Maximum replicas allowed by the HPA.
+  maxReplicas: 5
+  # -- Target utilization of the bentopdf container CPU request, excluding exporter CPU.
+  targetCPUUtilizationPercentage: 70
+# -- Optional official NGINX exporter; measures serving traffic, not PDF content or operations.
+metrics:
+  # -- Protect voluntary disruptions. Requires at least two replicas; no singleton eviction deadlock.
+  enabled: false
+  # -- Image.
+  image:
+    # -- Repository.
+    repository: docker.io/nginx/nginx-prometheus-exporter
+    # -- Tag.
+    tag: 1.5.3
+    # -- Pull Policy.
+    pullPolicy: IfNotPresent
+  # -- Service HTTP port.
+  port: 9113
+  # -- Resources.
+  resources:
+    # -- Requests.
+    requests:
+      # -- Cpu.
+      cpu: 10m
+      # -- Memory.
+      memory: 32Mi
+    # -- Limits.
+    limits:
+      # -- Cpu.
+      cpu: 100m
+      # -- Memory.
+      memory: 64Mi
+  # -- Service Monitor.
+  serviceMonitor:
+    # -- Enabled.
+    enabled: false
+    # -- Labels.
+    labels: {}
+    # -- Prometheus scrape interval.
+    interval: 30s
+    # -- Prometheus scrape timeout; keep no longer than interval.
+    scrapeTimeout: 10s
+  # -- Prometheus Rule.
+  prometheusRule:
+    # -- Enabled.
+    enabled: false
+    # -- Labels.
+    labels: {}
+    # -- Additional native Prometheus alerting or recording rules.
+    additionalRules: []
+  # -- Allowed ingress peers; empty allows pods in this namespace only.
+  ingressFrom: []
