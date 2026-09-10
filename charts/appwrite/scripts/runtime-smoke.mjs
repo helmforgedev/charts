@@ -12,7 +12,7 @@ for (const pod of pods.filter(ready)) {
     if (!container.image.endsWith(`:${version}`)) throw new Error('Unexpected Appwrite image on ' + pod.metadata.name);
   }
 }
-console.log(k(['exec', '-i', api.metadata.name, '-c', 'api', '--', 'php', '/dev/stdin', version, action], readFileSync(new URL('./runtime-smoke.php', import.meta.url), 'utf8')).trim());
+console.log(k(['exec', '-i', api.metadata.name, '-c', 'api', '--', 'php', '-d', 'display_errors=stderr', '-d', 'log_errors=0', '/dev/stdin', version, action], readFileSync(new URL('./runtime-smoke.php', import.meta.url), 'utf8')).trim());
 const consolePod = pods.find(p => ready(p) && p.spec.containers.some(c => c.name === 'console'));
 if (!consolePod) throw new Error('No Ready console');
 const port = consolePod.spec.containers.find(c => c.name === 'console').ports.find(p => p.name === 'http').containerPort;

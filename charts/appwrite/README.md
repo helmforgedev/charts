@@ -124,7 +124,7 @@ appwrite:
 
 The DSN has the form `http://user:password@clickhouse:8123/appwrite`; URL-encode
 credentials containing reserved characters. Run `usage-setup` in the API pod to
-verify schema initialization before enabling traffic. Plan retention of historical usage data separately from new usage schema setup.
+verify schema initialization before enabling traffic. Plan retention of historical usage data separately from new usage schema setup. Back up external ClickHouse independently; the chart S3 backup covers the core MariaDB and shared-volume data.
 
 ## External Database
 
