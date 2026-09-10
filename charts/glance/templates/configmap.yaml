@@ -1,0 +1,19 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "glance.validate" . }}
+{{- $config := deepCopy .Values.config.data }}
+{{- $server := dict "port" .Values.server.port "host" "0.0.0.0" "proxied" .Values.server.proxied "base-url" .Values.server.baseUrl }}
+{{- if .Values.assets.existingConfigMap }}{{- $_ := set $server "assets-path" "/app/assets" }}{{- end }}
+{{- $_ := set $config "server" $server }}
+{{- if .Values.auth.enabled }}
+{{- $_ := set $config "auth" (dict "secret-key" "${secret:auth-signing-key}" "users" (dict .Values.auth.username (dict "password" "${secret:auth-password}"))) }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "glance.fullname" . }}
+  labels:
+    {{- include "glance.labels" . | nindent 4 }}
+data:
+  glance.yml: |
+    {{- toYaml $config | nindent 4 }}
+
