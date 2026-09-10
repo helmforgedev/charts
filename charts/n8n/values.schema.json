@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "title": "n8n Helm Chart Values",
-  "description": "Configuration values for the n8n Helm chart. Deploys a workflow automation platform with SQLite, PostgreSQL, or MySQL support and optional Redis-backed queue mode.",
+  "description": "Configuration values for the n8n Helm chart. Deploys a workflow automation platform with SQLite or PostgreSQL support and optional Redis-backed queue mode.",
   "type": "object",
   "additionalProperties": true,
   "properties": {
@@ -28,7 +28,7 @@
         "tag": {
           "type": "string",
           "description": "Container image tag",
-          "default": "2.35.3"
+          "default": "2.38.4"
         },
         "pullPolicy": {
           "type": "string",
@@ -200,8 +200,8 @@
       "properties": {
         "mode": {
           "type": "string",
-          "description": "Database mode: auto | sqlite | external | postgresql | mysql",
-          "enum": ["auto", "sqlite", "external", "postgresql", "mysql"]
+          "description": "Database mode: auto, sqlite, external PostgreSQL, or bundled postgresql",
+          "enum": ["auto", "sqlite", "external", "postgresql"]
         },
         "sqlite": {
           "type": "object",
@@ -218,8 +218,8 @@
           "properties": {
             "vendor": {
               "type": "string",
-              "description": "Database vendor: postgres | mysql",
-              "enum": ["postgres", "mysql"]
+              "description": "External database vendor; n8n 2.x supports PostgreSQL only",
+              "enum": ["postgres"]
             },
             "host": {
               "type": "string",
@@ -300,46 +300,12 @@
     },
     "mysql": {
       "type": "object",
-      "description": "MySQL subchart configuration",
+      "description": "Deprecated compatibility guard. MySQL/MariaDB storage was removed in n8n 2.x; migrate data before upgrading.",
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Deploy MySQL as a subchart"
-        },
-        "architecture": {
-          "type": "string",
-          "description": "MySQL architecture (standalone or replication)"
-        },
-        "auth": {
-          "type": "object",
-          "properties": {
-            "database": { "type": "string", "description": "Database name created on first run" },
-            "username": { "type": "string", "description": "Database username created on first run" },
-            "password": { "type": "string", "description": "Database password (auto-generated if empty)" },
-            "rootPassword": { "type": "string", "description": "Root password (auto-generated if empty)" }
-          }
-        },
-        "standalone": {
-          "type": "object",
-          "properties": {
-            "persistence": {
-              "type": "object",
-              "properties": {
-                "enabled": { "type": "boolean", "description": "Enable persistence for MySQL data" },
-                "size": { "type": "string", "description": "PVC size for MySQL" }
-              }
-            }
-          }
-        },
-        "startupProbe": {
-          "type": "object",
-          "description": "MySQL startup probe overrides",
-          "properties": {
-            "initialDelaySeconds": {
-              "type": "integer",
-              "description": "Initial delay before MySQL startup probe checks"
-            }
-          }
+          "const": false,
+          "description": "Must remain false; MySQL storage is unsupported."
         }
       }
     },
@@ -585,7 +551,6 @@
           "properties": {
             "sqlite": { "type": "string", "description": "Image used for SQLite backup (must have tar)" },
             "postgresql": { "type": "string", "description": "Image used for PostgreSQL backup (must have pg_dump)" },
-            "mysql": { "type": "string", "description": "Image used for MySQL backup (must have mysqldump)" },
             "uploader": { "type": "string", "description": "Image used for S3 upload (MinIO client)" }
           }
         },
@@ -619,8 +584,7 @@
             "password": { "type": "string" },
             "existingSecret": { "type": "string" },
             "existingSecretPasswordKey": { "type": "string" },
-            "postgresDumpArgs": { "type": "string" },
-            "mysqlDumpArgs": { "type": "string" }
+            "postgresDumpArgs": { "type": "string" }
           }
         }
       }

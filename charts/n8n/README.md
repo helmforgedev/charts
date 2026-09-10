@@ -6,8 +6,7 @@ Deploy [n8n](https://n8n.io/) on Kubernetes — a workflow automation platform f
 
 - **SQLite by default** — zero database configuration needed
 - **PostgreSQL subchart** — bundled via HelmForge dependency
-- **MySQL subchart** — bundled via HelmForge dependency
-- **External database** — connect to existing PostgreSQL or MySQL
+- **External database** — connect to existing PostgreSQL
 - **Queue mode** — Redis-backed horizontal scaling with worker pods
 - **Redis subchart** — bundled via HelmForge dependency for queue mode
 - **Worker-aware persistence** — queue workers keep the main data PVC by default for upgrade compatibility, with an opt-out for RWO scheduling
@@ -144,22 +143,21 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
-| `image.tag` | `2.35.3` | n8n container image tag |
+| `image.tag` | `2.38.4` | n8n container image tag |
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
 | `n8n.diagnosticsEnabled` | `false` | Share anonymous diagnostics with n8n |
 | `n8n.gracefulShutdownTimeout` | `60` | Graceful shutdown timeout in seconds for main and workers |
-| `database.mode` | `auto` | Database mode (auto, sqlite, external, postgresql, mysql) |
-| `postgresql.enabled` | `false` | Deploy PostgreSQL subchart (`helmforge/postgresql` `2.0.4`) |
+| `database.mode` | `auto` | Database mode (auto, sqlite, external, postgresql) |
+| `postgresql.enabled` | `false` | Deploy PostgreSQL subchart (`helmforge/postgresql` `2.0.5`) |
 | `postgresql.initdb.scripts` | n8n extension bootstrap | Creates PostgreSQL extensions required by n8n migrations |
-| `mysql.enabled` | `false` | Deploy MySQL subchart (`helmforge/mysql` `2.0.3`) |
 | `queue.enabled` | `false` | Enable queue mode (requires Redis and a non-SQLite database) |
 | `queue.workers` | `1` | Number of worker replicas |
 | `queue.concurrency` | `10` | Concurrent workflows per worker |
 | `queue.persistence.shareMainVolume` | `true` | Mount the main n8n data PVC into worker pods |
 | `terminationGracePeriodSeconds` | `75` | Kubernetes pod shutdown grace period |
-| `redis.enabled` | `false` | Deploy Redis subchart (`helmforge/redis` `2.0.0`) |
+| `redis.enabled` | `false` | Deploy Redis subchart (`helmforge/redis` `2.0.1`) |
 | `taskRunners.mode` | `external` | Task runner mode (`internal` or `external`) |
 | `taskRunners.image.repository` | `docker.io/n8nio/runners` | External task runner sidecar image repository |
 | `taskRunners.image.tag` | `""` | External task runner sidecar tag (defaults to `image.tag`) |
@@ -186,16 +184,39 @@ externalSecrets:
 
 ## Upgrade Notes
 
-n8n `2.35.3` includes core, scaling-mode, queue, and task-runner maintenance
-updates. Review the
-[upstream 2.35.3 release notes](https://github.com/n8n-io/n8n/releases/tag/n8n%402.35.3)
-before upgrading. Back up the database, keep the encryption key stable, and
-validate task runners and queue workers in a staging namespace. This update also
-moves the bundled Redis dependency to HelmForge Redis `2.0.0`.
+n8n `2.38.4` includes the 2.36–2.38 runner broker and shutdown fixes,
+database pool recovery, encryption-key seeding and queue execution fixes. Back
+up the database and data volume, preserve the encryption key, and validate
+workflows and credentials in staging before upgrading. Keep the app and external
+runner tags aligned; an empty `taskRunners.image.tag` inherits `image.tag`.
 
-When upgrading with `--reuse-values`, explicitly set `image.tag=2.35.3`.
-Helm preserves the previous image override in that mode; also update
-`taskRunners.image.tag` when it was pinned separately.
+Use `helm upgrade --reset-then-reuse-values` with `image.tag=2.38.4` and update
+any separately pinned runner tag. Existing generated encryption keys and runner
+tokens are retained through Helm lookup; use existing Secrets for offline
+rendering or GitOps. Automatic database migrations require a recoverable backup.
+
+SQLite updates now use `Recreate` to stop the old main process before the new
+version opens the same database. Plan for brief downtime. The Python toggle
+`taskRunners.nativePython.enabled` now controls the n8n 2.x variable
+`N8N_PYTHON_ENABLED`; it remains disabled by default and requires external runners.
+
+### MySQL and MariaDB storage migration
+
+n8n removed MySQL/MariaDB storage in version 2.0. Earlier chart releases still
+exposed these unsupported options. This chart now rejects `mysql.enabled=true`,
+`database.mode=mysql` and non-PostgreSQL external vendors, and no longer bundles
+MySQL or MySQL backup jobs. The MySQL workflow node is unaffected.
+
+If an older deployment uses MySQL/MariaDB, stop here and migrate its data using
+the upstream migration procedure on a compatible source release. Back up the
+database and encryption key, migrate into a separate PostgreSQL instance, and
+verify credentials, workflows and executions before switching traffic. Changing
+`database.mode` alone does not migrate data. Do not apply this release over an
+existing bundled MySQL installation until its data has been migrated and its
+backup and PVC recovery have been verified.
+
+See the [2.0 storage migration guidance](https://github.com/n8n-io/n8n-docs/blob/main/docs/changelog/v20-breaking-changes.md)
+and [upstream releases](https://github.com/n8n-io/n8n/releases).
 
 The chart defaults to `N8N_RUNNERS_MODE=external`. It creates a shared auth
 token, opens the broker port, and runs a `docker.io/n8nio/runners` sidecar next
@@ -236,13 +257,13 @@ reduces startup log noise. Operators can opt in with
 - [Chart design](DESIGN.md)
 - [Source code](https://github.com/helmforgedev/charts/tree/main/charts/n8n)
 
-### 🟢 Security Scan: `n8n`
+### Security Scan: `n8n`
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **85.774414%** |
+| MITRE + NSA + SOC2 | **87.88%** |
 
-> ✅ Security posture acceptable.
+Rendered-resource scan with Kubescape 4.0.13. Application and workflow behavior are validated separately.
 
 <!-- @AI-METADATA
 type: chart-readme

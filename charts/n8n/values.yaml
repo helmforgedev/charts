@@ -2,7 +2,7 @@
 # =============================================================================
 # n8n Helm Chart
 # =============================================================================
-# Workflow automation platform. Supports SQLite (default), PostgreSQL, MySQL,
+# Workflow automation platform. Supports SQLite (default), PostgreSQL,
 # and optional Redis-backed queue mode for scaling.
 # https://docs.n8n.io/
 # =============================================================================
@@ -24,7 +24,7 @@ image:
   # -- Container image repository
   repository: docker.io/n8nio/n8n
   # -- Container image tag
-  tag: "2.35.3"
+  tag: "2.38.4"
   # -- Image pull policy
   pullPolicy: IfNotPresent
 
@@ -107,7 +107,7 @@ taskRunners:
 # Queue Mode (Redis)
 # =============================================================================
 # When enabled, n8n runs in queue mode using Redis as the message broker and a
-# shared non-SQLite database (PostgreSQL, MySQL, or external database).
+# shared non-SQLite database (PostgreSQL or external PostgreSQL).
 # This allows horizontal scaling with separate worker processes.
 # =============================================================================
 
@@ -161,17 +161,17 @@ encryptionKey:
 # =============================================================================
 # Database
 # =============================================================================
-# n8n supports SQLite (default), PostgreSQL, and MySQL.
+# n8n supports SQLite (default) and PostgreSQL.
 #
 # Mode detection (when mode is auto):
+# External and bundled PostgreSQL are mutually exclusive.
 # 1. database.external.host or database.external.existingSecret -> external
 # 2. postgresql.enabled -> PostgreSQL subchart
-# 3. mysql.enabled -> MySQL subchart
-# 4. Fallback -> SQLite (default, zero configuration)
+# 3. Fallback -> SQLite (default, zero configuration)
 # =============================================================================
 
 database:
-  # -- Database mode: auto | sqlite | external | postgresql | mysql
+  # -- Database mode: auto | sqlite | external | postgresql
   mode: auto
 
   sqlite:
@@ -179,7 +179,7 @@ database:
     file: /home/node/.n8n/database.sqlite
 
   external:
-    # -- Database vendor: postgres | mysql
+    # -- Database vendor: postgres (only supported external backend)
     vendor: postgres
 
     # -- External database hostname
@@ -239,36 +239,12 @@ postgresql:
           -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
 
 # =============================================================================
-# MySQL Subchart
+# Legacy MySQL configuration
 # =============================================================================
 
 mysql:
-  # -- Deploy MySQL as a subchart
+  # -- Deprecated compatibility guard. Must remain false: n8n 2.x removed MySQL/MariaDB storage.
   enabled: false
-
-  # -- MySQL architecture (standalone or replication)
-  architecture: standalone
-
-  auth:
-    # -- Database name created on first run
-    database: n8n
-    # -- Database username created on first run
-    username: n8n
-    # -- Database password (auto-generated if empty)
-    password: ""
-    # -- Root password (auto-generated if empty)
-    rootPassword: ""
-
-  standalone:
-    persistence:
-      # -- Enable persistence for MySQL data
-      enabled: true
-      # -- PVC size for MySQL
-      size: 8Gi
-
-  startupProbe:
-    # -- Delay startup checks until the initial MySQL bootstrap has opened port 3306
-    initialDelaySeconds: 30
 
 # =============================================================================
 # Redis Subchart (for queue mode)
@@ -488,8 +464,6 @@ backup:
     sqlite: docker.io/library/alpine:3.22
     # -- Image used for PostgreSQL backup (must have pg_dump)
     postgresql: docker.io/library/postgres:18.4-alpine
-    # -- Image used for MySQL backup (must have mysqldump)
-    mysql: docker.io/library/mysql:8.4
     # -- Image used for S3 upload (MinIO client)
     uploader: docker.io/helmforge/mc:1.0.0
 
@@ -534,7 +508,6 @@ backup:
     existingSecret: ""
     existingSecretPasswordKey: database-password
     postgresDumpArgs: ""
-    mysqlDumpArgs: "--single-transaction --quick --skip-lock-tables --no-tablespaces"
 
 # =============================================================================
 # Scheduling

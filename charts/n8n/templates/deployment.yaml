@@ -8,6 +8,10 @@ metadata:
     {{- include "n8n.labels" . | nindent 4 }}
 spec:
   replicas: 1
+  {{- if eq (include "n8n.databaseMode" .) "sqlite" }}
+  strategy:
+    type: Recreate
+  {{- end }}
   selector:
     matchLabels:
       {{- include "n8n.selectorLabels" . | nindent 6 }}
@@ -115,8 +119,7 @@ spec:
             - name: DB_TYPE
               value: {{ include "n8n.dbType" . | quote }}
             {{- if ne $dbMode "sqlite" }}
-            {{- $vendor := include "n8n.databaseVendor" . }}
-            {{- $prefix := ternary "DB_POSTGRESDB" "DB_MYSQLDB" (eq $vendor "postgres") }}
+            {{- $prefix := "DB_POSTGRESDB" }}
             - name: {{ $prefix }}_HOST
               value: {{ include "n8n.databaseHost" . | quote }}
             - name: {{ $prefix }}_PORT
@@ -174,7 +177,7 @@ spec:
                   name: {{ include "n8n.taskRunnerSecretName" . }}
                   key: {{ include "n8n.taskRunnerSecretKey" . }}
             {{- end }}
-            - name: N8N_NATIVE_PYTHON_RUNNER
+            - name: N8N_PYTHON_ENABLED
               value: {{ .Values.taskRunners.nativePython.enabled | quote }}
             {{- if .Values.queue.enabled }}
             - name: EXECUTIONS_MODE

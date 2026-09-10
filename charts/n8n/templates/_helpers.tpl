@@ -69,155 +69,94 @@ app.kubernetes.io/component: worker
 
 {{- define "n8n.databaseMode" -}}
 {{- $mode := .Values.database.mode | default "auto" -}}
-{{- if not (has $mode (list "auto" "sqlite" "external" "postgresql" "mysql")) -}}
-{{- fail (printf "database.mode must be one of: auto, sqlite, external, postgresql, mysql (got %s)" $mode) -}}
+{{- $vendor := .Values.database.external.vendor | default "postgres" -}}
+{{- if or (.Values.mysql.enabled | default false) (eq $mode "mysql") (has $vendor (list "mysql" "mariadb")) -}}
+{{- fail "n8n 2.x removed MySQL/MariaDB storage; migrate data to PostgreSQL or SQLite before upgrading" -}}
+{{- end -}}
+{{- if not (has $mode (list "auto" "sqlite" "external" "postgresql")) -}}
+{{- fail (printf "database.mode must be one of: auto, sqlite, external, postgresql (got %s)" $mode) -}}
+{{- end -}}
+{{- if ne $vendor "postgres" -}}
+{{- fail "database.external.vendor must be postgres; n8n 2.x supports only PostgreSQL and SQLite storage" -}}
 {{- end -}}
 {{- $hasExternal := or (ne (.Values.database.external.host | default "") "") (ne (.Values.database.external.existingSecret | default "") "") -}}
 {{- $hasPostgresql := .Values.postgresql.enabled | default false -}}
-{{- $hasMysql := .Values.mysql.enabled | default false -}}
 {{- $hasRedis := or (.Values.redis.enabled | default false) (ne (.Values.queue.external.host | default "") "") -}}
-{{- $vendor := .Values.database.external.vendor | default "postgres" -}}
-{{- if not (has $vendor (list "postgres" "mysql")) -}}
-{{- fail (printf "database.external.vendor must be one of: postgres, mysql (got %s)" $vendor) -}}
-{{- end -}}
 {{- if and .Values.queue.enabled (not $hasRedis) -}}
 {{- fail "queue.enabled=true requires redis.enabled=true or queue.external.host to be set" -}}
 {{- end -}}
-{{- if and .Values.queue.enabled (eq $mode "sqlite") -}}
-{{- fail "queue.enabled=true is not supported with SQLite; configure PostgreSQL, MySQL, or an external database" -}}
-{{- end -}}
-{{- if and .Values.queue.enabled (eq $mode "auto") (not (or $hasExternal $hasPostgresql $hasMysql)) -}}
-{{- fail "queue.enabled=true is not supported with SQLite; configure PostgreSQL, MySQL, or an external database" -}}
+{{- if and .Values.queue.enabled (or (eq $mode "sqlite") (and (eq $mode "auto") (not (or $hasExternal $hasPostgresql)))) -}}
+{{- fail "queue.enabled=true is not supported with SQLite; configure PostgreSQL or an external PostgreSQL database" -}}
 {{- end -}}
 {{- if eq $mode "auto" -}}
-  {{- $count := 0 -}}
-  {{- if $hasExternal -}}{{- $count = add1 $count -}}{{- end -}}
-  {{- if $hasPostgresql -}}{{- $count = add1 $count -}}{{- end -}}
-  {{- if $hasMysql -}}{{- $count = add1 $count -}}{{- end -}}
-  {{- if gt $count 1 -}}
-    {{- fail "n8n database selection is ambiguous: configure only one of database.external.host, postgresql.enabled, or mysql.enabled" -}}
+  {{- if and $hasExternal $hasPostgresql -}}
+    {{- fail "n8n database selection is ambiguous: configure only one of database.external.host or postgresql.enabled" -}}
   {{- end -}}
   {{- if $hasExternal -}}external
   {{- else if $hasPostgresql -}}postgresql
-  {{- else if $hasMysql -}}mysql
   {{- else -}}sqlite
   {{- end -}}
 {{- else -}}
-  {{- if and (eq $mode "sqlite") (or $hasExternal $hasPostgresql $hasMysql) -}}
-    {{- fail "database.mode=sqlite cannot be combined with database.external, postgresql.enabled, or mysql.enabled" -}}
+  {{- if and (eq $mode "sqlite") (or $hasExternal $hasPostgresql) -}}
+    {{- fail "database.mode=sqlite cannot be combined with database.external or postgresql.enabled" -}}
   {{- end -}}
   {{- if and (eq $mode "external") (not $hasExternal) -}}
     {{- fail "database.mode=external requires database.external.host or database.external.existingSecret" -}}
   {{- end -}}
-  {{- if and (eq $mode "external") (or $hasPostgresql $hasMysql) -}}
-    {{- fail "database.mode=external cannot be combined with postgresql.enabled or mysql.enabled" -}}
+  {{- if and (eq $mode "external") $hasPostgresql -}}
+    {{- fail "database.mode=external cannot be combined with postgresql.enabled" -}}
   {{- end -}}
   {{- if and (eq $mode "postgresql") (not $hasPostgresql) -}}
     {{- fail "database.mode=postgresql requires postgresql.enabled=true" -}}
   {{- end -}}
-  {{- if and (eq $mode "postgresql") (or $hasExternal $hasMysql) -}}
-    {{- fail "database.mode=postgresql cannot be combined with database.external or mysql.enabled" -}}
-  {{- end -}}
-  {{- if and (eq $mode "mysql") (not $hasMysql) -}}
-    {{- fail "database.mode=mysql requires mysql.enabled=true" -}}
-  {{- end -}}
-  {{- if and (eq $mode "mysql") (or $hasExternal $hasPostgresql) -}}
-    {{- fail "database.mode=mysql cannot be combined with database.external or postgresql.enabled" -}}
+  {{- if and (eq $mode "postgresql") $hasExternal -}}
+    {{- fail "database.mode=postgresql cannot be combined with database.external" -}}
   {{- end -}}
   {{- $mode -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "n8n.databaseVendor" -}}
-{{- $mode := include "n8n.databaseMode" . -}}
-{{- if eq $mode "external" -}}
-{{- .Values.database.external.vendor | default "postgres" -}}
-{{- else if eq $mode "postgresql" -}}
-postgres
-{{- else if eq $mode "mysql" -}}
-mysql
-{{- else -}}
-sqlite
-{{- end -}}
+{{- if eq (include "n8n.databaseMode" .) "sqlite" -}}sqlite{{- else -}}postgres{{- end -}}
 {{- end -}}
 
-{{/* n8n uses DB_TYPE values: sqlite, postgresdb, mysqldb */}}
+{{/* n8n 2.x supports only sqlite and postgresdb. */}}
 {{- define "n8n.dbType" -}}
-{{- $vendor := include "n8n.databaseVendor" . -}}
-{{- if eq $vendor "sqlite" -}}sqlite
-{{- else if eq $vendor "postgres" -}}postgresdb
-{{- else -}}mysqldb
-{{- end -}}
+{{- if eq (include "n8n.databaseVendor" .) "sqlite" -}}sqlite{{- else -}}postgresdb{{- end -}}
 {{- end -}}
 
 {{- define "n8n.databaseHost" -}}
 {{- $mode := include "n8n.databaseMode" . -}}
-{{- if eq $mode "external" -}}
-{{- .Values.database.external.host -}}
-{{- else if eq $mode "postgresql" -}}
-{{- printf "%s-postgresql" .Release.Name -}}
-{{- else if eq $mode "mysql" -}}
-{{- printf "%s-mysql" .Release.Name -}}
-{{- else -}}
-{{- "" -}}
+{{- if eq $mode "external" -}}{{- .Values.database.external.host -}}
+{{- else if eq $mode "postgresql" -}}{{- printf "%s-postgresql" .Release.Name -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "n8n.databasePort" -}}
 {{- $mode := include "n8n.databaseMode" . -}}
-{{- if eq $mode "external" -}}
-{{- if .Values.database.external.port -}}
-{{- .Values.database.external.port | toString -}}
-{{- else if eq (.Values.database.external.vendor | default "postgres") "mysql" -}}
-3306
-{{- else -}}
-5432
-{{- end -}}
-{{- else if eq $mode "postgresql" -}}
-5432
-{{- else if eq $mode "mysql" -}}
-3306
-{{- else -}}
-{{- "" -}}
+{{- if eq $mode "external" -}}{{- .Values.database.external.port | default 5432 | toString -}}
+{{- else if eq $mode "postgresql" -}}5432
 {{- end -}}
 {{- end -}}
 
 {{- define "n8n.databaseName" -}}
 {{- $mode := include "n8n.databaseMode" . -}}
-{{- if eq $mode "external" -}}
-{{- .Values.database.external.name -}}
-{{- else if eq $mode "postgresql" -}}
-{{- .Values.postgresql.auth.database -}}
-{{- else if eq $mode "mysql" -}}
-{{- .Values.mysql.auth.database -}}
-{{- else -}}
-{{- "" -}}
+{{- if eq $mode "external" -}}{{- .Values.database.external.name -}}
+{{- else if eq $mode "postgresql" -}}{{- .Values.postgresql.auth.database -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "n8n.databaseUsername" -}}
 {{- $mode := include "n8n.databaseMode" . -}}
-{{- if eq $mode "external" -}}
-{{- .Values.database.external.username -}}
-{{- else if eq $mode "postgresql" -}}
-{{- .Values.postgresql.auth.username -}}
-{{- else if eq $mode "mysql" -}}
-{{- .Values.mysql.auth.username -}}
-{{- else -}}
-{{- "" -}}
+{{- if eq $mode "external" -}}{{- .Values.database.external.username -}}
+{{- else if eq $mode "postgresql" -}}{{- .Values.postgresql.auth.username -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "n8n.databasePasswordValue" -}}
 {{- $mode := include "n8n.databaseMode" . -}}
-{{- if eq $mode "external" -}}
-{{- .Values.database.external.password -}}
-{{- else if eq $mode "postgresql" -}}
-{{- .Values.postgresql.auth.password -}}
-{{- else if eq $mode "mysql" -}}
-{{- .Values.mysql.auth.password -}}
-{{- else -}}
-{{- "" -}}
+{{- if eq $mode "external" -}}{{- .Values.database.external.password -}}
+{{- else if eq $mode "postgresql" -}}{{- .Values.postgresql.auth.password -}}
 {{- end -}}
 {{- end -}}
 
