@@ -16,7 +16,7 @@ persistence:
   storageClass: fast-retain
 ```
 
-Back up the PVC before upgrades. The application stores its SQLite database and
+Back up the PVC before upgrades. The application stores its JSON settings and watch files and
 snapshot data under `/datastore`.
 
 ## Routing

@@ -11,7 +11,7 @@ Discord, Telegram, webhooks, and 90+ Apprise services.
 - **Website monitoring** — detect content changes on any URL
 - **90+ notification channels** — via built-in Apprise library
 - **Optional JavaScript rendering** — Playwright browser sidecar for dynamic sites
-- **SQLite storage** — zero external database dependencies
+- **JSON datastore** — zero external database dependencies
 - **Persistent storage** — snapshots and history on PVC
 - **Ingress support** — TLS with cert-manager
 - **Gateway API support** — optional HTTPRoute for platform Gateway deployments
@@ -66,7 +66,7 @@ from the application container when JavaScript rendering is used heavily.
 
 ## Persistence
 
-changedetection.io stores its SQLite database, snapshots, and watch history in
+changedetection.io stores its JSON settings and watch files, snapshots, and watch history in
 `/datastore`. Persistence is enabled by default:
 
 ```yaml
@@ -83,7 +83,7 @@ persistence:
   enabled: false
 ```
 
-Because SQLite is used, this chart intentionally deploys a single replica with
+Because the datastore is written by one application instance, this chart intentionally deploys a single replica with
 the `Recreate` strategy. Do not scale the workload horizontally unless the
 upstream application storage model changes.
 
@@ -243,7 +243,7 @@ probes:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `ghcr.io/dgtlmoon/changedetection.io` | changedetection.io image repository |
-| `image.tag` | `0.55.8` | changedetection.io image tag |
+| `image.tag` | `0.60.3` | changedetection.io image tag |
 | `image.pullPolicy` | `IfNotPresent` | Image pull policy |
 | `changedetection.port` | `5000` | Application port |
 | `changedetection.baseUrl` | `""` | Public base URL |
@@ -283,17 +283,31 @@ probes:
 
 ## Upgrade Notes
 
-For this release the application image is updated to `0.55.8`. The upstream
-`0.55.6` release includes a security fix for an SSRF parser differential,
-notification and preview fixes, plus an `LLM_FEATURES_DISABLED` flag. The
-`0.55.8` release adds translation updates and fixes page title extraction,
-password-protected RSS feeds, URL fragments, restock tokens, and LLM handling. Review the upstream changelog
-before production rollout and test restores from the `/datastore` backup when
-upgrading long-lived instances.
+Version 0.60.3 includes the intervening watch/tag loading, XML parsing,
+CSRF/XSS protections, browser and UTF-8 backup fixes since 0.55.8.
+Back up the complete `/datastore` before upgrading: `changedetection.json`,
+watch/tag directories and snapshots belong together. Restore that backup with
+its matching old image for rollback; reverting only the tag does not reverse
+storage migrations.
+
+Upstream consistently blocks private, loopback and other restricted target
+addresses by default. Existing internal-site monitors may need an explicit opt-in:
+
+```yaml
+changedetection:
+  extraEnv:
+    - name: ALLOW_IANA_RESTRICTED_ADDRESSES
+      value: "true"
+```
+
+Use that setting only when internal monitoring is intended and application access
+is controlled. The chart keeps the upstream restriction enabled by default.
+`PLAYWRIGHT_BYPASS_CSP` defaults to `true` upstream; set it to `false` through
+`changedetection.extraEnv` when the remote browser does not support CSP bypass.
 
 ## Limitations
 
-- **Single instance only** — SQLite does not support concurrent writers
+- **Single instance only** — the JSON datastore requires a single application writer
 - **Storage grows** — each snapshot consumes disk space; plan PVC size accordingly
 - **Browser rendering costs more** — enabling the browser sidecar increases CPU
   and memory consumption
@@ -317,7 +331,7 @@ Local details:
 | SOC2 | 80.00% |
 
 The remaining findings are expected for this workload profile: changedetection.io
-needs a writable datastore for SQLite and snapshots, NetworkPolicy is supplied by
+needs a writable datastore for JSON files and snapshots, NetworkPolicy is supplied by
 the platform layer, and ServiceAccount token hardening remains configurable by
 cluster policy.
 
