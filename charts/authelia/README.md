@@ -47,7 +47,7 @@ A disabled placeholder `admin` account is shipped because Authelia requires a no
 Enable it only after setting a strong password hash. Generate one with:
 
 ```bash
-docker run authelia/authelia:4.39.20 authelia crypto hash generate argon2
+docker run authelia/authelia:4.39.22 authelia crypto hash generate argon2
 ```
 
 ```yaml
@@ -185,19 +185,37 @@ auth_request /authelia;
 auth_request_set $user $upstream_http_remote_user;
 ```
 
+## Upgrading to 4.39.22
+
+Authelia 4.39.21 changes storage encryption to use HKDF and authenticated
+additional data; 4.39.22 fixes the access-token JWT session migration. Back up
+the database and retain the storage encryption key before upgrading. Allow
+startup migrations to complete before serving traffic. Restore the matching
+database backup and key if a rollback requires the previous storage format.
+
+The chart preserves generated credentials through Helm cluster lookup. Use an
+existing Secret for GitOps or offline rendering, where lookup cannot retrieve
+the installed key. Do not rotate the storage key as part of an image update.
+After rollout, run `authelia storage encryption check --config /config/configuration.yml`
+inside the Authelia container and verify application health and MFA enrollment.
+
+Release notes: [4.39.21](https://github.com/authelia/authelia/releases/tag/v4.39.21),
+[4.39.22](https://github.com/authelia/authelia/releases/tag/v4.39.22).
+
 ## More Information
 
 - [Architecture](docs/architecture.md) — deployment model, configuration injection, forward auth setup
 - [Authelia Documentation](https://www.authelia.com/configuration/prologue/introduction/)
 - [Source Code](https://github.com/helmforgedev/charts/tree/main/charts/authelia)
 
-### 🟢 Security Scan: `authelia`
+### Security Scan: `authelia`
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **90.31987%** |
+| MITRE + NSA + SOC2 | **87.88%** |
 
-> ✅ Security posture acceptable.
+Scan of rendered Kubernetes resources; application authentication and storage
+behavior require separate runtime validation.
 
 <!-- @AI-METADATA
 @description: README for the Authelia Helm chart
