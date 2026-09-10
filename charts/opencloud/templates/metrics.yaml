@@ -1,0 +1,61 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.metrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "opencloud.fullname" . | trunc 55 | trimSuffix "-" }}-metrics
+  labels: {{ include "opencloud.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ .Values.service.ipFamilyPolicy }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies: {{ toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - {name: metrics, port: {{ .Values.metrics.port }}, targetPort: metrics}
+  selector: {{ include "opencloud.selectorLabels" . | nindent 4 }}
+{{- if .Values.metrics.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "opencloud.fullname" . }}
+  labels:
+    {{- include "opencloud.labels" . | nindent 4 }}
+    {{- with .Values.metrics.serviceMonitor.labels }}{{ toYaml . | nindent 4 }}{{- end }}
+spec:
+  selector:
+    matchLabels: {{ include "opencloud.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.metrics.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
+      authorization:
+        type: Bearer
+        credentials:
+          name: {{ include "opencloud.metricsSecretName" . }}
+          key: {{ .Values.metrics.tokenKey }}
+{{- end }}
+{{- if .Values.metrics.prometheusRule.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "opencloud.fullname" . }}
+  labels:
+    {{- include "opencloud.labels" . | nindent 4 }}
+    {{- with .Values.metrics.prometheusRule.labels }}{{ toYaml . | nindent 4 }}{{- end }}
+spec:
+  groups:
+    - name: {{ include "opencloud.fullname" . }}.native
+      rules:
+        - alert: OpenCloudMetricsUnavailable
+          expr: up{namespace={{ .Release.Namespace | quote }},service={{ printf "%s-metrics" (include "opencloud.fullname" . | trunc 55 | trimSuffix "-") | quote }}} == 0
+          for: 5m
+          labels: {severity: warning}
+          annotations: {summary: "OpenCloud native metrics target is unavailable"}
+        {{- with .Values.metrics.prometheusRule.additionalRules }}{{ toYaml . | nindent 8 }}{{- end }}
+{{- end }}
+{{- end }}

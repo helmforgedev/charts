@@ -1,0 +1,26 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.metrics.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "opencloud.fullname" . | trunc 55 | trimSuffix "-" }}-metrics
+  labels: {{ include "opencloud.labels" . | nindent 4 }}
+data:
+  metrics-proxy.mjs: {{ .Files.Get "files/metrics-proxy.mjs" | toYaml | nindent 4 }}
+{{- if not .Values.metrics.existingSecret }}
+{{- $name := include "opencloud.metricsSecretName" . }}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $name }}
+{{- $token := randAlphaNum 48 }}
+{{- if $existing }}{{- $token = index $existing.data .Values.metrics.tokenKey | b64dec }}{{- end }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}
+  labels: {{ include "opencloud.labels" . | nindent 4 }}
+  annotations: {helm.sh/resource-policy: keep}
+type: Opaque
+data:
+  {{ .Values.metrics.tokenKey }}: {{ $token | b64enc | quote }}
+{{- end }}
+{{- end }}

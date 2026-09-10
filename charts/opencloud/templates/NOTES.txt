@@ -1,0 +1,56 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+OpenCloud file collaboration
+
+1. Installation summary
+=======================
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Image: {{ include "opencloud.image" . }}
+
+2. Access
+=========
+Canonical HTTPS origin: {{ include "opencloud.publicUrl" . }}
+Use one stable origin reachable by browsers and the application's own OIDC clients.
+For production, configure server.publicUrl and trusted certificates before adding users.
+The generated private certificate requires explicit client trust and has a one-year lifetime.
+
+3. Authentication
+=================
+Initial administrator username: admin
+Bootstrap Secret: {{ include "opencloud.bootstrapSecretName" . }}
+Password key: {{ .Values.bootstrap.passwordKey }}
+Retrieve this Secret through your authorized secret-management workflow.
+Existing native identity and account passwords are preserved during ordinary restarts.
+
+4. Persistence and backup
+=========================
+Preserve both config and data directories from the same persistent volume.
+The storage backend requires user extended attributes. Initialization checks the mounted filesystem.
+Snapshots or archive tools must preserve extended attributes, ownership and all identity keys.
+Retain the bootstrap and TLS Secrets separately. Config alone is not a complete backup.
+
+5. Availability and resources
+=============================
+This chart runs one monolithic replica with Recreate upgrades and maintenance downtime.
+The application runs as UID 1000 with a read-only root filesystem.
+Size memory, persistent storage and temporary storage for your workload.
+
+6. Monitoring and network
+=========================
+The debug listener remains private on loopback; never expose its configuration endpoint publicly.
+NetworkPolicy enforcement requires a compatible CNI.
+Allow required external HTTPS issuer and integration destinations explicitly.
+
+7. Upgrade and recovery
+=======================
+Back up consistent config, data and extended attributes before changing versions.
+helm upgrade {{ .Release.Name }} helmforge/opencloud -n {{ .Release.Namespace }} -f values.yaml
+Do not regenerate config over an existing identity database or force initialization on upgrade.
+Helm rollback does not reverse persisted application changes.
+
+8. Documentation and support
+============================
+https://helmforge.dev/docs/charts/opencloud
+https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)

@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: OpenCloud configuration admission
+templates:
+  - validate.yaml
+tests:
+  - it: requires routes when enabled
+    set:
+      gatewayAPI.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: gatewayAPI.httpRoutes is required
+  - it: requires a TLS policy for native HTTPS Gateway backends
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - parentRefs:
+            - name: shared
+      server.backendTLS.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: Native HTTPS Gateway backends require BackendTLSPolicy
+  - it: requires external CA trust for an existing certificate
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - parentRefs:
+            - name: shared
+      server.tls.existingSecret: tls
+    asserts:
+      - failedTemplate:
+          errorMessage: Existing TLS Secret requires explicit Gateway backend CA trust
+  - it: rejects simultaneous CA trust modes
+    set:
+      server.backendTLS.useSystemCAs: true
+      server.backendTLS.caCertificateRefs:
+        - group: ''
+          kind: ConfigMap
+          name: ca
+    asserts:
+      - failedTemplate:
+          errorMessage: Backend TLS requires either system or custom CA trust
+  - it: requires native metrics for monitors
+    set:
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: Metrics must be enabled for ServiceMonitor or PrometheusRule
+  - it: rejects conflicting metrics port
+    set:
+      metrics.port: 9205
+    asserts:
+      - failedTemplate:
+          errorMessage: Metrics port must differ from application and debug ports
+  - it: rejects selector overrides
+    set:
+      podLabels:
+        app.kubernetes.io/instance: different
+    asserts:
+      - failedTemplate:
+          errorMessage: Custom labels cannot override workload selectors
+  - it: rejects insecure environment overrides
+    set:
+      extraEnv:
+        - name: OC_INSECURE
+          value: 'true'
+    asserts:
+      - failedTemplate:
+          errorMessage: extraEnv cannot override managed setting OC_INSECURE
+  - it: rejects simultaneous password sources
+    set:
+      bootstrap.password: Owned-fixture-password
+      bootstrap.existingSecret: admin
+    asserts:
+      - failedTemplate:
+          errorMessage: Bootstrap password and existing Secret are mutually exclusive
