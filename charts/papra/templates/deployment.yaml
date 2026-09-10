@@ -1,0 +1,111 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "papra.fullname" . }}
+  labels: {{ include "papra.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {{ include "papra.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "papra.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}{{ toYaml . | nindent 8 }}{{- end }}
+      annotations:
+        checksum/bootstrap: {{ printf "%s%s" (toJson .Values.bootstrap) (.Files.Get "files/bootstrap.mjs") | sha256sum }}
+        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
+    spec:
+      serviceAccountName: {{ include "papra.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext: {{ toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}{{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- if .Values.bootstrap.enabled }}
+      initContainers:
+        - name: bootstrap
+          image: {{ include "papra.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [node, /bootstrap-script/bootstrap.mjs]
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          env:
+            {{- include "papra.nativeEnvironment" . | nindent 12 }}
+            - {name: BOOTSTRAP_EMAIL, value: {{ .Values.bootstrap.email | quote }}}
+            - {name: BOOTSTRAP_NAME, value: {{ .Values.bootstrap.name | quote }}}
+          {{- with .Values.envFrom }}
+          envFrom: {{ toYaml . | nindent 12 }}{{- end }}
+          volumeMounts:
+            {{- include "papra.mounts" . | nindent 12 }}
+            - {name: bootstrap-script, mountPath: /bootstrap-script, readOnly: true}
+            - {name: bootstrap-auth, mountPath: /bootstrap-auth, readOnly: true}
+      {{- end }}
+      {{- if not .Values.bootstrap.enabled }}
+      initContainers:
+        - name: runtime-directories
+          image: {{ include "papra.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [node, -e]
+          args: ['require("node:fs").mkdirSync("/app/app-data/db", {recursive: true})']
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {requests: {cpu: 50m, memory: 32Mi}, limits: {cpu: 500m, memory: 64Mi}}
+          volumeMounts:
+            {{- include "papra.mounts" . | nindent 12 }}
+      {{- end }}
+      containers:
+        - name: papra
+          image: {{ include "papra.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          ports: [{name: http, containerPort: {{ .Values.server.port }}}]
+          env:
+            {{- include "papra.nativeEnvironment" . | nindent 12 }}
+          {{- with .Values.envFrom }}
+          envFrom: {{ toYaml . | nindent 12 }}{{- end }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          {{- range $name, $probe := .Values.probes }}
+          {{- if $probe.enabled }}
+          {{ $name }}Probe:
+            httpGet: {path: {{ $probe.path | quote }}, port: http}
+            {{- omit $probe "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}{{- end }}
+          volumeMounts:
+            {{- include "papra.mounts" . | nindent 12 }}
+      volumes:
+        - name: workspace
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim: {claimName: {{ include "papra.claimName" . }}}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - {name: tmp, emptyDir: {sizeLimit: {{ .Values.runtime.temporarySize }}}}
+        - {name: home, emptyDir: {sizeLimit: {{ .Values.runtime.homeSize }}}}
+        {{- if .Values.server.trustedCaSecret }}
+        - name: trusted-ca
+          secret:
+            secretName: {{ .Values.server.trustedCaSecret }}
+            defaultMode: 288
+            items: [{key: {{ .Values.server.trustedCaKey }}, path: ca.crt}]
+        {{- end }}
+        {{- if .Values.bootstrap.enabled }}
+        - name: bootstrap-script
+          configMap: {name: {{ include "papra.fullname" . | trunc 53 | trimSuffix "-" }}-bootstrap}
+        - name: bootstrap-auth
+          secret:
+            secretName: {{ include "papra.bootstrapSecretName" . }}
+            defaultMode: 288
+            items: [{key: {{ .Values.bootstrap.passwordKey }}, path: password}]
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{ toYaml . | nindent 8 }}{{- end }}

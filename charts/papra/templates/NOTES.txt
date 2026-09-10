@@ -1,0 +1,66 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+Papra document management
+
+1. Installation summary
+=======================
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Image: {{ include "papra.image" . }}
+Single writer with Recreate upgrades and native database migrations.
+
+2. Access
+=========
+kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "papra.fullname" . }} 1221:{{ .Values.service.port }}
+Configured public URL: {{ .Values.server.publicUrl }}
+Set server.publicUrl to your dedicated HTTPS hostname before remote use.
+Configure edge upload limits and timeouts for your document sizes.
+
+3. Authentication
+=================
+Initial administrator: {{ .Values.bootstrap.email }}
+Initial password Secret: {{ include "papra.bootstrapSecretName" . }}
+Initial password key: {{ .Values.bootstrap.passwordKey }}
+Session Secret: {{ include "papra.authSecretName" . }}
+Retrieve credentials with your approved Secret management tooling.
+Bootstrap preserves existing users; changing its Secret does not reset a password.
+Email/password registration enabled: {{ .Values.auth.allowRegistration }}
+
+4. Persistence and backup
+=========================
+Persistent claim: {{ include "papra.claimName" . }}
+Generated PVC retained on uninstall: {{ .Values.persistence.retain }}
+Document storage: {{ .Values.storage.driver }}
+Back up the database, original documents and all authentication/encryption keys together.
+Quiesce local SQLite writers before archiving the complete state, including WAL files.
+S3 documents still require a matching database backup and document key ring.
+Include db/tasks.sqlite: pending extraction work is persistent, but its metadata is not natively encrypted.
+
+5. Availability and resources
+=============================
+Exactly one application replica. Recreate upgrades include downtime.
+The non-root upstream image runs with a read-only root filesystem and writable data/tmp/home volumes.
+Native migrations must finish before HTTP readiness. Size memory and storage for extraction workloads.
+
+6. Monitoring and network
+=========================
+No native Prometheus endpoint is asserted. Monitor workload, PVC, edge and /api/health externally.
+Default policy permits same-namespace HTTP and DNS; allow explicit integration destinations.
+NetworkPolicy enforcement requires a compatible CNI.
+Monitor failed/stuck extraction and queue growth; native processing jobs have no crash reaper.
+kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "papra.fullname" . }} -c papra
+
+7. Upgrade and recovery
+=======================
+Take a consistent backup before each application or storage migration.
+helm upgrade {{ .Release.Name }} helmforge/papra -n {{ .Release.Namespace }} -f values.yaml
+kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "papra.fullname" . }}
+Restore into a fresh PVC and set persistence.existingClaim with the original Secrets retained.
+Choose local database encryption before creation; do not rotate or toggle its key in place.
+Keep every document key-ring version still referenced by stored originals.
+
+8. Documentation and support
+============================
+https://helmforge.dev/docs/charts/papra
+https://github.com/helmforgedev/charts/issues
+Helm rollback does not undo native database or storage migrations.
+Happy Helmforging :)

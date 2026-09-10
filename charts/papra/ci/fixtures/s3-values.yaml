@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: Secret
+metadata: {name: fixture-s3}
+type: Opaque
+stringData:
+  access-key-id: fixture-papra
+  secret-access-key: fixture-only-s3-password-2026
+---
+apiVersion: v1
+kind: Secret
+metadata: {name: fixture-encryption}
+type: Opaque
+stringData:
+  document-encryption-keys: '001:00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff'
+---
+apiVersion: v1
+kind: Service
+metadata: {name: fixture-s3}
+spec:
+  selector: {app: fixture-s3}
+  ports: [{name: s3, port: 8333, targetPort: 8333}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fixture-s3
+  labels: {helmforge.dev/runtime-fixture: 'true'}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: fixture-s3}
+  template:
+    metadata:
+      labels: {app: fixture-s3, helmforge.dev/runtime-fixture: 'true'}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: s3
+          image: docker.io/chrislusf/seaweedfs:4.46
+          command: [weed, mini, '-dir=/data', '-bucket=papra']
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef: {name: fixture-s3, key: access-key-id}
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef: {name: fixture-s3, key: secret-access-key}
+          ports: [{name: s3, containerPort: 8333}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: '1', memory: 1Gi}
+          readinessProbe:
+            tcpSocket: {port: s3}
+            periodSeconds: 3
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - {name: data, emptyDir: {sizeLimit: 1Gi}}
+        - {name: tmp, emptyDir: {sizeLimit: 256Mi}}

@@ -1,0 +1,97 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Papra Kubernetes integration
+templates:
+  - templates/*.yaml
+tests:
+  - it: keeps PVC after release uninstall
+    template: templates/pvc.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+  - it: accepts existing workspace
+    template: templates/deployment.yaml
+    set:
+      persistence.existingClaim: restored
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          value: restored
+  - it: uses explicit storage class
+    template: templates/pvc.yaml
+    set:
+      persistence.storageClass: fast
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: fast
+  - it: disables dynamic storage with dash
+    template: templates/pvc.yaml
+    set:
+      persistence.storageClass: '-'
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: ''
+  - it: allows dual stack service
+    template: templates/service.yaml
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+  - it: routes Gateway to native port
+    template: templates/httproute.yaml
+    set:
+      gateway.enabled: true
+      gateway.parentRefs:
+        - name: edge
+    asserts:
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 1221
+  - it: denies web egress by default
+    template: templates/networkpolicy.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53
+  - it: sets requested probe port by name
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: http
+  - it: renders no ExternalSecret by default
+    template: templates/externalsecret.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders canonical ExternalSecret v1 with target and interval
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: external-auth
+          spec:
+            secretStoreRef:
+              name: store
+              kind: ClusterSecretStore
+            data:
+              - secretKey: access-code
+                remoteRef:
+                  key: password
+    asserts:
+      - equal:
+          path: apiVersion
+          value: external-secrets.io/v1
+      - equal:
+          path: spec.target.name
+          value: external-auth
+      - equal:
+          path: spec.refreshInterval
+          value: 1h
