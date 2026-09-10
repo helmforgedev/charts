@@ -24,7 +24,7 @@ def api(route, data=None, method=None, auth=True):
     req = urllib.request.Request(base + '/api/v1' + route, data=json.dumps(data).encode() if data is not None else None, headers=headers, method=method)
     with urllib.request.urlopen(req, timeout=45) as response:
         body = response.read().decode()
-        return json.loads(body) if 'json' in response.headers.get('Content-Type', '') else body
+        return json.loads(body) if body and 'json' in response.headers.get('Content-Type', '') else body
 
 try:
     api('/watch', auth=False)
