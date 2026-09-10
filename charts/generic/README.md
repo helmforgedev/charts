@@ -3,8 +3,9 @@
 A single chart that handles **Deployments**, **StatefulSets**, **DaemonSets**, **Jobs**, and **CronJobs** with a unified values
 interface. Designed for teams that deploy many services and want one chart to rule them all.
 
-The default `nginx:1.31.4` image adds stricter protocol validation, standards-correct
-HTTP/2 and gRPC upstream host handling, and worker stability and memory-safety fixes.
+The default `nginx:1.31.5` image includes fixes for buffered HTTP/2 proxy responses,
+worker shutdown, and FastCGI/uWSGI parameter handling. New control API, predicate
+location, JSON module, and early request-body features require explicit configuration.
 Existing Generic chart configuration remains compatible with this image update.
 
 ## Install
@@ -306,10 +307,13 @@ templated (e.g. `{{ .Release.Namespace }}`) to derive per-environment paths from
 
 ## Security Scan
 
-🟢 Security Scan: generic
-Framework    Score
-MITRE + NSA + SOC2    75.76%
-✅ Security posture acceptable.
+### Security Scan: `generic`
+
+| Framework | Score |
+|---|---|
+| MITRE + NSA + SOC2 | **75.76%** |
+
+Security posture acceptable. Verified with Kubescape 4.0.13 against the rendered default manifests.
 
 ### When this chart fits well
 
@@ -370,7 +374,7 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | **Image** | | |
 | `global.imageRegistry` | Optional registry prefix for unqualified repositories | `""` |
 | `image.repository` | Container image repository | `docker.io/library/nginx` |
-| `image.tag` | Image tag | `1.31.4` |
+| `image.tag` | Image tag | `1.31.5` |
 | `image.digest` | Image digest, takes precedence over tag | `""` |
 | `image.pullPolicy` | Pull policy | `IfNotPresent` |
 | `imagePullSecrets` | Registry pull secrets | `[]` |
