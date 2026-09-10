@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: redis probes use the active transport
+templates:
+  - templates/standalone-statefulset.yaml
+tests:
+  - it: authenticates TLS probes with CA and configured port
+    set:
+      tls.enabled: true
+      tls.existingSecret: redis-tls
+      service.ports.redis: 6380
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: 'REDISCLI_AUTH=.*redis-cli --tls --cacert /tls/ca.crt --cert /tls/tls.crt --key /tls/tls.key -p 6380 ping \| grep -qx PONG'
+      - matchRegex:
+          path: spec.template.spec.containers[0].startupProbe.exec.command[2]
+          pattern: 'redis-cli --tls'
+      - matchRegex:
+          path: spec.template.spec.containers[0].livenessProbe.exec.command[2]
+          pattern: 'redis-cli --tls'
+  - it: keeps plaintext probes without TLS arguments and requires PONG
+    set:
+      auth.enabled: false
+      tls.enabled: false
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: 'REDISCLI_AUTH|--tls'
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: '-p 6379 ping \| grep -qx PONG'

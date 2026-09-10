@@ -27,6 +27,7 @@ helm install redis oci://ghcr.io/helmforgedev/helm/redis -f values.yaml
 - internal service DNS customization with `clusterDomain`
 - dual-stack service fields through `service.ipFamilyPolicy` and `service.ipFamilies`
 - optional TLS file wiring for Redis server configuration
+- startup, readiness and liveness probes use the configured Redis port and TLS transport, authenticate through `REDISCLI_AUTH`, and require `PONG`
 - optional Redis exporter sidecar and `ServiceMonitor`
 - optional `PodDisruptionBudget`
 - topology-specific Services, StatefulSets, and Redis Cluster bootstrap Job
@@ -303,7 +304,7 @@ and complete a controlled rollout promptly.
 - Redis security: <https://redis.io/docs/latest/operate/oss_and_stack/management/security/>
 - Redis 8.10.1 security release: <https://github.com/redis/redis/releases/tag/8.10.1>
 
-### 🟢 Security Scan: `redis`
+### Security Scan: `redis`
 
 | Framework | Score |
 |---|---|

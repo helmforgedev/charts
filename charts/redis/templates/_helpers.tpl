@@ -289,9 +289,9 @@ Probe command.
 */}}
 {{- define "redis.probeCommand" -}}
 {{- if .Values.auth.enabled -}}
-redis-cli -a "$REDIS_PASSWORD" ping
+REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli {{ include "redis.cliTlsArgs" . }} -p {{ .Values.service.ports.redis }} ping | grep -qx PONG
 {{- else -}}
-redis-cli ping
+redis-cli {{ include "redis.cliTlsArgs" . }} -p {{ .Values.service.ports.redis }} ping | grep -qx PONG
 {{- end -}}
 {{- end -}}
 
