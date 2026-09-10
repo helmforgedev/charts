@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: memos component database security
+templates:
+  - templates/statefulset.yaml
+  - templates/networkpolicy.yaml
+  - templates/validate.yaml
+tests:
+  - it: builds an external PostgreSQL DSN from a password file and verifies TLS by default
+    template: templates/statefulset.yaml
+    set:
+      database:
+        driver: postgres
+        host: db.example.test
+        passwordSecret: database-password
+        caSecret: database-ca
+        networkPolicyPeers:
+          - ipBlock: {cidr: 192.0.2.8/32}
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content: {name: DB_SSL_MODE, value: verify-full}
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: database-auth
+            secret:
+              secretName: database-password
+              defaultMode: 288
+              items: [{key: password, path: password}]
+  - it: permits only the explicit external database address and port
+    template: templates/networkpolicy.yaml
+    set:
+      database:
+        driver: postgres
+        host: db.example.test
+        passwordSecret: database-password
+        networkPolicyPeers:
+          - ipBlock: {cidr: 192.0.2.8/32}
+    asserts:
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 5432
+  - it: rejects mixed opaque and component credentials
+    template: templates/validate.yaml
+    set:
+      database:
+        driver: mysql
+        host: db.example.test
+        passwordSecret: database-password
+        existingSecret: opaque-dsn
+    asserts:
+      - failedTemplate:
+          errorMessage: Database components and complete DSN sources are mutually exclusive

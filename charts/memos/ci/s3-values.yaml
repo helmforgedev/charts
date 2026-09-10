@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+fullnameOverride: memos-s3
+persistence:
+  size: 1Gi
+provisioning:
+  existingSecret: fixture-provisioning
+app:
+  env:
+    - name: SSL_CERT_FILE
+      value: /s3-ca/ca.crt
+extraVolumes:
+  - name: s3-ca
+    secret:
+      secretName: fixture-integrations-tls
+      items:
+        - key: ca.crt
+          path: ca.crt
+extraVolumeMounts:
+  - name: s3-ca
+    mountPath: /s3-ca
+    readOnly: true
+networkPolicy:
+  extraEgress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: fixture-integrations
+      ports:
+        - protocol: TCP
+          port: 9443

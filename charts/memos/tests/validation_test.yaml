@@ -3,6 +3,20 @@ suite: memos validation
 templates:
   - templates/validate.yaml
 tests:
+  - it: prevents a single-replica disruption budget from blocking maintenance
+    set:
+      pdb.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: A Memos PodDisruptionBudget requires at least two SQL-backed replicas with shared storage
+  - it: rejects enabling two database subcharts
+    set:
+      database.driver: postgres
+      postgresql.enabled: true
+      mysql.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: Enable only one Memos database subchart
   - it: fails when scaling SQLite
     set:
       replicaCount: 2

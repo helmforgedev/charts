@@ -24,7 +24,7 @@ spec:
         {{- if .Values.networkPolicy.ingressFrom }}
         {{- toYaml .Values.networkPolicy.ingressFrom | nindent 8 }}
         {{- else }}
-        - namespaceSelector: {}
+        - podSelector: {}
         {{- end }}
       ports:
         - protocol: TCP
@@ -46,6 +46,26 @@ spec:
       ports:
         - protocol: TCP
           port: 443
+    {{- end }}
+    {{- if or .Values.postgresql.enabled .Values.mysql.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- if .Values.postgresql.enabled }}
+              app.kubernetes.io/name: {{ include "postgresql.name" .Subcharts.postgresql }}
+              {{- else }}
+              app.kubernetes.io/name: {{ include "mysql.name" .Subcharts.mysql }}
+              {{- end }}
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - protocol: TCP
+          port: {{ include "memos.databasePort" . }}
+    {{- else if .Values.database.networkPolicyPeers }}
+    - to:
+        {{- toYaml .Values.database.networkPolicyPeers | nindent 8 }}
+      ports:
+        - protocol: TCP
+          port: {{ include "memos.databasePort" . }}
     {{- end }}
     {{- with $extraEgress }}
     {{- toYaml . | nindent 4 }}

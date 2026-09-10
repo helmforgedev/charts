@@ -29,20 +29,22 @@ curl --fail http://127.0.0.1:5230/healthz
 
 ## Reverse Proxy
 
-When exposing Memos through Ingress, Gateway API, or an external proxy, set:
+Keep `memos.instanceUrl` empty for private mode, including behind a reverse proxy. Set it explicitly only when anonymous
+access to public notes and RSS is intended:
 
 ```yaml
 memos:
   instanceUrl: https://memos.example.com
 ```
 
-The proxy must preserve `Host` and standard forwarded headers. If generated links or redirects point at the internal service name, verify `MEMOS_INSTANCE_URL` and proxy headers first.
-In Memos 0.30, omitting `MEMOS_INSTANCE_URL` selects private mode and disables anonymous RSS access.
+The proxy must preserve `Host` and standard forwarded headers. In Memos 0.30, `MEMOS_INSTANCE_URL` also changes
+public-content policy; it is not merely a proxy URL setting. Private notes and files still require authentication when
+public mode is enabled.
 
 ## Provisioned Configuration
 
-When `provisioning.existingSecret` is set, Memos reads matching files from `/etc/secrets` once during startup. After updating the Secret, restart the
-StatefulSet and watch both the rollout and startup logs:
+When `provisioning.existingSecret` is set, Memos reads matching files from `/etc/secrets` once during startup. After
+updating the Secret, restart the StatefulSet and watch both the rollout and startup logs:
 
 ```bash
 kubectl rollout restart statefulset/memos
@@ -50,8 +52,8 @@ kubectl rollout status statefulset/memos
 kubectl logs statefulset/memos --tail=100
 ```
 
-An unreadable file, invalid JSON, unknown field, duplicate key, or unsafe authentication combination prevents startup. Memos does not partially apply a
-file set.
+An unreadable file, invalid JSON, unknown field, duplicate key, or unsafe authentication combination prevents startup.
+Memos does not partially apply a file set.
 
 ## Upgrades
 
@@ -79,7 +81,8 @@ Verify the PVC is bound and writable by UID/GID `10001`.
 
 `Database connection errors`
 
-Verify `database.driver`, the DSN format, DNS resolution to the database service, and any TLS options embedded in the DSN.
+Verify `database.driver`, the DSN format, DNS resolution to the database service, and any TLS options embedded in the
+DSN.
 
 `Reverse proxy issues`
 
@@ -87,4 +90,5 @@ Verify `memos.instanceUrl` and proxy forwarding headers.
 
 `Attachments missing after migration`
 
-Check whether the old instance stored assets under `MEMOS_DATA`. Migrating only the external database is not enough when assets are stored on disk.
+Check whether the old instance stored assets under `MEMOS_DATA`. Migrating only the external database is not enough when
+assets are stored on disk.

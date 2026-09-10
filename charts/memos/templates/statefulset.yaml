@@ -18,10 +18,13 @@ spec:
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.podAnnotations }}
       annotations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        checksum/provisioning: {{ toJson .Values.provisioning | sha256sum }}
+        checksum/database: {{ printf "%s%s" (toJson .Values.database) (.Files.Get "files/database.mjs") | sha256sum }}
+        {{- if .Values.bootstrap.enabled }}
+        checksum/bootstrap: {{ printf "%s%s" (toJson .Values.bootstrap) (.Files.Get "files/bootstrap.mjs") | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
     spec:
       serviceAccountName: {{ include "memos.serviceAccountName" . }}
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
@@ -37,10 +40,78 @@ spec:
       priorityClassName: {{ .Values.priorityClassName | quote }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if or .Values.bootstrap.enabled (include "memos.databaseComponents" .) }}
+      initContainers:
+        {{- if include "memos.databaseComponents" . }}
+        - name: prepare-database
+          image: {{ printf "%s:%s" .Values.bootstrap.image.repository .Values.bootstrap.image.tag | quote }}
+          imagePullPolicy: {{ .Values.bootstrap.image.pullPolicy }}
+          command: [node, /database-script/database.mjs]
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.bootstrap.resources | nindent 12 }}
+          env:
+            - {name: MEMOS_DRIVER, value: {{ .Values.database.driver | quote }}}
+            - {name: DB_HOST, value: {{ include "memos.databaseHost" . | quote }}}
+            - {name: DB_PORT, value: {{ include "memos.databasePort" . | quote }}}
+            - {name: DB_USER, value: {{ include "memos.databaseUser" . | quote }}}
+            - {name: DB_NAME, value: {{ include "memos.databaseName" . | quote }}}
+            - {name: DB_CONNECTION_TIMEOUT, value: {{ .Values.database.connectionTimeout | quote }}}
+            - {name: DB_SSL_MODE, value: {{ .Values.database.sslMode | default (ternary "disable" "verify-full" .Values.postgresql.enabled) | quote }}}
+            - {name: DB_MYSQL_TLS, value: {{ .Values.database.mysqlTls | default (ternary "false" "true" .Values.mysql.enabled) | quote }}}
+            - {name: DB_HAS_CA, value: {{ not (empty .Values.database.caSecret) | quote }}}
+          volumeMounts:
+            - {name: database-script, mountPath: /database-script, readOnly: true}
+            - {name: database-runtime, mountPath: /database-runtime}
+            - {name: database-auth, mountPath: /database-auth, readOnly: true}
+        {{- end }}
+        {{- if .Values.bootstrap.enabled }}
+        - name: copy-native-binary
+          image: {{ include "memos.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [/bin/sh, -ceu, "cp /usr/local/memos/memos /bootstrap-bin/memos"]
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.bootstrap.resources | nindent 12 }}
+          volumeMounts:
+            - {name: bootstrap-bin, mountPath: /bootstrap-bin}
+        - name: bootstrap
+          image: {{ printf "%s:%s" .Values.bootstrap.image.repository .Values.bootstrap.image.tag | quote }}
+          imagePullPolicy: {{ .Values.bootstrap.image.pullPolicy }}
+          command: [node, /bootstrap-script/bootstrap.mjs]
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.bootstrap.resources | nindent 12 }}
+          env:
+            {{- include "memos.nativeEnvironment" . | nindent 12 }}
+            - {name: BOOTSTRAP_USERNAME, value: {{ .Values.bootstrap.username | quote }}}
+            - {name: BOOTSTRAP_DISPLAY_NAME, value: {{ .Values.bootstrap.displayName | quote }}}
+          {{- with .Values.app.envFrom }}
+          envFrom: {{ toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - {name: data, mountPath: {{ .Values.persistence.mountPath }}}
+            - {name: bootstrap-bin, mountPath: /bootstrap-bin, readOnly: true}
+            - {name: bootstrap-script, mountPath: /bootstrap-script, readOnly: true}
+            - {name: bootstrap-auth, mountPath: /bootstrap-auth, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+            - {name: provisioning, mountPath: /etc/secrets, readOnly: true}
+            {{- if include "memos.databaseComponents" . }}
+            - {name: database-runtime, mountPath: /database-runtime, readOnly: true}
+            {{- end }}
+            {{- if .Values.database.caSecret }}
+            - {name: database-ca, mountPath: /database-ca, readOnly: true}
+            {{- end }}
+        {{- end }}
+      {{- end }}
       containers:
         - name: {{ include "memos.name" . }}
           image: {{ include "memos.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if include "memos.databaseComponents" . }}
+          command: [/bin/sh, -ceu]
+          args:
+            - |
+              export MEMOS_DSN="$(cat /database-runtime/dsn)"
+              exec /usr/local/memos/memos
+          {{- else }}
           {{- with .Values.app.command }}
           command:
             {{- toYaml . | nindent 12 }}
@@ -48,6 +119,7 @@ spec:
           {{- with .Values.app.args }}
           args:
             {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- end }}
           {{- with .Values.securityContext }}
           securityContext:
@@ -58,45 +130,7 @@ spec:
               containerPort: {{ .Values.app.port }}
               protocol: TCP
           env:
-            - name: MEMOS_PORT
-              value: {{ .Values.app.port | quote }}
-            - name: MEMOS_DATA
-              value: {{ .Values.persistence.mountPath | quote }}
-            - name: MEMOS_DRIVER
-              value: {{ .Values.database.driver | quote }}
-            - name: MEMOS_LOG_LEVEL
-              value: {{ .Values.memos.logLevel | quote }}
-            {{- if .Values.memos.addr }}
-            - name: MEMOS_ADDR
-              value: {{ .Values.memos.addr | quote }}
-            {{- end }}
-            {{- if .Values.memos.instanceUrl }}
-            - name: MEMOS_INSTANCE_URL
-              value: {{ .Values.memos.instanceUrl | quote }}
-            {{- end }}
-            - name: MEMOS_DEMO
-              value: {{ .Values.memos.demo | quote }}
-            - name: MEMOS_ALLOW_PRIVATE_WEBHOOKS
-              value: {{ .Values.memos.allowPrivateWebhooks | quote }}
-            {{- if or .Values.database.dsn .Values.database.existingSecret }}
-            - name: MEMOS_DSN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "memos.databaseSecretName" . }}
-                  key: {{ .Values.database.existingSecretKey | quote }}
-            {{- end }}
-            {{- range .Values.app.env }}
-            - name: {{ .name }}
-              {{- if hasKey . "valueFrom" }}
-              valueFrom:
-                {{- toYaml .valueFrom | nindent 16 }}
-              {{- else }}
-              value: {{ default "" .value | quote }}
-              {{- end }}
-            {{- end }}
-            {{- with .Values.app.extraEnv }}
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
+            {{- include "memos.nativeEnvironment" . | nindent 12 }}
           {{- with .Values.app.envFrom }}
           envFrom:
             {{- toYaml . | nindent 12 }}
@@ -136,13 +170,18 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            {{- if include "memos.databaseComponents" . }}
+            - {name: database-runtime, mountPath: /database-runtime, readOnly: true}
+            {{- end }}
+            {{- if .Values.database.caSecret }}
+            - {name: database-ca, mountPath: /database-ca, readOnly: true}
+            {{- end }}
             - name: data
               mountPath: {{ .Values.persistence.mountPath }}
-            {{- if .Values.provisioning.existingSecret }}
             - name: provisioning
               mountPath: /etc/secrets
               readOnly: true
-            {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -162,8 +201,37 @@ spec:
       topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if or (not .Values.persistence.enabled) .Values.persistence.existingClaim .Values.provisioning.existingSecret .Values.extraVolumes }}
       volumes:
+        - {name: tmp, emptyDir: {sizeLimit: 256Mi}}
+        {{- if include "memos.databaseComponents" . }}
+        - {name: database-runtime, emptyDir: {medium: Memory, sizeLimit: 1Mi}}
+        - name: database-script
+          configMap:
+            name: {{ include "memos.fullname" . | trunc 46 | trimSuffix "-" }}-database-runtime
+        - name: database-auth
+          secret:
+            secretName: {{ include "memos.databasePasswordSecret" . }}
+            defaultMode: 288
+            items: [{key: {{ include "memos.databasePasswordKey" . }}, path: password}]
+        {{- end }}
+        {{- if .Values.database.caSecret }}
+        - name: database-ca
+          secret:
+            secretName: {{ .Values.database.caSecret }}
+            defaultMode: 288
+            items: [{key: {{ .Values.database.caKey }}, path: ca.crt}]
+        {{- end }}
+        {{- if .Values.bootstrap.enabled }}
+        - {name: bootstrap-bin, emptyDir: {sizeLimit: 256Mi}}
+        - name: bootstrap-script
+          configMap:
+            name: {{ include "memos.fullname" . | trunc 53 | trimSuffix "-" }}-bootstrap
+        - name: bootstrap-auth
+          secret:
+            secretName: {{ include "memos.bootstrapSecretName" . }}
+            defaultMode: 288
+            items: [{key: {{ .Values.bootstrap.passwordKey }}, path: password}]
+        {{- end }}
         {{- if .Values.persistence.existingClaim }}
         - name: data
           persistentVolumeClaim:
@@ -172,16 +240,17 @@ spec:
         - name: data
           emptyDir: {}
         {{- end }}
-        {{- if .Values.provisioning.existingSecret }}
         - name: provisioning
+          {{- if or .Values.provisioning.existingSecret .Values.provisioning.manageGeneralSettings }}
           secret:
-            secretName: {{ .Values.provisioning.existingSecret | quote }}
+            secretName: {{ default (printf "%s-provisioning" (include "memos.fullname" . | trunc 50 | trimSuffix "-")) .Values.provisioning.existingSecret | quote }}
             defaultMode: {{ .Values.provisioning.defaultMode }}
-        {{- end }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- end }}
   {{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) }}
   volumeClaimTemplates:
     - metadata:
