@@ -1,0 +1,118 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "stirling-pdf.fullname" . }}
+  labels: {{ include "stirling-pdf.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {{ include "stirling-pdf.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "stirling-pdf.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}{{ toYaml . | nindent 8 }}{{- end }}
+      annotations:
+        checksum/credentials: {{ toJson .Values.auth | sha256sum }}
+        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
+    spec:
+      serviceAccountName: {{ include "stirling-pdf.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}{{- end }}
+      securityContext: {{ toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}{{- end }}
+      initContainers:
+        - name: prepare-runtime
+          image: {{ include "stirling-pdf.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [/bin/bash, -ceu]
+          args:
+            - |
+              cp -R /usr/local/bin/. /runtime-bin/
+              mkdir -p /state/configs /state/customFiles /state/pipeline
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 256Mi}
+          volumeMounts:
+            - {name: workspace, mountPath: /state}
+            - {name: tools, mountPath: /runtime-bin}
+      containers:
+        - name: stirling-pdf
+          image: {{ include "stirling-pdf.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - {name: http, containerPort: {{ .Values.server.port }}}
+            {{- if .Values.metrics.enabled }}
+            - {name: metrics, containerPort: {{ .Values.metrics.port }}}
+            {{- end }}
+          env:
+            - {name: SERVER_PORT, value: {{ .Values.server.port | quote }}}
+            - {name: SECURITY_ENABLELOGIN, value: "true"}
+            - {name: SECURITY_INITIALLOGIN_USERNAME, value: {{ .Values.auth.username | quote }}}
+            - name: SECURITY_INITIALLOGIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "stirling-pdf.authSecretName" . }}
+                  key: {{ .Values.auth.passwordKey }}
+            - {name: SYSTEM_ENABLEANALYTICS, value: "false"}
+            - {name: SYSTEM_ENABLEPOSTHOG, value: "false"}
+            - {name: STORAGE_ENABLED, value: "false"}
+            - {name: SYSTEM_ROOTURIPATH, value: {{ .Values.server.basePath | default "/" | quote }}}
+            - {name: SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE, value: {{ .Values.server.maxUploadSize | quote }}}
+            - {name: SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE, value: {{ .Values.server.maxRequestSize | quote }}}
+            - {name: SYSTEM_CONNECTIONTIMEOUTMILLISECONDS, value: {{ .Values.server.connectionTimeoutMilliseconds | quote }}}
+            - {name: JAVA_CUSTOM_OPTS, value: {{ .Values.runtime.javaCustomOptions | quote }}}
+            - {name: SPRING_WEB_ERROR_INCLUDE_STACKTRACE, value: never}
+            - {name: SPRING_WEB_ERROR_INCLUDE_EXCEPTION, value: "false"}
+            - {name: SPRING_WEB_ERROR_INCLUDE_MESSAGE, value: never}
+            {{- if .Values.metrics.enabled }}
+            - {name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE, value: "health,prometheus"}
+            - {name: MANAGEMENT_SERVER_PORT, value: {{ .Values.metrics.port | quote }}}
+            - {name: MANAGEMENT_SERVER_ADDRESS, value: "0.0.0.0"}
+            {{- end }}
+            {{- with .Values.extraEnv }}{{ toYaml . | nindent 12 }}{{- end }}
+          {{- with .Values.envFrom }}
+          envFrom: {{ toYaml . | nindent 12 }}{{- end }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          {{- range $name, $probe := .Values.probes }}
+          {{- if $probe.enabled }}
+          {{ $name }}Probe:
+            httpGet: {path: {{ printf "%s%s" $.Values.server.basePath $probe.path | quote }}, port: http}
+            {{- omit $probe "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}{{- end }}
+          volumeMounts:
+            - {name: workspace, mountPath: /configs, subPath: configs}
+            - {name: workspace, mountPath: /customFiles, subPath: customFiles}
+            - {name: workspace, mountPath: /pipeline, subPath: pipeline}
+            - {name: tmp, mountPath: /tmp}
+            - {name: home, mountPath: /home/stirlingpdfuser}
+            - {name: logs, mountPath: /logs}
+            - {name: tools, mountPath: /usr/local/bin}
+            - {name: storage, mountPath: /storage}
+      volumes:
+        - name: workspace
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim: {claimName: {{ include "stirling-pdf.claimName" . }}}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - {name: tmp, emptyDir: {sizeLimit: {{ .Values.runtime.temporarySize }}}}
+        - {name: home, emptyDir: {sizeLimit: {{ .Values.runtime.homeSize }}}}
+        - {name: logs, emptyDir: {sizeLimit: {{ .Values.runtime.logsSize }}}}
+        - {name: tools, emptyDir: {sizeLimit: {{ .Values.runtime.toolsSize }}}}
+        - {name: storage, emptyDir: {sizeLimit: 256Mi}}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints: {{ toYaml . | nindent 8 }}{{- end }}

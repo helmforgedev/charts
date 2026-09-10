@@ -1,0 +1,90 @@
+# SPDX-License-Identifier: Apache-2.0
+# Requires the Prometheus Operator in the HelmForge lab. Namespace-local test stack.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: stirling-pdf-monitor
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: stirling-pdf-monitor
+rules:
+  - apiGroups: [""]
+    resources: [services, endpoints, pods]
+    verbs: [get, list, watch]
+  - apiGroups: [discovery.k8s.io]
+    resources: [endpointslices]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: stirling-pdf-monitor
+subjects:
+  - kind: ServiceAccount
+    name: stirling-pdf-monitor
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: stirling-pdf-monitor
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: stirling-pdf-monitor
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  version: v3.14.0
+  image: quay.io/prometheus/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
+  additionalScrapeConfigs:
+    name: stirling-pdf-metrics-scrape
+    key: additional-scrape-configs.yaml
+  secrets: [stirling-metrics-key]
+  replicas: 1
+  serviceAccountName: stirling-pdf-monitor
+  serviceMonitorSelector:
+    matchLabels:
+      app.kubernetes.io/name: stirling-pdf
+  ruleSelector:
+    matchLabels:
+      app.kubernetes.io/name: stirling-pdf
+  scrapeInterval: 15s
+  scrapeTimeout: 10s
+  evaluationInterval: 15s
+  retention: 1h
+  podMetadata:
+    labels:
+      app: stirling-pdf-monitor
+      helmforge.dev/runtime-fixture: "true"
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: "1", memory: 512Mi}
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    fsGroup: 65534
+  storage:
+    emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stirling-pdf-monitor
+spec:
+  selector:
+    prometheus: stirling-pdf-monitor
+  ports:
+    - name: http
+      port: 9090
+      targetPort: 9090
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: stirling-metrics-key
+stringData:
+  api-key: fixture-placeholder-replaced-by-runtime
