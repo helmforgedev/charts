@@ -4,7 +4,7 @@ Deploy [NoteDiscovery](https://github.com/gamosoft/NoteDiscovery), a
 self-hosted Markdown knowledge base with graph view, search, sharing, and MCP
 integration.
 
-This chart packages the official `ghcr.io/gamosoft/notediscovery:0.31.4` image
+This chart packages the official `ghcr.io/gamosoft/notediscovery:0.31.5` image
 and exposes the runtime settings that matter for Kubernetes: persistent note
 storage, generated or externally managed `config.yaml`, optional authentication,
 ingress/Gateway API exposure, network policy, pod disruption budget, and
@@ -151,8 +151,8 @@ volume.
 
 ## Upgrade Notes
 
-NoteDiscovery `0.31.4` is the current stable upstream release. Review the
-[upstream 0.31.4 release](https://github.com/gamosoft/NoteDiscovery/releases/tag/v0.31.4)
+NoteDiscovery `0.31.5` is the current stable upstream release. Review the
+[upstream 0.31.5 release](https://github.com/gamosoft/NoteDiscovery/releases/tag/v0.31.5)
 and back up the data PVC before upgrading.
 
 Generated configuration now stores plugin state under the writable data volume
@@ -193,6 +193,6 @@ egress rules after built-in DNS and HTTPS allowances.
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **87.37373%** |
+| MITRE + NSA + SOC2 | **87.37%** |
 
 > Security posture acceptable.
