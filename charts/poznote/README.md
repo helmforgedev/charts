@@ -71,7 +71,7 @@ ingress:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Image repository | `ghcr.io/timothepoznanski/poznote` |
-| `image.tag` | Image tag | `6.68.7` |
+| `image.tag` | Image tag | `6.80.0` |
 | `image.pullPolicy` | Pull policy | `IfNotPresent` |
 
 #### Application Parameters
@@ -143,16 +143,23 @@ This chart intentionally does NOT:
 
 ## Upgrade Notes
 
-Poznote `6.68.4` through `6.68.7` include proxy share-link and attachment
-sanitization fixes, a critical backup-restore SQL execution fix, and stored XSS
-fixes. Review the
-[upstream 6.68.7 release](https://github.com/timothepoznanski/poznote/releases/tag/6.68.7)
-before upgrading. The default local SQLite and filesystem deployment remains
-compatible; S3 integration is configured inside Poznote when needed.
+Poznote `6.80.0` includes the 6.69–6.80 background export, restore and import
+workers, chunked archive uploads, snapshot retention and conflict-safe autosave.
+Complete backups and restores now continue in detached workers, with progress
+polled by the browser. Keep the pod running until the job completes and verify
+its final status before downloading or relying on the backup.
 
-No upstream storage migration is required. Back up the `data` PVC before
-upgrading because it stores the SQLite database, notes, attachments, and
-application configuration.
+Back up the complete `data` PVC before upgrading and verify a restore in a
+separate instance. It contains SQLite, notes, attachments and application
+configuration. Existing S3 integrations remain application configuration;
+confirm attachment access when exporting or restoring an account.
+
+Shared links default to read-only. API integrations should retain the returned
+note version and use `if_version` or `If-Match` to detect concurrent edits.
+MCP user selection and optional `POZNOTE_MCP_AUTH_TOKEN` apply to the separate
+MCP server; the chart does not deploy or expose it. Review the
+[upstream releases](https://github.com/timothepoznanski/poznote/releases)
+before upgrading integrations.
 
 ## Security Scan
 
@@ -160,7 +167,7 @@ Security Scan: `poznote`
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **87.878784%** |
+| MITRE + NSA + SOC2 | **87.88%** |
 
 > Security posture acceptable.
 
