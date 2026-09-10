@@ -1,0 +1,107 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "siyuan.fullname" . }}
+  labels:
+    {{- include "siyuan.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "siyuan.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "siyuan.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}{{ toYaml . | nindent 8 }}{{- end }}
+      annotations:
+        checksum/oidc: {{ toJson .Values.oidc | sha256sum }}
+        checksum/credentials: {{ toJson .Values.auth | sha256sum }}
+        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
+    spec:
+      serviceAccountName: {{ include "siyuan.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}{{- end }}
+      securityContext: {{ toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}{{- end }}
+      containers:
+        - name: siyuan
+          image: {{ include "siyuan.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          command: [/opt/siyuan/kernel]
+          args: [serve, --workspace=/siyuan/workspace, --port={{ .Values.server.port }}]
+          ports:
+            - name: http
+              containerPort: {{ .Values.server.port }}
+          env:
+            - {name: HOME, value: /home/siyuan}
+            - {name: RUN_IN_CONTAINER, value: "true"}
+            - {name: SIYUAN_ACCESS_AUTH_CODE_BYPASS, value: "false"}
+            - {name: SIYUAN_OIDC_ENABLED, value: {{ .Values.oidc.enabled | quote }}}
+            {{- if .Values.oidc.enabled }}
+            - {name: SIYUAN_OIDC_PROVIDER, value: {{ .Values.oidc.provider | quote }}}
+            - {name: SIYUAN_OIDC_ISSUER_URL, value: {{ .Values.oidc.issuerURL | quote }}}
+            - {name: SIYUAN_OIDC_CLIENT_ID, value: {{ .Values.oidc.clientID | quote }}}
+            - {name: SIYUAN_OIDC_REDIRECT_URL, value: {{ .Values.oidc.redirectURL | quote }}}
+            - {name: SIYUAN_OIDC_ALLOW_ALL, value: {{ .Values.oidc.allowAll | quote }}}
+            - {name: SIYUAN_OIDC_SCOPES, value: {{ join " " .Values.oidc.scopes | quote }}}
+            - {name: SIYUAN_OIDC_CLAIM_RULES, value: {{ toJson .Values.oidc.claimRules | quote }}}
+            - name: SIYUAN_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: {name: {{ include "siyuan.oidcSecretName" . }}, key: {{ .Values.oidc.clientSecretKey }}}
+            {{- end }}
+            - name: SIYUAN_ACCESS_AUTH_CODE
+              valueFrom:
+                secretKeyRef: {name: {{ include "siyuan.authSecretName" . }}, key: {{ .Values.auth.accessCodeKey }}}
+            {{- with .Values.extraEnv }}{{ toYaml . | nindent 12 }}{{- end }}
+          {{- with .Values.envFrom }}
+          envFrom: {{ toYaml . | nindent 12 }}{{- end }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          {{- range $name, $probe := .Values.probes }}
+          {{- if $probe.enabled }}
+          {{ $name }}Probe:
+            {{- if $probe.requireBootComplete }}
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - >-
+                  wget -q -T {{ $probe.timeoutSeconds }} -O- http://127.0.0.1:{{ $.Values.server.port }}{{ $probe.path }} | grep -Eq '"progress"[[:space:]]*:[[:space:]]*100([[:space:]]*[,}])'
+            {{- else }}
+            httpGet:
+              path: {{ $probe.path }}
+              port: http
+            {{- end }}
+            {{- omit $probe "enabled" "path" "requireBootComplete" | toYaml | nindent 12 }}
+          {{- end }}{{- end }}
+          volumeMounts:
+            - {name: workspace, mountPath: /siyuan/workspace}
+            - {name: home, mountPath: /home/siyuan}
+            - {name: tmp, mountPath: /tmp}
+        {{- with .Values.extraContainers }}{{ toYaml . | nindent 8 }}{{- end }}
+      volumes:
+        - name: workspace
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim: {claimName: {{ include "siyuan.claimName" . }}}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: home
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {sizeLimit: 1Gi}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints: {{ toYaml . | nindent 8 }}{{- end }}

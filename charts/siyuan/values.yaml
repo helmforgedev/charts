@@ -1,0 +1,256 @@
+# SPDX-License-Identifier: Apache-2.0
+# -- Override the chart name used in resource names.
+nameOverride: ''
+# -- Override the complete resource name.
+fullnameOverride: ''
+# -- Extra resource labels; selector labels are reserved.
+commonLabels: {}
+# -- Exactly one writer per workspace, including RWX volumes.
+replicaCount: 1
+# -- Image.
+image:
+  # -- Repository.
+  repository: docker.io/b3log/siyuan
+  # -- Verified stable image tag.
+  tag: v3.8.3
+  # -- Kubernetes pull policy.
+  pullPolicy: IfNotPresent
+# -- Registry credentials for a private mirror.
+imagePullSecrets: []
+# -- Auth.
+auth:
+  # -- Native administrative access code. Empty generates and retains 32 random alphanumeric characters.
+  accessCode: ''
+  # -- Existing access-code Secret; do not combine with an inline code.
+  existingSecret: ''
+  # -- Key containing the native access code, distinct from an API token.
+  accessCodeKey: access-code
+# -- Native kernel HTTP listener.
+server:
+  # -- Container listen port; Service and probes follow this value.
+  port: 6806
+# -- Additional environment entries; chart-managed security variables cannot be overridden.
+extraEnv: []
+# -- Additional envFrom Secret/ConfigMap references.
+envFrom: []
+# -- Service Account.
+serviceAccount:
+  # -- Create a dedicated ServiceAccount with no API permissions.
+  create: true
+  # -- Existing or overridden ServiceAccount name.
+  name: ''
+  # -- ServiceAccount annotations.
+  annotations: {}
+  # -- Automount Service Account Token.
+  automountServiceAccountToken: false
+# -- Service.
+service:
+  # -- Kubernetes Service type.
+  type: ClusterIP
+  # -- Service HTTP port.
+  port: 6806
+  # -- Service annotations.
+  annotations: {}
+  # -- Service IP family policy; empty uses cluster default.
+  ipFamilyPolicy: ''
+  # -- Requested address families; RequireDualStack needs a dual-stack cluster.
+  ipFamilies: []
+# -- Ingress.
+ingress:
+  # -- Enable Ingress. TLS is configured through ingress.tls.
+  enabled: false
+  # -- Ingress controller class; empty omits the field.
+  ingressClassName: ''
+  # -- Annotations.
+  annotations: {}
+  # -- Host/path rules; at least one explicit host is required when enabled.
+  hosts: []
+  # -- TLS host/Secret entries.
+  tls: []
+# -- Gateway.
+gateway:
+  # -- Enable a Gateway API v1 HTTPRoute. Install Gateway API CRDs and a controller first.
+  enabled: false
+  # -- HTTPRoute annotations.
+  annotations: {}
+  # -- Existing Gateway parent references, including namespace when appropriate.
+  parentRefs: []
+  # -- Public DNS hostnames.
+  hostnames: []
+  # -- Path.
+  path: /
+  # -- Gateway path match type.
+  pathType: PathPrefix
+# -- External Secrets.
+externalSecrets:
+  # -- Enabled.
+  enabled: false
+  # -- Default operator refresh interval.
+  refreshInterval: 1h
+  # -- Items.
+  items: []
+# -- Network Policy.
+networkPolicy:
+  # -- Enabled.
+  enabled: true
+  # -- Allowed ingress peers. Empty permits pods in the same namespace only.
+  ingressFrom: []
+  # -- Enable outbound isolation, allowing DNS and configured web ports.
+  egressIsolation: true
+  # -- DNS peers; defaults to cluster pods in any namespace, restricted to DNS ports.
+  dnsEgress:
+    - namespaceSelector: {}
+  # -- Explicit web destinations for OIDC, sync or plugins; empty denies web egress.
+  webEgress: []
+  # -- TCP ports allowed to the declared web destinations.
+  webPorts:
+    - 443
+  # -- Additional egress rules, for example internal APIs on alternate ports.
+  extraEgress: []
+# -- Probes.
+probes:
+  # -- Wait for native kernel boot completion before liveness starts.
+  startup:
+    # -- Enabled.
+    enabled: true
+    # -- Path.
+    path: /api/system/bootProgress
+    # -- Require native boot progress 100 before startup/readiness succeeds.
+    requireBootComplete: true
+    # -- Period Seconds.
+    periodSeconds: 5
+    # -- Timeout Seconds.
+    timeoutSeconds: 2
+    # -- Failure Threshold.
+    failureThreshold: 60
+  # -- Check local HTTP availability without requiring external services.
+  liveness:
+    # -- Enabled.
+    enabled: true
+    # -- Path.
+    path: /api/system/version
+    # -- Period Seconds.
+    periodSeconds: 20
+    # -- Timeout Seconds.
+    timeoutSeconds: 3
+    # -- Failure Threshold.
+    failureThreshold: 3
+  # -- Require complete kernel initialization before admitting traffic.
+  readiness:
+    # -- Enabled.
+    enabled: true
+    # -- Path.
+    path: /api/system/bootProgress
+    # -- Require native boot progress 100 before startup/readiness succeeds.
+    requireBootComplete: true
+    # -- Period Seconds.
+    periodSeconds: 10
+    # -- Timeout Seconds.
+    timeoutSeconds: 3
+    # -- Failure Threshold.
+    failureThreshold: 3
+# -- Resource sizing for indexing and workspace operations; increase memory for large collections.
+resources:
+  # -- Requests.
+  requests:
+    # -- Cpu.
+    cpu: 100m
+    # -- Memory.
+    memory: 256Mi
+  # -- Limits.
+  limits:
+    # -- Cpu.
+    cpu: '1'
+    # -- Memory.
+    memory: 1Gi
+# -- Non-root pod identity and CSI-assisted ownership for the workspace.
+podSecurityContext:
+  # -- Run As Non Root.
+  runAsNonRoot: true
+  # -- Run As User.
+  runAsUser: 1000
+  # -- Run As Group.
+  runAsGroup: 1000
+  # -- Fs Group.
+  fsGroup: 1000
+  # -- Fs Group Change Policy.
+  fsGroupChangePolicy: OnRootMismatch
+  # -- Seccomp Profile.
+  seccompProfile:
+    # -- Type.
+    type: RuntimeDefault
+# -- Restricted container privileges; all configuration and assets are read-only.
+securityContext:
+  # -- Allow Privilege Escalation.
+  allowPrivilegeEscalation: false
+  # -- Read Only Root Filesystem.
+  readOnlyRootFilesystem: true
+  # -- Capabilities.
+  capabilities:
+    # -- Drop.
+    drop:
+      - ALL
+# -- Pod labels; immutable selector labels cannot be overridden.
+podLabels: {}
+# -- Pod annotations, e.g. for an external Secret reloader.
+podAnnotations: {}
+# -- Node selection constraints.
+nodeSelector: {}
+# -- Scheduling tolerations.
+tolerations: []
+# -- Pod affinity or anti-affinity.
+affinity: {}
+# -- Topology spreading across nodes or zones.
+topologySpreadConstraints: []
+# -- Scheduling priority class.
+priorityClassName: ''
+# -- Grace period for HTTP shutdown.
+terminationGracePeriodSeconds: 30
+# -- Complete workspace storage, including configuration, data, history and encrypted content.
+persistence:
+  # -- Persist the complete workspace. Disable only for disposable tests.
+  enabled: true
+  # -- Pre-existing workspace PVC, never created or deleted by this chart.
+  existingClaim: ''
+  # -- StorageClass name; empty uses cluster default, dash disables dynamic provisioning.
+  storageClass: ''
+  # -- Workspace claim capacity.
+  size: 10Gi
+  # -- PVC access mode. Even ReadWriteMany must have exactly one application writer.
+  accessModes:
+    - ReadWriteOnce
+  # -- Keep the generated PVC on Helm uninstall; this does not protect against namespace deletion.
+  retain: true
+  # -- Annotations.
+  annotations: {}
+
+
+# -- Native OIDC admission to this single administrative workspace. Local access-code login remains available.
+oidc:
+  # -- Enable native OIDC alongside the local administrative access-code login.
+  enabled: false
+  # -- Standard custom OIDC provider contract. Provider-specific OAuth adapters are not exposed.
+  provider: custom
+  # -- Issuer URL used for discovery, JWKS and token exchange. Permit its destinations in egress policy.
+  issuerURL: ''
+  # -- Registered OIDC client identifier.
+  clientID: ''
+  # -- Inline client credential stored only in Secret; prefer existingSecret for GitOps.
+  clientSecret: ''
+  # -- Existing Secret containing the client credential; cannot be combined with inline clientSecret.
+  existingSecret: ''
+  # -- Key containing the OIDC client credential.
+  clientSecretKey: client-secret
+  # -- Scopes requested during authorization; include openid.
+  scopes:
+    - openid
+    - profile
+    - email
+  # -- Exact HTTPS callback ending in /api/system/oidc/callback. Register the same URL in the provider.
+  redirectURL: ''
+  # -- Grant workspace administration to every authenticated identity. Keep false and configure claimRules.
+  allowAll: false
+  # -- AND across rules, OR across values. Use equals for exact top-level claim admission.
+  claimRules: []
+# -- Optional companion containers; set their security contexts, probes and resources explicitly.
+extraContainers: []

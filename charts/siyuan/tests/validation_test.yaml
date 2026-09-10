@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: SiYuan fail fast
+templates:
+  - templates/secret.yaml
+tests:
+  - it: rejects mixed access code sources
+    set:
+      auth.existingSecret: existing
+      auth.accessCode: inline
+    asserts:
+      - failedTemplate:
+          errorMessage: auth.existingSecret cannot be combined with auth.accessCode
+  - it: rejects insecure extra environment
+    set:
+      extraEnv:
+        - name: SIYUAN_ACCESS_AUTH_CODE_BYPASS
+          value: 'true'
+    asserts:
+      - failedTemplate:
+          errorMessage: >-
+            extraEnv cannot override chart-managed security variable
+            SIYUAN_ACCESS_AUTH_CODE_BYPASS
+  - it: requires OIDC setup
+    set:
+      oidc.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: >-
+            oidc requires issuerURL, clientID, redirectURL and clientSecret or
+            existingSecret
+  - it: requires exact OIDC admission rules
+    set:
+      oidc.enabled: true
+      oidc.issuerURL: https://id.example.test
+      oidc.clientID: workspace
+      oidc.clientSecret: fixture-oidc-secret
+      oidc.redirectURL: https://notes.example.test/api/system/oidc/callback
+      oidc.claimRules: []
+    asserts:
+      - failedTemplate:
+          errorMessage: >-
+            oidc.claimRules is required unless oidc.allowAll explicitly grants
+            workspace administration to every identity
+  - it: requires HTTPS callback
+    set:
+      oidc.enabled: true
+      oidc.issuerURL: https://id.example.test
+      oidc.clientID: workspace
+      oidc.clientSecret: fixture-oidc-secret
+      oidc.redirectURL: http://notes.example.test/api/system/oidc/callback
+      oidc.claimRules:
+        - claim: email
+          operator: equals
+          values:
+            - admin@example.test
+    asserts:
+      - failedTemplate:
+          errorMessage: >-
+            oidc.redirectURL must be an HTTPS origin followed by
+            /api/system/oidc/callback
