@@ -3,8 +3,23 @@ suite: elasticsearch - security and TLS
 templates:
   - templates/secret-credentials.yaml
   - templates/statefulset-master.yaml
+  - templates/configmap.yaml
 
 tests:
+  - it: configures PEM certificates without conflicting keystore settings
+    set:
+      security.enabled: true
+    template: templates/configmap.yaml
+    asserts:
+      - matchRegex:
+          path: data["elasticsearch.yml"]
+          pattern: 'xpack.security.transport.ssl.certificate: /usr/share/elasticsearch/config/certs/tls.crt'
+      - matchRegex:
+          path: data["elasticsearch.yml"]
+          pattern: 'xpack.security.http.ssl.certificate: /usr/share/elasticsearch/config/certs/tls.crt'
+      - notMatchRegex:
+          path: data["elasticsearch.yml"]
+          pattern: 'keystore.path|truststore.path'
   - it: security disabled should not create credentials secret
     set:
       clusterProfile: dev

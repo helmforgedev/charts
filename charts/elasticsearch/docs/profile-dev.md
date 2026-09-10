@@ -15,7 +15,7 @@ Common cases:
 
 - one Elasticsearch pod running all roles (master + data + ingest)
 - 2 GiB container memory, 1 GiB heap (auto-calculated)
-- no persistent storage by default (emptyDir — data is lost on pod restart)
+- a 10 GiB master PVC by default; set `master.persistence.enabled=false` for disposable emptyDir storage
 - security and TLS disabled for easy `curl` access
 - no PodDisruptionBudget
 - no coordinating or dedicated data nodes
@@ -31,19 +31,19 @@ Common cases:
 ## Environment requirements
 
 - single node with 2–4 GiB available memory
-- no persistent volume required (but optional via `master.persistence`)
+- a default StorageClass for the master PVC, unless persistence is explicitly disabled
 - `vm.max_map_count=262144` on the host (handled automatically by `sysctlInit.enabled=true`)
 
 ## Operational guidance
 
-The dev profile is the simplest configuration. It is appropriate when data loss
-is acceptable and speed of startup is more important than durability. If the
+The dev profile is the simplest configuration. Its PVC survives pod replacement,
+but a single node provides no replica or failover. If the
 workload becomes operationally important, migrate to `staging` or
 `production-ha` and take an Elasticsearch snapshot before switching.
 
 ## Common risks
 
-- using dev profile for data that must survive pod restarts (no persistence by default)
+- treating a single persistent node as highly available or disabling persistence for important data
 - treating `dev` as a staging baseline without testing multi-node behavior
 - forgetting that there is no replica for any shard — a yellow/red cluster from a shard replica issue is the primary mode of failure
 
@@ -52,7 +52,8 @@ workload becomes operationally important, migrate to `staging` or
 | Parameter | Description |
 |---|---|
 | `clusterProfile` | Must be `dev` |
-| `master.persistence.size` | PVC size (set to enable persistence) |
+| `master.persistence.enabled` | Enabled by default; set false for disposable storage |
+| `master.persistence.size` | PVC size, default 10Gi |
 | `master.heapSize` | Override heap (auto-calculated by default) |
 | `master.resources` | CPU/memory requests and limits |
 | `extraConfig` | Additional elasticsearch.yml settings |
@@ -66,7 +67,7 @@ clusterName: my-dev-cluster
 
 master:
   persistence:
-    size: 10Gi  # optional: add persistence
+    size: 10Gi  # default persistent storage size
 
 extraConfig:
   xpack.license.self_generated.type: basic
