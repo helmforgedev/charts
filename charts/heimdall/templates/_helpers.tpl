@@ -1,4 +1,10 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- define "heimdall.validate" -}}
+{{- if or (not (trim .Values.image.repository)) (not (trim .Values.image.tag)) -}}
+{{- fail "image.repository and image.tag must not be empty" -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "heimdall.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
