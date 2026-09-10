@@ -175,7 +175,7 @@ tests:
   - it: preserves Glance Go widget templates
     template: templates/configmap.yaml
     set:
-      config.data.document.head: "{{ .JSON.String \"key\" }}"
+      config.data.document.head: '{{ .JSON.String "key" }}'
     asserts:
       - matchRegex:
           path: data["glance.yml"]
@@ -196,10 +196,10 @@ tests:
     asserts:
       - matchRegex:
           path: data["glance.yml"]
-          pattern: "proxied: true"
+          pattern: 'proxied: true'
       - matchRegex:
           path: data["glance.yml"]
-          pattern: "base-url: /dashboard"
+          pattern: 'base-url: /dashboard'
   - it: stores explicit authentication only in a Secret
     template: templates/secret.yaml
     set:
@@ -306,11 +306,12 @@ tests:
           path: spec.ingressClassName
           value: nginx
   - it: routes Gateway traffic to the correct Service
-    template: templates/httproute.yaml
+    template: templates/gateway-httproute.yaml
     set:
-      gateway.enabled: true
-      gateway.parentRefs:
-        - name: shared
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - parentRefs:
+            - name: shared
     asserts:
       - isAPIVersion:
           of: gateway.networking.k8s.io/v1
@@ -318,12 +319,14 @@ tests:
           path: spec.rules[0].backendRefs[0].port
           value: 8080
   - it: rejects a Gateway without parent refs
-    template: templates/httproute.yaml
+    template: templates/gateway-httproute.yaml
     set:
-      gateway.enabled: true
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - {}
     asserts:
       - failedTemplate:
-          errorMessage: gateway.parentRefs is required when gateway.enabled=true
+          errorMessage: gatewayAPI.httpRoutes[].parentRefs is required
   - it: isolates incoming and outgoing traffic
     template: templates/networkpolicy.yaml
     asserts:
@@ -412,5 +415,6 @@ tests:
         - spec: {}
     asserts:
       - failedTemplate:
-          errorMessage: externalSecrets.items[].spec.secretStoreRef.name or item sourceRef.storeRef.name/sourceRef.generatorRef.name is required when externalSecrets.enabled=true
-
+          errorMessage: >-
+            externalSecrets.items[].spec.secretStoreRef.name or item sourceRef.storeRef.name/sourceRef.generatorRef.name
+            is required when externalSecrets.enabled=true

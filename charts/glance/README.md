@@ -132,12 +132,12 @@ enforce suitable edge limits for sensitive public dashboards.
 | `ingress.annotations` | `{}` | Controller-specific annotations, including any required prefix stripping. |
 | `ingress.hosts` | `[]` | Host/path rules; at least one explicit host is required when enabled. |
 | `ingress.tls` | `[]` | TLS host/Secret entries. |
-| `gateway.enabled` | `false` | Enable a Gateway API v1 HTTPRoute. Install Gateway API CRDs and a controller first. |
-| `gateway.annotations` | `{}` | HTTPRoute annotations. |
-| `gateway.parentRefs` | `[]` | Existing Gateway parent references, including namespace when appropriate. |
-| `gateway.hostnames` | `[]` | Public DNS hostnames. |
-| `gateway.path` | `/` | Matched HTTP path. Subpaths require an external prefix-stripping rule. |
-| `gateway.pathType` | `PathPrefix` | Gateway path match type. |
+| `gatewayAPI.enabled` | `false` | Enable a Gateway API v1 HTTPRoute. Install Gateway API CRDs and a controller first. |
+| `gatewayAPI.httpRoutes[].annotations` | `{}` | HTTPRoute annotations. |
+| `gatewayAPI.httpRoutes[].parentRefs` | `[]` | Existing Gateway parent references, including namespace when appropriate. |
+| `gatewayAPI.httpRoutes[].hostnames` | `[]` | Public DNS hostnames. |
+| `gatewayAPI.httpRoutes[].rules[].matches[].path.value` | `/` | Matched HTTP path. Subpaths require an external prefix-stripping rule. |
+| `gatewayAPI.httpRoutes[].rules[].matches[].path.type` | `PathPrefix` | Gateway path match type. |
 | `externalSecrets.enabled` | `false` | Render ExternalSecret objects for auth or widget credentials. |
 | `externalSecrets.refreshInterval` | `1h` | Default operator refresh interval. |
 | `externalSecrets.items` | `[]` | Full ExternalSecret specifications. auth.existingSecret must match the target Secret name. |
@@ -240,3 +240,11 @@ keywords: glance, helm, authentication, widgets, kubernetes
 purpose: Operate the Glance chart safely
 scope: charts/glance
 -->
+
+## Gateway API contract
+
+Use `gatewayAPI.enabled` and `gatewayAPI.httpRoutes[]`. Set each route's `parentRefs` to a shared Gateway that allows
+this namespace, and configure its HTTPS listener and public hostname. Routes accept labels, annotations and rules
+with matches, filters and optional backend references; omitted backends target this chart's application Service.
+Ingress and HTTPRoute resources can coexist. Verify controller conditions and public traffic before production use.
+See the [Gateway API documentation](https://gateway-api.sigs.k8s.io/).

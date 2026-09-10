@@ -38,3 +38,8 @@ app.kubernetes.io/part-of: helmforge
 {{- if hasKey $labels $key -}}{{ fail (printf "selector label %s cannot be overridden" $key) }}{{- end -}}{{- end -}}{{- end -}}
 {{- end -}}
 
+
+
+{{- define "glance.httpRouteName" -}}
+{{- if .route.name -}}{{ .route.name | trunc 63 | trimSuffix "-" }}{{- else if gt (int .index) 0 -}}{{ printf "%s-%v" (include "glance.fullname" .root | trunc 55 | trimSuffix "-") .index }}{{- else -}}{{ include "glance.fullname" .root }}{{- end -}}
+{{- end -}}
