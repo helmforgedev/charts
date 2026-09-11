@@ -99,3 +99,7 @@ app.kubernetes.io/part-of: helmforge
 - {name: PGSSLROOTCERT, value: /database-ca/ca.crt}
 {{- end }}
 {{- end -}}
+
+{{- define "pocket-id.httpRouteName" -}}
+{{- if .route.name -}}{{ .route.name | trunc 63 | trimSuffix "-" }}{{- else if gt (int .index) 0 -}}{{ printf "%s-%v" (include "pocket-id.fullname" .root | trunc 55 | trimSuffix "-") .index }}{{- else -}}{{ include "pocket-id.fullname" .root }}{{- end -}}
+{{- end -}}

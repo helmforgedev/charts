@@ -103,3 +103,11 @@ scan does not replace image vulnerability management or application security rev
 
 - [Pocket ID v2.14.0](https://github.com/pocket-id/pocket-id/tree/v2.14.0)
 - [Official configuration documentation](https://pocket-id.org/docs/configuration/environment-variables)
+
+## Gateway API contract
+
+Use `gatewayAPI.enabled` and `gatewayAPI.httpRoutes[]`. Set each route's `parentRefs` to a shared Gateway that allows
+this namespace, and configure its HTTPS listener and public hostname. Routes accept labels, annotations and rules
+with matches, filters and optional backend references; omitted backends target this chart's application Service.
+Ingress and HTTPRoute resources can coexist. Verify controller conditions and public traffic before production use.
+See the [Gateway API documentation](https://gateway-api.sigs.k8s.io/).
