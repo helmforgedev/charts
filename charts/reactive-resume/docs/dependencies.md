@@ -1,7 +1,8 @@
 # PostgreSQL and local storage
 
-Behavioral acceptance of this chart is still in progress. The following describes
-the implemented configuration contract, not completed runtime evidence.
+Behavioral acceptance passed for bundled PostgreSQL, external PostgreSQL with
+certificate and hostname verification, and recovery into a fresh database and PVC.
+The recovery test preserved the original session, resume data and file contents.
 
 ## Bundled PostgreSQL
 

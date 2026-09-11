@@ -2,7 +2,9 @@
 
 The initial behavioral gate passed native enrollment, ordinary-user authentication,
 closed signup, real resume/PDF content, Pod replacement and network-boundary checks.
-The complete production profile matrix is still undergoing acceptance.
+The complete production profile matrix also passed SMTP recovery, private S3,
+external PostgreSQL TLS, native OAuth linking, browser PDF download, ESO and fresh
+database/PVC recovery. See the README for the acceptance scope and limitations.
 
 Reactive Resume does not provide a first-user exception to disabled signup. The
 chart therefore starts an unchanged native server inside an initialization
