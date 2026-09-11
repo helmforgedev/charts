@@ -1,0 +1,68 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+1. Release
+
+Twenty {{ .Chart.AppVersion }}: {{ .Release.Name }} in {{ .Release.Namespace }}.
+
+2. Access
+
+Public origin: {{ include "twenty.publicUrl" . }}
+Configure HTTPS with your Ingress or Gateway before production access.
+
+3. Initial administrator
+
+Email: {{ .Values.bootstrap.email }}
+Password Secret: {{ include "twenty.bootstrapSecretName" . }}
+Password key: {{ .Values.bootstrap.passwordKey }}
+The native first administrator and workspace are initialized privately.
+
+4. Identity and storage
+
+Claim: {{ include "twenty.claimName" . }}
+Identity Secret: {{ include "twenty.identitySecretName" . }}
+Retain ENCRYPTION_KEY, SERVER_ID, PostgreSQL, files and persistent queues.
+File backend: {{ .Values.storage.driver }}.
+{{- if eq .Values.storage.driver "s3" }}
+Bucket: {{ .Values.storage.s3.bucket }}. Preserve its matching recovery point.
+S3 still requires this PVC for the retained ownership marker.
+{{- end }}
+
+5. Dependencies
+
+PostgreSQL: {{ include "twenty.databaseHost" . }}
+Redis: {{ include "twenty.cacheHost" . }}
+Redis must use authenticated persistent storage and noeviction.
+{{- if .Values.smtp.enabled }}
+SMTP: {{ .Values.smtp.host }}:465 with authenticated implicit TLS.
+Verify delivery before relying on password recovery or invitations.
+{{- else }}
+SMTP is disabled. Configure verified SMTP before relying on email recovery.
+{{- end }}
+
+6. Isolation and health
+
+An enforcing CNI and trusted namespace policy ownership are prerequisites.
+The helper checks native-port isolation for each Pod address family.
+Worker readiness checks process and Redis worker registration, not job completion.
+{{- if .Values.metrics.enabled }}
+Native server metrics: {{ include "twenty.fullname" . | trunc 55 | trimSuffix "-" }}-metrics:9464/metrics.
+Only the configured monitoring peers may scrape this private endpoint.
+{{- if .Values.metrics.serviceMonitor.enabled }}
+ServiceMonitor enabled; verify the target is up in your Prometheus instance.
+{{- end }}
+{{- end }}
+
+7. Upgrades and recovery
+
+One Recreate workload serializes migrations and shares storage with its worker.
+Native configuration uses environment values; the configuration UI is read-only.
+Back up and restore the database, files, matching identity and queues together.
+
+8. Troubleshooting
+
+Inspect the helper and initializer logs before the server and worker.
+Confirm the public Service targets proxy port 3000 and never native port 3010.
+Readiness cannot substitute for an enforcing CNI during private enrollment.
+Existing users require their retained identity marker and encryption key.
+Public invite links remain disabled in the chart-managed workspace.
+
+Happy Helmforging :)

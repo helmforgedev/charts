@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+# Replace all example hostnames, Secrets and documentation network ranges.
+server:
+  publicUrl: https://crm.example.com
+bootstrap:
+  email: owner@example.com
+  existingSecret: crm-initial-owner
+identity:
+  existingSecret: crm-native-identity
+persistence:
+  size: 20Gi
+postgresql:
+  enabled: false
+redis:
+  enabled: false
+database:
+  host: postgres.example.com
+  name: twenty
+  username: twenty
+  passwordSecret: crm-postgresql
+  tls:
+    enabled: true
+    caSecret: database-ca
+cache:
+  host: redis.example.com
+  passwordSecret: crm-redis
+  tls:
+    enabled: true
+    caSecret: redis-ca
+smtp:
+  enabled: true
+  host: smtp.example.com
+  port: 465
+  from: noreply@example.com
+  username: crm
+  existingSecret: crm-smtp
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: crm.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: crm-https
+      hosts: [crm.example.com]
+networkPolicy:
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+  extraEgress:
+    - to:
+        - ipBlock: {cidr: 192.0.2.10/32}
+      ports: [{protocol: TCP, port: 5432}]
+    - to:
+        - ipBlock: {cidr: 192.0.2.11/32}
+      ports: [{protocol: TCP, port: 6379}]
+    - to:
+        - ipBlock: {cidr: 192.0.2.12/32}
+      ports: [{protocol: TCP, port: 465}]

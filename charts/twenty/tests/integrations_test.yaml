@@ -1,0 +1,142 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Twenty native production integration contracts
+templates:
+  - deployment.yaml
+  - runtime.yaml
+  - validate.yaml
+  - metrics.yaml
+tests:
+  - it: refuses a bundled Redis port unsupported by the released dependency probes
+    template: validate.yaml
+    set:
+      redis.service.ports.redis: 6380
+    asserts:
+      - failedTemplate:
+          errorMessage: Bundled Redis 2.0.1 requires port 6379 for its native probes; use external Redis for custom ports
+  - it: requires credentials for external worker queues
+    template: validate.yaml
+    set:
+      redis.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: External Redis requires hostname and password Secret
+  - it: mounts external Redis trust on native server and worker
+    template: deployment.yaml
+    set:
+      redis.enabled: false
+      cache:
+        host: redis.example.test
+        passwordSecret: crm-redis
+        tls:
+          enabled: true
+          caSecret: redis-ca
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content: {name: redis-ca, mountPath: /redis-ca, readOnly: true}
+      - contains:
+          path: spec.template.spec.containers[1].volumeMounts
+          content: {name: redis-ca, mountPath: /redis-ca, readOnly: true}
+      - notContains:
+          path: spec.template.spec.containers[2].volumeMounts
+          content: {name: redis-ca, mountPath: /redis-ca, readOnly: true}
+  - it: rejects a CA without Redis TLS
+    template: validate.yaml
+    set:
+      redis.enabled: false
+      cache:
+        host: redis.example.test
+        passwordSecret: crm-redis
+        tls:
+          enabled: false
+          caSecret: redis-ca
+    asserts:
+      - failedTemplate:
+          errorMessage: Redis CA requires TLS enabled
+  - it: requires complete SMTP identity
+    template: validate.yaml
+    set:
+      smtp.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: SMTP requires hostname, sender address, username and password Secret
+  - it: references native SMTP credentials instead of embedding a connection URL
+    template: deployment.yaml
+    set:
+      smtp:
+        enabled: true
+        host: smtp.example.test
+        from: noreply@example.test
+        username: crm
+        existingSecret: crm-smtp
+        tls:
+          caSecret: smtp-ca
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[1].env
+          content:
+            name: EMAIL_SMTP_PASSWORD
+            valueFrom:
+              secretKeyRef: {name: crm-smtp, key: password}
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content: {name: smtp-ca, mountPath: /smtp-ca, readOnly: true}
+  - it: requires a dedicated S3 bucket and credentials
+    template: validate.yaml
+    set:
+      storage.driver: s3
+    asserts:
+      - failedTemplate:
+          errorMessage: S3 requires a bucket and credentials Secret
+  - it: provides S3 credentials to the native worker that generates SDK archives
+    template: deployment.yaml
+    set:
+      storage:
+        driver: s3
+        s3:
+          bucket: crm-files
+          endpoint: https://storage.example.test
+          existingSecret: crm-s3
+          caSecret: s3-ca
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: STORAGE_S3_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef: {name: crm-s3, key: secret-access-key}
+      - contains:
+          path: spec.template.spec.containers[1].volumeMounts
+          content: {name: s3-ca, mountPath: /s3-ca, readOnly: true}
+  - it: exposes the native metrics port on only the server container
+    template: deployment.yaml
+    set:
+      metrics.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content: {name: metrics, containerPort: 9464}
+      - notExists:
+          path: spec.template.spec.containers[1].ports
+  - it: refuses Prometheus resources without a native exporter
+    template: validate.yaml
+    set:
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: Prometheus resources require metrics.enabled
+  - it: creates one server scrape endpoint without inventing worker coverage
+    template: metrics.yaml
+    documentIndex: 1
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+      - lengthEqual:
+          path: spec.endpoints
+          count: 1
+      - equal:
+          path: spec.endpoints[0].port
+          value: metrics
