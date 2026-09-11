@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+collector_name: mssql
+metrics:
+  - metric_name: mssql_instance_ready
+    type: gauge
+    help: Successful authenticated query to the SQL Server instance.
+    values: [ready]
+    query: SELECT CAST(1 AS bigint) AS ready
+  - metric_name: mssql_user_connections
+    type: gauge
+    help: Current user sessions, including monitoring connections.
+    values: [connections]
+    query: SELECT COUNT_BIG(*) AS connections FROM sys.dm_exec_sessions WHERE is_user_process = 1
+  - metric_name: mssql_database_state
+    type: gauge
+    help: SQL Server database state code, where zero means ONLINE; limited to metadata visible to the monitoring login.
+    key_labels: [database]
+    values: [state]
+    query: SELECT name AS [database], CAST(state AS bigint) AS state FROM sys.databases WHERE database_id > 4
+  - metric_name: mssql_database_allocated_bytes
+    type: gauge
+    help: Allocated data and log file bytes per database and file type, not free filesystem space.
+    key_labels: [database, file_type]
+    values: [bytes]
+    query: |
+      SELECT DB_NAME(database_id) AS [database], type_desc AS file_type,
+             SUM(CAST(size AS bigint)) * 8192 AS bytes
+      FROM sys.master_files
+      GROUP BY database_id, type_desc
+  - metric_name: mssql_io_stall_seconds_total
+    type: counter
+    help: Cumulative SQL Server file I/O stall seconds since the instance started.
+    key_labels: [database]
+    values: [seconds]
+    query: |
+      SELECT DB_NAME(database_id) AS [database], SUM(io_stall) / 1000.0 AS seconds
+      FROM sys.dm_io_virtual_file_stats(NULL, NULL)
+      GROUP BY database_id

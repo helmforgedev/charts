@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+# Review Microsoft's EULA before using this explicit acceptance example.
+# Pre-create mssql-auth, application-db and mssql-backup-aws Secrets.
+license:
+  acceptEULA: true
+sql:
+  edition: Express
+auth:
+  existingSecret: mssql-auth
+initdb:
+  databases:
+    - name: application
+      username: application
+      existingSecret: application-db
+      passwordKey: password
+      recoveryModel: SIMPLE
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  timeZone: Etc/UTC
+  databases: [application]
+  compression: false
+  staging:
+    size: 20Gi
+    retain: true
+  s3:
+    bucket: replace-with-your-backup-bucket
+    prefix: production/mssql
+    region: us-east-1
+    existingSecret: mssql-backup-aws
+    sse: AES256
+  # Public AWS S3 endpoints use changing IPs. Restrict this with an approved
+  # egress gateway or private endpoint policy when your platform supports it.
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443

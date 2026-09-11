@@ -1,0 +1,49 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.license.acceptEULA }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mssql.fullname" . }}
+  labels:
+    {{- include "mssql.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    {{- include "mssql.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+  ports:
+    - name: sql
+      port: {{ .Values.service.port }}
+      targetPort: sql
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mssql.fullname" . }}-headless
+  labels:
+    {{- include "mssql.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    {{- include "mssql.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+  ports:
+    - name: sql
+      port: 1433
+      targetPort: sql
+{{- end }}

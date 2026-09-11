@@ -1,0 +1,131 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Backup and monitoring credential boundaries
+templates: [backup.yaml, metrics.yaml, secrets.yaml]
+tests:
+  - it: preserves metrics isolation when the application name is overridden
+    template: metrics.yaml
+    documentIndex: 1
+    set:
+      license.acceptEULA: true
+      nameOverride: accounting
+      metrics.enabled: true
+      metrics.ingressFrom: [{podSelector: {}}]
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/name"]
+          value: accounting
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/name"]
+          value: accounting
+  - it: gives native backup only its dedicated SQL login and shares server staging
+    template: backup.yaml
+    documentIndex: 1
+    set:
+      license.acceptEULA: true
+      backup.enabled: true
+      backup.databases: [app]
+      backup.s3.bucket: backups
+      backup.s3.existingSecret: s3
+      backup.staging.existingClaim: staging
+      backup.egress: [{to: [{ipBlock: {cidr: 10.0.0.0/24}}], ports: [{port: 443, protocol: TCP}]}]
+    asserts:
+      - equal: {path: 'spec.concurrencyPolicy', value: Forbid}
+      - equal: {path: 'spec.jobTemplate.spec.template.spec.automountServiceAccountToken', value: false}
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content: {name: SQLCMDUSER, value: hf_backup}
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.volumes
+          content: {name: staging, persistentVolumeClaim: {claimName: staging}}
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector.matchLabels["app.kubernetes.io/component"]
+          value: server
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env[3].valueFrom.secretKeyRef.key
+          value: backup-password
+  - it: confines web identity to the uploader and disables default Kubernetes token mounts
+    template: backup.yaml
+    documentIndex: 1
+    set:
+      license.acceptEULA: true
+      backup.enabled: true
+      backup.databases: [app]
+      backup.s3.bucket: backups
+      backup.workloadIdentity.enabled: true
+      backup.workloadIdentity.roleArn: arn:aws:iam::123456789012:role/mssql
+      backup.egress: [{to: [{ipBlock: {cidr: 10.0.0.0/24}}], ports: [{port: 443, protocol: TCP}]}]
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.volumes
+          content:
+            name: identity
+            projected:
+              sources:
+                - serviceAccountToken: {audience: sts.amazonaws.com, expirationSeconds: 3600, path: 'token'}
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].volumeMounts
+          content: {name: identity, mountPath: /identity, readOnly: true}
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].volumeMounts
+          content: {name: identity, mountPath: /identity, readOnly: true}
+      - equal: {path: 'spec.jobTemplate.spec.template.spec.automountServiceAccountToken', value: false}
+  - it: keeps exporter on its own selector and mounts only the public CA
+    template: metrics.yaml
+    documentIndex: 1
+    set:
+      license.acceptEULA: true
+      metrics.enabled: true
+      metrics.ingressFrom: [{podSelector: {}}]
+      metrics.existingSecret: monitor-dsn
+      metrics.secretKey: connection
+      tls.existingSecret: server-tls
+    asserts:
+      - equal: {path: 'spec.selector.matchLabels["app.kubernetes.io/component"]', value: metrics}
+      - equal: {path: 'spec.template.spec.automountServiceAccountToken', value: false}
+      - equal: {path: 'spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem', value: true}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SQLEXPORTER_TARGET_DSN
+            valueFrom: {secretKeyRef: {name: monitor-dsn, key: connection}}
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls
+            secret: {secretName: server-tls, items: [{key: ca.crt, path: 'ca.pem'}]}
+  - it: generates a certificate-verifying exporter DSN without using sa
+    template: secrets.yaml
+    documentIndex: 2
+    set:
+      license.acceptEULA: true
+      metrics.enabled: true
+      metrics.ingressFrom: [{podSelector: {}}]
+    asserts:
+      - matchRegex:
+          path: stringData.dsn
+          pattern: '^sqlserver://hf_metrics:.*encrypt=true&TrustServerCertificate=false&certificate=/tls/ca\.pem$'
+  - it: honors a custom generated metrics secret key and SQL Service port
+    template: secrets.yaml
+    documentIndex: 2
+    set:
+      license.acceptEULA: true
+      metrics.enabled: true
+      metrics.ingressFrom: [{podSelector: {}}]
+      metrics.secretKey: connection
+      service.port: 1444
+    asserts:
+      - matchRegex:
+          path: stringData.connection
+          pattern: '^sqlserver://hf_metrics:.*:1444\?database=master&encrypt=true&TrustServerCertificate=false&certificate=/tls/ca\.pem$'
+  - it: alerts when the Prometheus target disappears as well as failing scrapes
+    template: metrics.yaml
+    documentIndex: 4
+    set:
+      license.acceptEULA: true
+      metrics.enabled: true
+      metrics.ingressFrom: [{podSelector: {}}]
+      metrics.serviceMonitor.enabled: true
+      metrics.prometheusRule.enabled: true
+    asserts:
+      - matchRegex: {path: 'spec.groups[0].rules[0].expr', pattern: 'absent\(up\{'}
+      - matchRegex: {path: 'spec.groups[0].rules[0].expr', pattern: '== 0'}
