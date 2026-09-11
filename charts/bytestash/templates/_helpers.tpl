@@ -39,3 +39,7 @@ app.kubernetes.io/part-of: helmforge
 {{- range $labels := list .Values.commonLabels .Values.podLabels -}}{{- range $key := list "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/component" -}}{{- if hasKey $labels $key -}}{{ fail (printf "selector label %s cannot be overridden" $key) }}{{- end -}}{{- end -}}{{- end -}}
 {{- end -}}
 {{- define "bytestash.oidcSecretName" -}}{{- default (printf "%s-oidc" (include "bytestash.fullname" . | trunc 58 | trimSuffix "-")) .Values.oidc.existingSecret -}}{{- end -}}
+
+{{- define "bytestash.httpRouteName" -}}
+{{- if .route.name -}}{{ .route.name | trunc 63 | trimSuffix "-" }}{{- else if gt (int .index) 0 -}}{{ printf "%s-%v" (include "bytestash.fullname" .root | trunc 55 | trimSuffix "-") .index }}{{- else -}}{{ include "bytestash.fullname" .root }}{{- end -}}
+{{- end -}}
