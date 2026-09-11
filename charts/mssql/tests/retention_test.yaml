@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Preserve the identity of retained SQL Server data
+templates: [secrets.yaml]
+tests:
+  - it: retains generated authentication together with the persisted master database
+    documentIndex: 0
+    set:
+      license.acceptEULA: true
+      persistence.enabled: true
+      persistence.retain: true
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+      - exists:
+          path: data["sa-password"]
+  - it: retains generated TLS identity with retained encrypted storage
+    documentIndex: 1
+    set:
+      license.acceptEULA: true
+      persistence.enabled: true
+      persistence.retain: true
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+      - exists:
+          path: data["tls.key"]
+      - exists:
+          path: data["ca.crt"]
+  - it: removes generated identities when storage retention is explicitly disabled
+    set:
+      license.acceptEULA: true
+      persistence.enabled: true
+      persistence.retain: false
+    asserts:
+      - notExists:
+          path: metadata.annotations["helm.sh/resource-policy"]
+        documentIndex: 0
+      - notExists:
+          path: metadata.annotations["helm.sh/resource-policy"]
+        documentIndex: 1
+  - it: does not retain generated identities for ephemeral SQL Server data
+    set:
+      license.acceptEULA: true
+      persistence.enabled: false
+      persistence.retain: true
+    asserts:
+      - notExists:
+          path: metadata.annotations["helm.sh/resource-policy"]
+        documentIndex: 0
+      - notExists:
+          path: metadata.annotations["helm.sh/resource-policy"]
+        documentIndex: 1
+  - it: derives exporter credentials again instead of retaining an independent DSN Secret
+    documentIndex: 2
+    set:
+      license.acceptEULA: true
+      persistence.enabled: true
+      persistence.retain: true
+      metrics.enabled: true
+      metrics.ingressFrom: [{podSelector: {}}]
+    asserts:
+      - notExists:
+          path: metadata.annotations["helm.sh/resource-policy"]
+      - exists:
+          path: stringData.dsn

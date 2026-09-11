@@ -11,7 +11,7 @@ those databases. Database creation and application privileges are separate conce
 
 Configure a dedicated staging PVC shared by SQL Server and the backup Job. RWO requires both Pods on the same node; the chart's backup
 affinity enforces this. ReadWriteOncePod cannot be shared between these Pods. The staging volume must fit the full selected backup set plus
-failed runs awaiting operator cleanup. SQL Server consumes the claim at installation, including storage classes with delayed binding.
+headroom for interruption orphans. SQL Server consumes the claim at installation, including storage classes with delayed binding.
 
 Use existing Secrets or External Secrets for passwords and S3 keys. For AWS workload identity, configure the backup ServiceAccount and trust
 policy explicitly; a rendered role annotation is not evidence of a working IAM federation. The uploader supports standard AWS CLI credential
@@ -54,11 +54,20 @@ instance. SHA-256 detects accidental corruption; the manifest is not a cryptogra
 can replace both objects.
 
 After publication, `/backup/.last-success` is atomically updated with a Unix timestamp. Only the exact local archive files belonging to that
-successful run are removed. Failed runs remain available for diagnosis. Monitor failed Jobs, age of the last successful backup, and staging
-capacity. Review failed-run directories before deleting their specific files; never clear the shared staging root indiscriminately.
+successful run are removed. On an ordinary native-backup or upload failure, exit handlers remove only that run's recorded archive paths,
+including partial files and archives that have not yet been uploaded. Retries therefore do not accumulate entire failed backup sets.
+The latest failure diagnostic replaces `/backup/.last-failure` atomically and contains the run ID, phase, exit code and Unix timestamp;
+it contains no passwords or SQL statements. Retaining metadata instead of failed archives bounds normal failure storage growth.
+
+Cleanup does not scan other run directories or remove unrelated files. A directory containing operator-added files is preserved.
+Graceful termination attempts the same cleanup, but SIGKILL, node loss, filesystem errors or interrupted cleanup can leave orphan files.
+Monitor failed Jobs, backup age and staging capacity. After confirming the owning Job/Pod has stopped, inspect and remove only that
+orphan's exact archive paths. Never clear the shared staging root indiscriminately or use age alone to identify an active backup.
 
 The chart does not delete S3 objects or rewrite bucket policies. Apply lifecycle retention to the dedicated prefix, including expiration of
-incomplete multipart uploads and, where applicable, noncurrent object versions. Consider Object Lock with a suitable retention policy. A
+incomplete multipart uploads and, where applicable, noncurrent object versions. Failed uploads can leave completed archive objects under
+a run prefix without a completion manifest; normal object lifecycle expiration must also cover these partial sets. Cleanup never deletes
+these objects or any successful remote backup. Consider Object Lock with a suitable retention policy. A
 completed backup should not be your only off-cluster recovery artifact.
 
 ## Recovery limits

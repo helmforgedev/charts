@@ -76,7 +76,24 @@ if(values.backup.enabled){
   sql('USE [acceptance]; IF USER_ID(N\'hf_backup\') IS NULL CREATE USER hf_backup FOR LOGIN hf_backup; ALTER ROLE db_backupoperator ADD MEMBER hf_backup;');
   assert.equal(sql("SELECT IS_SRVROLEMEMBER('sysadmin')",'hf_backup','backup-password'),'0');
   const job='mssql-backup-acceptance';k(['create','job',job,`--from=cronjob/${name}-backup`]);
-  k(['wait','--for=condition=complete',`job/${job}`,'--timeout=120s'],undefined,130000);
+  const deadline=Date.now()+120000;
+  let completed=false;
+  while(Date.now()<deadline){
+    const status=json(['get','job',job,'-o','json']).status;
+    completed=status.conditions?.some(condition=>condition.type==='Complete' && condition.status==='True');
+    if(completed || status.conditions?.some(condition=>condition.type==='Failed' && condition.status==='True')) break;
+    await wait(1000);
+  }
+  if(!completed){
+    const attempts=json(['get','pods','-l',`job-name=${job}`,'-o','json']).items;
+    for(const attempt of attempts){
+      for(const container of ['native-backup','upload']){
+        try { console.error(`${attempt.metadata.name}/${container}: ${k(['logs',attempt.metadata.name,'-c',container,'--tail=12']).slice(-1500)}`); }
+        catch { console.error(`${attempt.metadata.name}/${container}: logs unavailable`); }
+      }
+    }
+    throw new Error('Backup acceptance Job failed or exceeded its 120-second deadline; container diagnostics are above');
+  }
   assert(Number(exec('cat /backup/.last-success').trim())>Math.floor(Date.now()/1000)-300);
   await validateBackup({k,json,apply,sql,values,name,pod,ns,context});
 }
@@ -90,3 +107,22 @@ assert.equal(sql('SELECT value FROM acceptance.dbo.verification WHERE id=1'),'pe
 assert.equal(sql('SELECT 1','hf_probe','probe-password'),'1');
 console.log('PASS data and authentication retained across real Helm upgrade and Pod replacement');
 validateInitialization({k,json,sql,values,pod,phase:'after restart'});
+// The default profile also exercises recovery of an uninstalled retained release.
+if(values.persistence.enabled && values.persistence.retain && !values.fullnameOverride && !values.auth.existingSecret && !values.tls.existingSecret){
+  const claim=sts.spec.template.spec.volumes.find(volume=>volume.name==='data').persistentVolumeClaim.claimName;
+  const claimUid=json(['get','pvc',claim,'-o','json']).metadata.uid;
+  const tlsData=JSON.stringify(json(['get','secret',tls,'-o','json']).data);
+  const reinstallValues=execFileSync('helm',['get','values',release,'--all','-n',ns,'--kube-context',context,'-o','json'],{encoding:'utf8'});
+  execFileSync('helm',['uninstall',release,'-n',ns,'--kube-context',context,'--wait','--timeout','60s'],{stdio:'pipe',timeout:70000});
+  assert.equal(json(['get','sts','-l',`app.kubernetes.io/instance=${release}`,'-o','json']).items.length,0);
+  assert.equal(json(['get','pvc',claim,'-o','json']).metadata.uid,claimUid,'uninstall must retain the original data claim');
+  assert(JSON.stringify(json(['get','secret',auth,'-o','json']).data)===JSON.stringify(before),'uninstall must retain generated SQL credentials');
+  assert(JSON.stringify(json(['get','secret',tls,'-o','json']).data)===tlsData,'uninstall must retain generated SQL trust material');
+  execFileSync('helm',['install',release,path.resolve(import.meta.dirname,'..'),'-n',ns,'--kube-context',context,'-f','-','--wait','--timeout','90s'],{input:reinstallValues,stdio:['pipe','pipe','pipe'],timeout:100000});
+  assert.equal(json(['get','pvc',claim,'-o','json']).metadata.uid,claimUid);
+  assert.equal(sql('SELECT value FROM acceptance.dbo.verification WHERE id=1'),'persistent SQL data');
+  assert.equal(sql('SELECT 1','hf_probe','probe-password'),'1');
+  assert(JSON.stringify(json(['get','secret',auth,'-o','json']).data)===JSON.stringify(before),'reinstall must reuse retained SQL credentials');
+  assert(JSON.stringify(json(['get','secret',tls,'-o','json']).data)===tlsData,'reinstall must reuse retained SQL trust material');
+  console.log('PASS actual uninstall/reinstall preserves the original PVC, generated SQL credentials, TLS trust and application data');
+}

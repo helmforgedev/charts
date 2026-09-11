@@ -24,6 +24,30 @@ random="$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
 run_id="mssql-$(date -u +%Y%m%dT%H%M%SZ)-${random}"
 run_dir="/backup/${run_id}"
 mkdir -- "$run_dir"
+owned_archives=()
+on_exit() {
+  status=$?
+  trap - EXIT TERM INT
+  if (( status != 0 )); then
+    # Only paths created by this invocation are eligible; never scan other runs.
+    if [[ -d "$run_dir" && ! -L "$run_dir" && ! -L /backup ]]; then
+      for archive in "${owned_archives[@]}"; do
+        if [[ -f "$archive" && ! -L "$archive" ]]; then rm -- "$archive" || true; fi
+      done
+      rmdir -- "$run_dir" 2>/dev/null || true
+      diagnostic="/backup/.last-failure-${run_id}"
+      if (set -o noclobber; printf '{"runId":"%s","phase":"native","exitCode":%s,"failedAt":%s}\n' \
+        "$run_id" "$status" "$(date -u +%s)" > "$diagnostic"); then
+        mv -T -- "$diagnostic" /backup/.last-failure || true
+      fi
+    fi
+    printf 'Native backup failed; owned archives removed where possible, latest diagnostic: /backup/.last-failure\n' >&2
+  fi
+  exit "$status"
+}
+trap on_exit EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
 # The server and worker use the same UID; archive files remain private.
 printf '%s\n' "$run_id" > /work/run-id
 : > /work/files.tsv
@@ -35,6 +59,7 @@ separator=''
 for database in "${databases[@]}"; do
   file="${database}.bak"
   archive="${run_dir}/${file}"
+  owned_archives+=("$archive")
   # Identifiers and generated paths passed above have no SQL metacharacters.
   printf "BACKUP DATABASE [%s] TO DISK = N'%s' WITH COPY_ONLY, CHECKSUM, %s, STATS = 10;\nGO\n" \
     "$database" "$archive" "$compression" | \

@@ -111,9 +111,22 @@ their own transactions or require nontransactional SQL operations.
 ## Storage and memory
 
 The default 20Gi data claim retains `/var/opt/mssql`, including `master`, user
-databases, logs and the SQL encryption hierarchy. The generated PVC is retained on
-uninstall. Reuse it with `persistence.existingClaim`; do not initialize a second SQL
-writer against it. `persistence.enabled: false` is a disposable test mode.
+databases, logs and the SQL encryption hierarchy. When `persistence.enabled` and
+`persistence.retain` are true, Helm keeps the generated data PVC and the generated
+authentication and TLS Secrets on uninstall. Reinstallation can then recover the
+persisted SQL logins with their matching credentials and trust material. Keep the
+same release identity, or explicitly reference retained resources through
+`persistence.existingClaim`, `auth.existingSecret` and `tls.existingSecret`.
+
+Retained Secrets remain sensitive resources under your management after uninstall.
+Protect and back them up with the recovery configuration; delete them deliberately
+only when the corresponding retained database is retired or its credentials and
+trust have been migrated. Existing Secrets remain owned by their external manager;
+ESO installations need stable provider values and appropriate target-Secret
+lifecycle settings. Retention does not copy externally managed credentials.
+Do not initialize a second SQL writer against the same data claim.
+`persistence.enabled: false` is a disposable test mode and does not retain generated
+authentication or TLS Secrets through this setting.
 
 The default Pod requests and limits are both 2 CPU/4Gi. Native server memory is
 capped at 3072Mi to leave process overhead. Schema/helper checks reject insufficient
@@ -131,8 +144,12 @@ The SQL server writes consistent native backups into a dedicated staging PVC.
 A scheduled Job is placed on the SQL node so both containers can mount RWO storage.
 The SQL client uses a dedicated login with `db_backupoperator` only on selected
 databases. The AWS CLI uploads verified files and publishes a manifest last.
-A failed upload keeps staging files for diagnosis; successful runs remove only
-their own local files. No S3 object is deleted by the chart.
+Successful runs and graceful failures remove only their own local archive files,
+so repeated upload failures do not accumulate full database backups in staging.
+A bounded `/backup/.last-failure` JSON record preserves failure diagnostics.
+Abrupt SIGKILL or node loss can leave orphaned files; inspect and remove those
+specific files manually after confirming no active run owns them. No S3 object is
+deleted by the chart; bucket lifecycle rules handle incomplete remote prefixes.
 
 Express/Web reject compression; Express needs neither SQL Agent nor native S3 URL
 support for this pipeline. Use S3 encryption/lifecycle controls and a recovery drill

@@ -4,6 +4,37 @@ set -euo pipefail
 umask 077
 
 fail() { printf 'Upload failed: %s\n' "$1" >&2; exit 1; }
+[[ -f /work/run-id && -f /work/files.tsv && -s /work/manifest.json ]] || fail 'completed native backup metadata is missing'
+read -r run_id < /work/run-id
+[[ "$run_id" =~ ^mssql-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{16}$ ]] || fail 'invalid staging run identifier'
+run_dir="/backup/${run_id}"
+[[ -d "$run_dir" && ! -L "$run_dir" && ! -L /backup ]] || fail 'invalid staging directory'
+on_exit() {
+  status=$?
+  trap - EXIT TERM INT
+  if (( status != 0 )); then
+    # Include files not yet uploaded. Never delete remote objects or scan other runs.
+    if [[ -d "$run_dir" && ! -L "$run_dir" && ! -L /backup ]]; then
+      while IFS=$'\t' read -r database file size hash; do
+        if [[ "$database" =~ ^[A-Za-z_][A-Za-z0-9_]{0,127}$ && "$file" == "${database}.bak" ]]; then
+          archive="${run_dir}/${file}"
+          if [[ -f "$archive" && ! -L "$archive" ]]; then rm -- "$archive" || true; fi
+        fi
+      done < /work/files.tsv
+      rmdir -- "$run_dir" 2>/dev/null || true
+      diagnostic="/backup/.last-failure-${run_id}"
+      if (set -o noclobber; printf '{"runId":"%s","phase":"upload","exitCode":%s,"failedAt":%s}\n' \
+        "$run_id" "$status" "$(date -u +%s)" > "$diagnostic"); then
+        mv -T -- "$diagnostic" /backup/.last-failure || true
+      fi
+    fi
+    printf 'S3 upload failed; owned local archives removed where possible, latest diagnostic: /backup/.last-failure\n' >&2
+  fi
+  exit "$status"
+}
+trap on_exit EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
 [[ ${S3_BUCKET:-} =~ ^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$ ]] || fail 'invalid S3 bucket'
 [[ ${S3_PREFIX:-} =~ ^[A-Za-z0-9][A-Za-z0-9/_-]*$ && "$S3_PREFIX" != */ ]] || fail 'a dedicated S3 prefix without a trailing slash is required'
 [[ -n ${S3_REGION:-} ]] || fail 'S3 region is required'
@@ -24,11 +55,6 @@ case "${S3_SSE:-}" in
   aws:kms) sse_args=(--sse aws:kms); [[ -z ${S3_KMS_KEY_ID:-} ]] || sse_args+=(--sse-kms-key-id "$S3_KMS_KEY_ID") ;;
   *) fail 'unsupported S3 server-side encryption mode' ;;
 esac
-[[ -f /work/run-id && -f /work/files.tsv && -s /work/manifest.json ]] || fail 'completed native backup metadata is missing'
-read -r run_id < /work/run-id
-[[ "$run_id" =~ ^mssql-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{16}$ ]] || fail 'invalid staging run identifier'
-run_dir="/backup/${run_id}"
-[[ -d "$run_dir" && ! -L "$run_dir" && ! -L /backup ]] || fail 'invalid staging directory'
 target="s3://${S3_BUCKET}/${S3_PREFIX}/${run_id}"
 export AWS_PAGER=''
 export AWS_EC2_METADATA_DISABLED=true

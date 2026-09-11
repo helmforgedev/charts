@@ -36,6 +36,8 @@ export async function validateBackup({k, json, apply, sql, values, name, pod, ns
   let primaryFailure;
   let downloadDirectory;
   const downloaded = [];
+  let preserveDirectory;
+  let failedUploadDirectory;
   try {
     apply({apiVersion: 'v1', kind: 'Pod', metadata: fixtureMetadata(verifier), spec: verifierSpec});
     verifierCreated = true;
@@ -80,6 +82,7 @@ export async function validateBackup({k, json, apply, sql, values, name, pod, ns
     const restoreSpec = structuredClone(original.spec);
     restoreSpec.volumes = restoreSpec.volumes.map(volume => volume.name === 'data'
       ? {name: 'data', emptyDir: {sizeLimit: '8Gi'}} : volume);
+    restoreSpec.volumes.push({name: 'failure-work', emptyDir: {sizeLimit: '16Mi'}});
     assert(!restoreSpec.volumes.some(volume => volume.name === 'data' && volume.persistentVolumeClaim));
     restoreSpec.nodeName = original.spec.nodeName;
     delete restoreSpec.affinity;
@@ -91,6 +94,7 @@ export async function validateBackup({k, json, apply, sql, values, name, pod, ns
     restoreSpec.containers = restoreSpec.containers.filter(container => container.name === 'mssql');
     assert.equal(restoreSpec.containers.length, 1);
     const server = restoreSpec.containers[0];
+    server.volumeMounts.push({name: 'failure-work', mountPath: '/work'});
     server.resources = {requests: {cpu: '1', memory: '4Gi'}, limits: {cpu: '2', memory: '4Gi'}};
     for (const variable of server.env) {
       if (variable.name === 'MSSQL_MEMORY_LIMIT_MB') variable.value = '3072';
@@ -125,6 +129,62 @@ export async function validateBackup({k, json, apply, sql, values, name, pod, ns
     assert.equal(sql("SELECT HAS_PERMS_BY_NAME(N'acceptance',N'DATABASE',N'SELECT')", 'hf_backup', 'backup-password'), '0');
     assert.equal(sql("SELECT HAS_PERMS_BY_NAME(NULL,NULL,N'CREATE ANY DATABASE')", 'hf_backup', 'backup-password'), '0');
     console.log('PASS restore into separate empty SQL storage, VERIFYONLY, DBCC CHECKDB and original application rows; backup account remains restricted');
+
+    // Faults happen through exec in healthy fixture Pods, not crashing SQL/workload containers.
+    preserveDirectory = '/backup/hf-failure-preserve';
+    vexec(['mkdir', '--', preserveDirectory]);
+    k(['exec', '-i', verifier, '-c', 'upload', '--', '/bin/bash', '-ec',
+      'cat > /backup/hf-failure-preserve/operator-note'], 'preserve unrelated diagnostic\n');
+    const nativeFailure = databaseList => k(['exec', restorePod, '-c', 'mssql', '--', '/bin/bash', '-ec',
+      'export SQLCMDPASSWORD="$(cat /auth/backup-password)"; exec env SQL_HOST=localhost SQL_PORT=1433 SQLCMDUSER=hf_backup SSL_CERT_FILE=/tls/ca.crt BACKUP_COMPRESSION=false "$@"',
+      'backup-failure-validation', `BACKUP_DATABASES=${databaseList}`, '/bin/bash', '/config/backup.sh'], undefined, 45000);
+    assert.throws(() => nativeFailure('acceptance hf_intentionally_missing_database'),
+      'failure after one completed native archive must report an error');
+    const nativeDiagnostic = JSON.parse(vexec(['cat', '/backup/.last-failure']));
+    assert.equal(nativeDiagnostic.phase, 'native');
+    assert(nativeDiagnostic.exitCode > 0);
+    assert.match(nativeDiagnostic.runId, /^mssql-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{16}$/);
+    assert.equal(freshSql(`SELECT COUNT(*) FROM msdb.dbo.backupmediafamily WHERE physical_device_name=N'/backup/${nativeDiagnostic.runId}/acceptance.bak'`), '1',
+      'first database backup must actually have completed before the second fails');
+    vexec(['test', '!', '-e', `/backup/${nativeDiagnostic.runId}`]);
+    assert.equal(vexec(['cat', `${preserveDirectory}/operator-note`]).trim(), 'preserve unrelated diagnostic');
+
+    freshSql('CREATE DATABASE [hf_failure_aux];');
+    freshSql('USE [hf_failure_aux]; CREATE USER [hf_backup] FOR LOGIN [hf_backup]; ALTER ROLE [db_backupoperator] ADD MEMBER [hf_backup];');
+    nativeFailure('acceptance hf_failure_aux');
+    // Transfer only small native metadata; the real archives stay on the shared PVC.
+    for (const file of ['run-id', 'files.tsv', 'manifest.json']) {
+      const content = k(['exec', restorePod, '-c', 'mssql', '--', 'cat', `/work/${file}`]);
+      k(['exec', '-i', verifier, '-c', 'upload', '--', '/bin/bash', '-ec', `cat > /work/${file}`], content);
+    }
+    const failedRun = vexec(['cat', '/work/run-id']).trim();
+    assert.match(failedRun, /^mssql-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{16}$/);
+    failedUploadDirectory = `/backup/${failedRun}`;
+    k(['exec', '-i', verifier, '-c', 'upload', '--', '/bin/bash', '-ec',
+      `cat > ${failedUploadDirectory}/operator-note`], 'preserve file not owned by backup\n');
+    const realAws = vexec(['/bin/bash', '-ec', 'command -v aws']).trim();
+    assert.match(realAws, /^\/[A-Za-z0-9/_.-]+$/);
+    const wrapper = `#!/bin/bash\nset -eu\nfor argument in "$@"; do\n  case "$argument" in */hf_failure_aux.bak) export AWS_SECRET_ACCESS_KEY=deliberately-invalid-ci-key ;; esac\ndone\nexec ${realAws} "$@"\n`;
+    k(['exec', '-i', verifier, '-c', 'upload', '--', '/bin/bash', '-ec',
+      'mkdir /work/fault-bin; cat > /work/fault-bin/aws; chmod 700 /work/fault-bin/aws'], wrapper);
+    assert.throws(() => vexec(['/bin/bash', '-ec',
+      'export PATH="/work/fault-bin:$PATH" AWS_MAX_ATTEMPTS=1; exec /bin/bash /config/upload.sh']),
+    'the second real S3 request must fail with invalid signing credentials');
+    const uploadDiagnostic = JSON.parse(vexec(['cat', '/backup/.last-failure']));
+    assert.equal(uploadDiagnostic.runId, failedRun);
+    assert.equal(uploadDiagnostic.phase, 'upload');
+    assert(uploadDiagnostic.exitCode > 0);
+    vexec(['test', '!', '-e', `${failedUploadDirectory}/acceptance.bak`]);
+    vexec(['test', '!', '-e', `${failedUploadDirectory}/hf_failure_aux.bak`]);
+    assert.equal(vexec(['cat', `${failedUploadDirectory}/operator-note`]).trim(), 'preserve file not owned by backup');
+    assert.equal(vexec(['cat', `${preserveDirectory}/operator-note`]).trim(), 'preserve unrelated diagnostic');
+    const partial = JSON.parse(aws(['s3api', 'list-objects-v2', '--bucket', values.backup.s3.bucket,
+      '--prefix', `${values.backup.s3.prefix}/${failedRun}/`, '--output', 'json']));
+    assert.deepEqual((partial.Contents ?? []).map(object => object.Key),
+      [`${values.backup.s3.prefix}/${failedRun}/acceptance.bak`],
+      'partial remote archive is preserved, but no completion manifest exists');
+    aws(['s3api', 'head-object', '--bucket', values.backup.s3.bucket, '--key', manifestKey]);
+    console.log('PASS failed second database and second S3 upload reclaim owned staging files, retain latest diagnostic and preserve unrelated files/completed remote backup');
   } catch (error) {
     primaryFailure = error;
     throw error;
@@ -138,6 +198,14 @@ export async function validateBackup({k, json, apply, sql, values, name, pod, ns
       try {
         for (const file of downloaded) vexec(['rm', '-f', '--', file]);
         if (downloadDirectory) vexec(['rmdir', '--', downloadDirectory]);
+        if (preserveDirectory) {
+          vexec(['rm', '-f', '--', `${preserveDirectory}/operator-note`]);
+          vexec(['rmdir', '--', preserveDirectory]);
+        }
+        if (failedUploadDirectory) {
+          vexec(['rm', '-f', '--', `${failedUploadDirectory}/operator-note`]);
+          vexec(['rmdir', '--', failedUploadDirectory]);
+        }
       } catch (error) { cleanupErrors.push(error); }
       try { k(['delete', 'pod', verifier, '--wait=true', '--timeout=15s'], undefined, 20000); }
       catch (error) { cleanupErrors.push(error); }

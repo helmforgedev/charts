@@ -73,6 +73,16 @@ certificate.
 Persistence is enabled by default. Use `persistence.existingClaim` when storage is managed independently. Retain storage across uninstall or
 replacement according to the chart and StorageClass reclaim policies, and verify the actual claim/PV behavior before production use.
 
+With both `persistence.enabled` and `persistence.retain` true, generated data PVCs and generated authentication/TLS Secrets have Helm keep retention.
+Uninstall leaves them available for recovery. Reinstall using the same release identity so live Helm lookup finds the retained credentials and
+certificate material. For a different release identity, explicitly reference the retained claim, authentication Secret and TLS Secret through their
+existing-resource values. Their SQL passwords must match the logins in the persisted master database.
+
+Retained Secrets require protected storage, access controls and a deliberate retirement process after the release is removed. Do not delete them
+while their corresponding SQL data still relies on them. Delete retained data and credentials together only after an intentional data-retirement or
+credential-migration decision. This retention setting does not own existing Secrets: retain their external source and lifecycle independently. For
+ESO, keep provider values stable and configure target-Secret ownership/deletion policies for the intended uninstall and recovery behavior.
+
 SQL Server needs a writable data directory for system databases, user databases, transaction logs, and security material. Restrict access to the
 volume, especially `/var/opt/mssql/secrets`. Do not mount a single SQL Server data directory into multiple active instances. Claims restored from
 another installation must have compatible engine version, ownership, and credentials.
@@ -85,6 +95,14 @@ demonstrate a consistent, restorable database backup. Test the selected backup a
 Scheduled backups use a Kubernetes CronJob and native full `COPY_ONLY` backup files followed by S3 upload. This design also supports Express, which
 does not provide SQL Server Agent or the native S3 connector. Upload completion, object retention, credentials, endpoint trust, and recovery must be
 verified together.
+
+Successful runs and graceful failures clean up their own staged archives. A single bounded `/backup/.last-failure` JSON record retains failure
+diagnostics instead of accumulating full backup files on repeated upload failures. Monitor failed Jobs and the last successful backup age as well as
+this diagnostic; a clean staging directory is not evidence of a successful upload.
+
+SIGKILL, node loss or storage failure can prevent cleanup. Inspect orphaned paths and confirm no active backup owns them before deleting their
+specific files; never clear the shared staging root indiscriminately. The chart never deletes remote S3 objects. Configure bucket lifecycle rules
+for incomplete run prefixes and abandoned multipart uploads, along with the retention policy for completed backups.
 
 Treat S3 lifecycle rules, immutability, encryption, and access policies as part of the operational backup configuration. Keep database backups outside
 the SQL Server data volume's failure domain. Restrict backup object access: an unencrypted native backup can disclose database contents to anyone able

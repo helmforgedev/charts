@@ -225,17 +225,32 @@ spec:
           command: [/bin/bash, -ec]
           args:
             - |
-              for attempt in $(seq 1 60); do
-                if aws --endpoint-url https://mssql-s3:8333 s3api head-bucket --bucket mssql-backups >/dev/null 2>&1; then
-                  exit 0
-                fi
-                if aws --endpoint-url https://mssql-s3:8333 s3api create-bucket --bucket mssql-backups >/dev/null 2>&1; then
-                  aws --endpoint-url https://mssql-s3:8333 s3api head-bucket --bucket mssql-backups
-                  exit 0
+              set -u
+              export AWS_MAX_ATTEMPTS=1
+              probe_key="helmforge-fixture-readiness/${HOSTNAME}.bin"
+              # One MiB exercises volume storage rather than only small inline filer metadata.
+              dd if=/dev/zero of=/tmp/probe.upload bs=1048576 count=1 status=none
+              expected="$(sha256sum /tmp/probe.upload)"; expected="${expected%% *}"
+              s3() {
+                aws --endpoint-url https://mssql-s3:8333 --cli-connect-timeout 2 --cli-read-timeout 3 s3api "$@"
+              }
+              for ((attempt=0; attempt<60 && SECONDS<180; attempt++)); do
+                if s3 head-bucket --bucket mssql-backups >/tmp/readiness-error 2>&1 ||
+                  s3 create-bucket --bucket mssql-backups >/tmp/readiness-error 2>&1; then
+                  if s3 put-object --bucket mssql-backups --key "$probe_key" --body /tmp/probe.upload >/tmp/readiness-error 2>&1 &&
+                    s3 get-object --bucket mssql-backups --key "$probe_key" /tmp/probe.download >/tmp/readiness-error 2>&1; then
+                    actual="$(sha256sum /tmp/probe.download)"; actual="${actual%% *}"
+                    if [[ "$actual" == "$expected" && "$(stat -c %s /tmp/probe.download)" == 1048576 ]] &&
+                      s3 delete-object --bucket mssql-backups --key "$probe_key" >/tmp/readiness-error 2>&1; then
+                      echo 'HTTPS S3 fixture passed real object upload, download, byte/hash verification and exact probe cleanup'
+                      exit 0
+                    fi
+                  fi
                 fi
                 sleep 2
               done
-              echo 'HTTPS S3 fixture bucket could not be provisioned' >&2
+              echo 'HTTPS S3 fixture data path did not become ready within its bounded retry budget' >&2
+              cat /tmp/readiness-error >&2
               exit 1
           envFrom:
             - secretRef: {name: mssql-s3-admin}
