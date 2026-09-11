@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: AFFiNE invalid production contracts
+templates:
+  - templates/validate.yaml
+tests:
+  - it: rejects ephemeral identity keys
+    set:
+      persistence.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: AFFiNE requires persistent native identity keys alongside its database
+  - it: rejects ambiguous bootstrap passwords
+    set:
+      bootstrap.password: valid-owned-password-2026
+      bootstrap.existingSecret: operator
+    asserts:
+      - failedTemplate:
+          errorMessage: Bootstrap password and existing Secret are mutually exclusive
+  - it: requires external PostgreSQL coordinates
+    set:
+      postgresql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: External PostgreSQL requires host, database name, username and passwordSecret
+  - it: requires external Redis coordinates
+    set:
+      redis.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: External Redis requires host and passwordSecret
+  - it: rejects competing database modes
+    set:
+      database.host: outside
+    asserts:
+      - failedTemplate:
+          errorMessage: Bundled PostgreSQL and external database settings are mutually exclusive
+  - it: rejects unauthenticated bundled Redis
+    set:
+      redis.auth.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: AFFiNE Redis requires authentication
+  - it: rejects unvalidated logical database topology
+    set:
+      redis.architecture: replication
+    asserts:
+      - failedTemplate:
+          errorMessage: AFFiNE requires a validated standalone Redis logical-database contract
+  - it: protects managed connection configuration
+    set:
+      extraEnv:
+        - name: DATABASE_URL
+          value: untrusted
+    asserts:
+      - failedTemplate:
+          errorMessage: extraEnv cannot override managed setting DATABASE_URL
+  - it: protects the private bind setting
+    set:
+      extraEnv:
+        - name: LISTEN_ADDR
+          value: 0.0.0.0
+    asserts:
+      - failedTemplate:
+          errorMessage: extraEnv cannot override managed setting LISTEN_ADDR
+  - it: protects workload selectors
+    set:
+      podLabels:
+        app.kubernetes.io/name: another
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels cannot override workload selectors
+  - it: rejects inactive metrics monitoring
+    set:
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: ServiceMonitor and PrometheusRule require metrics.enabled
+  - it: separates public and private ports
+    set:
+      metrics.enabled: true
+      metrics.port: 3010
+    asserts:
+      - failedTemplate:
+          errorMessage: Metrics must use a separate private port

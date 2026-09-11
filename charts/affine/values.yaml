@@ -1,0 +1,427 @@
+# SPDX-License-Identifier: Apache-2.0
+# -- nameOverride.
+nameOverride: ''
+# -- fullnameOverride.
+fullnameOverride: ''
+# -- commonLabels.
+commonLabels: {}
+# -- Single application replica; native local storage uses Recreate upgrades.
+replicaCount: 1
+# -- imagePullSecrets.
+imagePullSecrets: []
+# -- Additional native settings; chart-managed connection and identity variables are reserved.
+extraEnv: []
+# -- serviceAccount.
+serviceAccount:
+  # -- create.
+  create: true
+  # -- name.
+  name: ''
+  # -- annotations.
+  annotations: {}
+  # -- automountServiceAccountToken.
+  automountServiceAccountToken: false
+# -- service.
+service:
+  # -- type.
+  type: ClusterIP
+  # -- port.
+  port: 3010
+  # -- annotations.
+  annotations: {}
+  # -- ipFamilyPolicy.
+  ipFamilyPolicy: ''
+  # -- ipFamilies.
+  ipFamilies: []
+# -- ingress.
+ingress:
+  # -- enabled.
+  enabled: false
+  # -- ingressClassName.
+  ingressClassName: ''
+  # -- annotations.
+  annotations: {}
+  # -- hosts.
+  hosts: []
+  # -- tls.
+  tls: []
+# -- gatewayAPI.
+gatewayAPI:
+  # -- enabled.
+  enabled: false
+  # -- Canonical HTTPRoutes; each route requires parentRefs and defaults to the application Service.
+  httpRoutes: []
+# -- externalSecrets.
+externalSecrets:
+  # -- enabled.
+  enabled: false
+  # -- refreshInterval.
+  refreshInterval: 1h
+  # -- Native ExternalSecret specifications with explicit store references and target keys.
+  items: []
+# -- probes.
+probes:
+  # -- startup.
+  startup:
+    # -- enabled.
+    enabled: true
+    # -- failureThreshold.
+    failureThreshold: 60
+    # -- periodSeconds.
+    periodSeconds: 5
+    # -- timeoutSeconds.
+    timeoutSeconds: 5
+  # -- Fresh PostgreSQL query, authenticated Redis PING and native HTTP health check.
+  readiness:
+    # -- enabled.
+    enabled: true
+    # -- failureThreshold.
+    failureThreshold: 3
+    # -- periodSeconds.
+    periodSeconds: 10
+    # -- timeoutSeconds.
+    timeoutSeconds: 5
+  # -- Native HTTP process health; dependency outages affect readiness instead.
+  liveness:
+    # -- enabled.
+    enabled: true
+    # -- failureThreshold.
+    failureThreshold: 3
+    # -- periodSeconds.
+    periodSeconds: 20
+    # -- timeoutSeconds.
+    timeoutSeconds: 5
+# -- resources.
+resources:
+  # -- requests.
+  requests:
+    # -- cpu.
+    cpu: 500m
+    # -- memory.
+    memory: 1Gi
+  # -- limits.
+  limits:
+    # -- cpu.
+    cpu: '2'
+    # -- memory.
+    memory: 3Gi
+# -- podSecurityContext.
+podSecurityContext:
+  # -- runAsNonRoot.
+  runAsNonRoot: true
+  # -- runAsUser.
+  runAsUser: 1000
+  # -- runAsGroup.
+  runAsGroup: 1000
+  # -- fsGroup.
+  fsGroup: 1000
+  # -- fsGroupChangePolicy.
+  fsGroupChangePolicy: OnRootMismatch
+  # -- seccompProfile.
+  seccompProfile:
+    # -- type.
+    type: RuntimeDefault
+# -- securityContext.
+securityContext:
+  # -- allowPrivilegeEscalation.
+  allowPrivilegeEscalation: false
+  # -- readOnlyRootFilesystem.
+  readOnlyRootFilesystem: true
+  # -- capabilities.
+  capabilities:
+    # -- drop.
+    drop:
+      - ALL
+# -- podLabels.
+podLabels: {}
+# -- podAnnotations.
+podAnnotations: {}
+# -- nodeSelector.
+nodeSelector: {}
+# -- tolerations.
+tolerations: []
+# -- affinity.
+affinity: {}
+# -- topologySpreadConstraints.
+topologySpreadConstraints: []
+# -- priorityClassName.
+priorityClassName: ''
+# -- terminationGracePeriodSeconds.
+terminationGracePeriodSeconds: 30
+# -- persistence.
+persistence:
+  # -- enabled.
+  enabled: true
+  # -- Existing complete configuration, identity and blob volume, including a restored claim.
+  existingClaim: ''
+  # -- storageClass.
+  storageClass: ''
+  # -- Capacity for native configuration, SEC1 signing key, blobs and avatars.
+  size: 20Gi
+  # -- accessModes.
+  accessModes:
+    - ReadWriteOnce
+  # -- Retain the application claim during uninstall; this is not a backup.
+  retain: true
+  # -- annotations.
+  annotations: {}
+# -- runtime.
+runtime:
+  # -- Bounded temporary volume used by the native application and initializer.
+  temporarySize: 1Gi
+# -- image.
+image:
+  # -- repository.
+  repository: ghcr.io/toeverything/affine
+  # -- tag.
+  tag: 0.27.4
+  # -- pullPolicy.
+  pullPolicy: IfNotPresent
+# -- server.
+server:
+  # -- Native application port; bootstrap binds it only to loopback before public startup.
+  port: 3010
+  # -- Exact browser-visible origin; empty uses the in-cluster Service origin for local evaluation.
+  publicUrl: ''
+# -- bootstrap.
+bootstrap:
+  # -- Display name for the first native administrator.
+  name: Administrator
+  # -- First administrator email; replace before production installation.
+  email: admin@example.test
+  # -- Optional initial password with 16 to 32 characters; empty generates a retained Secret.
+  password: ''
+  # -- Existing initial credential Secret, mounted only in the initializer.
+  existingSecret: ''
+  # -- Secret key holding the initial password; changing it does not reset an existing account.
+  passwordKey: admin-password
+# -- networkPolicy.
+networkPolicy:
+  # -- enabled.
+  enabled: true
+  # -- Application ingress peers; empty permits Pods in this namespace.
+  ingressFrom: []
+  # -- egressIsolation.
+  egressIsolation: true
+  # -- dnsEgress.
+  dnsEgress:
+    - namespaceSelector:
+        # -- matchLabels.
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      # -- podSelector.
+      podSelector:
+        # -- matchLabels.
+        matchLabels:
+          # -- k8s-app.
+          k8s-app: kube-dns
+  # -- Explicit egress rules for external dependencies and approved integrations.
+  extraEgress: []
+# -- database.
+database:
+  # -- External PostgreSQL hostname when the bundled subchart is disabled.
+  host: ''
+  # -- port.
+  port: 5432
+  # -- name.
+  name: affine
+  # -- username.
+  username: affine
+  # -- Secret containing the external PostgreSQL application password.
+  passwordSecret: ''
+  # -- passwordKey.
+  passwordKey: password
+  # -- tls.
+  tls:
+    # -- Verify external PostgreSQL encryption, certificate chain and hostname in both native drivers.
+    enabled: true
+    # -- Optional CA Secret; empty uses client system trust.
+    caSecret: ''
+    # -- caKey.
+    caKey: ca.crt
+# -- cache.
+cache:
+  # -- External standalone Redis hostname when the bundled subchart is disabled.
+  host: ''
+  # -- port.
+  port: 6379
+  # -- username.
+  username: ''
+  # -- Secret containing the external Redis password.
+  passwordSecret: ''
+  # -- passwordKey.
+  passwordKey: redis-password
+  # -- Base logical database N; AFFiNE also requires N+2, N+3 and N+4.
+  database: 0
+  # -- tls.
+  tls:
+    # -- Verify external Redis TLS certificate chain and hostname.
+    enabled: true
+    # -- Optional Redis CA Secret; empty uses system trust.
+    caSecret: ''
+    # -- caKey.
+    caKey: ca.crt
+# -- postgresql.
+postgresql:
+  # -- initdb.
+  initdb:
+    # -- scripts.
+    scripts:
+      # -- 20-affine-vector.sh.
+      20-affine-vector.sh: |
+        #!/bin/bash
+        set -euo pipefail
+        export PGPASSWORD="${POSTGRES_PASSWORD}"
+        psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER}" --dbname "${APP_DATABASE}" <<'SQL'
+        CREATE EXTENSION IF NOT EXISTS vector;
+        SQL
+  # -- securityContext.
+  securityContext:
+    # -- readOnlyRootFilesystem.
+    readOnlyRootFilesystem: true
+  # -- extraVolumes.
+  extraVolumes:
+    - name: postgres-tmp
+      # -- emptyDir.
+      emptyDir:
+        # -- sizeLimit.
+        sizeLimit: 1Gi
+    - name: postgres-socket
+      # -- emptyDir.
+      emptyDir:
+        # -- medium.
+        medium: Memory
+        # -- sizeLimit.
+        sizeLimit: 16Mi
+  # -- extraVolumeMounts.
+  extraVolumeMounts:
+    - name: postgres-tmp
+      # -- mountPath.
+      mountPath: /tmp
+    - name: postgres-socket
+      # -- mountPath.
+      mountPath: /var/run/postgresql
+  # -- networkPolicy.
+  networkPolicy:
+    # -- enabled.
+    enabled: true
+    # -- egress.
+    egress:
+      # -- enabled.
+      enabled: true
+      # -- allowDNS.
+      allowDNS: true
+      # -- allowSameNamespacePostgreSQL.
+      allowSameNamespacePostgreSQL: false
+      # -- allowHTTPS.
+      allowHTTPS: false
+  # -- enabled.
+  enabled: true
+  # -- architecture.
+  architecture: standalone
+  # -- auth.
+  auth:
+    # -- database.
+    database: affine
+    # -- username.
+    username: affine
+    # -- existingSecret.
+    existingSecret: ''
+    # -- existingSecretUserPasswordKey.
+    existingSecretUserPasswordKey: user-password
+  # -- image.
+  image:
+    # -- repository.
+    repository: pgvector/pgvector
+    # -- tag.
+    tag: 0.8.6-pg16-bookworm@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b
+# -- redis.
+redis:
+  # -- Dedicated Redis service account; released dependency does not expose token automount control.
+  serviceAccount:
+    # -- Create a release-scoped account without RBAC grants.
+    create: true
+  # -- Redis runs non-root with a read-only image filesystem.
+  securityContext:
+    # -- Redis writes only to its persistent /data mount.
+    readOnlyRootFilesystem: true
+    # -- Drop unnecessary Linux capabilities.
+    capabilities:
+      # -- Redis needs no additional capabilities.
+      drop: [ALL]
+    # -- Use the container runtime syscall profile.
+    seccompProfile:
+      # -- Standard container runtime seccomp policy.
+      type: RuntimeDefault
+  # -- enabled.
+  enabled: true
+  # -- architecture.
+  architecture: standalone
+  # -- auth.
+  auth:
+    # -- enabled.
+    enabled: true
+    # -- password.
+    password: ''
+    # -- existingSecret.
+    existingSecret: ''
+    # -- existingSecretPasswordKey.
+    existingSecretPasswordKey: redis-password
+  # -- config.
+  config:
+    # -- redis.
+    redis: |
+      maxmemory-policy noeviction
+      appendonly yes
+  # -- standalone.
+  standalone:
+    # -- persistence.
+    persistence:
+      # -- enabled.
+      enabled: true
+      # -- size.
+      size: 5Gi
+    # -- resources.
+    resources:
+      # -- requests.
+      requests:
+        # -- cpu.
+        cpu: 100m
+        # -- memory.
+        memory: 128Mi
+      # -- limits.
+      limits:
+        # -- cpu.
+        cpu: 500m
+        # -- memory.
+        memory: 512Mi
+# -- metrics.
+metrics:
+  # -- Enable the private native Prometheus endpoint and upstream trace instrumentation.
+  enabled: false
+  # -- port.
+  port: 9464
+  # -- NetworkPolicy peers allowed to scrape the unauthenticated native metrics port.
+  ingressFrom:
+    - namespaceSelector:
+        # -- matchLabels.
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+  # -- serviceMonitor.
+  serviceMonitor:
+    # -- enabled.
+    enabled: false
+    # -- labels.
+    labels: {}
+    # -- interval.
+    interval: 30s
+    # -- scrapeTimeout.
+    scrapeTimeout: 10s
+  # -- prometheusRule.
+  prometheusRule:
+    # -- enabled.
+    enabled: false
+    # -- labels.
+    labels: {}
+    # -- additionalRules.
+    additionalRules: []

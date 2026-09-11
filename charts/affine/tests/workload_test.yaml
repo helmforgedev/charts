@@ -1,0 +1,149 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: AFFiNE protected native workload
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: keeps native bootstrap before the public process and a private identity volume
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.template.spec.initContainers[0].command
+          value:
+            - node
+            - /helmforge/bootstrap.mjs
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value:
+            - node
+            - /helmforge/start.mjs
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: generated-schema
+            emptyDir:
+              sizeLimit: 8Mi
+  - it: checks dependency readiness without using it for liveness
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command
+          value:
+            - node
+            - /helmforge/readiness.mjs
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /info
+  - it: mounts administrator credentials only in the initializer
+    set:
+      bootstrap.existingSecret: operator-admin
+      bootstrap.passwordKey: initial-password
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: bootstrap-auth
+            mountPath: /bootstrap-auth
+            readOnly: true
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: bootstrap-auth
+            mountPath: /bootstrap-auth
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: bootstrap-auth
+            secret:
+              secretName: operator-admin
+              defaultMode: 288
+              items:
+                - key: initial-password
+                  path: password
+  - it: supports scheduling and image-pull controls
+    set:
+      priorityClassName: important
+      nodeSelector.pool: knowledge
+      imagePullSecrets:
+        - name: registry
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: important
+      - equal:
+          path: spec.template.spec.nodeSelector.pool
+          value: knowledge
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: registry
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].maxSkew
+          value: 1
+  - it: maps external endpoints, credential keys and trust roots into both native phases
+    set:
+      postgresql.enabled: false
+      redis.enabled: false
+      database.host: postgres.example.test
+      database.passwordSecret: pg-auth
+      database.passwordKey: pg-pass
+      database.tls.caSecret: pg-ca
+      cache.host: redis.example.test
+      cache.passwordSecret: redis-auth
+      cache.passwordKey: cache-pass
+      cache.tls.caSecret: cache-ca
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PGHOST
+            value: postgres.example.test
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HF_POSTGRES_TLS
+            value: 'true'
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PGPASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: pg-auth
+                key: pg-pass
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_SERVER_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: redis-auth
+                key: cache-pass
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: postgres-ca
+            mountPath: /postgres-tls
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: redis-ca
+            mountPath: /redis-tls
+            readOnly: true
