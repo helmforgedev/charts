@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Native custom OAuth contract
+templates:
+  - deployment.yaml
+  - runtime.yaml
+  - validate.yaml
+tests:
+  - it: rejects incomplete authentication providers
+    template: validate.yaml
+    set:
+      oauth.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: OAuth requires HTTPS public URL, explicit provider endpoints, client ID and Secret
+  - it: requires explicitly enabling a configured provider
+    template: validate.yaml
+    set:
+      oauth.clientId: unused
+    asserts:
+      - failedTemplate:
+          errorMessage: OAuth connection settings require oauth.enabled
+  - it: references credentials and mounts provider trust only for native processes
+    template: deployment.yaml
+    set:
+      server.publicUrl: https://resume.example.test
+      oauth:
+        enabled: true
+        clientId: resumes
+        existingSecret: oauth-client
+        authorizationUrl: https://id.example.test/authorize
+        tokenUrl: https://id.example.test/token
+        userInfoUrl: https://id.example.test/userinfo
+        caSecret: oauth-ca
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OAUTH_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef: {name: oauth-client, key: client-secret}
+      - notContains:
+          path: spec.template.spec.containers[1].volumeMounts
+          content: {name: oauth-ca, mountPath: /oauth-ca, readOnly: true}

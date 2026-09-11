@@ -1,0 +1,202 @@
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: Secret
+metadata:
+  name: fixture-s3
+type: Opaque
+stringData:
+  access-key-id: fixture-reactive-resume
+  secret-access-key: fixture-only-s3-password-2026
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fixture-s3
+spec:
+  selector:
+    app: fixture-s3
+  ports:
+    - name: s3
+      port: 8333
+      targetPort: 8333
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fixture-s3
+  labels:
+    helmforge.dev/runtime-fixture: 'true'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fixture-s3
+  template:
+    metadata:
+      labels:
+        app: fixture-s3
+        helmforge.dev/runtime-fixture: 'true'
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: s3
+          image: docker.io/chrislusf/seaweedfs:4.46
+          command:
+            - weed
+            - mini
+            - '-dir=/data'
+            - '-bucket=resume.fixtures'
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: fixture-s3
+                  key: access-key-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: fixture-s3
+                  key: secret-access-key
+          ports:
+            - name: s3
+              containerPort: 8333
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: '1'
+              memory: 1Gi
+          readinessProbe:
+            tcpSocket:
+              port: s3
+            periodSeconds: 3
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: fixture-integrations-tls
+type: Opaque
+stringData:
+  ca.crt: "-----BEGIN CERTIFICATE-----\r\nMIIDKzCCAhOgAwIBAgIUNMGcJjTfmsJvnXdDUSEHOhpv+e8wDQYJKoZIhvcNAQEL\r\nBQAwJTEjMCEGA1UEAwwaSGVsbUZvcmdlIFBhcHJhIGZpeHR1cmUgQ0EwHhcNMjYw\r\nOTEwMTgwNTMwWhcNMzYwOTA3MTgwNTMwWjAlMSMwIQYDVQQDDBpIZWxtRm9yZ2Ug\r\nUGFwcmEgZml4dHVyZSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB\r\nAKN6XpnvY4JEaWS3z1PbTKv6jevFQlrmgdDhJfr8xxGeoY7iXX0OQz1jOVTJjG8e\r\nLC8gVq40+P6WWvOFIqvfWgPCjmaOdVW1BuPEYkWmdkJf68jYePiU+3ftrxNIc4Wr\r\nyHgTb4tAzmVWSp0FmMBaG0Lvybzne1b5kkqJcRqC3Grk9Wgy0yD1JrNSdSg4kNxf\r\nxXDlECGGZSxCNMU7/geIrLd35w9yeJzvsKUhwXBMfpwA8BbpFrLCNTbr3k22PRoB\r\nPyd2aWRBAkFwdDZ2b7A+77vJPcef+aJHO4D3h8MsYzBCrq6kbLvvAGOrPkTSIE4o\r\nFnL+b1R5irQDX0gipNxVZD8CAwEAAaNTMFEwHQYDVR0OBBYEFNFYnqvxui646UGu\r\nVGH/NyVWN1OQMB8GA1UdIwQYMBaAFNFYnqvxui646UGuVGH/NyVWN1OQMA8GA1Ud\r\nEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADggEBAJH7KKyV6PmvI8Y73CAX90FK\r\noo84B05+30LcvTJBdIyZTkIh0EdEp2hPYEpqUMhF/xhGSMAJevvpQlhBKl4iyKzi\r\nKloWVkHqmyOkX8RXnIYPRUDiFgJpMJwfdgpbb+DU3vdY1mA2eN/LXAnwcS+2GVjV\r\nv5ElM40fibZPTTTGriBxE6qaO7HU9yEyq+deQnoB9VYKakIRFrCIQXw3DAa0/oj0\r\nlCx/i1cxNVekyAsP/iZqn4J1432ok4fwLw3M9aaIM8vY8sB7EZaco0LbQ4PdeQVa\r\nhj+5T3swVwEojds7lfR6F9So1UAHsTQ3Pap2xg/WpbW40vcg8aflfrYXAvC6hpo=\r\n-----END CERTIFICATE-----\r\n"
+  tls.crt: "-----BEGIN CERTIFICATE-----\r\nMIIDSjCCAjKgAwIBAgIUctTd/Gro1aOxsm3xHAeltMMOSrUwDQYJKoZIhvcNAQEL\r\nBQAwJTEjMCEGA1UEAwwaSGVsbUZvcmdlIFBhcHJhIGZpeHR1cmUgQ0EwHhcNMjYw\r\nOTEwMTgwNTMwWhcNMzYwOTA3MTgwNTMwWjAfMR0wGwYDVQQDDBRmaXh0dXJlLWlu\r\ndGVncmF0aW9uczCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAJVhQq6S\r\nBrPkOcxKD3rCew0SZOzF9Hmc5dCawJsqaFFlTs/hhKEh82JRtjaAkJVENpMyp7Oi\r\nrZHKbJ/1HnRTVmIkxd77EluRMjfe1GoCWWnUg3v31vGmwQulJrd07cdGNuPQ2wnn\r\nDWUfA/RFoBfz6p39pn7Fp+BEBaj/5L6WbPz+4bCC2tACocbr+VXYqjMEo1XkPqsv\r\nvnQn1Ubn2EQ3nV1RSKxiTPqURJbhbOG/AsJ/Tnv/969phl6oZHef474jkMGANBPG\r\nQ37z+L3VrgVkgyaJLdU+8H1Pht8RvAPDtjnrl01iOaX8ew/9l+4+UqXSHP0Jr0vR\r\n8M6El64cRMBj4q8CAwEAAaN4MHYwHwYDVR0RBBgwFoIUZml4dHVyZS1pbnRlZ3Jh\r\ndGlvbnMwEwYDVR0lBAwwCgYIKwYBBQUHAwEwHQYDVR0OBBYEFBXRCy5WZoAmxLxu\r\nVtC99CE8F+VDMB8GA1UdIwQYMBaAFNFYnqvxui646UGuVGH/NyVWN1OQMA0GCSqG\r\nSIb3DQEBCwUAA4IBAQBR5THGxjTgvDEj5d8Bi9eGCX2SvWIVP3rNBju/NGnx2KjU\r\nkq1L8OS7J2nvbYqz20PQ3n7xSfunwk7ATTEGrzOewFDzhtx5wBf4eNy/JeVMjybY\r\nGvcwDjXeZdsZ3s2fIJ5GUzIboB3vZNnaOnW0p0Iz/tVSpQMCY+q3qHWTHJHt0F/d\r\niO0OuEHuzVj3KgLs6aL2HLENJoEuV+yNqfUkKpaF6ghGYNlCV50eb5JVxlPaUaxi\r\nNSXWQWH76w/avuMjyPqbag3dHanhqjmhhYXiE9zHNWXO/8p/rtsCXphxLmmNdFo6\r\n1phJ9h7oS51aoCmddqO9gwybqXoMGQh4E78nB9bv\r\n-----END CERTIFICATE-----\r\n"
+  tls.key: "-----BEGIN PRIVATE KEY-----\r\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCVYUKukgaz5DnM\r\nSg96wnsNEmTsxfR5nOXQmsCbKmhRZU7P4YShIfNiUbY2gJCVRDaTMqezoq2Rymyf\r\n9R50U1ZiJMXe+xJbkTI33tRqAllp1IN799bxpsELpSa3dO3HRjbj0NsJ5w1lHwP0\r\nRaAX8+qd/aZ+xafgRAWo/+S+lmz8/uGwgtrQAqHG6/lV2KozBKNV5D6rL750J9VG\r\n59hEN51dUUisYkz6lESW4WzhvwLCf057//evaYZeqGR3n+O+I5DBgDQTxkN+8/i9\r\n1a4FZIMmiS3VPvB9T4bfEbwDw7Y565dNYjml/HsP/ZfuPlKl0hz9Ca9L0fDOhJeu\r\nHETAY+KvAgMBAAECggEAMKRRnt/ND/Huwi+Rl9NRV2HYfGM/ZwRor0NdGYm3G14m\r\nSjnwwrl389mQwHGf4wMp1EfH5Q5Bf7pPIc0jJBTpCZ9Y0XGnOirvE9NbDsQCEpyR\r\nTiJXmyvGK8EU+OM59ExQXmGpmbFjorx1QKsVZQdXrCem+hvpvPTZdP0Sot7/0We8\r\nZE3RUF2qDaas/4kH6L1DikW4m+fwqe9HckMBKLV7XtISWVlm5cLKUO7cTw+adb/s\r\nRTrFlcsUPvGXjGdO302n4cV906ssEWhLJ9QagkliQBsxz7rezxmh7a6DOxt9r48T\r\n5yrC+4YAnsmJMvG/vBSqrR5uD4f4rTJYmXQKBzsG/QKBgQDMDSBvMcEmbc4lX0Nq\r\n8sgwq52hiQIvpoJlDRminHd8v6JMQY0O+dB11OPL1jugr0vC+OIdjLQUg6GiKQ+e\r\nZX9uKUPgIBK2TbGytShspITIxULqqXJLRl2XGu2TK3Lu0euKJRHTbAlU7Zik8b4/\r\nA1Qgb2FgA7190K810vB1akEYrQKBgQC7aPk7eFxcGc+f3LgmZ25OSXQGpgZrjf2F\r\nLSBY0aOEHObIgXXacMNTrrSBNvCO5MpT/KvYOLB9bOfEe/VBcjv1vJKuBAo2rTDf\r\nZqHRtZEYEZFh0+QH8qQFvTC24b9qDAky40sTyupP7MIrhgjjepza5rbaR4J6z5a6\r\n0I2TyQVISwKBgGnWkTE7xGyzXc7Cp8xsW2vrSBrGXuzqWA4kClzu/YcmOv+ErK7M\r\n4tSLdRCAcXM6GXjq8RXUqn9Ne2QKGkDVcpBoNP2mhS4sBHSmRG59syYUM05WT6M9\r\nv0OmQv4n9jhrh9miuqlIC1sS1i8P+NbkWhlszDwqFHqS6J5paDHuyA8NAoGAcaqg\r\nh45fzkilYhtX4YsYHwl0AthNyowrOMv+83/rAiUZYIEMvvlnruimeDyfOLvRb5Ev\r\nlQwFF32nMMfSH+iuL0Q5Xqv6meD/ZG/2M6BBKWz2VXRTuPJUw1pVIobXNvWn2qJ7\r\nFb0b0nAR8J3x5C6o1ifavZdjryMbE6GMTRc+SfMCgYB20Q7kvCiiRtA7sCPpBKQG\r\nGxh1jGftuMBfoWbzePQs1AmivXTRK51lci5Qmcz8504Jkjm1tM6gz3p1D8Gz5VpF\r\nWK6k99ghLFxfhjc0adUKpJ//2zYxd+5PNYMIDXpvGPGYN0siL/qoTGj8ipCxK/IW\r\n/etyxOk9AdMCadBUVTVm2w==\r\n-----END PRIVATE KEY-----\r\n"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fixture-integrations
+data:
+  proxy.mjs: >-
+    import fs from 'node:fs';import https from 'node:https';import http from 'node:http';
+
+    const tls={key:fs.readFileSync('/tls/tls.key'),cert:fs.readFileSync('/tls/tls.crt')};
+
+    for(const
+    [port,host,targetPort]of[[8443,'fixture-libsql',8080],[9443,'fixture-s3',8333]])https.createServer(tls,(req,res)=>{const
+    upstream=http.request({hostname:host,port:targetPort,path:req.url,method:req.method,headers:req.headers},response=>{res.writeHead(response.statusCode,response.headers);response.pipe(res);});upstream.on('error',()=>{res.writeHead(502);res.end();});req.pipe(upstream);}).listen(port,'0.0.0.0');
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fixture-integrations
+spec:
+  selector:
+    app: fixture-integrations
+  ports:
+    - name: sql
+      port: 8443
+      targetPort: 8443
+    - name: s3
+      port: 9443
+      targetPort: 9443
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fixture-integrations
+  labels:
+    app: fixture-integrations
+    helmforge.dev/runtime-fixture: 'true'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fixture-integrations
+  template:
+    metadata:
+      labels:
+        app: fixture-integrations
+        helmforge.dev/runtime-fixture: 'true'
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: proxy
+          image: docker.io/library/node:24.21.0-alpine3.23
+          command:
+            - node
+            - /server/proxy.mjs
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+          readinessProbe:
+            tcpSocket:
+              port: 8443
+            periodSeconds: 3
+          volumeMounts:
+            - name: server
+              mountPath: /server
+              readOnly: true
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+      volumes:
+        - name: server
+          configMap:
+            name: fixture-integrations
+        - name: tls
+          secret:
+            secretName: fixture-integrations-tls
+            defaultMode: 288

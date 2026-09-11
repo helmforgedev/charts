@@ -1,0 +1,137 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "reactive-resume.fullname" . }}
+  labels: {{ include "reactive-resume.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {{ include "reactive-resume.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{ include "reactive-resume.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}{{ toYaml . | nindent 8 }}{{- end }}
+      annotations:
+        checksum/runtime: {{ include (print $.Template.BasePath "/runtime.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
+    spec:
+      serviceAccountName: {{ include "reactive-resume.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext: {{ toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      initContainers:
+        - name: bootstrap
+          image: {{ include "reactive-resume.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [node, /helmforge/launcher.mjs, bootstrap]
+          env: {{ include "reactive-resume.environment" . | nindent 12 }}
+            - {name: HF_INITIAL_EMAIL, value: {{ .Values.bootstrap.email | quote }}}
+            - {name: HF_INITIAL_NAME, value: {{ .Values.bootstrap.name | quote }}}
+            - {name: HF_INITIAL_USERNAME, value: {{ .Values.bootstrap.username | quote }}}
+            - {name: HF_ADMISSION_HOST, value: {{ printf "%s-admission" (include "reactive-resume.fullname" . | trunc 53 | trimSuffix "-") | quote }}}
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          volumeMounts: {{ include "reactive-resume.mounts" . | nindent 12 }}
+            - {name: bootstrap-auth, mountPath: /bootstrap-auth, readOnly: true}
+            - {name: admission-key, mountPath: /admission-key, readOnly: true}
+      containers:
+        - name: reactive-resume
+          image: {{ include "reactive-resume.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [node, /helmforge/launcher.mjs, server]
+          env: {{ include "reactive-resume.environment" . | nindent 12 }}
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          ports: [{name: native, containerPort: 3010}]
+          startupProbe:
+            httpGet: {path: /api/health, port: native}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          readinessProbe:
+            httpGet: {path: /api/health, port: native}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          livenessProbe:
+            tcpSocket: {port: native}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          volumeMounts: {{ include "reactive-resume.mounts" . | nindent 12 }}
+        - name: proxy
+          image: {{ printf "%s:%s" .Values.proxy.image.repository .Values.proxy.image.tag }}
+          imagePullPolicy: {{ .Values.proxy.image.pullPolicy }}
+          command: [nginx, -g, "daemon off;", -c, /helmforge/nginx.conf]
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.proxy.resources | nindent 12 }}
+          ports: [{name: http, containerPort: 3000}]
+          readinessProbe:
+            httpGet: {path: /_proxyhealth, port: http}
+          livenessProbe:
+            httpGet: {path: /_proxyhealth, port: http}
+          volumeMounts:
+            - {name: runtime, mountPath: /helmforge, readOnly: true}
+            - {name: proxy-tmp, mountPath: /tmp}
+      volumes:
+        {{- if and .Values.oauth.enabled .Values.oauth.caSecret }}
+        - name: oauth-ca
+          secret:
+            secretName: {{ .Values.oauth.caSecret }}
+            items: [{key: {{ .Values.oauth.caKey }}, path: ca.crt}]
+        {{- end }}
+        {{- if and (eq .Values.storage.driver "s3") .Values.storage.s3.caSecret }}
+        - name: s3-ca
+          secret:
+            secretName: {{ .Values.storage.s3.caSecret }}
+            items: [{key: {{ .Values.storage.s3.caKey }}, path: ca.crt}]
+        {{- end }}
+        {{- if and .Values.smtp.enabled .Values.smtp.tls.caSecret }}
+        - name: smtp-ca
+          secret:
+            secretName: {{ .Values.smtp.tls.caSecret }}
+            items: [{key: {{ .Values.smtp.tls.caKey }}, path: ca.crt}]
+        {{- end }}
+        - name: data
+          persistentVolumeClaim: {claimName: {{ include "reactive-resume.claimName" . }}}
+        - name: tmp
+          emptyDir: {sizeLimit: {{ .Values.runtime.temporarySize }}}
+        - name: proxy-tmp
+          emptyDir: {sizeLimit: 128Mi}
+        - name: runtime
+          configMap: {name: {{ include "reactive-resume.fullname" . }}-runtime}
+        - name: bootstrap-auth
+          secret:
+            secretName: {{ include "reactive-resume.bootstrapSecretName" . }}
+            defaultMode: 0440
+            items: [{key: {{ .Values.bootstrap.passwordKey }}, path: password}]
+        - name: admission-key
+          secret:
+            secretName: {{ printf "%s-admission" (include "reactive-resume.fullname" . | trunc 53 | trimSuffix "-") }}
+            defaultMode: 0440
+        {{- if and (not .Values.postgresql.enabled) .Values.database.tls.caSecret }}
+        - name: postgres-ca
+          secret:
+            secretName: {{ .Values.database.tls.caSecret }}
+            items: [{key: {{ .Values.database.tls.caKey }}, path: ca.crt}]
+        {{- end }}

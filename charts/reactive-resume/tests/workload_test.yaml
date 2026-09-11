@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Reactive Resume private enrollment boundaries
+templates:
+  - templates/deployment.yaml
+  - templates/runtime.yaml
+tests:
+  - it: confines initial user credentials and admission key to initialization
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content: {name: bootstrap-auth, mountPath: /bootstrap-auth, readOnly: true}
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content: {name: admission-key, mountPath: /admission-key, readOnly: true}
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content: {name: bootstrap-auth, mountPath: /bootstrap-auth, readOnly: true}
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content: {name: admission-key, mountPath: /admission-key, readOnly: true}
+  - it: starts the public proxy only as a regular container after enrollment
+    template: templates/deployment.yaml
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.initContainers
+          count: 1
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: bootstrap
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: proxy
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
