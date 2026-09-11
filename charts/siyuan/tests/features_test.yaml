@@ -1,0 +1,215 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: SiYuan production contract
+templates:
+  - templates/*.yaml
+tests:
+  - it: pins the official kernel image
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/b3log/siyuan:v3.8.3
+  - it: uses explicit serve subcommand
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args[0]
+          value: serve
+  - it: bypasses root chown entrypoint
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value:
+            - /opt/siyuan/kernel
+  - it: avoids concurrent workspace writers
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+  - it: runs without root
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+  - it: uses read only root
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+  - it: does not mount API token
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - it: mounts complete workspace
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          value: /siyuan/workspace
+  - it: provides writable home
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[1].mountPath
+          value: /home/siyuan
+  - it: keeps PVC after release uninstall
+    template: templates/pvc.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+  - it: accepts existing workspace
+    template: templates/deployment.yaml
+    set:
+      persistence.existingClaim: restored
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          value: restored
+  - it: uses explicit storage class
+    template: templates/pvc.yaml
+    set:
+      persistence.storageClass: fast
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: fast
+  - it: disables dynamic storage with dash
+    template: templates/pvc.yaml
+    set:
+      persistence.storageClass: '-'
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: ''
+  - it: stores explicit code only in Secret
+    template: templates/secret.yaml
+    set:
+      auth.accessCode: fixture-private-code
+    asserts:
+      - equal:
+          path: data["access-code"]
+          value: Zml4dHVyZS1wcml2YXRlLWNvZGU=
+  - it: references existing code Secret
+    template: templates/deployment.yaml
+    set:
+      auth.existingSecret: managed
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[4].valueFrom.secretKeyRef.name
+          value: managed
+  - it: keeps bypass disabled
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[2].value
+          value: 'false'
+  - it: allows dual stack service
+    template: templates/service.yaml
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+  - it: routes Gateway to native port
+    template: templates/gateway-httproute.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - parentRefs:
+            - name: edge
+    asserts:
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 6806
+  - it: denies web egress by default
+    template: templates/networkpolicy.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53
+  - it: sets requested probe port by name
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: http
+  - it: stores OIDC client credential in Secret
+    template: templates/oidc-secret.yaml
+    set: &ref_0
+      oidc.enabled: true
+      oidc.issuerURL: https://id.example.test
+      oidc.clientID: workspace
+      oidc.clientSecret: fixture-oidc-secret
+      oidc.redirectURL: https://notes.example.test/api/system/oidc/callback
+      oidc.claimRules:
+        - claim: email
+          operator: equals
+          values:
+            - admin@example.test
+    asserts:
+      - equal:
+          path: data["client-secret"]
+          value: Zml4dHVyZS1vaWRjLXNlY3JldA==
+  - it: serializes strict OIDC admission rules
+    template: templates/deployment.yaml
+    set: *ref_0
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[10].value
+          value: '[{"claim":"email","operator":"equals","values":["admin@example.test"]}]'
+  - it: waits for native boot completion before readiness
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[0]
+          value: /bin/sh
+  - it: renders no ExternalSecret by default
+    template: templates/externalsecret.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders canonical ExternalSecret v1 with target and interval
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: external-auth
+          spec:
+            secretStoreRef:
+              name: store
+              kind: ClusterSecretStore
+            data:
+              - secretKey: access-code
+                remoteRef:
+                  key: password
+    asserts:
+      - equal:
+          path: apiVersion
+          value: external-secrets.io/v1
+      - equal:
+          path: spec.target.name
+          value: external-auth
+      - equal:
+          path: spec.refreshInterval
+          value: 1h

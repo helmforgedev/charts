@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0
+server:
+  publicUrl: https://files.example.com
+  tls:
+    existingSecret: opencloud-server-tls
+bootstrap:
+  existingSecret: opencloud-initial-admin
+persistence:
+  size: 100Gi
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+    nginx.ingress.kubernetes.io/proxy-ssl-verify: 'on'
+    nginx.ingress.kubernetes.io/proxy-ssl-secret: files/opencloud-server-tls
+    nginx.ingress.kubernetes.io/proxy-ssl-name: files.example.com
+    nginx.ingress.kubernetes.io/proxy-ssl-server-name: 'on'
+    nginx.ingress.kubernetes.io/proxy-body-size: 1g
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '600'
+  hosts:
+    - host: files.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: opencloud-server-tls
+      hosts:
+        - files.example.com
+networkPolicy:
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+  extraEgress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 443

@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Twenty native workload boundaries
+templates:
+  - deployment.yaml
+  - runtime.yaml
+  - validate.yaml
+tests:
+  - it: prepares frontend separately and keeps native enrollment ahead of public startup
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: prepare-front
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: bootstrap
+      - contains:
+          path: spec.template.spec.initContainers[1].volumeMounts
+          content: {name: bootstrap-auth, mountPath: /bootstrap-auth, readOnly: true}
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content: {name: bootstrap-auth, mountPath: /bootstrap-auth, readOnly: true}
+  - it: runs server and worker with shared retained local storage
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: worker
+      - contains:
+          path: spec.template.spec.containers[1].volumeMounts
+          content: {name: data, mountPath: /app/data}
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - it: rejects unauthenticated worker queues
+    template: validate.yaml
+    set:
+      redis.auth.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: Bundled Redis requires authenticated standalone topology without external settings

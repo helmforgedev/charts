@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Stirling PDF fail fast
+templates:
+  - templates/secret.yaml
+tests:
+  - it: rejects mixed credential sources
+    set:
+      auth.password: fixture-password
+      auth.existingSecret: managed
+    asserts:
+      - failedTemplate:
+          errorMessage: auth.existingSecret and auth.password are mutually exclusive
+  - it: rejects login bypass
+    set:
+      extraEnv:
+        - name: SECURITY_ENABLELOGIN
+          value: 'false'
+    asserts:
+      - failedTemplate:
+          errorMessage: extraEnv cannot override chart-managed setting SECURITY_ENABLELOGIN
+  - it: requires distinct management port
+    set:
+      metrics.enabled: true
+      metrics.port: 8080
+    asserts:
+      - failedTemplate:
+          errorMessage: metrics.port must differ from server.port
+  - it: requires scrape credential reference
+    set:
+      metrics.enabled: true
+      metrics.scrapeConfig.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: metrics.scrapeConfig requires metrics.enabled and apiKeySecret
+  - it: prevents unmanaged actuator exposure
+    set:
+      extraEnv:
+        - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+          value: '*'
+    asserts:
+      - failedTemplate:
+          errorMessage: Use metrics values instead of MANAGEMENT_ overrides
+  - it: requires canonical ESO items
+    set:
+      externalSecrets.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.items must be non-empty when enabled

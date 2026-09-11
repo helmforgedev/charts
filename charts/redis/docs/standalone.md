@@ -17,6 +17,13 @@ Common cases:
 - optional persistence
 - password authentication
 - optional metrics
+- optional TLS, with probes using the same encrypted listener and configured port
+
+When TLS is enabled, provide `tls.existingSecret` containing the configured CA,
+certificate and key filenames. The probes use these files and authenticate with
+`REDISCLI_AUTH`; readiness requires an exact `PONG`. No separate plaintext health
+listener is opened. Standalone TLS does not require client certificates by default,
+so retain password authentication and the intended network access controls.
 
 ## What it does not deliver
 

@@ -20,6 +20,15 @@ image:
 # -- Optional image pull secrets for private registries or mirrored images.
 imagePullSecrets: []
 
+# -- Native External Secrets Operator resources for bootstrap, SQL credentials or provisioning files.
+externalSecrets:
+  # -- Render ExternalSecret resources; the operator and CRDs must already exist.
+  enabled: false
+  # -- Default refresh interval; an item's spec can override it.
+  refreshInterval: 1h
+  # -- Full native spec per item, with name/fullnameOverride and optional metadata.
+  items: []
+
 # -- Number of Memos pods. Keep 1 when using SQLite; scale external database mode only with a shared existing data claim.
 replicaCount: 1
 
@@ -40,7 +49,7 @@ app:
 memos:
   # -- Bind address passed to MEMOS_ADDR. Empty means all interfaces, matching upstream defaults.
   addr: ""
-  # -- Public URL used by Memos when it runs behind Ingress, Gateway API, or another reverse proxy.
+  # -- Explicit instance URL. Nonempty also enables anonymous access to public content; never infer from ingress.
   instanceUrl: ""
   # -- Enable upstream demo mode. Keep disabled for real instances.
   demo: false
@@ -58,12 +67,105 @@ database:
   existingSecret: ""
   # -- Key in database.existingSecret containing the database DSN.
   existingSecretKey: dsn
+  # -- External SQL host in components mode. Do not combine with a complete DSN or DSN Secret.
+  host: ""
+  # -- External SQL port; zero selects 5432 for PostgreSQL or 3306 for MySQL.
+  port: 0
+  # -- External SQL database name in components mode.
+  name: memos
+  # -- External SQL application user in components mode.
+  username: memos
+  # -- Existing Secret containing an external SQL password, distinct from the complete DSN Secret.
+  passwordSecret: ""
+  # -- Password key in database.passwordSecret.
+  passwordKey: password
+  # -- PostgreSQL TLS mode; empty uses disable for bundled databases and verify-full for external components.
+  sslMode: ""
+  # -- MySQL TLS mode; empty uses false for bundled databases and true for external components.
+  mysqlTls: ""
+  # -- Optional CA Secret for database clients; SSL_CERT_FILE and PostgreSQL sslrootcert use this certificate.
+  caSecret: ""
+  # -- CA certificate key in database.caSecret.
+  caKey: ca.crt
+  # -- Maximum wait for bundled/component database TCP availability before native authenticated startup.
+  connectionTimeout: 180
+  # -- Explicit external database peers when NetworkPolicy egress isolation is enabled.
+  networkPolicyPeers: []
+
+# -- Optional maintained HelmForge PostgreSQL. Full subchart values remain available.
+postgresql:
+  # -- Enable PostgreSQL; requires database.driver=postgres and mysql.enabled=false.
+  enabled: false
+  # -- PostgreSQL topology. The application always connects to the writable Service.
+  architecture: standalone
+  # -- Application credentials are initialized and retained by the PostgreSQL subchart.
+  auth:
+    # -- Initial application database.
+    database: memos
+    # -- Initial application user.
+    username: memos
+    # -- Existing subchart authentication Secret, including its required administrative keys.
+    existingSecret: ""
+    # -- Application password key in the subchart Secret.
+    existingSecretUserPasswordKey: user-password
+
+# -- Optional maintained HelmForge MySQL. Full subchart values remain available.
+mysql:
+  # -- Enable MySQL; requires database.driver=mysql and postgresql.enabled=false.
+  enabled: false
+  # -- MySQL topology. The application always connects to the writable Service.
+  architecture: standalone
+  # -- Application credentials are initialized and retained by the MySQL subchart.
+  auth:
+    # -- Initial application database.
+    database: memos
+    # -- Initial application user.
+    username: memos
+    # -- Existing subchart authentication Secret, including its required administrative keys.
+    existingSecret: ""
+    # -- Application password key in the subchart Secret.
+    existingSecretUserPasswordKey: mysql-user-password
 
 provisioning:
+  # -- Own the complete native GENERAL policy through a read-only file. Disable to preserve database-managed settings.
+  manageGeneralSettings: true
   # -- Existing Secret whose keys are Memos provisioning filenames mounted under /etc/secrets.
   existingSecret: ""
   # -- Secret volume file mode. 288 is decimal for 0440 so the non-root fsGroup can read the files.
   defaultMode: 288
+  # -- Close registration in generated GENERAL settings. existingSecret owns all provisioning when supplied.
+  disallowUserRegistration: true
+
+# -- Protected first-administrator setup using the unchanged upstream binary on loopback.
+bootstrap:
+  # -- Initialize only when native needsSetup is true; existing accounts and passwords are preserved.
+  enabled: true
+  # -- Initial administrator username.
+  username: admin
+  # -- Initial administrator display name.
+  displayName: Administrator
+  # -- Initial password. Empty generates a retained random Secret; prefer existingSecret for GitOps.
+  password: ""
+  # -- Existing Secret containing the initial password.
+  existingSecret: ""
+  # -- Key containing the initial password.
+  passwordKey: password
+  # -- Official Node helper image; the application binary is copied unchanged from the Memos image.
+  image:
+    # -- Official helper repository.
+    repository: docker.io/library/node
+    # -- Verified pinned helper tag.
+    tag: 24.21.0-alpine3.23
+    # -- Helper pull policy.
+    pullPolicy: IfNotPresent
+  # -- Resources for the temporary local Memos process and JSON-safe setup helper.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 256Mi
 
 persistence:
   # -- Persist the Memos data directory, including the SQLite database and local assets.
@@ -114,19 +216,11 @@ ingress:
   # -- Ingress TLS blocks.
   tls: []
 
-gateway:
-  # -- Enable Gateway API HTTPRoute.
+gatewayAPI:
+  # -- Render canonical Gateway API HTTPRoutes.
   enabled: false
-  # -- HTTPRoute annotations.
-  annotations: {}
-  # -- Gateway parentRefs. Required when gateway.enabled=true.
-  parentRefs: []
-  # -- Optional HTTPRoute hostnames.
-  hostnames: []
-  # -- Route path.
-  path: /
-  # -- Route path match type. Options: PathPrefix, Exact, RegularExpression.
-  pathType: PathPrefix
+  # -- Route definitions with parentRefs, hostnames, rules, labels and annotations.
+  httpRoutes: []
 
 probes:
   # -- Startup probe settings.
@@ -137,7 +231,13 @@ probes:
   readiness: { enabled: true, path: /healthz, initialDelaySeconds: 0, periodSeconds: 10, timeoutSeconds: 5, failureThreshold: 6 }
 
 # -- Container resource requests and limits.
-resources: {}
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
 
 # -- Pod security context. The upstream image runs as non-root UID/GID 10001.
 podSecurityContext:
@@ -150,7 +250,7 @@ securityContext:
   capabilities:
     drop:
       - ALL
-  readOnlyRootFilesystem: false
+  readOnlyRootFilesystem: true
   runAsNonRoot: true
   runAsUser: 10001
   runAsGroup: 10001
@@ -165,11 +265,11 @@ pdb:
 
 networkPolicy:
   # -- Create a NetworkPolicy that restricts inbound HTTP traffic to Memos.
-  enabled: false
-  # -- Custom ingress peers. Empty allows ingress from any namespace.
+  enabled: true
+  # -- Custom ingress peers. Empty allows only same-namespace pods; add ingress controller peers explicitly.
   ingressFrom: []
   # -- Enable baseline egress isolation without requiring custom extraEgress rules.
-  egressIsolation: false
+  egressIsolation: true
   # -- DNS peers allowed by baseline egress isolation. Override for clusters with different DNS labels.
   dnsEgress:
     - namespaceSelector:
@@ -179,11 +279,7 @@ networkPolicy:
         matchLabels:
           k8s-app: kube-dns
   # -- HTTPS peers allowed by baseline egress isolation. Override to restrict webhook and integration destinations.
-  httpsEgress:
-    - ipBlock:
-        cidr: 0.0.0.0/0
-    - ipBlock:
-        cidr: ::/0
+  httpsEgress: []
   # -- Additional egress rules appended after the built-in DNS and HTTPS allowances.
   extraEgress: []
 

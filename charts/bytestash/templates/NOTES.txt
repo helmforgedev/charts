@@ -1,0 +1,61 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+ByteStash code snippets
+
+1. Installation summary
+=======================
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Image: {{ include "bytestash.image" . }}
+One SQLite writer. Recreate upgrades intentionally include downtime.
+
+2. Access
+=========
+kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "bytestash.fullname" . }} 5000:{{ .Values.service.port }}
+Open http://localhost:5000{{ .Values.server.basePath }}.
+Use a dedicated HTTPS hostname and overwrite forwarded headers at the edge.
+
+3. Authentication
+=================
+Initial administrator: {{ .Values.bootstrap.username }}
+Bootstrap Secret: {{ include "bytestash.bootstrapSecretName" . }}
+Password key: {{ .Values.bootstrap.passwordKey }}
+Retrieve credentials securely with your Kubernetes Secret management tooling.
+Changing the initial password Secret does not reset an existing database password.
+JWT Secret: {{ include "bytestash.authSecretName" . }}
+OIDC enabled: {{ .Values.oidc.enabled }}. Restrict identity admission at the provider.
+
+4. Persistence and backup
+=========================
+Persistence: {{ .Values.persistence.enabled }}
+Claim: {{ include "bytestash.claimName" . }}
+Generated claim retained on uninstall: {{ .Values.persistence.retain }}
+Online snapshot CronJob enabled: {{ .Values.backup.enabled }}
+Use verified SQLite snapshots; a live main database file copy can omit WAL data.
+Existing claims remain externally managed. Namespace deletion can remove claims.
+
+5. Availability and resources
+=============================
+Never run multiple SQLite writers against this claim, including on RWX storage.
+Readiness checks the native authentication configuration and database state.
+No HPA or PDB is offered. Size requests and storage for your snippet workload.
+
+6. Monitoring and network
+=========================
+No native Prometheus endpoint. Monitor workload, PVC capacity and backup Job age.
+Default NetworkPolicy permits same-namespace HTTP and DNS only.
+Allow explicit HTTPS egress to an OIDC provider when enabled.
+kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "bytestash.fullname" . }} -c bytestash
+
+7. Upgrade and recovery
+=======================
+Take a verified snapshot before application upgrades.
+helm upgrade {{ .Release.Name }} helmforge/bytestash -n {{ .Release.Namespace }} -f values.yaml
+Restore snippets.db to a fresh claim and configure persistence.existingClaim.
+Preserve the JWT Secret to retain sessions. Helm rollback does not undo migrations.
+
+8. Documentation and support
+============================
+https://helmforge.dev/docs/charts/bytestash
+https://github.com/helmforgedev/charts/issues
+Native MCP endpoint: {{ .Values.server.basePath }}/mcp; authenticate with a scoped API key.
+Happy Helmforging :)

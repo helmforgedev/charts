@@ -1,0 +1,171 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+Glance deployment
+
+1. Installation summary
+=======================
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Chart: {{ .Chart.Name }} {{ .Chart.Version }}
+Application: {{ .Chart.AppVersion }}
+Image: {{ include "glance.image" . }}
+Replicas: {{ .Values.replicaCount }}
+ServiceAccount: {{ include "glance.serviceAccountName" . }}
+Native authentication: {{ ternary "enabled" "disabled" .Values.auth.enabled }}
+
+Glance runs as a stateless dashboard. No database or content PVC is installed.
+Configuration and credential sources are the durable deployment state.
+All native-authenticated sessions see the same configured dashboard.
+The chart configures a single account; it is not a multi-tenant portal.
+
+2. Access
+=========
+Service: {{ include "glance.fullname" . }}
+Type: {{ .Values.service.type }}
+Port: {{ .Values.service.port }}
+Container port: {{ .Values.server.port }}
+Base URL: {{ .Values.server.baseUrl | default "/" }}
+
+Local access:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "glance.fullname" . }} 8080:{{ .Values.service.port }}
+  Open http://localhost:8080
+
+The port-forward path reaches the application directly. For a configured
+external subpath, use the external proxy URL after configuring prefix stripping.
+
+{{- if .Values.ingress.enabled }}
+Ingress hosts:
+{{- range .Values.ingress.hosts }}
+  {{ .host }}
+{{- end }}
+{{- end }}
+{{- if .Values.gatewayAPI.enabled }}
+Gateway hosts:
+{{- range .Values.gatewayAPI.httpRoutes }}
+{{- range .hostnames }}
+  {{ . }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+Terminate TLS before sharing the dashboard outside a trusted local network.
+Gateway API listeners own TLS; the chart references an existing Gateway.
+Ingress and Gateway require their controller and corresponding CRDs.
+
+3. Getting started
+==================
+Wait for startup:
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "glance.fullname" . }} --timeout=120s
+
+Read effective configuration without displaying credentials:
+  kubectl -n {{ .Release.Namespace }} get configmap {{ include "glance.fullname" . }} -o yaml
+
+The default dashboard contains bookmarks and a calendar.
+Replace config.data.pages with the complete desired page list.
+Glance widget Go templates are preserved literally, without Helm tpl evaluation.
+Use Secret-file references for widget credentials rather than plaintext values.
+
+Public static assets can be supplied with assets.existingConfigMap.
+Assets are public content and must never contain credentials.
+The Docker socket is intentionally not mounted.
+Kubernetes API access is not required by the application.
+
+4. Credentials
+==============
+{{- if .Values.auth.enabled }}
+Username: {{ .Values.auth.username }}
+Secret: {{ include "glance.authSecretName" . }}
+Password key: {{ .Values.auth.passwordKey }}
+Signing key: {{ .Values.auth.secretKeyKey }}
+
+Retrieve the password only in a trusted terminal:
+  kubectl -n {{ .Release.Namespace }} get secret {{ include "glance.authSecretName" . }} -o jsonpath='{.data.{{ .Values.auth.passwordKey }}}' | base64 --decode
+
+Do not copy secret values into tickets, logs or source control.
+The signing value must encode exactly 64 random bytes in base64.
+Generated credentials are retained on Helm upgrade through lookup.
+Offline GitOps renderers should reference an externally managed Secret.
+Rotating the signing key invalidates all current sessions.
+For referenced Secrets, synchronize the source and then roll out the pods.
+{{- else }}
+Native login is disabled. The dashboard is accessible to every allowed peer.
+Use this mode only for intentionally public content or a separately secured edge.
+{{- end }}
+
+External Secrets enabled: {{ .Values.externalSecrets.enabled }}
+Check operator readiness before investigating a missing mounted Secret.
+
+5. Configuration summary
+========================
+NetworkPolicy: {{ .Values.networkPolicy.enabled }}
+Outbound isolation: {{ .Values.networkPolicy.egressIsolation }}
+Proxy headers trusted: {{ .Values.server.proxied }}
+Public assets ConfigMap: {{ .Values.assets.existingConfigMap | default "none" }}
+Widget Secret sources: {{ len .Values.widgetSecrets.sources }}
+PDB enabled: {{ .Values.podDisruptionBudget.enabled }}
+Service IP family policy: {{ .Values.service.ipFamilyPolicy | default "cluster default" }}
+
+Default incoming peers are pods in the same namespace.
+Allow the real ingress controller namespace and pod selector explicitly.
+Default outbound rules permit DNS and ordinary HTTP/HTTPS feed requests.
+Restrict destinations for intranet-only dashboards.
+Browser-side remote resources are outside pod NetworkPolicy enforcement.
+
+Multiple replicas share signing material, but widget caches and login-rate
+counters remain per process. Sensitive deployments need suitable edge limits.
+PDB protection applies to voluntary disruption only.
+Two pods on one node do not provide node-failure redundancy.
+
+6. Validation commands
+======================
+  helm -n {{ .Release.Namespace }} status {{ .Release.Name }}
+  kubectl -n {{ .Release.Namespace }} get deploy,svc,pods
+  kubectl -n {{ .Release.Namespace }} get endpointslices -l kubernetes.io/service-name={{ include "glance.fullname" . }}
+  kubectl -n {{ .Release.Namespace }} get networkpolicy {{ include "glance.fullname" . }}
+
+After starting the local port-forward:
+  curl --fail http://localhost:8080/api/healthz
+
+The health endpoint confirms initialized HTTP service.
+It does not prove that every third-party feed or integration is available.
+Verify important dashboard widgets after every image or configuration update.
+Use an existing blackbox exporter for external HTTP/TLS availability monitoring.
+This release has no verified native Prometheus metrics endpoint.
+
+7. Troubleshooting
+==================
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }} -o wide
+  kubectl -n {{ .Release.Namespace }} describe deployment {{ include "glance.fullname" . }}
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "glance.fullname" . }} --all-containers --tail=100
+  kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
+
+Missing Secret: check the exact name, namespace and key mappings.
+ESO not Ready: check the SecretStore and remote provider key.
+Login denied: check username/password and allow the rate-limit window to expire.
+Invalid signing key: verify a base64 value encoding 64 bytes, not a short password.
+Broken assets under a subpath: configure prefix stripping at the proxy.
+Widget failures: check endpoint reachability, allowed egress ports and token files.
+Stale external credentials: confirm sync, then restart the Deployment.
+Pending pods: check resource capacity and scheduling constraints.
+Blocked drain: ensure the second replica can become Ready before eviction.
+
+Preserve configuration, assets and the credential source for recovery.
+There is no application database archive or server-side content volume.
+Browser-local Todo data requires browser-profile backup; it is not in Kubernetes.
+Retain the signing key to preserve unexpired sessions after restoring a release.
+
+8. Resources
+============
+Chart documentation:
+  https://helmforge.dev/docs/charts/glance
+Upstream application:
+  https://github.com/glanceapp/glance
+Pinned configuration reference:
+  https://github.com/glanceapp/glance/blob/v0.8.6/docs/configuration.md
+Chart issues:
+  https://github.com/helmforgedev/charts/issues
+
+Read the authentication, widget and operations guides before enabling public
+access or connecting privileged internal APIs to dashboard widgets.
+
+Happy Helmforging :)
+

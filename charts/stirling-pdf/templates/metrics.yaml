@@ -1,0 +1,36 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.metrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "stirling-pdf.fullname" . | trunc 55 | trimSuffix "-" }}-metrics
+  labels: {{ include "stirling-pdf.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector: {{ include "stirling-pdf.selectorLabels" . | nindent 4 }}
+  ports:
+    - {name: metrics, port: {{ .Values.metrics.port }}, targetPort: metrics, protocol: TCP}
+{{- if .Values.metrics.scrapeConfig.enabled }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "stirling-pdf.fullname" . | trunc 56 | trimSuffix "-" }}-scrape
+  labels: {{ include "stirling-pdf.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  additional-scrape-configs.yaml: |
+    - job_name: {{ printf "%s/%s" .Release.Namespace (include "stirling-pdf.fullname" .) | quote }}
+      metrics_path: /actuator/prometheus
+      scrape_interval: {{ .Values.metrics.scrapeConfig.interval }}
+      scrape_timeout: {{ .Values.metrics.scrapeConfig.timeout }}
+      sample_limit: {{ .Values.metrics.scrapeConfig.sampleLimit }}
+      http_headers:
+        X-API-KEY:
+          files:
+            - {{ printf "/etc/prometheus/secrets/%s/%s" .Values.metrics.scrapeConfig.apiKeySecret .Values.metrics.scrapeConfig.apiKeyKey | quote }}
+      static_configs:
+        - targets:
+            - {{ printf "%s-metrics.%s.svc:%v" (include "stirling-pdf.fullname" . | trunc 55 | trimSuffix "-") .Release.Namespace .Values.metrics.port | quote }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Native metrics authorization
+templates:
+  - deployment.yaml
+  - metrics.yaml
+tests:
+  - it: uses a private sidecar with no identity PVC or bearer secret mounted
+    template: deployment.yaml
+    set:
+      metrics.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: metrics
+      - equal:
+          path: spec.template.spec.containers[1].volumeMounts
+          value:
+            - name: metrics-script
+              mountPath: /metrics-script
+              readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PROXY_DEBUG_ADDR
+            value: 127.0.0.1:9205
+  - it: renders Secret-backed ServiceMonitor authorization
+    template: metrics.yaml
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+      metrics.existingSecret: private-metrics
+    asserts:
+      - equal:
+          path: spec.endpoints[0].authorization
+          value:
+            type: Bearer
+            credentials:
+              name: private-metrics
+              key: token
+        documentIndex: 1

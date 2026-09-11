@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: memos protected first administrator
+templates:
+  - templates/statefulset.yaml
+  - templates/bootstrap.yaml
+  - templates/provisioning.yaml
+  - templates/validate.yaml
+tests:
+  - it: permits explicit preservation of database-managed GENERAL policy
+    template: templates/provisioning.yaml
+    set:
+      provisioning.manageGeneralSettings: false
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: isolates the setup credential from the application container
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].command
+          value: [node, /bootstrap-script/bootstrap.mjs]
+      - contains:
+          path: spec.template.spec.initContainers[1].volumeMounts
+          content: {name: bootstrap-auth, mountPath: /bootstrap-auth, readOnly: true}
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content: {name: bootstrap-auth, mountPath: /bootstrap-auth, readOnly: true}
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+  - it: uses externally managed setup credentials without generating another Secret
+    template: templates/bootstrap.yaml
+    set:
+      bootstrap.existingSecret: initial-admin
+    asserts:
+      - hasDocuments: {count: 1}
+      - isKind: {of: ConfigMap}
+  - it: closes registration while preserving password authentication
+    template: templates/provisioning.yaml
+    asserts:
+      - equal:
+          path: stringData["memos-instance-setting-general.json"]
+          value: '{"generalSetting":{"disallowPasswordAuth":false,"disallowUserRegistration":true},"key":"GENERAL"}'
+  - it: leaves existing provisioning under operator ownership
+    template: templates/provisioning.yaml
+    set:
+      provisioning.existingSecret: native-settings
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: rejects mixed bootstrap credential sources
+    template: templates/validate.yaml
+    set:
+      bootstrap.existingSecret: initial-admin
+      bootstrap.password: example-password
+    asserts:
+      - failedTemplate:
+          errorMessage: bootstrap.existingSecret and bootstrap.password are mutually exclusive
+  - it: rejects an environment override that bypasses the database contract
+    template: templates/validate.yaml
+    set:
+      app.extraEnv: [{name: MEMOS_DSN, value: unsafe}]
+    asserts:
+      - failedTemplate:
+          errorMessage: app.env and app.extraEnv must not override chart-managed variable MEMOS_DSN
+  - it: permits explicit adoption without running the setup helper
+    template: templates/statefulset.yaml
+    set:
+      bootstrap.enabled: false
+    asserts:
+      - notExists:
+          path: spec.template.spec.initContainers

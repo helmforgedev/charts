@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: Apache-2.0
+replicaCount: 2
+auth:
+  existingSecret: glance-auth
+server:
+  proxied: true
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: glance.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: glance-tls
+      hosts:
+        - glance.example.com
+podDisruptionBudget:
+  enabled: true
+networkPolicy:
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: ingress-nginx
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: glance
+

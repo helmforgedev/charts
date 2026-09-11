@@ -1,0 +1,63 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+SiYuan workspace
+
+1. Installation summary
+=======================
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Image: {{ include "siyuan.image" . }}
+Exactly one writer. Recreate upgrades intentionally include downtime.
+
+2. Access
+=========
+kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "siyuan.fullname" . }} 6806:{{ .Values.service.port }}
+Open http://localhost:6806. Use a dedicated HTTPS hostname for remote access.
+Configure your edge for WebSockets and long-lived connections.
+
+3. Authentication
+=================
+Access-code Secret: {{ include "siyuan.authSecretName" . }}
+Secret key: {{ .Values.auth.accessCodeKey }}
+Retrieve the code securely with your Kubernetes Secret management tooling.
+The API token is a different credential from the native access code.
+OIDC enabled: {{ .Values.oidc.enabled }}
+Local access-code recovery remains available with OIDC. Protect this Secret.
+Every admitted OIDC identity administers the same personal workspace.
+
+4. Persistence and backup
+=========================
+Persistence: {{ .Values.persistence.enabled }}
+Workspace claim: {{ include "siyuan.claimName" . }}
+Generated PVC retained on uninstall: {{ .Values.persistence.retain }}
+Back up the complete workspace after gracefully stopping the writer.
+A live SQLite copy is insufficient. Keep encrypted-notebook recovery passwords.
+Existing claims are externally managed. Namespace deletion can remove claims.
+
+5. Availability and resources
+=============================
+Never increase replicas or attach this workspace to another running release.
+RWX storage does not make concurrent writers safe. No HPA or PDB is provided.
+Startup and readiness require completed kernel boot. Size memory for indexing.
+The chart bypasses the root chown entrypoint and runs with a read-only image.
+
+6. Monitoring and network
+=========================
+No native Prometheus endpoint is exposed. Use workload/PVC and edge monitoring.
+Default policy permits same-namespace HTTP and DNS; allow explicit OIDC, sync
+or webhook egress as required. Policy enforcement requires a compatible CNI.
+kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "siyuan.fullname" . }} -c siyuan
+
+7. Upgrade and recovery
+=======================
+Take a quiesced full backup before storage-version changes.
+helm upgrade {{ .Release.Name }} helmforge/siyuan -n {{ .Release.Namespace }} -f values.yaml
+kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "siyuan.fullname" . }}
+Restore into a fresh PVC and set persistence.existingClaim before starting.
+Helm rollback does not undo application data migrations.
+
+8. Documentation and support
+============================
+https://helmforge.dev/docs/charts/siyuan
+https://github.com/helmforgedev/charts/issues
+Protect backups as sensitive data; configuration contains identity material.
+Happy Helmforging :)

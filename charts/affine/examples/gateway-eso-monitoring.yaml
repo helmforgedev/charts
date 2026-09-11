@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: Apache-2.0
+# Requires an existing HTTPS Gateway, SecretStore and Prometheus Operator.
+server:
+  publicUrl: https://knowledge.example.com
+bootstrap:
+  email: owner@example.com
+  existingSecret: affine-administrator
+externalSecrets:
+  enabled: true
+  items:
+    - fullnameOverride: affine-administrator
+      spec:
+        secretStoreRef:
+          name: production
+          kind: ClusterSecretStore
+        data:
+          - secretKey: admin-password
+            remoteRef:
+              key: applications/affine/admin-password
+gatewayAPI:
+  enabled: true
+  httpRoutes:
+    - parentRefs:
+        - name: public
+          namespace: gateway-system
+          sectionName: https
+      hostnames: [knowledge.example.com]
+networkPolicy:
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: gateway-system
+metrics:
+  enabled: true
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+  serviceMonitor:
+    enabled: true
+  prometheusRule:
+    enabled: true

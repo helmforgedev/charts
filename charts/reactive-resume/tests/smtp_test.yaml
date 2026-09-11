@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Reactive Resume authenticated mail contract
+templates:
+  - templates/deployment.yaml
+  - templates/runtime.yaml
+  - templates/validate.yaml
+tests:
+  - it: keeps mail credentials in Secret references and forces implicit TLS
+    template: templates/deployment.yaml
+    set:
+      smtp:
+        enabled: true
+        host: smtp.example.test
+        from: noreply@example.test
+        username: owned-fixture
+        existingSecret: owned-smtp
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: SMTP_SECURE, value: 'true'}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SMTP_PASS
+            valueFrom:
+              secretKeyRef: {name: owned-smtp, key: password}
+      - notExists:
+          path: spec.template.spec.containers[1].env
+  - it: rejects enabled SMTP without a complete authentication contract
+    template: templates/validate.yaml
+    set:
+      smtp.enabled: true
+      smtp.host: smtp.example.test
+    asserts:
+      - failedTemplate:
+          errorMessage: SMTP requires a TLS hostname, sender, username and existing password Secret
+  - it: rejects dormant SMTP settings that would silently leave email disabled
+    template: templates/validate.yaml
+    set:
+      smtp.host: smtp.example.test
+    asserts:
+      - failedTemplate:
+          errorMessage: SMTP connection settings require smtp.enabled

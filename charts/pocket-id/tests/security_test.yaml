@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Pocket ID private bootstrap and runtime security
+templates:
+  - deployment.yaml
+tests:
+  - it: verifies external database identity before private application migrations
+    set:
+      database.type: postgresql
+      database.host: postgres.example.com
+      database.passwordSecret: pg-auth
+      database.caSecret: pg-ca
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: database-admission
+      - contains:
+          path: spec.template.spec.initContainers[1].env
+          content: {name: PGSSLMODE, value: verify-full}
+      - contains:
+          path: spec.template.spec.initContainers[1].env
+          content: {name: PGSSLROOTCERT, value: /database-ca/ca.crt}
+      - contains:
+          path: spec.template.spec.initContainers[1].env
+          content:
+            name: PGPASSWORD
+            valueFrom:
+              secretKeyRef: {name: pg-auth, key: password}
+      - equal:
+          path: spec.template.spec.initContainers[3].name
+          value: bootstrap
+      - contains:
+          path: spec.template.spec.volumes
+          content: {name: database-runtime, emptyDir: {medium: Memory, sizeLimit: 1Mi}}
+  - it: keeps the metrics listener separate from identity HTTP
+    set:
+      metrics.enabled: true
+      metrics.port: 9470
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content: {name: metrics, containerPort: 9470}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OTEL_METRICS_EXPORTER, value: prometheus}
+  - it: copies the official binary and runs native setup before public exposure
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: bootstrap-binary
+      - equal:
+          path: spec.template.spec.initContainers[1].command
+          value: [node, /bootstrap-script/bootstrap.mjs]
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - it: mounts the operator encryption key through a protected file
+    set:
+      encryption.existingSecret: identity-key
+      encryption.secretKey: retained-key
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: encryption
+            secret:
+              secretName: identity-key
+              defaultMode: 288
+              items: [{key: retained-key, path: encryption-key}]
+  - it: still checks closed initial setup when automatic account creation is disabled
+    set:
+      bootstrap.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: bootstrap
+      - contains:
+          path: spec.template.spec.initContainers[1].env
+          content: {name: BOOTSTRAP_ENABLED, value: 'false'}

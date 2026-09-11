@@ -19,7 +19,7 @@ tests:
           content: Egress
       - notExists:
           path: spec.egress
-  - it: enables baseline DNS and HTTPS egress isolation
+  - it: isolates by default and permits only DNS egress
     set:
       networkPolicy:
         enabled: true
@@ -34,15 +34,12 @@ tests:
       - equal:
           path: spec.egress[0].to[0].podSelector.matchLabels["k8s-app"]
           value: kube-dns
+      - lengthEqual:
+          path: spec.egress
+          count: 1
       - equal:
-          path: spec.egress[1].ports[0].port
-          value: 443
-      - equal:
-          path: spec.egress[1].to[0].ipBlock.cidr
-          value: 0.0.0.0/0
-      - equal:
-          path: spec.egress[1].to[1].ipBlock.cidr
-          value: ::/0
+          path: spec.ingress[0].from[0]
+          value: {podSelector: {}}
   - it: renders custom baseline HTTPS egress peers
     set:
       networkPolicy:
@@ -60,7 +57,7 @@ tests:
           content:
             ipBlock:
               cidr: 0.0.0.0/0
-  - it: appends extra egress rules after default DNS and HTTPS
+  - it: appends explicit external database egress after DNS
     set:
       networkPolicy:
         enabled: true
@@ -83,7 +80,4 @@ tests:
           value: kube-dns
       - equal:
           path: spec.egress[1].ports[0].port
-          value: 443
-      - equal:
-          path: spec.egress[2].ports[0].port
           value: 5432

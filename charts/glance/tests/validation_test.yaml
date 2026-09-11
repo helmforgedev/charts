@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Glance fail-fast contract
+templates:
+  - templates/configmap.yaml
+tests:
+  - it: rejects invalid signing-key length
+    template: templates/configmap.yaml
+    set:
+      auth.secretKey: YWJj
+    asserts:
+      - failedTemplate:
+          errorMessage: auth.secretKey must encode exactly 64 random bytes in base64
+  - it: rejects mixed inline and existing credentials
+    template: templates/configmap.yaml
+    set:
+      auth.existingSecret: existing
+      auth.password: bad
+    asserts:
+      - failedTemplate:
+          errorMessage: auth.existingSecret cannot be combined with inline auth.password or auth.secretKey
+  - it: rejects unmanaged authentication override
+    template: templates/configmap.yaml
+    set:
+      config.data.auth: {}
+    asserts:
+      - failedTemplate:
+          errorMessage: config.data auth and server are chart-managed; use auth and server values
+  - it: rejects unmanaged server override
+    template: templates/configmap.yaml
+    set:
+      config.data.server: {}
+    asserts:
+      - failedTemplate:
+          errorMessage: config.data auth and server are chart-managed; use auth and server values
+  - it: rejects selector-label mutation
+    template: templates/configmap.yaml
+    set:
+      podLabels:
+        app.kubernetes.io/name: bad
+    asserts:
+      - failedTemplate:
+          errorMessage: selector label app.kubernetes.io/name cannot be overridden
+  - it: rejects enabled ingress without hosts
+    template: templates/configmap.yaml
+    set:
+      ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.hosts is required when ingress.enabled=true
+  - it: rejects a singleton disruption budget
+    template: templates/configmap.yaml
+    set:
+      podDisruptionBudget.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: podDisruptionBudget.enabled requires at least two replicas
+

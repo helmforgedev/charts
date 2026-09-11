@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Twenty bundled queue network isolation
+templates:
+  - networkpolicy.yaml
+tests:
+  - it: limits bundled Redis ingress to the application and denies egress
+    documentIndex: 2
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/name"]
+          value: redis
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
+      - lengthEqual:
+          path: spec.ingress[0].from
+          count: 1
+      - equal:
+          path: spec.ingress[0].from[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: twenty
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 6379
+      - equal:
+          path: spec.egress
+          value: []
+  - it: leaves external Redis network ownership to its operator
+    set:
+      redis.enabled: false
+      cache.host: redis.example.test
+      cache.passwordSecret: queue-credentials
+    asserts:
+      - hasDocuments:
+          count: 2

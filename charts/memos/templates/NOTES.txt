@@ -28,8 +28,16 @@ Memos has been deployed.
 - Log level: {{ .Values.memos.logLevel }}
 {{- if .Values.provisioning.existingSecret }}
 - Deployment configuration: Secret {{ .Values.provisioning.existingSecret }} mounted at /etc/secrets
+{{- else if .Values.provisioning.manageGeneralSettings }}
+- Deployment configuration: generated GENERAL policy, registration closed: {{ .Values.provisioning.disallowUserRegistration }}
+- GENERAL settings are file-owned. Disable provisioning.manageGeneralSettings to retain database-managed settings.
 {{- else }}
-- Deployment configuration: not mounted
+- Deployment configuration: database-managed settings preserved
+{{- end }}
+{{- if .Values.bootstrap.enabled }}
+- Initial administrator: {{ .Values.bootstrap.username }}
+- Initial password Secret: {{ include "memos.bootstrapSecretName" . }}, key {{ .Values.bootstrap.passwordKey }}
+- Existing accounts are never reset by bootstrap credentials.
 {{- end }}
 
 4. Persistence
@@ -51,7 +59,11 @@ Memos has been deployed.
 - SQLite is stored under {{ .Values.persistence.mountPath }}.
 - Keep replicaCount=1 when using SQLite.
 {{- else }}
+{{- if or .Values.postgresql.enabled .Values.mysql.enabled }}
+- HelmForge {{ .Values.database.driver }} subchart is enabled.
+{{- else }}
 - External {{ .Values.database.driver }} is enabled through MEMOS_DSN.
+{{- end }}
 - Back up both the external database and the Memos data volume.
 {{- end }}
 
@@ -62,13 +74,14 @@ Memos has been deployed.
 {{- else }}
 - Ingress is disabled.
 {{- end }}
-{{- if .Values.gateway.enabled }}
+{{- if .Values.gatewayAPI.enabled }}
 - Gateway API HTTPRoute is enabled.
 {{- else }}
 - Gateway API HTTPRoute is disabled.
 {{- end }}
 {{- if .Values.networkPolicy.enabled }}
-- NetworkPolicy is enabled for inbound Memos traffic.
+- NetworkPolicy is enabled. Add controller and external-service peers explicitly.
+- Egress isolation: {{ .Values.networkPolicy.egressIsolation }}.
 {{- else }}
 - NetworkPolicy is disabled.
 {{- end }}

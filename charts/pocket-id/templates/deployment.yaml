@@ -1,0 +1,135 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pocket-id.fullname" . }}
+  labels: {{ include "pocket-id.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {{ include "pocket-id.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pocket-id.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}{{ toYaml . | nindent 8 }}{{- end }}
+      annotations:
+        checksum/bootstrap: {{ printf "%s%s%s%s" (toJson .Values.bootstrap) (.Files.Get "files/bootstrap.mjs") (.Files.Get "files/database.mjs") (.Files.Get "files/database-admission.sh") | sha256sum }}
+        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
+    spec:
+      serviceAccountName: {{ include "pocket-id.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext: {{ toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}{{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}{{- end }}
+      initContainers:
+        {{- if eq .Values.database.type "postgresql" }}
+        - name: database-url
+          image: {{ printf "%s:%s" .Values.bootstrap.helperImage.repository .Values.bootstrap.helperImage.tag | quote }}
+          imagePullPolicy: {{ .Values.bootstrap.helperImage.pullPolicy }}
+          command: [node, /bootstrap-script/database.mjs]
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {requests: {cpu: 50m, memory: 32Mi}, limits: {cpu: 500m, memory: 64Mi}}
+          env:
+            {{- include "pocket-id.databaseEnvironment" . | nindent 12 }}
+          volumeMounts:
+            - {name: database-runtime, mountPath: /database-runtime}
+            - {name: bootstrap-script, mountPath: /bootstrap-script, readOnly: true}
+        - name: database-admission
+          image: {{ printf "%s:%s" .Values.database.clientImage.repository .Values.database.clientImage.tag | quote }}
+          imagePullPolicy: {{ .Values.database.clientImage.pullPolicy }}
+          command: [/bin/sh, /bootstrap-script/database-admission.sh]
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {requests: {cpu: 50m, memory: 32Mi}, limits: {cpu: 500m, memory: 64Mi}}
+          env:
+            {{- include "pocket-id.databaseEnvironment" . | nindent 12 }}
+          volumeMounts:
+            - {name: bootstrap-script, mountPath: /bootstrap-script, readOnly: true}
+            {{- if .Values.database.caSecret }}
+            - {name: database-ca, mountPath: /database-ca, readOnly: true}
+            {{- end }}
+        {{- end }}
+        - name: bootstrap-binary
+          image: {{ include "pocket-id.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [/bin/sh, -ceu]
+          args: ['cp /app/pocket-id /bootstrap-bin/pocket-id; chmod 500 /bootstrap-bin/pocket-id']
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {requests: {cpu: 50m, memory: 32Mi}, limits: {cpu: 500m, memory: 64Mi}}
+          volumeMounts:
+            - {name: bootstrap-bin, mountPath: /bootstrap-bin}
+        - name: bootstrap
+          image: {{ printf "%s:%s" .Values.bootstrap.helperImage.repository .Values.bootstrap.helperImage.tag | quote }}
+          imagePullPolicy: {{ .Values.bootstrap.helperImage.pullPolicy }}
+          command: [node, /bootstrap-script/bootstrap.mjs]
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          env:
+            {{- include "pocket-id.nativeEnvironment" . | nindent 12 }}
+            - {name: BOOTSTRAP_USERNAME, value: {{ .Values.bootstrap.username | quote }}}
+            - {name: BOOTSTRAP_EMAIL, value: {{ .Values.bootstrap.email | quote }}}
+            - {name: BOOTSTRAP_FIRST_NAME, value: {{ .Values.bootstrap.firstName | quote }}}
+            - {name: BOOTSTRAP_LAST_NAME, value: {{ .Values.bootstrap.lastName | quote }}}
+            - {name: BOOTSTRAP_ENABLED, value: {{ .Values.bootstrap.enabled | quote }}}
+          volumeMounts:
+            {{- include "pocket-id.mounts" . | nindent 12 }}
+            - {name: bootstrap-script, mountPath: /bootstrap-script, readOnly: true}
+            - {name: bootstrap-bin, mountPath: /bootstrap-bin, readOnly: true}
+      containers:
+        - name: pocket-id
+          image: {{ include "pocket-id.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - {name: http, containerPort: {{ .Values.server.port }}}
+            {{- if .Values.metrics.enabled }}
+            - {name: metrics, containerPort: {{ .Values.metrics.port }}}
+            {{- end }}
+          env:
+            {{- include "pocket-id.nativeEnvironment" . | nindent 12 }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          {{- range $name, $probe := .Values.probes }}
+          {{- if $probe.enabled }}
+          {{ $name }}Probe:
+            httpGet: {path: {{ $probe.path | quote }}, port: http}
+            {{- omit $probe "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}{{- end }}
+          volumeMounts:
+            {{- include "pocket-id.mounts" . | nindent 12 }}
+      volumes:
+        {{- if eq .Values.database.type "postgresql" }}
+        - {name: database-runtime, emptyDir: {medium: Memory, sizeLimit: 1Mi}}
+        {{- if .Values.database.caSecret }}
+        - name: database-ca
+          secret:
+            secretName: {{ .Values.database.caSecret }}
+            defaultMode: 288
+            items: [{key: {{ .Values.database.caKey }}, path: ca.crt}]
+        {{- end }}{{- end }}
+        - name: workspace
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim: {claimName: {{ include "pocket-id.claimName" . }}}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - {name: tmp, emptyDir: {sizeLimit: {{ .Values.runtime.temporarySize }}}}
+        - name: encryption
+          secret:
+            secretName: {{ include "pocket-id.encryptionSecretName" . }}
+            defaultMode: 288
+            items: [{key: {{ .Values.encryption.secretKey }}, path: encryption-key}]
+        - {name: bootstrap-bin, emptyDir: {sizeLimit: 256Mi}}
+        - name: bootstrap-script
+          configMap: {name: {{ include "pocket-id.fullname" . | trunc 53 | trimSuffix "-" }}-bootstrap}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{ toYaml . | nindent 8 }}{{- end }}

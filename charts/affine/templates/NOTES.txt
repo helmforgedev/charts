@@ -1,0 +1,61 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+1. Release
+
+AFFiNE {{ .Chart.AppVersion }} is installed as {{ .Release.Name }} in {{ .Release.Namespace }}.
+The initializer creates the first administrator privately before public startup.
+
+2. Access
+
+Configured public URL: {{ include "affine.publicUrl" . }}
+Set server.publicUrl to the exact browser-visible HTTPS origin before production use.
+Ingress or Gateway must support WebSocket upgrades and the intended upload limits.
+For local access, configure server.publicUrl=http://localhost:3010, then run:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "affine.fullname" . }} 3010:{{ .Values.service.port }}
+
+3. Administrator credentials
+
+Initial email: {{ .Values.bootstrap.email }}
+Initial password Secret: {{ include "affine.bootstrapSecretName" . }}
+Secret key: {{ .Values.bootstrap.passwordKey }}
+Retrieve it through your approved Secret-management workflow. It is mounted only
+in the initializer. Changing this Secret does not reset an existing password.
+Public signup and guest demo workspaces are disabled by default.
+
+4. Persistent state
+
+Application claim: {{ include "affine.claimName" . }}
+Preserve the entire configuration/storage volume, especially config/private.key,
+with its matching PostgreSQL backup. One application replica uses Recreate.
+Retained resources require deliberate operator cleanup after uninstall.
+
+5. Dependencies
+
+PostgreSQL endpoint: {{ include "affine.databaseHost" . }}
+Redis endpoint: {{ include "affine.cacheHost" . }}
+PostgreSQL requires the vector extension. Redis requires authentication and
+logical databases N, N+2, N+3 and N+4; Redis Cluster is unsupported.
+External TLS uses driver-specific certificate and hostname verification.
+
+6. Observability
+
+Native metrics enabled: {{ .Values.metrics.enabled }}
+ServiceMonitor enabled: {{ .Values.metrics.serviceMonitor.enabled }}
+PrometheusRule enabled: {{ .Values.metrics.prometheusRule.enabled }}
+Keep the metrics Service private and allow only the intended scraper peers.
+Native metrics also activate upstream tracing; review monitoring documentation.
+
+7. Upgrades and recovery
+
+Back up PostgreSQL, configuration, storage and referenced Secrets as one recovery
+unit. Quiesce writers for a coordinated backup. Migrations run serially and failed
+migration history requires operator repair; downgrades are not automatic rollback.
+Follow docs/recovery.md and rehearse restoration before relying on a backup.
+
+8. Troubleshooting
+
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "affine.fullname" . }} -c bootstrap
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "affine.fullname" . }} -c affine
+Check CA trust, hostname, dependency credentials, vector extension and PVC permissions.
+Readiness checks HTTP, PostgreSQL and Redis; liveness checks the HTTP process.
+
+Happy Helmforging :)

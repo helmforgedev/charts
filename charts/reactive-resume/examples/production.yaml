@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+server:
+  publicUrl: https://resume.example.com
+bootstrap:
+  email: owner@example.com
+  name: Resume Owner
+  username: owner
+  existingSecret: resume-initial-user
+  passwordKey: password
+identity:
+  existingSecret: resume-identity
+postgresql:
+  enabled: false
+database:
+  host: postgres.example.com
+  name: resumes
+  username: resumes
+  passwordSecret: resume-database
+  passwordKey: password
+  tls:
+    enabled: true
+    caSecret: resume-database-ca
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: resume.example.com
+      paths:
+        - {path: /, pathType: Prefix}
+  tls:
+    - secretName: resume-public-tls
+      hosts: [resume.example.com]
+networkPolicy:
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-system
+  # Replace with the actual database destination before installing.
+  extraEgress:
+    - to:
+        - ipBlock:
+            cidr: 192.0.2.10/32
+      ports:
+        - {protocol: TCP, port: 5432}

@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Reactive Resume invalid isolation and persistence contracts
+templates:
+  - templates/validate.yaml
+tests:
+  - it: rejects disabled ingress isolation
+    set:
+      networkPolicy.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: Private native enrollment requires an enforcing NetworkPolicy implementation
+  - it: rejects disabled egress isolation
+    set:
+      networkPolicy.egressIsolation: false
+    asserts:
+      - failedTemplate:
+          errorMessage: Private native enrollment requires egress isolation
+  - it: rejects loss of the retained storage and identity marker
+    set:
+      persistence.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: Retained local storage and identity require persistence
+  - it: rejects social-provider credentials outside the managed integration contract
+    set:
+      extraEnv:
+        - name: GOOGLE_CLIENT_SECRET
+          value: owned-invalid-fixture
+    asserts:
+      - failedTemplate:
+          errorMessage: extraEnv cannot override managed setting GOOGLE_CLIENT_SECRET
+  - it: rejects relabeling chart resources into an unrelated workload
+    set:
+      commonLabels:
+        app.kubernetes.io/name: unrelated-workload
+    asserts:
+      - failedTemplate:
+          errorMessage: Common labels cannot replace chart ownership labels

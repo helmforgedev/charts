@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: Apache-2.0
+server:
+  publicUrl: https://files.example.com
+  tls:
+    existingSecret: opencloud-server-tls
+  backendTLS:
+    caCertificateRefs:
+      - group: ''
+        kind: ConfigMap
+        name: opencloud-backend-ca
+bootstrap:
+  existingSecret: opencloud-initial-admin
+persistence:
+  size: 100Gi
+gatewayAPI:
+  enabled: true
+  httpRoutes:
+    - parentRefs:
+        - name: shared
+          namespace: gateway-system
+          sectionName: https
+      hostnames:
+        - files.example.com
+networkPolicy:
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: gateway-system
+  extraEgress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: gateway-system
+      ports:
+        - protocol: TCP
+          port: 443

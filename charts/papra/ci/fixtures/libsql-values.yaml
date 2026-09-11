@@ -1,0 +1,159 @@
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: Secret
+metadata:
+  name: fixture-libsql
+type: Opaque
+stringData:
+  auth-token: >-
+    eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJleHAiOjQxMDI0NDQ4MDB9.HIOXJt32in5BdVSgNTUD2w9lJ6jELLxFJSpMufMgFR3CRUFpXp8ziQ4eIBVSYEeASRQkPYii3pdRyZgDoFEVDg
+  public-key: E4cSY2DWEUMOevqqSHo5JwOJTmEKbDT4xC6miWxYCGw
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fixture-libsql
+spec:
+  selector:
+    app: fixture-libsql
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fixture-libsql
+  labels:
+    app: fixture-libsql
+    helmforge.dev/runtime-fixture: 'true'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fixture-libsql
+  template:
+    metadata:
+      labels:
+        app: fixture-libsql
+        helmforge.dev/runtime-fixture: 'true'
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 666
+        runAsGroup: 666
+        fsGroup: 666
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: libsql
+          image: ghcr.io/tursodatabase/libsql-server:v0.24.32
+          command:
+            - /bin/sqld
+            - '--db-path=/data'
+            - '--http-listen-addr=0.0.0.0:8080'
+          env:
+            - name: SQLD_NODE
+              value: standalone
+            - name: SQLD_AUTH_JWT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: fixture-libsql
+                  key: public-key
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: '1'
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 3
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fixture-libsql-ready
+  labels:
+    app: fixture-libsql
+    helmforge.dev/runtime-fixture: 'true'
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 120
+  template:
+    metadata:
+      labels:
+        app: fixture-libsql
+        helmforge.dev/runtime-fixture: 'true'
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 666
+        runAsGroup: 666
+        fsGroup: 666
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: verify
+          image: ghcr.io/papra-hq/papra:26.6.2-rootless
+          command:
+            - node
+            - '-e'
+            - >-
+              const {createClient}=require('@libsql/client');(async()=>{let healthy=false;for(let i=0;i<90;i++){const
+              db=createClient({url:'http://fixture-libsql:8080',authToken:process.env.AUTH_TOKEN});try{const
+              result=await db.execute('SELECT 1 AS
+              ok');if(result.rows[0].ok===1){healthy=true;break;}}catch{}finally{db.close();}await new
+              Promise(r=>setTimeout(r,1000));}if(!healthy)throw Error('Authenticated SQL readiness failed');for(const
+              token of [undefined,'invalid-token']){const
+              db=createClient({url:'http://fixture-libsql:8080',authToken:token});let denied=false;try{await
+              db.execute('SELECT 1');}catch{denied=true;}finally{db.close();}if(!denied)throw Error('Unauthenticated SQL
+              unexpectedly allowed');}console.log('PASS valid libSQL JWT and rejected missing/wrong
+              tokens');})().catch(error=>{console.error(error.message);process.exitCode=1;});
+          env:
+            - name: AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: fixture-libsql
+                  key: auth-token
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi

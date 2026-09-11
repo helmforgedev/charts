@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Dawarich native TLS S3 and private monitoring
+templates:
+  - templates/deployment.yaml
+  - templates/runtime.yaml
+  - templates/metrics.yaml
+tests:
+  - it: uses native AWS credentials and scoped CA trust
+    template: templates/deployment.yaml
+    set:
+      storage.driver: s3
+      storage.s3.bucket: owned.fixtures
+      storage.s3.existingSecret: object-access
+      storage.s3.caSecret: object-ca
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: STORAGE_BACKEND
+            value: s3
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AWS_CA_BUNDLE
+            value: /s3-ca/ca.crt
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: s3-ca
+            secret:
+              secretName: object-ca
+              items:
+                - key: ca.crt
+                  path: ca.crt
+  - it: uses libpq verify-full and the external CA
+    template: templates/deployment.yaml
+    set:
+      postgresql.enabled: false
+      database.host: database
+      database.passwordSecret: database-access
+      database.tls.caSecret: database-ca
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PGSSLMODE
+            value: verify-full
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PGSSLROOTCERT
+            value: /postgres-ca/ca.crt
+  - it: authenticates both native monitoring targets
+    template: templates/metrics.yaml
+    set:
+      fullnameOverride: locations
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+      metrics.auth.existingSecret: monitor-access
+    asserts:
+      - equal:
+          path: spec.ports[1].targetPort
+          value: worker-metrics
+        documentIndex: 0
+      - equal:
+          path: spec.endpoints[0].basicAuth.password.name
+          value: monitor-access
+        documentIndex: 1
+      - equal:
+          path: spec.endpoints[1].port
+          value: worker-metrics
+        documentIndex: 1
+      - equal:
+          path: spec.endpoints[1].basicAuth.username.key
+          value: username
+        documentIndex: 1
+  - it: checks native Sidekiq readiness without dependency-driven liveness restarts
+    template: templates/deployment.yaml
+    asserts:
+      - isNotEmpty:
+          path: spec.template.spec.containers[1].readinessProbe.exec.command
+      - isNull:
+          path: spec.template.spec.containers[1].livenessProbe

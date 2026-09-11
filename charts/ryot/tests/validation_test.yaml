@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Ryot unsafe configuration rejection
+templates:
+  - templates/validate.yaml
+tests:
+  - it: rejects unsafe native S3 configuration
+    set:
+      extraEnv:
+        - {name: FILE_STORAGE_S3_URL, value: 'https://objects.example.test'}
+    asserts:
+      - failedTemplate: {errorMessage: 'extraEnv cannot override managed setting FILE_STORAGE_S3_URL'}
+  - it: rejects OIDC environment overrides
+    set:
+      extraEnv:
+        - name: SERVER_OIDC_CLIENT_ID
+          value: unsafe-provider
+    asserts:
+      - failedTemplate:
+          errorMessage: extraEnv cannot override managed setting SERVER_OIDC_CLIENT_ID
+  - it: rejects opening native registration
+    set:
+      extraEnv:
+        - name: USERS_ALLOW_REGISTRATION
+          value: 'true'
+    asserts:
+      - failedTemplate:
+          errorMessage: extraEnv cannot override managed setting USERS_ALLOW_REGISTRATION
+  - it: rejects mixed bundled and external database credentials
+    set:
+      database.host: database.example.test
+    asserts:
+      - failedTemplate:
+          errorMessage: Bundled PostgreSQL and external components are mutually exclusive
+  - it: rejects missing external credentials
+    set:
+      postgresql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: External PostgreSQL requires database.host and database.passwordSecret

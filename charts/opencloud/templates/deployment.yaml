@@ -1,0 +1,138 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "opencloud.fullname" . }}
+  labels: {{ include "opencloud.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {{ include "opencloud.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "opencloud.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}{{ toYaml . | nindent 8 }}{{- end }}
+      annotations:
+        checksum/metrics: {{ .Files.Get "files/metrics-proxy.mjs" | sha256sum }}
+        checksum/bootstrap: {{ printf "%s%s" (toJson .Values.bootstrap) (.Files.Get "files/bootstrap.sh") | sha256sum }}
+        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
+    spec:
+      serviceAccountName: {{ include "opencloud.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext: {{ toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if not .Values.server.publicUrl }}
+      hostAliases:
+        - ip: "127.0.0.1"
+          hostnames:
+            - {{ printf "%s.%s.svc" (include "opencloud.fullname" .) .Release.Namespace | quote }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}{{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}{{- end }}
+      initContainers:
+        - name: bootstrap
+          image: {{ include "opencloud.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [/bin/sh, /bootstrap-script/bootstrap.sh]
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          env:
+            {{- include "opencloud.nativeEnvironment" . | nindent 12 }}
+            {{- if .Values.metrics.enabled }}
+            - name: HELMFORGE_METRICS_TOKEN
+              valueFrom:
+                secretKeyRef: {name: {{ include "opencloud.metricsSecretName" . }}, key: {{ .Values.metrics.tokenKey }}}
+            {{- end }}
+          volumeMounts:
+            - {name: workspace, mountPath: /workspace}
+            - {name: tmp, mountPath: /tmp}
+            - {name: runtime-trust, mountPath: /runtime-trust}
+            {{- if .Values.server.tls.enabled }}
+            - {name: tls, mountPath: /tls, readOnly: true}
+            {{- end }}
+            {{- if .Values.server.trustedCaSecret }}
+            - {name: trusted-ca, mountPath: /trusted-ca, readOnly: true}
+            {{- end }}
+            - {name: bootstrap-script, mountPath: /bootstrap-script, readOnly: true}
+            - {name: bootstrap-auth, mountPath: /bootstrap-auth, readOnly: true}
+      containers:
+        - name: opencloud
+          image: {{ include "opencloud.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          ports: [{name: http, containerPort: {{ .Values.server.port }}}]
+          env:
+            {{- include "opencloud.nativeEnvironment" . | nindent 12 }}
+            {{- if .Values.metrics.enabled }}
+            - name: PROXY_DEBUG_TOKEN
+              valueFrom:
+                secretKeyRef: {name: {{ include "opencloud.metricsSecretName" . }}, key: {{ .Values.metrics.tokenKey }}}
+            {{- end }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          {{- range $name, $probe := .Values.probes }}
+          {{- if $probe.enabled }}
+          {{ $name }}Probe:
+            exec:
+              command: [curl, --fail, --silent, --show-error, --max-time, "4", {{ ternary "http://127.0.0.1:9205/readyz" "http://127.0.0.1:9205/healthz" (eq $name "readiness") | quote }}]
+            {{- omit $probe "enabled" | toYaml | nindent 12 }}
+          {{- end }}{{- end }}
+          volumeMounts:
+            {{- include "opencloud.mounts" . | nindent 12 }}
+        {{- if .Values.metrics.enabled }}
+        - name: metrics
+          image: {{ printf "%s:%s" .Values.metrics.image.repository .Values.metrics.image.tag | quote }}
+          imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
+          command: [node, /metrics-script/metrics-proxy.mjs]
+          env: [{name: PORT, value: {{ .Values.metrics.port | quote }}}]
+          ports: [{name: metrics, containerPort: {{ .Values.metrics.port }}}]
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.metrics.resources | nindent 12 }}
+          readinessProbe: {tcpSocket: {port: metrics}, periodSeconds: 5}
+          livenessProbe: {tcpSocket: {port: metrics}, periodSeconds: 10}
+          volumeMounts: [{name: metrics-script, mountPath: /metrics-script, readOnly: true}]
+        {{- end }}
+      volumes:
+        {{- if .Values.metrics.enabled }}
+        - name: metrics-script
+          configMap: {name: {{ include "opencloud.fullname" . | trunc 55 | trimSuffix "-" }}-metrics}
+        {{- end }}
+        - {name: runtime-trust, emptyDir: {sizeLimit: 8Mi}}
+        {{- if .Values.server.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ include "opencloud.tlsSecretName" . }}
+            defaultMode: 288
+        {{- end }}
+        - name: workspace
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim: {claimName: {{ include "opencloud.claimName" . }}}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - {name: tmp, emptyDir: {sizeLimit: {{ .Values.runtime.temporarySize }}}}
+        - name: bootstrap-auth
+          secret:
+            secretName: {{ include "opencloud.bootstrapSecretName" . }}
+            defaultMode: 288
+            items: [{key: {{ .Values.bootstrap.passwordKey }}, path: password}]
+        - name: bootstrap-script
+          configMap: {name: {{ include "opencloud.fullname" . | trunc 53 | trimSuffix "-" }}-bootstrap}
+        {{- if .Values.server.trustedCaSecret }}
+        - name: trusted-ca
+          secret:
+            secretName: {{ .Values.server.trustedCaSecret }}
+            defaultMode: 288
+            items: [{key: {{ .Values.server.trustedCaKey }}, path: ca.crt}]
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{ toYaml . | nindent 8 }}{{- end }}

@@ -1,0 +1,300 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Stirling PDF production contract
+templates:
+  - templates/*.yaml
+tests:
+  - it: avoids concurrent workspace writers
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+  - it: runs without root
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+  - it: uses read only root
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+  - it: does not mount API token
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - it: keeps PVC after release uninstall
+    template: templates/pvc.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+  - it: accepts existing workspace
+    template: templates/deployment.yaml
+    set:
+      persistence.existingClaim: restored
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          value: restored
+  - it: uses explicit storage class
+    template: templates/pvc.yaml
+    set:
+      persistence.storageClass: fast
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: fast
+  - it: disables dynamic storage with dash
+    template: templates/pvc.yaml
+    set:
+      persistence.storageClass: '-'
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: ''
+  - it: allows dual stack service
+    template: templates/service.yaml
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+  - it: routes Gateway to native port
+    template: templates/gateway-httproute.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - parentRefs:
+            - name: edge
+    asserts:
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 8080
+  - it: denies web egress by default
+    template: templates/networkpolicy.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53
+  - it: sets requested probe port by name
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: http
+  - it: renders no ExternalSecret by default
+    template: templates/externalsecret.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders canonical ExternalSecret v1 with target and interval
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: external-auth
+          spec:
+            secretStoreRef:
+              name: store
+              kind: ClusterSecretStore
+            data:
+              - secretKey: password
+                remoteRef:
+                  key: password
+    asserts:
+      - equal:
+          path: apiVersion
+          value: external-secrets.io/v1
+      - equal:
+          path: spec.target.name
+          value: external-auth
+      - equal:
+          path: spec.refreshInterval
+          value: 1h
+  - it: pins official full image
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.stirlingpdf.com/stirlingtools/stirling-pdf:2.14.3
+  - it: requires native login
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SECURITY_ENABLELOGIN
+            value: 'true'
+  - it: reads bootstrap password from existing Secret
+    template: templates/deployment.yaml
+    set:
+      auth.existingSecret: managed
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SECURITY_INITIALLOGIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: managed
+                key: password
+  - it: mounts H2 configuration from one workspace claim
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: workspace
+            mountPath: /configs
+            subPath: configs
+  - it: preserves native full-tool directory
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tools
+            mountPath: /usr/local/bin
+  - it: seeds tools before upstream entrypoint
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].args[0]
+          value: |
+            cp -R /usr/local/bin/. /runtime-bin/
+            mkdir -p /state/configs /state/customFiles /state/pipeline
+  - it: enables private management Service
+    template: templates/metrics.yaml
+    set:
+      metrics.enabled: true
+    asserts:
+      - equal:
+          path: spec.ports[0].targetPort
+          value: metrics
+  - it: uses internal ClusterIP management
+    template: templates/metrics.yaml
+    set:
+      metrics.enabled: true
+    asserts:
+      - equal:
+          path: spec.type
+          value: ClusterIP
+  - it: exposes only health and native Prometheus
+    template: templates/deployment.yaml
+    set:
+      metrics.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+            value: health,prometheus
+  - it: keeps HTTP edge on application port
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: pdf.example.test
+          paths:
+            - path: /
+              pathType: Prefix
+      metrics.enabled: true
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.number
+          value: 8080
+  - it: keeps native entrypoint
+    template: templates/deployment.yaml
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].command
+  - it: omits unselected ingress class
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: ''
+      ingress.hosts:
+        - host: pdf.example.test
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - notExists:
+          path: spec.ingressClassName
+  - it: keeps multiple ESO targets independent and respects item interval
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: admin-a
+          spec:
+            secretStoreRef: &ref_0
+              name: fixture
+              kind: ClusterSecretStore
+            data: &ref_1
+              - secretKey: password
+                remoteRef:
+                  key: test/password
+            refreshInterval: 5m
+        - fullnameOverride: admin-b
+          spec:
+            secretStoreRef: *ref_0
+            data: *ref_1
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: spec.refreshInterval
+          value: 5m
+        documentIndex: 0
+      - equal:
+          path: spec.target.name
+          value: admin-b
+        documentIndex: 1
+  - it: rejects ESO items without a source
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: missing
+          spec:
+            data: []
+    asserts:
+      - failedTemplate:
+          errorMessage: >-
+            externalSecrets.items[].spec.secretStoreRef.name or item sourceRef.storeRef.name/sourceRef.generatorRef.name
+            is required when externalSecrets.enabled=true
+  - it: references API key file without putting credentials in scrape configuration
+    template: templates/metrics.yaml
+    documentIndex: 1
+    set:
+      metrics.enabled: true
+      metrics.scrapeConfig.enabled: true
+      metrics.scrapeConfig.apiKeySecret: monitor-key
+    asserts:
+      - isKind:
+          of: Secret
+      - matchRegex:
+          path: stringData["additional-scrape-configs.yaml"]
+          pattern: 'X-API-KEY:'
+      - matchRegex:
+          path: stringData["additional-scrape-configs.yaml"]
+          pattern: /etc/prometheus/secrets/monitor-key/api-key

@@ -1,0 +1,196 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: BentoPDF production contract
+templates:
+  - templates/*.yaml
+tests:
+  - it: uses verified official image
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/alam00000/bentopdf:2.8.8
+  - it: runs upstream nginx uid
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 101
+  - it: keeps the root filesystem read only
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+  - it: does not mount API credentials
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - it: bypasses mutable entrypoint scripts
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value:
+            - nginx
+  - it: mounts nginx writable PID directory
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[2].mountPath
+          value: /etc/nginx/tmp
+  - it: mounts public runtime configuration
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[1].subPath
+          value: config.json
+  - it: serializes native tool controls
+    template: templates/configmap.yaml
+    set:
+      config.disabledTools:
+        - compress-pdf
+    asserts:
+      - equal:
+          path: data["config.json"]
+          value: '{"disabledTools":["compress-pdf"],"editorDisabledCategories":[]}'
+  - it: denies pod egress by default
+    template: templates/networkpolicy.yaml
+    asserts:
+      - equal:
+          path: spec.egress
+          value: []
+  - it: allows explicit extra egress
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.extraEgress:
+        - to:
+            - ipBlock:
+                cidr: 10.0.0.0/8
+    asserts:
+      - equal:
+          path: spec.egress
+          value:
+            - to:
+                - ipBlock:
+                    cidr: 10.0.0.0/8
+  - it: restricts traffic to namespace by default
+    template: templates/networkpolicy.yaml
+    asserts:
+      - equal:
+          path: spec.ingress[0].from
+          value:
+            - podSelector: {}
+  - it: uses custom ingress peers
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.ingressFrom:
+        - namespaceSelector:
+            matchLabels:
+              team: edge
+    asserts:
+      - equal:
+          path: spec.ingress[0].from
+          value:
+            - namespaceSelector:
+                matchLabels:
+                  team: edge
+  - it: renders requested dual stack policy
+    template: templates/service.yaml
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies:
+        - IPv4
+        - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+  - it: sets ingress class explicitly
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: traefik
+      ingress.hosts:
+        - host: pdf.example.test
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: traefik
+  - it: routes to the application service
+    template: templates/gateway-httproute.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - parentRefs:
+            - name: edge
+    asserts:
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 8080
+  - it: protects two replicas during disruptions
+    template: templates/pdb.yaml
+    set:
+      replicaCount: 2
+      podDisruptionBudget.enabled: true
+    asserts:
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+  - it: scales only the static serving container
+    template: templates/hpa.yaml
+    set:
+      autoscaling.enabled: true
+    asserts:
+      - equal:
+          path: spec.metrics[0].containerResource.container
+          value: bentopdf
+  - it: stabilizes scale down
+    template: templates/hpa.yaml
+    set:
+      autoscaling.enabled: true
+    asserts:
+      - equal:
+          path: spec.behavior.scaleDown.stabilizationWindowSeconds
+          value: 300
+  - it: leaves replica ownership to the HPA
+    template: templates/deployment.yaml
+    set:
+      autoscaling.enabled: true
+    asserts:
+      - notExists:
+          path: spec.replicas
+  - it: enables official exporter with private scrape target
+    template: templates/deployment.yaml
+    set:
+      metrics.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].args[0]
+          value: '--nginx.scrape-uri=http://127.0.0.1:8081/stub_status'
+  - it: exposes exporter via named port
+    template: templates/deployment.yaml
+    set:
+      metrics.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].ports[0].name
+          value: metrics
+  - it: renders genuine optional monitoring resources
+    template: templates/metrics.yaml
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+      metrics.prometheusRule.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 3
+  - it: renders no monitoring objects by default
+    template: templates/metrics.yaml
+    asserts:
+      - hasDocuments:
+          count: 0

@@ -1,0 +1,438 @@
+# SPDX-License-Identifier: Apache-2.0
+# -- Native custom OAuth2 provider with closed registration and confidential client credentials.
+oauth:
+  # -- Enable the native custom OAuth provider for linked existing users.
+  enabled: false
+  # -- Display name for the login provider.
+  name: Single sign-on
+  # -- OAuth client identifier registered for this installation.
+  clientId: ''
+  # -- Existing Secret containing the confidential client secret.
+  existingSecret: ''
+  # -- Secret key containing the client secret.
+  clientSecretKey: client-secret
+  # -- HTTPS authorization endpoint.
+  authorizationUrl: ''
+  # -- HTTPS token endpoint.
+  tokenUrl: ''
+  # -- HTTPS authenticated userinfo endpoint with stable id and email fields.
+  userInfoUrl: ''
+  # -- Space-separated scopes; manual OAuth2 does not claim ID-token validation.
+  scopes: profile email
+  # -- Optional additional PEM CA Secret for the provider's private PKI.
+  caSecret: ''
+  # -- Secret key containing CA certificates.
+  caKey: ca.crt
+# -- Native upload storage. The PVC remains required for the retained identity marker.
+storage:
+  # -- Store uploads on the local PVC or in an existing private S3 bucket.
+  driver: local
+  # -- Native S3-compatible object storage; credentials never appear in values.
+  s3:
+    # -- Existing bucket dedicated to this installation.
+    bucket: ''
+    # -- AWS signing region.
+    region: us-east-1
+    # -- Optional HTTPS endpoint; empty selects the native AWS regional endpoint.
+    endpoint: ''
+    # -- Put the bucket in the URL path for compatible endpoints without wildcard DNS.
+    forcePathStyle: false
+    # -- Existing Secret with access and secret key entries.
+    existingSecret: ''
+    # -- Secret key containing the access key ID.
+    accessKeyIdKey: access-key-id
+    # -- Secret key containing the secret access key.
+    secretAccessKeyKey: secret-access-key
+    # -- Optional additional CA Secret trusted by native Node TLS clients.
+    caSecret: ''
+    # -- Secret key containing PEM CA certificates.
+    caKey: ca.crt
+# -- Override the chart name used in application selectors.
+nameOverride: ''
+# -- Override the generated application resource name.
+fullnameOverride: ''
+# -- Additional labels on chart resources; preserve chart ownership labels.
+commonLabels: {}
+# -- One replica serializes native migrations and owns the local upload volume.
+replicaCount: 1
+# -- Registry Secret references for pulling mirrored official images.
+imagePullSecrets: []
+# -- Additional native environment entries; chart-owned security and integration settings are rejected.
+extraEnv: []
+# -- Tokenless ServiceAccount for application and admission helper Pods.
+serviceAccount:
+  # -- Create the chart ServiceAccount.
+  create: true
+  # -- Explicit ServiceAccount name or volume name.
+  name: ''
+  # -- Additional Kubernetes annotations.
+  annotations: {}
+  # -- Must remain false; workloads do not use the Kubernetes API.
+  automountServiceAccountToken: false
+# -- Public proxy Service; native enrollment and application ports are not exposed here.
+service:
+  # -- Kubernetes Service type.
+  type: ClusterIP
+  # -- Service port exposed to clients.
+  port: 3000
+  # -- Additional Kubernetes annotations.
+  annotations: {}
+  # -- Optional Kubernetes SingleStack, PreferDualStack or RequireDualStack policy.
+  ipFamilyPolicy: ''
+  # -- Optional ordered Service address families.
+  ipFamilies: []
+# -- Ingress controller exposure; select this or Gateway API.
+ingress:
+  # -- Enable this capability.
+  enabled: false
+  # -- Explicit IngressClass used by the controller.
+  ingressClassName: ''
+  # -- Additional Kubernetes annotations.
+  annotations: {}
+  # -- Ingress hostname and path definitions.
+  hosts: []
+  # -- TLS termination or upstream verification settings.
+  tls: []
+# -- Gateway API HTTPRoute exposure to an existing Gateway.
+gatewayAPI:
+  # -- Enable this capability.
+  enabled: false
+  # -- HTTPRoute definitions with parentRefs, hostnames and optional rules.
+  httpRoutes: []
+# -- External Secrets Operator resources that materialize referenced Secrets.
+externalSecrets:
+  # -- Enable this capability.
+  enabled: false
+  # -- ExternalSecret refresh interval.
+  refreshInterval: 1h
+  # -- ExternalSecret definitions using the HelmForge items contract.
+  items: []
+# -- Required native startup/readiness and listener liveness probes.
+probes:
+  # -- Wait for native migrations and healthy database/storage before startup completes.
+  startup:
+    # -- Consecutive probe failures before the relevant transition.
+    failureThreshold: 60
+    # -- Seconds between probe attempts.
+    periodSeconds: 5
+    # -- Timeout in seconds for one probe attempt.
+    timeoutSeconds: 5
+  # -- Withdraw readiness when native database or storage checks fail.
+  readiness:
+    # -- Consecutive probe failures before the relevant transition.
+    failureThreshold: 3
+    # -- Seconds between probe attempts.
+    periodSeconds: 10
+    # -- Timeout in seconds for one probe attempt.
+    timeoutSeconds: 5
+  # -- Check the native listener without restarting solely because a dependency is unavailable.
+  liveness:
+    # -- Consecutive probe failures before the relevant transition.
+    failureThreshold: 3
+    # -- Seconds between probe attempts.
+    periodSeconds: 20
+    # -- Timeout in seconds for one probe attempt.
+    timeoutSeconds: 5
+# -- Kubernetes compute requests and limits.
+resources:
+  # -- Resources reserved by the scheduler.
+  requests:
+    # -- Kubernetes CPU quantity.
+    cpu: 250m
+    # -- Kubernetes memory quantity.
+    memory: 512Mi
+  # -- Maximum container resource allocation.
+  limits:
+    # -- Kubernetes CPU quantity.
+    cpu: '2'
+    # -- Kubernetes memory quantity.
+    memory: 2Gi
+# -- Non-root Pod identity and volume ownership.
+podSecurityContext:
+  # -- Require an unprivileged container user.
+  runAsNonRoot: true
+  # -- Numeric runtime user ID.
+  runAsUser: 1000
+  # -- Numeric runtime group ID.
+  runAsGroup: 1000
+  # -- Supplementary group granted access to mounted files.
+  fsGroup: 1000
+  # -- Volume ownership reconciliation policy.
+  fsGroupChangePolicy: OnRootMismatch
+  # -- Kernel syscall filtering profile.
+  seccompProfile:
+    # -- Use the container runtime default seccomp profile.
+    type: RuntimeDefault
+# -- Container privilege and root filesystem restrictions.
+securityContext:
+  # -- Keep privilege escalation disabled.
+  allowPrivilegeEscalation: false
+  # -- Keep the image filesystem read-only; writes use explicit mounted paths.
+  readOnlyRootFilesystem: true
+  # -- Linux capability restrictions.
+  capabilities:
+    # -- Linux capabilities removed from containers.
+    drop:
+      - ALL
+# -- Additional application Pod labels; selector labels are protected.
+podLabels: {}
+# -- Additional application Pod annotations.
+podAnnotations: {}
+# -- Node labels required for application and helper scheduling.
+nodeSelector: {}
+# -- Node taints tolerated by application and helper Pods.
+tolerations: []
+# -- Application Pod scheduling affinity.
+affinity: {}
+# -- Application Pod topology constraints; the supported replica count remains one.
+topologySpreadConstraints: []
+# -- Optional application PriorityClass.
+priorityClassName: ''
+# -- Grace period for native process shutdown.
+terminationGracePeriodSeconds: 60
+# -- Required local uploads and retained identity marker.
+persistence:
+  # -- Must remain true to retain uploads and the identity marker.
+  enabled: true
+  # -- Use an existing application PVC.
+  existingClaim: ''
+  # -- PVC storage class; empty uses the cluster default.
+  storageClass: ''
+  # -- Requested PVC capacity.
+  size: 10Gi
+  # -- PVC access modes for the singleton application.
+  accessModes:
+    - ReadWriteOnce
+  # -- Retain chart-created PVC on uninstall.
+  retain: true
+  # -- Additional Kubernetes annotations.
+  annotations: {}
+# -- Writable temporary storage boundaries.
+runtime:
+  # -- Size limit of application temporary storage.
+  temporarySize: 256Mi
+# -- Official native application image.
+image:
+  # -- Official image repository or controlled mirror.
+  repository: ghcr.io/amruthpillai/reactive-resume
+  # -- Pinned image tag; the application also pins its verified manifest digest.
+  tag: v5.3.0@sha256:c487ec5edcfe054bcb312fcd498f868e56f274756d0046b01c83f210855017ab
+  # -- Kubernetes image pull policy.
+  pullPolicy: IfNotPresent
+# -- Application public origin and fixed proxy listener.
+server:
+  # -- Fixed public proxy listener 3000; enrollment ports are not configurable.
+  port: 3000
+  # -- External canonical HTTP(S) origin; empty uses the internal Service URL.
+  publicUrl: ''
+# -- Private first-user enrollment before public containers start.
+bootstrap:
+  # -- Display name of the initial ordinary account.
+  name: Initial Owner
+  # -- Initial ordinary user email; existing accounts are never renamed.
+  email: owner@example.test
+  # -- Username of the initial ordinary account.
+  username: owner
+  # -- Initial password; empty generates one. Prefer an existing Secret for production.
+  password: ''
+  # -- Existing Secret with the initial account password; mounted only during initialization.
+  existingSecret: ''
+  # -- Key containing the password in its referenced Secret.
+  passwordKey: user-password
+# -- Mandatory CNI-enforced enrollment and application isolation.
+networkPolicy:
+  # -- Must remain true; bootstrap requires an enforcing NetworkPolicy implementation.
+  enabled: true
+  # -- Allowed public-proxy peers; empty allows Pods in this namespace.
+  ingressFrom: []
+  # -- Must remain true for the admission contract.
+  egressIsolation: true
+  # -- Permit public HTTPS for native PDF fallback fonts; private and special-use ranges remain excluded.
+  allowPublicHttps: true
+  # -- DNS peer selectors allowed on TCP and UDP port 53.
+  dnsEgress:
+    # -- Namespace label selector for this network peer.
+    - namespaceSelector:
+        # -- Labels required by this selector.
+        matchLabels:
+          # -- Namespace containing the DNS Pods.
+          kubernetes.io/metadata.name: kube-system
+      # -- Pod label selector for this network peer.
+      podSelector:
+        # -- Labels required by this selector.
+        matchLabels:
+          # -- DNS Pod label used by the cluster resolver.
+          k8s-app: kube-dns
+  # -- Explicit egress rules for external PostgreSQL and accepted integrations.
+  extraEgress: []
+# -- External PostgreSQL settings when the HelmForge subchart is disabled.
+database:
+  # -- External PostgreSQL DNS hostname.
+  host: ''
+  # -- External PostgreSQL TCP port.
+  port: 5432
+  # -- External PostgreSQL database name.
+  name: reactive_resume
+  # -- External PostgreSQL application role.
+  username: reactive_resume
+  # -- Secret containing the external PostgreSQL role password.
+  passwordSecret: ''
+  # -- Key containing the password in its referenced Secret.
+  passwordKey: password
+  # -- TLS termination or upstream verification settings.
+  tls:
+    # -- Verify the external PostgreSQL certificate chain and DNS hostname.
+    enabled: true
+    # -- Optional Secret containing a trusted PostgreSQL CA bundle.
+    caSecret: ''
+    # -- Key containing PEM CA certificates.
+    caKey: ca.crt
+# -- HelmForge PostgreSQL dependency; disable when using an external database.
+postgresql:
+  # -- Application-specific permissions applied after the dependency creates its role.
+  initdb:
+    # -- Native Drizzle migrations create a dedicated schema in the selected database.
+    scripts:
+      # -- Grant database-local schema creation without granting superuser or CREATEDB.
+      20-reactive-resume-schema.sh: |
+        #!/bin/bash
+        set -euo pipefail
+        export PGPASSWORD="${POSTGRES_PASSWORD}"
+        psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER}" --dbname "${APP_DATABASE}" \
+          --set=app_database="${APP_DATABASE}" --set=app_username="${APP_USERNAME}" <<'SQL'
+        SELECT format('GRANT CREATE ON DATABASE %I TO %I', :'app_database', :'app_username') \gexec
+        SQL
+  # -- Container privilege and root filesystem restrictions.
+  securityContext:
+    # -- Keep the image filesystem read-only; writes use explicit mounted paths.
+    readOnlyRootFilesystem: true
+  # -- Writable runtime volumes required by the read-only PostgreSQL image.
+  extraVolumes:
+    # -- Explicit ServiceAccount name or volume name.
+    - name: postgres-tmp
+      # -- Ephemeral writable volume configuration.
+      emptyDir:
+        # -- Maximum capacity of this ephemeral volume.
+        sizeLimit: 1Gi
+    # -- Explicit ServiceAccount name or volume name.
+    - name: postgres-socket
+      # -- Ephemeral writable volume configuration.
+      emptyDir:
+        # -- Storage medium for the ephemeral volume.
+        medium: Memory
+        # -- Maximum capacity of this ephemeral volume.
+        sizeLimit: 16Mi
+  # -- Mount PostgreSQL temporary and socket directories.
+  extraVolumeMounts:
+    # -- Explicit ServiceAccount name or volume name.
+    - name: postgres-tmp
+      # -- Container path receiving the named volume.
+      mountPath: /tmp
+    # -- Explicit ServiceAccount name or volume name.
+    - name: postgres-socket
+      # -- Container path receiving the named volume.
+      mountPath: /var/run/postgresql
+  # -- Mandatory CNI-enforced enrollment and application isolation.
+  networkPolicy:
+    # -- Enable this capability.
+    enabled: true
+    # -- PostgreSQL dependency egress policy.
+    egress:
+      # -- Enable this capability.
+      enabled: true
+      # -- Allow DNS resolution from PostgreSQL.
+      allowDNS: true
+      # -- Allow PostgreSQL peers only when explicitly required.
+      allowSameNamespacePostgreSQL: false
+      # -- Allow broad HTTPS egress only when explicitly required.
+      allowHTTPS: false
+  # -- Enable this capability.
+  enabled: true
+  # -- Supported bundled database topology: standalone.
+  architecture: standalone
+  # -- Bundled database and application role credentials.
+  auth:
+    # -- Database created for the native application.
+    database: reactive_resume
+    # -- Non-superuser role with database-local schema creation and public schema privileges.
+    username: reactive_resume
+    # -- Optional existing PostgreSQL authentication Secret.
+    existingSecret: ''
+    # -- Secret key containing the bundled application role password.
+    existingSecretUserPasswordKey: user-password
+# -- Unprivileged NGINX that exposes the closed-enrollment application.
+proxy:
+  # -- Official unprivileged NGINX image.
+  image:
+    # -- Official image repository or controlled mirror.
+    repository: docker.io/nginxinc/nginx-unprivileged
+    # -- Pinned image tag; the application also pins its verified manifest digest.
+    tag: 1.30.4-alpine
+    # -- Kubernetes image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Kubernetes compute requests and limits.
+  resources:
+    # -- Resources reserved by the scheduler.
+    requests:
+      # -- Kubernetes CPU quantity.
+      cpu: 50m
+      # -- Kubernetes memory quantity.
+      memory: 32Mi
+    # -- Maximum container resource allocation.
+    limits:
+      # -- Kubernetes CPU quantity.
+      cpu: 500m
+      # -- Kubernetes memory quantity.
+      memory: 128Mi
+  # -- Maximum public request body accepted by NGINX.
+  bodySize: 20m
+# -- Retained native signing and provider-secret encryption keys.
+identity:
+  # -- Existing Secret with AUTH_SECRET and ENCRYPTION_SECRET; retain both across upgrades and recovery.
+  existingSecret: ''
+# -- Authenticated SMTP with implicit TLS for native account email and recovery.
+smtp:
+  # -- Enable native SMTP and unblock mail-dependent account endpoints.
+  enabled: false
+  # -- SMTP DNS hostname matching its TLS certificate.
+  host: ''
+  # -- Implicit TLS port; the chart does not expose opportunistic STARTTLS mode.
+  port: 465
+  # -- Native sender address, optionally including a display name.
+  from: ''
+  # -- SMTP authentication username.
+  username: ''
+  # -- Existing Secret containing the SMTP password.
+  existingSecret: ''
+  # -- Key containing the SMTP password.
+  passwordKey: password
+  # -- Optional additional CA trust for the SMTP server.
+  tls:
+    # -- Secret containing a PEM CA bundle; empty uses native system trust.
+    caSecret: ''
+    # -- CA certificate bundle key.
+    caKey: ca.crt
+# -- Separate credential-free network probe helper; only its own HMAC key is mounted.
+admission:
+  # -- Official Node image for the fixed-target HMAC network probe.
+  image:
+    # -- Official image repository or controlled mirror.
+    repository: docker.io/library/node
+    # -- Pinned image tag; the application also pins its verified manifest digest.
+    tag: 24.21.0-alpine
+    # -- Kubernetes image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Kubernetes compute requests and limits.
+  resources:
+    # -- Resources reserved by the scheduler.
+    requests:
+      # -- Kubernetes CPU quantity.
+      cpu: 25m
+      # -- Kubernetes memory quantity.
+      memory: 32Mi
+    # -- Maximum container resource allocation.
+    limits:
+      # -- Kubernetes CPU quantity.
+      cpu: 200m
+      # -- Kubernetes memory quantity.
+      memory: 128Mi

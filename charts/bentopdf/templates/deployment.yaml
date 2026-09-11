@@ -1,0 +1,90 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bentopdf.fullname" . }}
+  labels:
+    {{- include "bentopdf.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+  selector:
+    matchLabels:
+      {{- include "bentopdf.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "bentopdf.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}{{ toYaml . | nindent 8 }}{{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
+    spec:
+      serviceAccountName: {{ include "bentopdf.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}{{- end }}
+      securityContext: {{ toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}{{- end }}
+      containers:
+        - name: bentopdf
+          image: {{ include "bentopdf.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          command: [nginx]
+          args: [-g, "daemon off;"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.server.port }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          {{- range $name, $probe := .Values.probes }}
+          {{- if $probe.enabled }}
+          {{ $name }}Probe:
+            httpGet:
+              path: {{ $probe.path }}
+              port: http
+            {{- omit $probe "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}{{- end }}
+          volumeMounts:
+            - {name: config, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf, readOnly: true}
+            - {name: config, mountPath: /usr/share/nginx/html/config.json, subPath: config.json, readOnly: true}
+            - {name: nginx-tmp, mountPath: /etc/nginx/tmp}
+            - {name: tmp, mountPath: /tmp}
+        {{- if .Values.metrics.enabled }}
+        - name: nginx-exporter
+          image: {{ printf "%s:%s" .Values.metrics.image.repository .Values.metrics.image.tag | quote }}
+          imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
+          args:
+            - --nginx.scrape-uri=http://127.0.0.1:8081/stub_status
+            - --web.listen-address=:{{ .Values.metrics.port }}
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - {name: metrics, containerPort: {{ .Values.metrics.port }}}
+          readinessProbe:
+            httpGet: {path: /metrics, port: metrics}
+          livenessProbe:
+            httpGet: {path: /metrics, port: metrics}
+          resources: {{ toYaml .Values.metrics.resources | nindent 12 }}
+        {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "bentopdf.fullname" . }}
+        - name: nginx-tmp
+          emptyDir: {sizeLimit: 64Mi}
+        - name: tmp
+          emptyDir: {sizeLimit: 32Mi}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints: {{ toYaml . | nindent 8 }}{{- end }}

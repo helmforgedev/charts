@@ -1,0 +1,374 @@
+# SPDX-License-Identifier: Apache-2.0
+# -- Override the chart name used in labels and generated resource names.
+nameOverride: ''
+# -- Override generated resource names; configure before creating persistent state.
+fullnameOverride: ''
+# -- commonLabels.
+commonLabels: {}
+# -- Exactly one instance; PostgreSQL does not enable the unfinished upstream HA mode.
+replicaCount: 1
+# -- image.
+image:
+  # -- Official Pocket ID image repository.
+  repository: ghcr.io/pocket-id/pocket-id
+  # -- Pinned upstream release; validate migrations and passkey/OIDC behavior before upgrading.
+  tag: v2.14.0
+  # -- pullPolicy.
+  pullPolicy: IfNotPresent
+# -- imagePullSecrets.
+imagePullSecrets: []
+# -- server.
+server:
+  # -- Native application HTTP listener, exposed through the application Service.
+  port: 1411
+  # -- Stable HTTPS issuer and WebAuthn origin; changing it can invalidate existing credentials.
+  publicUrl: https://id.example.com
+  # -- Native TRUST_PROXY value; restrict forwarded-header trust to your actual proxy network.
+  trustedProxies: ''
+# -- Additional native environment settings; managed security and bootstrap variables cannot be overridden.
+extraEnv: []
+# -- serviceAccount.
+serviceAccount:
+  # -- create.
+  create: true
+  # -- name.
+  name: ''
+  # -- annotations.
+  annotations: {}
+  # -- automountServiceAccountToken.
+  automountServiceAccountToken: false
+# -- service.
+service:
+  # -- type.
+  type: ClusterIP
+  # -- port.
+  port: 1411
+  # -- annotations.
+  annotations: {}
+  # -- ipFamilyPolicy.
+  ipFamilyPolicy: ''
+  # -- ipFamilies.
+  ipFamilies: []
+# -- ingress.
+ingress:
+  # -- enabled.
+  enabled: false
+  # -- ingressClassName.
+  ingressClassName: ''
+  # -- annotations.
+  annotations: {}
+  # -- hosts.
+  hosts: []
+  # -- tls.
+  tls: []
+# -- Gateway API HTTPRoute configuration.
+gatewayAPI:
+  # -- Render canonical Gateway API HTTPRoutes.
+  enabled: false
+  # -- Route definitions with parentRefs, hostnames, rules, labels and annotations.
+  httpRoutes: []
+# -- externalSecrets.
+externalSecrets:
+  # -- enabled.
+  enabled: false
+  # -- refreshInterval.
+  refreshInterval: 1h
+  # -- items.
+  items: []
+# -- networkPolicy.
+networkPolicy:
+  # -- enabled.
+  enabled: true
+  # -- ingressFrom.
+  ingressFrom: []
+  # -- egressIsolation.
+  egressIsolation: true
+  # -- dnsEgress.
+  dnsEgress:
+    - namespaceSelector:
+        # -- matchLabels.
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      # -- podSelector.
+      podSelector:
+        # -- matchLabels.
+        matchLabels:
+          k8s-app: kube-dns
+  # -- webEgress.
+  webEgress: []
+  # -- webPorts.
+  webPorts:
+    - 443
+  # -- extraEgress.
+  extraEgress: []
+# -- probes.
+probes:
+  # -- startup.
+  startup:
+    # -- enabled.
+    enabled: true
+    # -- path.
+    path: /healthz
+    # -- failureThreshold.
+    failureThreshold: 60
+    # -- periodSeconds.
+    periodSeconds: 5
+    # -- timeoutSeconds.
+    timeoutSeconds: 5
+  # -- readiness.
+  readiness:
+    # -- enabled.
+    enabled: true
+    # -- path.
+    path: /healthz
+    # -- failureThreshold.
+    failureThreshold: 3
+    # -- periodSeconds.
+    periodSeconds: 10
+    # -- timeoutSeconds.
+    timeoutSeconds: 5
+  # -- liveness.
+  liveness:
+    # -- enabled.
+    enabled: true
+    # -- path.
+    path: /healthz
+    # -- failureThreshold.
+    failureThreshold: 3
+    # -- periodSeconds.
+    periodSeconds: 20
+    # -- timeoutSeconds.
+    timeoutSeconds: 5
+# -- resources.
+resources:
+  # -- requests.
+  requests:
+    # -- cpu.
+    cpu: 100m
+    # -- memory.
+    memory: 128Mi
+  # -- limits.
+  limits:
+    # -- cpu.
+    cpu: '1'
+    # -- memory.
+    memory: 512Mi
+# -- podSecurityContext.
+podSecurityContext:
+  # -- runAsNonRoot.
+  runAsNonRoot: true
+  # -- runAsUser.
+  runAsUser: 1000
+  # -- runAsGroup.
+  runAsGroup: 1000
+  # -- fsGroup.
+  fsGroup: 1000
+  # -- fsGroupChangePolicy.
+  fsGroupChangePolicy: OnRootMismatch
+  # -- seccompProfile.
+  seccompProfile:
+    # -- type.
+    type: RuntimeDefault
+# -- securityContext.
+securityContext:
+  # -- allowPrivilegeEscalation.
+  allowPrivilegeEscalation: false
+  # -- readOnlyRootFilesystem.
+  readOnlyRootFilesystem: true
+  # -- capabilities.
+  capabilities:
+    # -- drop.
+    drop:
+      - ALL
+# -- podLabels.
+podLabels: {}
+# -- podAnnotations.
+podAnnotations: {}
+# -- nodeSelector.
+nodeSelector: {}
+# -- tolerations.
+tolerations: []
+# -- affinity.
+affinity: {}
+# -- topologySpreadConstraints.
+topologySpreadConstraints: []
+# -- priorityClassName.
+priorityClassName: ''
+# -- terminationGracePeriodSeconds.
+terminationGracePeriodSeconds: 30
+# -- persistence.
+persistence:
+  # -- enabled.
+  enabled: true
+  # -- Use a preexisting or restored PVC instead of creating another claim.
+  existingClaim: ''
+  # -- storageClass.
+  storageClass: ''
+  # -- Capacity for SQLite and native uploads; PostgreSQL mode still persists local files.
+  size: 5Gi
+  # -- accessModes.
+  accessModes:
+    - ReadWriteOnce
+  # -- Keep the data PVC when the Helm release is uninstalled.
+  retain: true
+  # -- annotations.
+  annotations: {}
+  # -- Fixed native data path used by database, upload and recovery contracts.
+  mountPath: /app/data
+# -- bootstrap.
+bootstrap:
+  # -- Create the initial administrator privately when the database is empty; false refuses uninitialized databases.
+  enabled: true
+  # -- Username used only for the first native administrator.
+  username: admin
+  # -- Email used only during initial administrator creation.
+  email: admin@example.test
+  # -- Initial administrator first name.
+  firstName: Pocket
+  # -- Initial administrator last name.
+  lastName: Administrator
+  # -- Official Node helper that runs the unchanged native application binary on loopback during setup.
+  helperImage:
+    # -- repository.
+    repository: docker.io/library/node
+    # -- tag.
+    tag: 24.21.0-alpine3.23
+    # -- pullPolicy.
+    pullPolicy: IfNotPresent
+# -- runtime.
+runtime:
+  # -- Bound for the application temporary emptyDir.
+  temporarySize: 256Mi
+# -- encryption.
+encryption:
+  # -- Optional 32-byte base64 key; empty generates a retained Secret. Prefer existingSecret for operator-owned keys.
+  key: ''
+  # -- Existing Secret containing the exact retained native encryption key.
+  existingSecret: ''
+  # -- Key within the encryption Secret, mounted read-only as a file.
+  secretKey: encryption-key
+# -- database.
+database:
+  # -- Official PostgreSQL client used only for read-only database admission.
+  clientImage:
+    # -- Official client repository.
+    repository: docker.io/library/postgres
+    # -- Pinned client release.
+    tag: 18.6-trixie
+    # -- Client pull policy.
+    pullPolicy: IfNotPresent
+  # -- Native database engine: sqlite or postgresql; engine selection does not migrate existing data.
+  type: sqlite
+  # -- External PostgreSQL hostname; must remain empty when the bundled database is enabled.
+  host: ''
+  # -- External PostgreSQL port; the bundled database uses its own Service port.
+  port: 5432
+  # -- External database name; bundled connections follow postgresql.auth.database.
+  name: pocketid
+  # -- External application role; bundled connections follow postgresql.auth.username.
+  username: pocketid
+  # -- External database password Secret in the release namespace.
+  passwordSecret: ''
+  # -- Key containing the external application password.
+  passwordKey: password
+  # -- Empty selects verify-full externally and disable for the bundled in-cluster connection.
+  sslMode: ''
+  # -- Optional CA Secret for external PostgreSQL certificate verification.
+  caSecret: ''
+  # -- Key containing the trusted PostgreSQL CA PEM.
+  caKey: ca.crt
+# -- postgresql.
+postgresql:
+  # -- DBA preparation on a fresh volume. Existing and external databases require equivalent preparation before upgrading.
+  initdb:
+    # -- First-volume initialization scripts; preserve required extensions when overriding.
+    scripts:
+      # -- Installs application and actor extensions using the subchart administrator connection.
+      20-pocket-id-extensions.sh: |
+        #!/bin/bash
+        set -euo pipefail
+        export PGPASSWORD="${POSTGRES_PASSWORD}"
+        psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER}" --dbname "${APP_DATABASE}" <<'SQL'
+        CREATE EXTENSION IF NOT EXISTS citext;
+        CREATE EXTENSION IF NOT EXISTS pgcrypto;
+        SQL
+  # -- securityContext.
+  securityContext:
+    # -- readOnlyRootFilesystem.
+    readOnlyRootFilesystem: true
+  # -- extraVolumes.
+  extraVolumes:
+    - name: postgres-tmp
+      # -- emptyDir.
+      emptyDir:
+        # -- sizeLimit.
+        sizeLimit: 1Gi
+    - name: postgres-socket
+      # -- emptyDir.
+      emptyDir:
+        # -- medium.
+        medium: Memory
+        # -- sizeLimit.
+        sizeLimit: 16Mi
+  # -- extraVolumeMounts.
+  extraVolumeMounts:
+    - name: postgres-tmp
+      # -- mountPath.
+      mountPath: /tmp
+    - name: postgres-socket
+      # -- mountPath.
+      mountPath: /var/run/postgresql
+  # -- networkPolicy.
+  networkPolicy:
+    # -- enabled.
+    enabled: true
+    # -- egress.
+    egress:
+      # -- enabled.
+      enabled: true
+      # -- allowDNS.
+      allowDNS: true
+      # -- allowSameNamespacePostgreSQL.
+      allowSameNamespacePostgreSQL: false
+      # -- allowHTTPS.
+      allowHTTPS: false
+  # -- Install the HelmForge PostgreSQL dependency; also select database.type=postgresql.
+  enabled: false
+  # -- architecture.
+  architecture: standalone
+  # -- auth.
+  auth:
+    # -- database.
+    database: pocketid
+    # -- username.
+    username: pocketid
+    # -- existingSecret.
+    existingSecret: ''
+    # -- existingSecretUserPasswordKey.
+    existingSecretUserPasswordKey: user-password
+# -- metrics.
+metrics:
+  # -- Enable the native Prometheus exporter on a dedicated private listener.
+  enabled: false
+  # -- Native metrics port; must differ from the HTTP port.
+  port: 9464
+  # -- NetworkPolicy peers allowed to scrape metrics; empty permits the release namespace.
+  ingressFrom: []
+  # -- serviceMonitor.
+  serviceMonitor:
+    # -- Create a ServiceMonitor; requires metrics.enabled and installed Prometheus Operator CRDs.
+    enabled: false
+    # -- labels.
+    labels: {}
+    # -- Prometheus scrape interval; must be at least scrapeTimeout.
+    interval: 30s
+    # -- Maximum scrape duration; cannot exceed interval.
+    scrapeTimeout: 10s
+  # -- prometheusRule.
+  prometheusRule:
+    # -- Create the native target availability rule; requires metrics.enabled and operator CRDs.
+    enabled: false
+    # -- labels.
+    labels: {}
+    # -- Additional Prometheus rules evaluated against actual native series.
+    additionalRules: []

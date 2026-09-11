@@ -1,0 +1,116 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.backup.enabled }}
+{{- if not .Values.backup.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "bytestash.fullname" . | trunc 55 | trimSuffix "-" }}-backups
+  labels:
+    {{- include "bytestash.labels" . | nindent 4 }}
+  {{- if .Values.backup.retain }}
+  annotations:
+    helm.sh/resource-policy: keep
+  {{- end }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- if eq .Values.backup.storageClass "-" }}
+  storageClassName: ""
+  {{- else if .Values.backup.storageClass }}
+  storageClassName: {{ .Values.backup.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.backup.size }}
+---
+{{- end }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "bytestash.fullname" . | trunc 55 | trimSuffix "-" }}-backup
+  labels:
+    {{- include "bytestash.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  timeZone: Etc/UTC
+  suspend: {{ .Values.backup.suspend }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: {{ .Values.backup.activeDeadlineSeconds }}
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: {{ include "bytestash.name" . }}
+            app.kubernetes.io/instance: {{ .Release.Name }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "bytestash.serviceAccountName" . }}
+          automountServiceAccountToken: false
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets: {{ toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext: {{ toYaml .Values.podSecurityContext | nindent 12 }}
+          {{- with .Values.nodeSelector }}
+          nodeSelector: {{ toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations: {{ toYaml . | nindent 12 }}
+          {{- end }}
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - topologyKey: kubernetes.io/hostname
+                  labelSelector:
+                    matchLabels:
+                      {{- include "bytestash.selectorLabels" . | nindent 22 }}
+          containers:
+            - name: backup
+              image: {{ include "bytestash.image" . | quote }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command: [node, /opt/helmforge/backup.mjs]
+              env:
+                - name: BACKUP_RETENTION
+                  value: {{ .Values.backup.retention | quote }}
+              securityContext: {{ toYaml .Values.securityContext | nindent 16 }}
+              resources: {{ toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                - {name: source, mountPath: /data/snippets, readOnly: true}
+                - {name: backups, mountPath: /backups}
+                - {name: scripts, mountPath: /opt/helmforge, readOnly: true}
+                - {name: tmp, mountPath: /tmp}
+          volumes:
+            - name: source
+              persistentVolumeClaim:
+                claimName: {{ include "bytestash.claimName" . }}
+            - name: backups
+              persistentVolumeClaim:
+                claimName: {{ default (printf "%s-backups" (include "bytestash.fullname" . | trunc 55 | trimSuffix "-")) .Values.backup.existingClaim }}
+            - name: scripts
+              configMap:
+                name: {{ include "bytestash.fullname" . }}-scripts
+            - name: tmp
+              emptyDir: {sizeLimit: 256Mi}
+{{- if .Values.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "bytestash.fullname" . | trunc 55 | trimSuffix "-" }}-backup
+  labels:
+    {{- include "bytestash.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "bytestash.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: backup
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress: []
+{{- end }}
+{{- end }}

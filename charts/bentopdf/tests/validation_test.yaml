@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: BentoPDF fail fast
+templates:
+  - templates/configmap.yaml
+tests:
+  - it: rejects singleton disruption budget
+    template: templates/configmap.yaml
+    set:
+      podDisruptionBudget.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: >-
+            podDisruptionBudget requires at least two replicas and
+            maxUnavailable smaller than minimum replicas
+  - it: rejects invalid autoscaling bounds
+    template: templates/configmap.yaml
+    set:
+      autoscaling.minReplicas: 6
+    asserts:
+      - failedTemplate:
+          errorMessage: autoscaling.minReplicas cannot exceed maxReplicas
+  - it: requires exporter for ServiceMonitor
+    template: templates/configmap.yaml
+    set:
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: monitoring resources require metrics.enabled=true
+  - it: reserves private status port
+    template: templates/configmap.yaml
+    set:
+      server.port: 8081
+    asserts:
+      - failedTemplate:
+          errorMessage: server.port 8081 is reserved for loopback stub_status
+  - it: rejects metrics port collision
+    template: templates/configmap.yaml
+    set:
+      server.port: 9113
+    asserts:
+      - failedTemplate:
+          errorMessage: server.port and metrics.port must differ
+  - it: rejects ingress without host
+    template: templates/configmap.yaml
+    set:
+      ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.hosts is required when enabled
+  - it: requires CPU request for autoscaling
+    template: templates/configmap.yaml
+    set:
+      autoscaling.enabled: true
+      resources.requests.cpu: null
+    asserts:
+      - failedTemplate:
+          errorMessage: autoscaling requires resources.requests.cpu
+  - it: reserves exporter loopback port
+    template: templates/configmap.yaml
+    set:
+      metrics.port: 8081
+    asserts:
+      - failedTemplate:
+          errorMessage: metrics.port 8081 is reserved for loopback stub_status

@@ -1,0 +1,59 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+Stirling PDF document processing
+
+1. Installation summary
+=======================
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Image: {{ include "stirling-pdf.image" . }}
+Community: one writer, Recreate upgrades and intentional downtime.
+
+2. Access
+=========
+kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "stirling-pdf.fullname" . }} 8080:{{ .Values.service.port }}
+Open http://localhost:8080{{ .Values.server.basePath }}.
+Use HTTPS and align proxy upload limits and timeouts.
+
+3. Authentication
+=================
+Initial administrator: {{ .Values.auth.username }}
+Credential Secret: {{ include "stirling-pdf.authSecretName" . }}
+Password key: {{ .Values.auth.passwordKey }}
+Retrieve credentials securely with your Secret management tooling.
+Initial credentials do not reset existing accounts. Native fresh-install OAuth requires a paid license.
+
+4. Persistence
+==============
+Enabled: {{ .Values.persistence.enabled }}
+Claim: {{ include "stirling-pdf.claimName" . }}
+Generated claim retained on uninstall: {{ .Values.persistence.retain }}
+Preserve configs, customFiles and pipeline. Namespace deletion can remove retained claims.
+
+5. Availability and resources
+=============================
+Never scale Community H2 to multiple writers, including on RWX storage.
+Java shares memory with OCR and office tools. Size resources against real documents.
+
+6. Monitoring and network
+=========================
+Native Prometheus enabled: {{ .Values.metrics.enabled }}
+Management requires X-API-KEY; keep its Service private.
+{{- if .Values.metrics.scrapeConfig.enabled }}
+Additional scrape Secret: {{ include "stirling-pdf.fullname" . | trunc 56 | trimSuffix "-" }}-scrape
+Mount API-key Secret in Prometheus: {{ .Values.metrics.scrapeConfig.apiKeySecret }}
+Merge this job into existing configuration without replacing other jobs.
+{{- end }}
+Default NetworkPolicy permits same-namespace application HTTP and DNS only.
+kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "stirling-pdf.fullname" . }} -c stirling-pdf
+
+7. Upgrade and recovery
+=======================
+Quiesce and archive the complete claim before upgrades.
+Restore into a fresh claim and set persistence.existingClaim.
+Verify native login and authenticated conversion. Helm rollback does not undo migrations.
+
+8. Documentation and support
+============================
+https://helmforge.dev/docs/charts/stirling-pdf
+https://github.com/helmforgedev/charts/issues
+Happy Helmforging :)

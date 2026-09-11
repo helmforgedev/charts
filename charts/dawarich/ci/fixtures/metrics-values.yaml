@@ -1,0 +1,78 @@
+# SPDX-License-Identifier: Apache-2.0
+# Requires the Prometheus Operator in the HelmForge lab. Namespace-local test stack.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dawarich-monitor
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dawarich-monitor
+rules:
+  - apiGroups: [""]
+    resources: [services, endpoints, pods]
+    verbs: [get, list, watch]
+  - apiGroups: [discovery.k8s.io]
+    resources: [endpointslices]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dawarich-monitor
+subjects:
+  - kind: ServiceAccount
+    name: dawarich-monitor
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: dawarich-monitor
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: dawarich-monitor
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  version: v3.14.0
+  image: quay.io/prometheus/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
+  replicas: 1
+  serviceAccountName: dawarich-monitor
+  serviceMonitorSelector:
+    matchLabels:
+      app.kubernetes.io/name: dawarich
+  ruleSelector:
+    matchLabels:
+      app.kubernetes.io/name: dawarich
+  scrapeInterval: 15s
+  scrapeTimeout: 10s
+  evaluationInterval: 15s
+  retention: 1h
+  podMetadata:
+    labels:
+      app: dawarich-monitor
+      helmforge.dev/runtime-fixture: "true"
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: "1", memory: 512Mi}
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    fsGroup: 65534
+  storage:
+    emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dawarich-monitor
+spec:
+  selector:
+    prometheus: dawarich-monitor
+  ports:
+    - name: http
+      port: 9090
+      targetPort: 9090

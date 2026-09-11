@@ -1,0 +1,28 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.bootstrap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "memos.fullname" . | trunc 53 | trimSuffix "-" }}-bootstrap
+  labels:
+    {{- include "memos.labels" . | nindent 4 }}
+data:
+  bootstrap.mjs: |
+    {{- .Files.Get "files/bootstrap.mjs" | nindent 4 }}
+{{- if not .Values.bootstrap.existingSecret }}
+{{- $name := include "memos.bootstrapSecretName" . }}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $name }}
+{{- $data := $existing.data | default dict }}
+{{- $password := .Values.bootstrap.password | default (get $data .Values.bootstrap.passwordKey | default "" | b64dec) | default (randAlphaNum 32) }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "memos.labels" . | nindent 4 }}
+type: Opaque
+data:
+  {{ .Values.bootstrap.passwordKey }}: {{ $password | b64enc | quote }}
+{{- end }}
+{{- end }}

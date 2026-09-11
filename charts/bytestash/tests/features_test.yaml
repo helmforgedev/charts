@@ -1,0 +1,217 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: ByteStash production behavior
+templates:
+  - templates/*.yaml
+tests:
+  - it: pins official application image
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/jordan-dalby/bytestash:1.5.12
+  - it: precreates administrator before HTTP
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].command
+          value:
+            - node
+            - /opt/helmforge/bootstrap.mjs
+  - it: uses one writer and Recreate
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+  - it: runs as upstream nonroot user
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+  - it: uses read only image filesystem
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+  - it: does not mount API credentials
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - it: uses native fixed port
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 5000
+  - it: prefixes database readiness with base path
+    template: templates/deployment.yaml
+    set:
+      server.basePath: /snippets
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /snippets/api/auth/config
+  - it: mounts only JWT into main application
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[1].name
+          value: auth
+  - it: passes JWT by native file setting
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[0].name
+          value: JWT_SECRET_FILE
+  - it: keeps registration closed
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[3].value
+          value: 'false'
+  - it: preserves claim on uninstall
+    template: templates/pvc.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+  - it: accepts existing data claim
+    template: templates/deployment.yaml
+    set:
+      persistence.existingClaim: recovered
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          value: recovered
+  - it: supports dual stack
+    template: templates/service.yaml
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+  - it: routes gateway to app Service
+    template: templates/gateway-httproute.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - parentRefs:
+            - name: edge
+    asserts:
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 5000
+  - it: keeps backup pods out of Service
+    template: templates/service.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: server
+  - it: supports explicit ingress class
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: nginx
+      ingress.hosts:
+        - host: snippets.example.test
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+  - it: renders no backup resources by default
+    template: templates/backup.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: binds delayed backup storage during installation
+    template: templates/backup-storage-job.yaml
+    set:
+      backup.enabled: true
+    asserts:
+      - equal:
+          path: kind
+          value: Job
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - it: uses online snapshots with isolated backup pods
+    template: templates/backup.yaml
+    documentIndex: 1
+    set:
+      backup.enabled: true
+    asserts:
+      - equal:
+          path: spec.concurrencyPolicy
+          value: Forbid
+      - equal:
+          path: spec.jobTemplate.spec.template.metadata.labels["app.kubernetes.io/component"]
+          value: backup
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].volumeMounts[0].readOnly
+          value: true
+  - it: stores OIDC credential only in Secret
+    template: templates/oidc-secret.yaml
+    set:
+      oidc.enabled: true
+      oidc.issuerURL: https://id.example.test
+      oidc.clientID: client
+      oidc.clientSecret: fixture-client-secret
+    asserts:
+      - equal:
+          path: data["client-secret"]
+          value: Zml4dHVyZS1jbGllbnQtc2VjcmV0
+  - it: supports native additional CA trust
+    template: templates/deployment.yaml
+    set:
+      oidc.enabled: true
+      oidc.issuerURL: https://id.example.test
+      oidc.clientID: client
+      oidc.clientSecret: fixture-client-secret
+      oidc.caConfigMap: trusted-ca
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NODE_EXTRA_CA_CERTS
+            value: /run/oidc-ca/ca.crt
+  - it: renders canonical external credentials
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: managed-auth
+          spec:
+            secretStoreRef:
+              name: store
+              kind: ClusterSecretStore
+            data:
+              - secretKey: jwt-secret
+                remoteRef:
+                  key: jwt
+    asserts:
+      - equal:
+          path: apiVersion
+          value: external-secrets.io/v1
+      - equal:
+          path: spec.target.name
+          value: managed-auth

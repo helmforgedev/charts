@@ -1,0 +1,420 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Glance production contract
+templates:
+  - templates/*.yaml
+tests:
+  - it: runs the official pinned image
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/glanceapp/glance:v0.8.6
+  - it: runs as non-root without API credentials
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+  - it: checks the native health endpoint
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /api/healthz
+  - it: uses conservative rolling availability
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.strategy.rollingUpdate.maxUnavailable
+          value: 0
+  - it: updates the listen port consistently
+    template: templates/deployment.yaml
+    set:
+      server.port: 9090
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 9090
+  - it: mounts configuration read-only without subPath
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].readOnly
+          value: true
+      - notExists:
+          path: spec.template.spec.containers[0].volumeMounts[0].subPath
+  - it: mounts credentials as restricted projected files
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[1].projected.defaultMode
+          value: 288
+  - it: uses existing authentication secret
+    template: templates/deployment.yaml
+    set:
+      auth.existingSecret: private-auth
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[1].projected.sources[0].secret.name
+          value: private-auth
+  - it: accepts alternate authentication secret keys
+    template: templates/deployment.yaml
+    set:
+      auth.passwordKey: login
+      auth.secretKeyKey: signing
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[1].projected.sources[0].secret.items[0].key
+          value: login
+      - equal:
+          path: spec.template.spec.volumes[1].projected.sources[0].secret.items[1].key
+          value: signing
+  - it: omits secret volume on a public dashboard
+    template: templates/deployment.yaml
+    set:
+      auth.enabled: false
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.volumes
+          count: 1
+  - it: mounts public assets separately
+    template: templates/deployment.yaml
+    set:
+      assets.existingConfigMap: assets
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[2].configMap.name
+          value: assets
+  - it: projects widget secrets without templating content
+    template: templates/deployment.yaml
+    set:
+      widgetSecrets.sources:
+        - name: tokens
+          items:
+            - key: token
+              path: github
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[1].projected.sources[1].secret.name
+          value: tokens
+  - it: sets named environment variables
+    template: templates/deployment.yaml
+    set:
+      extraEnv:
+        - name: WEATHER_CITY
+          value: Brasilia
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[0].value
+          value: Brasilia
+  - it: sets secret environment sources
+    template: templates/deployment.yaml
+    set:
+      envFrom:
+        - secretRef:
+            name: env
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[0].secretRef.name
+          value: env
+  - it: honors resource sizing
+    template: templates/deployment.yaml
+    set:
+      resources.requests.memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 128Mi
+  - it: disables liveness only when requested
+    template: templates/deployment.yaml
+    set:
+      probes.liveness.enabled: false
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].livenessProbe
+      - exists:
+          path: spec.template.spec.containers[0].readinessProbe
+  - it: supports scheduling constraints
+    template: templates/deployment.yaml
+    set:
+      nodeSelector.pool: apps
+      priorityClassName: interactive
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector.pool
+          value: apps
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: interactive
+  - it: uses an existing service account
+    template: templates/deployment.yaml
+    set:
+      serviceAccount.create: false
+      serviceAccount.name: existing
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: existing
+  - it: keeps passwords out of the dashboard ConfigMap
+    template: templates/configmap.yaml
+    set:
+      auth.password: never-in-config
+    asserts:
+      - notMatchRegex:
+          path: data["glance.yml"]
+          pattern: never-in-config
+      - matchRegex:
+          path: data["glance.yml"]
+          pattern: secret:auth-password
+  - it: preserves Glance Go widget templates
+    template: templates/configmap.yaml
+    set:
+      config.data.document.head: '{{ .JSON.String "key" }}'
+    asserts:
+      - matchRegex:
+          path: data["glance.yml"]
+          pattern: \{\{ .JSON.String
+  - it: omits native auth from public configuration
+    template: templates/configmap.yaml
+    set:
+      auth.enabled: false
+    asserts:
+      - notMatchRegex:
+          path: data["glance.yml"]
+          pattern: secret:auth-password
+  - it: renders explicit proxy and base URL configuration
+    template: templates/configmap.yaml
+    set:
+      server.proxied: true
+      server.baseUrl: /dashboard
+    asserts:
+      - matchRegex:
+          path: data["glance.yml"]
+          pattern: 'proxied: true'
+      - matchRegex:
+          path: data["glance.yml"]
+          pattern: 'base-url: /dashboard'
+  - it: stores explicit authentication only in a Secret
+    template: templates/secret.yaml
+    set:
+      auth.password: test-password
+    asserts:
+      - equal:
+          path: data.password
+          value: dGVzdC1wYXNzd29yZA==
+  - it: omits generated credentials with existing Secret
+    template: templates/secret.yaml
+    set:
+      auth.existingSecret: existing
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: omits credentials when native authentication is disabled
+    template: templates/secret.yaml
+    set:
+      auth.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders custom Service port
+    template: templates/service.yaml
+    set:
+      service.port: 80
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 80
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+  - it: omits unspecified Service family policy
+    template: templates/service.yaml
+    asserts:
+      - notExists:
+          path: spec.ipFamilyPolicy
+  - it: renders dual-stack Service policy
+    template: templates/service.yaml
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies:
+        - IPv4
+        - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilies
+          value:
+            - IPv4
+            - IPv6
+  - it: creates the dedicated ServiceAccount
+    template: templates/serviceaccount.yaml
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: automountServiceAccountToken
+          value: false
+  - it: omits an unneeded ServiceAccount
+    template: templates/serviceaccount.yaml
+    set:
+      serviceAccount.create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders explicit ingress host
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: glance.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - equal:
+          path: spec.rules[0].host
+          value: glance.example.com
+  - it: omits blank ingress class
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: glance.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - notExists:
+          path: spec.ingressClassName
+  - it: renders an explicit ingress class
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: glance.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+      ingress.ingressClassName: nginx
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+  - it: routes Gateway traffic to the correct Service
+    template: templates/gateway-httproute.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - parentRefs:
+            - name: shared
+    asserts:
+      - isAPIVersion:
+          of: gateway.networking.k8s.io/v1
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 8080
+  - it: rejects a Gateway without parent refs
+    template: templates/gateway-httproute.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - {}
+    asserts:
+      - failedTemplate:
+          errorMessage: gatewayAPI.httpRoutes[].parentRefs is required
+  - it: isolates incoming and outgoing traffic
+    template: templates/networkpolicy.yaml
+    asserts:
+      - equal:
+          path: spec.policyTypes
+          value:
+            - Ingress
+            - Egress
+      - equal:
+          path: spec.ingress[0].from[0].podSelector
+          value: {}
+  - it: supports explicit additional egress
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.extraEgress:
+        - ports:
+            - protocol: TCP
+              port: 9090
+    asserts:
+      - equal:
+          path: spec.egress[2].ports[0].port
+          value: 9090
+  - it: can leave outbound traffic unrestricted
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.egressIsolation: false
+    asserts:
+      - equal:
+          path: spec.policyTypes
+          value:
+            - Ingress
+      - notExists:
+          path: spec.egress
+  - it: omits disabled network policy
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: protects a two-replica deployment
+    template: templates/pdb.yaml
+    set:
+      replicaCount: 2
+      podDisruptionBudget.enabled: true
+    asserts:
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+  - it: renders canonical ExternalSecret v1
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: auth
+          spec:
+            secretStoreRef:
+              name: vault
+    asserts:
+      - isAPIVersion:
+          of: external-secrets.io/v1
+      - equal:
+          path: spec.target.name
+          value: auth
+      - equal:
+          path: spec.refreshInterval
+          value: 1h
+  - it: preserves ExternalSecret per-item interval
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - spec:
+            secretStoreRef:
+              name: vault
+            refreshInterval: 5m
+    asserts:
+      - equal:
+          path: spec.refreshInterval
+          value: 5m
+  - it: rejects ExternalSecret without a source
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - spec: {}
+    asserts:
+      - failedTemplate:
+          errorMessage: >-
+            externalSecrets.items[].spec.secretStoreRef.name or item sourceRef.storeRef.name/sourceRef.generatorRef.name
+            is required when externalSecrets.enabled=true

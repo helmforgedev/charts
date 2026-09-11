@@ -1,0 +1,109 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: papra runtime and durable identity
+templates:
+  - templates/deployment.yaml
+  - templates/auth-secret.yaml
+  - templates/bootstrap.yaml
+tests:
+  - it: persists extraction tasks in a separate local database
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: TASKS_PERSISTENCE_DRIVER, value: libsql}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: TASKS_PERSISTENCE_DRIVERS_LIBSQL_URL, value: 'file:/app/app-data/db/tasks.sqlite'}
+  - it: pauses worker consumption without disabling the web API
+    template: templates/deployment.yaml
+    set:
+      tasks.workerEnabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: PROCESS_MODE, value: web}
+  - it: preserves the native entrypoint and confines initial credentials to bootstrap
+    template: templates/deployment.yaml
+    asserts:
+      - equal: {path: 'spec.strategy.type', value: Recreate}
+      - notExists: {path: 'spec.template.spec.containers[0].command'}
+      - equal:
+          path: 'spec.template.spec.initContainers[0].command'
+          value: [node, /bootstrap-script/bootstrap.mjs]
+      - notContains:
+          path: 'spec.template.spec.containers[0].volumeMounts'
+          content: {name: bootstrap-auth, mountPath: /bootstrap-auth, readOnly: true}
+      - equal: {path: 'spec.template.spec.securityContext.runAsUser', value: 1000}
+      - equal: {path: 'spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem', value: true}
+      - equal: {path: 'spec.template.spec.automountServiceAccountToken', value: false}
+  - it: closes email signup and disables first-user privilege grants in the public process
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: {name: AUTH_IS_REGISTRATION_ENABLED, value: 'false'}
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: {name: AUTH_FIRST_USER_AS_ADMIN, value: 'false'}
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: {name: AUTH_IS_PASSWORD_RESET_ENABLED, value: 'false'}
+  - it: uses an existing session secret without generating a competing credential
+    template: templates/auth-secret.yaml
+    set:
+      auth.existingSecret: retained-auth
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: references encryption keys only through Secrets
+    template: templates/deployment.yaml
+    set:
+      database.encryptionSecret: retained-keys
+      storage.encryptionSecret: retained-keys
+    asserts:
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content:
+            name: DATABASE_ENCRYPTION_KEY
+            valueFrom:
+              secretKeyRef: {name: retained-keys, key: database-encryption-key}
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: {name: DOCUMENT_STORAGE_ENCRYPTION_IS_ENABLED, value: 'true'}
+  - it: rejects using local database encryption on remote libSQL
+    template: templates/auth-secret.yaml
+    set:
+      database.remoteUrl: libsql://database.example.test
+      database.authTokenSecret: remote-token
+      database.encryptionSecret: local-key
+    asserts:
+      - failedTemplate: {errorMessage: Local database encryption is incompatible with remote libSQL}
+  - it: rejects competing credential sources
+    template: templates/auth-secret.yaml
+    set:
+      auth.secret: inline-secret
+      auth.existingSecret: retained-secret
+    asserts:
+      - failedTemplate: {errorMessage: auth.secret and auth.existingSecret are mutually exclusive}
+  - it: rejects overriding native authentication policy through extraEnv
+    template: templates/auth-secret.yaml
+    set:
+      extraEnv:
+        - {name: AUTH_IS_REGISTRATION_ENABLED, value: 'true'}
+    asserts:
+      - failedTemplate: {errorMessage: extraEnv cannot override managed setting AUTH_IS_REGISTRATION_ENABLED}
+  - it: mounts a restored existing claim without changing its name
+    template: templates/deployment.yaml
+    set:
+      persistence.existingClaim: restored-archive
+    asserts:
+      - contains:
+          path: 'spec.template.spec.volumes'
+          content: {name: workspace, persistentVolumeClaim: {claimName: restored-archive}}
+  - it: renders placement settings on the pod
+    template: templates/deployment.yaml
+    set:
+      priorityClassName: documents
+      nodeSelector: {disk: durable}
+    asserts:
+      - equal: {path: 'spec.template.spec.priorityClassName', value: documents}
+      - equal: {path: 'spec.template.spec.nodeSelector.disk', value: durable}

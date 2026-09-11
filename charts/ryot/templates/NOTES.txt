@@ -1,0 +1,61 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+Ryot private personal tracking
+
+1. Installation summary
+=======================
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Image: {{ include "ryot.image" . }}
+One native scheduler; Recreate upgrades include downtime.
+
+2. Access
+=========
+kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "ryot.fullname" . }} 8000:{{ .Values.service.port }}
+Public URL: {{ .Values.server.publicUrl }}
+Use your exact HTTPS origin and allow the ingress controller through NetworkPolicy.
+
+3. Authentication
+=================
+Local authentication only. OIDC and S3 are unsupported for this upstream version.
+Initial administrator: {{ .Values.bootstrap.username }}
+Initial password Secret: {{ include "ryot.bootstrapSecretName" . }}
+Initial password key: {{ .Values.bootstrap.passwordKey }}
+Administrator override Secret: {{ include "ryot.authSecretName" . }}
+Retrieve credentials using approved Secret tooling; never expose the override in browser URLs.
+Existing users are preserved; an initial-password change does not reset an account.
+
+4. Persistence and backup
+=========================
+Database: {{ include "ryot.databaseHost" . }}:{{ include "ryot.databasePort" . }}/{{ include "ryot.databaseName" . }}
+Bundled HelmForge PostgreSQL: {{ .Values.postgresql.enabled }}
+Back up PostgreSQL and retain authentication Secrets together.
+Application temporary files and in-flight memory jobs are not durable records.
+
+5. Availability and resources
+=============================
+Keep one application replica to avoid duplicate native scheduling.
+The image retains Caddy, frontend and backend under the upstream supervisor.
+Root filesystems are read-only; writable runtime directories are explicitly bounded.
+External PostgreSQL requires uuid-ossp and pg_trgm prepared by its DBA.
+
+6. Monitoring and network
+=========================
+No application Prometheus endpoint is asserted; use platform and database monitoring.
+Default egress permits DNS and bundled PostgreSQL. Allow trusted provider/database peers explicitly.
+kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "ryot.fullname" . }} -c ryot
+NetworkPolicy requires a compatible CNI.
+
+7. Upgrade and recovery
+=======================
+Take a verified native PostgreSQL backup before application migrations.
+helm upgrade {{ .Release.Name }} helmforge/ryot -n {{ .Release.Namespace }} -f values.yaml
+kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "ryot.fullname" . }}
+Restore to an empty database, retain credentials and verify native login and tracking data.
+Database admission refuses OIDC-linked accounts; never bypass this check for a restored database.
+Helm rollback does not reverse native data migrations.
+
+8. Documentation and support
+============================
+https://helmforge.dev/docs/charts/ryot
+https://github.com/helmforgedev/charts/issues
+Happy Helmforging :)

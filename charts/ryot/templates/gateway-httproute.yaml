@@ -1,0 +1,58 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.gatewayAPI.enabled }}
+{{- $names := dict }}
+{{- range $index, $route := .Values.gatewayAPI.httpRoutes | default list }}
+{{- if not .parentRefs }}{{ fail "gatewayAPI.httpRoutes[].parentRefs is required" }}{{- end }}
+{{- $name := include "ryot.httpRouteName" (dict "root" $ "route" . "index" $index) }}
+{{- if hasKey $names $name }}{{ fail "HTTPRoute names must be unique" }}{{- end }}
+{{- $_ := set $names $name true }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "ryot.labels" $ | nindent 4 }}
+    {{- with .labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .parentRefs }}
+  parentRefs:
+    {{- toYaml .parentRefs | nindent 4 }}
+  {{- end }}
+  {{- with .hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+  {{- if .rules }}
+    {{- range .rules }}
+    - {{- with .matches }}
+      matches:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .filters }}
+      filters:
+        {{- toYaml .filters | nindent 8 }}
+      {{- end }}
+      {{- if .backendRefs }}
+      backendRefs:
+        {{- toYaml .backendRefs | nindent 8 }}
+      {{- else if not .omitDefaultBackend }}
+      backendRefs:
+        - name: {{ include "ryot.fullname" $ }}
+          port: {{ $.Values.service.port }}
+      {{- end }}
+    {{- end }}
+  {{- else }}
+    - backendRefs:
+        - name: {{ include "ryot.fullname" $ }}
+          port: {{ $.Values.service.port }}
+  {{- end }}
+{{- end }}
+{{- end }}

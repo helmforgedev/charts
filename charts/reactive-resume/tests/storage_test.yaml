@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Native private S3 storage
+templates:
+  - deployment.yaml
+  - validate.yaml
+  - runtime.yaml
+tests:
+  - it: requires explicit S3 credentials
+    set:
+      storage.driver: s3
+    template: validate.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: S3 requires an existing bucket and credential Secret
+  - it: rejects dormant object storage credentials in local mode
+    set:
+      storage.s3.existingSecret: unused
+    template: validate.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: S3 connection settings require storage.driver=s3
+  - it: mounts the additional CA only for native application processes
+    set:
+      storage.driver: s3
+      storage.s3.bucket: resumes
+      storage.s3.existingSecret: object-credentials
+      storage.s3.caSecret: object-ca
+    template: deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: S3_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef: {name: object-credentials, key: secret-access-key}
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content: {name: s3-ca, mountPath: /s3-ca, readOnly: true}
+      - notContains:
+          path: spec.template.spec.containers[1].volumeMounts
+          content: {name: s3-ca, mountPath: /s3-ca, readOnly: true}

@@ -1,0 +1,104 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "glance.fullname" . }}
+  labels:
+    {{- include "glance.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+  selector:
+    matchLabels:
+      {{- include "glance.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "glance.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}{{ toYaml . | nindent 8 }}{{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/credentials: {{ toJson .Values.auth | sha256sum }}
+        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
+    spec:
+      serviceAccountName: {{ include "glance.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}{{- end }}
+      securityContext: {{ toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}{{- end }}
+      containers:
+        - name: glance
+          image: {{ include "glance.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.server.port }}
+          {{- with .Values.extraEnv }}
+          env: {{ toYaml . | nindent 12 }}{{- end }}
+          {{- with .Values.envFrom }}
+          envFrom: {{ toYaml . | nindent 12 }}{{- end }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          {{- range $name, $probe := .Values.probes }}
+          {{- if $probe.enabled }}
+          {{ $name }}Probe:
+            httpGet:
+              path: {{ $probe.path }}
+              port: http
+            {{- omit $probe "enabled" "path" | toYaml | nindent 12 }}
+          {{- end }}{{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            {{- if or .Values.auth.enabled .Values.widgetSecrets.sources }}
+            - name: secrets
+              mountPath: /run/secrets
+              readOnly: true
+            {{- end }}
+            {{- if .Values.assets.existingConfigMap }}
+            - name: assets
+              mountPath: /app/assets
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "glance.fullname" . }}
+        {{- if or .Values.auth.enabled .Values.widgetSecrets.sources }}
+        - name: secrets
+          projected:
+            defaultMode: 288
+            sources:
+              {{- if .Values.auth.enabled }}
+              - secret:
+                  name: {{ include "glance.authSecretName" . }}
+                  items:
+                    - key: {{ .Values.auth.passwordKey }}
+                      path: auth-password
+                    - key: {{ .Values.auth.secretKeyKey }}
+                      path: auth-signing-key
+              {{- end }}
+              {{- range .Values.widgetSecrets.sources }}
+              - secret: {{ toYaml . | nindent 18 }}
+              {{- end }}
+        {{- end }}
+        {{- if .Values.assets.existingConfigMap }}
+        - name: assets
+          configMap:
+            name: {{ .Values.assets.existingConfigMap }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints: {{ toYaml . | nindent 8 }}{{- end }}
+

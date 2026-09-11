@@ -1,0 +1,84 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $name := printf "%s-admission" (include "reactive-resume.fullname" . | trunc 53 | trimSuffix "-") }}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $name }}
+{{- $data := $existing.data | default dict }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}
+  labels: {{ include "reactive-resume.labels" . | nindent 4 }}
+type: Opaque
+data:
+  key: {{ get $data "key" | default (randAlphaNum 64 | b64enc) | quote }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels: {{ include "reactive-resume.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ipFamilyPolicy: PreferDualStack
+  ports: [{name: admission, port: 8088, targetPort: 8088, protocol: TCP}]
+  selector:
+    app.kubernetes.io/name: reactive-resume-admission
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels: {{ include "reactive-resume.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: reactive-resume-admission
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: reactive-resume-admission
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: enrollment-admission
+      annotations:
+        checksum/runtime: {{ include (print $.Template.BasePath "/runtime.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "reactive-resume.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext: {{ toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: admission
+          image: {{ printf "%s:%s" .Values.admission.image.repository .Values.admission.image.tag }}
+          imagePullPolicy: {{ .Values.admission.image.pullPolicy }}
+          command: [node, /helmforge/helper.mjs]
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.admission.resources | nindent 12 }}
+          ports: [{name: admission, containerPort: 8088}]
+          readinessProbe:
+            httpGet: {path: /health, port: admission}
+          livenessProbe:
+            httpGet: {path: /health, port: admission}
+          volumeMounts:
+            - {name: runtime, mountPath: /helmforge, readOnly: true}
+            - {name: admission-key, mountPath: /admission-key, readOnly: true}
+      volumes:
+        - name: runtime
+          configMap:
+            name: {{ include "reactive-resume.fullname" . }}-runtime
+            items:
+              - {key: admission.mjs, path: admission.mjs}
+              - {key: helper.mjs, path: helper.mjs}
+        - name: admission-key
+          secret:
+            secretName: {{ $name }}
+            defaultMode: 0440

@@ -1,0 +1,62 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dawarich.fullname" . }}-runtime
+  labels: {{ include "dawarich.labels" . | nindent 4 }}
+data:
+  {{- range $path, $_ := .Files.Glob "files/*" }}
+  {{ base $path }}: |
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
+  nginx.conf: |
+    pid /tmp/nginx.pid;
+    worker_processes auto;
+    error_log /dev/stderr warn;
+    events { worker_connections 1024; }
+    http {
+      access_log off;
+      client_body_temp_path /tmp/client_body;
+      proxy_temp_path /tmp/proxy;
+      fastcgi_temp_path /tmp/fastcgi;
+      uwsgi_temp_path /tmp/uwsgi;
+      scgi_temp_path /tmp/scgi;
+      map $http_upgrade $connection_upgrade { default upgrade; '' close; }
+      map $http_x_forwarded_proto $forwarded_scheme { default $scheme; https https; http http; }
+      server {
+        listen {{ .Values.server.port }};
+        server_name _;
+        client_max_body_size {{ .Values.proxy.bodySize }};
+        location ~ ^/api/v1/auth/(register|apple|google)([/.]|$) { return 403; }
+        location ~ ^/users/(sign_up|auth)([/.]|$) { return 403; }
+        location ~ ^/metrics([/.]|$) { return 404; }
+        location / {
+          proxy_pass http://127.0.0.1:3010;
+          proxy_http_version 1.1;
+          proxy_set_header Host $http_host;
+          proxy_set_header X-Forwarded-Proto $forwarded_scheme;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+          proxy_buffering off;
+          proxy_read_timeout 3600s;
+          proxy_send_timeout 3600s;
+        }
+      }
+      {{- if .Values.metrics.enabled }}
+      server {
+        listen {{ .Values.metrics.port }};
+        server_name _;
+        location = /metrics {
+          limit_except GET { deny all; }
+          proxy_pass http://127.0.0.1:3010/metrics;
+          proxy_set_header Host {{ (urlParse (include "dawarich.publicUrl" .)).host | quote }};
+          proxy_set_header X-Forwarded-Proto {{ (urlParse (include "dawarich.publicUrl" .)).scheme | quote }};
+          proxy_connect_timeout 5s;
+          proxy_read_timeout 10s;
+        }
+        location / { return 404; }
+      }
+      {{- end }}
+    }

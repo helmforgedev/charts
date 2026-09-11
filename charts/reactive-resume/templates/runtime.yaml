@@ -1,0 +1,52 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "reactive-resume.fullname" . }}-runtime
+  labels: {{ include "reactive-resume.labels" . | nindent 4 }}
+data:
+  {{- range $path, $_ := .Files.Glob "files/*" }}
+  {{ base $path }}: |
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
+  nginx.conf: |
+    pid /tmp/nginx.pid;
+    worker_processes auto;
+    error_log /dev/stderr warn;
+    events { worker_connections 1024; }
+    http {
+      access_log off;
+      client_body_temp_path /tmp/client_body;
+      proxy_temp_path /tmp/proxy;
+      fastcgi_temp_path /tmp/fastcgi;
+      uwsgi_temp_path /tmp/uwsgi;
+      scgi_temp_path /tmp/scgi;
+      map $http_upgrade $connection_upgrade { default upgrade; '' close; }
+      map $http_x_forwarded_proto $forwarded_scheme { default $scheme; https https; http http; }
+      server {
+        listen 3000;
+        listen [::]:3000;
+        server_name _;
+        client_max_body_size {{ .Values.proxy.bodySize }};
+        location = /_proxyhealth { return 200 'ok'; }
+        location ~* ^/api/auth/sign-up([/.]|$) { return 403; }
+        # Native mail fallback logs token-bearing links. Keep mail-dependent
+        # account routes closed until authenticated SMTP is configured.
+        {{- if not .Values.smtp.enabled }}
+        location ~* ^/api/auth/(request-password-reset|forget-password|send-verification-email|change-email)([/.]|$) { return 403; }
+        {{- end }}
+        location / {
+          proxy_pass http://127.0.0.1:3010;
+          proxy_http_version 1.1;
+          proxy_set_header Host $http_host;
+          proxy_set_header X-Forwarded-Host $http_host;
+          proxy_set_header X-Forwarded-Proto $forwarded_scheme;
+          proxy_set_header X-Forwarded-For $remote_addr;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+          proxy_read_timeout 300s;
+          proxy_buffering off;
+          proxy_request_buffering off;
+        }
+      }
+    }

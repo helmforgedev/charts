@@ -1,0 +1,120 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Dawarich invalid production contracts
+templates:
+  - templates/validate.yaml
+tests:
+  - it: rejects concurrency exceeding the native database pool
+    set:
+      runtime.threads: 2
+      worker.concurrency: 3
+    asserts:
+      - failedTemplate:
+          errorMessage: runtime.threads must cover worker.concurrency for the native database pool
+  - it: rejects overlapping object storage credential keys
+    set:
+      storage.s3.accessKeyIdKey: password
+      storage.s3.secretAccessKeyKey: password
+    asserts:
+      - failedTemplate:
+          errorMessage: S3 access and secret keys must use distinct Secret keys
+  - it: rejects ephemeral application state
+    set:
+      persistence.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: Dawarich requires persistent imports and attachment storage
+  - it: rejects ambiguous administrator credentials
+    set:
+      bootstrap.password: owned-fixture-password
+      bootstrap.existingSecret: operator
+    asserts:
+      - failedTemplate:
+          errorMessage: Bootstrap password and existing Secret are mutually exclusive
+  - it: requires external PostGIS coordinates
+    set:
+      postgresql.enabled: false
+      database.tls.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: External PostGIS requires host and passwordSecret
+  - it: requires an external PostGIS CA
+    set:
+      postgresql.enabled: false
+      database.host: database
+      database.passwordSecret: operator
+    asserts:
+      - failedTemplate:
+          errorMessage: External PostGIS TLS requires an explicit CA Secret for libpq verify-full
+  - it: rejects competing PostGIS modes
+    set:
+      database.host: external
+    asserts:
+      - failedTemplate:
+          errorMessage: Bundled and external PostGIS settings are mutually exclusive
+  - it: requires external Redis coordinates
+    set:
+      redis.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: External Redis requires host and passwordSecret
+  - it: requires Redis authentication
+    set:
+      redis.auth.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: Dawarich requires authenticated standalone Redis with logical databases
+  - it: separates cache and job queues
+    set:
+      cache.database: 1
+      cache.queueDatabase: 1
+    asserts:
+      - failedTemplate:
+          errorMessage: Dawarich cache and job queues require distinct logical databases
+  - it: protects the native URI
+    set:
+      extraEnv:
+        - name: REDIS_URL
+          value: untrusted
+    asserts:
+      - failedTemplate:
+          errorMessage: extraEnv cannot override managed setting REDIS_URL
+  - it: protects private temporary storage
+    set:
+      extraEnv:
+        - name: TMPDIR
+          value: /tmp
+    asserts:
+      - failedTemplate:
+          errorMessage: extraEnv cannot override managed setting TMPDIR
+  - it: protects workload selectors
+    set:
+      podLabels:
+        app.kubernetes.io/name: another
+    asserts:
+      - failedTemplate:
+          errorMessage: Pod labels cannot replace chart workload selectors
+  - it: rejects inactive monitoring
+    set:
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: Native monitors require metrics.enabled
+  - it: separates metrics and native ports
+    set:
+      metrics.port: 3010
+    asserts:
+      - failedTemplate:
+          errorMessage: Metrics proxy port must differ from public, native web and worker ports
+  - it: requires native S3 credentials
+    set:
+      storage.driver: s3
+      storage.s3.bucket: owned-fixture
+    asserts:
+      - failedTemplate:
+          errorMessage: Native S3 requires a bucket and credential Secret
+  - it: rejects inactive S3 settings
+    set:
+      storage.s3.bucket: owned-fixture
+    asserts:
+      - failedTemplate:
+          errorMessage: S3 settings require storage.driver=s3
