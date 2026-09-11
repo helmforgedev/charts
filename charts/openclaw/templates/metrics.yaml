@@ -1,0 +1,109 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and .Values.metrics.enabled .Values.metrics.collector.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "openclaw.fullname" . }}-collector
+  labels:
+    {{- include "openclaw.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 127.0.0.1:4318
+    processors:
+      memory_limiter:
+        check_interval: 5s
+        limit_percentage: 75
+        spike_limit_percentage: 15
+      batch:
+        timeout: 5s
+    exporters:
+      prometheus:
+        endpoint: 0.0.0.0:8889
+        translation_strategy: UnderscoreEscapingWithoutSuffixes
+        metric_expiration: 5m
+    service:
+      extensions: [health_check]
+      pipelines:
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [prometheus]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openclaw.fullname" . }}-metrics
+  labels:
+    {{- include "openclaw.labels" . | nindent 4 }}
+    app.kubernetes.io/component: metrics
+spec:
+  type: ClusterIP
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies: {{ toJson . }}
+  {{- end }}
+  ports: [{name: metrics, port: 8889, targetPort: metrics}]
+  selector:
+    {{- include "openclaw.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+{{- if .Values.metrics.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "openclaw.fullname" . }}
+  labels:
+    {{- include "openclaw.labels" . | nindent 4 }}
+    {{- with .Values.metrics.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "openclaw.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: metrics
+  namespaceSelector: {matchNames: [{{ .Release.Namespace | quote }}]}
+  endpoints:
+    - port: metrics
+      interval: {{ .Values.metrics.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
+{{- end }}
+{{- if .Values.metrics.prometheusRule.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "openclaw.fullname" . }}
+  labels:
+    {{- include "openclaw.labels" . | nindent 4 }}
+    {{- with .Values.metrics.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: {{ include "openclaw.fullname" . }}.gateway
+      rules:
+        - alert: OpenClawMetricsUnavailable
+          expr: up{namespace={{ .Release.Namespace | quote }},service={{ printf "%s-metrics" (include "openclaw.fullname" .) | quote }}} == 0
+          for: 5m
+          labels: {severity: warning}
+          annotations: {summary: "OpenClaw metrics scrape is unavailable"}
+        - alert: OpenClawNativeMetricsMissing
+          expr: absent(openclaw_gateway_event_loop_delay_max_ms_count{namespace={{ .Release.Namespace | quote }},service={{ printf "%s-metrics" (include "openclaw.fullname" .) | quote }}})
+          for: 10m
+          labels: {severity: warning}
+          annotations: {summary: "Native OpenClaw gateway telemetry is absent"}
+        {{- with .Values.metrics.prometheusRule.additionalRules }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+{{- end }}
+{{- end }}

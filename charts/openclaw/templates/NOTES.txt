@@ -1,0 +1,50 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "openclaw.validate" . -}}
+OPENCLAW
+
+1. Release
+   {{ .Release.Name }} in {{ .Release.Namespace }}; OpenClaw {{ .Chart.AppVersion }}.
+   One gateway writer per persistent volume. Upgrades require a maintenance window.
+
+2. Runtime
+   kubectl -n {{ .Release.Namespace }} rollout status statefulset/{{ include "openclaw.fullname" . }}
+   Model: {{ .Values.agent.model }}. Tool profile: {{ .Values.agent.toolProfile }}.
+   Configure the model provider credentials in credentials.existingSecret.
+
+3. Access
+   kubectl -n {{ .Release.Namespace }} port-forward service/{{ include "openclaw.fullname" . }} 18789:{{ .Values.service.port }}
+   Control UI: http://localhost:18789
+   Gateway token: Secret {{ include "openclaw.authSecret" . }}, key {{ .Values.auth.key }}.
+   Device pairing remains enforced. Approve only the intended pending device.
+   Remote access needs HTTPS, explicit allowed origins and permitted network peers.
+
+4. Configuration and channels
+   Ownership policy: {{ .Values.config.policy }}. Seed mode preserves existing UI/CLI edits.
+   Managed mode applies declared configuration on Pod initialization.
+   Enabled messaging channels require Secret credentials and explicit user allowlists.
+   Gateway operators, models and enabled tools share this installation's trust boundary.
+
+5. Persistence
+   Enabled: {{ .Values.persistence.enabled }}. Claim: {{ include "openclaw.claim" . }}.
+   Retain after uninstall: {{ .Values.persistence.retain }}.
+   Persisted home includes state, agent workspaces, sessions and file credentials.
+   Protect Kubernetes Secrets separately. Do not run two gateways against this claim.
+
+6. Backup and recovery
+   Scheduled S3 backup: {{ .Values.backup.enabled }}; {{ .Values.backup.schedule }} in {{ .Values.backup.timeZone }}.
+   Restore: {{ .Values.restore.enabled }}; empty destination required.
+   Native archives snapshot each owned SQLite database, not one global transaction.
+   Restore rolls back sessions and credentials; review pending actions and channel relinking.
+
+7. Monitoring and maintenance
+   Native OTLP: {{ .Values.metrics.enabled }}; ServiceMonitor: {{ .Values.metrics.serviceMonitor.enabled }}.
+   Startup and readiness parse /startupz JSON. Liveness parses /healthz JSON.
+   /readyz includes channel health and is intended for deeper diagnostics.
+   Monitor PVC capacity, restarts, telemetry gaps and failed backup Jobs.
+
+8. Documentation
+   https://helmforge.dev/docs/charts/openclaw
+   https://github.com/helmforgedev/charts/tree/main/charts/openclaw/docs
+   https://docs.openclaw.ai/
+
+Happy Helmforging :)
