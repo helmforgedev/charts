@@ -1,0 +1,101 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Native inference and protected listeners
+templates:
+  - deployment.yaml
+  - configmap.yaml
+tests:
+  - it: keeps the native entrypoint, tokenless identity and exact integer limits
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+      - notExists:
+          path: spec.template.spec.containers[0].command
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAYLOAD_LIMIT
+            value: '1048576'
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LOG_LEVEL
+            value: warn
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HOSTNAME
+            value: 127.0.0.1
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+  - it: renders integer payload limits in the proxy and denies public metrics
+    template: configmap.yaml
+    asserts:
+      - matchRegex:
+          path: data["nginx.conf"]
+          pattern: client_max_body_size 1048576;
+      - matchRegex:
+          path: data["nginx.conf"]
+          pattern: location \^~ /metrics \{ return 404; \}
+  - it: requests and limits an NVIDIA device without replacing the CUDA entrypoint
+    template: deployment.yaml
+    set:
+      gpu.enabled: true
+      gpu.count: 2
+      image.tag: cuda-1.9.3@sha256:249a0bc87522bfe2f1012b4d194f0225878f47079115ada3aeb0b1ef257b402a
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests["nvidia.com/gpu"]
+          value: '2'
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits["nvidia.com/gpu"]
+          value: '2'
+      - notExists:
+          path: spec.template.spec.containers[0].command
+  - it: mounts complete local model artifacts read-only
+    template: deployment.yaml
+    set:
+      model.source: local
+      model.local.existingClaim: offline-model
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: model
+            mountPath: /models
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MODEL_ID
+            value: /models
+  - it: references independent API and Hub credentials
+    template: deployment.yaml
+    set:
+      auth.existingSecret: api
+      model.hubToken.existingSecret: hub
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: api
+                key: api-key
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HF_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: hub
+                key: token

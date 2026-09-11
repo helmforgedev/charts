@@ -1,0 +1,145 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "text-embeddings-inference.fullname" . }}
+  labels: {{ include "text-embeddings-inference.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  strategy:
+    type: {{ .Values.rollout.strategy }}
+    {{- if eq .Values.rollout.strategy "RollingUpdate" }}
+    rollingUpdate: {maxSurge: {{ .Values.rollout.maxSurge }}, maxUnavailable: {{ .Values.rollout.maxUnavailable }}}
+    {{- end }}
+  selector:
+    matchLabels: {{ include "text-embeddings-inference.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "text-embeddings-inference.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}{{ toYaml . | nindent 8 }}{{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
+    spec:
+      serviceAccountName: {{ include "text-embeddings-inference.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext: {{ toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}{{- end }}
+      containers:
+        - name: tei
+          image: {{ include "text-embeddings-inference.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          args: ["--json-output"]
+          env:
+            - {name: HOSTNAME, value: "127.0.0.1"}
+            - {name: PORT, value: "8081"}
+            - {name: LOG_LEVEL, value: "warn"}
+            - {name: HF_HOME, value: "/data"}
+            - {name: HUGGINGFACE_HUB_CACHE, value: "/data/hub"}
+            - name: MODEL_ID
+              value: {{ ternary "/models" .Values.model.id (eq .Values.model.source "local") | quote }}
+            {{- if eq .Values.model.source "hub" }}
+            - {name: REVISION, value: {{ .Values.model.revision | quote }}}
+            {{- end }}
+            {{- if .Values.auth.enabled }}
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef: {name: {{ include "text-embeddings-inference.authSecret" . }}, key: {{ .Values.auth.secretKey }}}
+            {{- end }}
+            {{- if .Values.model.hubToken.existingSecret }}
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef: {name: {{ .Values.model.hubToken.existingSecret }}, key: {{ .Values.model.hubToken.key }}}
+            {{- end }}
+            {{- range $key, $value := dict "SERVED_MODEL_NAME" .Values.model.servedName "POOLING" .Values.model.pooling "DTYPE" .Values.model.dtype "DEFAULT_PROMPT" .Values.model.defaultPrompt "DEFAULT_PROMPT_NAME" .Values.model.defaultPromptName }}
+            {{- if $value }}
+            - {name: {{ $key }}, value: {{ $value | quote }}}
+            {{- end }}{{- end }}
+            - {name: AUTO_TRUNCATE, value: {{ .Values.inference.autoTruncate | quote }}}
+            {{- range $key, $value := dict "MAX_CONCURRENT_REQUESTS" .Values.inference.maxConcurrentRequests "MAX_BATCH_TOKENS" .Values.inference.maxBatchTokens "MAX_BATCH_REQUESTS" .Values.inference.maxBatchRequests "MAX_CLIENT_BATCH_SIZE" .Values.inference.maxClientBatchSize "PAYLOAD_LIMIT" .Values.inference.payloadLimit "TOKENIZATION_WORKERS" .Values.inference.tokenizationWorkers "RAYON_NUM_THREADS" .Values.inference.threads "OMP_NUM_THREADS" .Values.inference.threads "MKL_NUM_THREADS" .Values.inference.threads }}
+            - {name: {{ $key }}, value: {{ $value | int | quote }}}
+            {{- end }}
+            {{- with .Values.extraEnv }}{{ toYaml . | nindent 12 }}{{- end }}
+          {{- $resources := deepCopy .Values.resources }}
+          {{- if .Values.gpu.enabled }}
+          {{- $requests := $resources.requests | default dict }}{{- $limits := $resources.limits | default dict }}
+          {{- $_ := set $requests "nvidia.com/gpu" (.Values.gpu.count | toString) }}{{- $_ := set $limits "nvidia.com/gpu" (.Values.gpu.count | toString) }}
+          {{- $_ := set $resources "requests" $requests }}{{- $_ := set $resources "limits" $limits }}
+          {{- end }}
+          resources: {{ toYaml $resources | nindent 12 }}
+          {{- range $kind, $probe := .Values.probes }}
+          {{- if $probe.enabled }}
+          {{ $kind }}Probe:
+            exec:
+              command: [curl, --fail, --silent, --show-error, --max-time, {{ $probe.timeoutSeconds | quote }}, "http://127.0.0.1:8081/health"]
+            {{- omit $probe "enabled" | toYaml | nindent 12 }}
+          {{- end }}{{- end }}
+          volumeMounts:
+            - {name: cache, mountPath: /data}
+            - {name: native-tmp, mountPath: /tmp}
+            {{- if eq .Values.model.source "local" }}
+            - name: model
+              mountPath: /models
+              readOnly: true
+              {{- with .Values.model.local.subPath }}
+              subPath: {{ . | quote }}
+              {{- end }}
+            {{- end }}
+        - name: proxy
+          image: {{ printf "%s:%s" .Values.proxy.image.repository .Values.proxy.image.tag | quote }}
+          imagePullPolicy: {{ .Values.proxy.image.pullPolicy }}
+          command: [nginx]
+          args: [-g, "daemon off;"]
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.proxy.resources | nindent 12 }}
+          ports:
+            - {name: http, containerPort: {{ .Values.proxy.port }}}
+            {{- if .Values.metrics.enabled }}
+            - {name: metrics, containerPort: {{ .Values.metrics.port }}}
+            {{- end }}
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 30
+          volumeMounts:
+            - {name: config, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf, readOnly: true}
+            - {name: proxy-tmp, mountPath: /tmp}
+      volumes:
+        - name: cache
+          {{- if .Values.cache.persistence.enabled }}
+          persistentVolumeClaim: {claimName: {{ include "text-embeddings-inference.cacheClaim" . }}}
+          {{- else }}
+          emptyDir: {sizeLimit: {{ .Values.cache.emptyDirSizeLimit | quote }}}
+          {{- end }}
+        - {name: native-tmp, emptyDir: {sizeLimit: 1Gi}}
+        - {name: proxy-tmp, emptyDir: {sizeLimit: 64Mi}}
+        - name: config
+          configMap: {name: {{ include "text-embeddings-inference.fullname" . }}}
+        {{- if eq .Values.model.source "local" }}
+        - name: model
+          persistentVolumeClaim: {claimName: {{ .Values.model.local.existingClaim }}, readOnly: true}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{ toYaml . | nindent 8 }}{{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints: {{ toYaml . | nindent 8 }}{{- end }}

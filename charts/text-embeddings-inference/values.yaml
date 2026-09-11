@@ -1,0 +1,330 @@
+# SPDX-License-Identifier: Apache-2.0
+# -- Override the short chart name.
+nameOverride: ''
+# -- Override the complete resource name.
+fullnameOverride: ''
+# -- Additional resource labels; selector keys are reserved.
+commonLabels: {}
+# -- Independent model replicas; each loads its own RAM or VRAM copy.
+replicaCount: 1
+# -- Official TEI image; preserve its native entrypoint, including CUDA selection.
+image:
+  # -- Official image repository or your trusted mirror.
+  repository: ghcr.io/huggingface/text-embeddings-inference
+  # -- Pinned version and immutable image digest.
+  tag: cpu-1.9.3@sha256:ad950d30878eceb72aaf32024d26fa2b1d04a75304fa0b4776b49aa1941fea07
+  # -- Kubernetes image pull policy.
+  pullPolicy: IfNotPresent
+# -- Registry credential Secret references.
+imagePullSecrets: []
+# -- One immutable model per release. Changing model identity requires a vector-index migration.
+model:
+  # -- Hub download or a complete read-only local model PVC.
+  source: hub
+  # -- Hugging Face repository ID used in hub mode.
+  id: BAAI/bge-small-en-v1.5
+  # -- Required immutable 40-character Hub commit in hub mode.
+  revision: 5c38ec7c405ec4b44b94cc5a9bb96e735b38267a
+  # -- Optional OpenAI response model name; empty uses the native model ID.
+  servedName: ''
+  # -- Optional native pooling override: cls, mean, last-token or splade.
+  pooling: ''
+  # -- Native numerical type; match the model and selected hardware.
+  dtype: float32
+  # -- Optional literal embedding prompt, mutually exclusive with defaultPromptName.
+  defaultPrompt: ''
+  # -- Optional named prompt already present in the model configuration.
+  defaultPromptName: ''
+  # -- Complete local model artifacts mounted read-only at /models.
+  local:
+    # -- Prepopulated PVC required in local mode; multi-node replicas require compatible read-only storage.
+    existingClaim: ''
+    # -- Optional relative directory within the model PVC.
+    subPath: ''
+  # -- Independent read-only Hub credential for private or gated models.
+  hubToken:
+    # -- Existing Secret name.
+    existingSecret: ''
+    # -- Secret data key.
+    key: token
+# -- Native batching and admission limits, not throughput guarantees.
+inference:
+  # -- Maximum admitted concurrent requests; saturation applies native backpressure.
+  maxConcurrentRequests: 64
+  # -- Total token budget per dynamic batch; must fit model input length when truncation is disabled.
+  maxBatchTokens: 2048
+  # -- Maximum individual requests per backend batch; the pinned CPU backend forces exactly eight.
+  maxBatchRequests: 8
+  # -- Maximum input count per client request; overflow returns native HTTP 422.
+  maxClientBatchSize: 16
+  # -- Maximum request body bytes, enforced by the public proxy and native router.
+  payloadLimit: 1048576
+  # -- Automatically truncate overlength inputs; false preserves explicit rejection.
+  autoTruncate: false
+  # -- Tokenizer workers independent of the inference thread budget.
+  tokenizationWorkers: 2
+  # -- CPU Rayon, OpenMP and MKL thread budget per model replica.
+  threads: 2
+# -- Native API bearer authentication; /health remains unauthenticated.
+auth:
+  # -- Require native bearer authentication on inference and model information.
+  enabled: true
+  # -- Existing API credential Secret; empty creates and retains a random key across Helm upgrades.
+  existingSecret: ''
+  # -- Key within the generated or existing Secret.
+  secretKey: api-key
+# -- Reproducible model cache, not application data or a backup.
+cache:
+  # -- Optional single-replica ReadWriteOnce cache; requires Recreate and no HPA.
+  persistence:
+    # -- Use persistent cache storage instead of a per-Pod emptyDir.
+    enabled: false
+    # -- Reuse an existing writable cache PVC instead of creating one.
+    existingClaim: ''
+    # -- StorageClass for a new cache PVC; empty uses the cluster default, dash disables dynamic provisioning.
+    storageClass: ''
+    # -- Requested capacity of the cache PVC.
+    size: 5Gi
+    # -- Annotations on the cache PVC.
+    annotations: {}
+  # -- Ephemeral per-Pod cache limit; include full model artifacts and download overhead.
+  emptyDirSizeLimit: 5Gi
+# -- Optional NVIDIA allocation; set a compatible pinned CUDA image explicitly.
+gpu:
+  # -- Allocate NVIDIA GPUs; GPU runtime is not validated by the CPU-only lab.
+  enabled: false
+  # -- GPU units requested and limited per replica.
+  count: 1
+# -- Official unprivileged NGINX separates native API and private metrics paths.
+proxy:
+  # -- Official unprivileged proxy image and pull policy.
+  image:
+    # -- Official image repository or your trusted mirror.
+    repository: docker.io/nginxinc/nginx-unprivileged
+    # -- Pinned version and immutable image digest.
+    tag: 1.30.4-alpine@sha256:442753882674b49ae2c1de83ed67896131c0777f56df5005e356e62bc3f7e7ce
+    # -- Kubernetes image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Public Pod listener; native TEI always binds loopback port 8081.
+  port: 8080
+  # -- Enable IPv6 sockets; required for IPv6/dual-stack Services and must be false when kernel IPv6 is disabled.
+  ipv6: false
+  # -- Native response timeout; use a longer termination grace period.
+  readTimeoutSeconds: 120
+  # -- Proxy CPU and memory budgets, separate from model inference.
+  resources:
+    # -- Resources reserved by the scheduler.
+    requests:
+      # -- Kubernetes CPU quantity.
+      cpu: 50m
+      # -- Kubernetes memory quantity.
+      memory: 32Mi
+    # -- Maximum container resources.
+    limits:
+      # -- Kubernetes CPU quantity.
+      cpu: 500m
+      # -- Kubernetes memory quantity.
+      memory: 128Mi
+# -- Public inference Service; never includes the metrics port.
+service:
+  # -- Kubernetes Service exposure type.
+  type: ClusterIP
+  # -- Public Service port routed to the NGINX listener.
+  port: 80
+  # -- Annotations on the public Service.
+  annotations: {}
+  # -- Kubernetes IP family policy; empty uses the cluster default.
+  ipFamilyPolicy: ''
+  # -- Requested Service families, such as IPv4 and IPv6.
+  ipFamilies: []
+# -- Optional Ingress terminating at the public inference Service.
+ingress:
+  # -- Render an Ingress.
+  enabled: false
+  # -- Ingress controller class; empty omits the field.
+  ingressClassName: ''
+  # -- Annotations on the Ingress.
+  annotations: {}
+  # -- Explicit host/path rules required when Ingress is enabled.
+  hosts: []
+  # -- TLS host and Secret references managed by the edge controller.
+  tls: []
+# -- Canonical HTTPRoute definitions targeting a shared Gateway.
+gatewayAPI:
+  # -- Render Gateway API HTTPRoutes.
+  enabled: false
+  # -- Route items with parentRefs, hostnames, matches and optional filters.
+  httpRoutes: []
+# -- Canonical External Secrets Operator resources for referenced credentials.
+externalSecrets:
+  # -- Render ExternalSecret items.
+  enabled: false
+  # -- Default provider refresh interval.
+  refreshInterval: 1h
+  # -- Complete ExternalSecret item specs with explicit Secret store references.
+  items: []
+# -- Native TEI Prometheus exposition through a separate private NGINX listener.
+metrics:
+  # -- Enable the private metrics listener and Service.
+  enabled: false
+  # -- Private Pod and Service scrape port; never exposed by application routes.
+  port: 9464
+  # -- Explicit NetworkPolicy peers allowed to scrape; required when metrics is enabled.
+  ingressFrom: []
+  # -- Optional Prometheus Operator scraping resource.
+  serviceMonitor:
+    # -- Render a ServiceMonitor; requires an installed Prometheus Operator.
+    enabled: false
+    # -- Scrape interval.
+    interval: 30s
+    # -- Per-scrape timeout, no longer than interval.
+    scrapeTimeout: 10s
+    # -- Discovery labels expected by your Prometheus.
+    labels: {}
+  # -- Optional scrape availability alert and additional native metric rules.
+  prometheusRule:
+    # -- Render PrometheusRule; requires ServiceMonitor for the built-in target alert.
+    enabled: false
+    # -- Rule discovery labels.
+    labels: {}
+    # -- Additional valid Prometheus alerting or recording rules.
+    additionalRules: []
+# -- Pod network boundaries; CNI enforcement is required.
+networkPolicy:
+  # -- Render application ingress and optional egress isolation.
+  enabled: true
+  # -- Allowed application peers; empty permits same-namespace Pods.
+  ingressFrom: []
+  # -- Enable outbound isolation.
+  egressIsolation: true
+  # -- Allow DNS and public HTTPS for Hub/CDN artifacts in hub mode; ignored in local mode.
+  allowHubDownloads: true
+  # -- Additional explicit egress rules, for example a managed telemetry collector.
+  extraEgress: []
+# -- Dedicated tokenless workload identity.
+serviceAccount:
+  # -- Create the workload ServiceAccount.
+  create: true
+  # -- Existing or overridden ServiceAccount name.
+  name: ''
+  # -- ServiceAccount annotations.
+  annotations: {}
+  # -- Mount a Kubernetes API token; false is the secure default.
+  automountServiceAccountToken: false
+# -- Pod identity and cache volume ownership; default UID/GID/fsGroup 1000.
+podSecurityContext:
+  # -- Require a non-root process.
+  runAsNonRoot: true
+  # -- Numeric process UID.
+  runAsUser: 1000
+  # -- Numeric process group.
+  runAsGroup: 1000
+  # -- Group owning writable mounted volumes.
+  fsGroup: 1000
+  # -- Volume ownership reconciliation policy.
+  fsGroupChangePolicy: OnRootMismatch
+  # -- Pod seccomp configuration.
+  seccompProfile:
+    # -- Seccomp profile type applied to the Pod.
+    type: RuntimeDefault
+# -- Native and proxy container hardening.
+securityContext:
+  # -- Allow process privilege escalation.
+  allowPrivilegeEscalation: false
+  # -- Mount the image filesystem read-only.
+  readOnlyRootFilesystem: true
+  # -- Linux capability policy.
+  capabilities:
+    # -- Capabilities removed from the container.
+    drop:
+      - ALL
+# -- Native TEI CPU/memory budget; each replica loads a complete model.
+resources:
+  # -- Resources reserved by the scheduler.
+  requests:
+    # -- Kubernetes CPU quantity.
+    cpu: 500m
+    # -- Kubernetes memory quantity.
+    memory: 512Mi
+  # -- Maximum container resources.
+  limits:
+    # -- Kubernetes CPU quantity.
+    cpu: '2'
+    # -- Kubernetes memory quantity.
+    memory: 2Gi
+# -- Native loopback /health probes; startup budget includes download and warmup.
+probes:
+  # -- Native startup health budget; period, timeout and threshold also govern proxy startup.
+  startup:
+    # -- Enable this native health probe.
+    enabled: true
+    # -- Seconds between health probes.
+    periodSeconds: 5
+    # -- Maximum health probe duration.
+    timeoutSeconds: 3
+    # -- Consecutive failures before the probe action.
+    failureThreshold: 120
+  # -- Native model readiness; proxy readiness independently checks the public health path.
+  readiness:
+    # -- Enable this native health probe.
+    enabled: true
+    # -- Seconds between health probes.
+    periodSeconds: 10
+    # -- Maximum health probe duration.
+    timeoutSeconds: 3
+    # -- Consecutive failures before the probe action.
+    failureThreshold: 3
+  # -- Native model health restart policy; proxy liveness independently checks its TCP listener.
+  liveness:
+    # -- Enable this native health probe.
+    enabled: true
+    # -- Seconds between health probes.
+    periodSeconds: 30
+    # -- Maximum health probe duration.
+    timeoutSeconds: 3
+    # -- Consecutive failures before the probe action.
+    failureThreshold: 3
+# -- Use Recreate to avoid mixed model versions; RollingUpdate requires compatible model identity and spare capacity.
+rollout:
+  # -- Recreate or RollingUpdate; persistent RWO cache requires Recreate.
+  strategy: Recreate
+  # -- Extra Pods during RollingUpdate; a GPU surge needs spare GPUs.
+  maxSurge: 1
+  # -- Maximum unavailable Pods during RollingUpdate.
+  maxUnavailable: 0
+# -- Graceful native shutdown budget; requests are not durably queued.
+terminationGracePeriodSeconds: 150
+# -- CPU ContainerResource HPA; not a GPU utilization signal.
+autoscaling:
+  # -- Scale independent CPU replicas; requires ephemeral cache and CPU requests.
+  enabled: false
+  # -- Minimum replicas; at least two when a PDB is enabled.
+  minReplicas: 2
+  # -- Maximum replicas; reserve model RAM for every Pod.
+  maxReplicas: 4
+  # -- TEI container CPU target, excluding proxy consumption.
+  targetCPUUtilizationPercentage: 70
+# -- Protection against voluntary evictions; does not make a singleton highly available.
+podDisruptionBudget:
+  # -- Render a PDB only for at least two minimum replicas.
+  enabled: false
+  # -- Replicas allowed to be unavailable during voluntary eviction.
+  maxUnavailable: 1
+# -- Placement labels; pinned TEI 1.9.3 images support linux/amd64 only.
+nodeSelector:
+  # -- Required node architecture for the pinned CPU and CUDA images.
+  kubernetes.io/arch: amd64
+# -- Tolerations for dedicated inference or GPU nodes.
+tolerations: []
+# -- Pod/node affinity; spread independent replicas across failure domains.
+affinity: {}
+# -- Kubernetes topology spread constraints.
+topologySpreadConstraints: []
+# -- Optional scheduling priority class.
+priorityClassName: ''
+# -- Additional Pod labels; selector labels cannot be overridden.
+podLabels: {}
+# -- Additional Pod annotations; use a rotation annotation to restart after external Secret changes.
+podAnnotations: {}
+# -- Additional non-reserved native environment variables; credentials, binding and log safety are chart-owned.
+extraEnv: []

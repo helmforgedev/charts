@@ -1,0 +1,91 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Reject unsafe or incompatible inference contracts
+templates:
+  - validate.yaml
+tests:
+  - it: rejects CPU backend batch settings that upstream would silently replace
+    set:
+      inference.maxBatchRequests: 4
+    asserts:
+      - failedTemplate:
+          errorMessage: the pinned CPU backend forces exactly eight batch requests; inference.maxBatchRequests must be 8
+  - it: rejects floating model revisions
+    set:
+      model.revision: ''
+    asserts:
+      - failedTemplate:
+          errorMessage: hub models require model.id and an immutable 40-character model.revision
+  - it: requires local artifacts
+    set:
+      model.source: local
+    asserts:
+      - failedTemplate:
+          errorMessage: local models require model.local.existingClaim containing complete model artifacts
+  - it: prevents log credential exposure
+    set:
+      extraEnv:
+        - name: LOG_LEVEL
+          value: info
+    asserts:
+      - failedTemplate:
+          errorMessage: extraEnv cannot override chart-owned LOG_LEVEL
+  - it: prevents native listener bypass
+    set:
+      extraEnv:
+        - name: HOSTNAME
+          value: 0.0.0.0
+    asserts:
+      - failedTemplate:
+          errorMessage: extraEnv cannot override chart-owned HOSTNAME
+  - it: prevents shared writable cache scaling
+    set:
+      cache.persistence.enabled: true
+      replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: persistent cache requires one replica, Recreate strategy and autoscaling disabled
+  - it: prevents cache surge mounts
+    set:
+      cache.persistence.enabled: true
+      rollout.strategy: RollingUpdate
+    asserts:
+      - failedTemplate:
+          errorMessage: persistent cache requires one replica, Recreate strategy and autoscaling disabled
+  - it: requires explicit monitoring peers
+    set:
+      metrics.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: metrics.ingressFrom must explicitly authorize monitoring peers
+  - it: prevents misleading singleton PDB
+    set:
+      podDisruptionBudget.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: podDisruptionBudget requires at least two minimum replicas and a smaller maxUnavailable
+  - it: requires a CUDA image for GPUs
+    set:
+      gpu.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: gpu.enabled requires a compatible pinned CUDA image tag
+  - it: prevents CPU HPA on GPU workloads
+    set:
+      gpu.enabled: true
+      autoscaling.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: CPU autoscaling requires CPU requests and gpu.enabled=false
+  - it: reserves loopback port
+    set:
+      proxy.port: 8081
+    asserts:
+      - failedTemplate:
+          errorMessage: public, private metrics and reserved loopback 8081 ports must differ
+  - it: rejects contradictory prompt configuration
+    set:
+      model.defaultPrompt: 'query: '
+      model.defaultPromptName: query
+    asserts:
+      - failedTemplate:
+          errorMessage: model.defaultPrompt and model.defaultPromptName are mutually exclusive

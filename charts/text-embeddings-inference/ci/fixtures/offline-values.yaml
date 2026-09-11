@@ -1,0 +1,81 @@
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tei-local-model
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tei-seed-model
+  labels:
+    helmforge.dev/runtime-fixture: 'true'
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        helmforge.dev/runtime-fixture: 'true'
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: download
+          image: >-
+            ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3@sha256:ad950d30878eceb72aaf32024d26fa2b1d04a75304fa0b4776b49aa1941fea07
+          command:
+            - /bin/sh
+            - '-ec'
+            - >
+              set -eu
+
+              modelBase=https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a
+
+              mkdir -p /model/onnx /model/1_Pooling
+
+              for artifact in config.json tokenizer.json tokenizer_config.json config_sentence_transformers.json
+              sentence_bert_config.json 1_Pooling/config.json onnx/model.onnx; do
+                curl --fail --silent --show-error --location --retry 3 --max-time 300 "$modelBase/$artifact" --output "/model/$artifact"
+              done
+
+              printf '828e1496d7fabb79cfa4dcd84fa38625c0d3d21da474a00f08db0f559940cf35  /model/onnx/model.onnx\n' |
+              sha256sum -c -
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: '1'
+              memory: 256Mi
+          volumeMounts:
+            - name: model
+              mountPath: /model
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: model
+          persistentVolumeClaim:
+            claimName: tei-local-model
+        - name: tmp
+          emptyDir:
+            sizeLimit: 32Mi

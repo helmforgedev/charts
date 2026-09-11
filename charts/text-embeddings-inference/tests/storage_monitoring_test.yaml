@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Cache, isolation and monitoring
+templates:
+  - pvc.yaml
+  - networkpolicy.yaml
+  - metrics.yaml
+  - hpa.yaml
+  - pdb.yaml
+tests:
+  - it: keeps ephemeral cache as default
+    template: pvc.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: creates an owned RWO cache only when requested
+    template: pvc.yaml
+    set:
+      cache.persistence.enabled: true
+    asserts:
+      - equal:
+          path: spec.accessModes
+          value:
+            - ReadWriteOnce
+      - equal:
+          path: spec.resources.requests.storage
+          value: 5Gi
+  - it: does not recreate an existing cache claim
+    template: pvc.yaml
+    set:
+      cache.persistence.enabled: true
+      cache.persistence.existingClaim: owned-cache
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: denies all offline egress
+    template: networkpolicy.yaml
+    set:
+      model.source: local
+      model.local.existingClaim: model
+    asserts:
+      - equal:
+          path: spec.egress
+          value: []
+  - it: only permits declared scraper peers on the private listener
+    template: networkpolicy.yaml
+    set:
+      metrics.enabled: true
+      metrics.ingressFrom:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+    asserts:
+      - equal:
+          path: spec.ingress[1].from
+          value:
+            - podSelector:
+                matchLabels:
+                  app: prometheus
+      - equal:
+          path: spec.ingress[1].ports
+          value:
+            - protocol: TCP
+              port: metrics
+  - it: renders real native monitoring resources
+    template: metrics.yaml
+    set:
+      metrics.enabled: true
+      metrics.ingressFrom:
+        - podSelector: {}
+      metrics.serviceMonitor.enabled: true
+      metrics.prometheusRule.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 3
+      - equal:
+          path: spec.endpoints[0].port
+          value: metrics
+        documentIndex: 1
+      - equal:
+          path: spec.groups[0].rules[0].alert
+          value: TextEmbeddingsInferenceUnavailable
+        documentIndex: 2
+  - it: targets the native container CPU rather than the proxy
+    template: hpa.yaml
+    set:
+      autoscaling.enabled: true
+    asserts:
+      - equal:
+          path: spec.metrics[0].containerResource.container
+          value: tei
+      - equal:
+          path: spec.scaleTargetRef.kind
+          value: Deployment
+  - it: protects an actual replicated service
+    template: pdb.yaml
+    set:
+      replicaCount: 2
+      podDisruptionBudget.enabled: true
+    asserts:
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
