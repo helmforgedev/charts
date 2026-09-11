@@ -28,7 +28,7 @@ def validate(module):
             try:
                 action()
                 raise AssertionError('Invalid archive operation unexpectedly succeeded')
-            except (RuntimeError, PermissionError):
+            except (RuntimeError, OSError):
                 pass
         def clear_work():
             shutil.rmtree(module.WORK)
@@ -49,6 +49,30 @@ def validate(module):
         blocked.chmod(0o600)
         blocked.unlink()
         clear_work()
+        nested = module.ROOT / 'nested'
+        nested.mkdir()
+        (nested / 'payload.txt').write_text('inside')
+        outside = temporary / 'outside'
+        outside.mkdir()
+        (outside / 'payload.txt').write_text('must-not-be-archived')
+        original_open = module.os.open
+        def replaced_directory(path, flags, *args, **kwargs):
+            if path == 'nested' and kwargs.get('dir_fd') is not None:
+                nested.rename(module.ROOT / 'saved')
+                nested.symlink_to(outside, target_is_directory=True)
+            return original_open(path, flags, *args, **kwargs)
+        descriptors = len(list(pathlib.Path('/proc/self/fd').iterdir()))
+        try:
+            module.os.open = replaced_directory
+            fails(module.backup)
+            assert not (module.WORK / 'manifest.json').exists()
+            assert len(list(pathlib.Path('/proc/self/fd').iterdir())) == descriptors
+        finally:
+            module.os.open = original_open
+            nested.unlink()
+            (module.ROOT / 'saved').rename(nested)
+        clear_work()
+        print('PASS intermediate-directory replacement is rejected without leaking descriptors')
         module.backup()
         manifest = json.loads((module.WORK / 'manifest.json').read_text())
         assert manifest['files']['provider.store']['sqlite'] is True

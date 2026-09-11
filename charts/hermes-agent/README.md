@@ -86,6 +86,7 @@ All default values are listed below; upstream pass-through configuration remains
 | `agent.toolsets` | `["memory"]` | API toolsets. Memory-only by default; enabling terminal/browser grants additional capabilities. |
 | `agent.maxIterations` | `30` | Maximum tool execution turns for one agent request. |
 | `agent.apiKeyEnv` | `""` | Credential environment variable for a named custom provider; never an inline API key. |
+| `agent.allowInsecureHTTP` | `false` | Explicit HTTP exception for credentialed custom endpoints in isolated tests or trusted networks. |
 | `config` | Object | Non-secret upstream configuration with explicit ownership on Pod initialization. |
 | `config.policy` | `"managed"` | managed reconciles declared files; seed preserves existing files and permits dashboard edits. |
 | `config.values` | `{}` | Additional upstream configuration. Do not place credentials here; chart-owned sections are validated. |

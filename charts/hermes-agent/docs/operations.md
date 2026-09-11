@@ -73,3 +73,17 @@ an explicit Secret migration.
 - Missing skills/browser binaries: inspect configure logs and the pinned official image; do not enable ad hoc dependency downloads to hide a broken image
   upgrade.
 - Restore refuses startup: preserve the incomplete volume for diagnosis and recover again into a new empty PVC. Do not bypass the incomplete marker.
+
+## Transport security and collector identity
+
+Credentialed custom endpoints require HTTPS by default. `agent.allowInsecureHTTP=true` is an explicit exception for isolated fixtures or a trusted private
+transport; never use it for public provider traffic. Advanced upstream provider configuration under `config.values` must follow the same transport policy.
+
+Public API and dashboard clients must use HTTPS at the trusted edge. The production example attaches only to a Gateway HTTPS listener. When using Ingress,
+configure its TLS Secret or an external TLS terminator, and configure that controller or load balancer to reject HTTP or redirect it before clients send
+credentials. A generic Ingress has no portable redirect field, so the chart does not inject controller-specific annotations or require a local TLS Secret when
+termination occurs upstream. Ingress stays disabled and inbound traffic denied by default.
+
+The gateway and administrative dashboard use UID 10000 in a shared PID namespace. The metrics collector uses UID/GID 10001 with all capabilities dropped; it
+cannot read the gateway's process environment. It has no state-volume or credential Secret mount. The production example budgets 120Gi of node staging for its
+50Gi persistent state and raises restore bounds accordingly; verify node ephemeral-storage capacity before scheduling backup or recovery.

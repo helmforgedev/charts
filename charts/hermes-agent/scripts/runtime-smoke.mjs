@@ -25,7 +25,7 @@ if(values.agent.provider!=='custom:fixture') {
   const temporary=fs.mkdtempSync(path.join(os.tmpdir(),'hf-hermes-'));
   const file=path.join(temporary,'values.json');
   try {
-    fs.writeFileSync(file,JSON.stringify({agent:{model:'helmforge-fixture',provider:'custom:fixture',baseUrl:'http://hermes-provider:8080/v1',apiKeyEnv:'OPENAI_API_KEY'},credentials:{existingSecret:'hermes-provider-credentials'},networkPolicy:{allowInternet:false,extraEgress:[{to:[{podSelector:{matchLabels:{app:'hermes-provider'}}}],ports:[{protocol:'TCP',port:8080}]}]},config:{values:{model:{api_mode:'chat_completions'},auxiliary:{free_only:true}}}}));
+    fs.writeFileSync(file,JSON.stringify({agent:{model:'helmforge-fixture',provider:'custom:fixture',baseUrl:'http://hermes-provider:8080/v1',apiKeyEnv:'OPENAI_API_KEY',allowInsecureHTTP:true},credentials:{existingSecret:'hermes-provider-credentials'},networkPolicy:{allowInternet:false,extraEgress:[{to:[{podSelector:{matchLabels:{app:'hermes-provider'}}}],ports:[{protocol:'TCP',port:8080}]}]},config:{values:{model:{api_mode:'chat_completions'},auxiliary:{free_only:true}}}}));
     helm(['upgrade',release,chart,'--reuse-values','-f',file,'--wait','--timeout','60s']);
   } finally {fs.rmSync(file,{force:true});fs.rmdirSync(temporary);}
   values = JSON.parse(helm(['get','values',release,'--all','-o','json']));
@@ -101,6 +101,42 @@ if(values.metrics.enabled && values.metrics.collector.enabled) {
   } finally {k(['delete','networkpolicy',metricsPolicy]);}
   if(values.metrics.serviceMonitor.enabled) assert.equal(json(['get','servicemonitor',name,'-o','json']).spec.endpoints[0].port,'metrics');
   if(values.metrics.prometheusRule.enabled) assert.equal(json(['get','prometheusrule',name,'-o','json']).spec.groups[0].rules[0].alert,'HermesGatewayUnavailable');
+  const metricsContainer=statefulSet.spec.template.spec.containers.find(item=>item.name==='metrics');
+  assert.equal(metricsContainer.securityContext.runAsUser,10001);
+  const boundaryName=`metrics-boundary-${Date.now()}`;
+  const boundaryScript=`import os,pathlib
+assert os.getuid()==10001 and os.getgid()==10001
+found=0
+for process in pathlib.Path('/proc').iterdir():
+ if not process.name.isdigit(): continue
+ try:
+  command=(process/'cmdline').read_bytes()
+  status=(process/'status').read_text()
+ except (FileNotFoundError,PermissionError,ProcessLookupError): continue
+ if b'gateway\\x00run' not in command or 'Uid:\\t10000\\t' not in status: continue
+ found+=1
+ try:
+  (process/'environ').read_bytes()
+  raise AssertionError('Collector identity can read gateway credentials')
+ except PermissionError: pass
+ try:
+  os.kill(int(process.name),0)
+  raise AssertionError('Collector identity can signal gateway')
+ except PermissionError: pass
+assert found>0,'Gateway process must be visible for a meaningful permission check'
+print('PASS collector identity cannot read gateway environment or signal gateway')
+`;
+  const currentPod=json(['get','pod',pod,'-o','json']);
+  currentPod.spec.ephemeralContainers=[...(currentPod.spec.ephemeralContainers||[]),{name:boundaryName,image:statefulSet.spec.template.spec.containers[0].image,command:['/opt/hermes/.venv/bin/python','-c',boundaryScript],securityContext:{...metricsContainer.securityContext,runAsNonRoot:true}}];
+  k(['replace','--raw',`/api/v1/namespaces/${namespace}/pods/${pod}/ephemeralcontainers`,'-f','-'],JSON.stringify(currentPod));
+  let finished;
+  for(let attempt=0;attempt<40;attempt++) {
+    finished=json(['get','pod',pod,'-o','json']).status.ephemeralContainerStatuses?.find(item=>item.name===boundaryName)?.state?.terminated;
+    if(finished)break;
+    await delay(500);
+  }
+  assert.equal(finished?.exitCode,0,'Collector permission boundary test must complete successfully');
+  console.log(k(['logs',pod,'-c',boundaryName]).trim());
   console.log('PASS native gateway telemetry exported as Prometheus metrics');
 }
 if(values.externalSecrets.enabled) {

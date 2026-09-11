@@ -70,3 +70,7 @@ node disk.
 
 Verify an authenticated agent turn, old session history and memory in a fresh session before directing production traffic to the recovered release. The local
 acceptance suite performs this recovery against HTTPS S3-compatible storage and checks that a second Pod startup does not replay the restore.
+
+The snapshot walker opens every path component relative to a pinned directory descriptor with symlink following disabled. SQLite snapshots use a pinned file
+descriptor as their source while preserving native online backup and WAL semantics. Directory replacement is covered by a failure-injection test, and descriptor
+cleanup is checked on rejection.

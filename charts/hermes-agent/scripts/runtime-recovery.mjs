@@ -10,11 +10,16 @@ export async function validateRecovery({k,json,helm,values,name,pod,python,chart
   const acceptance=fs.readFileSync(path.join(chart,'scripts','archive-accept.py'),'utf8');
   console.log(python(`import types\nmodule=types.ModuleType('archive_contract')\nexec(compile(${JSON.stringify(moduleSource)},'archive.py','exec'),module.__dict__)\n${acceptance}\nvalidate(module)\n`,'hermes',pod,['HERMES_HOME=/tmp/hermes-archive-contract']).trim());
   const job='hermes-acceptance-backup';
-  k(['create','job',job,`--from=cronjob/${name}-backup`]);
-  k(['wait','--for=condition=complete',`job/${job}`,'--timeout=60s']);
-  assert.match(k(['logs',`job/${job}`,'-c','snapshot']),/Strict native snapshot verified/);
-  const output=k(['logs',`job/${job}`,'-c','upload']);
-  const match=output.match(/s3:\/\/[^/]+\/(.+\/manifest\.json)/);
+  let match;
+  try {
+    k(['create','job',job,`--from=cronjob/${name}-backup`]);
+    k(['wait','--for=condition=complete',`job/${job}`,'--timeout=60s']);
+    assert.match(k(['logs',`job/${job}`,'-c','snapshot']),/Strict native snapshot verified/);
+    const output=k(['logs',`job/${job}`,'-c','upload']);
+    match=output.match(/s3:\/\/[^/]+\/(.+\/manifest\.json)/);
+  } finally {
+    k(['delete','job',job,'--ignore-not-found=true','--wait=true','--timeout=60s']);
+  }
   assert(match,'Backup upload must publish its completed manifest');
   console.log('PASS native SQLite snapshot, HTTPS S3 upload and remote byte verification');
   const restoreName=`${name.slice(0,40)}-recovered`;

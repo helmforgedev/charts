@@ -8,6 +8,7 @@ import shutil
 import stat
 import sys
 import zipfile
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
@@ -118,6 +119,27 @@ def verify_archive(manifest, archive, destination=None):
                     require(native.verify_sqlite_integrity(target, max_bytes=0)['valid'], 'Restored SQLite integrity check failed')
 
 
+@contextmanager
+def open_state_file(relative):
+    """Walk from an open root, rejecting symlinks in every path component."""
+    parts = safe_name(relative.as_posix()).parts
+    directory = os.open(ROOT, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    descriptor = None
+    try:
+        for part in parts[:-1]:
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
+            os.close(directory)
+            directory = child
+        descriptor = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW, dir_fd=directory)
+        require(stat.S_ISREG(os.fstat(descriptor).st_mode), 'State file changed during backup')
+        require(Path(f'/proc/self/fd/{descriptor}').resolve().is_relative_to(ROOT.resolve()), 'Opened state file escapes root')
+        yield descriptor
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        os.close(directory)
+
+
 def backup():
     require(ROOT.is_dir() and not ROOT.is_symlink(), 'Invalid state directory')
     require((ROOT / 'config.yaml').is_file() and (ROOT / 'state.db').is_file(), 'Agent state is not initialized')
@@ -129,35 +151,34 @@ def backup():
         files = enumerate_files()
         with zipfile.ZipFile(archive, 'x', compression=zipfile.ZIP_DEFLATED, allowZip64=True) as bundle:
             for relative in files:
-                source = ROOT / relative
-                require(source.resolve().is_relative_to(ROOT.resolve()) and not source.is_symlink(), 'State path changed during backup')
-                descriptor = os.open(source, os.O_RDONLY | os.O_NOFOLLOW)
-                info = os.fstat(descriptor)
-                require(stat.S_ISREG(info.st_mode), 'State file changed during backup')
-                signature = os.read(descriptor, 16)
-                os.lseek(descriptor, 0, os.SEEK_SET)
-                is_sqlite = source.suffix in ('.db', '.sqlite', '.sqlite3') or signature == b'SQLite format 3\x00'
-                snapshot = WORK / 'snapshot.db'
-                if is_sqlite:
-                    os.close(descriptor)
-                    require(native._safe_copy_db(source, snapshot), 'Native SQLite snapshot failed')
-                    require(native.verify_sqlite_integrity(snapshot, max_bytes=0)['valid'], 'SQLite snapshot integrity check failed')
-                    source = snapshot
-                    descriptor = os.open(source, os.O_RDONLY | os.O_NOFOLLOW)
-                mode = 0o700 if info.st_mode & 0o111 and not is_sqlite else 0o600
-                entry = zipfile.ZipInfo(relative.as_posix())
-                entry.compress_type = zipfile.ZIP_DEFLATED
-                entry.external_attr = (stat.S_IFREG | mode) << 16
-                digest = hashlib.sha256()
-                size = 0
-                with os.fdopen(descriptor, 'rb') as stream, bundle.open(entry, 'w', force_zip64=True) as output:
-                    while chunk := stream.read(CHUNK):
-                        output.write(chunk)
-                        digest.update(chunk)
-                        size += len(chunk)
-                inventory[entry.filename] = {'bytes': size, 'sha256': digest.hexdigest(), 'mode': mode, 'sqlite': is_sqlite}
-                if snapshot.exists():
-                    snapshot.unlink()
+                with open_state_file(relative) as descriptor:
+                    info = os.fstat(descriptor)
+                    signature = os.read(descriptor, 16)
+                    os.lseek(descriptor, 0, os.SEEK_SET)
+                    is_sqlite = relative.suffix in ('.db', '.sqlite', '.sqlite3') or signature == b'SQLite format 3\x00'
+                    snapshot = WORK / 'snapshot.db'
+                    if is_sqlite:
+                        pinned = Path(f'/proc/self/fd/{descriptor}')
+                        require(native._safe_copy_db(pinned, snapshot), 'Native SQLite snapshot failed')
+                        require(pinned.resolve().is_relative_to(ROOT.resolve()), 'State database moved outside root')
+                        require(native.verify_sqlite_integrity(snapshot, max_bytes=0)['valid'], 'SQLite snapshot integrity check failed')
+                        archive_descriptor = os.open(snapshot, os.O_RDONLY | os.O_NOFOLLOW)
+                    else:
+                        archive_descriptor = os.dup(descriptor)
+                    mode = 0o700 if info.st_mode & 0o111 and not is_sqlite else 0o600
+                    entry = zipfile.ZipInfo(relative.as_posix())
+                    entry.compress_type = zipfile.ZIP_DEFLATED
+                    entry.external_attr = (stat.S_IFREG | mode) << 16
+                    digest = hashlib.sha256()
+                    size = 0
+                    with os.fdopen(archive_descriptor, 'rb') as stream, bundle.open(entry, 'w', force_zip64=True) as output:
+                        while chunk := stream.read(CHUNK):
+                            output.write(chunk)
+                            digest.update(chunk)
+                            size += len(chunk)
+                    inventory[entry.filename] = {'bytes': size, 'sha256': digest.hexdigest(), 'mode': mode, 'sqlite': is_sqlite}
+                    if snapshot.exists():
+                        snapshot.unlink()
         require(set(files) == set(enumerate_files()), 'State file set changed during backup; retry during a quieter period')
     checksum, size = digest_file(archive)
     manifest = {'formatVersion': 1, 'runId': run, 'completedAt': datetime.now(timezone.utc).isoformat(),

@@ -37,6 +37,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 {{- if and .Values.dashboard.enabled (or (ne .Values.config.policy "seed") (empty .Values.dashboard.existingSecret)) }}{{ fail "dashboard.enabled requires config.policy=seed and dashboard.existingSecret" }}{{- end }}
 {{- if and .Values.agent.apiKeyEnv (or (not (hasPrefix "custom:" .Values.agent.provider)) (empty .Values.agent.baseUrl)) }}{{ fail "agent.apiKeyEnv requires a custom:<name> provider and agent.baseUrl" }}{{- end }}
+{{- if and .Values.agent.apiKeyEnv (not (hasPrefix "https://" .Values.agent.baseUrl)) (not (and .Values.agent.allowInsecureHTTP (hasPrefix "http://" .Values.agent.baseUrl))) }}{{ fail "credentialed custom providers require HTTPS; agent.allowInsecureHTTP is an explicit trusted-network exception" }}{{- end }}
 {{- if and .Values.metrics.enabled (not .Values.metrics.collector.enabled) (empty .Values.metrics.externalEndpoint) }}{{ fail "metrics.externalEndpoint is required without the local collector" }}{{- end }}
 {{- if and (or .Values.metrics.serviceMonitor.enabled .Values.metrics.prometheusRule.enabled) (not (and .Values.metrics.enabled .Values.metrics.collector.enabled)) }}{{ fail "Prometheus integration requires metrics.enabled and metrics.collector.enabled" }}{{- end }}
 {{- if and (hasKey .Values.config.values "monitoring") .Values.metrics.enabled }}{{ fail "metrics.enabled owns config.values.monitoring; configure metrics values instead" }}{{- end }}
