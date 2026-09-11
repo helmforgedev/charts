@@ -26,6 +26,7 @@ app.kubernetes.io/part-of: helmforge
 {{- define "text-embeddings-inference.cacheClaim" -}}{{ default (include "text-embeddings-inference.suffix" (dict "root" . "suffix" "cache")) .Values.cache.persistence.existingClaim }}{{- end -}}
 {{- define "text-embeddings-inference.externalSecretName" -}}{{- if .item.fullnameOverride -}}{{ .item.fullnameOverride | trunc 63 | trimSuffix "-" }}{{- else -}}{{ include "text-embeddings-inference.suffix" (dict "root" .root "suffix" (default "auth" .item.name)) }}{{- end -}}{{- end -}}
 {{- define "text-embeddings-inference.validate" -}}
+{{- if and (not .Values.proxy.ipv6) (or (has "IPv6" .Values.service.ipFamilies) (has .Values.service.ipFamilyPolicy (list "PreferDualStack" "RequireDualStack"))) -}}{{ fail "proxy.ipv6 must be enabled when requesting IPv6 or dual-stack Services" }}{{- end -}}
 {{- if and (eq .Values.model.source "hub") (or (not .Values.model.id) (not (regexMatch "^[a-f0-9]{40}$" .Values.model.revision))) -}}{{ fail "hub models require model.id and an immutable 40-character model.revision" }}{{- end -}}
 {{- if and (eq .Values.model.source "local") (not .Values.model.local.existingClaim) -}}{{ fail "local models require model.local.existingClaim containing complete model artifacts" }}{{- end -}}
 {{- if and .Values.model.defaultPrompt .Values.model.defaultPromptName -}}{{ fail "model.defaultPrompt and model.defaultPromptName are mutually exclusive" }}{{- end -}}
@@ -47,4 +48,12 @@ app.kubernetes.io/part-of: helmforge
 {{- range $labels := list .Values.commonLabels .Values.podLabels -}}{{- range $key := list "app.kubernetes.io/name" "app.kubernetes.io/instance" -}}{{- if hasKey $labels $key -}}{{ fail (printf "selector label %s cannot be overridden" $key) }}{{- end -}}{{- end -}}{{- end -}}
 {{- $reserved := list "API_KEY" "HF_TOKEN" "LOG_LEVEL" "HOSTNAME" "PORT" "MODEL_ID" "REVISION" "SERVED_MODEL_NAME" "POOLING" "DTYPE" "DEFAULT_PROMPT" "DEFAULT_PROMPT_NAME" "HUGGINGFACE_HUB_CACHE" "HF_HOME" "MAX_CONCURRENT_REQUESTS" "MAX_BATCH_TOKENS" "MAX_BATCH_REQUESTS" "MAX_CLIENT_BATCH_SIZE" "PAYLOAD_LIMIT" "AUTO_TRUNCATE" "TOKENIZATION_WORKERS" "RAYON_NUM_THREADS" "OMP_NUM_THREADS" "MKL_NUM_THREADS" -}}
 {{- range .Values.extraEnv -}}{{- if has .name $reserved -}}{{ fail (printf "extraEnv cannot override chart-owned %s" .name) }}{{- end -}}{{- end -}}
+{{- end -}}
+{{- define "text-embeddings-inference.validateExternalSecrets" -}}
+{{- $names := dict -}}
+{{- range .Values.externalSecrets.items -}}
+{{- $name := include "text-embeddings-inference.externalSecretName" (dict "root" $ "item" .) -}}
+{{- if hasKey $names $name -}}{{ fail "ExternalSecret names must be unique after rendering and truncation" }}{{- end -}}
+{{- $_ := set $names $name true -}}
+{{- end -}}
 {{- end -}}

@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Listener compatibility and ExternalSecret identity
+templates:
+  - configmap.yaml
+  - externalsecret.yaml
+  - validate.yaml
+tests:
+  - it: avoids IPv6 sockets by default
+    template: configmap.yaml
+    asserts:
+      - notMatchRegex:
+          path: data["nginx.conf"]
+          pattern: listen \[::\]
+  - it: enables IPv6 on public and private listeners explicitly
+    template: configmap.yaml
+    set:
+      proxy.ipv6: true
+      metrics.enabled: true
+      metrics.ingressFrom:
+        - podSelector: {}
+    asserts:
+      - matchRegex:
+          path: data["nginx.conf"]
+          pattern: listen \[::\]:8080;
+      - matchRegex:
+          path: data["nginx.conf"]
+          pattern: listen \[::\]:9464;
+  - it: rejects dual-stack Services without an IPv6 listener
+    template: validate.yaml
+    set:
+      service.ipFamilyPolicy: RequireDualStack
+    asserts:
+      - failedTemplate:
+          errorMessage: proxy.ipv6 must be enabled when requesting IPv6 or dual-stack Services
+  - it: rejects colliding implicit ExternalSecret names
+    template: externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - spec:
+            secretStoreRef:
+              name: store
+        - spec:
+            secretStoreRef:
+              name: store
+    asserts:
+      - failedTemplate:
+          errorMessage: ExternalSecret names must be unique after rendering and truncation
+  - it: rejects duplicate explicit ExternalSecret names
+    template: externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: identity
+          spec:
+            secretStoreRef:
+              name: store
+        - fullnameOverride: identity
+          spec:
+            secretStoreRef:
+              name: store
+    asserts:
+      - failedTemplate:
+          errorMessage: ExternalSecret names must be unique after rendering and truncation
+  - it: rejects ExternalSecret names that collide after truncation
+    template: externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-one
+          spec:
+            secretStoreRef:
+              name: store
+        - fullnameOverride: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-two
+          spec:
+            secretStoreRef:
+              name: store
+    asserts:
+      - failedTemplate:
+          errorMessage: ExternalSecret names must be unique after rendering and truncation

@@ -18,7 +18,7 @@ Install Prometheus Operator CRDs before enabling ServiceMonitor or PrometheusRul
 ServiceMonitor labels and namespace. A ServiceMonitor object alone does not prove a successful scrape.
 
 Inspect `up` for the metrics endpoint and native `te_request_count`, `te_request_success` and inference-duration
-histograms after real requests. The default alert detects a down target; define latency/error SLOs from measured
+histograms after real requests. The default alert detects a down or absent target; define latency/error SLOs from measured
 traffic and the exact release's metric labels. Restrict access to monitoring metadata.
 
 ## Troubleshooting

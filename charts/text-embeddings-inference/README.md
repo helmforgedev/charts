@@ -155,7 +155,8 @@ when hostname restrictions are required. Local mode denies egress unless `extraE
 Policy enforcement requires a compatible CNI. Custom peer rules replace the default same-namespace rule.
 
 `service.ipFamilyPolicy` and `service.ipFamilies` configure API and metrics Services. RequireDualStack needs a
-dual-stack cluster; PreferDualStack may fall back. Both proxy listeners support IPv4 and IPv6.
+dual-stack cluster; PreferDualStack may fall back. IPv4 sockets are the default. Set `proxy.ipv6: true` for IPv6 or dual-stack Services;
+the chart rejects incompatible listener/Service settings. Keep it false when kernel IPv6 support is disabled.
 
 ## Observability
 
@@ -164,7 +165,7 @@ The private listener on 9464 serves only native `/metrics`. It exposes TEI reque
 inference duration histograms. Public `/metrics`, `/docs` and `/api-doc` paths return 404.
 Configure Prometheus selectors to discover the ServiceMonitor and network peers to permit actual scraping.
 
-The optional built-in PrometheusRule reports a down scrape target; it is not a semantic quality or latency SLO.
+The optional built-in PrometheusRule reports a down or absent scrape target; it is not a semantic quality or latency SLO.
 Add workload-specific recording and alert rules through `additionalRules`. Inspect native metrics for the pinned
 release before writing queries. Metrics may disclose model/workload metadata and belong in the trusted network.
 

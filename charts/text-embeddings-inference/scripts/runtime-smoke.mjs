@@ -27,8 +27,10 @@ const auth=key=>key?{Authorization:'Bearer '+key}:{};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function forward(resource,port,action){
  const child=spawn('kubectl',['--context',context,'-n',namespace,'port-forward',resource,':'+port,'--address=127.0.0.1'],{windowsHide:true,stdio:['ignore','pipe','pipe']});let output='';for(const s of [child.stdout,child.stderr])s.on('data',b=>output+=b);
+ let actionFailed=false;
  try{const deadline=Date.now()+20000;while(!/127\.0\.0\.1:(\d+) ->/.test(output)&&Date.now()<deadline&&child.exitCode===null)await sleep(100);const local=output.match(/127\.0\.0\.1:(\d+) ->/)?.[1];assert.ok(local,'Port-forward unavailable');return await action('http://127.0.0.1:'+local);}
- finally{if(child.exitCode===null&&child.signalCode===null){if(process.platform==='win32'){try{execFileSync('taskkill',['/PID',String(child.pid),'/T','/F'],{stdio:'ignore'});}catch(error){try{process.kill(child.pid,0);throw error;}catch(probe){if(probe.code!=='ESRCH')throw probe;}}}else child.kill();}}
+ catch(error){actionFailed=true;throw error;}
+ finally{try{if(child.exitCode===null&&child.signalCode===null){if(process.platform==='win32'){try{execFileSync('taskkill',['/PID',String(child.pid),'/T','/F'],{stdio:'ignore'});}catch(error){try{process.kill(child.pid,0);throw error;}catch(probe){if(probe.code!=='ESRCH')throw probe;}}}else child.kill();}}catch(error){if(actionFailed)console.error('Port-forward cleanup also failed:',String(error.message).slice(0,200));else throw error;}}
 }
 const request=(base,path,options={})=>fetch(base+path,{signal:AbortSignal.timeout(45000),...options});
 const post=(base,path,data,key=apiKey)=>request(base,path,{method:'POST',headers:{'Content-Type':'application/json',...auth(key)},body:JSON.stringify(data)});
@@ -78,6 +80,14 @@ try{
  console.log('Checking public health and native loopback boundary');
  const pod=pods()[0],ip=pod.status.podIP.includes(':')?'['+pod.status.podIP+']':pod.status.podIP;
  assert.equal(peerCurl(`http://${ip}:${values.proxy.port}/health`),'200');
+ if(values.service.ipFamilyPolicy==='RequireDualStack'||values.service.ipFamilies.includes('IPv6')){
+  const ipv6=pod.status.podIPs.find(p=>p.ip.includes(':'))?.ip;assert.ok(ipv6,'IPv6 Pod address is required');
+  assert.equal(peerCurl(`http://[${ipv6}]:${values.proxy.port}/health`),'200');
+  const service=JSON.parse(kubectl(['get','service',deploy.metadata.name,'-o','json']));
+  const serviceV6=service.spec.clusterIPs.find(ip=>ip.includes(':'));assert.ok(serviceV6,'IPv6 Service address is required');
+  assert.equal(peerCurl(`http://[${serviceV6}]:${values.service.port}/health`),'200');
+  console.log('PASS native health through IPv6 Pod and Service listeners');
+ }
  denied(()=>peerCurl(`http://${ip}:8081/health`));
  if(values.metrics.enabled){
   denied(()=>peerCurl(`http://${ip}:${values.metrics.port}/metrics`));
@@ -91,7 +101,11 @@ try{
     do{const r=await(await request(base,'/api/v1/query?query='+encodeURIComponent(query))).json();series=r.data?.result??[];if(series.some(s=>Number(s.value[1])>0))break;await sleep(2000);}while(Date.now()<deadline);
     assert.ok(series.some(s=>Number(s.value[1])>0),'Real Prometheus did not observe successful inference');
     const up=await(await request(base,'/api/v1/query?query='+encodeURIComponent('up{namespace="'+namespace+'",endpoint="metrics"}'))).json();assert.ok(up.data.result.some(s=>s.value[1]==='1'));
-    if(values.metrics.prometheusRule.enabled){const rules=await(await request(base,'/api/v1/rules')).json();assert.ok(rules.data.groups.some(g=>g.rules.some(r=>r.name==='TextEmbeddingsInferenceUnavailable')));}
+    if(values.metrics.prometheusRule.enabled){
+     const rules=await(await request(base,'/api/v1/rules')).json();const rule=rules.data.groups.flatMap(g=>g.rules).find(r=>r.name==='TextEmbeddingsInferenceUnavailable');assert.ok(rule);assert.match(rule.query,/absent\(/);
+     const absentQuery=rule.query.replace(/service="[^"]+"/g,'service="tei-missing-target"');
+     const absent=await(await request(base,'/api/v1/query?query='+encodeURIComponent(absentQuery))).json();assert.ok(absent.data.result.some(s=>s.value[1]==='1'),'The actual alert expression must detect an absent target');
+    }
    });
   }
   console.log('PASS private native Prometheus metrics, denied unrelated peer and real successful-inference scrape');
@@ -116,11 +130,11 @@ if(values.autoscaling.enabled){
 if(values.cache.persistence.enabled)kubectl(['exec',pods()[0].metadata.name,'-c','tei','--','sh','-c','printf retained > /data/helmforge-cache-marker']);
 if(values.auth.enabled&&!values.auth.existingSecret){
  execFileSync('helm',['upgrade',release,fileURLToPath(new URL('../',import.meta.url)),'-n',namespace,'--kube-context',context,'--reuse-values','--wait','--timeout','120s'],{encoding:'utf8',timeout:130000});
- assert.equal(readKey(),apiKey,'Generated credential changed during Helm upgrade');
+ assert.ok(readKey()===apiKey,'Generated credential changed during Helm upgrade');
  console.log('PASS generated API credential retained by real Helm upgrade');
 }
 kubectl(['rollout','restart','deployment/'+deploy.metadata.name]);kubectl(['rollout','status','deployment/'+deploy.metadata.name,'--timeout=120s'],{timeout:130000});
-assert.equal(readKey(),apiKey,'API credential changed after Pod replacement');
+assert.ok(readKey()===apiKey,'API credential changed after Pod replacement');
 for(const p of pods())await forward('pod/'+p.metadata.name,values.proxy.port,base=>check(base));
 if(values.cache.persistence.enabled)assert.equal(kubectl(['exec',pods()[0].metadata.name,'-c','tei','--','cat','/data/helmforge-cache-marker']),'retained');
 console.log('PASS native inference, model identity and original API credential after Pod replacement'+(values.cache.persistence.enabled?', retained cache volume':''));

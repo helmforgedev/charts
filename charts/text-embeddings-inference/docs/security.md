@@ -16,6 +16,8 @@ Install ESO and an authorized SecretStore first. Each `externalSecrets.items[]` 
 overrides and the upstream `spec` contract, including data/dataFrom and source references. The chart supplies
 default refresh interval and target name only when omitted. Reference that target through `auth.existingSecret`.
 A separate item can provide the Hub token; the two credentials have unrelated trust and rotation lifecycles.
+Rendered ExternalSecret names must be unique, including after Kubernetes name truncation. Give multiple items
+distinct names or fullname overrides; duplicate implicit auth names are rejected before installation.
 
 After installation, inspect ExternalSecret readiness and verify that the target Secret contains the configured
 key. Do not print its value. ESO updates do not modify existing process environment; trigger a Pod rollout after
