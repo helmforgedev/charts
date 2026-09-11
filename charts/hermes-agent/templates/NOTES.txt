@@ -1,0 +1,50 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "hermes-agent.validate" . -}}
+HERMES AGENT
+
+1. Release
+   {{ .Release.Name }} in {{ .Release.Namespace }}; upstream release {{ .Chart.AppVersion }}.
+   One gateway writer per data volume. Plan a maintenance window for upgrades.
+
+2. Runtime
+   kubectl -n {{ .Release.Namespace }} rollout status statefulset/{{ include "hermes-agent.fullname" . }}
+   Model: {{ .Values.agent.model }}; provider: {{ .Values.agent.provider }}.
+   Inference requires provider credentials in credentials.existingSecret.
+
+3. API access
+   Service: {{ include "hermes-agent.fullname" . }}:{{ .Values.service.port }}.
+   kubectl -n {{ .Release.Namespace }} port-forward service/{{ include "hermes-agent.fullname" . }} 8642:{{ .Values.service.port }}
+   API key: Secret {{ include "hermes-agent.authSecret" . }}, key {{ .Values.auth.key }}.
+   Send Authorization: Bearer <token>. API credentials authorize configured agent tools.
+   Admit trusted callers using networkPolicy.ingressFrom; configure TLS at your gateway.
+
+4. Dashboard and channels
+   Dashboard enabled: {{ .Values.dashboard.enabled }}; it uses separate administrative credentials.
+   Configuration policy: {{ .Values.config.policy }}. Seed mode preserves dashboard edits.
+   Messaging adapters require explicit user allowlists and their upstream token Secret.
+   Agent, dashboard and tools share one trusted execution and data boundary.
+
+5. Persistence
+   Persistent state: {{ .Values.persistence.enabled }}; claim: {{ include "hermes-agent.claim" . }}.
+   Retention after uninstall: {{ .Values.persistence.retain }}.
+   State includes SQLite sessions, memory, skills, cron definitions and workspace.
+   Environment-only credentials must be retained independently in Secrets/ESO.
+
+6. Backup and recovery
+   Scheduled S3 backup: {{ .Values.backup.enabled }}; schedule {{ .Values.backup.schedule }} ({{ .Values.backup.timeZone }}).
+   Restore enabled: {{ .Values.restore.enabled }}. Recovery never overwrites existing state.
+   Backups are consistent per SQLite database, not one transaction across every file.
+   Configure bucket lifecycle and test recovery; protect archives as sensitive credentials.
+
+7. Monitoring and maintenance
+   Native OTLP enabled: {{ .Values.metrics.enabled }}; ServiceMonitor: {{ .Values.metrics.serviceMonitor.enabled }}.
+   Readiness parses authenticated gateway health. HTTP 200 alone is insufficient.
+   Observe missing gateway metrics, PVC capacity, failed backup Jobs and container restarts.
+   Kubernetes owns process restarts; do not update the immutable installation from the UI.
+
+8. Documentation
+   https://helmforge.dev/docs/charts/hermes-agent
+   https://github.com/helmforgedev/charts/tree/main/charts/hermes-agent/docs
+   https://hermes-agent.nousresearch.com/
+
+Happy Helmforging :)

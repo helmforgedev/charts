@@ -1,0 +1,168 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "hermes-agent.fullname" . }}
+  labels:
+    {{- include "hermes-agent.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  serviceName: {{ include "hermes-agent.fullname" . }}-headless
+  selector:
+    matchLabels:
+      {{- include "hermes-agent.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: gateway
+  template:
+    metadata:
+      labels:
+        {{- include "hermes-agent.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: gateway
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "hermes-agent.serviceAccount" . }}
+      automountServiceAccountToken: false
+      shareProcessNamespace: true
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10000
+        runAsGroup: 10000
+        fsGroup: 10000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: {type: RuntimeDefault}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toJson . }}
+      {{- end }}
+      nodeSelector: {{ toJson .Values.nodeSelector }}
+      tolerations: {{ toJson .Values.tolerations }}
+      affinity: {{ toJson .Values.affinity }}
+      initContainers:
+        {{- if .Values.restore.enabled }}
+        {{- include "hermes-agent.restoreInitContainers" . | nindent 8 }}
+        {{- end }}
+        - name: configure
+          image: {{ include "hermes-agent.image" . | quote }}
+          command: [/opt/hermes/.venv/bin/python, /helmforge/bootstrap.py]
+          env:
+            - {name: CONFIG_POLICY, value: {{ .Values.config.policy | quote }}}
+            - {name: HERMES_HOME, value: /opt/data}
+            - {name: HOME, value: /opt/data}
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources: {{ toJson .Values.resources }}
+          volumeMounts:
+            - {name: data, mountPath: /opt/data}
+            - {name: config, mountPath: /helmforge, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      containers:
+        - name: hermes
+          image: {{ include "hermes-agent.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [/opt/hermes/.venv/bin/python, /helmforge/entrypoint.py, /opt/hermes/.venv/bin/hermes, gateway, run, --no-supervise]
+          workingDir: /opt/data/workspace
+          env:
+            - {name: HERMES_HOME, value: /opt/data}
+            - {name: HOME, value: /opt/data}
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            - {name: HERMES_DISABLE_LAZY_INSTALLS, value: "1"}
+            - {name: GATEWAY_ALLOW_ALL_USERS, value: "false"}
+            - {name: GATEWAY_ALLOWED_USERS, value: ""}
+            {{- range $name, $channel := .Values.channels }}
+            - {name: {{ upper $name }}_ALLOW_ALL_USERS, value: "false"}
+            - {name: {{ upper $name }}_ALLOWED_USERS, value: {{ join "," $channel.allowedUsers | quote }}}
+            {{- end }}
+            - name: API_SERVER_KEY
+              valueFrom:
+                secretKeyRef: {name: {{ include "hermes-agent.authSecret" . }}, key: {{ .Values.auth.key }}}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.credentials.existingSecret }}
+          envFrom:
+            - secretRef: {name: {{ .Values.credentials.existingSecret }}}
+          {{- end }}
+          ports: [{name: api, containerPort: 8642}]
+          startupProbe: {httpGet: {path: /health, port: api}, periodSeconds: 5, timeoutSeconds: 3, failureThreshold: 60}
+          livenessProbe: {httpGet: {path: /health, port: api}, periodSeconds: 20, timeoutSeconds: 3, failureThreshold: 3}
+          readinessProbe:
+            exec: {command: [/opt/hermes/.venv/bin/python, /helmforge/health.py]}
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources: {{ toJson .Values.resources }}
+          volumeMounts:
+            - {name: data, mountPath: /opt/data}
+            - {name: config, mountPath: /helmforge, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+        {{- if .Values.dashboard.enabled }}
+        - name: dashboard
+          image: {{ include "hermes-agent.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [/opt/hermes/.venv/bin/python, /helmforge/entrypoint.py, /opt/hermes/.venv/bin/hermes, dashboard, --host, {{ include "hermes-agent.bindHost" . | quote }}, --port, "9119", --no-open, --skip-build]
+          workingDir: /opt/data/workspace
+          env:
+            - {name: HERMES_HOME, value: /opt/data}
+            - {name: HOME, value: /opt/data}
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            - {name: HERMES_DISABLE_LAZY_INSTALLS, value: "1"}
+            - {name: HERMES_WEB_DIST, value: /opt/hermes/hermes_cli/web_dist}
+          envFrom:
+            - secretRef: {name: {{ .Values.dashboard.existingSecret }}}
+            {{- if .Values.credentials.existingSecret }}
+            - secretRef: {name: {{ .Values.credentials.existingSecret }}}
+            {{- end }}
+          ports: [{name: dashboard, containerPort: 9119}]
+          startupProbe: {httpGet: {path: /api/health, port: dashboard}, periodSeconds: 5, timeoutSeconds: 3, failureThreshold: 60}
+          livenessProbe: {httpGet: {path: /api/health, port: dashboard}, periodSeconds: 20, timeoutSeconds: 3, failureThreshold: 3}
+          readinessProbe: {httpGet: {path: /api/health, port: dashboard}, periodSeconds: 10, timeoutSeconds: 3}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources: {{ toJson .Values.dashboard.resources }}
+          volumeMounts:
+            - {name: data, mountPath: /opt/data}
+            - {name: config, mountPath: /helmforge, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+        {{- end }}
+        {{- if and .Values.metrics.enabled .Values.metrics.collector.enabled }}
+        - name: metrics
+          image: {{ printf "%s:%s" .Values.metrics.collector.image.repository .Values.metrics.collector.image.tag | quote }}
+          imagePullPolicy: {{ .Values.metrics.collector.image.pullPolicy }}
+          args: [--config=/etc/otel/config.yaml]
+          ports: [{name: metrics, containerPort: 8889}]
+          startupProbe: {httpGet: {path: /, port: 13133}, periodSeconds: 5, failureThreshold: 30}
+          livenessProbe: {httpGet: {path: /, port: 13133}, periodSeconds: 20}
+          readinessProbe: {httpGet: {path: /, port: 13133}, periodSeconds: 10}
+          securityContext: {runAsUser: 10001, runAsGroup: 10001, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources: {{ toJson .Values.metrics.collector.resources }}
+          volumeMounts:
+            - {name: collector-config, mountPath: /etc/otel, readOnly: true}
+        {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim: {claimName: {{ include "hermes-agent.claim" . }}}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: config
+          configMap: {name: {{ include "hermes-agent.fullname" . }}-config}
+        - name: tmp
+          emptyDir: {sizeLimit: 512Mi}
+        {{- if .Values.restore.enabled }}
+        - name: recovery
+          configMap: {name: {{ include "hermes-agent.fullname" . }}-recovery}
+        - name: recovery-work
+          emptyDir: {sizeLimit: {{ .Values.backup.stagingSize }}}
+        {{- if .Values.backup.s3.caSecret }}
+        - name: s3-ca
+          secret: {secretName: {{ .Values.backup.s3.caSecret }}, items: [{key: ca.crt, path: ca.crt}]}
+        {{- end }}
+        {{- end }}
+        {{- if and .Values.metrics.enabled .Values.metrics.collector.enabled }}
+        - name: collector-config
+          configMap: {name: {{ include "hermes-agent.fullname" . }}-collector}
+        {{- end }}

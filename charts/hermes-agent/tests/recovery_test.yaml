@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Hermes recovery contracts
+templates:
+  - configmap.yaml
+  - backup.yaml
+  - statefulset.yaml
+tests:
+  - it: does not schedule backups by default
+    template: backup.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: forbids concurrent backup jobs and retries
+    template: backup.yaml
+    set:
+      backup.enabled: true
+      backup.s3.bucket: hermes-backups
+      backup.s3.existingSecret: s3
+    asserts:
+      - equal:
+          path: spec.concurrencyPolicy
+          value: Forbid
+        documentIndex: 1
+      - equal:
+          path: spec.jobTemplate.spec.backoffLimit
+          value: 0
+        documentIndex: 1
+  - it: uploader cannot mount live agent state
+    template: backup.yaml
+    set:
+      backup.enabled: true
+      backup.s3.bucket: hermes-backups
+      backup.s3.existingSecret: s3
+    asserts:
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /opt/data
+        documentIndex: 1
+  - it: runs offline restore before configuration and gateway startup
+    template: statefulset.yaml
+    set:
+      restore.enabled: true
+      restore.manifestKey: snapshots/hermes-run/manifest.json
+      backup.s3.bucket: hermes-backups
+      backup.s3.existingSecret: s3
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: prepare-restore
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: download
+      - equal:
+          path: spec.template.spec.initContainers[2].name
+          value: restore
+      - equal:
+          path: spec.template.spec.initContainers[3].name
+          value: configure

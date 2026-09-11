@@ -1,0 +1,342 @@
+# SPDX-License-Identifier: Apache-2.0
+# -- Override the chart name used in resource labels.
+nameOverride: ""
+# -- Override all resource name prefixes for a stable existing installation.
+fullnameOverride: ""
+# -- Official Hermes runtime, pinned to a verified multi-platform release digest.
+image:
+  # -- Official container image repository.
+  repository: docker.io/nousresearch/hermes-agent
+  # -- Pinned release tag and immutable digest.
+  tag: v2026.9.11@sha256:9469b3e78b9545b6d576eb8887a95352e9a0ea83730eaf31431cf862ca1010e1
+  # -- Kubernetes image pull policy.
+  pullPolicy: IfNotPresent
+# -- image pull secrets setting for the gateway.
+imagePullSecrets: []
+# -- Bearer credential protecting API access and configured agent tools.
+auth:
+  # -- Use an existing Secret; empty generates a random token retained with persistent state.
+  existingSecret: ""
+  # -- Secret key containing the API bearer token.
+  key: api-key
+# -- Provider and messaging credentials are injected only from a Kubernetes Secret.
+credentials:
+  # -- Secret containing upstream environment variables such as OPENROUTER_API_KEY.
+  existingSecret: ""
+# -- Default model and explicitly allowed API toolsets.
+agent:
+  # -- Upstream model identifier; a corresponding provider credential is required for inference.
+  model: anthropic/claude-opus-4.6
+  # -- Provider identifier, including custom:<name> for an OpenAI-compatible endpoint.
+  provider: openrouter
+  # -- Optional model endpoint; custom providers should use apiKeyEnv for credential selection.
+  baseUrl: ""
+  # -- API toolsets. Memory-only by default; enabling terminal/browser grants additional capabilities.
+  toolsets:
+    - memory
+  # -- Maximum tool execution turns for one agent request.
+  maxIterations: 30
+  # -- Credential environment variable for a named custom provider; never an inline API key.
+  apiKeyEnv: ""
+  # -- Permit HTTP for a credentialed custom endpoint only in isolated tests or explicitly trusted networks.
+  allowInsecureHTTP: false
+# -- Non-secret upstream configuration with explicit ownership on Pod initialization.
+config:
+  # -- managed reconciles declared files; seed preserves existing files and permits dashboard edits.
+  policy: managed
+  # -- Additional upstream configuration. Do not place credentials here; chart-owned sections are validated.
+  values: {}
+  # -- Optional SOUL.md persona. Empty leaves upstream/user persona unmanaged.
+  soul: ""
+# -- One retained state volume per release; no concurrent gateway writers.
+persistence:
+  # -- Persist sessions, SQLite state, memory, skills and workspace.
+  enabled: true
+  # -- Existing persistent claim to mount instead of creating one.
+  existingClaim: ""
+  # -- StorageClass name; empty uses the cluster default.
+  storageClass: ""
+  # -- Claim access modes; shared backup mounts require RWO or RWX.
+  accessModes:
+    - ReadWriteOnce
+  # -- Requested persistent volume capacity.
+  size: 10Gi
+  # -- Keep chart-created PVC and generated API Secret after uninstall.
+  retain: true
+# -- service setting for the gateway.
+service:
+  # -- type setting for service.
+  type: ClusterIP
+  # -- Service port; network policies use the fixed container port.
+  port: 8642
+  # -- Additional Kubernetes annotations.
+  annotations: {}
+  # -- ip family policy setting for service.
+  ipFamilyPolicy: ""
+  # -- ip families setting for service.
+  ipFamilies: []
+  # -- load balancer source ranges setting for service.
+  loadBalancerSourceRanges: []
+# -- service account setting for the gateway.
+serviceAccount:
+  # -- create setting for serviceAccount.
+  create: true
+  # -- Existing or overridden Kubernetes resource name.
+  name: ""
+  # -- Additional Kubernetes annotations.
+  annotations: {}
+# -- Container CPU and memory requests and limits.
+resources:
+  # -- Guaranteed scheduler resource requests.
+  requests:
+    # -- CPU quantity.
+    cpu: 250m
+    # -- Memory quantity.
+    memory: 1Gi
+  # -- Enforced container resource limits.
+  limits:
+    # -- CPU quantity.
+    cpu: "2"
+    # -- Memory quantity.
+    memory: 2Gi
+# -- node selector setting for the gateway.
+nodeSelector:
+  # -- kubernetes.io/os setting for nodeSelector.
+  kubernetes.io/os: linux
+# -- tolerations setting for the gateway.
+tolerations: []
+# -- affinity setting for the gateway.
+affinity: {}
+# -- pod annotations setting for the gateway.
+podAnnotations: {}
+# -- extra env setting for the gateway.
+extraEnv: []
+# -- Default-deny ingress with separate API, dashboard and metrics peer allowlists.
+networkPolicy:
+  # -- Enable this optional integration.
+  enabled: true
+  # -- Kubernetes NetworkPolicy peers allowed to call container port 8642.
+  ingressFrom: []
+  # -- Explicit extra egress rules for custom providers, MCP servers or remote execution.
+  extraEgress: []
+  # -- Allow public IPv4/IPv6 HTTPS egress for providers; private networks require extraEgress.
+  allowInternet: true
+# -- Time for gateway shutdown and in-flight work before Kubernetes terminates the Pod.
+terminationGracePeriodSeconds: 120
+# -- Opt-in messaging adapters; credentials come from credentials.existingSecret and user allowlists are required.
+channels:
+  # -- telegram setting for channels.
+  telegram:
+    # -- Enable this optional integration.
+    enabled: false
+    # -- Explicit upstream user IDs permitted to interact with this messaging adapter.
+    allowedUsers: []
+    # -- Toolsets exposed to this messaging adapter.
+    toolsets:
+      - memory
+  # -- discord setting for channels.
+  discord:
+    # -- Enable this optional integration.
+    enabled: false
+    # -- Explicit upstream user IDs permitted to interact with this messaging adapter.
+    allowedUsers: []
+    # -- Toolsets exposed to this messaging adapter.
+    toolsets:
+      - memory
+  # -- slack setting for channels.
+  slack:
+    # -- Enable this optional integration.
+    enabled: false
+    # -- Explicit upstream user IDs permitted to interact with this messaging adapter.
+    allowedUsers: []
+    # -- Toolsets exposed to this messaging adapter.
+    toolsets:
+      - memory
+# -- Optional privileged administration UI in the gateway Pod; requires config.policy=seed.
+dashboard:
+  # -- Enable this optional integration.
+  enabled: false
+  # -- Secret with HERMES_DASHBOARD_BASIC_AUTH_USERNAME, HERMES_DASHBOARD_BASIC_AUTH_PASSWORD and HERMES_DASHBOARD_BASIC_AUTH_SECRET.
+  existingSecret: ""
+  # -- External HTTPS dashboard origin, used by Host validation and OAuth redirects.
+  publicUrl: ""
+  # -- Container CPU and memory requests and limits.
+  resources:
+    # -- Guaranteed scheduler resource requests.
+    requests:
+      # -- CPU quantity.
+      cpu: 100m
+      # -- Memory quantity.
+      memory: 256Mi
+    # -- Enforced container resource limits.
+    limits:
+      # -- CPU quantity.
+      cpu: "1"
+      # -- Memory quantity.
+      memory: 1Gi
+  # -- service setting for dashboard.
+  service:
+    # -- Service port; network policies use the fixed container port.
+    port: 9119
+    # -- Additional Kubernetes annotations.
+    annotations: {}
+  # -- NetworkPolicy peers allowed to reach the administrative dashboard on container port 9119.
+  ingressFrom: []
+# -- Optional API ingress. TLS termination is the ingress controller responsibility.
+ingress:
+  # -- Enable this optional integration.
+  enabled: false
+  # -- ingress class name setting for ingress.
+  ingressClassName: ""
+  # -- Additional Kubernetes annotations.
+  annotations: {}
+  # -- hosts setting for ingress.
+  hosts:
+    - host: hermes.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  # -- tls setting for ingress.
+  tls: []
+# -- Canonical Gateway API HTTPRoutes; backend defaults to the authenticated API Service.
+gatewayAPI:
+  # -- Enable this optional integration.
+  enabled: false
+  # -- http routes setting for gatewayAPI.
+  httpRoutes: []
+# -- Optional integration with an existing External Secrets Operator installation.
+externalSecrets:
+  # -- Enable this optional integration.
+  enabled: false
+  # -- refresh interval setting for externalSecrets.
+  refreshInterval: 1h
+  # -- items setting for externalSecrets.
+  items: []
+# -- Native Hermes gateway health metrics exported through OTLP; no synthetic inference/cost metrics.
+metrics:
+  # -- Enable native upstream OTLP gateway-health metrics.
+  enabled: false
+  # -- interval seconds setting for metrics.
+  intervalSeconds: 15
+  # -- Full external OTLP HTTP metrics URL ending in /v1/metrics when the collector is disabled.
+  externalEndpoint: ""
+  # -- Optional local official collector translating OTLP to Prometheus on port 8889.
+  collector:
+    # -- Enable this optional integration.
+    enabled: true
+    # -- image setting for metrics.collector.
+    image:
+      # -- Official container image repository.
+      repository: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib
+      # -- Pinned release tag and immutable digest.
+      tag: 0.160.0@sha256:799dc6cf12c96192af37b5bdba804da8c10b3bc563b43cb90c3f3c58d9572ad6
+      # -- Kubernetes image pull policy.
+      pullPolicy: IfNotPresent
+    # -- Container CPU and memory requests and limits.
+    resources:
+      # -- Guaranteed scheduler resource requests.
+      requests:
+        # -- CPU quantity.
+        cpu: 50m
+        # -- Memory quantity.
+        memory: 64Mi
+      # -- Enforced container resource limits.
+      limits:
+        # -- CPU quantity.
+        cpu: 500m
+        # -- Memory quantity.
+        memory: 256Mi
+  # -- service monitor setting for metrics.
+  serviceMonitor:
+    # -- Enable this optional integration.
+    enabled: false
+    # -- Additional Kubernetes labels.
+    labels: {}
+    # -- Prometheus scrape interval.
+    interval: 30s
+    # -- Prometheus scrape timeout.
+    scrapeTimeout: 10s
+  # -- prometheus rule setting for metrics.
+  prometheusRule:
+    # -- Enable this optional integration.
+    enabled: false
+    # -- Additional Kubernetes labels.
+    labels: {}
+    # -- additional rules setting for metrics.prometheusRule.
+    additionalRules: []
+  # -- NetworkPolicy peers allowed to scrape the private metrics Service.
+  ingressFrom: []
+# -- Scheduled SQLite-consistent native snapshots uploaded to S3 with a completion manifest.
+backup:
+  # -- Enable the backup CronJob; requires persistent storage and S3 configuration.
+  enabled: false
+  # -- schedule setting for backup.
+  schedule: 0 3 * * *
+  # -- time zone setting for backup.
+  timeZone: Etc/UTC
+  # -- suspend setting for backup.
+  suspend: false
+  # -- successful jobs history limit setting for backup.
+  successfulJobsHistoryLimit: 1
+  # -- failed jobs history limit setting for backup.
+  failedJobsHistoryLimit: 2
+  # -- active deadline seconds setting for backup.
+  activeDeadlineSeconds: 1800
+  # -- Ephemeral archive staging size; budget for the ZIP and temporary SQLite snapshots.
+  stagingSize: 10Gi
+  # -- Container CPU and memory requests and limits.
+  resources:
+    # -- Guaranteed scheduler resource requests.
+    requests:
+      # -- CPU quantity.
+      cpu: 100m
+      # -- Memory quantity.
+      memory: 256Mi
+    # -- Enforced container resource limits.
+    limits:
+      # -- CPU quantity.
+      cpu: "1"
+      # -- Memory quantity.
+      memory: 1Gi
+  # -- s3 setting for backup.
+  s3:
+    # -- bucket setting for backup.s3.
+    bucket: ""
+    # -- prefix setting for backup.s3.
+    prefix: hermes-agent
+    # -- region setting for backup.s3.
+    region: us-east-1
+    # -- endpoint setting for backup.s3.
+    endpoint: ""
+    # -- Allow HTTP only for explicitly trusted local test/object-storage networks.
+    allowInsecureEndpoint: false
+    # -- Secret with AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, optionally AWS_SESSION_TOKEN.
+    existingSecret: ""
+    # -- sse setting for backup.s3.
+    sse: AES256
+    # -- kms key id setting for backup.s3.
+    kmsKeyId: ""
+    # -- Optional Secret containing ca.crt for a private HTTPS endpoint.
+    caSecret: ""
+  # -- image setting for backup.
+  image:
+    # -- Official container image repository.
+    repository: public.ecr.aws/aws-cli/aws-cli
+    # -- Pinned release tag and immutable digest.
+    tag: 2.36.43@sha256:d948ee299a7ffcaec0d6052a00b9f4c513c61cacfaedfe68b098c85808394441
+    # -- Kubernetes image pull policy.
+    pullPolicy: IfNotPresent
+  # -- network policy setting for backup.
+  networkPolicy:
+    # -- Additional backup Pod egress, for example private object storage.
+    extraEgress: []
+# -- Explicit disaster recovery into an empty volume before configuration initialization.
+restore:
+  # -- Restore exactly once into empty state; existing nonempty state is never overwritten.
+  enabled: false
+  # -- Full S3 object key of the completed backup manifest; uses backup.s3 settings.
+  manifestKey: ""
+  # -- Maximum downloaded archive size accepted in bytes.
+  maxArchiveBytes: 10737418240
+  # -- Maximum aggregate uncompressed archive bytes accepted during restore.
+  maxExpandedBytes: 21474836480

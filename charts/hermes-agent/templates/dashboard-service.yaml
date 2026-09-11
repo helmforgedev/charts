@@ -1,0 +1,24 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.dashboard.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hermes-agent.fullname" . }}-dashboard
+  labels:
+    {{- include "hermes-agent.labels" . | nindent 4 }}
+  {{- with .Values.dashboard.service.annotations }}
+  annotations: {{ toJson . }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies: {{ toJson . }}
+  {{- end }}
+  ports: [{name: dashboard, port: {{ .Values.dashboard.service.port }}, targetPort: dashboard}]
+  selector:
+    {{- include "hermes-agent.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+{{- end }}

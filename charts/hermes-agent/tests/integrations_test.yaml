@@ -1,0 +1,178 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Hermes integrations contracts
+templates:
+  - configmap.yaml
+  - dashboard-service.yaml
+  - statefulset.yaml
+  - ingress.yaml
+  - gateway-httproute.yaml
+  - externalsecret.yaml
+  - metrics.yaml
+tests:
+  - it: leaves dashboard disabled by default
+    template: dashboard-service.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: runs authenticated dashboard in the existing agent boundary
+    template: statefulset.yaml
+    set:
+      dashboard.enabled: true
+      dashboard.existingSecret: dashboard-auth
+      config.policy: seed
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: dashboard
+      - equal:
+          path: spec.template.spec.containers[1].envFrom[0].secretRef.name
+          value: dashboard-auth
+  - it: uses ingressClassName when specified
+    template: ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: nginx
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+  - it: omits unspecified ingress class
+    template: ingress.yaml
+    set:
+      ingress.enabled: true
+    asserts:
+      - notExists:
+          path: spec.ingressClassName
+  - it: provides canonical HTTPRoute default backend
+    template: gateway-httproute.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - parentRefs:
+            - name: edge
+          hostnames:
+            - hermes.example.com
+    asserts:
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 8642
+      - equal:
+          path: spec.hostnames
+          value:
+            - hermes.example.com
+  - it: keeps explicit redirect-only routes backend-free
+    template: gateway-httproute.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - rules:
+            - omitDefaultBackend: true
+              filters:
+                - type: RequestRedirect
+                  requestRedirect:
+                    scheme: https
+    asserts:
+      - notExists:
+          path: spec.rules[0].backendRefs
+  - it: does not install External Secrets Operator resources by default
+    template: externalsecret.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: honors literal ExternalSecret names and target default
+    template: externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: agent-provider
+          spec:
+            secretStoreRef:
+              name: vault
+              kind: ClusterSecretStore
+            dataFrom:
+              - extract:
+                  key: hermes
+    asserts:
+      - equal:
+          path: apiVersion
+          value: external-secrets.io/v1
+      - equal:
+          path: metadata.name
+          value: agent-provider
+      - equal:
+          path: spec.target.name
+          value: agent-provider
+      - equal:
+          path: spec.refreshInterval
+          value: 1h
+  - it: permits per-item sync and target overrides
+    template: externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - spec:
+            refreshInterval: 5m
+            target:
+              name: custom-target
+            secretStoreRef:
+              name: vault
+            dataFrom:
+              - extract:
+                  key: hermes
+    asserts:
+      - equal:
+          path: spec.refreshInterval
+          value: 5m
+      - equal:
+          path: spec.target.name
+          value: custom-target
+  - it: does not run Prometheus collector unless metrics enabled
+    template: metrics.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders collector ServiceMonitor and alert resources
+    template: metrics.yaml
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+      metrics.prometheusRule.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 4
+  - it: mounts no agent state into the telemetry collector
+    template: statefulset.yaml
+    set:
+      metrics.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: metrics
+      - equal:
+          path: spec.template.spec.containers[1].volumeMounts
+          value:
+            - name: collector-config
+              mountPath: /etc/otel
+              readOnly: true
+  - it: binds the dashboard on both families for dual-stack Services
+    template: statefulset.yaml
+    set:
+      dashboard.enabled: true
+      dashboard.existingSecret: dashboard-auth
+      config.policy: seed
+      service.ipFamilyPolicy: RequireDualStack
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].command[5]
+          value: ""
+  - it: isolates collector process credentials with a separate unix identity
+    template: statefulset.yaml
+    set:
+      metrics.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.runAsUser
+          value: 10001
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.runAsGroup
+          value: 10001
