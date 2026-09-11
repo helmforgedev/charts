@@ -1,0 +1,188 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.license.acceptEULA }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "mssql.fullname" . }}
+  labels:
+    {{- include "mssql.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "mssql.fullname" . }}-headless
+  replicas: 1
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "mssql.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        {{- include "mssql.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: server
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "mssql.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: {type: RuntimeDefault}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      initContainers:
+        - name: prepare
+          image: {{ include "mssql.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [/bin/bash, -ec]
+          args:
+            - |
+              umask 077
+              cp /tls/tls.crt /run/mssql/tls.crt
+              cp /tls/tls.key /run/mssql/tls.key
+              chmod 600 /run/mssql/tls.crt /run/mssql/tls.key
+              test -w /var/opt/mssql
+              {{- if .Values.backup.enabled }}
+              test -w /backup
+              {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - {name: tls, mountPath: /tls, readOnly: true}
+            - {name: run, mountPath: /run/mssql}
+            - {name: data, mountPath: /var/opt/mssql}
+            {{- if .Values.backup.enabled }}
+            - {name: backup, mountPath: /backup}
+            {{- end }}
+      containers:
+        - name: mssql
+          image: {{ include "mssql.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [/usr/bin/python3, /config/server.py]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            # Official sqlservr carries cap_net_bind_service=ep; bounding it out prevents exec.
+            capabilities: {drop: [ALL], add: [NET_BIND_SERVICE]}
+          env:
+            - {name: ACCEPT_EULA, value: "Y"}
+            - {name: MSSQL_PID, value: {{ include "mssql.edition" . | quote }}}
+            - {name: MSSQL_MEMORY_LIMIT_MB, value: {{ .Values.sql.memoryLimitMB | toString | quote }}}
+            - {name: MSSQL_COLLATION, value: {{ .Values.sql.collation | quote }}}
+            - {name: MSSQL_LCID, value: {{ .Values.sql.lcid | toString | quote }}}
+            - {name: MSSQL_AGENT_ENABLED, value: {{ .Values.sql.agent.enabled | toString | quote }}}
+            - {name: MSSQL_ENABLE_HADR, value: "0"}
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            {{- if eq .Values.sql.edition "ProductKey" }}
+            - {name: HF_PRODUCT_KEY_FILE, value: /license/product-key}
+            {{- end }}
+          ports:
+            - {name: sql, containerPort: 1433}
+          startupProbe:
+            exec:
+              command: [/bin/bash, -ec, 'test -f /run/mssql/ready']
+            {{- toYaml .Values.probes.startup | nindent 12 }}
+          readinessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -ec
+                - 'test -f /run/mssql/ready; export SQLCMDPASSWORD="$(cat /auth/probe-password)"; /opt/mssql-tools18/bin/sqlcmd -S localhost -U hf_probe -C -b -x -l 2 -t 2 -Q "SELECT 1" >/dev/null'
+            {{- toYaml .Values.probes.readiness | nindent 12 }}
+          livenessProbe:
+            tcpSocket: {port: sql}
+            {{- toYaml .Values.probes.liveness | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - {name: data, mountPath: /var/opt/mssql}
+            - {name: config, mountPath: /config, readOnly: true}
+            - {name: config, mountPath: /var/opt/mssql/mssql.conf, subPath: mssql.conf, readOnly: true}
+            - {name: auth, mountPath: /auth, readOnly: true}
+            - {name: tls, mountPath: /tls, readOnly: true}
+            - {name: run, mountPath: /run/mssql}
+            - {name: tmp, mountPath: /tmp}
+            {{- if .Values.backup.enabled }}
+            - {name: backup, mountPath: /backup}
+            {{- end }}
+            {{- if eq .Values.sql.edition "ProductKey" }}
+            - {name: license, mountPath: /license, readOnly: true}
+            {{- end }}
+            {{- range $i, $db := .Values.initdb.databases }}
+            {{- if $db.username }}
+            - {name: application-{{ $i }}, mountPath: /applications/{{ $i }}, readOnly: true}
+            {{- end }}
+            {{- end }}
+            {{- range $i, $name := .Values.initdb.scriptsConfigMaps }}
+            - {name: script-{{ $i }}, mountPath: /initdb/{{ $name }}, readOnly: true}
+            {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim: {claimName: {{ include "mssql.dataClaim" . }}}
+          {{- else }}
+          emptyDir: {sizeLimit: {{ .Values.persistence.size }}}
+          {{- end }}
+        - name: config
+          configMap: {name: {{ include "mssql.fullname" . }}-config}
+        - name: auth
+          secret: {secretName: {{ include "mssql.authSecret" . }}, defaultMode: 0440}
+        - name: tls
+          secret: {secretName: {{ include "mssql.tlsSecret" . }}, defaultMode: 0440}
+        - name: run
+          emptyDir: {medium: Memory, sizeLimit: 16Mi}
+        - name: tmp
+          emptyDir: {sizeLimit: 1Gi}
+        {{- if .Values.backup.enabled }}
+        - name: backup
+          persistentVolumeClaim: {claimName: {{ include "mssql.backupClaim" . }}}
+        {{- end }}
+        {{- if eq .Values.sql.edition "ProductKey" }}
+        - name: license
+          secret:
+            secretName: {{ .Values.license.existingSecret }}
+            items: [{key: {{ .Values.license.productKeyKey }}, path: product-key}]
+        {{- end }}
+        {{- range $i, $db := .Values.initdb.databases }}
+        {{- if $db.username }}
+        - name: application-{{ $i }}
+          secret:
+            secretName: {{ $db.existingSecret }}
+            items: [{key: {{ default "password" $db.passwordKey }}, path: password}]
+        {{- end }}
+        {{- end }}
+        {{- range $i, $name := .Values.initdb.scriptsConfigMaps }}
+        - name: script-{{ $i }}
+          configMap: {name: {{ $name }}}
+        {{- end }}
+{{- end }}

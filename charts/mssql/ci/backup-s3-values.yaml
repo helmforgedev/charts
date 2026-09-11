@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+# Namespace-local HTTPS SeaweedFS fixture; all credentials are CI-only.
+fullnameOverride: mssql-backup
+license:
+  acceptEULA: true
+initdb:
+  databases:
+    - name: acceptance
+backup:
+  enabled: true
+  suspend: true
+  databases: [acceptance]
+  compression: false
+  staging:
+    size: 2Gi
+    retain: false
+  s3:
+    bucket: mssql-backups
+    prefix: acceptance
+    endpoint: https://mssql-s3:8333
+    region: us-east-1
+    existingSecret: mssql-s3-credentials
+    caSecret: mssql-s3-ca
+    sse: ""
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: mssql-s3
+              component: server
+      ports:
+        - protocol: TCP
+          port: 8333

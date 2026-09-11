@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Reject unsupported SQL Server operations
+templates: [secrets.yaml]
+tests:
+  - it: rejects Web on 2025
+    set: {sql.edition: Web}
+    asserts:
+      - failedTemplate: {errorPattern: 'Web edition is unavailable'}
+  - it: rejects StandardDeveloper on 2022
+    set:
+      sql.edition: StandardDeveloper
+      image.tag: 2022-CU20-ubuntu-22.04@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    asserts:
+      - failedTemplate: {errorPattern: 'SQL Server 2022 uses Developer'}
+  - it: rejects native compression on Express
+    set: {backup.compression: true}
+    asserts:
+      - failedTemplate: {errorPattern: 'compression is unavailable'}
+  - it: rejects SQL Agent on Express
+    set: {sql.agent.enabled: true}
+    asserts:
+      - failedTemplate: {errorPattern: 'SQL Server Agent is unavailable'}
+  - it: requires a Secret for commercial product keys
+    set: {sql.edition: ProductKey}
+    asserts:
+      - failedTemplate: {errorPattern: 'requires license.existingSecret'}
+  - it: reserves memory outside the SQL ceiling
+    set: {sql.memoryLimitMB: 4000}
+    asserts:
+      - failedTemplate: {errorPattern: 'exceed sql.memoryLimitMB by at least 512Mi'}
+  - it: rejects unsupported container memory below three GiB
+    set: {resources.limits.memory: 2Gi, sql.memoryLimitMB: 2048}
+    asserts:
+      - failedTemplate: {errorPattern: 'at least 3072Mi'}
+  - it: prevents application bootstrap from replacing system databases
+    set:
+      initdb.databases: [{name: master, recoveryModel: SIMPLE}]
+    asserts:
+      - failedTemplate: {errorPattern: 'cannot manage system databases'}
+  - it: rejects case-insensitive duplicate databases
+    set:
+      initdb.databases: [{name: app, recoveryModel: SIMPLE}, {name: APP, recoveryModel: SIMPLE}]
+    asserts:
+      - failedTemplate: {errorPattern: 'database names must be unique'}
+  - it: rejects a reserved monitoring login for applications
+    set:
+      initdb.databases: [{name: app, username: hf_metrics, existingSecret: app, recoveryModel: SIMPLE}]
+    asserts:
+      - failedTemplate: {errorPattern: 'reserved hf_ names'}
+  - it: requires DSN credentials when external authentication is selected
+    set:
+      metrics.enabled: true
+      metrics.ingressFrom: [{podSelector: {}}]
+      auth.existingSecret: auth
+    asserts:
+      - failedTemplate: {errorPattern: 'requires metrics.existingSecret'}
+  - it: rejects monitoring without explicitly allowed peers
+    set: {metrics.enabled: true}
+    asserts:
+      - failedTemplate: {errorPattern: 'explicitly authorize Prometheus peers'}

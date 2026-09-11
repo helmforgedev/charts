@@ -1,0 +1,164 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and .Values.license.acceptEULA .Values.backup.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "mssql.fullname" . }}-backup
+  labels:
+    {{- include "mssql.labels" . | nindent 4 }}
+  {{- with .Values.backup.workloadIdentity.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+automountServiceAccountToken: false
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "mssql.fullname" . }}-backup
+  labels:
+    {{- include "mssql.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  timeZone: {{ .Values.backup.timeZone }}
+  suspend: {{ .Values.backup.suspend }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: {{ .Values.backup.activeDeadlineSeconds }}
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "mssql.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "mssql.fullname" . }}-backup
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+            fsGroupChangePolicy: OnRootMismatch
+            seccompProfile: {type: RuntimeDefault}
+          nodeSelector:
+            {{- toYaml .Values.nodeSelector | nindent 12 }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - topologyKey: kubernetes.io/hostname
+                  labelSelector:
+                    matchLabels:
+                      {{- include "mssql.selectorLabels" . | nindent 22 }}
+                      app.kubernetes.io/component: server
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          initContainers:
+            - name: native-backup
+              image: {{ include "mssql.image" . | quote }}
+              command: [/bin/bash, /config/backup.sh]
+              env:
+                - {name: SQL_HOST, value: {{ include "mssql.fullname" . | quote }}}
+                - {name: SQL_PORT, value: {{ .Values.service.port | toString | quote }}}
+                - {name: SQLCMDUSER, value: hf_backup}
+                - name: SQLCMDPASSWORD
+                  valueFrom:
+                    secretKeyRef: {name: {{ include "mssql.authSecret" . }}, key: backup-password}
+                - {name: SSL_CERT_FILE, value: /tls/ca.crt}
+                - {name: BACKUP_DATABASES, value: {{ join " " .Values.backup.databases | quote }}}
+                - {name: BACKUP_COMPRESSION, value: {{ .Values.backup.compression | toString | quote }}}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: [ALL]}
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                - {name: config, mountPath: /config, readOnly: true}
+                - {name: staging, mountPath: /backup}
+                - {name: work, mountPath: /work}
+                - {name: tls, mountPath: /tls, readOnly: true}
+                - {name: tmp, mountPath: /tmp}
+          containers:
+            - name: upload
+              image: {{ printf "%s:%s" .Values.backup.image.repository .Values.backup.image.tag | quote }}
+              command: [/bin/bash, /config/upload.sh]
+              env:
+                - {name: HOME, value: /work}
+                - {name: S3_BUCKET, value: {{ .Values.backup.s3.bucket | quote }}}
+                - {name: S3_PREFIX, value: {{ .Values.backup.s3.prefix | quote }}}
+                - {name: S3_ENDPOINT, value: {{ .Values.backup.s3.endpoint | quote }}}
+                - {name: S3_REGION, value: {{ .Values.backup.s3.region | quote }}}
+                - {name: S3_SSE, value: {{ .Values.backup.s3.sse | quote }}}
+                - {name: S3_KMS_KEY_ID, value: {{ .Values.backup.s3.kmsKeyId | quote }}}
+                {{- if .Values.backup.s3.caSecret }}
+                - {name: AWS_CA_BUNDLE, value: /s3-ca/ca.crt}
+                {{- end }}
+                {{- if .Values.backup.workloadIdentity.enabled }}
+                - {name: AWS_ROLE_ARN, value: {{ .Values.backup.workloadIdentity.roleArn | quote }}}
+                - {name: AWS_WEB_IDENTITY_TOKEN_FILE, value: /identity/token}
+                {{- else }}
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef: {name: {{ .Values.backup.s3.existingSecret }}, key: AWS_ACCESS_KEY_ID}
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef: {name: {{ .Values.backup.s3.existingSecret }}, key: AWS_SECRET_ACCESS_KEY}
+                - name: AWS_SESSION_TOKEN
+                  valueFrom:
+                    secretKeyRef: {name: {{ .Values.backup.s3.existingSecret }}, key: AWS_SESSION_TOKEN, optional: true}
+                {{- end }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: [ALL]}
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                - {name: config, mountPath: /config, readOnly: true}
+                - {name: staging, mountPath: /backup}
+                - {name: work, mountPath: /work}
+                - {name: tmp, mountPath: /tmp}
+                {{- if .Values.backup.s3.caSecret }}
+                - {name: s3-ca, mountPath: /s3-ca, readOnly: true}
+                {{- end }}
+                {{- if .Values.backup.workloadIdentity.enabled }}
+                - {name: identity, mountPath: /identity, readOnly: true}
+                {{- end }}
+          volumes:
+            - name: config
+              configMap: {name: {{ include "mssql.fullname" . }}-config}
+            - name: staging
+              persistentVolumeClaim: {claimName: {{ include "mssql.backupClaim" . }}}
+            - name: work
+              emptyDir: {sizeLimit: 16Mi}
+            - name: tmp
+              emptyDir: {sizeLimit: 64Mi}
+            - name: tls
+              secret:
+                secretName: {{ include "mssql.tlsSecret" . }}
+                items: [{key: ca.crt, path: ca.crt}]
+            {{- if .Values.backup.s3.caSecret }}
+            - name: s3-ca
+              secret:
+                secretName: {{ .Values.backup.s3.caSecret }}
+                items: [{key: ca.crt, path: ca.crt}]
+            {{- end }}
+            {{- if .Values.backup.workloadIdentity.enabled }}
+            - name: identity
+              projected:
+                sources:
+                  - serviceAccountToken: {audience: sts.amazonaws.com, expirationSeconds: 3600, path: token}
+            {{- end }}
+{{- end }}

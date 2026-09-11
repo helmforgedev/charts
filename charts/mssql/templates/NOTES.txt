@@ -1,0 +1,54 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "mssql.validate" . -}}
+MICROSOFT SQL SERVER
+
+1. Release
+   {{ .Release.Name }} in {{ .Release.Namespace }}; engine {{ .Values.image.tag }}.
+   Edition: {{ .Values.sql.edition }}. One SQL writer; upgrades/recovery involve downtime.
+
+2. License and installation
+{{ if not .Values.license.acceptEULA }}
+   SQL Server has NOT started. No database storage or credentials were created.
+   Read Microsoft's license terms, choose your edition, then explicitly set
+   license.acceptEULA=true. Developer editions are not production licenses.
+{{ else }}
+   EULA acceptance was explicitly enabled by this release configuration.
+   Inspect: kubectl -n {{ .Release.Namespace }} rollout status statefulset/{{ include "mssql.fullname" . }}
+{{ end }}
+
+3. Connect
+   SQL TCP Service: {{ include "mssql.fullname" . }}:{{ .Values.service.port }}.
+   TLS is required. CA: Secret {{ include "mssql.tlsSecret" . }}, key ca.crt.
+   Use a trusted certificate DNS name and a dedicated application login.
+   A TCP database does not use HTTP Ingress or HTTPRoute.
+
+4. Credentials
+   Administrator/probe/backup/metrics Secret: {{ include "mssql.authSecret" . }}.
+   Credentials are never printed here. Use SQLCMDPASSWORD, not password arguments.
+   Changing a Kubernetes Secret does not rotate a persisted SQL login.
+   GitOps should use existing Secrets or External Secrets.
+
+5. Persistence and recovery
+   Persistence enabled: {{ .Values.persistence.enabled }}; claim: {{ include "mssql.dataClaim" . }}.
+   Preserve master, user databases and encryption keys together.
+   Restore a backup into a fresh instance before relying on your recovery plan.
+   Never scale this singleton or attach its workspace to multiple SQL writers.
+
+6. Backup
+   S3 backup enabled: {{ .Values.backup.enabled }}; schedule: {{ .Values.backup.schedule }} ({{ .Values.backup.timeZone }}).
+   Full COPY_ONLY backups use native CHECKSUM and a manifest-last S3 upload.
+   This is not PITR. FULL recovery databases require a separate log-backup strategy.
+   Bucket lifecycle retention and independent backup verification are your responsibility.
+
+7. Monitoring and operations
+   Metrics enabled: {{ .Values.metrics.enabled }}; ServiceMonitor: {{ .Values.metrics.serviceMonitor.enabled }}.
+   Observe SQL readiness, database state, disk capacity and successful S3 uploads.
+   Liveness uses TCP; readiness performs an authenticated SQL query.
+   Drain and maintenance operations need an explicit downtime window.
+
+8. Documentation
+   https://helmforge.dev/docs/charts/mssql
+   https://github.com/helmforgedev/charts/tree/main/charts/mssql/docs
+   Source image and supported platforms: https://github.com/microsoft/mssql-docker
+
+Happy Helmforging :)

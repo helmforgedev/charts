@@ -1,0 +1,246 @@
+# SPDX-License-Identifier: Apache-2.0
+# -- Resource name prefix override.
+nameOverride: ""
+# -- Complete release resource name (maximum 40 characters, reserving suffix space).
+fullnameOverride: ""
+# -- Additional resource labels; selectors cannot be overridden.
+commonLabels: {}
+# -- Labels on SQL Server Pods.
+podLabels: {}
+# -- Annotations on SQL Server Pods.
+podAnnotations: {}
+# -- Registry credentials.
+imagePullSecrets: []
+image:
+  # -- Official Microsoft Container Registry image.
+  repository: mcr.microsoft.com/mssql/server
+  # -- Engine version selected independently of sql.edition; tested 2025 and 2022 pins in examples.
+  tag: 2025-CU8-GDR1-ubuntu-24.04@sha256:b036b61e953e6e660f04514fc3f703b995a9cdda569cf96d07d3f751240f615a
+  # -- Container image pull policy.
+  pullPolicy: IfNotPresent
+license:
+  # -- Explicitly accept Microsoft's EULA. False installs only a consent notice; no SQL process, credentials or PVC.
+  acceptEULA: false
+  # -- Existing Secret containing the product key when sql.edition=ProductKey.
+  existingSecret: ""
+  # -- Product-key Secret entry. Never place a product key in plain values.
+  productKeyKey: product-key
+sql:
+  # -- Express is production-eligible within its limits; Developer editions are development/test only.
+  edition: Express
+  # -- Native server memory ceiling in MiB; leave headroom below the container memory limit.
+  memoryLimitMB: 3072
+  # -- Default collation for newly initialized system databases; does not migrate persisted data.
+  collation: SQL_Latin1_General_CP1_CI_AS
+  # -- Default server language locale identifier.
+  lcid: 1033
+  agent:
+    # -- Enable SQL Server Agent on eligible editions; Kubernetes backup scheduling does not require Agent.
+    enabled: false
+auth:
+  # -- Existing Secret with sa-password, probe-password, metrics-password and backup-password entries.
+  existingSecret: ""
+tls:
+  # -- Existing TLS Secret with tls.crt, tls.key and ca.crt. Empty generates a retained private CA/server certificate.
+  existingSecret: ""
+  # -- Additional certificate DNS SANs for generated certificates, such as an external TCP hostname.
+  extraDnsNames: []
+  # -- Generated certificate lifetime in days; renewal requires an explicit documented operation.
+  durationDays: 365
+initdb:
+  # -- Idempotent database/login provisioning. Passwords come from per-application existing Secrets.
+  databases: []
+  # - name: application
+  #   username: application
+  #   existingSecret: application-db
+  #   passwordKey: password
+  #   recoveryModel: SIMPLE
+  # -- Existing ConfigMaps with reviewed *.sql scripts. Each script runs once with an immutable content ledger.
+  scriptsConfigMaps: []
+persistence:
+  # -- Persist all SQL Server state, including master and encryption hierarchy.
+  enabled: true
+  # -- Reuse an existing claim instead of creating one.
+  existingClaim: ""
+  # -- Requested storage class; empty uses default, '-' disables dynamic provisioning.
+  storageClass: ""
+  # -- Data volume size.
+  size: 20Gi
+  # -- Single-writer claim access mode.
+  accessMode: ReadWriteOnce
+  # -- Keep the generated data claim and generated auth/TLS Secrets on uninstall when persistence is enabled.
+  retain: true
+  # -- Extra PVC annotations.
+  annotations: {}
+service:
+  # -- SQL TCP exposure; keep ClusterIP unless external access is deliberately configured.
+  type: ClusterIP
+  # -- SQL Server client port on the Service.
+  port: 1433
+  # -- Service annotations.
+  annotations: {}
+  # -- Kubernetes Service address-family policy; empty uses cluster default.
+  ipFamilyPolicy: ""
+  # -- Explicit ordered address families.
+  ipFamilies: []
+  # -- Restrict external load balancer source CIDRs when supported by the provider.
+  loadBalancerSourceRanges: []
+serviceAccount:
+  # -- Create a dedicated SQL Pod service account; no Kubernetes API token is mounted.
+  create: true
+  # -- Existing or created account name override.
+  name: ""
+  # -- ServiceAccount annotations.
+  annotations: {}
+resources:
+  # -- Production reservation, equal to limits for Guaranteed QoS on the SQL Pod.
+  requests: {cpu: "2", memory: 4Gi}
+  # -- Hard container budget; server memory must fit with runtime headroom.
+  limits: {cpu: "2", memory: 4Gi}
+# -- Architecture supported by Microsoft; emulated ARM is not supported.
+nodeSelector: {kubernetes.io/os: linux, kubernetes.io/arch: amd64}
+# -- Pod scheduling tolerations.
+tolerations: []
+# -- Optional scheduling affinity.
+affinity: {}
+# -- Pod priority class.
+priorityClassName: ""
+# -- Time allowed for SQL Server to shut down cleanly.
+terminationGracePeriodSeconds: 120
+probes:
+  startup:
+    # -- Native SQL bootstrap completion check period.
+    periodSeconds: 10
+    # -- Startup probe timeout.
+    timeoutSeconds: 5
+    # -- Up to ten minutes for initial database creation/recovery.
+    failureThreshold: 60
+  readiness:
+    # -- Authenticated SELECT 1 readiness period.
+    periodSeconds: 10
+    # -- Readiness probe timeout.
+    timeoutSeconds: 5
+    # -- Fail readiness before routing more clients to an unready database.
+    failureThreshold: 3
+  liveness:
+    # -- TCP-only liveness avoids restarting a healthy database because of credential drift.
+    periodSeconds: 20
+    # -- Liveness TCP timeout.
+    timeoutSeconds: 5
+    # -- Tolerate short pauses before restarting SQL Server.
+    failureThreshold: 6
+networkPolicy:
+  # -- Enforce SQL client and optional monitoring/backup network boundaries.
+  enabled: true
+  # -- Explicit authorized SQL client peers. Empty allows only chart-owned backup/exporter Pods.
+  ingressFrom: []
+  # -- Cluster DNS selector for optional outgoing DNS.
+  dnsNamespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+  # -- Additional workload egress rules for deliberate integrations.
+  extraEgress: []
+backup:
+  # -- Native full COPY_ONLY backups uploaded to S3, including Express. Does not provide log backups or PITR.
+  enabled: false
+  # -- Cron schedule in UTC by default.
+  schedule: "0 2 * * *"
+  # -- IANA time zone used by the Kubernetes CronJob controller.
+  timeZone: Etc/UTC
+  # -- Pause scheduling without removing the backup configuration.
+  suspend: false
+  # -- Explicit database names to back up; must be provisioned through initdb.databases or pre-existing with grants.
+  databases: []
+  # -- Native compression for eligible editions; must remain false for Express/Web.
+  compression: false
+  # -- Job execution deadline in seconds.
+  activeDeadlineSeconds: 3600
+  # -- Retry budget; every retry uses a unique staging directory.
+  backoffLimit: 1
+  # -- Successful Job history count.
+  successfulJobsHistoryLimit: 3
+  # -- Failed Job history count.
+  failedJobsHistoryLimit: 3
+  image:
+    # -- Original AWS-maintained uploader image.
+    repository: public.ecr.aws/aws-cli/aws-cli
+    # -- Pinned AWS CLI release and multiarch manifest.
+    tag: 2.36.43@sha256:d948ee299a7ffcaec0d6052a00b9f4c513c61cacfaedfe68b098c85808394441
+  staging:
+    # -- Existing staging claim. Must support concurrent mounts on the same node (RWO or RWX, not RWOP).
+    existingClaim: ""
+    # -- Backup staging capacity; size for the largest backup set plus headroom for interrupted-run orphan files.
+    size: 20Gi
+    # -- StorageClass for generated staging PVC.
+    storageClass: ""
+    # -- Preserve staging PVC for diagnostic records and interrupted-run orphan inspection after uninstall.
+    retain: true
+  s3:
+    # -- Existing destination bucket. The chart never creates or deletes buckets.
+    bucket: ""
+    # -- Dedicated object prefix; each completed run has a unique subdirectory and manifest.json.
+    prefix: mssql
+    # -- AWS region or S3-compatible signing region.
+    region: us-east-1
+    # -- HTTPS endpoint override; empty uses AWS S3.
+    endpoint: ""
+    # -- Existing Secret with AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, optionally AWS_SESSION_TOKEN.
+    existingSecret: ""
+    # -- Server-side encryption mode: empty, AES256 or aws:kms.
+    sse: AES256
+    # -- AWS KMS key identifier when sse=aws:kms.
+    kmsKeyId: ""
+    # -- Optional Secret with ca.crt for private HTTPS object storage.
+    caSecret: ""
+  workloadIdentity:
+    # -- Use explicit AWS web identity instead of static credentials.
+    enabled: false
+    # -- IAM role ARN for the projected sts.amazonaws.com token.
+    roleArn: ""
+    # -- Backup-only ServiceAccount annotations.
+    annotations: {}
+  # -- Resources for each sequential backup/uploader container.
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: "1", memory: 512Mi}
+  # -- Egress rules authorizing the S3 endpoint (required when NetworkPolicy is enabled).
+  egress: []
+metrics:
+  # -- Separate original-maintainer SQL exporter with a least-privilege login.
+  enabled: false
+  image:
+    # -- Original SQL exporter maintainer image.
+    repository: burningalchemist/sql_exporter
+    # -- Verified exporter release.
+    tag: 0.24.8@sha256:2586aa37f140128fb92cf9b764ca30fbfab898c8740268ae1a6e1f39260f4d5d
+  # -- Existing DSN Secret, required together with auth.existingSecret when metrics are enabled.
+  existingSecret: ""
+  # -- Key containing a TLS-verifying DSN whose hf_metrics password matches auth.metrics-password.
+  secretKey: dsn
+  # -- Private metrics port.
+  port: 9399
+  # -- Explicit authorized Prometheus peers.
+  ingressFrom: []
+  # -- Exporter resource allocation.
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+  serviceMonitor:
+    # -- Render Prometheus Operator ServiceMonitor.
+    enabled: false
+    # -- Scrape interval.
+    interval: 30s
+    # -- Scrape timeout.
+    scrapeTimeout: 10s
+    # -- Additional ServiceMonitor labels.
+    labels: {}
+  prometheusRule:
+    # -- Render target/database health alerts; requires ServiceMonitor.
+    enabled: false
+    # -- Additional alert labels.
+    labels: {}
+externalSecrets:
+  # -- Render canonical external-secrets.io/v1 resources.
+  enabled: false
+  # -- Default Secret synchronization interval.
+  refreshInterval: 1h
+  # -- Complete ExternalSecret definitions with item-level spec.
+  items: []

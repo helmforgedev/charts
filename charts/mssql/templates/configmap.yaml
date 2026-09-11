@@ -1,0 +1,28 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- include "mssql.validate" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mssql.fullname" . }}-config
+  labels:
+    {{- include "mssql.labels" . | nindent 4 }}
+data:
+  consent: {{ .Values.license.acceptEULA | quote }}
+  {{- if .Values.license.acceptEULA }}
+  bootstrap.json: {{ dict "databases" .Values.initdb.databases "backupEnabled" .Values.backup.enabled "backupDatabases" .Values.backup.databases "metricsEnabled" .Values.metrics.enabled | toJson | quote }}
+  mssql.conf: |
+    [network]
+    forceencryption = 1
+    tlscert = /run/mssql/tls.crt
+    tlskey = /run/mssql/tls.key
+    tcpport = 1433
+    {{- if hasPrefix "2022-" .Values.image.tag }}
+    tlsprotocols = 1.2
+    {{- end }}
+    [telemetry]
+    customerfeedback = false
+  {{- range $path, $_ := .Files.Glob "files/*" }}
+  {{ base $path }}: |
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
+  {{- end }}

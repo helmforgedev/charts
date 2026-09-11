@@ -1,0 +1,91 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and .Values.license.acceptEULA .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "mssql.fullname" . }}
+  labels:
+    {{- include "mssql.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "mssql.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: server
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - ports: [{port: 1433, protocol: TCP}]
+      from:
+        - podSelector:
+            matchLabels:
+              {{- include "mssql.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: backup
+        - podSelector:
+            matchLabels:
+              {{- include "mssql.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: metrics
+        {{- with .Values.networkPolicy.ingressFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+  egress:
+    {{- toYaml .Values.networkPolicy.extraEgress | nindent 4 }}
+{{- if .Values.backup.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "mssql.fullname" . }}-backup
+  labels:
+    {{- include "mssql.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "mssql.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backup
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "mssql.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: server
+      ports: [{port: 1433, protocol: TCP}]
+    - to:
+        - namespaceSelector:
+            {{- toYaml .Values.networkPolicy.dnsNamespaceSelector | nindent 12 }}
+      ports: [{port: 53, protocol: UDP}, {port: 53, protocol: TCP}]
+    {{- with .Values.backup.egress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}
+{{- if .Values.metrics.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "mssql.fullname" . }}-metrics
+  labels:
+    {{- include "mssql.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "mssql.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: metrics
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - ports: [{port: {{ .Values.metrics.port }}, protocol: TCP}]
+      from:
+        {{- toYaml .Values.metrics.ingressFrom | nindent 8 }}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "mssql.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: server
+      ports: [{port: 1433, protocol: TCP}]
+    - to:
+        - namespaceSelector:
+            {{- toYaml .Values.networkPolicy.dnsNamespaceSelector | nindent 12 }}
+      ports: [{port: 53, protocol: UDP}, {port: 53, protocol: TCP}]
+{{- end }}
+{{- end }}

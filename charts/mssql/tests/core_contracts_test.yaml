@@ -1,0 +1,104 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: SQL Server consent edition and security contracts
+templates:
+  - statefulset.yaml
+  - secrets.yaml
+  - storage.yaml
+  - service.yaml
+  - configmap.yaml
+tests:
+  - it: creates no SQL process before EULA acceptance
+    template: statefulset.yaml
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: creates no credentials before EULA acceptance
+    template: secrets.yaml
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: allocates no PVC before EULA acceptance
+    template: storage.yaml
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: keeps Express explicit and singleton after consent
+    template: statefulset.yaml
+    set: {license.acceptEULA: true}
+    asserts:
+      - equal: {path: 'spec.replicas', value: 1}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: MSSQL_PID, value: Express}
+  - it: maps Developer alias to EnterpriseDeveloper on 2025
+    template: statefulset.yaml
+    set: {license.acceptEULA: true, sql.edition: Developer}
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: MSSQL_PID, value: EnterpriseDeveloper}
+  - it: isolates the SQL Service selector from metrics and backup Pods
+    template: service.yaml
+    set: {license.acceptEULA: true}
+    asserts:
+      - equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: server
+        documentIndex: 0
+      - equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: server
+        documentIndex: 1
+  - it: preserves the Developer edition name for a 2022 engine
+    template: statefulset.yaml
+    set:
+      license.acceptEULA: true
+      sql.edition: Developer
+      image.tag: 2022-CU20-ubuntu-22.04@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: MSSQL_PID, value: Developer}
+  - it: uses external authentication and TLS without exposing password arguments
+    template: statefulset.yaml
+    set:
+      license.acceptEULA: true
+      auth.existingSecret: sql-auth
+      tls.existingSecret: sql-tls
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content: {name: auth, secret: {secretName: sql-auth, defaultMode: 288}}
+      - contains:
+          path: spec.template.spec.volumes
+          content: {name: tls, secret: {secretName: sql-tls, defaultMode: 288}}
+      - equal: {path: 'spec.template.spec.automountServiceAccountToken', value: false}
+      - equal: {path: 'spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem', value: true}
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: SQLCMDPASSWORD
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: ' -P '
+      - exists: {path: 'spec.template.spec.containers[0].livenessProbe.tcpSocket'}
+  - it: mounts application passwords as files independently of the SA credential
+    template: statefulset.yaml
+    set:
+      license.acceptEULA: true
+      initdb.databases:
+        - name: app
+          username: appuser
+          existingSecret: app-credentials
+          passwordKey: sql-password
+          recoveryModel: SIMPLE
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: application-0
+            secret:
+              secretName: app-credentials
+              items: [{key: sql-password, path: 'password'}]
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content: {name: application-0, mountPath: /applications/0, readOnly: true}
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value: [/usr/bin/python3, /config/server.py]
