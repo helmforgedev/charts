@@ -31,3 +31,7 @@ app.kubernetes.io/part-of: helmforge
 {{- range .Values.extraEnv -}}{{- if or (hasPrefix "SECURITY_" .name) (has .name (list "SERVER_PORT" "SYSTEM_ROOTURIPATH" "SYSTEM_ENABLEANALYTICS" "SYSTEM_ENABLEPOSTHOG" "STORAGE_ENABLED" "JAVA_CUSTOM_OPTS" "SPRING_DATASOURCE_URL" "SYSTEM_DATASOURCE_ENABLECUSTOMDATABASE" "SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE" "SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE" "SYSTEM_CONNECTIONTIMEOUTMILLISECONDS")) -}}{{ fail (printf "extraEnv cannot override chart-managed setting %s" .name) }}{{- end -}}{{- end -}}
 {{- range $labels := list .Values.commonLabels .Values.podLabels -}}{{- range $key := list "app.kubernetes.io/name" "app.kubernetes.io/instance" -}}{{- if hasKey $labels $key -}}{{ fail (printf "selector label %s cannot be overridden" $key) }}{{- end -}}{{- end -}}{{- end -}}
 {{- end -}}
+
+{{- define "stirling-pdf.httpRouteName" -}}
+{{- if .route.name -}}{{ .route.name | trunc 63 | trimSuffix "-" }}{{- else if gt (int .index) 0 -}}{{ printf "%s-%v" (include "stirling-pdf.fullname" .root | trunc 55 | trimSuffix "-") .index }}{{- else -}}{{ include "stirling-pdf.fullname" .root }}{{- end -}}
+{{- end -}}

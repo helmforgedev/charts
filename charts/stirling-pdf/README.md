@@ -70,3 +70,11 @@ Security Scan: stirling-pdf
 
 Security posture acceptable. Local Kubescape 4.0.13 scanned the default rendered resources. This is a Kubernetes
 configuration assessment, not an image vulnerability or document-processing security audit.
+
+## Gateway API contract
+
+Use `gatewayAPI.enabled` and `gatewayAPI.httpRoutes[]`. Set each route's `parentRefs` to a shared Gateway that allows
+this namespace, and configure its HTTPS listener and public hostname. Routes accept labels, annotations and rules
+with matches, filters and optional backend references; omitted backends target this chart's application Service.
+Ingress and HTTPRoute resources can coexist. Verify controller conditions and public traffic before production use.
+See the [Gateway API documentation](https://gateway-api.sigs.k8s.io/).
