@@ -107,3 +107,7 @@ app.kubernetes.io/part-of: helmforge
 {{- toYaml . | nindent 0 }}
 {{- end }}
 {{- end -}}
+
+{{- define "memos.httpRouteName" -}}
+{{- if .route.name -}}{{ .route.name | trunc 63 | trimSuffix "-" }}{{- else if gt (int .index) 0 -}}{{ printf "%s-%v" (include "memos.fullname" .root | trunc 55 | trimSuffix "-") .index }}{{- else -}}{{ include "memos.fullname" .root }}{{- end -}}
+{{- end -}}
