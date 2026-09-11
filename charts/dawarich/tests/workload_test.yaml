@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Dawarich private initialization and shared storage
+templates:
+  - templates/deployment.yaml
+  - templates/runtime.yaml
+tests:
+  - it: serializes native bootstrap before a co-located web worker and proxy
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: prepare-storage
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: bootstrap
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: dawarich
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: worker
+      - equal:
+          path: spec.template.spec.containers[2].name
+          value: proxy
+      - equal:
+          path: spec.template.spec.containers[2].ports[0].containerPort
+          value: 3000
+  - it: keeps the administrator password out of long-running workloads
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[1].volumeMounts
+          content:
+            name: bootstrap-auth
+            mountPath: /bootstrap-auth
+            readOnly: true
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: bootstrap-auth
+            mountPath: /bootstrap-auth
+            readOnly: true
+      - notContains:
+          path: spec.template.spec.containers[1].volumeMounts
+          content:
+            name: bootstrap-auth
+            mountPath: /bootstrap-auth
+            readOnly: true
+  - it: shares durable import files between Rails and Sidekiq
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: workspace
+            mountPath: /var/app/tmp/imports
+            subPath: imports
+      - contains:
+          path: spec.template.spec.containers[1].volumeMounts
+          content:
+            name: workspace
+            mountPath: /var/app/tmp/imports
+            subPath: imports
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false

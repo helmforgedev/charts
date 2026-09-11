@@ -1,0 +1,169 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dawarich.fullname" . }}
+  labels: {{ include "dawarich.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {{ include "dawarich.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{ include "dawarich.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}{{ toYaml . | nindent 8 }}{{- end }}
+      annotations:
+        checksum/runtime: {{ include (print $.Template.BasePath "/runtime.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
+    spec:
+      serviceAccountName: {{ include "dawarich.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext: {{ toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      initContainers:
+        - name: prepare-storage
+          image: {{ include "dawarich.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [sh, -ec, "unset BUNDLE_PATH BUNDLE_BIN; exec bundle exec ruby /helmforge/entrypoint.rb prepare"]
+          env:
+            - {name: HOME, value: /tmp}
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - {name: workspace, mountPath: /workspace}
+            - {name: runtime, mountPath: /helmforge, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+        - name: bootstrap
+          image: {{ include "dawarich.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [sh, -ec, "unset BUNDLE_PATH BUNDLE_BIN; exec bundle exec ruby /helmforge/entrypoint.rb bootstrap"]
+          env: {{ include "dawarich.environment" . | nindent 12 }}
+            - {name: BOOTSTRAP_EMAIL, value: {{ .Values.bootstrap.email | quote }}}
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          volumeMounts: {{ include "dawarich.mounts" . | nindent 12 }}
+            - {name: bootstrap-auth, mountPath: /bootstrap-auth, readOnly: true}
+      containers:
+        - name: dawarich
+          image: {{ include "dawarich.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [sh, -ec, "unset BUNDLE_PATH BUNDLE_BIN; exec bundle exec ruby /helmforge/entrypoint.rb web"]
+          env: {{ include "dawarich.environment" . | nindent 12 }}
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            exec:
+              command: [node, /helmforge/health.mjs]
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            exec:
+              command: [sh, -ec, "unset BUNDLE_PATH BUNDLE_BIN; exec bundle exec ruby /helmforge/readiness.rb"]
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            exec:
+              command: [node, /helmforge/health.mjs]
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          volumeMounts: {{ include "dawarich.mounts" . | nindent 12 }}
+        - name: worker
+          readinessProbe:
+            exec:
+              command: [sh, -ec, "unset BUNDLE_PATH BUNDLE_BIN; exec bundle exec ruby /helmforge/entrypoint.rb worker-health"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          {{- if .Values.metrics.enabled }}
+          ports:
+            - {name: worker-metrics, containerPort: 9394}
+          {{- end }}
+          image: {{ include "dawarich.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [sh, -ec, "unset BUNDLE_PATH BUNDLE_BIN; exec bundle exec ruby /helmforge/entrypoint.rb worker"]
+          env: {{ include "dawarich.environment" . | nindent 12 }}
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.worker.resources | nindent 12 }}
+          volumeMounts: {{ include "dawarich.mounts" . | nindent 12 }}
+        - name: proxy
+          image: {{ printf "%s:%s" .Values.proxy.image.repository .Values.proxy.image.tag }}
+          imagePullPolicy: {{ .Values.proxy.image.pullPolicy }}
+          command: [nginx, -c, /helmforge/nginx.conf, -g, "daemon off;"]
+          securityContext: {{ toYaml .Values.securityContext | nindent 12 }}
+          resources: {{ toYaml .Values.proxy.resources | nindent 12 }}
+          ports:
+            - {name: http, containerPort: {{ .Values.server.port }}}
+            {{- if .Values.metrics.enabled }}
+            - {name: metrics, containerPort: {{ .Values.metrics.port }}}
+            {{- end }}
+          readinessProbe:
+            tcpSocket: {port: http}
+          livenessProbe:
+            tcpSocket: {port: http}
+          volumeMounts:
+            - {name: runtime, mountPath: /helmforge, readOnly: true}
+            - {name: proxy-tmp, mountPath: /tmp}
+      volumes:
+        - name: workspace
+          persistentVolumeClaim: {claimName: {{ include "dawarich.claimName" . }}}
+        - {name: tmp, emptyDir: {sizeLimit: {{ .Values.runtime.temporarySize }}}}
+        - {name: app-tmp, emptyDir: {sizeLimit: {{ .Values.runtime.temporarySize }}}}
+        - {name: log, emptyDir: {sizeLimit: 128Mi}}
+        - {name: proxy-tmp, emptyDir: {sizeLimit: 256Mi}}
+        - name: runtime
+          configMap: {name: {{ include "dawarich.fullname" . }}-runtime}
+        - name: bootstrap-auth
+          secret:
+            secretName: {{ include "dawarich.bootstrapSecretName" . }}
+            defaultMode: 288
+            items:
+              - {key: {{ .Values.bootstrap.passwordKey }}, path: password}
+        {{- if and (not .Values.postgresql.enabled) .Values.database.tls.caSecret }}
+        - name: postgres-ca
+          secret:
+            secretName: {{ .Values.database.tls.caSecret }}
+            items:
+              - {key: {{ .Values.database.tls.caKey }}, path: ca.crt}
+        {{- end }}
+        {{- if and (not .Values.redis.enabled) .Values.cache.tls.caSecret }}
+        - name: redis-ca
+          secret:
+            secretName: {{ .Values.cache.tls.caSecret }}
+            items:
+              - {key: {{ .Values.cache.tls.caKey }}, path: ca.crt}
+        {{- end }}
+        {{- if and (eq .Values.storage.driver "s3") .Values.storage.s3.caSecret }}
+        - name: s3-ca
+          secret:
+            secretName: {{ .Values.storage.s3.caSecret }}
+            items:
+              - {key: {{ .Values.storage.s3.caKey }}, path: ca.crt}
+        {{- end }}

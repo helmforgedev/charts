@@ -1,0 +1,88 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Dawarich persistence secrets and dependency isolation
+templates:
+  - templates/pvc.yaml
+  - templates/bootstrap-secret.yaml
+  - templates/externalsecret.yaml
+  - templates/networkpolicy.yaml
+tests:
+  - it: retains the complete native identity and blob volume
+    template: templates/pvc.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+      - equal:
+          path: spec.resources.requests.storage
+          value: 20Gi
+  - it: uses an existing recovery claim without creating another volume
+    template: templates/pvc.yaml
+    set:
+      persistence.existingClaim: recovered
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: retains the initial administrator credential
+    template: templates/bootstrap-secret.yaml
+    set:
+      bootstrap.password: owned-fixture-password-32
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+      - equal:
+          path: data.admin-password
+          value: b3duZWQtZml4dHVyZS1wYXNzd29yZC0zMg==
+  - it: leaves externally managed administrator credentials untouched
+    template: templates/bootstrap-secret.yaml
+    set:
+      bootstrap.existingSecret: operator-admin
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: maps ESO target and data through the standard items contract
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: operator-admin
+          spec:
+            secretStoreRef:
+              name: production
+              kind: ClusterSecretStore
+            data:
+              - secretKey: admin-password
+                remoteRef:
+                  key: applications/dawarich/admin-password
+    asserts:
+      - equal:
+          path: spec.target.name
+          value: operator-admin
+      - equal:
+          path: spec.data[0].secretKey
+          value: admin-password
+      - equal:
+          path: spec.refreshInterval
+          value: 1h
+  - it: follows custom dependency ports and restricts Redis clients to Dawarich
+    template: templates/networkpolicy.yaml
+    set:
+      postgresql.service.port: 5544
+      redis.service.ports.redis: 6380
+    asserts:
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 5544
+        documentIndex: 0
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 6380
+        documentIndex: 0
+      - equal:
+          path: spec.ingress[0].from[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: dawarich
+        documentIndex: 1
+      - equal:
+          path: spec.egress
+          value: []
+        documentIndex: 1

@@ -1,0 +1,60 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "dawarich.fullname" . }}
+  labels: {{ include "dawarich.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {{ include "dawarich.selectorLabels" . | nindent 6 }}
+  policyTypes: [Ingress{{ if .Values.networkPolicy.egressIsolation }}, Egress{{ end }}]
+  ingress:
+    - from:
+        {{- if .Values.networkPolicy.ingressFrom }}
+        {{- toYaml .Values.networkPolicy.ingressFrom | nindent 8 }}
+        {{- else }}
+        - podSelector: {}
+        {{- end }}
+      ports: [{protocol: TCP, port: http}]
+    {{- if .Values.metrics.enabled }}
+    - from: {{ toYaml .Values.metrics.ingressFrom | nindent 8 }}
+      ports: [{protocol: TCP, port: metrics}, {protocol: TCP, port: worker-metrics}]
+    {{- end }}
+  {{- if .Values.networkPolicy.egressIsolation }}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/name: postgresql}
+      ports: [{protocol: TCP, port: {{ get (.Values.postgresql.service | default dict) "port" | default 5432 }}}]
+    - to:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/name: redis}
+      ports: [{protocol: TCP, port: {{ get (get (.Values.redis.service | default dict) "ports" | default dict) "redis" | default 6379 }}}]
+    - to: {{ toYaml .Values.networkPolicy.dnsEgress | nindent 8 }}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    {{- with .Values.networkPolicy.extraEgress }}{{ toYaml . | nindent 4 }}{{- end }}
+  {{- end }}
+{{- end }}
+{{- if and .Values.networkPolicy.enabled .Values.redis.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "dawarich.fullname" . }}-redis
+  labels: {{ include "dawarich.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/name: redis
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {{ include "dawarich.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ get (get (.Values.redis.service | default dict) "ports" | default dict) "redis" | default 6379 }}
+  egress: []
+{{- end }}

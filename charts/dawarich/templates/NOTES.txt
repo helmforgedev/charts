@@ -1,0 +1,62 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+1. Release
+
+Dawarich {{ .Chart.AppVersion }} is installed as {{ .Release.Name }} in {{ .Release.Namespace }}.
+Rails and Sidekiq share a persistent volume in one Recreate application Pod.
+
+2. Access
+
+Configured public origin: {{ include "dawarich.publicUrl" . }}
+Set server.publicUrl to the exact HTTPS origin before production use.
+Terminate public TLS at the Ingress or Gateway and permit WebSocket upgrades.
+For a local demonstration, use server.publicUrl=http://localhost:3000 and:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "dawarich.fullname" . }} 3000:{{ .Values.service.port }}
+
+3. Administrator credentials
+
+Initial email: {{ .Values.bootstrap.email }}
+Initial password Secret: {{ include "dawarich.bootstrapSecretName" . }}
+Secret key: {{ .Values.bootstrap.passwordKey }}
+Retrieve the credential through your approved Secret-management workflow.
+The native administrator is created before database seeds, without listening HTTP.
+Updating this Secret does not reset the password of an existing account.
+
+4. Persistent state
+
+Application claim: {{ include "dawarich.claimName" . }}
+Identity Secret: {{ include "dawarich.identitySecretName" . }}
+Retain PostGIS, local attachments/imports, the identity fingerprint and all four
+Rails/OTP encryption keys together. PVC retention is not a backup.
+
+5. Dependencies
+
+PostGIS endpoint: {{ include "dawarich.databaseHost" . }}
+Redis endpoint: {{ include "dawarich.cacheHost" . }}
+The database requires postgis and pgcrypto extensions. The bundled official
+PostGIS image targets amd64; use external PostGIS for other architectures.
+Cache database: {{ .Values.cache.database }}; job database: {{ .Values.cache.queueDatabase }}.
+Redis Cluster does not provide the required logical database contract.
+
+6. Observability
+
+Check the separate bootstrap, Rails, worker and proxy logs. A successful web health
+response alone does not establish job processing; verify imports reach completed.
+Readiness queries PostGIS and Redis as well as native HTTP health.
+
+7. Upgrades and recovery
+
+Quiesce both web and worker before coordinating database and filesystem backups.
+Preserve the exact identity Secret when restoring to fresh database/storage.
+Schema and data migrations run serially before the web and worker start.
+An identity fingerprint mismatch or unsafe default seed account blocks startup.
+
+8. Troubleshooting
+
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "dawarich.fullname" . }} -c bootstrap
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "dawarich.fullname" . }} -c dawarich
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "dawarich.fullname" . }} -c worker
+Check dependency credentials, PostGIS extensions, CA trust, writable paths and
+the configured public origin. Public self-registration and OAuth routes are closed
+by the chart's documented local-account policy.
+
+Happy Helmforging :)

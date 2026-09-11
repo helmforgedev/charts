@@ -1,0 +1,62 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.metrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dawarich.fullname" . | trunc 55 | trimSuffix "-" }}-metrics
+  labels: {{ include "dawarich.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ .Values.service.ipFamilyPolicy }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies: {{ toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - {name: metrics, port: {{ .Values.metrics.port }}, targetPort: metrics}
+    - {name: worker-metrics, port: 9394, targetPort: worker-metrics}
+  selector: {{ include "dawarich.selectorLabels" . | nindent 4 }}
+{{- if .Values.metrics.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "dawarich.fullname" . }}
+  labels:
+    {{- include "dawarich.labels" . | nindent 4 }}
+    {{- with .Values.metrics.serviceMonitor.labels }}{{ toYaml . | nindent 4 }}{{- end }}
+spec:
+  selector:
+    matchLabels: {{ include "dawarich.selectorLabels" . | nindent 6 }}
+  endpoints:
+    {{- range $port := list "metrics" "worker-metrics" }}
+    - port: {{ $port }}
+      path: /metrics
+      interval: {{ $.Values.metrics.serviceMonitor.interval }}
+      scrapeTimeout: {{ $.Values.metrics.serviceMonitor.scrapeTimeout }}
+      basicAuth:
+        username: {name: {{ include "dawarich.metricsSecretName" $ }}, key: {{ $.Values.metrics.auth.usernameKey }}}
+        password: {name: {{ include "dawarich.metricsSecretName" $ }}, key: {{ $.Values.metrics.auth.passwordKey }}}
+    {{- end }}
+{{- end }}
+{{- if .Values.metrics.prometheusRule.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "dawarich.fullname" . }}
+  labels:
+    {{- include "dawarich.labels" . | nindent 4 }}
+    {{- with .Values.metrics.prometheusRule.labels }}{{ toYaml . | nindent 4 }}{{- end }}
+spec:
+  groups:
+    - name: {{ include "dawarich.fullname" . }}.native
+      rules:
+        - alert: DawarichMetricsUnavailable
+          expr: up{namespace={{ .Release.Namespace | quote }},service={{ printf "%s-metrics" (include "dawarich.fullname" . | trunc 55 | trimSuffix "-") | quote }}} == 0
+          for: 5m
+          labels: {severity: warning}
+          annotations: {summary: "Dawarich native metrics target is unavailable"}
+        {{- with .Values.metrics.prometheusRule.additionalRules }}{{ toYaml . | nindent 8 }}{{- end }}
+{{- end }}
+{{- end }}
