@@ -84,3 +84,7 @@ app.kubernetes.io/part-of: helmforge
 - {name: database-ca, mountPath: /database-ca, readOnly: true}
 {{- end }}
 {{- end -}}
+
+{{- define "ryot.httpRouteName" -}}
+{{- if .route.name -}}{{ .route.name | trunc 63 | trimSuffix "-" }}{{- else if gt (int .index) 0 -}}{{ printf "%s-%v" (include "ryot.fullname" .root | trunc 55 | trimSuffix "-") .index }}{{- else -}}{{ include "ryot.fullname" .root }}{{- end -}}
+{{- end -}}
