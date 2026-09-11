@@ -17,17 +17,38 @@ export async function validateAgent({sql, values}) {
   const tableName = `agent_acceptance_${suffix}`;
   const table = `acceptance.dbo.${identifier(tableName)}`;
   const jobLiteral = literal(job);
+  // SQL readiness can precede Agent readiness. Retry only its explicit startup
+  // error; authentication, permission, transport and other SQL failures stay fatal.
+  const startingDeadline = Date.now() + 45000;
+  const agentSql = async statement => {
+    for (;;) {
+      try {
+        return sql(statement);
+      } catch (error) {
+        const output = [error?.message, error?.stdout, error?.stderr].filter(Boolean).map(String).join('\n');
+        const numbers = [...output.matchAll(/\bMsg\s+(\d+)\b/g)].map(match => Number(match[1]));
+        if (!numbers.length || numbers.some(number => number !== 14258) || Date.now() >= startingDeadline) throw error;
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+  };
   let failed = false;
   try {
     sql(`CREATE TABLE ${table}(id int PRIMARY KEY, marker nvarchar(80) NOT NULL);`);
     const command = `INSERT dbo.${identifier(tableName)} VALUES(1,N'agent executed TSQL');`;
-    sql(`USE msdb;
-EXEC dbo.sp_add_job @job_name=${jobLiteral}, @enabled=1, @owner_login_name=N'sa';
+    await agentSql(`USE msdb;
+IF NOT EXISTS (SELECT 1 FROM dbo.sysjobs WHERE name=${jobLiteral})
+  EXEC dbo.sp_add_job @job_name=${jobLiteral}, @enabled=1, @owner_login_name=N'sa';`);
+    await agentSql(`USE msdb;
+IF NOT EXISTS (SELECT 1 FROM dbo.sysjobsteps s JOIN dbo.sysjobs j ON j.job_id=s.job_id
+  WHERE j.name=${jobLiteral} AND s.step_name=N'write acceptance marker')
 EXEC dbo.sp_add_jobstep @job_name=${jobLiteral}, @step_name=N'write acceptance marker',
   @subsystem=N'TSQL', @database_name=N'acceptance', @command=${literal(command)},
-  @on_success_action=1, @on_fail_action=2, @retry_attempts=0;
-EXEC dbo.sp_add_jobserver @job_name=${jobLiteral}, @server_name=N'(local)';
-EXEC dbo.sp_start_job @job_name=${jobLiteral};`);
+  @on_success_action=1, @on_fail_action=2, @retry_attempts=0;`);
+    await agentSql(`USE msdb;
+IF NOT EXISTS (SELECT 1 FROM dbo.sysjobservers s JOIN dbo.sysjobs j ON j.job_id=s.job_id WHERE j.name=${jobLiteral})
+  EXEC dbo.sp_add_jobserver @job_name=${jobLiteral}, @server_name=N'(local)';`);
+    await agentSql(`EXEC msdb.dbo.sp_start_job @job_name=${jobLiteral};`);
     const deadline = Date.now() + 30000;
     let complete = false;
     while (Date.now() < deadline) {
@@ -49,7 +70,7 @@ WHERE j.name=${jobLiteral} AND h.step_id=0 ORDER BY h.instance_id DESC), -1);`);
   } finally {
     try {
       // UUID names scope cleanup to resources created by this invocation; no schedules are created.
-      sql(`USE msdb;
+      await agentSql(`USE msdb;
 IF EXISTS (SELECT 1 FROM dbo.sysjobs WHERE name=${jobLiteral})
   EXEC dbo.sp_delete_job @job_name=${jobLiteral}, @delete_history=1, @delete_unused_schedule=0;
 DROP TABLE IF EXISTS ${table};`);

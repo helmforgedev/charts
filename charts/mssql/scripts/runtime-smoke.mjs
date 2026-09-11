@@ -62,7 +62,7 @@ if(values.service.ipFamilyPolicy==='RequireDualStack'){
   const service=json(['get','service',name,'-o','json']);
   assert.equal(service.spec.clusterIPs.length,2);
   for(const address of service.spec.clusterIPs){
-    const target=address.includes(':')?`tcp:[${address}],${values.service.port}`:`tcp:${address},${values.service.port}`;
+    const target=`tcp:${address},${values.service.port}`;
     // Certificate identity is tested through DNS above; raw IPs prove both Service routes.
     assert.equal(k(['exec',peer,'--','/opt/mssql-tools18/bin/sqlcmd','-S',target,'-U','hf_probe','-N','-C','-b','-l','5','-h','-1','-W','-Q','SET NOCOUNT ON; SELECT 1;']).trim(),'1');
   }
