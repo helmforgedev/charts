@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+fullnameOverride: hermes-routes
+agent:
+  model: helmforge-fixture
+  provider: custom:fixture
+  baseUrl: http://hermes-provider:8080/v1
+  apiKeyEnv: OPENAI_API_KEY
+config:
+  values:
+    model:
+      api_mode: chat_completions
+    auxiliary:
+      free_only: true
+credentials:
+  existingSecret: hermes-provider-credentials
+networkPolicy:
+  allowInternet: false
+  extraEgress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: hermes-provider
+      ports:
+        - protocol: TCP
+          port: 8080
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: hermes.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: hermes-edge-tls
+      hosts:
+        - hermes.example.com
+gatewayAPI:
+  enabled: true
+  httpRoutes:
+    - name: api
+      parentRefs:
+        - name: edge
+          namespace: gateway-system
+          sectionName: https
+      hostnames:
+        - hermes.example.com

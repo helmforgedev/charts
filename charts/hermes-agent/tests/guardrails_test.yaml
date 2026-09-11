@@ -1,0 +1,85 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Hermes guardrails contracts
+templates:
+  - configmap.yaml
+tests:
+  - it: requires an allowlist for enabled messaging
+    template: configmap.yaml
+    set:
+      channels.telegram.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: channels.telegram requires allowedUsers and credentials.existingSecret
+  - it: requires dashboard credential and editable configuration
+    template: configmap.yaml
+    set:
+      dashboard.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: dashboard.enabled requires config.policy=seed and dashboard.existingSecret
+  - it: rejects custom credentials without custom provider
+    template: configmap.yaml
+    set:
+      agent.apiKeyEnv: CUSTOM_KEY
+    asserts:
+      - failedTemplate:
+          errorMessage: agent.apiKeyEnv requires a custom:<name> provider and agent.baseUrl
+  - it: rejects metrics without a receiver
+    template: configmap.yaml
+    set:
+      metrics.enabled: true
+      metrics.collector.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: metrics.externalEndpoint is required without the local collector
+  - it: rejects ServiceMonitor without collector
+    template: configmap.yaml
+    set:
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: Prometheus integration requires metrics.enabled and metrics.collector.enabled
+  - it: rejects backup without required storage
+    template: configmap.yaml
+    set:
+      backup.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: backup/restore requires persistence.enabled, backup.s3.bucket and backup.s3.existingSecret
+  - it: rejects single-Pod access mode for concurrent backup
+    template: configmap.yaml
+    set:
+      backup.enabled: true
+      backup.s3.bucket: hermes-backups
+      backup.s3.existingSecret: s3
+      persistence.accessModes:
+        - ReadWriteOncePod
+    asserts:
+      - failedTemplate:
+          errorMessage: backup requires a concurrently mountable RWO or RWX claim, not ReadWriteOncePod
+  - it: rejects accidental plaintext object storage
+    template: configmap.yaml
+    set:
+      backup.enabled: true
+      backup.s3.bucket: hermes-backups
+      backup.s3.existingSecret: s3
+      backup.s3.endpoint: http://storage:8333
+    asserts:
+      - failedTemplate:
+          errorMessage: HTTP S3 endpoints require backup.s3.allowInsecureEndpoint=true
+  - it: rejects configuration bypass of API authentication
+    template: configmap.yaml
+    set:
+      config.values.platforms: {}
+    asserts:
+      - failedTemplate:
+          errorMessage: config.values.platforms is reserved for the chart's authenticated gateway contract
+  - it: rejects unsafe allow-all environment override
+    template: configmap.yaml
+    set:
+      extraEnv:
+        - name: GATEWAY_ALLOW_ALL_USERS
+          value: 'true'
+    asserts:
+      - failedTemplate:
+          errorMessage: extraEnv name GATEWAY_ALLOW_ALL_USERS is owned by chart identity/access controls

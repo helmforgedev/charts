@@ -1,0 +1,140 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Hermes core contracts
+templates:
+  - configmap.yaml
+  - statefulset.yaml
+  - secret.yaml
+  - storage.yaml
+  - service.yaml
+  - networkpolicy.yaml
+tests:
+  - it: runs exactly one persistent gateway writer
+    template: statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.template.spec.shareProcessNamespace
+          value: true
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - it: runs without root or privilege escalation
+    template: statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 10000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          value:
+            - ALL
+  - it: uses semantic authenticated readiness
+    template: statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command
+          value:
+            - /opt/hermes/.venv/bin/python
+            - /helmforge/health.py
+  - it: keeps API tokens after retained uninstall
+    template: secret.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+      - matchRegex:
+          path: data.api-key
+          pattern: ^[A-Za-z0-9+/=]+$
+  - it: does not create credentials when existing Secret selected
+    template: secret.yaml
+    set:
+      auth.existingSecret: external-api
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: keeps state after uninstall
+    template: storage.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+  - it: uses an existing claim without allocating another
+    template: storage.yaml
+    set:
+      persistence.existingClaim: agent-state
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: permits deliberate ephemeral operation
+    template: statefulset.yaml
+    set:
+      persistence.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].emptyDir
+          value: {}
+  - it: keeps target port independent of Service port
+    template: service.yaml
+    set:
+      service.port: 80
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 80
+      - equal:
+          path: spec.ports[0].targetPort
+          value: api
+  - it: passes explicit dual-stack service policy
+    template: service.yaml
+    set:
+      service.ipFamilyPolicy: RequireDualStack
+      service.ipFamilies:
+        - IPv4
+        - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilies
+          value:
+            - IPv4
+            - IPv6
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: RequireDualStack
+  - it: pins API network policy to container port
+    template: networkpolicy.yaml
+    set:
+      service.port: 80
+      networkPolicy.ingressFrom:
+        - podSelector:
+            matchLabels:
+              role: client
+    asserts:
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 8642
+  - it: denies inbound traffic by default
+    template: networkpolicy.yaml
+    asserts:
+      - equal:
+          path: spec.ingress
+          value: []
+  - it: supports extra provider egress without broad cluster access
+    template: networkpolicy.yaml
+    set:
+      networkPolicy.allowInternet: false
+      networkPolicy.extraEgress:
+        - to:
+            - ipBlock:
+                cidr: 10.1.2.3/32
+          ports:
+            - protocol: TCP
+              port: 8080
+    asserts:
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 8080

@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+# Create the referenced Secrets/controllers before using this example.
+auth:
+  existingSecret: hermes-api
+credentials:
+  existingSecret: hermes-provider
+persistence:
+  size: 50Gi
+resources:
+  requests:
+    cpu: '1'
+    memory: 2Gi
+  limits:
+    cpu: '4'
+    memory: 4Gi
+networkPolicy:
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: gateway-system
+gatewayAPI:
+  enabled: true
+  httpRoutes:
+    - parentRefs:
+        - name: shared
+          namespace: gateway-system
+          sectionName: https
+      hostnames:
+        - hermes.example.com
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: prometheus
+  prometheusRule:
+    enabled: true
+    labels:
+      release: prometheus
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+backup:
+  enabled: true
+  stagingSize: 20Gi
+  s3:
+    bucket: organization-agent-backups
+    existingSecret: hermes-backup-s3

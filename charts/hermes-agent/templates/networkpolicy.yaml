@@ -1,0 +1,43 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "hermes-agent.fullname" . }}
+  labels:
+    {{- include "hermes-agent.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "hermes-agent.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: gateway
+  policyTypes: [Ingress, Egress]
+  ingress:
+    {{- with .Values.networkPolicy.ingressFrom }}
+    - from: {{ toJson . }}
+      ports: [{protocol: TCP, port: 8642}]
+    {{- end }}
+    {{- if and .Values.dashboard.enabled .Values.dashboard.ingressFrom }}
+    - from: {{ toJson .Values.dashboard.ingressFrom }}
+      ports: [{protocol: TCP, port: 9119}]
+    {{- end }}
+    {{- if and .Values.metrics.enabled .Values.metrics.collector.enabled .Values.metrics.ingressFrom }}
+    - from: {{ toJson .Values.metrics.ingressFrom }}
+      ports: [{protocol: TCP, port: 8889}]
+    {{- end }}
+    {{- if not (or .Values.networkPolicy.ingressFrom (and .Values.dashboard.enabled .Values.dashboard.ingressFrom) (and .Values.metrics.enabled .Values.metrics.collector.enabled .Values.metrics.ingressFrom)) }}
+    []
+    {{- end }}
+  egress:
+    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    {{- if .Values.networkPolicy.allowInternet }}
+    - to:
+        - ipBlock: {cidr: 0.0.0.0/0, except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, 127.0.0.0/8]}
+        - ipBlock: {cidr: "2000::/3"}
+      ports: [{protocol: TCP, port: 443}]
+    {{- end }}
+    {{- with .Values.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}
