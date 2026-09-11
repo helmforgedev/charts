@@ -1,0 +1,49 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "text-embeddings-inference.fullname" . }}
+  labels: {{ include "text-embeddings-inference.labels" . | nindent 4 }}
+data:
+  nginx.conf: |
+    worker_processes auto;
+    pid /tmp/nginx.pid;
+    error_log /dev/stderr warn;
+    events { worker_connections 1024; }
+    http {
+      access_log off;
+      client_body_temp_path /tmp/client_body;
+      proxy_temp_path /tmp/proxy;
+      fastcgi_temp_path /tmp/fastcgi;
+      uwsgi_temp_path /tmp/uwsgi;
+      scgi_temp_path /tmp/scgi;
+      proxy_connect_timeout 5s;
+      proxy_read_timeout {{ .Values.proxy.readTimeoutSeconds }}s;
+      proxy_send_timeout {{ .Values.proxy.readTimeoutSeconds }}s;
+      server {
+        listen {{ .Values.proxy.port }};
+        listen [::]:{{ .Values.proxy.port }};
+        server_name _;
+        client_max_body_size {{ .Values.inference.payloadLimit | int }};
+        add_header X-Content-Type-Options nosniff always;
+        location ^~ /metrics { return 404; }
+        location ^~ /docs { return 404; }
+        location ^~ /api-doc { return 404; }
+        location / {
+          proxy_pass http://127.0.0.1:8081;
+          proxy_http_version 1.1;
+          proxy_set_header Connection "";
+          proxy_set_header Host $host;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+      }
+      {{- if .Values.metrics.enabled }}
+      server {
+        listen {{ .Values.metrics.port }};
+        listen [::]:{{ .Values.metrics.port }};
+        server_name _;
+        location = /metrics { proxy_pass http://127.0.0.1:8081/metrics; }
+        location / { return 404; }
+      }
+      {{- end }}
+    }

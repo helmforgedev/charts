@@ -1,0 +1,50 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "text-embeddings-inference.fullname" . }}
+  labels: {{ include "text-embeddings-inference.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {{ include "text-embeddings-inference.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if .Values.networkPolicy.egressIsolation }}
+    - Egress
+    {{- end }}
+  ingress:
+    - from:
+        {{- if .Values.networkPolicy.ingressFrom }}
+        {{- toYaml .Values.networkPolicy.ingressFrom | nindent 8 }}
+        {{- else }}
+        - podSelector: {}
+        {{- end }}
+      ports: [{protocol: TCP, port: http}]
+    {{- if .Values.metrics.enabled }}
+    - from: {{ toYaml .Values.metrics.ingressFrom | nindent 8 }}
+      ports: [{protocol: TCP, port: metrics}]
+    {{- end }}
+  {{- if .Values.networkPolicy.egressIsolation }}
+  {{- if and (eq .Values.model.source "hub") .Values.networkPolicy.allowHubDownloads }}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+          podSelector:
+            matchLabels: {k8s-app: kube-dns}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8, 169.254.0.0/16]
+        - ipBlock:
+            cidr: '::/0'
+            except: ['fc00::/7', 'fe80::/10', '::1/128']
+      ports: [{protocol: TCP, port: 443}]
+    {{- with .Values.networkPolicy.extraEgress }}{{ toYaml . | nindent 4 }}{{- end }}
+  {{- else }}
+  egress: {{ toYaml .Values.networkPolicy.extraEgress | nindent 4 }}
+  {{- end }}
+  {{- end }}
+{{- end }}

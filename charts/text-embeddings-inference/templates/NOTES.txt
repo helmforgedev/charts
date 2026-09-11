@@ -1,0 +1,63 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+Text Embeddings Inference deployment
+
+1. Installation summary
+=======================
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Image: {{ include "text-embeddings-inference.image" . }}
+Model source: {{ .Values.model.source }}
+Each replica loads its own model; reserve enough RAM or VRAM.
+
+2. Access
+=========
+kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "text-embeddings-inference.fullname" . }} 8080:{{ .Values.service.port }}
+HTTP API: http://localhost:8080/embed and /v1/embeddings
+{{ if .Values.auth.enabled }}Bearer authentication uses Secret {{ include "text-embeddings-inference.authSecret" . }}, key {{ .Values.auth.secretKey }}.
+Retrieve credentials through your approved secret-management workflow.
+{{ else }}Authentication is disabled. Restrict access to trusted clients.
+{{ end }}Terminate TLS at your ingress or Gateway for production clients.
+
+3. Configuration
+================
+Pin both the image and immutable model revision. Pooling, prompts, normalization
+and model revision affect vector compatibility. Payload and batch limits apply.
+LOG_LEVEL=warn prevents the pinned native version from logging API credentials.
+
+4. Persistence and backup
+=========================
+Persistent download cache: {{ .Values.cache.persistence.enabled }}
+Cache artifacts are reproducible; no application database is deployed.
+Local mode requires a complete model in an existing read-only mounted PVC.
+Preserve model provenance, deployment values and credentials separately.
+
+5. Scaling and availability
+===========================
+Replicas: {{ .Values.replicaCount }}
+CPU autoscaling: {{ .Values.autoscaling.enabled }}
+Strategy: {{ .Values.rollout.strategy }}
+RWO cache requires one replica and Recreate. Independent caches support replicas.
+RollingUpdate is for compatible models; index migrations need separate releases.
+In-memory requests are not durable. Clients need bounded retries and timeouts.
+
+6. Monitoring
+=============
+Private native metrics: {{ .Values.metrics.enabled }}
+ServiceMonitor: {{ .Values.metrics.serviceMonitor.enabled }}
+Explicit monitoring peers are required. The public API blocks metrics and docs.
+NetworkPolicy enforcement requires a compatible CNI.
+
+7. Security and troubleshooting
+==============================
+kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "text-embeddings-inference.fullname" . }} -c tei
+kubectl -n {{ .Release.Namespace }} describe pods -l app.kubernetes.io/instance={{ .Release.Name }}
+Check model permissions, download egress, memory and scheduler/GPU events.
+Native inference listens only on loopback; NGINX exposes the controlled API.
+
+8. Upgrade and documentation
+============================
+helm upgrade {{ .Release.Name }} helmforge/text-embeddings-inference -n {{ .Release.Namespace }} -f values.yaml
+kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "text-embeddings-inference.fullname" . }}
+Back up your vector index before changing model contracts; re-embed deliberately.
+Documentation: https://helmforge.dev/docs/charts/text-embeddings-inference
+Happy Helmforging :)

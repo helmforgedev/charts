@@ -1,0 +1,20 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and .Values.cache.persistence.enabled (not .Values.cache.persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "text-embeddings-inference.cacheClaim" . }}
+  labels: {{ include "text-embeddings-inference.labels" . | nindent 4 }}
+  {{- with .Values.cache.persistence.annotations }}
+  annotations: {{ toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- if eq .Values.cache.persistence.storageClass "-" }}
+  storageClassName: ""
+  {{- else if .Values.cache.persistence.storageClass }}
+  storageClassName: {{ .Values.cache.persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests: {storage: {{ .Values.cache.persistence.size | quote }}}
+{{- end }}
