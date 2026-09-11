@@ -70,20 +70,20 @@ limits; size them for your users and snippet volume.
 
 ## Configuration contract
 
-| Values                            | Behavior                                                                               |
-| --------------------------------- | -------------------------------------------------------------------------------------- |
-| `auth`                            | Retained JWT key, local account enrollment, token lifetime and administrator usernames |
-| `bootstrap`                       | Initial local administrator through native database and password APIs                  |
-| `oidc`                            | Native HTTPS issuer, client Secret, requested scopes and additional trusted CA         |
-| `server.basePath`                 | Safe URL prefix such as `/snippets`, without a trailing slash                          |
-| `persistence`                     | Complete SQLite data directory, existing claim, storage class and retention            |
-| `backup`                          | Verified online snapshots, UTC schedule, retention and separate destination PVC        |
-| `service`, `ingress`, `gateway`   | Native port 5000 behind configurable Service routing                                   |
-| `externalSecrets.items`           | External Secrets Operator v1 resources targeting existing Secret references            |
-| `networkPolicy`                   | Same-namespace ingress and DNS by default, explicit additional egress                  |
-| `probes`, `resources`             | Authentication-config readiness, HTTP liveness and bounded resources                   |
-| `extraEnv`, `envFrom`             | Additional upstream settings; chart-managed security variables are protected           |
-| `extraContainers`, `extraVolumes` | Explicit companion workloads and storage with reserved-name guards                     |
+| Values                             | Behavior                                                                               |
+| ---------------------------------- | -------------------------------------------------------------------------------------- |
+| `auth`                             | Retained JWT key, local account enrollment, token lifetime and administrator usernames |
+| `bootstrap`                        | Initial local administrator through native database and password APIs                  |
+| `oidc`                             | Native HTTPS issuer, client Secret, requested scopes and additional trusted CA         |
+| `server.basePath`                  | Safe URL prefix such as `/snippets`, without a trailing slash                          |
+| `persistence`                      | Complete SQLite data directory, existing claim, storage class and retention            |
+| `backup`                           | Verified online snapshots, UTC schedule, retention and separate destination PVC        |
+| `service`, `ingress`, `gatewayAPI` | Native port 5000 behind configurable Service routing                                   |
+| `externalSecrets.items`            | External Secrets Operator v1 resources targeting existing Secret references            |
+| `networkPolicy`                    | Same-namespace ingress and DNS by default, explicit additional egress                  |
+| `probes`, `resources`              | Authentication-config readiness, HTTP liveness and bounded resources                   |
+| `extraEnv`, `envFrom`              | Additional upstream settings; chart-managed security variables are protected           |
+| `extraContainers`, `extraVolumes`  | Explicit companion workloads and storage with reserved-name guards                     |
 
 See [values.yaml](values.yaml), [values.schema.json](values.schema.json), [design](DESIGN.md) and
 [operations](docs/operations.md) for the full contract and recovery procedure.
