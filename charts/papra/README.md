@@ -146,3 +146,11 @@ Kubescape 4.0.13, default rendered manifests, 2026-09-10. The sole finding is C-
 `AUTH_IS_PASSWORD_RESET_ENABLED=false` in the main and bootstrap environments. This is a policy flag, not a password;
 actual authentication and encryption credentials use Secrets. The finding remains visible without suppression. This
 configuration scan does not replace image vulnerability management or application security review.
+
+## Gateway API contract
+
+Use `gatewayAPI.enabled` and `gatewayAPI.httpRoutes[]`. Set each route's `parentRefs` to a shared Gateway that allows
+this namespace, and configure its HTTPS listener and public hostname. Routes accept labels, annotations and rules
+with matches, filters and optional backend references; omitted backends target this chart's application Service.
+Ingress and HTTPRoute resources can coexist. Verify controller conditions and public traffic before production use.
+See the [Gateway API documentation](https://gateway-api.sigs.k8s.io/).

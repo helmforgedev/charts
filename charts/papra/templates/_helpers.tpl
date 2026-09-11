@@ -90,3 +90,7 @@ app.kubernetes.io/part-of: helmforge
 - {name: trusted-ca, mountPath: /trusted-ca, readOnly: true}
 {{- end }}
 {{- end -}}
+
+{{- define "papra.httpRouteName" -}}
+{{- if .route.name -}}{{ .route.name | trunc 63 | trimSuffix "-" }}{{- else if gt (int .index) 0 -}}{{ printf "%s-%v" (include "papra.fullname" .root | trunc 55 | trimSuffix "-") .index }}{{- else -}}{{ include "papra.fullname" .root }}{{- end -}}
+{{- end -}}
