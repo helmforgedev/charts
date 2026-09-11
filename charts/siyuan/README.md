@@ -205,3 +205,11 @@ and dual-stack settings.
  version: 1.0
  date: 2026-09-10
 -->
+
+## Gateway API contract
+
+Use `gatewayAPI.enabled` and `gatewayAPI.httpRoutes[]`. Set each route's `parentRefs` to a shared Gateway that allows
+this namespace, and configure its HTTPS listener and public hostname. Routes accept labels, annotations and rules
+with matches, filters and optional backend references; omitted backends target this chart's application Service.
+Ingress and HTTPRoute resources can coexist. Verify controller conditions and public traffic before production use.
+See the [Gateway API documentation](https://gateway-api.sigs.k8s.io/).

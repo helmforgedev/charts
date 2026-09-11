@@ -38,3 +38,7 @@ app.kubernetes.io/part-of: helmforge
 {{- range .Values.extraEnv -}}{{- if or (hasPrefix "SIYUAN_ACCESS_AUTH_CODE" .name) (hasPrefix "SIYUAN_OIDC_" .name) (has .name (list "HOME" "RUN_IN_CONTAINER" "SIYUAN_WORKSPACE_PATH")) -}}{{ fail (printf "extraEnv cannot override chart-managed security variable %s" .name) }}{{- end -}}{{- end -}}
 {{- range $labels := list .Values.commonLabels .Values.podLabels -}}{{- range $key := list "app.kubernetes.io/name" "app.kubernetes.io/instance" -}}{{- if hasKey $labels $key -}}{{ fail (printf "selector label %s cannot be overridden" $key) }}{{- end -}}{{- end -}}{{- end -}}
 {{- end -}}
+
+{{- define "siyuan.httpRouteName" -}}
+{{- if .route.name -}}{{ .route.name | trunc 63 | trimSuffix "-" }}{{- else if gt (int .index) 0 -}}{{ printf "%s-%v" (include "siyuan.fullname" .root | trunc 55 | trimSuffix "-") .index }}{{- else -}}{{ include "siyuan.fullname" .root }}{{- end -}}
+{{- end -}}
