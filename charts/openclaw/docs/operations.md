@@ -10,6 +10,11 @@ named in Helm NOTES. Supply it in the Control UI connection settings. Treat toke
 them out of logs and tickets. Remote browser access needs HTTPS, an exact `gateway.controlUi.allowedOrigins` entry,
 WebSocket-capable routing, and a NetworkPolicy peer allowlist.
 
+With NetworkPolicy enabled, Ingress or Gateway API requires nonempty `networkPolicy.ingressFrom` selectors for the
+actual controller Pods/namespaces. Missing selectors fail rendering. Route names must be unique; rendered HTTPRoute
+names include a deterministic hash to keep long names distinct. Parent Helm `global` values are accepted when using
+this chart as a dependency; application settings and images still use this chart's explicit values.
+
 Remote device enrollment remains enabled. Inspect `openclaw devices list` in the running container and approve only the
 request ID associated with the intended browser using `openclaw devices approve <requestId>`. Local loopback connections
 can be auto-approved after authentication; this is not evidence of remote pairing. Do not enable dangerous device or

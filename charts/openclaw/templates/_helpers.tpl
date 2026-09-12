@@ -22,12 +22,21 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 {{- define "openclaw.httpRouteName" -}}
 {{- $suffix := .route.name | default (printf "route-%v" .index) }}
-{{- printf "%s-%s" (include "openclaw.fullname" .root | trunc 40 | trimSuffix "-") ($suffix | trunc 22 | trimSuffix "-") }}
+{{- $complete := printf "%s-%s" (include "openclaw.fullname" .root) $suffix }}
+{{- printf "%s-%s" ($complete | trunc 54 | trimSuffix "-") ($complete | sha256sum | trunc 8) }}
 {{- end }}
 {{- define "openclaw.externalSecretName" -}}
 {{- default (printf "%s-%s" (include "openclaw.fullname" .root | trunc 40 | trimSuffix "-") (.item.name | default "external" | trunc 22 | trimSuffix "-")) .item.fullnameOverride }}
 {{- end }}
 {{- define "openclaw.validate" -}}
+{{- $routeNames := dict }}
+{{- range $index, $route := .Values.gatewayAPI.httpRoutes }}
+{{- $name := $route.name | default (printf "route-%v" $index) }}
+{{- if hasKey $routeNames $name }}{{ fail (printf "gatewayAPI.httpRoutes contains duplicate effective name: %s" $name) }}{{- end }}
+{{- $_ := set $routeNames $name true }}
+{{- end }}
+{{- if and .Values.networkPolicy.enabled (or .Values.ingress.enabled .Values.gatewayAPI.enabled) (empty .Values.networkPolicy.ingressFrom) }}{{ fail "remote ingress with NetworkPolicy requires networkPolicy.ingressFrom" }}{{- end }}
+{{- if and .Values.networkPolicy.enabled .Values.metrics.serviceMonitor.enabled (empty .Values.metrics.ingressFrom) }}{{ fail "ServiceMonitor with NetworkPolicy requires metrics.ingressFrom" }}{{- end }}
 {{- range $key := list "workspace" "model" "maxConcurrent" }}
 {{- if hasKey $.Values.agent.defaults $key }}{{ fail (printf "agent.defaults.%s is reserved; use the explicit agent values" $key) }}{{- end }}
 {{- end }}

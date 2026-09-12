@@ -16,7 +16,8 @@ tests:
           pattern: '"profile": "minimal"'
   - it: includes the operator-selected HTTPS origin
     set:
-      gateway.controlUi.allowedOrigins: [https://agent.example.com]
+      gateway.controlUi.allowedOrigins:
+        - https://agent.example.com
     asserts:
       - matchRegex:
           path: data["openclaw.json"]
@@ -43,3 +44,28 @@ tests:
       - matchRegex:
           path: data["openclaw.json"]
           pattern: '"captureContent": false'
+  - it: rejects duplicate route names even when other fields differ
+    set:
+      gatewayAPI.httpRoutes:
+        - name: same
+          hostnames:
+            - one.example.com
+        - name: same
+          hostnames:
+            - two.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: 'gatewayAPI.httpRoutes contains duplicate effective name: same'
+  - it: requires a permitted controller for remote ingress
+    set:
+      ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: remote ingress with NetworkPolicy requires networkPolicy.ingressFrom
+  - it: requires a permitted scraper for ServiceMonitor
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: ServiceMonitor with NetworkPolicy requires metrics.ingressFrom

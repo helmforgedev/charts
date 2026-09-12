@@ -4,6 +4,7 @@
 to a loopback collector. The pinned official collector translates metrics into Prometheus format on a separate private
 Service, port 8889. Enable `metrics.serviceMonitor.enabled` for an installed Prometheus Operator and set its discovery
 labels and `metrics.ingressFrom` peer selectors.
+When NetworkPolicy is enabled, an enabled ServiceMonitor without these selectors fails rendering.
 
 This integration does not install the separate diagnostics-prometheus plugin at startup and does not share the gateway
 operator token with the scraper. The collector receives metrics only; prompt/tool content capture, traces and logs are
@@ -11,7 +12,8 @@ disabled. Native usage and latency series depend on activity and provider report
 not guaranteed billing records. Empty activity-dependent series are expected before requests occur.
 
 To use an existing OTLP collector, disable the local collector and set `metrics.externalEndpoint` to its OTLP HTTP base
-URL. Allow the destination in NetworkPolicy. ServiceMonitor and chart Prometheus rules require the local collector.
+URL, such as `https://collector.example.com`, or its complete `/v1/metrics` URL. Allow the destination in NetworkPolicy.
+ServiceMonitor and chart Prometheus rules require the local collector.
 External collector authentication and TLS policy can be supplied through supported upstream environment configuration
 in the credentials Secret; verify the endpoint integration in your environment.
 

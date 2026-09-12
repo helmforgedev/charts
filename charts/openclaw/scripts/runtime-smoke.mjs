@@ -47,6 +47,7 @@ await pairing.enroll();
 if(values.metrics.enabled&&values.metrics.collector.enabled){
  const metrics=node(`const r=await fetch('http://127.0.0.1:8889/metrics');if(!r.ok)throw new Error('Metrics unavailable');console.log(await r.text());`);
  assert.match(metrics,/openclaw[_.]/,'Collector must expose native OpenClaw metrics');
+ if(values.metrics.serviceMonitor.enabled)assert.equal(get(`http://${name}-metrics:8889/metrics`).trim(),'200');
  console.log('PASS native OpenClaw OTLP to Prometheus');
 }
 const temporary=fs.mkdtempSync(path.join(os.tmpdir(),'hf-openclaw-'));

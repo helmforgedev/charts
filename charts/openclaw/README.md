@@ -38,7 +38,8 @@ The default generated Secret is `<fullname>-auth`, key `gateway-token`; Helm upg
 
 Port-forward the Service to 18789 and open `http://localhost:18789`. Use the gateway token in the UI connection settings.
 Remote access needs HTTPS and an explicit allowed origin. Approve only the intended pending device; pairing is preserved
-across restarts. Gateway tokens authorize operator APIs and enabled tools. Keep model APIs private to trusted callers.
+across restarts. With NetworkPolicy enabled, remote ingress requires `networkPolicy.ingressFrom`; ServiceMonitor requires
+`metrics.ingressFrom`. Missing selectors fail rendering. Gateway tokens authorize operator APIs and enabled tools. Keep model APIs private to trusted callers.
 
 One release is one operator trust boundary. There is no shared-writer HA or HPA. Enable shell/browser tools only with an
 understood execution boundary. Upgrades require downtime; preserve a verified recovery point before schema migrations.
