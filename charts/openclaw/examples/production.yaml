@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: Apache-2.0
+credentials:
+  existingSecret: openclaw-provider
+auth:
+  existingSecret: openclaw-gateway
+persistence:
+  size: 50Gi
+resources:
+  requests:
+    cpu: '1'
+    memory: 2Gi
+  limits:
+    cpu: '4'
+    memory: 4Gi
+gateway:
+  controlUi:
+    allowedOrigins:
+      - https://agent.example.com
+networkPolicy:
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: gateway-system
+gatewayAPI:
+  enabled: true
+  httpRoutes:
+    - name: gateway
+      parentRefs:
+        - name: edge
+          namespace: gateway-system
+          sectionName: https
+      hostnames:
+        - agent.example.com
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: prometheus
+  prometheusRule:
+    enabled: true
+    labels:
+      release: prometheus
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+backup:
+  enabled: true
+  stagingSize: 50Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+      ephemeral-storage: 20Gi
+    limits:
+      cpu: '2'
+      memory: 2Gi
+      ephemeral-storage: 50Gi
+  s3:
+    bucket: company-agent-backups
+    existingSecret: openclaw-s3
+    prefix: production/openclaw
+    sse: aws:kms
+    kmsKeyId: arn:aws:kms:us-east-1:123456789012:key/replace-me

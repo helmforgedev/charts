@@ -28,7 +28,7 @@
 
 ## What HelmForge Provides
 
-HelmForge is a catalog of 113 Helm charts built around a consistent operating contract:
+HelmForge is a catalog of 114 Helm charts built around a consistent operating contract:
 official upstream images, pinned versions, explicit values, reproducible validation, and signed releases.
 
 Use HelmForge when you want charts that stay close to upstream applications while still behaving like a

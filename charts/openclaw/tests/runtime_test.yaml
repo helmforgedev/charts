@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: OpenClaw runtime contracts
+templates:
+  - '*.yaml'
+tests:
+  - it: runs one non-root writer with the official init entrypoint
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - notExists:
+          path: spec.template.spec.containers[0].command
+      - equal:
+          path: >-
+            spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+    template: statefulset.yaml
+  - it: validates JSON probe contracts without exposing credentials
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command
+          value:
+            - node
+            - /helmforge/health.mjs
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.exec.command
+          value:
+            - node
+            - /helmforge/health.mjs
+            - live
+    template: statefulset.yaml
+  - it: injects provider credentials from the selected Secret
+    set:
+      credentials.existingSecret: provider-credentials
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[0].secretRef.name
+          value: provider-credentials
+    template: statefulset.yaml
+  - it: preserves seed configuration ownership
+    set:
+      config.policy: seed
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].env[0].value
+          value: seed
+    template: statefulset.yaml
+  - it: attaches a bounded official telemetry collector only when enabled
+    set:
+      metrics.enabled: true
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 2
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: metrics
+    template: statefulset.yaml
+  - it: uses an externally supplied claim
+    set:
+      persistence.existingClaim: persistent-agent
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          value: persistent-agent
+    template: statefulset.yaml

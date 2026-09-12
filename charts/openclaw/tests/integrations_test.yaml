@@ -1,0 +1,205 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: OpenClaw platform integrations
+templates:
+  - '*.yaml'
+tests:
+  - it: retains state after uninstall
+    template: storage.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+  - it: emits a private metrics Service and ServiceMonitor
+    template: metrics.yaml
+    documentIndex: 2
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+      metrics.ingressFrom:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+    asserts:
+      - containsDocument:
+          kind: ServiceMonitor
+          apiVersion: monitoring.coreos.com/v1
+          name: RELEASE-NAME-openclaw
+  - it: omits monitoring resources by default
+    template: metrics.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: applies the explicit ingress class
+    template: ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: nginx
+      networkPolicy.ingressFrom:
+        - podSelector:
+            matchLabels:
+              app: edge
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+  - it: omits an empty ingress class
+    template: ingress.yaml
+    set:
+      ingress.enabled: true
+      networkPolicy.ingressFrom:
+        - podSelector:
+            matchLabels:
+              app: edge
+    asserts:
+      - notExists:
+          path: spec.ingressClassName
+  - it: creates a route to the gateway Service
+    template: gateway-httproute.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - name: api
+          parentRefs:
+            - name: edge
+          hostnames:
+            - openclaw.example.com
+      networkPolicy.ingressFrom:
+        - podSelector:
+            matchLabels:
+              app: edge
+    asserts:
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 18789
+  - it: includes custom private endpoint egress
+    template: networkpolicy.yaml
+    set:
+      networkPolicy.extraEgress:
+        - to:
+            - podSelector:
+                matchLabels:
+                  app: models
+          ports:
+            - port: 8080
+              protocol: TCP
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - podSelector:
+                  matchLabels:
+                    app: models
+            ports:
+              - port: 8080
+                protocol: TCP
+  - it: uses the canonical External Secrets target contract
+    template: externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: external-gateway
+          spec:
+            secretStoreRef:
+              name: store
+              kind: ClusterSecretStore
+            data:
+              - secretKey: gateway-token
+                remoteRef:
+                  key: token
+    asserts:
+      - equal:
+          path: spec.target.name
+          value: external-gateway
+      - equal:
+          path: apiVersion
+          value: external-secrets.io/v1
+  - it: omits External Secrets when disabled
+    template: externalsecret.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: isolates the S3 uploader from agent state
+    template: backup.yaml
+    set:
+      backup.enabled: true
+      backup.s3.bucket: backups
+      backup.s3.existingSecret: s3
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: spec.concurrencyPolicy
+          value: Forbid
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /home/node
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].command
+          value:
+            - node
+            - /recovery/archive.mjs
+            - backup
+  - it: keeps long route names distinct within Kubernetes name limits
+    template: gateway-httproute.yaml
+    set:
+      fullnameOverride: rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr
+      gatewayAPI.enabled: true
+      networkPolicy.ingressFrom:
+        - podSelector:
+            matchLabels:
+              app: edge
+      gatewayAPI.httpRoutes:
+        - name: identical-route-prefix-first
+        - name: identical-route-prefix-second
+    asserts:
+      - equal:
+          path: metadata.name
+          value: rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr-ide-1d4ecff7
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr-ide-53d6a990
+        documentIndex: 1
+  - it: accepts parent Helm globals without overriding explicit image settings
+    template: statefulset.yaml
+    set:
+      global:
+        imageRegistry: parent.example.com
+        custom:
+          tenant: example
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: '^ghcr.io/openclaw/openclaw:'
+  - it: accepts OTLP endpoint https://collector.example.com
+    template: configmap.yaml
+    set:
+      metrics.enabled: true
+      metrics.collector.enabled: false
+      metrics.externalEndpoint: https://collector.example.com
+    asserts:
+      - matchRegex:
+          path: data["openclaw.json"]
+          pattern: https://collector.example.com
+  - it: accepts OTLP endpoint https://collector.example.com/v1/metrics
+    template: configmap.yaml
+    set:
+      metrics.enabled: true
+      metrics.collector.enabled: false
+      metrics.externalEndpoint: https://collector.example.com/v1/metrics
+    asserts:
+      - matchRegex:
+          path: data["openclaw.json"]
+          pattern: https://collector.example.com/v1/metrics
+  - it: accepts OTLP endpoint http://127.0.0.1:4318
+    template: configmap.yaml
+    set:
+      metrics.enabled: true
+      metrics.collector.enabled: false
+      metrics.externalEndpoint: http://127.0.0.1:4318
+    asserts:
+      - matchRegex:
+          path: data["openclaw.json"]
+          pattern: http://127.0.0.1:4318

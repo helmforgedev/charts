@@ -1,0 +1,102 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.backup.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "openclaw.fullname" . }}-backup
+  labels:
+    {{- include "openclaw.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "openclaw.fullname" . }}-backup
+  labels:
+    {{- include "openclaw.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  timeZone: {{ .Values.backup.timeZone | quote }}
+  suspend: {{ .Values.backup.suspend }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: {{ .Values.backup.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            {{- include "openclaw.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "openclaw.fullname" . }}-backup
+          automountServiceAccountToken: false
+          securityContext: {runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000, fsGroupChangePolicy: OnRootMismatch, seccompProfile: {type: RuntimeDefault}}
+          nodeSelector: {{ toJson .Values.nodeSelector }}
+          tolerations: {{ toJson .Values.tolerations }}
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets: {{ toJson . }}
+          {{- end }}
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - topologyKey: kubernetes.io/hostname
+                  labelSelector:
+                    matchLabels:
+                      {{- include "openclaw.selectorLabels" . | nindent 22 }}
+                      app.kubernetes.io/component: gateway
+          initContainers:
+            - name: snapshot
+              image: {{ include "openclaw.image" . | quote }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command: [node, /recovery/archive.mjs, backup]
+              env:
+                - {name: HOME, value: /home/node}
+                - {name: OPENCLAW_STATE_DIR, value: /home/node/.openclaw}
+                - {name: OPENCLAW_CONFIG_PATH, value: /home/node/.openclaw/openclaw.json}
+                - {name: OPENCLAW_IMAGE, value: {{ include "openclaw.image" . | quote }}}
+              {{- if .Values.credentials.existingSecret }}
+              envFrom:
+                - secretRef: {name: {{ .Values.credentials.existingSecret }}}
+              {{- end }}
+              securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+              resources: {{ toJson .Values.backup.resources }}
+              volumeMounts:
+                - {name: data, mountPath: /home/node}
+                - {name: recovery, mountPath: /recovery, readOnly: true}
+                - {name: work, mountPath: /work}
+                - {name: tmp, mountPath: /tmp}
+          containers:
+            - name: upload
+              image: {{ printf "%s:%s" .Values.backup.image.repository .Values.backup.image.tag | quote }}
+              imagePullPolicy: {{ .Values.backup.image.pullPolicy }}
+              command: [/bin/bash, /recovery/s3.sh, upload]
+              env:
+                {{- include "openclaw.s3Env" . | nindent 16 }}
+              securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+              resources: {{ toJson .Values.backup.resources }}
+              volumeMounts:
+                - {name: recovery, mountPath: /recovery, readOnly: true}
+                - {name: work, mountPath: /work, readOnly: true}
+                - {name: tmp, mountPath: /tmp}
+                {{- if .Values.backup.s3.caSecret }}
+                - {name: s3-ca, mountPath: /s3-ca, readOnly: true}
+                {{- end }}
+          volumes:
+            - name: data
+              persistentVolumeClaim: {claimName: {{ include "openclaw.claim" . }}}
+            - name: recovery
+              configMap: {name: {{ include "openclaw.fullname" . }}-recovery}
+            - name: work
+              emptyDir: {sizeLimit: {{ .Values.backup.stagingSize }}}
+            - name: tmp
+              emptyDir: {sizeLimit: 128Mi}
+            {{- if .Values.backup.s3.caSecret }}
+            - name: s3-ca
+              secret: {secretName: {{ .Values.backup.s3.caSecret }}, items: [{key: ca.crt, path: ca.crt}]}
+            {{- end }}
+{{- end }}

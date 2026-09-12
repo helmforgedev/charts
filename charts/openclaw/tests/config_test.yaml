@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: OpenClaw security and configuration
+templates:
+  - configmap.yaml
+tests:
+  - it: keeps token auth and excludes dangerous device bypasses
+    asserts:
+      - matchRegex:
+          path: data["openclaw.json"]
+          pattern: '"mode": "token"'
+      - notMatchRegex:
+          path: data["openclaw.json"]
+          pattern: dangerouslyDisableDeviceAuth
+      - matchRegex:
+          path: data["openclaw.json"]
+          pattern: '"profile": "minimal"'
+  - it: includes the operator-selected HTTPS origin
+    set:
+      gateway.controlUi.allowedOrigins:
+        - https://agent.example.com
+    asserts:
+      - matchRegex:
+          path: data["openclaw.json"]
+          pattern: https://agent.example.com
+  - it: refuses overriding chart gateway security through extra config
+    set:
+      config.values.gateway.auth.mode: none
+    asserts:
+      - failedTemplate:
+          errorMessage: config.values.gateway is chart-owned; use the explicit values contract
+  - it: requires explicit channel credentials and callers
+    set:
+      channels.telegram.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: channels.telegram requires allowFrom and credentials.existingSecret
+  - it: enables bundled telemetry without sensitive content capture
+    set:
+      metrics.enabled: true
+    asserts:
+      - matchRegex:
+          path: data["openclaw.json"]
+          pattern: diagnostics-otel
+      - matchRegex:
+          path: data["openclaw.json"]
+          pattern: '"captureContent": false'
+  - it: rejects duplicate route names even when other fields differ
+    set:
+      gatewayAPI.httpRoutes:
+        - name: same
+          hostnames:
+            - one.example.com
+        - name: same
+          hostnames:
+            - two.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: 'gatewayAPI.httpRoutes contains duplicate effective name: same'
+  - it: requires a permitted controller for remote ingress
+    set:
+      ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: remote ingress with NetworkPolicy requires networkPolicy.ingressFrom
+  - it: requires a permitted scraper for ServiceMonitor
+    set:
+      metrics.enabled: true
+      metrics.serviceMonitor.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: ServiceMonitor with NetworkPolicy requires metrics.ingressFrom

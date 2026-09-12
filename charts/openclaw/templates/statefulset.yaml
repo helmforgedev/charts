@@ -1,0 +1,139 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "openclaw.fullname" . }}
+  labels:
+    {{- include "openclaw.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  serviceName: {{ include "openclaw.fullname" . }}-headless
+  selector:
+    matchLabels:
+      {{- include "openclaw.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: gateway
+  template:
+    metadata:
+      labels:
+        {{- include "openclaw.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: gateway
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "openclaw.serviceAccount" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: {type: RuntimeDefault}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toJson . }}
+      {{- end }}
+      nodeSelector: {{ toJson .Values.nodeSelector }}
+      tolerations: {{ toJson .Values.tolerations }}
+      affinity: {{ toJson .Values.affinity }}
+      initContainers:
+        {{- if .Values.restore.enabled }}
+        {{- include "openclaw.restoreInitContainers" . | nindent 8 }}
+        {{- end }}
+        - name: configure
+          image: {{ include "openclaw.image" . | quote }}
+          command: [node, /helmforge/bootstrap.mjs]
+          env: [{name: CONFIG_POLICY, value: {{ .Values.config.policy | quote }}}]
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources: {{ toJson .Values.resources }}
+          volumeMounts:
+            - {name: data, mountPath: /home/node}
+            - {name: config, mountPath: /helmforge, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      containers:
+        - name: openclaw
+          image: {{ include "openclaw.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: [node, openclaw.mjs, gateway, --bind, lan, --port, "18789"]
+          env:
+            - {name: HOME, value: /home/node}
+            - {name: OPENCLAW_HOME, value: /home/node}
+            - {name: OPENCLAW_STATE_DIR, value: /home/node/.openclaw}
+            - {name: OPENCLAW_CONFIG_DIR, value: /home/node/.openclaw}
+            - {name: OPENCLAW_CONFIG_PATH, value: /home/node/.openclaw/openclaw.json}
+            - {name: OPENCLAW_WORKSPACE_DIR, value: /home/node/.openclaw/workspace}
+            - {name: OPENCLAW_DISABLE_BONJOUR, value: "1"}
+            - {name: DO_NOT_TRACK, value: "1"}
+            - name: OPENCLAW_GATEWAY_TOKEN
+              valueFrom:
+                secretKeyRef: {name: {{ include "openclaw.authSecret" . }}, key: {{ .Values.auth.key }}}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.credentials.existingSecret }}
+          envFrom:
+            - secretRef: {name: {{ .Values.credentials.existingSecret }}}
+          {{- end }}
+          ports: [{name: api, containerPort: 18789}]
+          startupProbe:
+            exec: {command: [node, /helmforge/health.mjs]}
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 120
+          readinessProbe:
+            exec: {command: [node, /helmforge/health.mjs]}
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec: {command: [node, /helmforge/health.mjs, live]}
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources: {{ toJson .Values.resources }}
+          volumeMounts:
+            - {name: data, mountPath: /home/node}
+            - {name: config, mountPath: /helmforge, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+        {{- if and .Values.metrics.enabled .Values.metrics.collector.enabled }}
+        - name: metrics
+          image: {{ printf "%s:%s" .Values.metrics.collector.image.repository .Values.metrics.collector.image.tag | quote }}
+          imagePullPolicy: {{ .Values.metrics.collector.image.pullPolicy }}
+          args: [--config=/etc/otel/config.yaml]
+          ports: [{name: metrics, containerPort: 8889}]
+          startupProbe: {httpGet: {path: /, port: 13133}, periodSeconds: 5, failureThreshold: 30}
+          livenessProbe: {httpGet: {path: /, port: 13133}, periodSeconds: 20}
+          readinessProbe: {httpGet: {path: /, port: 13133}, periodSeconds: 10}
+          securityContext: {runAsUser: 10001, runAsGroup: 10001, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources: {{ toJson .Values.metrics.collector.resources }}
+          volumeMounts:
+            - {name: collector-config, mountPath: /etc/otel, readOnly: true}
+        {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim: {claimName: {{ include "openclaw.claim" . }}}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: config
+          configMap: {name: {{ include "openclaw.fullname" . }}-config}
+        - name: tmp
+          emptyDir: {sizeLimit: 512Mi}
+        {{- if .Values.restore.enabled }}
+        - name: recovery
+          configMap: {name: {{ include "openclaw.fullname" . }}-recovery}
+        - name: recovery-work
+          emptyDir: {sizeLimit: {{ .Values.backup.stagingSize }}}
+        {{- if .Values.backup.s3.caSecret }}
+        - name: s3-ca
+          secret: {secretName: {{ .Values.backup.s3.caSecret }}, items: [{key: ca.crt, path: ca.crt}]}
+        {{- end }}
+        {{- end }}
+        {{- if and .Values.metrics.enabled .Values.metrics.collector.enabled }}
+        - name: collector-config
+          configMap: {name: {{ include "openclaw.fullname" . }}-collector}
+        {{- end }}
