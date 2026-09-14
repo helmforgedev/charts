@@ -51,6 +51,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- else if ne .Values.redis.architecture "standalone" -}}{{ fail "nextcloud requires standalone Redis; Sentinel and Redis Cluster are not supported" }}
 {{- end -}}
 {{- if not .Values.nextcloud.trustedDomains -}}{{ fail "nextcloud.trustedDomains must contain at least one host" }}{{- end -}}
+{{- if and (hasPrefix "http://" .Values.backup.s3.endpoint) (not .Values.backup.s3.allowInsecureHTTP) -}}{{ fail "HTTP S3 endpoints require backup.s3.allowInsecureHTTP=true on a trusted isolated network" }}{{- end -}}
 {{- end -}}
 {{- define "nextcloud.httpRouteName" -}}{{ default (include "nextcloud.fullname" .root) .route.name | trunc 63 | trimSuffix "-" }}{{- end -}}
 {{- define "nextcloud.externalSecretName" -}}

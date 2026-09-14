@@ -237,6 +237,7 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md).
 | `backup.resources.limits.cpu` | limits cpu | `"2"` |
 | `backup.resources.limits.memory` | limits memory | `"1Gi"` |
 | `backup.s3.endpoint` | Optional endpoint URL for S3-compatible storage. | `""` |
+| `backup.s3.allowInsecureHTTP` | Explicitly permit HTTP only on a trusted isolated network; use HTTPS in production. | `false` |
 | `backup.s3.bucket` | Existing private bucket. | `""` |
 | `backup.s3.prefix` | Backup object prefix, without leading or trailing slash. | `"nextcloud"` |
 | `backup.s3.region` | AWS signing region. | `"us-east-1"` |

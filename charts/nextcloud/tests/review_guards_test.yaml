@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: nextcloud integration validation guards
+templates:
+  - templates/externalsecret.yaml
+  - templates/secret.yaml
+  - templates/configmap.yaml
+tests:
+  - it: rejects a data entry without its own source reference
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - spec:
+            data:
+              - secretKey: first
+                sourceRef:
+                  storeRef:
+                    name: store
+                remoteRef:
+                  key: first
+              - secretKey: second
+                remoteRef:
+                  key: second
+    asserts:
+      - failedTemplate:
+          errorMessage: each ExternalSecret data entry requires a sourceRef when spec.secretStoreRef.name is absent
+  - it: rejects a dataFrom entry without its own source reference
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - spec:
+            dataFrom:
+              - sourceRef:
+                  generatorRef:
+                    name: generator
+              - extract:
+                  key: second
+    asserts:
+      - failedTemplate:
+          errorMessage: each ExternalSecret dataFrom entry requires a sourceRef when spec.secretStoreRef.name is absent
+  - it: rejects HTTP S3 without explicit permission
+    template: templates/secret.yaml
+    set:
+      backup.s3.endpoint: http://local-s3:8333
+    asserts:
+      - failedTemplate:
+          errorMessage: HTTP S3 endpoints require backup.s3.allowInsecureHTTP=true on a trusted isolated network
+  - it: permits explicitly trusted HTTP S3
+    template: templates/secret.yaml
+    set:
+      backup.s3.endpoint: http://local-s3:8333
+      backup.s3.allowInsecureHTTP: true
+    asserts:
+      - isKind:
+          of: Secret

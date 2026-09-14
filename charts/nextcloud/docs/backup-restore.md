@@ -40,12 +40,18 @@ failed Jobs. The volume lock also prevents new application initialization while
 the snapshot is in progress.
 
 The default Pod grace period is 120 seconds and backup quiescence timeout is
-180 seconds. Increase both for long-running uploads or background jobs, keeping
+180 seconds. Increase both for slow shutdown, active user uploads or background jobs, keeping
 the quiescence timeout longer than the Pod grace period. If a process is forcibly
 killed, its graceful-shutdown record is absent and the backup refuses to capture
 state. Retrying after the long-running job finishes is safer than weakening this
 check. The default first cron run is delayed five minutes after startup, matching
 upstream timer guidance.
+
+These shutdown limits do not extend the later S3 upload phase. Increase
+`backup.activeDeadlineSeconds` when capture and S3 transfer need more time.
+S3 endpoints use HTTPS by default. HTTP requires the explicit
+`backup.s3.allowInsecureHTTP: true` opt-in and a trusted isolated network, such
+as the disposable local test fixture. Use HTTPS for production backup data.
 
 `concurrencyPolicy: Forbid` serializes scheduled runs, and an atomic volume lock
 also rejects overlapping manually created Jobs. A failed lock owner is not
