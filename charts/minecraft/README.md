@@ -257,7 +257,7 @@ Spigot servers, provide the platform-specific Floodgate plugin through
 
 ## Upgrade Notes
 
-The 2026.9.0 image stops startup after failed custom-server, BuildTools, Sponge,
+The 2026.9.1 image stops startup after failed custom-server, BuildTools, Sponge,
 modpack or FTB installer downloads instead of continuing with incomplete artifacts.
 It also rejects archive path traversal, fixes Forge/NeoForge reinstall defaults,
 FTB Fabric detection, percentage-memory arithmetic and CurseForge pruning.

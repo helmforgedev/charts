@@ -23,4 +23,4 @@ if (container.env.some(e => e.name === 'TYPE' && e.value === 'FORGE')) {
   assert.match(exec(['sh', '-c', 'java -version 2>&1']), /version "17\./);
   assert.match(run(['logs', pod.metadata.name, '-c', 'minecraft', '--tail=500']), /forge|fml/i);
 }
-console.log('PASS: Minecraft 2026.9.0 image, game health, authenticated RCON player list and world flush; Forge profile verifies Java 17 and loader startup.');
+console.log('PASS: Minecraft 2026.9.1 image, game health, authenticated RCON player list and world flush; Forge profile verifies Java 17 and loader startup.');
