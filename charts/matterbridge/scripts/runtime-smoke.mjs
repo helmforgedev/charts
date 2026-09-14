@@ -28,6 +28,6 @@ fetch('http://127.0.0.1:${port}/health').then(async r=>{
  console.log(JSON.stringify({version,health:await r.json()}));
 }).catch(e=>{console.error(e.message);process.exitCode=1;});`;
 const result = JSON.parse(kubectl(['exec', pod.metadata.name, '-c', 'matterbridge', '--', 'node', '-e', code]));
-assert.equal(result.version, '3.10.8');
+assert.equal(result.version, '3.10.9');
 assert.equal(result.health.status, 'ok');
-console.log('Matterbridge standalone 3.10.8: installed package version and live HTTP health verified.');
+console.log('Matterbridge standalone 3.10.9: installed package version and live HTTP health verified.');
