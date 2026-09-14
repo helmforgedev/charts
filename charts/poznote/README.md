@@ -71,7 +71,7 @@ ingress:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Image repository | `ghcr.io/timothepoznanski/poznote` |
-| `image.tag` | Image tag | `6.80.0` |
+| `image.tag` | Image tag | `6.86.0` |
 | `image.pullPolicy` | Pull policy | `IfNotPresent` |
 
 #### Application Parameters
@@ -143,7 +143,7 @@ This chart intentionally does NOT:
 
 ## Upgrade Notes
 
-Poznote `6.80.0` includes the 6.69–6.80 background export, restore and import
+Poznote `6.86.0` includes the current background export, restore and import
 workers, chunked archive uploads, snapshot retention and conflict-safe autosave.
 Complete backups and restores now continue in detached workers, with progress
 polled by the browser. Keep the pod running until the job completes and verify

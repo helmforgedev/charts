@@ -15,7 +15,7 @@ const pod = pods.find(p => !p.metadata.deletionTimestamp
   && p.spec.containers.some(c => c.name === 'poznote'));
 assert.ok(pod, 'Ready Poznote pod required');
 const exec = args => kubectl(['exec', pod.metadata.name, '-c', 'poznote', '--', ...args]);
-assert.equal(exec(['cat', '/var/www/html/version.txt']).trim(), '6.80.0');
+assert.equal(exec(['cat', '/var/www/html/version.txt']).trim(), '6.86.0');
 const health = exec(['php', '-r', `
 $context = stream_context_create(['http' => ['timeout' => 10]]);
 $body = file_get_contents('http://127.0.0.1/api/health', false, $context);
@@ -25,4 +25,4 @@ if ($body === false || !preg_match('/^HTTP\\/\\S+ 200\\b/', $http_response_heade
 echo "health status 200\\n";
 `]);
 assert.match(health, /health status 200/);
-console.log('PASS: Poznote 6.80.0 and live PHP/API health');
+console.log('PASS: Poznote 6.86.0 and live PHP/API health');
