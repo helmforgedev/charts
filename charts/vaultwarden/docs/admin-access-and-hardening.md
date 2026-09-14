@@ -21,7 +21,7 @@ In this chart:
 Using the Vaultwarden image:
 
 ```bash
-docker run --rm -it vaultwarden/server:1.37.2 /vaultwarden hash
+docker run --rm -it vaultwarden/server:1.37.3 /vaultwarden hash
 ```
 
 Using the `argon2` CLI:
