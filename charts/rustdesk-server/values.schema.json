@@ -1,0 +1,912 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "RustDesk Server OSS values",
+  "type": "object",
+  "description": "",
+  "additionalProperties": false,
+  "properties": {
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the chart name in resource names.",
+      "default": ""
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the complete resource name.",
+      "default": ""
+    },
+    "replicaCount": {
+      "type": "integer",
+      "description": "Exactly one coordinated rendezvous/relay pair; horizontal scaling is unsupported.",
+      "default": 1,
+      "const": 1
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Additional resource labels; selector labels cannot be overridden.",
+      "additionalProperties": true,
+      "properties": {}
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Additional Pod labels; selector labels cannot be overridden.",
+      "additionalProperties": true,
+      "properties": {}
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Additional Pod annotations.",
+      "additionalProperties": true,
+      "properties": {}
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Registry credentials for the official image.",
+      "default": [],
+      "items": {
+        "type": "object"
+      }
+    },
+    "image": {
+      "type": "object",
+      "description": "Official upstream image shared by hbbs and hbbr.",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Official RustDesk Server OSS repository.",
+          "default": "docker.io/rustdesk/rustdesk-server",
+          "minLength": 1
+        },
+        "tag": {
+          "type": "string",
+          "description": "Pinned stable upstream version, independent of the chart version.",
+          "default": "1.1.16",
+          "minLength": 1,
+          "not": {
+            "enum": [
+              "latest",
+              "stable",
+              "main",
+              "master"
+            ]
+          }
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy.",
+          "default": "IfNotPresent",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
+      }
+    },
+    "server": {
+      "type": "object",
+      "description": "Native rendezvous and relay configuration.",
+      "additionalProperties": false,
+      "properties": {
+        "relayServers": {
+          "type": "array",
+          "description": "Client-reachable relay endpoints, including port, for example relay.example.com:21117. Empty requires clients to configure their relay explicitly.",
+          "default": [],
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^\\s,]+:[0-9]+$"
+          }
+        },
+        "alwaysUseRelay": {
+          "type": "boolean",
+          "description": "Force relay instead of attempting peer-to-peer hole punching.",
+          "default": false
+        },
+        "rendezvousPort": {
+          "type": "integer",
+          "description": "Rendezvous TCP/UDP base port; NAT is base-1 and WebSocket is base+2.",
+          "default": 21116,
+          "minimum": 1025,
+          "maximum": 65533
+        },
+        "relayPort": {
+          "type": "integer",
+          "description": "Relay TCP base port; relay WebSocket is base+2.",
+          "default": 21117,
+          "minimum": 1025,
+          "maximum": 65533
+        }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "description": "Native server identity supplied independently of Helm release history.",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": {
+          "type": "string",
+          "description": "Secret containing a matching native base64 Ed25519 private/public pair. Empty generates the pair on the data volume.",
+          "default": ""
+        },
+        "privateKeyKey": {
+          "type": "string",
+          "description": "Secret key containing the native base64 64-byte private key.",
+          "default": "id_ed25519",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "publicKeyKey": {
+          "type": "string",
+          "description": "Secret key containing the native base64 32-byte public key.",
+          "default": "id_ed25519.pub",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._-]+$"
+        }
+      }
+    },
+    "externalSecrets": {
+      "type": "object",
+      "description": "Optional External Secrets Operator integration; install the operator separately.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Render ExternalSecret resources.",
+          "default": false
+        },
+        "refreshInterval": {
+          "type": "string",
+          "description": "Default synchronization interval.",
+          "default": "1h"
+        },
+        "items": {
+          "type": "array",
+          "description": "Complete ExternalSecret definitions with optional name/fullnameOverride/labels/annotations and spec.",
+          "default": [],
+          "items": {
+            "type": "object",
+            "required": [
+              "spec"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "fullnameOverride": {
+                "type": "string"
+              },
+              "labels": {
+                "type": "object"
+              },
+              "annotations": {
+                "type": "object"
+              },
+              "spec": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "websocket": {
+      "type": "object",
+      "description": "Optional WebSocket listeners for compatible clients; no web console is included.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Expose the derived hbbs and hbbr WebSocket ports through the Service and NetworkPolicy.",
+          "default": false
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "description": "HTTP Ingress for WebSocket endpoints only.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Render one Ingress with separate rendezvous and relay hostnames.",
+          "default": false
+        },
+        "ingressClassName": {
+          "type": "string",
+          "description": "Ingress controller class; empty omits ingressClassName.",
+          "default": ""
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Controller annotations, including controller-specific WebSocket timeouts.",
+          "additionalProperties": true,
+          "properties": {}
+        },
+        "rendezvousHost": {
+          "type": "string",
+          "description": "Hostname for the hbbs WebSocket endpoint.",
+          "default": ""
+        },
+        "relayHost": {
+          "type": "string",
+          "description": "Distinct hostname for the hbbr WebSocket endpoint.",
+          "default": ""
+        },
+        "tls": {
+          "type": "array",
+          "description": "Standard Ingress TLS entries.",
+          "default": [],
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "gatewayAPI": {
+      "type": "object",
+      "description": "Gateway API HTTPRoutes for WebSocket endpoints only.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Render HTTPRoutes; requires websocket.enabled and an existing Gateway controller.",
+          "default": false
+        },
+        "httpRoutes": {
+          "type": "array",
+          "description": "Route definitions; component is hbbs (default) or hbbr. Supports name, parentRefs, hostnames, rules, labels and annotations.",
+          "default": [],
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "component": {
+                "enum": [
+                  "hbbs",
+                  "hbbr"
+                ]
+              },
+              "labels": {
+                "type": "object"
+              },
+              "annotations": {
+                "type": "object"
+              },
+              "parentRefs": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "hostnames": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "rules": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "hbbs": {
+      "type": "object",
+      "description": "Rendezvous process settings. Starts before hbbr as a native sidecar.",
+      "additionalProperties": false,
+      "properties": {
+        "resources": {
+          "type": "object",
+          "description": "Resource requests and limits for rendezvous and its SQLite database.",
+          "additionalProperties": false,
+          "properties": {
+            "requests": {
+              "type": "object",
+              "description": "Guaranteed scheduling resources.",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "description": "Requested CPU.",
+                  "default": "100m"
+                },
+                "memory": {
+                  "type": "string",
+                  "description": "Requested memory.",
+                  "default": "64Mi"
+                }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "description": "Resource ceilings.",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "description": "CPU limit.",
+                  "default": "1"
+                },
+                "memory": {
+                  "type": "string",
+                  "description": "Memory limit.",
+                  "default": "256Mi"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "hbbr": {
+      "type": "object",
+      "description": "Relay process settings; bandwidth and session count drive sizing.",
+      "additionalProperties": false,
+      "properties": {
+        "totalBandwidth": {
+          "type": "integer",
+          "description": "Aggregate relay bandwidth limit in upstream units of 1024*1024 bits per second.",
+          "default": 1024,
+          "minimum": 1
+        },
+        "singleBandwidth": {
+          "type": "integer",
+          "description": "Per-session relay bandwidth limit in upstream Mb/s units.",
+          "default": 128,
+          "minimum": 1
+        },
+        "limitSpeed": {
+          "type": "integer",
+          "description": "Throttled/blacklisted session bandwidth in upstream Mb/s units.",
+          "default": 32,
+          "minimum": 1
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resource requests and limits for relay traffic.",
+          "additionalProperties": false,
+          "properties": {
+            "requests": {
+              "type": "object",
+              "description": "Guaranteed scheduling resources.",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "description": "Requested CPU.",
+                  "default": "100m"
+                },
+                "memory": {
+                  "type": "string",
+                  "description": "Requested memory.",
+                  "default": "64Mi"
+                }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "description": "Resource ceilings.",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "description": "CPU limit.",
+                  "default": "1"
+                },
+                "memory": {
+                  "type": "string",
+                  "description": "Memory limit.",
+                  "default": "256Mi"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "Dedicated account; RustDesk does not call the Kubernetes API.",
+      "additionalProperties": false,
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a ServiceAccount.",
+          "default": true
+        },
+        "name": {
+          "type": "string",
+          "description": "Existing account name or custom created name.",
+          "default": ""
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Account annotations.",
+          "additionalProperties": true,
+          "properties": {}
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean",
+          "description": "Mount a Kubernetes API token; unnecessary for both servers.",
+          "default": false
+        }
+      }
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "description": "Pod identity and volume ownership.",
+      "additionalProperties": true,
+      "properties": {
+        "runAsNonRoot": {
+          "type": "boolean",
+          "description": "Require non-root execution.",
+          "default": true
+        },
+        "runAsUser": {
+          "type": "integer",
+          "description": "Numeric runtime user.",
+          "default": 1000
+        },
+        "runAsGroup": {
+          "type": "integer",
+          "description": "Numeric primary group.",
+          "default": 1000
+        },
+        "fsGroup": {
+          "type": "integer",
+          "description": "Group ownership for the shared data volume.",
+          "default": 1000
+        },
+        "fsGroupChangePolicy": {
+          "type": "string",
+          "description": "Avoid recursive ownership walks when the volume root already matches.",
+          "default": "OnRootMismatch"
+        },
+        "seccompProfile": {
+          "type": "object",
+          "description": "Kernel syscall filtering.",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "Use the runtime default profile.",
+              "default": "RuntimeDefault"
+            }
+          }
+        }
+      }
+    },
+    "securityContext": {
+      "type": "object",
+      "description": "Applied to both native server containers.",
+      "additionalProperties": true,
+      "properties": {
+        "allowPrivilegeEscalation": {
+          "type": "boolean",
+          "description": "Prevent privilege escalation.",
+          "default": false
+        },
+        "readOnlyRootFilesystem": {
+          "type": "boolean",
+          "description": "Application writes only into its data volume.",
+          "default": true
+        },
+        "capabilities": {
+          "type": "object",
+          "description": "Linux capability configuration.",
+          "additionalProperties": false,
+          "properties": {
+            "drop": {
+              "type": "array",
+              "description": "Drop all capabilities; native ports are unprivileged.",
+              "default": [
+                "ALL"
+              ],
+              "items": {
+                "type": "string",
+                "description": "securityContext capabilities drop item",
+                "default": "ALL"
+              }
+            }
+          }
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "description": "Native TCP/UDP Service. Internet access requires an appropriate external endpoint.",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "ClusterIP, NodePort or LoadBalancer.",
+          "default": "ClusterIP",
+          "enum": [
+            "ClusterIP",
+            "NodePort",
+            "LoadBalancer"
+          ]
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Provider-specific annotations.",
+          "additionalProperties": true,
+          "properties": {}
+        },
+        "externalTrafficPolicy": {
+          "type": "string",
+          "description": "Preserve source IP for external Services; provider SNAT remains outside this setting.",
+          "default": "Local",
+          "enum": [
+            "Cluster",
+            "Local"
+          ]
+        },
+        "ipFamilyPolicy": {
+          "type": "string",
+          "description": "Optional IP policy: SingleStack, PreferDualStack or RequireDualStack.",
+          "default": "",
+          "enum": [
+            "",
+            "SingleStack",
+            "PreferDualStack",
+            "RequireDualStack"
+          ]
+        },
+        "ipFamilies": {
+          "type": "array",
+          "description": "Optional ordered IP families, for example [IPv4, IPv6].",
+          "default": [],
+          "items": {
+            "type": "string",
+            "enum": [
+              "IPv4",
+              "IPv6"
+            ]
+          },
+          "uniqueItems": true,
+          "maxItems": 2
+        },
+        "loadBalancerClass": {
+          "type": "string",
+          "description": "Optional LoadBalancer implementation class, immutable once allocated.",
+          "default": ""
+        },
+        "loadBalancerSourceRanges": {
+          "type": "array",
+          "description": "Optional CIDRs accepted by a compatible LoadBalancer implementation.",
+          "default": [],
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "nodePorts": {
+          "type": "object",
+          "description": "Explicit external node ports; zero delegates allocation to Kubernetes.",
+          "additionalProperties": false,
+          "properties": {
+            "nat": {
+              "type": "integer",
+              "description": "NAT test TCP port.",
+              "default": 0,
+              "anyOf": [
+                {
+                  "const": 0
+                },
+                {
+                  "minimum": 1,
+                  "maximum": 65535
+                }
+              ]
+            },
+            "rendezvous": {
+              "type": "integer",
+              "description": "Rendezvous TCP port.",
+              "default": 0,
+              "anyOf": [
+                {
+                  "const": 0
+                },
+                {
+                  "minimum": 1,
+                  "maximum": 65535
+                }
+              ]
+            },
+            "rendezvousUdp": {
+              "type": "integer",
+              "description": "Rendezvous UDP port; normally use the same public number as TCP.",
+              "default": 0,
+              "anyOf": [
+                {
+                  "const": 0
+                },
+                {
+                  "minimum": 1,
+                  "maximum": 65535
+                }
+              ]
+            },
+            "relay": {
+              "type": "integer",
+              "description": "Relay TCP port.",
+              "default": 0,
+              "anyOf": [
+                {
+                  "const": 0
+                },
+                {
+                  "minimum": 1,
+                  "maximum": 65535
+                }
+              ]
+            },
+            "rendezvousWs": {
+              "type": "integer",
+              "description": "Rendezvous WebSocket TCP port when enabled.",
+              "default": 0,
+              "anyOf": [
+                {
+                  "const": 0
+                },
+                {
+                  "minimum": 1,
+                  "maximum": 65535
+                }
+              ]
+            },
+            "relayWs": {
+              "type": "integer",
+              "description": "Relay WebSocket TCP port when enabled.",
+              "default": 0,
+              "anyOf": [
+                {
+                  "const": 0
+                },
+                {
+                  "minimum": 1,
+                  "maximum": 65535
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "description": "Retain SQLite peer identities and the native Ed25519 keypair together.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Use persistent storage. Disable only for disposable trials with disposable keys.",
+          "default": true
+        },
+        "existingClaim": {
+          "type": "string",
+          "description": "Existing PVC; never created or deleted by this chart.",
+          "default": ""
+        },
+        "storageClass": {
+          "type": "string",
+          "description": "StorageClass; empty uses the cluster default, '-' disables dynamic provisioning.",
+          "default": ""
+        },
+        "size": {
+          "type": "string",
+          "description": "Requested data-volume capacity.",
+          "default": "1Gi",
+          "pattern": "^[1-9][0-9]*(Mi|Gi|Ti)$"
+        },
+        "accessModes": {
+          "type": "array",
+          "description": "Volume access modes; RWX does not permit concurrent server replicas.",
+          "default": [
+            "ReadWriteOnce"
+          ],
+          "items": {
+            "type": "string",
+            "enum": [
+              "ReadWriteOnce",
+              "ReadWriteOncePod",
+              "ReadWriteMany"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "retain": {
+          "type": "boolean",
+          "description": "Retain a generated PVC after Helm uninstall; namespace deletion is not protected.",
+          "default": true
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Additional PVC annotations.",
+          "additionalProperties": true,
+          "properties": {}
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "description": "Protect native listener ports with explicit client peers.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Render a NetworkPolicy; enforcement requires a compatible CNI.",
+          "default": true
+        },
+        "ingressFrom": {
+          "type": "array",
+          "description": "Allowed native clients. Empty restricts to Pods in the release namespace.",
+          "default": [],
+          "items": {
+            "type": "object"
+          }
+        },
+        "egressIsolation": {
+          "type": "boolean",
+          "description": "Restrict outbound connections to DNS and explicitly configured rules.",
+          "default": true
+        },
+        "dnsEgress": {
+          "type": "array",
+          "description": "DNS destinations on TCP/UDP 53.",
+          "default": [
+            {
+              "namespaceSelector": {}
+            }
+          ],
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "extraEgress": {
+          "type": "array",
+          "description": "Additional complete egress rules.",
+          "default": [],
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "probes": {
+      "type": "object",
+      "description": "TCP probe timing. The mandatory hbbs startup probe serializes key initialization.",
+      "additionalProperties": false,
+      "properties": {
+        "startup": {
+          "type": "object",
+          "description": "Startup probe budget.",
+          "additionalProperties": false,
+          "properties": {
+            "periodSeconds": {
+              "type": "integer",
+              "description": "Interval between attempts.",
+              "default": 5,
+              "minimum": 1
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "description": "Per-attempt timeout.",
+              "default": 2,
+              "minimum": 1
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "description": "Consecutive failures before restart.",
+              "default": 60,
+              "minimum": 1
+            }
+          }
+        },
+        "readiness": {
+          "type": "object",
+          "description": "Readiness probe timing for both components.",
+          "additionalProperties": false,
+          "properties": {
+            "periodSeconds": {
+              "type": "integer",
+              "description": "Interval between attempts.",
+              "default": 5,
+              "minimum": 1
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "description": "Per-attempt timeout.",
+              "default": 2,
+              "minimum": 1
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "description": "Failures before marking unready.",
+              "default": 3,
+              "minimum": 1
+            }
+          }
+        },
+        "liveness": {
+          "type": "object",
+          "description": "Liveness probes detect a stopped native listener.",
+          "additionalProperties": false,
+          "properties": {
+            "periodSeconds": {
+              "type": "integer",
+              "description": "Interval between attempts.",
+              "default": 20,
+              "minimum": 1
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "description": "Per-attempt timeout.",
+              "default": 2,
+              "minimum": 1
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "description": "Failures before restart.",
+              "default": 3,
+              "minimum": 1
+            }
+          }
+        }
+      }
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "description": "Shutdown grace period; active remote desktop sessions are interrupted on replacement.",
+      "default": 30,
+      "minimum": 1
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selection labels.",
+      "additionalProperties": true,
+      "properties": {}
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Pod tolerations.",
+      "default": [],
+      "items": {
+        "type": "object"
+      }
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Pod affinity and anti-affinity.",
+      "additionalProperties": true,
+      "properties": {}
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Optional workload priority.",
+      "default": ""
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "description": "Optional topology constraints; this does not increase replicas.",
+      "default": [],
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

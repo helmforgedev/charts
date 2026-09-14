@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: RustDesk invalid configurations
+capabilities:
+  majorVersion: 1
+  minorVersion: 31
+templates:
+  - templates/validate.yaml
+tests:
+  - it: rejects overlapping listeners
+    set:
+      server.relayPort: 21118
+    asserts:
+      - failedTemplate:
+          errorMessage: RustDesk native and derived NAT/WebSocket listener ports must not overlap
+  - it: rejects HTTP routing for native ports
+    set:
+      ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: Ingress and HTTPRoute require websocket.enabled=true; native TCP/UDP cannot use HTTP routing
+  - it: rejects ambiguous WebSocket hosts
+    set:
+      websocket.enabled: true
+      ingress.enabled: true
+      ingress.rendezvousHost: id.example.com
+      ingress.relayHost: id.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: WebSocket Ingress requires two distinct nonempty hostnames
+  - it: rejects existing claim for emptyDir
+    set:
+      persistence.enabled: false
+      persistence.existingClaim: old
+    asserts:
+      - failedTemplate:
+          errorMessage: persistence.existingClaim requires persistence.enabled=true
+  - it: protects selector labels
+    set:
+      podLabels:
+        app.kubernetes.io/instance: wrong
+    asserts:
+      - failedTemplate:
+          errorMessage: custom labels must not override selector label app.kubernetes.io/instance
+  - it: rejects aliased private and public keys
+    set:
+      auth.existingSecret: identity
+      auth.publicKeyKey: id_ed25519
+    asserts:
+      - failedTemplate:
+          errorMessage: native private and public Secret keys must be distinct

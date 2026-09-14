@@ -1,0 +1,55 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.gatewayAPI.enabled }}
+{{- range .Values.gatewayAPI.httpRoutes | default list }}
+{{- $port := add (int $.Values.server.rendezvousPort) 2 }}
+{{- if eq (.component | default "hbbs") "hbbr" }}{{- $port = add (int $.Values.server.relayPort) 2 }}{{- end }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "rustdesk-server.httpRouteName" (dict "root" $ "route" .) }}
+  labels:
+    {{- include "rustdesk-server.labels" $ | nindent 4 }}
+    {{- with .labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .parentRefs }}
+  parentRefs:
+    {{- toYaml .parentRefs | nindent 4 }}
+  {{- end }}
+  {{- with .hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+  {{- if .rules }}
+    {{- range .rules }}
+    - {{- with .matches }}
+      matches:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .filters }}
+      filters:
+        {{- toYaml .filters | nindent 8 }}
+      {{- end }}
+      {{- if .backendRefs }}
+      backendRefs:
+        {{- toYaml .backendRefs | nindent 8 }}
+      {{- else if not .omitDefaultBackend }}
+      backendRefs:
+        - name: {{ include "rustdesk-server.fullname" $ }}
+          port: {{ $port }}
+      {{- end }}
+    {{- end }}
+  {{- else }}
+    - backendRefs:
+        - name: {{ include "rustdesk-server.fullname" $ }}
+          port: {{ $port }}
+  {{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,620 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: RustDesk production contract
+capabilities:
+  majorVersion: 1
+  minorVersion: 31
+templates:
+  - templates/*.yaml
+tests:
+  - it: keeps one coordinated pair
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+  - it: recreates before attaching SQLite volume
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+  - it: starts rendezvous as restartable init container
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].restartPolicy
+          value: Always
+  - it: gates relay startup on rendezvous listener
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].startupProbe.tcpSocket.port
+          value: rendezvous
+  - it: enforces native key on rendezvous
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].args
+          value:
+            - '-p'
+            - '21116'
+            - '-k'
+            - _
+  - it: enforces native key on relay
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - '-p'
+            - '21117'
+            - '-k'
+            - _
+  - it: pins official scratch image
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/rustdesk/rustdesk-server:1.1.16
+  - it: runs as nonroot
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+  - it: drops relay capabilities
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          value:
+            - ALL
+  - it: drops rendezvous capabilities
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.drop
+          value:
+            - ALL
+  - it: keeps root filesystem readonly
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+  - it: omits API credentials
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - it: uses writable volume working directory
+    template: templates/deployment.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].workingDir
+          value: /data
+  - it: advertises explicit relay addresses
+    template: templates/deployment.yaml
+    set:
+      server.relayServers:
+        - one.example:21117
+        - two.example:21117
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].args[5]
+          value: one.example:21117,two.example:21117
+  - it: maps forced relay to upstream switch
+    template: templates/deployment.yaml
+    set:
+      server.alwaysUseRelay: true
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].env[1].value
+          value: 'Y'
+  - it: maps bandwidth ceiling
+    template: templates/deployment.yaml
+    set:
+      hbbr.totalBandwidth: 256
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[1].value
+          value: '256'
+  - it: mounts existing native private key readonly
+    template: templates/deployment.yaml
+    set:
+      auth.existingSecret: identity
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].volumeMounts[1]
+          value:
+            name: identity
+            mountPath: /data/id_ed25519
+            subPath: private
+            readOnly: true
+  - it: maps custom private Secret key
+    template: templates/deployment.yaml
+    set:
+      auth.existingSecret: identity
+      auth.privateKeyKey: private.key
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].secret.items[0].key
+          value: private.key
+  - it: selects existing claim
+    template: templates/deployment.yaml
+    set:
+      persistence.existingClaim: restored
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          value: restored
+  - it: supports disposable storage
+    template: templates/deployment.yaml
+    set:
+      persistence.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].emptyDir
+          value: {}
+  - it: supports scheduling constraints
+    template: templates/deployment.yaml
+    set:
+      nodeSelector:
+        pool: remote
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            pool: remote
+  - it: supports explicit ServiceAccount
+    template: templates/deployment.yaml
+    set:
+      serviceAccount.create: false
+      serviceAccount.name: existing
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: existing
+  - it: uses four native service mappings
+    template: templates/service.yaml
+    set: {}
+    asserts:
+      - lengthEqual:
+          path: spec.ports
+          count: 4
+  - it: uses numeric sidecar rendezvous target
+    template: templates/service.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.ports[1].targetPort
+          value: 21116
+  - it: exposes rendezvous UDP
+    template: templates/service.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.ports[2].protocol
+          value: UDP
+  - it: derives NAT from custom base
+    template: templates/service.yaml
+    set:
+      server.rendezvousPort: 22116
+    asserts:
+      - equal:
+          path: spec.ports[0].targetPort
+          value: 22115
+  - it: omits external policy on ClusterIP
+    template: templates/service.yaml
+    set: {}
+    asserts:
+      - notExists:
+          path: spec.externalTrafficPolicy
+  - it: preserves external source IP by default
+    template: templates/service.yaml
+    set:
+      service.type: LoadBalancer
+    asserts:
+      - equal:
+          path: spec.externalTrafficPolicy
+          value: Local
+  - it: supports explicit node ports
+    template: templates/service.yaml
+    set:
+      service.type: NodePort
+      service.nodePorts.rendezvousUdp: 31116
+    asserts:
+      - equal:
+          path: spec.ports[2].nodePort
+          value: 31116
+  - it: ignores node ports on ClusterIP
+    template: templates/service.yaml
+    set:
+      service.nodePorts.rendezvousUdp: 31116
+    asserts:
+      - notExists:
+          path: spec.ports[2].nodePort
+  - it: renders dual stack policy
+    template: templates/service.yaml
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies:
+        - IPv4
+        - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+  - it: renders LoadBalancer source CIDRs
+    template: templates/service.yaml
+    set:
+      service.type: LoadBalancer
+      service.loadBalancerSourceRanges:
+        - 192.0.2.0/24
+    asserts:
+      - equal:
+          path: spec.loadBalancerSourceRanges
+          value:
+            - 192.0.2.0/24
+  - it: exposes derived WebSocket target
+    template: templates/service.yaml
+    set:
+      websocket.enabled: true
+    asserts:
+      - equal:
+          path: spec.ports[4].targetPort
+          value: 21118
+  - it: retains generated data PVC
+    template: templates/pvc.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+  - it: does not create an existing PVC
+    template: templates/pvc.yaml
+    set:
+      persistence.existingClaim: restored
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: does not create ephemeral PVC
+    template: templates/pvc.yaml
+    set:
+      persistence.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: supports manually bound storage
+    template: templates/pvc.yaml
+    set:
+      persistence.storageClass: '-'
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: ''
+  - it: allows explicit PVC deletion on uninstall
+    template: templates/pvc.yaml
+    set:
+      persistence.retain: false
+    asserts:
+      - notExists:
+          path: metadata.annotations["helm.sh/resource-policy"]
+  - it: can disable NetworkPolicy
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: limits ingress to same namespace by default
+    template: templates/networkpolicy.yaml
+    set: {}
+    asserts:
+      - equal:
+          path: spec.ingress[0].from
+          value:
+            - podSelector: {}
+  - it: permits explicit remote CIDR
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.ingressFrom:
+        - ipBlock:
+            cidr: 192.0.2.0/24
+    asserts:
+      - equal:
+          path: spec.ingress[0].from
+          value:
+            - ipBlock:
+                cidr: 192.0.2.0/24
+  - it: renders explicit deny all egress
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.dnsEgress: []
+    asserts:
+      - equal:
+          path: spec.egress
+          value: []
+  - it: supports ingress only policy
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.egressIsolation: false
+    asserts:
+      - equal:
+          path: spec.policyTypes
+          value:
+            - Ingress
+  - it: adds egress escape hatch
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.extraEgress:
+        - to:
+            - ipBlock:
+                cidr: 192.0.2.0/24
+    asserts:
+      - equal:
+          path: spec.egress[1]
+          value:
+            to:
+              - ipBlock:
+                  cidr: 192.0.2.0/24
+  - it: does not create unused ServiceAccount
+    template: templates/serviceaccount.yaml
+    set:
+      serviceAccount.create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: keeps WebSocket Ingress opt in
+    template: templates/ingress.yaml
+    set: {}
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: omits empty ingressClassName
+    template: templates/ingress.yaml
+    set:
+      websocket.enabled: true
+      ingress.enabled: true
+      ingress.rendezvousHost: id.example.com
+      ingress.relayHost: relay.example.com
+    asserts:
+      - notExists:
+          path: spec.ingressClassName
+  - it: routes relay hostname to relay WebSocket
+    template: templates/ingress.yaml
+    set:
+      websocket.enabled: true
+      ingress.enabled: true
+      ingress.rendezvousHost: id.example.com
+      ingress.relayHost: relay.example.com
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.number
+          value: 21119
+  - it: keeps HTTPRoute opt in
+    template: templates/gateway-httproute.yaml
+    set: {}
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: defaults relay HTTPRoute backend to WebSocket
+    template: templates/gateway-httproute.yaml
+    set:
+      websocket.enabled: true
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - component: hbbr
+    asserts:
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 21119
+  - it: preserves route filters
+    template: templates/gateway-httproute.yaml
+    set:
+      websocket.enabled: true
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - rules:
+            - filters:
+                - type: RequestHeaderModifier
+                  requestHeaderModifier:
+                    add:
+                      - name: x-test
+                        value: 'yes'
+    asserts:
+      - equal:
+          path: spec.rules[0].filters
+          value:
+            - type: RequestHeaderModifier
+              requestHeaderModifier:
+                add:
+                  - name: x-test
+                    value: 'yes'
+  - it: keeps ExternalSecret opt in
+    template: templates/externalsecret.yaml
+    set: {}
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: uses stable ESO API
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: identity
+          spec:
+            secretStoreRef:
+              name: vault
+              kind: ClusterSecretStore
+            data:
+              - secretKey: key
+                remoteRef:
+                  key: native/key
+    asserts:
+      - equal:
+          path: apiVersion
+          value: external-secrets.io/v1
+  - it: defaults ESO target to literal name
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: identity
+          spec:
+            secretStoreRef:
+              name: vault
+              kind: ClusterSecretStore
+            data:
+              - secretKey: key
+                remoteRef:
+                  key: native/key
+    asserts:
+      - equal:
+          path: spec.target.name
+          value: identity
+  - it: injects ESO refresh interval
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: identity
+          spec:
+            secretStoreRef:
+              name: vault
+              kind: ClusterSecretStore
+            data:
+              - secretKey: key
+                remoteRef:
+                  key: native/key
+    asserts:
+      - equal:
+          path: spec.refreshInterval
+          value: 1h
+  - it: preserves per item ESO refresh
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: identity
+          spec:
+            secretStoreRef:
+              name: vault
+              kind: ClusterSecretStore
+            data:
+              - secretKey: key
+                remoteRef:
+                  key: native/key
+            refreshInterval: 5m
+    asserts:
+      - equal:
+          path: spec.refreshInterval
+          value: 5m
+  - it: renders multiple ESO definitions
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: identity
+          spec:
+            secretStoreRef:
+              name: vault
+              kind: ClusterSecretStore
+            data:
+              - secretKey: key
+                remoteRef:
+                  key: native/key
+        - fullnameOverride: other
+          spec:
+            secretStoreRef:
+              name: vault
+              kind: ClusterSecretStore
+            data:
+              - secretKey: key
+                remoteRef:
+                  key: native/key
+    asserts:
+      - hasDocuments:
+          count: 2
+  - it: rejects ESO definitions without a source
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - spec:
+            target:
+              name: identity
+    asserts:
+      - failedTemplate:
+          errorMessage: >-
+            externalSecrets.items[].spec.secretStoreRef.name or item sourceRef.storeRef.name/sourceRef.generatorRef.name
+            is required when externalSecrets.enabled=true
+  - it: accepts per entry ESO sources
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: identity
+          spec:
+            data:
+              - secretKey: key
+                remoteRef:
+                  key: native/key
+                sourceRef:
+                  storeRef:
+                    name: vault
+                    kind: SecretStore
+    asserts:
+      - equal:
+          path: spec.target.name
+          value: identity
+  - it: preserves an explicit ESO target
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: identity
+          spec:
+            secretStoreRef:
+              name: vault
+              kind: ClusterSecretStore
+            data:
+              - secretKey: key
+                remoteRef:
+                  key: native/key
+            target:
+              name: preserved
+              creationPolicy: Merge
+    asserts:
+      - equal:
+          path: spec.target.name
+          value: preserved
+  - it: allows intentional backend omission
+    template: templates/gateway-httproute.yaml
+    set:
+      websocket.enabled: true
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - rules:
+            - omitDefaultBackend: true
+              filters:
+                - type: RequestRedirect
+                  requestRedirect:
+                    scheme: https
+    asserts:
+      - notExists:
+          path: spec.rules[0].backendRefs

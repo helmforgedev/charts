@@ -1,0 +1,47 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "rustdesk-server.fullname" . }}
+  labels:
+    {{- include "rustdesk-server.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "rustdesk-server.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if .Values.networkPolicy.egressIsolation }}
+    - Egress
+    {{- end }}
+  ingress:
+    - from:
+        {{- if .Values.networkPolicy.ingressFrom }}
+        {{- toYaml .Values.networkPolicy.ingressFrom | nindent 8 }}
+        {{- else }}
+        - podSelector: {}
+        {{- end }}
+      ports:
+        - {protocol: TCP, port: {{ sub (int .Values.server.rendezvousPort) 1 }}}
+        - {protocol: TCP, port: {{ .Values.server.rendezvousPort }}}
+        - {protocol: UDP, port: {{ .Values.server.rendezvousPort }}}
+        - {protocol: TCP, port: {{ .Values.server.relayPort }}}
+        {{- if .Values.websocket.enabled }}
+        - {protocol: TCP, port: {{ add (int .Values.server.rendezvousPort) 2 }}}
+        - {protocol: TCP, port: {{ add (int .Values.server.relayPort) 2 }}}
+        {{- end }}
+  {{- if .Values.networkPolicy.egressIsolation }}
+  egress:{{ if and (not .Values.networkPolicy.dnsEgress) (not .Values.networkPolicy.extraEgress) }} []{{ end }}
+    {{- if .Values.networkPolicy.dnsEgress }}
+    - to:
+        {{- toYaml .Values.networkPolicy.dnsEgress | nindent 8 }}
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    {{- end }}
+    {{- with .Values.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

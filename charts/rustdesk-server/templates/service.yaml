@@ -1,0 +1,79 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "rustdesk-server.fullname" . }}
+  labels:
+    {{- include "rustdesk-server.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  {{- if ne .Values.service.type "ClusterIP" }}
+  externalTrafficPolicy: {{ .Values.service.externalTrafficPolicy }}
+  {{- end }}
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if eq .Values.service.type "LoadBalancer" }}
+  {{- with .Values.service.loadBalancerClass }}
+  loadBalancerClass: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- end }}
+  selector:
+    {{- include "rustdesk-server.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: nat
+      {{- if and (ne .Values.service.type "ClusterIP") .Values.service.nodePorts.nat }}
+      nodePort: {{ .Values.service.nodePorts.nat }}
+      {{- end }}
+      port: {{ sub (int .Values.server.rendezvousPort) 1 }}
+      targetPort: {{ sub (int .Values.server.rendezvousPort) 1 }}
+      protocol: TCP
+    - name: rendezvous
+      {{- if and (ne .Values.service.type "ClusterIP") .Values.service.nodePorts.rendezvous }}
+      nodePort: {{ .Values.service.nodePorts.rendezvous }}
+      {{- end }}
+      port: {{ .Values.server.rendezvousPort }}
+      targetPort: {{ .Values.server.rendezvousPort }}
+      protocol: TCP
+    - name: rendezvous-udp
+      {{- if and (ne .Values.service.type "ClusterIP") .Values.service.nodePorts.rendezvousUdp }}
+      nodePort: {{ .Values.service.nodePorts.rendezvousUdp }}
+      {{- end }}
+      port: {{ .Values.server.rendezvousPort }}
+      targetPort: {{ .Values.server.rendezvousPort }}
+      protocol: UDP
+    - name: relay
+      {{- if and (ne .Values.service.type "ClusterIP") .Values.service.nodePorts.relay }}
+      nodePort: {{ .Values.service.nodePorts.relay }}
+      {{- end }}
+      port: {{ .Values.server.relayPort }}
+      targetPort: relay
+      protocol: TCP
+  {{- if .Values.websocket.enabled }}
+    - name: rendezvous-ws
+      port: {{ add (int .Values.server.rendezvousPort) 2 }}
+      targetPort: {{ add (int .Values.server.rendezvousPort) 2 }}
+      protocol: TCP
+      {{- if and (ne .Values.service.type "ClusterIP") .Values.service.nodePorts.rendezvousWs }}
+      nodePort: {{ .Values.service.nodePorts.rendezvousWs }}
+      {{- end }}
+    - name: relay-ws
+      port: {{ add (int .Values.server.relayPort) 2 }}
+      targetPort: {{ add (int .Values.server.relayPort) 2 }}
+      protocol: TCP
+      {{- if and (ne .Values.service.type "ClusterIP") .Values.service.nodePorts.relayWs }}
+      nodePort: {{ .Values.service.nodePorts.relayWs }}
+      {{- end }}
+  {{- end }}

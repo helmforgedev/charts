@@ -1,0 +1,246 @@
+# SPDX-License-Identifier: Apache-2.0
+# -- Override the chart name in resource names.
+nameOverride: ""
+# -- Override the complete resource name.
+fullnameOverride: ""
+# -- Exactly one coordinated rendezvous/relay pair; horizontal scaling is unsupported.
+replicaCount: 1
+# -- Additional resource labels; selector labels cannot be overridden.
+commonLabels: {}
+# -- Additional Pod labels; selector labels cannot be overridden.
+podLabels: {}
+# -- Additional Pod annotations.
+podAnnotations: {}
+# -- Registry credentials for the official image.
+imagePullSecrets: []
+# -- Official upstream image shared by hbbs and hbbr.
+image:
+  # -- Official RustDesk Server OSS repository.
+  repository: docker.io/rustdesk/rustdesk-server
+  # -- Pinned stable upstream version, independent of the chart version.
+  tag: "1.1.16"
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+# -- Native rendezvous and relay configuration.
+server:
+  # -- Client-reachable relay endpoints, including port, for example relay.example.com:21117. Empty requires clients to configure their relay explicitly.
+  relayServers: []
+  # -- Force relay instead of attempting peer-to-peer hole punching.
+  alwaysUseRelay: false
+  # -- Rendezvous TCP/UDP base port; NAT is base-1 and WebSocket is base+2.
+  rendezvousPort: 21116
+  # -- Relay TCP base port; relay WebSocket is base+2.
+  relayPort: 21117
+# -- Native server identity supplied independently of Helm release history.
+auth:
+  # -- Secret containing a matching native base64 Ed25519 private/public pair. Empty generates the pair on the data volume.
+  existingSecret: ""
+  # -- Secret key containing the native base64 64-byte private key.
+  privateKeyKey: id_ed25519
+  # -- Secret key containing the native base64 32-byte public key.
+  publicKeyKey: id_ed25519.pub
+# -- Optional External Secrets Operator integration; install the operator separately.
+externalSecrets:
+  # -- Render ExternalSecret resources.
+  enabled: false
+  # -- Default synchronization interval.
+  refreshInterval: 1h
+  # -- Complete ExternalSecret definitions with optional name/fullnameOverride/labels/annotations and spec.
+  items: []
+# -- Optional WebSocket listeners for compatible clients; no web console is included.
+websocket:
+  # -- Expose the derived hbbs and hbbr WebSocket ports through the Service and NetworkPolicy.
+  enabled: false
+# -- HTTP Ingress for WebSocket endpoints only.
+ingress:
+  # -- Render one Ingress with separate rendezvous and relay hostnames.
+  enabled: false
+  # -- Ingress controller class; empty omits ingressClassName.
+  ingressClassName: ""
+  # -- Controller annotations, including controller-specific WebSocket timeouts.
+  annotations: {}
+  # -- Hostname for the hbbs WebSocket endpoint.
+  rendezvousHost: ""
+  # -- Distinct hostname for the hbbr WebSocket endpoint.
+  relayHost: ""
+  # -- Standard Ingress TLS entries.
+  tls: []
+# -- Gateway API HTTPRoutes for WebSocket endpoints only.
+gatewayAPI:
+  # -- Render HTTPRoutes; requires websocket.enabled and an existing Gateway controller.
+  enabled: false
+  # -- Route definitions; component is hbbs (default) or hbbr. Supports name, parentRefs, hostnames, rules, labels and annotations.
+  httpRoutes: []
+# -- Rendezvous process settings. Starts before hbbr as a native sidecar.
+hbbs:
+  # -- Resource requests and limits for rendezvous and its SQLite database.
+  resources:
+    # -- Guaranteed scheduling resources.
+    requests:
+      # -- Requested CPU.
+      cpu: 100m
+      # -- Requested memory.
+      memory: 64Mi
+    # -- Resource ceilings.
+    limits:
+      # -- CPU limit.
+      cpu: "1"
+      # -- Memory limit.
+      memory: 256Mi
+# -- Relay process settings; bandwidth and session count drive sizing.
+hbbr:
+  # -- Aggregate relay bandwidth limit in upstream units of 1024*1024 bits per second.
+  totalBandwidth: 1024
+  # -- Per-session relay bandwidth limit in upstream Mb/s units.
+  singleBandwidth: 128
+  # -- Throttled/blacklisted session bandwidth in upstream Mb/s units.
+  limitSpeed: 32
+  # -- Resource requests and limits for relay traffic.
+  resources:
+    # -- Guaranteed scheduling resources.
+    requests:
+      # -- Requested CPU.
+      cpu: 100m
+      # -- Requested memory.
+      memory: 64Mi
+    # -- Resource ceilings.
+    limits:
+      # -- CPU limit.
+      cpu: "1"
+      # -- Memory limit.
+      memory: 256Mi
+# -- Dedicated account; RustDesk does not call the Kubernetes API.
+serviceAccount:
+  # -- Create a ServiceAccount.
+  create: true
+  # -- Existing account name or custom created name.
+  name: ""
+  # -- Account annotations.
+  annotations: {}
+  # -- Mount a Kubernetes API token; unnecessary for both servers.
+  automountServiceAccountToken: false
+# -- Pod identity and volume ownership.
+podSecurityContext:
+  # -- Require non-root execution.
+  runAsNonRoot: true
+  # -- Numeric runtime user.
+  runAsUser: 1000
+  # -- Numeric primary group.
+  runAsGroup: 1000
+  # -- Group ownership for the shared data volume.
+  fsGroup: 1000
+  # -- Avoid recursive ownership walks when the volume root already matches.
+  fsGroupChangePolicy: OnRootMismatch
+  # -- Kernel syscall filtering.
+  seccompProfile:
+    # -- Use the runtime default profile.
+    type: RuntimeDefault
+# -- Applied to both native server containers.
+securityContext:
+  # -- Prevent privilege escalation.
+  allowPrivilegeEscalation: false
+  # -- Application writes only into its data volume.
+  readOnlyRootFilesystem: true
+  # -- Linux capability configuration.
+  capabilities:
+    # -- Drop all capabilities; native ports are unprivileged.
+    drop:
+      - ALL
+# -- Native TCP/UDP Service. Internet access requires an appropriate external endpoint.
+service:
+  # -- ClusterIP, NodePort or LoadBalancer.
+  type: ClusterIP
+  # -- Provider-specific annotations.
+  annotations: {}
+  # -- Preserve source IP for external Services; provider SNAT remains outside this setting.
+  externalTrafficPolicy: Local
+  # -- Optional IP policy: SingleStack, PreferDualStack or RequireDualStack.
+  ipFamilyPolicy: ""
+  # -- Optional ordered IP families, for example [IPv4, IPv6].
+  ipFamilies: []
+  # -- Optional LoadBalancer implementation class, immutable once allocated.
+  loadBalancerClass: ""
+  # -- Optional CIDRs accepted by a compatible LoadBalancer implementation.
+  loadBalancerSourceRanges: []
+  # -- Explicit external node ports; zero delegates allocation to Kubernetes.
+  nodePorts:
+    # -- NAT test TCP port.
+    nat: 0
+    # -- Rendezvous TCP port.
+    rendezvous: 0
+    # -- Rendezvous UDP port; normally use the same public number as TCP.
+    rendezvousUdp: 0
+    # -- Relay TCP port.
+    relay: 0
+    # -- Rendezvous WebSocket TCP port when enabled.
+    rendezvousWs: 0
+    # -- Relay WebSocket TCP port when enabled.
+    relayWs: 0
+# -- Retain SQLite peer identities and the native Ed25519 keypair together.
+persistence:
+  # -- Use persistent storage. Disable only for disposable trials with disposable keys.
+  enabled: true
+  # -- Existing PVC; never created or deleted by this chart.
+  existingClaim: ""
+  # -- StorageClass; empty uses the cluster default, '-' disables dynamic provisioning.
+  storageClass: ""
+  # -- Requested data-volume capacity.
+  size: 1Gi
+  # -- Volume access modes; RWX does not permit concurrent server replicas.
+  accessModes:
+    - ReadWriteOnce
+  # -- Retain a generated PVC after Helm uninstall; namespace deletion is not protected.
+  retain: true
+  # -- Additional PVC annotations.
+  annotations: {}
+# -- Protect native listener ports with explicit client peers.
+networkPolicy:
+  # -- Render a NetworkPolicy; enforcement requires a compatible CNI.
+  enabled: true
+  # -- Allowed native clients. Empty restricts to Pods in the release namespace.
+  ingressFrom: []
+  # -- Restrict outbound connections to DNS and explicitly configured rules.
+  egressIsolation: true
+  # -- DNS destinations on TCP/UDP 53.
+  dnsEgress:
+    - namespaceSelector: {}
+  # -- Additional complete egress rules.
+  extraEgress: []
+# -- TCP probe timing. The mandatory hbbs startup probe serializes key initialization.
+probes:
+  # -- Startup probe budget.
+  startup:
+    # -- Interval between attempts.
+    periodSeconds: 5
+    # -- Per-attempt timeout.
+    timeoutSeconds: 2
+    # -- Consecutive failures before restart.
+    failureThreshold: 60
+  # -- Readiness probe timing for both components.
+  readiness:
+    # -- Interval between attempts.
+    periodSeconds: 5
+    # -- Per-attempt timeout.
+    timeoutSeconds: 2
+    # -- Failures before marking unready.
+    failureThreshold: 3
+  # -- Liveness probes detect a stopped native listener.
+  liveness:
+    # -- Interval between attempts.
+    periodSeconds: 20
+    # -- Per-attempt timeout.
+    timeoutSeconds: 2
+    # -- Failures before restart.
+    failureThreshold: 3
+# -- Shutdown grace period; active remote desktop sessions are interrupted on replacement.
+terminationGracePeriodSeconds: 30
+# -- Node selection labels.
+nodeSelector: {}
+# -- Pod tolerations.
+tolerations: []
+# -- Pod affinity and anti-affinity.
+affinity: {}
+# -- Optional workload priority.
+priorityClassName: ""
+# -- Optional topology constraints; this does not increase replicas.
+topologySpreadConstraints: []

@@ -1,0 +1,167 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rustdesk-server.fullname" . }}
+  labels:
+    {{- include "rustdesk-server.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "rustdesk-server.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "rustdesk-server.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "rustdesk-server.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: hbbs
+          restartPolicy: Always
+          image: {{ include "rustdesk-server.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [/usr/bin/hbbs]
+          args:
+            - -p
+            - {{ .Values.server.rendezvousPort | quote }}
+            - -k
+            - _
+            {{- with .Values.server.relayServers }}
+            - -r
+            - {{ join "," . | quote }}
+            {{- end }}
+          workingDir: /data
+          env:
+            - name: HOME
+              value: /data
+            - name: ALWAYS_USE_RELAY
+              value: {{ ternary "Y" "N" .Values.server.alwaysUseRelay | quote }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.hbbs.resources | nindent 12 }}
+          ports:
+            - name: nat
+              containerPort: {{ sub (int .Values.server.rendezvousPort) 1 }}
+            - name: rendezvous
+              containerPort: {{ .Values.server.rendezvousPort }}
+            - name: rendezvous-udp
+              containerPort: {{ .Values.server.rendezvousPort }}
+              protocol: UDP
+          {{- range $name, $probe := .Values.probes }}
+          {{ $name }}Probe:
+            tcpSocket:
+              port: rendezvous
+            {{- toYaml $probe | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            {{- if .Values.auth.existingSecret }}
+            - name: identity
+              mountPath: /data/id_ed25519
+              subPath: private
+              readOnly: true
+            - name: identity
+              mountPath: /data/id_ed25519.pub
+              subPath: public
+              readOnly: true
+            {{- end }}
+      containers:
+        - name: hbbr
+          image: {{ include "rustdesk-server.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [/usr/bin/hbbr]
+          args: [-p, {{ .Values.server.relayPort | quote }}, -k, _]
+          workingDir: /data
+          env:
+            - name: HOME
+              value: /data
+            - name: TOTAL_BANDWIDTH
+              value: {{ .Values.hbbr.totalBandwidth | quote }}
+            - name: SINGLE_BANDWIDTH
+              value: {{ .Values.hbbr.singleBandwidth | quote }}
+            - name: LIMIT_SPEED
+              value: {{ .Values.hbbr.limitSpeed | quote }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.hbbr.resources | nindent 12 }}
+          ports:
+            - name: relay
+              containerPort: {{ .Values.server.relayPort }}
+          {{- range $name, $probe := .Values.probes }}
+          {{ $name }}Probe:
+            tcpSocket:
+              port: relay
+            {{- toYaml $probe | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            {{- if .Values.auth.existingSecret }}
+            - name: identity
+              mountPath: /data/id_ed25519
+              subPath: private
+              readOnly: true
+            - name: identity
+              mountPath: /data/id_ed25519.pub
+              subPath: public
+              readOnly: true
+            {{- end }}
+      volumes:
+        {{- if .Values.auth.existingSecret }}
+        - name: identity
+          secret:
+            secretName: {{ .Values.auth.existingSecret }}
+            defaultMode: 0440
+            items:
+              - key: {{ .Values.auth.privateKeyKey | quote }}
+                path: private
+              - key: {{ .Values.auth.publicKeyKey | quote }}
+                path: public
+        {{- end }}
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "rustdesk-server.claimName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

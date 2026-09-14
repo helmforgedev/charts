@@ -1,0 +1,34 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "rustdesk-server.fullname" . }}
+  labels:
+    {{- include "rustdesk-server.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.ingressClassName }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range $component, $host := dict "hbbs" .Values.ingress.rendezvousHost "hbbr" .Values.ingress.relayHost }}
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "rustdesk-server.fullname" $ }}
+                port:
+                  number: {{ add (int (ternary $.Values.server.rendezvousPort $.Values.server.relayPort (eq $component "hbbs"))) 2 }}
+    {{- end }}
+{{- end }}

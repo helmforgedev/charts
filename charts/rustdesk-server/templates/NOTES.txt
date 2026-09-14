@@ -1,0 +1,108 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+RustDesk Server OSS {{ .Chart.AppVersion }}
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+1. Deployment status
+
+  kubectl -n {{ .Release.Namespace }} get deployment {{ include "rustdesk-server.fullname" . }}
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+  One hbbs/hbbr pair, ordered startup, Recreate updates.
+  Kubernetes >=1.29 with native SidecarContainers enabled is required.
+  A Pod replacement interrupts active remote desktop sessions.
+
+2. Native access
+
+  kubectl -n {{ .Release.Namespace }} get service {{ include "rustdesk-server.fullname" . }}
+
+  Service type: {{ .Values.service.type }}
+  NAT test: TCP {{ sub (int .Values.server.rendezvousPort) 1 }}
+  Rendezvous: TCP and UDP {{ .Values.server.rendezvousPort }}
+  Relay: TCP {{ .Values.server.relayPort }}
+
+  Configure reachable public DNS, firewall and NAT mappings for remote clients.
+  ClusterIP is private. Port-forward does not support native UDP validation.
+  LoadBalancer support for a mixed TCP/UDP Service depends on your provider.
+
+3. Identity and clients
+
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "rustdesk-server.fullname" . }} -c hbbs
+
+  Copy the public "Key:" value into each client's network settings through a
+  trusted channel. Also configure its ID server and reachable relay endpoint.
+  Never distribute the private id_ed25519 file.
+{{- if .Values.auth.existingSecret }}
+  Identity comes from Secret {{ .Values.auth.existingSecret }}.
+  Secret subPath changes require explicit Pod replacement.
+{{- else }}
+  The native identity is generated once on the data volume.
+{{- end }}
+{{- if .Values.server.relayServers }}
+  Advertised relays: {{ join ", " .Values.server.relayServers }}
+{{- else }}
+  No relay is advertised. Configure the relay in each client or set
+  server.relayServers to client-reachable endpoints including their ports.
+{{- end }}
+  Matching the public server key is not per-user access control.
+
+4. Persistence and recovery
+
+{{- if .Values.persistence.enabled }}
+  Data PVC: {{ include "rustdesk-server.claimName" . }}
+  Back up the COMPLETE data directory with both processes stopped.
+  Restore into a fresh PVC and select it with persistence.existingClaim.
+{{- else }}
+  WARNING: emptyDir is disposable. Pod replacement loses peer data and any
+  generated identity. Use persistent storage before production use.
+{{- end }}
+  Back up separately managed identity Secrets/provider data separately.
+  PVC retention does not protect against namespace deletion or storage loss.
+  Recovery guide: https://github.com/helmforgedev/charts/blob/main/charts/rustdesk-server/docs/backup-restore.md
+
+5. Network admission and WebSockets
+
+{{- if .Values.networkPolicy.enabled }}
+  NetworkPolicy is enabled. Empty ingressFrom permits same-namespace Pods only.
+  Add actual client CIDRs and controller peers before enabling external access.
+{{- end }}
+{{- if .Values.websocket.enabled }}
+  Rendezvous WebSocket: {{ add (int .Values.server.rendezvousPort) 2 }}
+  Relay WebSocket: {{ add (int .Values.server.relayPort) 2 }}
+  Ingress/HTTPRoute targets WebSockets only; configure TLS on your controller.
+{{- else }}
+  WebSocket Service mappings are disabled.
+{{- end }}
+  No Pro web console, account API or port 21114 is provided by this OSS chart.
+
+6. Capacity and availability
+
+  Both components must remain one coordinated pair; RWX is not horizontal HA.
+  Forced relay: {{ .Values.server.alwaysUseRelay }}
+  Relay aggregate bandwidth: {{ .Values.hbbr.totalBandwidth }} upstream Mb/s.
+  Per-session bandwidth: {{ .Values.hbbr.singleBandwidth }} upstream Mb/s.
+  Monitor actual CPU, memory, network usage and client connection quality.
+  There is no native Prometheus metrics endpoint in this upstream release.
+
+7. Troubleshooting and upgrade checks
+
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "rustdesk-server.fullname" . }} -c hbbs
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "rustdesk-server.fullname" . }} -c hbbr
+  kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
+
+  Verify both logs show the same public key, PVC permissions allow UID/GID
+  1000, all native protocols reach the Pod, and relays advertise public ports.
+  The scratch image has no shell, cat or tar. Use an approved maintenance Pod
+  for offline file operations. Take a backup before changing upstream versions.
+  Helm rollback does not roll back SQLite data or restore lost keys.
+
+8. Documentation and support
+
+  Chart: https://helmforge.dev/docs/charts/rustdesk-server
+  Upstream: https://github.com/rustdesk/rustdesk-server
+  Issues: https://github.com/helmforgedev/charts/issues
+
+  Test real clients on different networks before accepting public NAT behavior.
+  The chart runtime checks server protocols; it does not test desktop consent.
+
+Happy Helmforging :)
