@@ -1,0 +1,40 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.backup.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "nextcloud.backupName" . }}
+  labels:
+    {{- include "nextcloud.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "nextcloud.backupName" . }}
+  labels:
+    {{- include "nextcloud.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [apps]
+    resources: [deployments/scale]
+    resourceNames: [{{ include "nextcloud.fullname" . | quote }}]
+    verbs: [get, update]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "nextcloud.backupName" . }}
+  labels:
+    {{- include "nextcloud.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "nextcloud.backupName" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "nextcloud.backupName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

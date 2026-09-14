@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Nextcloud application lifecycle
+templates:
+  - templates/deployment.yaml
+  - templates/configmap.yaml
+tests:
+  - it: permits exactly one application writer
+    template: templates/deployment.yaml
+    asserts:
+      - equal: {path: 'spec.replicas', value: 1}
+      - equal: {path: 'spec.strategy.type', value: Recreate}
+  - it: preserves the official entrypoint
+    template: templates/deployment.yaml
+    asserts:
+      - notExists: {path: 'spec.template.spec.containers[0].command'}
+      - equal:
+          path: 'spec.template.spec.containers[0].args'
+          value: [apache2-foreground, -f, /opt/helmforge/apache.conf]
+  - it: uses the pinned official image
+    template: templates/deployment.yaml
+    asserts:
+      - equal: {path: 'spec.template.spec.containers[0].image', value: docker.io/library/nextcloud:34.0.4-apache}
+  - it: drops privileges and uses UID 33
+    template: templates/deployment.yaml
+    asserts:
+      - equal: {path: 'spec.template.spec.securityContext.runAsUser', value: 33}
+      - equal: {path: 'spec.template.spec.securityContext.runAsNonRoot', value: true}
+      - equal: {path: 'spec.template.spec.containers[0].securityContext.capabilities.drop', value: [ALL]}
+  - it: keeps the root filesystem read only
+    template: templates/deployment.yaml
+    asserts:
+      - equal: {path: 'spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem', value: true}
+      - equal: {path: 'spec.template.spec.automountServiceAccountToken', value: false}
+  - it: co-locates cron with the web server
+    template: templates/deployment.yaml
+    asserts:
+      - equal: {path: 'spec.template.spec.containers[1].name', value: cron}
+      - equal: {path: 'spec.template.spec.containers[1].command', value: [bash, /opt/helmforge/cron.sh]}
+  - it: can disable the cron worker
+    template: templates/deployment.yaml
+    set:
+      cron.enabled: false
+    asserts:
+      - lengthEqual: {path: 'spec.template.spec.containers', count: 1}
+  - it: reuses a restored persistent volume
+    template: templates/deployment.yaml
+    set:
+      persistence.existingClaim: restored-nextcloud
+    asserts:
+      - equal: {path: 'spec.template.spec.volumes[0].persistentVolumeClaim.claimName', value: restored-nextcloud}
+  - it: supports explicitly ephemeral development data
+    template: templates/deployment.yaml
+    set:
+      persistence.enabled: false
+    asserts:
+      - exists: {path: 'spec.template.spec.volumes[0].emptyDir'}
+      - notExists: {path: 'spec.template.spec.volumes[0].persistentVolumeClaim'}
+  - it: reads an existing administrator Secret
+    template: templates/deployment.yaml
+    set:
+      nextcloud.existingSecret: nextcloud-credentials
+      nextcloud.existingSecretPasswordKey: bootstrap-password
+    asserts:
+      - equal: {path: 'spec.template.spec.containers[0].env[3].valueFrom.secretKeyRef.name', value: nextcloud-credentials}
+      - equal: {path: 'spec.template.spec.containers[0].env[3].valueFrom.secretKeyRef.key', value: bootstrap-password}
+  - it: copies PHP extension configuration before startup
+    template: templates/deployment.yaml
+    asserts:
+      - equal: {path: 'spec.template.spec.initContainers[0].command', value: [sh, /opt/helmforge/prepare.sh]}
+      - equal: {path: 'spec.template.spec.initContainers[0].volumeMounts[1].mountPath', value: /php-conf}
+  - it: allows sufficient first-install startup time
+    template: templates/deployment.yaml
+    asserts:
+      - equal: {path: 'spec.template.spec.containers[0].startupProbe.failureThreshold', value: 90}
+      - equal: {path: 'spec.template.spec.containers[0].startupProbe.httpGet.path', value: /status.php}

@@ -1,0 +1,131 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Coherent backup lifecycle
+templates:
+  - templates/backup-cronjob.yaml
+tests:
+  - template: templates/backup-cronjob.yaml
+    it: does not schedule backups by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - template: templates/backup-cronjob.yaml
+    it: serializes schedules and never retries an interrupted snapshot
+    set:
+      backup.enabled: true
+      backup.s3.bucket: test
+      backup.s3.existingSecret: s3
+    asserts:
+      - equal:
+          path: spec.concurrencyPolicy
+          value: Forbid
+      - equal:
+          path: spec.jobTemplate.spec.backoffLimit
+          value: 0
+  - template: templates/backup-cronjob.yaml
+    it: validates storage before stopping application writers
+    set:
+      backup.enabled: true
+      backup.s3.bucket: test
+      backup.s3.existingSecret: s3
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].name
+          value: check-s3
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[1].name
+          value: quiesce
+  - template: templates/backup-cronjob.yaml
+    it: captures SQL before files and resumes before uploading
+    set:
+      backup.enabled: true
+      backup.s3.bucket: test
+      backup.s3.existingSecret: s3
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[2].name
+          value: dump-database
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[3].name
+          value: archive-and-resume
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].name
+          value: upload
+  - template: templates/backup-cronjob.yaml
+    it: co-locates RWO backup with the application
+    set:
+      backup.enabled: true
+      backup.s3.bucket: test
+      backup.s3.existingSecret: s3
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey
+          value: kubernetes.io/hostname
+  - template: templates/backup-cronjob.yaml
+    it: disables automatic API token exposure
+    set:
+      backup.enabled: true
+      backup.s3.bucket: test
+      backup.s3.existingSecret: s3
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.automountServiceAccountToken
+          value: false
+  - template: templates/backup-cronjob.yaml
+    it: projects an expiring token only for coordinator mounts
+    set:
+      backup.enabled: true
+      backup.s3.bucket: test
+      backup.s3.existingSecret: s3
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.volumes[4].projected.sources[0].serviceAccountToken.expirationSeconds
+          value: 3600
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[1].volumeMounts[4].name
+          value: api-token
+      - lengthEqual:
+          path: spec.jobTemplate.spec.template.spec.containers[0].volumeMounts
+          count: 3
+  - template: templates/backup-cronjob.yaml
+    it: allows a maintenance schedule without running it immediately
+    set:
+      backup.enabled: true
+      backup.s3.bucket: test
+      backup.s3.existingSecret: s3
+      backup.schedule: 30 3 * * 0
+      backup.suspend: true
+    asserts:
+      - equal:
+          path: spec.schedule
+          value: 30 3 * * 0
+      - equal:
+          path: spec.suspend
+          value: true
+  - template: templates/backup-cronjob.yaml
+    it: bounds staging storage independently of application data
+    set:
+      backup.enabled: true
+      backup.s3.bucket: test
+      backup.s3.existingSecret: s3
+      backup.workspaceSize: 40Gi
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.volumes[1].emptyDir.sizeLimit
+          value: 40Gi
+  - template: templates/backup-cronjob.yaml
+    it: keeps long CronJob names and references within the 52-character limit
+    set:
+      backup.enabled: true
+      backup.s3.bucket: test
+      backup.s3.existingSecret: s3
+      fullnameOverride: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    asserts:
+      - equal:
+          path: metadata.name
+          value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-backup
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.serviceAccountName
+          value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-backup
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.volumes[2].configMap.name
+          value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-backup

@@ -1,0 +1,24 @@
+#!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+# Preserve the official startup script while recording graceful shutdown evidence.
+set -uo pipefail
+proof="/var/www/html/.helmforge-quiescence/${POD_UID}"
+mkdir -p "$proof"
+rm -f "$proof/web"
+child=''
+stopping=false
+stop() {
+  stopping=true
+  if [ -n "$child" ]; then kill -WINCH "$child" 2>/dev/null || true; fi
+}
+trap stop TERM INT WINCH
+/usr/local/bin/apache2-foreground "$@" &
+child=$!
+wait "$child"
+status=$?
+if "$stopping"; then
+  # The first wait may be interrupted by the signal trap while Apache still drains.
+  wait "$child"; status=$?
+  if [ "$status" -eq 0 ]; then printf 'graceful\n' > "$proof/web"; fi
+fi
+exit "$status"

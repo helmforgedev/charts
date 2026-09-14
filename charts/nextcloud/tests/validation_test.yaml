@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Unsafe configuration rejection
+templates:
+  - templates/secret.yaml
+tests:
+  - template: templates/secret.yaml
+    it: requires external database details
+    set:
+      postgresql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: externalDatabase.host and externalDatabase.existingSecret are required when postgresql.enabled=false
+  - template: templates/secret.yaml
+    it: requires external Redis details
+    set:
+      redis.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: externalRedis.host and externalRedis.existingSecret are required when redis.enabled=false
+  - template: templates/secret.yaml
+    it: requires persistent state for backups
+    set:
+      backup.enabled: true
+      backup.s3.bucket: test
+      backup.s3.existingSecret: s3
+      persistence.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: backup and restore require persistence.enabled=true
+  - template: templates/secret.yaml
+    it: requires S3 credentials and a bucket
+    set:
+      backup.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: backup.s3.bucket and backup.s3.existingSecret are required
+  - template: templates/secret.yaml
+    it: forbids simultaneous restore and backup
+    set:
+      backup.enabled: true
+      backup.s3.bucket: test
+      backup.s3.existingSecret: s3
+      restore.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: backup.enabled and restore.enabled cannot both be true
+  - template: templates/secret.yaml
+    it: requires a restore backup path
+    set:
+      backup.enabled: false
+      backup.s3.bucket: test
+      backup.s3.existingSecret: s3
+      restore.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: restore.backupPath is required
+  - template: templates/secret.yaml
+    it: requires retained administrator credentials on restore
+    set:
+      backup.enabled: false
+      backup.s3.bucket: test
+      backup.s3.existingSecret: s3
+      restore.enabled: true
+      restore.backupPath: set/id
+    asserts:
+      - failedTemplate:
+          errorMessage: restore requires the original administrator credentials through nextcloud.existingSecret or nextcloud.adminPassword
+  - template: templates/secret.yaml
+    it: requires SMTP authentication credentials when a login is set
+    set:
+      smtp.enabled: true
+      smtp.host: smtp.example.com
+      smtp.username: sender
+    asserts:
+      - failedTemplate:
+          errorMessage: smtp.existingSecret is required for authenticated SMTP

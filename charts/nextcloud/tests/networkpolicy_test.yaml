@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Network policy admission
+templates:
+  - templates/networkpolicy.yaml
+tests:
+  - template: templates/networkpolicy.yaml
+    it: does not isolate networking until enabled
+    asserts:
+      - hasDocuments:
+          count: 0
+  - template: templates/networkpolicy.yaml
+    it: includes explicit external destinations when enabled
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.extraEgress:
+        - to:
+            - ipBlock:
+                cidr: 192.0.2.8/32
+          ports:
+            - port: 443
+              protocol: TCP
+    asserts:
+      - equal:
+          path: spec.egress[2].to[0].ipBlock.cidr
+          value: 192.0.2.8/32
+  - template: templates/networkpolicy.yaml
+    it: admits a controller from another namespace explicitly
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.extraIngress:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: edge
+          ports:
+            - port: 8080
+              protocol: TCP
+    asserts:
+      - equal:
+          path: spec.ingress[1].ports[0].port
+          value: 8080

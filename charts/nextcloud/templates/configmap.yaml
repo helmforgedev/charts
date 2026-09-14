@@ -1,0 +1,156 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "nextcloud.fullname" . }}
+  labels:
+    {{- include "nextcloud.labels" . | nindent 4 }}
+data:
+  runtime-settings.json: |
+    {{- dict "cron" .Values.cron | toJson | nindent 4 }}
+  smoke.php: |
+    {{- .Files.Get "files/smoke.php" | nindent 4 }}
+  recovery-smoke.php: |
+    {{- .Files.Get "files/recovery-smoke.php" | nindent 4 }}
+  apache2-foreground: |
+    {{- .Files.Get "files/apache2-foreground" | nindent 4 }}
+  settings.json: |
+    {{- omit .Values.nextcloud "adminPassword" "existingSecret" "existingSecretPasswordKey" | toPrettyJson | nindent 4 }}
+  zz-helmforge.config.php: |
+    <?php
+    // SPDX-License-Identifier: Apache-2.0
+    $settings = json_decode(file_get_contents('/opt/helmforge/settings.json'), true, 512, JSON_THROW_ON_ERROR);
+    $CONFIG = [
+      'dbhost' => getenv('POSTGRES_HOST'),
+      'dbname' => getenv('POSTGRES_DB'),
+      'dbuser' => getenv('POSTGRES_USER'),
+      'dbpassword' => getenv('POSTGRES_PASSWORD'),
+      'trusted_domains' => $settings['trustedDomains'],
+      'trusted_proxies' => $settings['trustedProxies'],
+      'overwrite.cli.url' => $settings['overwriteCliUrl'],
+      'default_phone_region' => $settings['defaultPhoneRegion'],
+      'maintenance_window_start' => $settings['maintenanceWindowStart'],
+      'upgrade.disable-web' => true,
+    ];
+    if ($settings['overwriteProtocol'] !== '') $CONFIG['overwriteprotocol'] = $settings['overwriteProtocol'];
+    if ($settings['overwriteHost'] !== '') $CONFIG['overwritehost'] = $settings['overwriteHost'];
+  php.ini: |
+    ; SPDX-License-Identifier: Apache-2.0
+    memory_limit={{ .Values.php.memoryLimit }}
+    upload_max_filesize={{ .Values.php.uploadLimit }}
+    post_max_size={{ .Values.php.uploadLimit }}
+    apc.enable_cli=1
+    expose_php=Off
+    display_errors=Off
+    log_errors=On
+    error_log=/proc/self/fd/2
+  apache.conf: |
+    # SPDX-License-Identifier: Apache-2.0
+    ServerRoot /etc/apache2
+    ServerName localhost
+    PidFile /tmp/apache.pid
+    DefaultRuntimeDir /tmp
+    Mutex file:/tmp default
+    Listen 8080
+    IncludeOptional /etc/apache2/mods-enabled/*.load
+    IncludeOptional /etc/apache2/mods-enabled/*.conf
+    User www-data
+    Group www-data
+    ServerTokens Prod
+    ServerSignature Off
+    TraceEnable Off
+    ErrorLog /proc/self/fd/2
+    LogLevel warn
+    LogFormat "%h %l %u %t \"%r\" %>s %b" common
+    CustomLog /proc/self/fd/1 common
+    TypesConfig /etc/mime.types
+    DirectoryIndex disabled
+    DirectoryIndex index.php index.html
+    <FilesMatch "\.php$">
+      SetHandler application/x-httpd-php
+    </FilesMatch>
+    StartServers 2
+    MinSpareServers 1
+    MaxSpareServers 2
+    MaxRequestWorkers 16
+    MaxConnectionsPerChild 1000
+    <Directory />
+      AllowOverride None
+      Require all denied
+    </Directory>
+    DocumentRoot /var/www/html
+    <Directory /var/www/html>
+      Options +FollowSymLinks -Indexes
+      AllowOverride All
+      Require all granted
+      <IfModule mod_dav.c>
+        Dav off
+      </IfModule>
+    </Directory>
+    <Directory /var/www/html/data>
+      Require all denied
+    </Directory>
+    <Directory /var/www/html/config>
+      Require all denied
+    </Directory>
+    SetEnv HOME /var/www/html
+    SetEnv HTTP_HOME /var/www/html
+  prepare.sh: |
+    #!/bin/sh
+    # SPDX-License-Identifier: Apache-2.0
+    set -eu
+    if [ -d /var/www/html/.helmforge-backup-lock ]; then
+      echo 'Backup owns this volume; waiting for snapshot completion or operator recovery'
+      while [ -d /var/www/html/.helmforge-backup-lock ]; do sleep 2; done
+    fi
+    cp -R /usr/local/etc/php/conf.d/. /php-conf/
+    install -m 0644 /opt/helmforge/php.ini /php-conf/zz-helmforge.ini
+    mkdir -p /var/www/html/config
+    # Image-owned snippets are refreshed on each rollout; native config.php is retained.
+    for source in /usr/src/nextcloud/config/*.config.php; do
+      cp "$source" /var/www/html/config/
+    done
+    install -m 0644 /opt/helmforge/zz-helmforge.config.php /var/www/html/config/zz-helmforge.config.php
+  cron.sh: |
+    #!/bin/bash
+    # SPDX-License-Identifier: Apache-2.0
+    set -uo pipefail
+    proof="/var/www/html/.helmforge-quiescence/${POD_UID}"
+    mkdir -p "$proof"
+    rm -f "$proof/cron"
+    stopping=false
+    child=''
+    sleeping=false
+    stop() {
+      stopping=true
+      # Active PHP jobs must finish naturally. Only the inter-run sleep is canceled.
+      if "$sleeping" && [ -n "$child" ]; then kill -TERM "$child" 2>/dev/null || true; fi
+    }
+    trap stop TERM INT WINCH
+    sleeping=true
+    sleep {{ .Values.cron.initialDelay }} & child=$!; wait "$child"
+    sleeping=false
+    if "$stopping"; then printf 'graceful\n' > "$proof/cron"; exit 0; fi
+    while true; do
+      # Shared lock excludes the upstream bootstrap/upgrade writer.
+      (
+        flock -s 9
+        if [ -f /var/www/html/config/config.php ] && php /var/www/html/occ status --output=json | php -r '$s=json_decode(stream_get_contents(STDIN),true);exit(!($s["installed"]??false)||($s["maintenance"]??true)||($s["needsDbUpgrade"]??true));'; then
+          php /var/www/html/occ background:cron || exit $?
+          php -f /var/www/html/cron.php
+          status=$?
+          if [ "$status" -ne 0 ]; then exit "$status"; fi
+          date +%s > /tmp/nextcloud-cron-last-success
+        fi
+      ) 9>/var/www/html/nextcloud-init-sync.lock &
+      child=$!
+      wait "$child"
+      status=$?
+      if "$stopping"; then wait "$child"; status=$?; fi
+      if [ "$status" -ne 0 ]; then exit "$status"; fi
+      if "$stopping"; then printf 'graceful\n' > "$proof/cron"; exit 0; fi
+      sleeping=true
+      sleep {{ .Values.cron.interval }} & child=$!; wait "$child"
+      sleeping=false
+      if "$stopping"; then printf 'graceful\n' > "$proof/cron"; exit 0; fi
+    done

@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: SMTP Secret contract
+templates:
+  - templates/deployment.yaml
+  - templates/configmap.yaml
+tests:
+  - template: templates/deployment.yaml
+    it: passes SMTP settings and a Secret reference to the native image
+    set:
+      smtp.enabled: true
+      smtp.host: smtp.example.com
+      smtp.username: sender
+      smtp.existingSecret: smtp-credentials
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SMTP_HOST
+            value: smtp.example.com
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SMTP_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: smtp-credentials
+                key: password

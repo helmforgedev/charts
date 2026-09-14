@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Fresh-storage recovery
+templates:
+  - templates/restore-job.yaml
+tests:
+  - template: templates/restore-job.yaml
+    it: does not create a restore job by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - template: templates/restore-job.yaml
+    it: downloads and verifies files before restoring the database
+    set:
+      restore.enabled: true
+      restore.backupPath: set/id
+      backup.s3.bucket: test
+      backup.s3.existingSecret: s3
+      nextcloud.existingSecret: admin
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: download
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: restore-files
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: restore-database
+  - template: templates/restore-job.yaml
+    it: does not grant API access to restore workers
+    set:
+      restore.enabled: true
+      restore.backupPath: set/id
+      backup.s3.bucket: test
+      backup.s3.existingSecret: s3
+      nextcloud.existingSecret: admin
+    asserts:
+      - notExists:
+          path: spec.template.spec.serviceAccountName
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - template: templates/restore-job.yaml
+    it: keeps long restore Job names within 63 characters
+    set:
+      fullnameOverride: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      restore.enabled: true
+      restore.backupPath: set/id
+      backup.s3.bucket: test
+      backup.s3.existingSecret: s3
+      nextcloud.existingSecret: admin
+    asserts:
+      - equal:
+          path: metadata.name
+          value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-restore

@@ -1,0 +1,185 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nextcloud.fullname" . }}
+  labels:
+    {{- include "nextcloud.labels" . | nindent 4 }}
+spec:
+  replicas: {{ ternary 0 1 .Values.restore.enabled }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "nextcloud.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: app
+  template:
+    metadata:
+      labels:
+        {{- include "nextcloud.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: app
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: prepare
+          image: {{ include "nextcloud.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [sh, /opt/helmforge/prepare.sh]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.initResources | nindent 12 }}
+          volumeMounts:
+            - {name: data, mountPath: /var/www/html}
+            - {name: php-conf, mountPath: /php-conf}
+            - {name: config, mountPath: /opt/helmforge, readOnly: true}
+      containers:
+        - name: nextcloud
+          image: {{ include "nextcloud.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: [apache2-foreground, -f, /opt/helmforge/apache.conf]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          env: &appEnv
+            - name: PATH
+              value: /opt/helmforge:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+            - name: POD_UID
+              valueFrom:
+                fieldRef: {fieldPath: metadata.uid}
+            - name: NEXTCLOUD_ADMIN_USER
+              value: {{ .Values.nextcloud.adminUser | quote }}
+            - name: NEXTCLOUD_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "nextcloud.secretName" . }}
+                  key: {{ .Values.nextcloud.existingSecretPasswordKey }}
+            - name: POSTGRES_HOST
+              value: {{ printf "%s:%v" (include "nextcloud.dbHost" .) (ternary 5432 .Values.externalDatabase.port .Values.postgresql.enabled) | quote }}
+            - name: POSTGRES_DB
+              value: {{ include "nextcloud.dbName" . | quote }}
+            - name: POSTGRES_USER
+              value: {{ include "nextcloud.dbUser" . | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "nextcloud.dbSecret" . }}
+                  key: {{ include "nextcloud.dbKey" . }}
+            - name: REDIS_HOST
+              value: {{ include "nextcloud.redisHost" . | quote }}
+            - name: REDIS_HOST_PORT
+              value: {{ ternary 6379 .Values.externalRedis.port .Values.redis.enabled | quote }}
+            - name: REDIS_HOST_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "nextcloud.redisSecret" . }}
+                  key: {{ include "nextcloud.redisKey" . }}
+            {{- if .Values.smtp.enabled }}
+            - name: SMTP_HOST
+              value: {{ .Values.smtp.host | quote }}
+            - name: SMTP_PORT
+              value: {{ .Values.smtp.port | quote }}
+            - name: SMTP_SECURE
+              value: {{ .Values.smtp.secure | quote }}
+            - name: MAIL_FROM_ADDRESS
+              value: {{ .Values.smtp.fromAddress | quote }}
+            - name: MAIL_DOMAIN
+              value: {{ .Values.smtp.domain | quote }}
+            {{- if .Values.smtp.username }}
+            - name: SMTP_NAME
+              value: {{ .Values.smtp.username | quote }}
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.smtp.existingSecret }}
+                  key: {{ .Values.smtp.existingSecretPasswordKey }}
+            {{- end }}
+            {{- end }}
+          ports:
+            - {name: http, containerPort: 8080}
+          startupProbe:
+            httpGet:
+              path: /status.php
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ first .Values.nextcloud.trustedDomains | quote }}
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 90
+          readinessProbe:
+            httpGet:
+              path: /status.php
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ first .Values.nextcloud.trustedDomains | quote }}
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 20
+            timeoutSeconds: 5
+          volumeMounts: &appMounts
+            - {name: data, mountPath: /var/www/html}
+            - {name: php-conf, mountPath: /usr/local/etc/php/conf.d}
+            - {name: config, mountPath: /opt/helmforge, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+            - {name: apache-run, mountPath: /var/run/apache2}
+            - {name: apache-lock, mountPath: /var/lock/apache2}
+        {{- if .Values.cron.enabled }}
+        - name: cron
+          image: {{ include "nextcloud.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [bash, /opt/helmforge/cron.sh]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.cron.resources | nindent 12 }}
+          env: *appEnv
+          volumeMounts: *appMounts
+        {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ default (include "nextcloud.fullname" .) .Values.persistence.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: config
+          configMap:
+            name: {{ include "nextcloud.fullname" . }}
+            defaultMode: 0555
+        - {name: php-conf, emptyDir: {}}
+        - {name: tmp, emptyDir: {}}
+        - {name: apache-run, emptyDir: {}}
+        - {name: apache-lock, emptyDir: {}}

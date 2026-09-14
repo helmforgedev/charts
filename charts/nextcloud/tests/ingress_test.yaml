@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Public ingress
+templates:
+  - templates/ingress.yaml
+tests:
+  - template: templates/ingress.yaml
+    it: does not render ingress by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - template: templates/ingress.yaml
+    it: omits an empty ingress class
+    set:
+      ingress.enabled: true
+    asserts:
+      - notExists:
+          path: spec.ingressClassName
+  - template: templates/ingress.yaml
+    it: routes the full application path through the configured class
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: nginx
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.number
+          value: 80

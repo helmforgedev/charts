@@ -1,0 +1,70 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+Nextcloud {{ .Chart.AppVersion }}
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+1. Deployment status
+
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "nextcloud.fullname" . }} -c nextcloud
+
+  One application writer, Recreate updates and co-located cron.
+  Initial installation can take several minutes.
+
+2. Application access
+
+  kubectl -n {{ .Release.Namespace }} port-forward service/{{ include "nextcloud.fullname" . }} 8080:{{ .Values.service.port }}
+
+  Default local URL: http://localhost:8080
+  Public URL: {{ .Values.nextcloud.overwriteCliUrl }}
+  Allowed hosts: {{ join ", " .Values.nextcloud.trustedDomains }}
+  Configure public TLS, DNS and trusted proxy addresses before production access.
+
+3. Administrator and Secrets
+
+  Initial user: {{ .Values.nextcloud.adminUser }}
+  Password Secret: {{ include "nextcloud.secretName" . }}
+  Password key: {{ .Values.nextcloud.existingSecretPasswordKey }}
+  Retrieve credentials through your approved Secret-management workflow.
+  Bootstrap password settings do not reset existing accounts.
+
+4. Persistence and backup
+
+  Persistence enabled: {{ .Values.persistence.enabled }}
+  Integrated backup enabled: {{ .Values.backup.enabled }}
+  Backups stop web and cron while capturing database and files.
+  Retain external Secrets separately. Monitor completed backup age and failed Jobs.
+  Failed snapshots can leave the application locked and stopped; follow the
+  documented recovery procedure before removing a lock.
+
+5. Restore and upgrade
+
+  Restore mode: {{ .Values.restore.enabled }}
+  Restore requires a fresh PVC, empty database and matching application version.
+  Disable restore.enabled only after the restore Job succeeds.
+  Upgrade one upstream major at a time. Helm rollback does not undo DB migrations.
+
+6. Background jobs and capacity
+
+  Cron enabled: {{ .Values.cron.enabled }}
+  Cron interval: {{ .Values.cron.interval }} seconds
+  PHP memory limit: {{ .Values.php.memoryLimit }}
+  Upload limit: {{ .Values.php.uploadLimit }}
+  Align proxy body limits, storage capacity and worker resources with usage.
+
+7. Troubleshooting
+
+  kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "nextcloud.fullname" . }} -c nextcloud -- php occ status --output=json
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "nextcloud.fullname" . }} -c cron
+  kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
+
+  Verify PVC ownership for UID/GID 33, database/Redis credentials and trusted hosts.
+  Review Nextcloud's administration overview after installation and upgrades.
+
+8. Documentation and support
+
+  https://helmforge.dev/docs/charts/nextcloud
+  https://github.com/helmforgedev/charts/tree/main/charts/nextcloud/docs
+  https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)

@@ -1,0 +1,42 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if or .Values.backup.enabled .Values.restore.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "nextcloud.backupName" . }}
+  labels:
+    {{- include "nextcloud.labels" . | nindent 4 }}
+data:
+  {{- range $name := list "backup-coordinate.php" "backup-archive.sh" "backup-s3.sh" "restore-files.sh" }}
+  {{ $name }}: |
+    {{- $.Files.Get (printf "files/%s" $name) | nindent 4 }}
+  {{- end }}
+  dump.sh: |
+    #!/bin/bash
+    # SPDX-License-Identifier: Apache-2.0
+    set -euo pipefail
+    psql -XAt -c 'SHOW server_version' > /work/database-version.txt
+    pg_dump --format=custom --no-owner --no-privileges --file=/work/database.dump
+    pg_restore --list /work/database.dump > /work/database-contents.txt
+  restore-database.sh: |
+    #!/bin/bash
+    # SPDX-License-Identifier: Apache-2.0
+    set -euo pipefail
+    export PGCONNECT_TIMEOUT=5
+    ready=false
+    for attempt in $(seq 1 60); do
+      if psql -XAt -c 'SELECT 1' >/dev/null 2>&1; then ready=true; break; fi
+      sleep 2
+    done
+    if [ "$ready" != true ]; then
+      echo 'Destination database did not become available for authenticated restore' >&2
+      exit 1
+    fi
+    count=$(psql -XAt -c "SELECT count(*) FROM pg_tables WHERE schemaname NOT IN ('pg_catalog','information_schema')")
+    if [ "$count" != 0 ]; then
+      echo 'Restore requires an empty database' >&2
+      exit 1
+    fi
+    pg_restore --exit-on-error --single-transaction --no-owner --no-privileges --dbname="$PGDATABASE" /work/database.dump
+    echo 'Database restored successfully. Disable restore.enabled to start the application.'
+{{- end }}

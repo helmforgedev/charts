@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Nextcloud HTTP routing
+templates:
+  - templates/service.yaml
+tests:
+  - it: targets only the application Pod and named HTTP port
+    asserts:
+      - equal: {path: 'spec.selector["app.kubernetes.io/component"]', value: app}
+      - equal: {path: 'spec.ports[0].targetPort', value: http}
+  - it: defaults to a cluster-local service
+    asserts:
+      - equal: {path: 'spec.type', value: ClusterIP}
+      - equal: {path: 'spec.ports[0].port', value: 80}
+  - it: omits IP family fields by default
+    asserts:
+      - notExists: {path: 'spec.ipFamilyPolicy'}
+      - notExists: {path: 'spec.ipFamilies'}
+  - it: supports IPv6-first dualstack
+    set:
+      service.ipFamilyPolicy: RequireDualStack
+      service.ipFamilies: [IPv6, IPv4]
+    asserts:
+      - equal: {path: 'spec.ipFamilyPolicy', value: RequireDualStack}
+      - equal: {path: 'spec.ipFamilies', value: [IPv6, IPv4]}
+  - it: permits a custom service port
+    set:
+      service.port: 8088
+    asserts:
+      - equal: {path: 'spec.ports[0].port', value: 8088}

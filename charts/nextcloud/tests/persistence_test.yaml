@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Persistent application state
+templates:
+  - templates/pvc.yaml
+tests:
+  - template: templates/pvc.yaml
+    it: stores application and files on one RWO claim
+    asserts:
+      - equal:
+          path: spec.accessModes
+          value:
+            - ReadWriteOnce
+      - equal:
+          path: spec.resources.requests.storage
+          value: 10Gi
+  - template: templates/pvc.yaml
+    it: does not create a claim for existing storage
+    set:
+      persistence.existingClaim: restored
+    asserts:
+      - hasDocuments:
+          count: 0
+  - template: templates/pvc.yaml
+    it: omits the storage class by default
+    asserts:
+      - notExists:
+          path: spec.storageClassName
+  - template: templates/pvc.yaml
+    it: selects a requested storage class and capacity
+    set:
+      persistence.storageClass: fast
+      persistence.size: 50Gi
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: fast
+      - equal:
+          path: spec.resources.requests.storage
+          value: 50Gi

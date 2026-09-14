@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Gateway API integration
+templates:
+  - templates/gateway-httproute.yaml
+tests:
+  - template: templates/gateway-httproute.yaml
+    it: omits routes by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - template: templates/gateway-httproute.yaml
+    it: defaults routes to the application service port
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - name: public
+          hostnames:
+            - cloud.example.com
+      service.port: 8088
+    asserts:
+      - equal:
+          path: apiVersion
+          value: gateway.networking.k8s.io/v1
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 8088
+  - template: templates/gateway-httproute.yaml
+    it: preserves explicit Gateway attachment and hostnames
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - name: public
+          parentRefs:
+            - name: gateway
+              namespace: edge
+          hostnames:
+            - cloud.example.com
+    asserts:
+      - equal:
+          path: spec.parentRefs[0].namespace
+          value: edge
+      - equal:
+          path: spec.hostnames
+          value:
+            - cloud.example.com

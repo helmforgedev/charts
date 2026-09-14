@@ -1,0 +1,21 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "nextcloud.backupName" . }}
+  labels:
+    {{- include "nextcloud.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  suspend: {{ .Values.backup.suspend }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: {{ .Values.backup.activeDeadlineSeconds }}
+      template:
+        {{- include "nextcloud.backupPod" (dict "root" . "restore" false) | nindent 8 }}
+{{- end }}
