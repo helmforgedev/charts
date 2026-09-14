@@ -51,6 +51,8 @@ native filenames and points `auth.existingSecret` at the synchronized target.
 Wait for ExternalSecret Ready before considering the installation healthy.
 Each item carries its complete spec; item refreshInterval overrides the block
 default. Rotation still needs Pod replacement and client coordination.
+Each ExternalSecret must have a unique rendered name, including after truncation.
+Repeated or colliding names are rejected before resources are applied.
 
 Fixtures under `ci/fixtures/` contain a deliberately public test identity. Never
 use it for a deployed server. The runtime test uses a namespace-scoped fake store

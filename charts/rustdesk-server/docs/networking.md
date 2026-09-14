@@ -64,6 +64,8 @@ two distinct hostnames. Gateway API accepts one route per component with
 the derived WebSocket ports. `rules` preserves explicit matches, filters and
 backendRefs; `omitDefaultBackend` permits a rule that intentionally has no backend.
 Operators are responsible for any custom backend references.
+Each route must have a unique rendered name, including after the 63-character
+limit is applied. Multiple unnamed routes are rejected; give them distinct names.
 
 Use a controller that supports WebSocket upgrade and suitably long connection
 timeouts. Configure HTTPS listeners and certificates on that controller. An

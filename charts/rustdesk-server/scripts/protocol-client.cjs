@@ -49,7 +49,7 @@ async function connect(port) {
   const socket = net.createConnection({ host, port });
   await new Promise((resolve, reject) => {
     socket.setTimeout(8000, () => socket.destroy(new Error('TCP connection timeout')));
-    socket.once('connect', resolve);
+    socket.once('connect', () => { socket.setTimeout(0); resolve(); });
     socket.once('error', reject);
   });
   return socket;

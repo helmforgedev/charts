@@ -1,0 +1,154 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Effective Kubernetes names are unique
+capabilities:
+  majorVersion: 1
+  minorVersion: 31
+templates:
+  - templates/*.yaml
+tests:
+  - it: rejects unnamed routes
+    template: templates/gateway-httproute.yaml
+    set:
+      fullnameOverride: rd
+      websocket.enabled: true
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - {}
+        - {}
+    asserts:
+      - failedTemplate:
+          errorMessage: gatewayAPI.httpRoutes renders duplicate resource name rd; use distinct names after truncation
+  - it: rejects repeated route suffixes
+    template: templates/gateway-httproute.yaml
+    set:
+      fullnameOverride: rd
+      websocket.enabled: true
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - name: id
+        - name: id
+    asserts:
+      - failedTemplate:
+          errorMessage: gatewayAPI.httpRoutes renders duplicate resource name rd-id; use distinct names after truncation
+  - it: rejects truncated route suffixes
+    template: templates/gateway-httproute.yaml
+    set:
+      fullnameOverride: rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr
+      websocket.enabled: true
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - name: id
+        - name: relay
+    asserts:
+      - failedTemplate:
+          errorMessage: >-
+            gatewayAPI.httpRoutes renders duplicate resource name rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr; use
+            distinct names after truncation
+  - it: rejects unnamed ExternalSecrets
+    template: templates/externalsecret.yaml
+    set:
+      fullnameOverride: rd
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - spec:
+            secretStoreRef:
+              name: vault
+              kind: ClusterSecretStore
+            data:
+              - secretKey: key
+                remoteRef:
+                  key: identity
+        - spec:
+            secretStoreRef:
+              name: vault
+              kind: ClusterSecretStore
+            data:
+              - secretKey: key
+                remoteRef:
+                  key: identity
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.items renders duplicate resource name rd; use distinct names after truncation
+  - it: rejects repeated Secret suffixes
+    template: templates/externalsecret.yaml
+    set:
+      fullnameOverride: rd
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - name: key
+          spec:
+            secretStoreRef:
+              name: vault
+              kind: ClusterSecretStore
+            data:
+              - secretKey: key
+                remoteRef:
+                  key: identity
+        - name: key
+          spec:
+            secretStoreRef:
+              name: vault
+              kind: ClusterSecretStore
+            data:
+              - secretKey: key
+                remoteRef:
+                  key: identity
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.items renders duplicate resource name rd-key; use distinct names after truncation
+  - it: rejects literal and generated Secret collisions
+    template: templates/externalsecret.yaml
+    set:
+      fullnameOverride: rd
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: rd-key
+          spec:
+            secretStoreRef:
+              name: vault
+              kind: ClusterSecretStore
+            data:
+              - secretKey: key
+                remoteRef:
+                  key: identity
+        - name: key
+          spec:
+            secretStoreRef:
+              name: vault
+              kind: ClusterSecretStore
+            data:
+              - secretKey: key
+                remoteRef:
+                  key: identity
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.items renders duplicate resource name rd-key; use distinct names after truncation
+  - it: rejects truncated Secret overrides
+    template: templates/externalsecret.yaml
+    set:
+      fullnameOverride: rd
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrra
+          spec:
+            secretStoreRef:
+              name: vault
+              kind: ClusterSecretStore
+            data:
+              - secretKey: key
+                remoteRef:
+                  key: identity
+        - fullnameOverride: rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrb
+          spec:
+            secretStoreRef:
+              name: vault
+              kind: ClusterSecretStore
+            data:
+              - secretKey: key
+                remoteRef:
+                  key: identity
+    asserts:
+      - failedTemplate:
+          errorMessage: >-
+            externalSecrets.items renders duplicate resource name rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr; use
+            distinct names after truncation
