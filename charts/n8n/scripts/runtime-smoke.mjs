@@ -44,7 +44,8 @@ try {
     const remaining = deadline - Date.now();
     assert.ok(remaining > 0, 'Runtime deadline reached');
     const response = await fetch(base + route, {
-      method, headers: {'Content-Type': 'application/json', Cookie: [...cookies].map(([a, b]) => `${a}=${b}`).join('; ')},
+      // CLI export blocks the local event loop; do not reuse an expired HTTP socket.
+      method, headers: {'Content-Type': 'application/json', Connection: 'close', Cookie: [...cookies].map(([a, b]) => `${a}=${b}`).join('; ')},
       ...(body ? {body: JSON.stringify(body)} : {}), signal: AbortSignal.timeout(Math.min(60000, remaining)),
     });
     for (const cookie of response.headers.getSetCookie()) {
