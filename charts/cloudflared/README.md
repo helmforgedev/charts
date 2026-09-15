@@ -196,7 +196,7 @@ before production rollout.
 |---|---|
 | MITRE + NSA + SOC2 | **87.88%** |
 
-Security posture acceptable. Verified with Kubescape 4.0.13 against rendered default manifests.
+Security posture acceptable. Verified with Kubescape 4.0.14 against rendered default manifests.
 
 Local details:
 
@@ -216,3 +216,7 @@ platform network policies for the deployment environment.
 - [Cloudflare Tunnel documentation](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
 - [Kubernetes deployment guide](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/deploy-tunnels/deployment-guides/kubernetes/)
 - [Architecture overview](docs/architecture.md)
+
+The startup probe allows 180 seconds of failed readiness checks, plus its initial
+delay, so edge registration retries and protocol fallback can complete without
+a premature container restart. Readiness still requires a live tunnel.
