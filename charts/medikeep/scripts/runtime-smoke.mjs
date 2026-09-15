@@ -20,7 +20,7 @@ const result = run(['exec', pod.metadata.name, '-c', 'medikeep', '--', 'python',
 import json, urllib.request, urllib.error
 base = 'http://127.0.0.1:8000'
 assert urllib.request.urlopen(base + '/health', timeout=10).status == 200
-config = json.load(urllib.request.urlopen(base + '/api/v1/sso/config', timeout=10))
+config = json.load(urllib.request.urlopen(base + '/api/v1/auth/sso/config', timeout=10))
 assert config['sso_only'] is ${ssoOnly ? 'True' : 'False'}, config
 if config['sso_only']:
     assert config['enabled'] is True
