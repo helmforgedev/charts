@@ -185,7 +185,7 @@ externalSecrets:
 ## Upgrade Notes
 
 Metabase `v0.63.17` is a public maintenance release. Back up the Metabase application
-database and review the [official Metabase 63 changelog](https://www.metabase.com/changelog/63#metabase-6316)
+database and review the [official Metabase 63 changelog](https://www.metabase.com/changelog/63#metabase-6317)
 before upgrading. Keep the encryption key stable and validate the `/api/health`
 endpoint after rollout.
 
