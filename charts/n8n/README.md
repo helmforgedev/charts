@@ -184,8 +184,9 @@ externalSecrets:
 
 ## Upgrade Notes
 
-n8n `2.39.5` includes the 2.36–2.38 runner broker and shutdown fixes,
-database pool recovery, encryption-key seeding and queue execution fixes. Back
+n8n `2.39.5` includes the 2.39 encryption bootstrap and wrapped-key fixes,
+runner shutdown ordering, queue cleanup, source-control CA handling and
+credential-revocation fixes. Back
 up the database and data volume, preserve the encryption key, and validate
 workflows and credentials in staging before upgrading. Keep the app and external
 runner tags aligned; an empty `taskRunners.image.tag` inherits `image.tag`.
@@ -199,6 +200,14 @@ SQLite updates now use `Recreate` to stop the old main process before the new
 version opens the same database. Plan for brief downtime. The Python toggle
 `taskRunners.nativePython.enabled` now controls the n8n 2.x variable
 `N8N_PYTHON_ENABLED`; it remains disabled by default and requires external runners.
+
+The Redis dependency moves to 3.0.0 with unchanged image, storage and
+authentication defaults and corrected TLS/custom-port probes. Review each
+intervening release from [2.39.0](https://github.com/n8n-io/n8n/releases/tag/n8n%402.39.0)
+through [2.39.5](https://github.com/n8n-io/n8n/releases/tag/n8n%402.39.5).
+For source-control HTTPS remotes with a private CA, `GIT_SSL_CAINFO` is now
+honored; mount the trust file and pass its path through the existing environment
+extension when needed.
 
 ### MySQL and MariaDB storage migration
 

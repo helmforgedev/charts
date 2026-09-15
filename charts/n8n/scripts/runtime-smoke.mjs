@@ -18,7 +18,7 @@ const pod = pods.find(p => !p.metadata.deletionTimestamp
   && p.status.conditions?.some(c => c.type === 'Ready' && c.status === 'True')
   && p.spec.containers.some(c => c.name === 'n8n'));
 assert.ok(pod, 'Ready n8n main pod required');
-assert.equal(kubectl(['exec', pod.metadata.name, '-c', 'n8n', '--', 'n8n', '--version']).trim(), '2.38.4');
+assert.equal(kubectl(['exec', pod.metadata.name, '-c', 'n8n', '--', 'n8n', '--version']).trim(), '2.39.5');
 const main = pod.spec.containers.find(c => c.name === 'n8n');
 const python = main.env.some(e => e.name === 'N8N_PYTHON_ENABLED' && e.value === 'true');
 const queue = main.env.some(e => e.name === 'EXECUTIONS_MODE' && e.value === 'queue');
@@ -71,7 +71,7 @@ try {
     const result = Array.isArray(response) ? response[0] : response;
     assert.equal(result.answer, 42, `${language} runner result`);
   }
-  console.log(`PASS: n8n 2.38.4, readiness, owner authentication and published ${python ? 'JavaScript/Python' : 'JavaScript'} workflow execution${queue ? ' through Redis queue workers' : ''}`);
+  console.log(`PASS: n8n 2.39.5, readiness, owner authentication and published ${python ? 'JavaScript/Python' : 'JavaScript'} workflow execution${queue ? ' through Redis queue workers' : ''}`);
 } finally {
   if (child.exitCode === null) {
     if (process.platform === 'win32') {
