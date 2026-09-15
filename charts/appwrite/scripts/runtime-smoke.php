@@ -39,6 +39,36 @@ if ($action !== 'verify') {
 check(request('/account/prefs')['upgrade'] === 'retained-1.9.6-to-2.1.0', 'Account preferences not retained');
 $stored = json_decode(file_get_contents($marker), true, flags: JSON_THROW_ON_ERROR);
 check(openssl_decrypt(base64_decode($stored['cipher']), 'aes-256-gcm', getenv('_APP_OPENSSL_KEY_V1'), OPENSSL_RAW_DATA, base64_decode($stored['iv']), base64_decode($stored['tag'])) === 'retained-build-artifact', 'Build fixture or encryption key changed');
-request('/account/sessions/current', 'DELETE', expected: 204);
+if (version_compare($version, '2.1.0', '>=')) {
+    $key = request('/projects/helmforgeproject/keys', 'POST', [
+        'name' => 'HelmForge S3 fixture',
+        'scopes' => ['buckets.read', 'buckets.write', 'files.read', 'files.write'],
+    ], 201);
+    $signed = function ($path, $method, $body = '', $expected = 200) use ($key) {
+        $curl = curl_init('http://127.0.0.1/v1/s3'.$path);
+        curl_setopt_array($curl, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 30,
+            CURLOPT_CUSTOMREQUEST => $method, CURLOPT_AWS_SIGV4 => 'aws:amz:us-east-1:s3',
+            CURLOPT_USERPWD => 'helmforgeproject:'.$key['secret'],
+            CURLOPT_HTTPHEADER => ['Host: '.getenv('_APP_DOMAIN'), 'x-amz-content-sha256: '.hash('sha256', $body)],
+        ]);
+        if ($method === 'PUT') { curl_setopt($curl, CURLOPT_POSTFIELDS, $body); }
+        $response = curl_exec($curl);
+        $status = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+        curl_close($curl);
+        check($status === $expected, "Signed S3 $method $path returned $status: $response");
+        return $response;
+    };
+    $bucket = '/helmforge-s3-fixture';
+    $signed($bucket, 'PUT');
+    $signed($bucket.'/retained.txt', 'PUT', 'Appwrite S3 exact fixture bytes');
+    check($signed($bucket.'/retained.txt', 'GET') === 'Appwrite S3 exact fixture bytes', 'S3 payload mismatch');
+    $signed($bucket.'/retained.txt', 'DELETE', expected: 204);
+    $signed($bucket, 'DELETE', expected: 204);
+    request('/projects/helmforgeproject/keys/'.$key['$id'], 'DELETE', expected: 204);
+    echo "PASS: Signed S3 bucket/object creation, exact download and deletion.\n";
+}
+// The old 1.9.6 queue publisher has a known NOAUTH logout bug; creation retains
+// the upgrade fixture, while every new-version smoke and verify checks logout.
+if ($action !== 'create') { request('/account/sessions/current', 'DELETE', expected: 204); }
 if ($action === 'smoke') { unlink($marker); }
 echo "PASS: Appwrite $version health, anonymous account denial, account/login/project/preferences, persistent builds mount and retained encryption fixture.\n";
