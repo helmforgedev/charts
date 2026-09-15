@@ -21,8 +21,8 @@ helm install docmost oci://ghcr.io/helmforgedev/helm/docmost
 ## Features
 
 - **Official Docmost image** based on `docmost/docmost`
-- **PostgreSQL subchart** bundled PostgreSQL `2.0.4` for default installs
-- **Redis subchart** bundled Redis `2.0.0` for default installs
+- **PostgreSQL subchart** bundled PostgreSQL `2.0.5` for default installs
+- **Redis subchart** bundled Redis `3.0.0` for default installs
 - **External services** support for managed PostgreSQL and Redis
 - **Local or S3 storage** for uploaded files
 - **Ingress support** configurable ingress with TLS
@@ -38,9 +38,22 @@ helm install docmost oci://ghcr.io/helmforgedev/helm/docmost
 - Docmost requires PostgreSQL and Redis
 - local storage uses `/app/data/storage`
 - S3 mode uses the official `AWS_S3_*` environment variables documented by Docmost
-- the default image tag is `0.95.0`, validated against the published `docmost/docmost:0.95.0` container image
+- the default image tag is `0.96.0`, validated against the published `docmost/docmost:0.96.0` container image
 - upstream telemetry can be disabled with `docmost.disableTelemetry=true`
 - this chart intentionally does not keep `Chart.lock`; dependencies are resolved by the repository release workflow
+
+## Upgrade to 0.96
+
+Keep `APP_SECRET` stable: the new AES-256-GCM encryption service derives its
+key from this existing secret. Back up PostgreSQL and uploaded files before
+upgrading. The chart reuses its generated application Secret on connected Helm
+upgrades; explicitly manage `docmost.appSecret` when rendering offline.
+
+This release updates Node and collaboration services, adds page-version
+comparison and attachments, fixes Redis ACL/URL/TLS handling, and includes
+security fixes. Review the [official release notes](https://github.com/docmost/docmost/releases/tag/v0.96.0).
+The bundled Redis chart moves to 3.0.0; its application image, default standalone
+storage and authentication contracts are unchanged, while its TLS probes are fixed.
 
 ## Quick Start
 
@@ -153,7 +166,7 @@ backup:
 |-----|---------|-------------|
 | `replicaCount` | `1` | Number of Docmost application pods. Values greater than `1` require `storage.mode=s3` |
 | `image.repository` | `docker.io/docmost/docmost` | Docmost container image repository |
-| `image.tag` | `0.95.0` | Docmost image tag |
+| `image.tag` | `0.96.0` | Docmost image tag |
 | `docmost.appUrl` | `""` | External Docmost URL |
 | `docmost.appSecret` | `""` | Application secret, auto-generated when empty |
 | `docmost.jwtTokenExpiresIn` | `30d` | JWT expiration |
