@@ -62,7 +62,7 @@ When ingress is enabled, requests are routed by path:
 | `image.repository` | `docker.io/appwrite/appwrite` | Appwrite server image |
 | `image.tag` | `2.1.0` | Image tag |
 | `console.image.repository` | `docker.io/appwrite/new` | Console image |
-| `console.image.tag` | `1.1.78` | Console image tag |
+| `console.image.tag` | `1.1.78-self-hosted` | Console image tag |
 | `appwrite.locale` | `en` | Application locale |
 | `appwrite.domain` | `""` (auto-detected) | Appwrite domain |
 | `appwrite.openSslKeyV1` | `""` (auto-generated) | 64-char hex encryption key |
@@ -109,7 +109,7 @@ then run `kubectl exec -n <namespace> deploy/<api-deployment> -c api -- migrate`
 Verify the API, worker logs and existing projects before restoring traffic. For
 rollback, restore the database, volumes, Secret and matching old images together.
 
-Console IV uses `appwrite/new:1.1.78` on port 3000 with the API on the same origin;
+Console IV uses `appwrite/new:1.1.78-self-hosted` on port 3000 with the API on the same origin;
 the console Service still exposes port 80. `worker-audits` was removed upstream:
 set `workers.audits.enabled=false` in retained values. Jobs, screenshots,
 executions and notifications now have separate worker toggles, alongside the
