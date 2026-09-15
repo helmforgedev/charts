@@ -54,6 +54,19 @@ try {
     email: 'runtime@example.invalid', firstName: 'Runtime', lastName: 'Fixture',
     password: `Fixture-${randomBytes(18).toString('hex')}!`,
   });
+  const credentialPassword = randomBytes(24).toString('hex');
+  const credential = (await request('/rest/credentials', 'POST', {
+    name: 'HelmForge encryption fixture', type: 'httpBasicAuth',
+    data: {user: 'runtime-fixture', password: credentialPassword},
+  })).data;
+  assert.ok(credential.id);
+  execFileSync('kubectl', [...target, 'exec', pod.metadata.name, '-c', 'n8n', '--',
+    'n8n', 'export:credentials', `--id=${credential.id}`, '--decrypted', '--output=/tmp/helmforge-credential.json'], {
+    encoding: 'utf8', timeout: 90000, stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const exported = JSON.parse(kubectl(['exec', pod.metadata.name, '-c', 'n8n', '--', 'node', '-e',
+    "const fs=require('node:fs');const p='/tmp/helmforge-credential.json';const data=fs.readFileSync(p,'utf8');fs.unlinkSync(p);process.stdout.write(data);"]));
+  assert.equal(exported[0].data.password, credentialPassword, 'Persisted credential decryption');
   for (const language of python ? ['javaScript', 'pythonNative'] : ['javaScript']) {
     const route = `helmforge-${randomBytes(8).toString('hex')}`;
     const workflow = {name: `Runtime ${language}`, nodes: [
@@ -71,7 +84,7 @@ try {
     const result = Array.isArray(response) ? response[0] : response;
     assert.equal(result.answer, 42, `${language} runner result`);
   }
-  console.log(`PASS: n8n 2.39.5, readiness, owner authentication and published ${python ? 'JavaScript/Python' : 'JavaScript'} workflow execution${queue ? ' through Redis queue workers' : ''}`);
+  console.log(`PASS: n8n 2.39.5, readiness, owner authentication, persisted credential decryption and published ${python ? 'JavaScript/Python' : 'JavaScript'} workflow execution${queue ? ' through Redis queue workers' : ''}`);
 } finally {
   if (child.exitCode === null) {
     if (process.platform === 'win32') {
