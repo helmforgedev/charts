@@ -206,7 +206,7 @@ For production upgrades, take a database backup first and verify the secret refe
 - [Examples](examples/simple.yaml)
 - [Source code and full values reference](https://github.com/helmforgedev/charts/tree/main/charts/docmost)
 
-### 🟢 Security Scan: `docmost`
+### Security Scan: `docmost`
 
 | Framework | Score |
 |---|---|
