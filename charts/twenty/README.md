@@ -122,7 +122,7 @@ diagnostic profiles do not replace that gate.
 | NSA       | **98.54%** |
 | SOC2      | **97.50%** |
 
-Kubescape 4.0.13, default rendered manifests, 2026-09-11. No controls were suppressed. C-0012 matches the literal Bearer
+Kubescape 4.0.14, default rendered manifests, 2026-09-15. No controls were suppressed. C-0012 matches the literal Bearer
 authorization construction in the initializer's ConfigMap code; it does not contain a credential. C-0034 identifies the
 released Redis dependency's missing Pod-level token-automount field. Redis has a dedicated account without RBAC grants
 and denied egress. The production profile shares an explicitly named tokenless account with the dependencies and checks
