@@ -243,7 +243,7 @@ probes:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `ghcr.io/dgtlmoon/changedetection.io` | changedetection.io image repository |
-| `image.tag` | `0.60.3` | changedetection.io image tag |
+| `image.tag` | `0.60.5` | changedetection.io image tag |
 | `image.pullPolicy` | `IfNotPresent` | Image pull policy |
 | `changedetection.port` | `5000` | Application port |
 | `changedetection.baseUrl` | `""` | Public base URL |
@@ -282,6 +282,13 @@ probes:
 | `extraManifests` | `[]` | Additional manifests rendered with the release |
 
 ## Upgrade Notes
+
+Version 0.60.5 includes 0.60.4's watch-history API and notification updates,
+plus browser status-code, navigation, content-deadline and runaway-script fixes.
+It also restores locale generation for price formatting and reduces repeated
+explicit garbage collection. Review the [0.60.4 notes](https://github.com/dgtlmoon/changedetection.io/releases/tag/0.60.4)
+and [0.60.5 notes](https://github.com/dgtlmoon/changedetection.io/releases/tag/0.60.5).
+
 
 Version 0.60.3 includes the intervening watch/tag loading, XML parsing,
 CSRF/XSS protections, browser and UTF-8 backup fixes since 0.55.8.
