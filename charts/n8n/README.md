@@ -143,7 +143,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
-| `image.tag` | `2.38.4` | n8n container image tag |
+| `image.tag` | `2.39.5` | n8n container image tag |
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
@@ -184,13 +184,13 @@ externalSecrets:
 
 ## Upgrade Notes
 
-n8n `2.38.4` includes the 2.36–2.38 runner broker and shutdown fixes,
+n8n `2.39.5` includes the 2.36–2.38 runner broker and shutdown fixes,
 database pool recovery, encryption-key seeding and queue execution fixes. Back
 up the database and data volume, preserve the encryption key, and validate
 workflows and credentials in staging before upgrading. Keep the app and external
 runner tags aligned; an empty `taskRunners.image.tag` inherits `image.tag`.
 
-Use `helm upgrade --reset-then-reuse-values` with `image.tag=2.38.4` and update
+Use `helm upgrade --reset-then-reuse-values` with `image.tag=2.39.5` and update
 any separately pinned runner tag. Existing generated encryption keys and runner
 tokens are retained through Helm lookup; use existing Secrets for offline
 rendering or GitOps. Automatic database migrations require a recoverable backup.
