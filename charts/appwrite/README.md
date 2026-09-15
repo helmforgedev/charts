@@ -60,9 +60,9 @@ When ingress is enabled, requests are routed by path:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/appwrite/appwrite` | Appwrite server image |
-| `image.tag` | `2.1.0` | Image tag |
+| `image.tag` | `2.2.0` | Image tag |
 | `console.image.repository` | `docker.io/appwrite/new` | Console image |
-| `console.image.tag` | `1.1.78-self-hosted` | Console image tag |
+| `console.image.tag` | `1.1.96-self-hosted` | Console image tag |
 | `appwrite.locale` | `en` | Application locale |
 | `appwrite.domain` | `""` (auto-detected) | Appwrite domain |
 | `appwrite.openSslKeyV1` | `""` (auto-generated) | 64-char hex encryption key |
@@ -79,7 +79,25 @@ See [`values.yaml`](values.yaml) for the full configuration reference.
 
 ## Upgrade Notes
 
-### Appwrite 2.1.0
+### Appwrite 2.2.0
+
+The [2.2 release](https://github.com/appwrite/appwrite/releases/tag/2.2.0)
+supersedes the 2.1.0 update request. It fixes Redis connection-pool handling,
+MariaDB installer health checks and queue shutdown, adds self-hosted email
+policies, and ships Console 1.1.96-self-hosted. The V25 migration adds optional
+team columns and an index to console notifications; run `migrate` after upgrading.
+
+Function and site executions now require ClickHouse through
+`_APP_CONNECTIONS_DB_EXECUTIONS`; they are no longer read from the project
+MariaDB database. Provision that external backend before enabling execution
+features. Preserve/export legacy execution history before upgrading: records
+stored only in the old project database will no longer be listed. This chart
+does not provision the executor/orchestrator or migrate historical executions.
+Remove `_APP_EXECUTIONS_DUAL_WRITE`, `_APP_MAINTENANCE_RETENTION_USAGE_HOURLY`
+and `_APP_CONNECTIONS_DB_LOGS` from retained environment values. Usage retention
+belongs to the external ClickHouse deployment.
+
+### Earlier 2.1.0 changes
 
 The [2.1 release](https://github.com/appwrite/appwrite/releases/tag/2.1.0) fixes
 password-protected Redis queue publishers and consumers, including ACL users and
@@ -109,7 +127,7 @@ then run `kubectl exec -n <namespace> deploy/<api-deployment> -c api -- migrate`
 Verify the API, worker logs and existing projects before restoring traffic. For
 rollback, restore the database, volumes, Secret and matching old images together.
 
-Console IV uses `appwrite/new:1.1.78-self-hosted` on port 3000 with the API on the same origin;
+Console IV uses `appwrite/new:1.1.96-self-hosted` on port 3000 with the API on the same origin;
 the console Service still exposes port 80. `worker-audits` was removed upstream:
 set `workers.audits.enabled=false` in retained values. Jobs, screenshots,
 executions and notifications now have separate worker toggles, alongside the
@@ -119,7 +137,7 @@ Generated encryption and JWT Secret entries are retained on upgrade. Supplying a
 new `appwrite.openSslKeyV1` overrides the retained key and requires an application
 key-rotation procedure; it is not an automatic data re-encryption mechanism.
 
-DocumentsDB, VectorsDB, embeddings and execution-log dual writes remain disabled.
+DocumentsDB, VectorsDB and embeddings remain disabled.
 This chart does not provision the extra engines, embedding server, executor or
 orchestrator needed for those features and Functions/Sites execution. Provision
 and configure those dependencies separately before opting in through extraEnv.

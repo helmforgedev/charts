@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-const [context, namespace, release, version = '2.1.0', action = 'smoke'] = process.argv.slice(2);
+const [context, namespace, release, version = '2.2.0', action = 'smoke'] = process.argv.slice(2);
 const k = (args, input) => execFileSync('kubectl', ['--context', context, '-n', namespace, ...args], { encoding: 'utf8', input, timeout: 180000, maxBuffer: 4 * 1024 * 1024 });
 const pods = JSON.parse(k(['get', 'pods', '-l', `app.kubernetes.io/instance=${release}`, '-o', 'json'])).items;
 const ready = p => !p.metadata.deletionTimestamp && p.status.conditions?.some(c => c.type === 'Ready' && c.status === 'True');

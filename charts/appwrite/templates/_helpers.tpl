@@ -328,8 +328,6 @@ localhost
   value: disabled
 - name: _APP_EMBEDDING
   value: disabled
-- name: _APP_EXECUTIONS_DUAL_WRITE
-  value: disabled
 - name: _APP_GRAPHQL_MAX_BATCH_SIZE
   value: "10"
 - name: _APP_GRAPHQL_MAX_COMPLEXITY
