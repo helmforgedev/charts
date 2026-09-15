@@ -212,7 +212,7 @@ workers:
 |---|---|
 | MITRE + NSA + SOC2 | **79.50%** |
 
-Kubescape v4.0.13; default manifests including MariaDB and Redis.
+Kubescape v4.0.14; default manifests including MariaDB and Redis.
 
 <!-- @AI-METADATA
 type: chart-readme
