@@ -48,9 +48,15 @@ function receiveFrame($socket): string {
         return $body;
     }
 }
-[$code, $body] = http('GET', '/ocs/v2.php/cloud/capabilities?format=json');
-$endpoint = json_decode($body, true, 512, JSON_THROW_ON_ERROR)['ocs']['data']['capabilities']['notify_push']['endpoints']['websocket'] ?? '';
-if ($code !== 200 || !str_ends_with($endpoint, '/push/ws')) throw new RuntimeException('Push capability missing');
+// Apache workers may briefly retain capabilities from before the app was enabled.
+$discovered = false;
+for ($attempt = 0; $attempt < 20; $attempt++) {
+    [$code, $body] = http('GET', '/ocs/v2.php/cloud/capabilities?format=json');
+    $endpoint = json_decode($body, true, 512, JSON_THROW_ON_ERROR)['ocs']['data']['capabilities']['notify_push']['endpoints']['websocket'] ?? '';
+    if ($code === 200 && str_ends_with($endpoint, '/push/ws')) { $discovered = true; break; }
+    sleep(2);
+}
+if (!$discovered) throw new RuntimeException('Push capability missing after app setup');
 $socket = fsockopen('127.0.0.1', 8080, $errno, $error, 10);
 if ($socket === false) throw new RuntimeException('Unable to connect to Apache');
 stream_set_timeout($socket, 30);
