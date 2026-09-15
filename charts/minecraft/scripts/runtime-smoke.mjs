@@ -12,7 +12,7 @@ const pod = pods.find(p => !p.metadata.deletionTimestamp && p.status.conditions?
   && p.spec.containers.some(c => c.name === 'minecraft'));
 assert.ok(pod, 'Ready Minecraft server required');
 const container = pod.spec.containers.find(c => c.name === 'minecraft');
-assert.match(container.image, /:2026\.9\.0(?:-java17)?$/);
+assert.match(container.image, /:2026\.9\.1(?:-java17)?$/);
 const exec = args => run(['exec', pod.metadata.name, '-c', 'minecraft', '--', ...args]);
 exec(['mc-health']);
 if (container.env.some(e => e.name === 'ENABLE_RCON' && e.value === 'true')) {
@@ -23,4 +23,5 @@ if (container.env.some(e => e.name === 'TYPE' && e.value === 'FORGE')) {
   assert.match(exec(['sh', '-c', 'java -version 2>&1']), /version "17\./);
   assert.match(run(['logs', pod.metadata.name, '-c', 'minecraft', '--tail=500']), /forge|fml/i);
 }
-console.log('PASS: Minecraft 2026.9.1 image, game health, authenticated RCON player list and world flush; Forge profile verifies Java 17 and loader startup.');
+exec(['sh', '-ec', 'tar -czf /tmp/hf-backup-smoke.tgz -C /data server.properties; tar -xOzf /tmp/hf-backup-smoke.tgz server.properties | cmp - /data/server.properties; rm /tmp/hf-backup-smoke.tgz']);
+console.log('PASS: Minecraft 2026.9.1 image, game health, authenticated RCON player list, world flush and verified backup archive content; Forge profile verifies Java 17 and loader startup.');
