@@ -17,7 +17,7 @@ const pod = pods.find(p => !p.metadata.deletionTimestamp
   && p.spec.containers.some(c => c.name === 'authelia'));
 assert.ok(pod, 'Ready Authelia pod required');
 const exec = args => kubectl(['exec', pod.metadata.name, '-c', 'authelia', '--', 'authelia', ...args]);
-assert.match(exec(['--version']), /v4\.39\.22\b/);
+assert.match(exec(['--version']), /v4\.39\.26\b/);
 assert.match(exec(['storage', 'encryption', 'check', '--config', '/config/configuration.yml']), /SUCCESS/);
 const metrics = pod.spec.containers.find(c => c.name === 'authelia').ports.some(p => p.name === 'metrics');
 const ports = metrics ? [9091, 9959] : [9091];
@@ -45,7 +45,7 @@ try {
     assert.match(body, /^# HELP /m);
     assert.match(body, /^# TYPE /m);
   }
-  console.log(`PASS: Authelia 4.39.22, storage encryption and API health${metrics ? ', Prometheus scrape' : ''}`);
+  console.log(`PASS: Authelia 4.39.26, storage encryption and API health${metrics ? ', Prometheus scrape' : ''}`);
 } finally {
   if (child.exitCode === null) {
     if (process.platform === 'win32') {
