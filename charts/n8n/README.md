@@ -272,7 +272,7 @@ reduces startup log noise. Operators can opt in with
 |---|---|
 | MITRE + NSA + SOC2 | **87.88%** |
 
-Rendered-resource scan with Kubescape 4.0.13. Application and workflow behavior are validated separately.
+Rendered-resource scan with Kubescape 4.0.14. Application and workflow behavior are validated separately.
 
 <!-- @AI-METADATA
 type: chart-readme
