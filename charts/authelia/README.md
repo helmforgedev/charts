@@ -227,7 +227,7 @@ Release notes: [4.39.21](https://github.com/authelia/authelia/releases/tag/v4.39
 |---|---|
 | MITRE + NSA + SOC2 | **87.88%** |
 
-Scan of rendered Kubernetes resources; application authentication and storage
+Kubescape 4.0.14 scan of rendered Kubernetes resources on 2026-09-15; application authentication and storage
 behavior require separate runtime validation.
 
 <!-- @AI-METADATA
