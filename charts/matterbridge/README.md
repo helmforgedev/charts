@@ -298,9 +298,10 @@ uncommissioned Matter bridge.
 
 ## Upgrades
 
-Matterbridge 3.10.9 updates persistent-storage dependencies, fixes frontend
-WebSocket handling and corrects Matter cluster behavior. Closure dimensions now
-advertise 1% granularity by default. Review the
+Matterbridge 3.10.9 adds command subscriptions and optional EVSE features,
+fixes attribute listener dispatch, and corrects frontend settings, filters,
+logs and login behavior. EVSE extensions remain disabled unless plugins enable
+them. Storage paths, ports and the standalone container contract are unchanged. Review the
 [official release notes](https://github.com/Luligu/matterbridge/releases/tag/3.10.9)
 and test the installed plugins with a real Matter controller in staging.
 
