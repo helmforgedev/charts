@@ -281,6 +281,7 @@ Official reference:
 | `ingress.enabled` | Enable ingress | `false` |
 | `ingress.ingressClassName` | Ingress class name | `traefik` |
 | `networkPolicy.enabled` | Enable NetworkPolicy rendering | `false` |
+| `networkPolicy.extraEgress` | Additional native egress rules when `networkPolicy.egress.enabled=true` | `[]` |
 | `resources` | Pod resources | `{}` |
 | `deployment.strategy.type` | Select the deployment strategy type. Could be RollingUpdate or Recreate | `RollingUpdate` |
 | `deployment.strategy.rollingUpdate.maxSurge` | Set the maxSurge for RollingUpdate strategy | `25%` |
@@ -329,13 +330,13 @@ See `examples/`:
 - `backup-postgresql.yaml`
 - `backup-mysql.yaml`
 
-### 🟢 Security Scan: `vaultwarden`
+### Security Scan: `vaultwarden`
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **85.137085%** |
+| MITRE + NSA + SOC2 | **78.78788%** |
 
-> ✅ Security posture acceptable.
+> Local default-manifest scan, 2026-09-15 (Kubescape 4.0.14). Production deployments should configure resource limits and NetworkPolicy and use an existing Secret for sensitive settings.
 
 <!-- @AI-METADATA
 type: chart-readme
