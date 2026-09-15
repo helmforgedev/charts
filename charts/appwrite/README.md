@@ -99,7 +99,6 @@ The bundled Redis chart is 3.0.0, retaining its image, credentials and storage.
 The following [2.0 migration](https://github.com/appwrite/appwrite/releases/tag/2.0.0)
 requirements also apply when upgrading directly from 1.9.x.
 
-
 Back up MariaDB, all shared PVCs and the application Secret before upgrading from
 1.9.x. Keep traffic paused during the upgrade and migration. This chart retains
 MariaDB explicitly; the upstream installer's new PostgreSQL default does not move
@@ -143,7 +142,9 @@ appwrite:
 
 The DSN has the form `http://user:password@clickhouse:8123/appwrite`; URL-encode
 credentials containing reserved characters. Run `usage-setup` in the API pod to
-verify schema initialization before enabling traffic. Plan retention of historical usage data separately from new usage schema setup. Back up external ClickHouse independently; the chart S3 backup covers the core MariaDB and shared-volume data.
+verify schema initialization before enabling traffic. Plan retention of historical
+usage data separately from new usage schema setup. Back up external ClickHouse
+independently; the chart S3 backup covers the core MariaDB and shared-volume data.
 
 ## External Database
 
