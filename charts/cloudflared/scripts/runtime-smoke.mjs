@@ -14,7 +14,7 @@ const pod = pods.find(p => !p.metadata.deletionTimestamp
   && p.spec.containers.some(c => c.name === 'cloudflared'));
 assert.ok(pod,'Ready cloudflared pod required');
 const version = kubectl(['exec',pod.metadata.name,'-c','cloudflared','--','cloudflared','version']);
-assert.match(version,/cloudflared version 2026\.8\.3\b/);
+assert.match(version,/cloudflared version 2026\.9\.1\b/);
 const container = pod.spec.containers.find(c => c.name === 'cloudflared');
 if (container.command?.includes('--hello-world')) {
   const logs = kubectl(['logs',pod.metadata.name,'-c','cloudflared']);
@@ -31,7 +31,7 @@ if (container.command?.includes('--hello-world')) {
     await delay(3000);
   }
   assert.equal(status,200,`Quick tunnel HTTPS origin request failed: ${error || status}`);
-  console.log('cloudflared 2026.8.3: HTTPS request through the live quick tunnel reached the built-in origin.');
+  console.log('cloudflared 2026.9.1: HTTPS request through the live quick tunnel reached the built-in origin.');
 } else {
-  console.log('cloudflared 2026.8.3: binary version verified; custom/managed origin is not requested by this smoke test.');
+  console.log('cloudflared 2026.9.1: binary version verified; custom/managed origin is not requested by this smoke test.');
 }
