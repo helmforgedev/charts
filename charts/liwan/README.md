@@ -3,7 +3,7 @@
 # Liwan Helm Chart
 
 Deploy [Liwan](https://liwan.dev) on Kubernetes with the official
-`ghcr.io/explodingcamera/liwan:1.6.0` image.
+`ghcr.io/explodingcamera/liwan:1.7.0` image.
 
 Liwan is a lightweight, privacy-focused web analytics application. It runs as a single Rust service and stores analytics
 data in embedded DuckDB under `/data`.
@@ -107,7 +107,7 @@ endpoint.
 | Key | Default | Description |
 | --- | --- | --- |
 | `image.repository` | `ghcr.io/explodingcamera/liwan` | Liwan image repository. |
-| `image.tag` | `"1.6.0"` | Liwan image tag. |
+| `image.tag` | `"1.7.0"` | Liwan image tag. |
 | `liwan.port` | `9042` | Application HTTP port. |
 | `liwan.baseUrl` | `""` | Public base URL for UI and tracking scripts. |
 | `liwan.extraEnv` | `[]` | Extra environment variables for advanced upstream settings. |
@@ -120,6 +120,21 @@ endpoint.
 | `gatewayAPI.enabled` | `false` | Render a Gateway API HTTPRoute. |
 | `serviceAccount.automountServiceAccountToken` | `false` | Mount a Kubernetes API token into the pod. |
 | `extraManifests` | `[]` | Additional Kubernetes resources to render with the release. |
+
+## Upgrade to 1.7
+
+Liwan 1.7 trusts only loopback proxies and `X-Forwarded-For` by default.
+Behind an Ingress or Gateway, configure the actual proxy IPs or CIDRs through
+`liwan.extraEnv`; otherwise analytics records the connecting proxy address.
+For example, set `LIWAN_TRUSTED_PROXIES` to `10.42.0.0/16` only when that range
+belongs to your trusted ingress proxies. Multiple entries are comma-separated.
+Set `LIWAN_TRUSTED_HEADERS` when your proxy uses a different header. Do not
+trust arbitrary client-controlled headers or use the unrestricted `*` proxy
+setting. The removed `LIWAN_USE_FORWARD_HEADERS` setting now fails chart
+validation with a migration message.
+
+Review the [upstream 1.7 release](https://github.com/explodingcamera/liwan/releases/tag/liwan-v1.7.0)
+before upgrading. Back up the persistent data directory before the rollout.
 
 ## Operations
 

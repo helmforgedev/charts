@@ -51,3 +51,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s-data" (include "liwan.fullname" .) -}}
 {{- end -}}
 {{- end -}}
+
+{{/* Reject the removed upstream proxy switch instead of silently ignoring it. */}}
+{{- define "liwan.validate" -}}
+{{- range .Values.liwan.extraEnv -}}
+{{- if eq .name "LIWAN_USE_FORWARD_HEADERS" -}}
+{{- fail "LIWAN_USE_FORWARD_HEADERS was removed in Liwan 1.7; configure LIWAN_TRUSTED_PROXIES and LIWAN_TRUSTED_HEADERS instead" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
