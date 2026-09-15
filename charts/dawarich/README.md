@@ -181,7 +181,7 @@ custom spatial reference, original attachment bytes, exact coordinates and nativ
 2FA. Production acceptance also verifies tokenless dependency Pods and withdrawn
 readiness for a quiet worker.
 
-The complete `make validate-chart CHART=dawarich` gate passed on 2026-09-11:
+The complete `make validate-chart CHART=dawarich` gate passed on 2026-09-15:
 23 validation layers, 36 Helm unit tests and 13 isolated k3d scenarios, including
 all CI profiles. It covers real CRD schemas, ESO, dual-stack Services, Ingress,
 Gateway API, browser interaction, private Prometheus scraping, external TLS,
@@ -197,7 +197,7 @@ Pods had no unexpected restarts or crash terminations in the accepted scenarios.
 | NSA | **97.57%** |
 | SOC2 | **94.29%** |
 
-Kubescape 4.0.13, default rendered manifests, 2026-09-11. C-0012 flags the literal
+Kubescape 4.0.14, default rendered manifests, 2026-09-15. C-0012 flags the literal
 `ALLOW_EMAIL_PASSWORD_REGISTRATION=false` policy setting and TLS admission code
 that reads credential environment variables; neither contains a credential value.
 No controls were suppressed.
