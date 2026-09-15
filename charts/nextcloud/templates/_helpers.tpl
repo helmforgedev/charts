@@ -69,3 +69,26 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 {{- if $managed -}}true{{- end -}}
 {{- end -}}
+
+{{- define "nextcloud.backendEnv" -}}
+- name: POSTGRES_HOST
+  value: {{ printf "%s:%v" (include "nextcloud.dbHost" .) (ternary 5432 .Values.externalDatabase.port .Values.postgresql.enabled) | quote }}
+- name: POSTGRES_DB
+  value: {{ include "nextcloud.dbName" . | quote }}
+- name: POSTGRES_USER
+  value: {{ include "nextcloud.dbUser" . | quote }}
+- name: POSTGRES_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "nextcloud.dbSecret" . }}
+      key: {{ include "nextcloud.dbKey" . }}
+- name: REDIS_HOST
+  value: {{ include "nextcloud.redisHost" . | quote }}
+- name: REDIS_HOST_PORT
+  value: {{ ternary 6379 .Values.externalRedis.port .Values.redis.enabled | quote }}
+- name: REDIS_HOST_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "nextcloud.redisSecret" . }}
+      key: {{ include "nextcloud.redisKey" . }}
+{{- end -}}

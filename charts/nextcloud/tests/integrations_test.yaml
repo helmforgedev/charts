@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Optional Nextcloud integrations
+templates:
+  - templates/deployment.yaml
+  - templates/configmap.yaml
+  - templates/service.yaml
+tests:
+  - it: leaves optional integrations disabled by default
+    template: templates/deployment.yaml
+    asserts:
+      - lengthEqual: {path: 'spec.template.spec.containers', count: 2}
+      - lengthEqual: {path: 'spec.template.spec.initContainers', count: 1}
+  - it: isolates daemon credentials from the persistent application volume
+    template: templates/deployment.yaml
+    set:
+      notifyPush.enabled: true
+    asserts:
+      - equal:
+          path: 'spec.template.spec.containers[2].volumeMounts'
+          value: [{name: notify-push-config, mountPath: /run/notify-push, readOnly: true}]
+      - equal: {path: 'spec.template.spec.volumes[0].emptyDir.medium', value: Memory}
+      - equal: {path: 'spec.template.spec.initContainers[1].volumeMounts[0].readOnly', value: true}
+      - equal: {path: 'spec.template.spec.containers[2].image', value: 'ghcr.io/nextcloud/notify_push:v1.4.1'}
+  - it: proxies HTTP and WebSocket traffic using the existing public endpoint
+    template: templates/configmap.yaml
+    set:
+      notifyPush.enabled: true
+    asserts:
+      - matchRegex: {path: 'data["apache.conf"]', pattern: 'ProxyPass /push/ws ws://127.0.0.1:7867/ws'}
+      - matchRegex: {path: 'data["apache.conf"]', pattern: 'ProxyPass /push/ http://127.0.0.1:7867/'}
+  - it: exposes neither integration through the service
+    template: templates/service.yaml
+    set:
+      imaginary.enabled: true
+      notifyPush.enabled: true
+    asserts:
+      - lengthEqual: {path: 'spec.ports', count: 1}
+      - equal: {path: 'spec.ports[0].targetPort', value: http}
+  - it: keeps optional processes stopped during restore
+    template: templates/deployment.yaml
+    set:
+      imaginary.enabled: true
+      notifyPush.enabled: true
+      restore.enabled: true
+      restore.backupPath: completed/backup
+      backup.s3.bucket: backups
+      backup.s3.existingSecret: backup-credentials
+      nextcloud.existingSecret: admin-credentials
+    asserts:
+      - equal: {path: 'spec.replicas', value: 0}
+  - it: removes generated preview and proxy configuration when disabled
+    template: templates/configmap.yaml
+    asserts:
+      - notMatchRegex: {path: 'data["zz-helmforge.config.php"]', pattern: preview_imaginary_url}
+      - notMatchRegex: {path: 'data["apache.conf"]', pattern: ProxyPass}

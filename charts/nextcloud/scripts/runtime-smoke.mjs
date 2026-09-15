@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { verifyBackupRecovery } from './backup-recovery.mjs';
 
 const [context, namespace, release] = process.argv.slice(2);
@@ -23,6 +24,18 @@ if (!status.installed || status.maintenance || status.needsDbUpgrade) throw new 
 console.log(`Nextcloud ${status.versionstring}: application and CLI checks passed`);
 const config = JSON.parse(kubectl('get', 'configmap', service.metadata.name, '-o', 'json'));
 const runtime = JSON.parse(config.data['runtime-settings.json']);
+if (runtime.notifyPush.enabled) {
+  const occ = (...args) => kubectl('exec', pod.metadata.name, '-c', 'nextcloud', '--', 'php', '/var/www/html/occ', ...args);
+  const apps = JSON.parse(occ('app:list', '--output=json'));
+  if (!apps.enabled.notify_push && !apps.disabled.notify_push) process.stdout.write(occ('app:install', 'notify_push'));
+  else process.stdout.write(occ('app:enable', 'notify_push'));
+  process.stdout.write(occ('notify_push:setup', 'http://127.0.0.1:8080/push'));
+  process.stdout.write(execFileSync('kubectl', ['--context', context, '-n', namespace,
+    'exec', '-i', pod.metadata.name, '-c', 'nextcloud', '--', 'php'], {
+    input: readFileSync(new URL('./push-smoke.php', import.meta.url)),
+    encoding: 'utf8', timeout: 120000,
+  }));
+}
 if (runtime.cron.enabled && runtime.cron.initialDelay === 0) {
   let success = false;
   for (let attempt = 0; attempt < 150; attempt++) {

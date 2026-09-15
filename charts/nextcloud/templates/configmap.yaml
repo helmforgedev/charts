@@ -7,7 +7,9 @@ metadata:
     {{- include "nextcloud.labels" . | nindent 4 }}
 data:
   runtime-settings.json: |
-    {{- dict "cron" .Values.cron | toJson | nindent 4 }}
+    {{- dict "cron" .Values.cron "imaginary" .Values.imaginary "notifyPush" .Values.notifyPush | toJson | nindent 4 }}
+  prepare-push.php: |
+    {{- .Files.Get "files/prepare-push.php" | nindent 4 }}
   smoke.php: |
     {{- .Files.Get "files/smoke.php" | nindent 4 }}
   recovery-smoke.php: |
@@ -34,6 +36,14 @@ data:
     ];
     if ($settings['overwriteProtocol'] !== '') $CONFIG['overwriteprotocol'] = $settings['overwriteProtocol'];
     if ($settings['overwriteHost'] !== '') $CONFIG['overwritehost'] = $settings['overwriteHost'];
+    {{- if .Values.imaginary.enabled }}
+    $CONFIG['enabledPreviewProviders'] = json_decode({{ .Values.imaginary.previewProviders | toJson | toJson }}, true);
+    $CONFIG['preview_imaginary_url'] = 'http://127.0.0.1:9000';
+    {{- end }}
+    {{- if .Values.notifyPush.enabled }}
+    $CONFIG['trusted_domains'] = array_values(array_unique(array_merge($CONFIG['trusted_domains'], ['127.0.0.1'])));
+    $CONFIG['trusted_proxies'] = array_values(array_unique(array_merge($CONFIG['trusted_proxies'], ['127.0.0.1', '::1'])));
+    {{- end }}
   php.ini: |
     ; SPDX-License-Identifier: Apache-2.0
     memory_limit={{ .Values.php.memoryLimit }}
@@ -54,6 +64,20 @@ data:
     Listen 8080
     IncludeOptional /etc/apache2/mods-enabled/*.load
     IncludeOptional /etc/apache2/mods-enabled/*.conf
+    {{- if .Values.notifyPush.enabled }}
+    <IfModule !proxy_module>
+      LoadModule proxy_module /usr/lib/apache2/modules/mod_proxy.so
+    </IfModule>
+    <IfModule !proxy_http_module>
+      LoadModule proxy_http_module /usr/lib/apache2/modules/mod_proxy_http.so
+    </IfModule>
+    <IfModule !proxy_wstunnel_module>
+      LoadModule proxy_wstunnel_module /usr/lib/apache2/modules/mod_proxy_wstunnel.so
+    </IfModule>
+    ProxyPass /push/ws ws://127.0.0.1:7867/ws
+    ProxyPass /push/ http://127.0.0.1:7867/
+    ProxyPassReverse /push/ http://127.0.0.1:7867/
+    {{- end }}
     User www-data
     Group www-data
     ServerTokens Prod

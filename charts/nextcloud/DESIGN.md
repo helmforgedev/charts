@@ -84,3 +84,11 @@ object storage. Primary object storage would require an additional consistent
 backup domain. The integrated S3 feature is specifically backup storage.
 Application extensions installed through Nextcloud remain operator-managed and
 must support the selected upstream major version.
+
+## Optional preview and push services
+
+Imaginary and the Client Push daemon share the application Pod lifecycle and
+stop during backup/restore. Neither mounts the application PVC. Imaginary uses
+loopback; Apache proxies push HTTP and WebSocket traffic. The push daemon reads
+only a memory-backed export of database/Redis settings, regenerated on rollout.
+The Client Push app remains operator-managed. See [integration contracts](docs/integrations.md).

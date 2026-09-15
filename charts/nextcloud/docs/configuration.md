@@ -68,3 +68,8 @@ appropriate `existingSecret` field at that target. When an item targets the defa
 administrator Secret name, the chart suppresses its generated Secret so only ESO
 owns that target. Verify ExternalSecret readiness
 before diagnosing missing application credentials.
+
+## Optional integrations
+
+See [Imaginary and Client Push](integrations.md) for preview offloading,
+WebSocket routing, app installation and lifecycle requirements.

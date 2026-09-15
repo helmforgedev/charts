@@ -30,6 +30,8 @@ export function verifyBackupRecovery(context, namespace, release, deployment, ad
   const restored = `${release.slice(0, 35)}-recovery`;
   const values = {
     image: source.image,
+    imaginary: source.imaginary,
+    notifyPush: source.notifyPush,
     nextcloud: { ...source.nextcloud, existingSecret: adminSecret, adminPassword: '' },
     backup: { ...source.backup, enabled: false },
     restore: { enabled: true, backupPath: prefix },
@@ -51,6 +53,12 @@ export function verifyBackupRecovery(context, namespace, release, deployment, ad
     const originalClaim = originalPods.find(p => !p.metadata.deletionTimestamp).spec.volumes.find(v => v.name === 'data').persistentVolumeClaim.claimName;
     if (restoredClaim === originalClaim) throw new Error('Recovery reused the source PVC');
     process.stdout.write(k(['exec', '-i', app.metadata.name, '-c', 'nextcloud', '--', 'php', '/opt/helmforge/recovery-smoke.php', 'verify'], proof));
+    if (source.imaginary.enabled) {
+      process.stdout.write(k(['exec', app.metadata.name, '-c', 'nextcloud', '--', 'php', '/opt/helmforge/smoke.php', restored, '80']));
+    }
+    if (source.notifyPush.enabled) {
+      process.stdout.write(k(['exec', app.metadata.name, '-c', 'nextcloud', '--', 'php', '/var/www/html/occ', 'notify_push:setup', 'http://127.0.0.1:8080/push']));
+    }
     const recoveredPods = JSON.parse(k(['get', 'pods', '-l', `app.kubernetes.io/instance=${restored}`, '-o', 'json'])).items;
     for (const recovered of recoveredPods) {
       for (const container of [...(recovered.status.initContainerStatuses ?? []), ...(recovered.status.containerStatuses ?? [])]) {
