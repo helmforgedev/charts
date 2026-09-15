@@ -122,7 +122,7 @@ Back up MariaDB, all shared PVCs and the application Secret before upgrading fro
 MariaDB explicitly; the upstream installer's new PostgreSQL default does not move
 existing data between engines.
 
-Use `helm upgrade --reset-then-reuse-values` (or explicitly set the new image tag),
+Use `helm upgrade <release> <chart-ref> --reset-then-reuse-values` (or explicitly set the new image tag),
 then run `kubectl exec -n <namespace> deploy/<api-deployment> -c api -- migrate`.
 Verify the API, worker logs and existing projects before restoring traffic. For
 rollback, restore the database, volumes, Secret and matching old images together.
@@ -144,7 +144,7 @@ and configure those dependencies separately before opting in through extraEnv.
 
 Usage statistics now require ClickHouse. `appwrite.usageStats` defaults to
 `disabled`; to retain or enable usage reporting, provision a private ClickHouse
-service (the HelmForge ClickHouse chart can provide it) and supply its HTTP DSN
+service (the HelmForge ClickHouse chart can provide it) and supply its TLS-enabled HTTP DSN
 through a Secret:
 
 ```yaml
@@ -163,8 +163,12 @@ appwrite:
           key: dsn
 ```
 
-The DSN has the form `http://user:password@clickhouse:8123/appwrite`; URL-encode
-credentials containing reserved characters. In 2.2, `usage-setup` initializes and
+Use a DSN such as `https://<user>:<password>@clickhouse.example.com:8443/appwrite?secure=true`.
+The `secure=true` query parameter enables TLS in the Appwrite ClickHouse adapter;
+the scheme alone is insufficient. URL-encode credentials containing reserved
+characters. Use a DNS hostname matching the server certificate and a certificate
+chain trusted by the Appwrite container. The client verifies peers and hostnames;
+for a private CA, install its root into the container trust store before deployment. In 2.2, `usage-setup` initializes and
 checks both usage and execution schemas, so configure both connections before
 running it in the API pod. Verify schema readiness before enabling traffic. Plan retention of historical
 usage data separately from new usage schema setup. Back up external ClickHouse
