@@ -128,14 +128,14 @@ The `ingressClassName` defaults to `traefik` but `nginx` or any other supported 
 
 Security Scan:
 
-Kubescape scan for `MITRE,NSA,SOC2` during this standards backfill:
+Kubescape 4.0.14 scan of default rendered manifests for `MITRE,NSA,SOC2` on 2026-09-15:
 
 | Framework | Score |
 |-----------|-------|
 | MITRE | 100.00% |
-| NSA | 67.50% |
+| NSA | 75.00% |
 | SOC2 | 90.00% |
-| Aggregate resource score | 78.79% |
+| Aggregate resource score | 83.33% |
 
 Expected follow-up hardening is operator-dependent:
 
