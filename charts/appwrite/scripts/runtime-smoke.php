@@ -41,7 +41,7 @@ $stored = json_decode(file_get_contents($marker), true, flags: JSON_THROW_ON_ERR
 check(openssl_decrypt(base64_decode($stored['cipher']), 'aes-256-gcm', getenv('_APP_OPENSSL_KEY_V1'), OPENSSL_RAW_DATA, base64_decode($stored['iv']), base64_decode($stored['tag'])) === 'retained-build-artifact', 'Build fixture or encryption key changed');
 if (version_compare($version, '2.1.0', '>=')) {
     $key = request('/projects/helmforgeproject/keys', 'POST', [
-        'name' => 'HelmForge S3 fixture',
+        'keyId' => 'unique()', 'name' => 'HelmForge S3 fixture',
         'scopes' => array_merge(['buckets.read', 'buckets.write', 'files.read', 'files.write'], version_compare($version, '2.2.0', '>=') ? ['project.policies.read', 'project.policies.write'] : []),
     ], 201);
     if (version_compare($version, '2.2.0', '>=')) {

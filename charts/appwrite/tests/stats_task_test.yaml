@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: statistics task lifecycle
+templates:
+  - templates/deployment-schedulers.yaml
+tests:
+  - it: omits the exiting statistics process when usage is disabled
+    set:
+      schedulers.functions.enabled: false
+      schedulers.messages.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-appwrite-maintenance
+  - it: deploys the statistics task with an explicit usage connection
+    set:
+      schedulers.functions.enabled: false
+      schedulers.messages.enabled: false
+      maintenance.enabled: false
+      appwrite.usageStats: enabled
+      appwrite.extraEnv:
+        - name: _APP_CONNECTIONS_DB_USAGE
+          value: http://fixture-clickhouse:8123/appwrite
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-appwrite-task-stats-resources
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value: [stats-resources]
+  - it: honors the explicit task opt-out even with usage enabled
+    set:
+      schedulers.functions.enabled: false
+      schedulers.messages.enabled: false
+      maintenance.enabled: false
+      tasks.statsResources.enabled: false
+      appwrite.usageStats: enabled
+      appwrite.extraEnv:
+        - name: _APP_CONNECTIONS_DB_USAGE
+          value: http://fixture-clickhouse:8123/appwrite
+    asserts:
+      - hasDocuments:
+          count: 0

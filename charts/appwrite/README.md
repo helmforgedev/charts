@@ -42,8 +42,8 @@ This chart deploys Appwrite as multiple Kubernetes Deployments, each running a d
 | Console | `appwrite/new` image | 1 |
 | Realtime | `app/realtime.php` | Configurable |
 | Workers (15) | Official `worker-*` entrypoints | Configurable per worker |
-| Schedulers (3) | `app/tasks.php` | 1 each |
-| Maintenance | `app/tasks.php maintenance` | 1 |
+| Schedulers | Official `schedule-*` entrypoints | 1 per enabled scheduler |
+| Maintenance | `maintenance` | 1 |
 
 > **Note:** The openruntimes-executor, assistant, and browser services are not included in this alpha release. Functions execution requires a separate executor setup.
 
@@ -142,6 +142,10 @@ This chart does not provision the extra engines, embedding server, executor or
 orchestrator needed for those features and Functions/Sites execution. Provision
 and configure those dependencies separately before opting in through extraEnv.
 
+The `stats-resources` task is deployed only when `appwrite.usageStats=enabled`
+and `tasks.statsResources.enabled=true`; upstream exits immediately when usage
+is disabled. This avoids restarting an intentionally inactive process.
+
 Usage statistics now require ClickHouse. `appwrite.usageStats` defaults to
 `disabled`; to retain or enable usage reporting, provision a private ClickHouse
 service (the HelmForge ClickHouse chart can provide it) and supply its TLS-enabled HTTP DSN
@@ -238,7 +242,7 @@ workers:
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **79.50%** |
+| MITRE + NSA + SOC2 | **79.53%** |
 
 Kubescape v4.0.14; default manifests including MariaDB and Redis.
 

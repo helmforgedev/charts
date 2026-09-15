@@ -40,7 +40,7 @@ Background queue processors consuming jobs from Redis. Each worker type processe
 | stats-resources | Resource usage stats | |
 | stats-usage | API usage stats | |
 
-All workers run `php -e app/worker.php <entrypoint>`.
+Workers run their official `worker-*` entrypoints directly.
 
 ### Schedulers
 
@@ -49,6 +49,10 @@ Cron-like processes that enqueue scheduled jobs:
 - **schedule-functions** — Triggers scheduled function executions
 - **schedule-messages** — Triggers scheduled message delivery
 - **schedule-executions** — Triggers scheduled task executions (disabled by default)
+
+The `stats-resources` task is rendered only when usage collection and its task
+toggle are both enabled. With usage disabled, upstream exits rather than running
+a scheduler loop.
 
 ### Maintenance
 
