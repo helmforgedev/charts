@@ -289,7 +289,6 @@ It also restores locale generation for price formatting and reduces repeated
 explicit garbage collection. Review the [0.60.4 notes](https://github.com/dgtlmoon/changedetection.io/releases/tag/0.60.4)
 and [0.60.5 notes](https://github.com/dgtlmoon/changedetection.io/releases/tag/0.60.5).
 
-
 Version 0.60.3 includes the intervening watch/tag loading, XML parsing,
 CSRF/XSS protections, browser and UTF-8 backup fixes since 0.55.8.
 Back up the complete `/datastore` before upgrading: `changedetection.json`,
