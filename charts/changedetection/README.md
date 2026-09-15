@@ -320,13 +320,13 @@ is controlled. The chart keeps the upstream restriction enabled by default.
 
 ## Security Scan
 
-🟢 Security Scan: `changedetection`
+Security Scan: `changedetection`
 
 | Framework | Score |
 |---|---|
 | MITRE + NSA + SOC2 | **87.88%** |
 
-> ✅ Security posture acceptable.
+Rendered manifests scanned with Kubescape 4.0.14 on 2026-09-15.
 
 Local details:
 
