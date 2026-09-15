@@ -220,3 +220,8 @@ platform network policies for the deployment environment.
 The startup probe allows 180 seconds of failed readiness checks, plus its initial
 delay, so edge registration retries and protocol fallback can complete without
 a premature container restart. Readiness still requires a live tunnel.
+
+Quick tunnels use HTTP/2 by default so the demo does not require outbound UDP.
+Set `tunnel.quickTunnel.protocol` to `auto` or `quic` when appropriate. This
+setting applies only to ephemeral quick tunnels; managed tunnels retain the
+upstream transport default and can use `cloudflared.extraArgs` for overrides.
