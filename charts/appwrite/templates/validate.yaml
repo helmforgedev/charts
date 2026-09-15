@@ -14,3 +14,11 @@
 {{- fail "appwrite.usageStats=enabled requires _APP_CONNECTIONS_DB_USAGE in appwrite.extraEnv or extraEnv (ClickHouse HTTP DSN)" }}
 {{- end }}
 {{- end }}
+{{- if and .Values.appwrite.logging.sentryDsn (not (hasPrefix "sentry://" .Values.appwrite.logging.sentryDsn)) }}
+{{- fail "appwrite.logging.sentryDsn must use a sentry:// DSN in Appwrite 2.1" }}
+{{- end }}
+{{- range concat .Values.appwrite.extraEnv .Values.extraEnv }}
+{{- if has .name (list "_APP_LOGGING_PROVIDER" "_APP_LOGGING_CONFIG_REALTIME" "_APP_EXPERIMENT_LOGGING_PROVIDER" "_APP_EXPERIMENT_LOGGING_CONFIG") }}
+{{- fail (printf "%s was removed in Appwrite 2.1; use _APP_LOGGING_CONFIG with a sentry:// DSN" .name) }}
+{{- end }}
+{{- end }}

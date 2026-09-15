@@ -31,12 +31,12 @@ if ($action !== 'verify') {
 check(request('/projects/helmforgeproject')['name'] === 'HelmForge project', 'Persisted project missing');
 $marker = '/storage/builds/helmforge-upstream-fixture.json';
 if ($action !== 'verify') {
-    request('/account/prefs', 'PATCH', ['prefs' => ['upgrade' => 'retained-1.9.6-to-2.0.0']]);
+    request('/account/prefs', 'PATCH', ['prefs' => ['upgrade' => 'retained-1.9.6-to-2.1.0']]);
     $iv = random_bytes(12);
     $cipher = openssl_encrypt('retained-build-artifact', 'aes-256-gcm', getenv('_APP_OPENSSL_KEY_V1'), OPENSSL_RAW_DATA, $iv, $tag);
     file_put_contents($marker, json_encode(['iv'=>base64_encode($iv),'tag'=>base64_encode($tag),'cipher'=>base64_encode($cipher)]));
 }
-check(request('/account/prefs')['upgrade'] === 'retained-1.9.6-to-2.0.0', 'Account preferences not retained');
+check(request('/account/prefs')['upgrade'] === 'retained-1.9.6-to-2.1.0', 'Account preferences not retained');
 $stored = json_decode(file_get_contents($marker), true, flags: JSON_THROW_ON_ERROR);
 check(openssl_decrypt(base64_decode($stored['cipher']), 'aes-256-gcm', getenv('_APP_OPENSSL_KEY_V1'), OPENSSL_RAW_DATA, base64_decode($stored['iv']), base64_decode($stored['tag'])) === 'retained-build-artifact', 'Build fixture or encryption key changed');
 request('/account/sessions/current', 'DELETE', expected: 204);

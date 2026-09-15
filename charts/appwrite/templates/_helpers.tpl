@@ -336,10 +336,8 @@ localhost
   value: "250"
 - name: _APP_GRAPHQL_MAX_DEPTH
   value: "3"
-{{- if .Values.appwrite.logging.provider }}
-- name: _APP_LOGGING_PROVIDER
-  value: {{ .Values.appwrite.logging.provider | quote }}
-{{- end }}
+- name: _APP_LOGGING_FORMAT
+  value: {{ .Values.appwrite.logging.format | default "pretty" | quote }}
 {{- if .Values.appwrite.logging.sentryDsn }}
 - name: _APP_LOGGING_CONFIG
   value: {{ .Values.appwrite.logging.sentryDsn | quote }}
