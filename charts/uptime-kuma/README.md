@@ -141,7 +141,9 @@ externalSecrets:
 
 ## Upgrade Notes
 
-Uptime Kuma `2.5.4` retains the 2.5 series NTP monitoring and notification providers. The default `database.type=sqlite` path remains aligned with upstream behavior.
+Uptime Kuma `2.5.4` fixes MySQL-family connection pool initialization, cached HTTP response handling, browser context cleanup, and JSONata security issues.
+It also adds SFTP monitoring and notification providers. The default `database.type=sqlite`, port, and persistence paths are unchanged.
+See the [upstream release notes](https://github.com/louislam/uptime-kuma/releases/tag/2.5.4).
 Keep persistence enabled and back up `/app/data` before upgrading live
 instances.
 
@@ -156,7 +158,7 @@ instances.
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **80.30303%** |
+| MITRE + NSA + SOC2 | **72.72727%** |
 
 Security posture acceptable.
 
