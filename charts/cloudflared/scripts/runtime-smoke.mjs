@@ -21,13 +21,14 @@ if (container.command?.includes('--hello-world')) {
   const url = logs.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com\b/)?.[0];
   assert.ok(url,'Quick tunnel hostname required');
   let status, error;
-  for (let i=0; i<6; i++) {
+  const deadline = Date.now() + 120000;
+  while (Date.now() < deadline) {
     try {
       const response = await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(15000)});
       status = response.status;
       await response.arrayBuffer();
       if (status === 200) break;
-    } catch (caught) { error = caught.message; }
+    } catch (caught) { error = `${caught.message}: ${caught.cause?.code || caught.cause?.message || "unknown cause"}`; }
     await delay(3000);
   }
   assert.equal(status,200,`Quick tunnel HTTPS origin request failed: ${error || status}`);
