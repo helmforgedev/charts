@@ -156,11 +156,17 @@ appwrite:
         secretKeyRef:
           name: appwrite-usage
           key: dsn
+    - name: _APP_CONNECTIONS_DB_EXECUTIONS
+      valueFrom:
+        secretKeyRef:
+          name: appwrite-executions
+          key: dsn
 ```
 
 The DSN has the form `http://user:password@clickhouse:8123/appwrite`; URL-encode
-credentials containing reserved characters. Run `usage-setup` in the API pod to
-verify schema initialization before enabling traffic. Plan retention of historical
+credentials containing reserved characters. In 2.2, `usage-setup` initializes and
+checks both usage and execution schemas, so configure both connections before
+running it in the API pod. Verify schema readiness before enabling traffic. Plan retention of historical
 usage data separately from new usage schema setup. Back up external ClickHouse
 independently; the chart S3 backup covers the core MariaDB and shared-volume data.
 
