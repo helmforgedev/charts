@@ -73,6 +73,16 @@ disable the corresponding subchart and provide `externalDatabase` or
 supports PostgreSQL and standalone Redis; it does not perform database-engine
 conversion or configure Redis Sentinel/Cluster discovery.
 
+## Optional integrations
+
+Enable `imaginary.enabled` for private image-preview offloading and
+`notifyPush.enabled` for the official Client Push daemon. Both are opt-in, run
+in the application Pod and use official pinned images. Client Push uses the
+existing HTTPS endpoint at `/push` and requires a compatible operator-installed
+Nextcloud app plus the upstream setup test.
+
+See [setup, verification and lifecycle instructions](docs/integrations.md) before enabling them.
+
 ## Backup and restore
 
 Integrated backups stop the application and cron, capture PostgreSQL and the
@@ -111,7 +121,7 @@ selected upstream release. Helm rollback cannot reverse database migrations.
 
 > Security posture acceptable.
 
-Measured locally on 2026-09-14 with Kubescape 4.0.14 against the default rendered
+Measured locally on 2026-09-15 with Kubescape 4.0.14 against the default rendered
 application and bundled dependencies. The application uses a read-only root
 filesystem; the PostgreSQL/Redis subcharts retain their upstream filesystem
 defaults. This configuration assessment does not replace image CVE scanning.
@@ -146,6 +156,24 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md).
 | `nextcloud.maintenanceWindowStart` | Start hour in UTC for expensive maintenance background tasks. | `1` |
 | `php.memoryLimit` | Maximum memory per PHP request. | `"512M"` |
 | `php.uploadLimit` | Maximum upload and POST body size. | `"512M"` |
+| `imaginary.enabled` | Enable private preview offloading. | `false` |
+| `imaginary.image.repository` | Official Nextcloud Imaginary image. | `"ghcr.io/nextcloud-releases/aio-imaginary"` |
+| `imaginary.image.digest` | Immutable multi-platform image digest. | `"sha256:ea96034f97e9921015001c43947ab88ee5516e7e793c4c753a3618feca9e8548"` |
+| `imaginary.image.pullPolicy` | Image pull policy. | `"IfNotPresent"` |
+| `imaginary.maxAllowedResolution` | Maximum source resolution in megapixels. | `50` |
+| `imaginary.previewProviders` | Preview providers when enabled. | `["OC\\Preview\\TXT","OC\\Preview\\MarkDown","OC\\Preview\\OpenDocument","OC\\Preview\\Krita","OC\\Preview\\Imaginary"]` |
+| `imaginary.resources.requests.cpu` | CPU request. | `"25m"` |
+| `imaginary.resources.requests.memory` | Memory request. | `"128Mi"` |
+| `imaginary.resources.limits.cpu` | CPU limit. | `"1"` |
+| `imaginary.resources.limits.memory` | Memory limit. | `"512Mi"` |
+| `notifyPush.enabled` | Enable the daemon; install and configure the Client Push app separately. | `false` |
+| `notifyPush.image.repository` | Official Client Push daemon image. | `"ghcr.io/nextcloud/notify_push"` |
+| `notifyPush.image.tag` | Pinned daemon version. | `"v1.4.1"` |
+| `notifyPush.image.pullPolicy` | Image pull policy. | `"IfNotPresent"` |
+| `notifyPush.resources.requests.cpu` | CPU request. | `"10m"` |
+| `notifyPush.resources.requests.memory` | Memory request. | `"32Mi"` |
+| `notifyPush.resources.limits.cpu` | CPU limit. | `"500m"` |
+| `notifyPush.resources.limits.memory` | Memory limit. | `"128Mi"` |
 | `cron.enabled` | Enable Nextcloud cron processing. | `true` |
 | `cron.interval` | Seconds between invocations; upstream recommends five minutes. | `300` |
 | `cron.initialDelay` | Delay the first cron invocation after Pod startup, matching upstream timer guidance. | `300` |

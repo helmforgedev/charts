@@ -60,6 +60,22 @@ spec:
             - {name: data, mountPath: /var/www/html}
             - {name: php-conf, mountPath: /php-conf}
             - {name: config, mountPath: /opt/helmforge, readOnly: true}
+        {{- if .Values.notifyPush.enabled }}
+        - name: prepare-push
+          image: {{ include "nextcloud.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [php, /opt/helmforge/prepare-push.php]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.initResources | nindent 12 }}
+          env:
+            {{- include "nextcloud.backendEnv" . | nindent 12 }}
+          volumeMounts:
+            - {name: data, mountPath: /var/www/html, readOnly: true}
+            - {name: config, mountPath: /opt/helmforge, readOnly: true}
+            - {name: notify-push-config, mountPath: /run/notify-push}
+        {{- end }}
       containers:
         - name: nextcloud
           image: {{ include "nextcloud.image" . | quote }}
@@ -82,26 +98,7 @@ spec:
                 secretKeyRef:
                   name: {{ include "nextcloud.secretName" . }}
                   key: {{ .Values.nextcloud.existingSecretPasswordKey }}
-            - name: POSTGRES_HOST
-              value: {{ printf "%s:%v" (include "nextcloud.dbHost" .) (ternary 5432 .Values.externalDatabase.port .Values.postgresql.enabled) | quote }}
-            - name: POSTGRES_DB
-              value: {{ include "nextcloud.dbName" . | quote }}
-            - name: POSTGRES_USER
-              value: {{ include "nextcloud.dbUser" . | quote }}
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "nextcloud.dbSecret" . }}
-                  key: {{ include "nextcloud.dbKey" . }}
-            - name: REDIS_HOST
-              value: {{ include "nextcloud.redisHost" . | quote }}
-            - name: REDIS_HOST_PORT
-              value: {{ ternary 6379 .Values.externalRedis.port .Values.redis.enabled | quote }}
-            - name: REDIS_HOST_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "nextcloud.redisSecret" . }}
-                  key: {{ include "nextcloud.redisKey" . }}
+            {{- include "nextcloud.backendEnv" . | nindent 12 }}
             {{- if .Values.smtp.enabled }}
             - name: SMTP_HOST
               value: {{ .Values.smtp.host | quote }}
@@ -167,7 +164,63 @@ spec:
           env: *appEnv
           volumeMounts: *appMounts
         {{- end }}
+        {{- if .Values.imaginary.enabled }}
+        - name: imaginary
+          image: {{ printf "%s@%s" .Values.imaginary.image.repository .Values.imaginary.image.digest | quote }}
+          imagePullPolicy: {{ .Values.imaginary.image.pullPolicy }}
+          command: [/usr/local/bin/imaginary]
+          args: [-a, "127.0.0.1", -p, "9000", -return-size, -max-allowed-resolution, {{ .Values.imaginary.maxAllowedResolution | quote }}]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.imaginary.resources | nindent 12 }}
+          startupProbe:
+            exec: {command: [nc, -z, "127.0.0.1", "9000"]}
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            exec: {command: [nc, -z, "127.0.0.1", "9000"]}
+            periodSeconds: 10
+          livenessProbe:
+            exec: {command: [nc, -z, "127.0.0.1", "9000"]}
+            periodSeconds: 20
+          volumeMounts:
+            - {name: imaginary-tmp, mountPath: /tmp}
+        {{- end }}
+        {{- if .Values.notifyPush.enabled }}
+        - name: notify-push
+          image: {{ printf "%s:%s" .Values.notifyPush.image.repository .Values.notifyPush.image.tag | quote }}
+          imagePullPolicy: {{ .Values.notifyPush.image.pullPolicy }}
+          command: [/notify_push]
+          args: [/run/notify-push/config.php]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.notifyPush.resources | nindent 12 }}
+          ports:
+            - {name: push, containerPort: 7867}
+          startupProbe:
+            tcpSocket: {port: push}
+            periodSeconds: 10
+            failureThreshold: 90
+          readinessProbe:
+            tcpSocket: {port: push}
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: {port: push}
+            periodSeconds: 20
+          volumeMounts:
+            - {name: notify-push-config, mountPath: /run/notify-push, readOnly: true}
+        {{- end }}
       volumes:
+        {{- if .Values.imaginary.enabled }}
+        - name: imaginary-tmp
+          emptyDir: {sizeLimit: 256Mi}
+        {{- end }}
+        {{- if .Values.notifyPush.enabled }}
+        - name: notify-push-config
+          emptyDir: {medium: Memory, sizeLimit: 1Mi}
+        {{- end }}
         - name: data
           {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:

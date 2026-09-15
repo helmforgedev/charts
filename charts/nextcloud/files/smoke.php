@@ -50,6 +50,26 @@ try {
     expect($code === 200 && hash_equals(hash('sha256', $payload), hash('sha256', $body)), 'WebDAV content checksum');
     [$code] = request('GET', $folder . 'payload.bin');
     expect($code === 401, 'Unauthenticated file access rejected');
+    $runtime = json_decode(file_get_contents('/opt/helmforge/runtime-settings.json'), true, 512, JSON_THROW_ON_ERROR);
+    if ($runtime['imaginary']['enabled']) {
+        $image = imagecreatetruecolor(64, 64);
+        imagefill($image, 0, 0, imagecolorallocate($image, 35, 120, 200));
+        ob_start();
+        imagepng($image);
+        $png = ob_get_clean();
+        [$code] = request('PUT', $folder . 'preview.png', $auth, $png, ['Content-Type: image/png']);
+        expect($code === 201, 'Preview source uploaded');
+        [$code, $body] = request('PROPFIND', $folder . 'preview.png', $auth,
+            '<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns"><d:prop><oc:fileid/></d:prop></d:propfind>',
+            ['Depth: 0', 'Content-Type: application/xml']);
+        $xml = simplexml_load_string($body);
+        $xml->registerXPathNamespace('oc', 'http://owncloud.org/ns');
+        $ids = $xml->xpath('//oc:fileid');
+        expect($code === 207 && count($ids) === 1, 'Preview file identity resolved');
+        [$code, $body] = request('GET', '/index.php/core/preview?fileId=' . (string)$ids[0] . '&x=32&y=32', $auth);
+        $dimensions = @getimagesizefromstring($body);
+        expect($code === 200 && $dimensions !== false && $dimensions[0] > 0, 'Native Imaginary preview generated');
+    }
 } finally {
     [$code] = request('DELETE', $folder, $auth);
     expect($code === 204, 'WebDAV folder deletion');
