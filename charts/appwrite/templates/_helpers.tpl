@@ -307,9 +307,7 @@ localhost
       name: {{ include "appwrite.databaseSecretName" . }}
       key: {{ include "appwrite.databaseSecretKey" . }}
 - name: _APP_DB_ADAPTER
-  # Appwrite 1.9+ defaults this to "mongodb"; this chart provisions MariaDB, so it
-  # MUST be set to "mariadb" or Appwrite speaks the Mongo wire protocol to MariaDB
-  # ("Could not read document from BSON reader"). Possible values: mariadb, mongodb.
+  # Keep this chart's MariaDB contract explicit across upstream installer defaults.
   value: {{ .Values.database.adapter | default "mariadb" | quote }}
 - name: _APP_DB_HOST
   value: {{ include "appwrite.databaseHost" . | quote }}
@@ -322,17 +320,22 @@ localhost
 - name: _APP_DB_PASS
   value: "$(DB_PASS)"
 - name: _APP_USAGE_STATS
-  value: {{ .Values.appwrite.usageStats | default "enabled" | quote }}
+  value: {{ .Values.appwrite.usageStats | default "disabled" | quote }}
+# Optional 2.0 services require infrastructure this chart does not provision.
+- name: _APP_DOCUMENTSDB
+  value: disabled
+- name: _APP_VECTORSDB
+  value: disabled
+- name: _APP_EMBEDDING
+  value: disabled
 - name: _APP_GRAPHQL_MAX_BATCH_SIZE
   value: "10"
 - name: _APP_GRAPHQL_MAX_COMPLEXITY
   value: "250"
 - name: _APP_GRAPHQL_MAX_DEPTH
   value: "3"
-{{- if .Values.appwrite.logging.provider }}
-- name: _APP_LOGGING_PROVIDER
-  value: {{ .Values.appwrite.logging.provider | quote }}
-{{- end }}
+- name: _APP_LOGGING_FORMAT
+  value: {{ .Values.appwrite.logging.format | default "pretty" | quote }}
 {{- if .Values.appwrite.logging.sentryDsn }}
 - name: _APP_LOGGING_CONFIG
   value: {{ .Values.appwrite.logging.sentryDsn | quote }}

@@ -6,6 +6,69 @@ release:
   name: test
   namespace: default
 tests:
+  - it: should retain only scoped egress when DNS is disabled
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.allowDns: false
+      networkPolicy.extraEgress:
+        - to:
+            - podSelector:
+                matchLabels:
+                  app: mail
+          ports:
+            - protocol: TCP
+              port: 587
+    asserts:
+      - lengthEqual:
+          path: spec.egress
+          count: 1
+      - equal:
+          path: spec.egress[0].to[0].podSelector.matchLabels.app
+          value: mail
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 587
+  - it: should deny all egress when no destinations are configured
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.allowDns: false
+    asserts:
+      - equal:
+          path: spec.egress
+          value: []
+  - it: should append scoped egress rules without replacing DNS
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      networkPolicy.extraEgress:
+        - to:
+            - podSelector:
+                matchLabels:
+                  app: mail
+          ports:
+            - protocol: TCP
+              port: 587
+    asserts:
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53
+      - equal:
+          path: spec.egress[1].to[0].podSelector.matchLabels.app
+          value: mail
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 587
+  - it: should ignore extra egress rules unless egress isolation is enabled
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.extraEgress:
+        - ports:
+            - port: 587
+    asserts:
+      - notExists:
+          path: spec.egress
   - it: should not create NetworkPolicy by default
     asserts:
       - hasDocuments:

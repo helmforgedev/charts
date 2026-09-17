@@ -18,7 +18,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/appwrite/appwrite:1.9.6"
+          value: "docker.io/appwrite/appwrite:2.2.0"
 
   - it: should run http.php entrypoint
     template: templates/deployment-api.yaml
@@ -103,3 +103,26 @@ tests:
       - equal:
           path: spec.replicas
           value: 3
+
+  - it: renders supported JSON logging without the removed provider variable
+    template: templates/deployment-api.yaml
+    set:
+      appwrite.logging.provider: sentry
+      appwrite.logging.format: json
+      appwrite.logging.sentryDsn: sentry://project:key@example.invalid/
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: _APP_LOGGING_FORMAT
+            value: json
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: _APP_LOGGING_CONFIG
+            value: sentry://project:key@example.invalid/
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: _APP_LOGGING_PROVIDER
+            value: sentry

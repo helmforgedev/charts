@@ -50,6 +50,18 @@ If an existing Secret or
 explicit password is omitted, the chart generates and retains an initial
 credential. It does not reset an existing account when the credential changes.
 
+## Upgrade to 1.14.5
+
+This release fixes mobile registration bypass and family-invitation email
+validation. The chart retains its explicit registration policy middleware.
+Review existing accounts on publicly reachable installations, back up PostGIS
+and persistent files, and preserve encryption secrets before upgrading.
+It also fixes JSON login throttling, several GPX/OwnTracks/Google Timeline
+imports, archive restoration and SMTP authentication set to `none`.
+See the [official release notes](https://github.com/Freika/dawarich/releases/tag/1.14.5).
+Redis dependency 3.0.0 retains its image, storage and authentication defaults
+and fixes TLS/custom-port health probes.
+
 ## Administrator and registration policy
 
 Initialization applies native schema and data migrations, creates the first user
@@ -169,7 +181,7 @@ custom spatial reference, original attachment bytes, exact coordinates and nativ
 2FA. Production acceptance also verifies tokenless dependency Pods and withdrawn
 readiness for a quiet worker.
 
-The complete `make validate-chart CHART=dawarich` gate passed on 2026-09-11:
+The complete `make validate-chart CHART=dawarich` gate passed on 2026-09-15:
 23 validation layers, 36 Helm unit tests and 13 isolated k3d scenarios, including
 all CI profiles. It covers real CRD schemas, ESO, dual-stack Services, Ingress,
 Gateway API, browser interaction, private Prometheus scraping, external TLS,
@@ -185,7 +197,7 @@ Pods had no unexpected restarts or crash terminations in the accepted scenarios.
 | NSA | **97.57%** |
 | SOC2 | **94.29%** |
 
-Kubescape 4.0.13, default rendered manifests, 2026-09-11. C-0012 flags the literal
+Kubescape 4.0.14, default rendered manifests, 2026-09-15. C-0012 flags the literal
 `ALLOW_EMAIL_PASSWORD_REGISTRATION=false` policy setting and TLS admission code
 that reads credential environment variables; neither contains a credential value.
 No controls were suppressed.
@@ -198,6 +210,6 @@ manifests; it does not replace image vulnerability management or application rev
 
 ## Sources
 
-- [Dawarich 1.14.4](https://github.com/Freika/dawarich/tree/1.14.4)
+- [Dawarich 1.14.5](https://github.com/Freika/dawarich/tree/1.14.5)
 - [Official PostGIS image](https://github.com/postgis/docker-postgis)
 - [Official unprivileged NGINX image](https://github.com/nginx/docker-nginx-unprivileged)

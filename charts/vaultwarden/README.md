@@ -60,7 +60,7 @@ helm install vaultwarden oci://ghcr.io/helmforgedev/helm/vaultwarden -f values.y
 - Vaultwarden repository: <https://github.com/dani-garcia/vaultwarden>
 - Vaultwarden configuration template: <https://raw.githubusercontent.com/dani-garcia/vaultwarden/main/.env.template>
 - Vaultwarden 1.37.0 security release: <https://github.com/dani-garcia/vaultwarden/releases/tag/1.37.0>
-- Vaultwarden 1.37.2 release: <https://github.com/dani-garcia/vaultwarden/releases/tag/1.37.2>
+- Vaultwarden 1.37.3 release: <https://github.com/dani-garcia/vaultwarden/releases/tag/1.37.3>
 
 ## Best practices
 
@@ -182,7 +182,7 @@ The admin page should not use a plain-text `ADMIN_TOKEN` in real environments. P
 Simple generation options:
 
 ```bash
-docker run --rm -it vaultwarden/server:1.37.2 /vaultwarden hash
+docker run --rm -it vaultwarden/server:1.37.3 /vaultwarden hash
 ```
 
 ```bash
@@ -218,7 +218,7 @@ Official reference:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Vaultwarden image repository | `docker.io/vaultwarden/server` |
-| `image.tag` | Vaultwarden image tag | `1.37.2` |
+| `image.tag` | Vaultwarden image tag | `1.37.3` |
 | `domain` | Public Vaultwarden domain | `""` |
 | `database.mode` | `auto`, `sqlite`, `external`, `postgresql`, or `mysql` | `auto` |
 | `database.external.vendor` | External database vendor | `postgres` |
@@ -281,6 +281,7 @@ Official reference:
 | `ingress.enabled` | Enable ingress | `false` |
 | `ingress.ingressClassName` | Ingress class name | `traefik` |
 | `networkPolicy.enabled` | Enable NetworkPolicy rendering | `false` |
+| `networkPolicy.extraEgress` | Additional native egress rules when `networkPolicy.egress.enabled=true` | `[]` |
 | `resources` | Pod resources | `{}` |
 | `deployment.strategy.type` | Select the deployment strategy type. Could be RollingUpdate or Recreate | `RollingUpdate` |
 | `deployment.strategy.rollingUpdate.maxSurge` | Set the maxSurge for RollingUpdate strategy | `25%` |
@@ -329,13 +330,13 @@ See `examples/`:
 - `backup-postgresql.yaml`
 - `backup-mysql.yaml`
 
-### 🟢 Security Scan: `vaultwarden`
+### Security Scan: `vaultwarden`
 
 | Framework | Score |
 |---|---|
-| MITRE + NSA + SOC2 | **85.137085%** |
+| MITRE + NSA + SOC2 | **78.78788%** |
 
-> ✅ Security posture acceptable.
+> Local default-manifest scan, 2026-09-15 (Kubescape 4.0.14). Production deployments should configure resource limits and NetworkPolicy and use an existing Secret for sensitive settings.
 
 <!-- @AI-METADATA
 type: chart-readme

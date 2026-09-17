@@ -1,2 +1,29 @@
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- include "appwrite.validate" . -}}
+{{- if .Values.workers.audits.enabled }}
+{{- fail "Appwrite 2.0 removed worker-audits; set workers.audits.enabled=false" }}
+{{- end }}
+{{- if eq .Values.appwrite.usageStats "enabled" }}
+{{- $configured := false }}
+{{- range concat .Values.appwrite.extraEnv .Values.extraEnv }}
+{{- if and (eq .name "_APP_CONNECTIONS_DB_USAGE") (or .value .valueFrom) }}
+{{- $configured = true }}
+{{- end }}
+{{- end }}
+{{- if not $configured }}
+{{- fail "appwrite.usageStats=enabled requires _APP_CONNECTIONS_DB_USAGE in appwrite.extraEnv or extraEnv (ClickHouse HTTP DSN)" }}
+{{- end }}
+{{- end }}
+{{- if and .Values.appwrite.logging.sentryDsn (not (hasPrefix "sentry://" .Values.appwrite.logging.sentryDsn)) }}
+{{- fail "appwrite.logging.sentryDsn must use a sentry:// DSN in Appwrite 2.1" }}
+{{- end }}
+{{- range concat .Values.appwrite.extraEnv .Values.extraEnv }}
+{{- if has .name (list "_APP_LOGGING_PROVIDER" "_APP_LOGGING_CONFIG_REALTIME" "_APP_EXPERIMENT_LOGGING_PROVIDER" "_APP_EXPERIMENT_LOGGING_CONFIG") }}
+{{- fail (printf "%s was removed in Appwrite 2.1; use _APP_LOGGING_CONFIG with a sentry:// DSN" .name) }}
+{{- end }}
+{{- end }}
+{{- range concat .Values.appwrite.extraEnv .Values.extraEnv }}
+{{- if has .name (list "_APP_EXECUTIONS_DUAL_WRITE" "_APP_MAINTENANCE_RETENTION_USAGE_HOURLY" "_APP_CONNECTIONS_DB_LOGS") }}
+{{- fail (printf "%s was removed in Appwrite 2.2; use the supported ClickHouse usage/executions connections" .name) }}
+{{- end }}
+{{- end }}

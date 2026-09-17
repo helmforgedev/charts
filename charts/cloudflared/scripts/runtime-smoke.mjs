@@ -14,24 +14,25 @@ const pod = pods.find(p => !p.metadata.deletionTimestamp
   && p.spec.containers.some(c => c.name === 'cloudflared'));
 assert.ok(pod,'Ready cloudflared pod required');
 const version = kubectl(['exec',pod.metadata.name,'-c','cloudflared','--','cloudflared','version']);
-assert.match(version,/cloudflared version 2026\.8\.3\b/);
+assert.match(version,/cloudflared version 2026\.9\.1\b/);
 const container = pod.spec.containers.find(c => c.name === 'cloudflared');
 if (container.command?.includes('--hello-world')) {
   const logs = kubectl(['logs',pod.metadata.name,'-c','cloudflared']);
   const url = logs.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com\b/)?.[0];
   assert.ok(url,'Quick tunnel hostname required');
   let status, error;
-  for (let i=0; i<6; i++) {
+  const deadline = Date.now() + 120000;
+  while (Date.now() < deadline) {
     try {
       const response = await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(15000)});
       status = response.status;
       await response.arrayBuffer();
       if (status === 200) break;
-    } catch (caught) { error = caught.message; }
+    } catch (caught) { error = `${caught.message}: ${caught.cause?.code || caught.cause?.message || "unknown cause"}`; }
     await delay(3000);
   }
   assert.equal(status,200,`Quick tunnel HTTPS origin request failed: ${error || status}`);
-  console.log('cloudflared 2026.8.3: HTTPS request through the live quick tunnel reached the built-in origin.');
+  console.log('cloudflared 2026.9.1: HTTPS request through the live quick tunnel reached the built-in origin.');
 } else {
-  console.log('cloudflared 2026.8.3: binary version verified; custom/managed origin is not requested by this smoke test.');
+  console.log('cloudflared 2026.9.1: binary version verified; custom/managed origin is not requested by this smoke test.');
 }

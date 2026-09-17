@@ -2,7 +2,7 @@
 
 ## Overview
 
-Appwrite is deployed as a set of Kubernetes Deployments sharing a common container image (`appwrite/appwrite`) differentiated by entrypoint commands. The console uses a separate image (`appwrite/console`).
+Appwrite is deployed as a set of Kubernetes Deployments sharing a common container image (`appwrite/appwrite`) differentiated by entrypoint commands. The console uses a separate image (`appwrite/new`).
 
 ## Components
 
@@ -12,7 +12,7 @@ The main HTTP server handling all REST and GraphQL API requests. Runs `php -e ap
 
 ### Console
 
-The Appwrite web console (dashboard) served as a static SPA by the `appwrite/console` image. Always runs as a single replica.
+The Appwrite web console (dashboard) is served by `appwrite/new` on port 3000 with same-origin API access. Always runs as a single replica.
 
 ### Realtime
 
@@ -24,7 +24,10 @@ Background queue processors consuming jobs from Redis. Each worker type processe
 
 | Worker | Queue | Purpose |
 |--------|-------|---------|
-| audits | Audit log writes | |
+| jobs | Job processing | |
+| screenshots | Screenshot processing | |
+| executions | Execution events | |
+| notifications | Notifications | |
 | webhooks | Webhook delivery | |
 | deletes | Resource cleanup | |
 | databases | Database operations | |
@@ -37,7 +40,7 @@ Background queue processors consuming jobs from Redis. Each worker type processe
 | stats-resources | Resource usage stats | |
 | stats-usage | API usage stats | |
 
-All workers run `php -e app/worker.php <entrypoint>`.
+Workers run their official `worker-*` entrypoints directly.
 
 ### Schedulers
 
@@ -47,13 +50,17 @@ Cron-like processes that enqueue scheduled jobs:
 - **schedule-messages** — Triggers scheduled message delivery
 - **schedule-executions** — Triggers scheduled task executions (disabled by default)
 
+The `stats-resources` task is rendered only when usage collection and its task
+toggle are both enabled. With usage disabled, upstream exits rather than running
+a scheduler loop.
+
 ### Maintenance
 
 Periodic housekeeping task that cleans expired sessions, logs, and other temporary data.
 
 ## Data Flow
 
-```
+```text
                     ┌─────────┐
         Ingress ──> │ Console │  (/ paths)
            │        └─────────┘
@@ -66,7 +73,7 @@ Periodic housekeeping task that cleans expired sessions, logs, and other tempora
            │        └────┬────┘
            │             │ dequeues
            │        ┌────▼────┐
-           │        │ Workers │ (12 types)
+           │        │ Workers │ (15 types)
            │        └────┬────┘
            │             │
            │        ┌────▼────┐

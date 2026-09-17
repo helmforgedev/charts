@@ -3,6 +3,12 @@ suite: validation
 templates:
   - templates/validate.yaml
 tests:
+  - it: should reject usage collection without its ClickHouse connection
+    set:
+      appwrite.usageStats: enabled
+    asserts:
+      - failedTemplate:
+          errorMessage: "appwrite.usageStats=enabled requires _APP_CONNECTIONS_DB_USAGE in appwrite.extraEnv or extraEnv (ClickHouse HTTP DSN)"
   - it: should render no validation manifest by default
     asserts:
       - hasDocuments:
@@ -61,3 +67,26 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "gateway.enabled requires gateway.parentRefs to be populated to create a valid HTTPRoute."
+
+  - it: rejects non-sentry logging DSNs removed upstream
+    set:
+      appwrite.logging.sentryDsn: raygun://unsupported
+    asserts:
+      - failedTemplate:
+          errorMessage: "appwrite.logging.sentryDsn must use a sentry:// DSN in Appwrite 2.1"
+  - it: rejects removed logging environment variables
+    set:
+      appwrite.extraEnv:
+        - name: _APP_LOGGING_CONFIG_REALTIME
+          value: sentry://old
+    asserts:
+      - failedTemplate:
+          errorMessage: "_APP_LOGGING_CONFIG_REALTIME was removed in Appwrite 2.1; use _APP_LOGGING_CONFIG with a sentry:// DSN"
+  - it: rejects obsolete execution dual-write configuration
+    set:
+      appwrite.extraEnv:
+        - name: _APP_EXECUTIONS_DUAL_WRITE
+          value: enabled
+    asserts:
+      - failedTemplate:
+          errorMessage: "_APP_EXECUTIONS_DUAL_WRITE was removed in Appwrite 2.2; use the supported ClickHouse usage/executions connections"

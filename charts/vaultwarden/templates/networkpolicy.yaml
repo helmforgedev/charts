@@ -33,6 +33,7 @@ spec:
         {{- end }}
   {{- if .Values.networkPolicy.egress.enabled }}
   egress:
+    {{- if or .Values.networkPolicy.egress.allowDns .Values.networkPolicy.egress.additionalTo }}
     - {{- if .Values.networkPolicy.egress.allowDns }}
       ports:
         - protocol: UDP
@@ -43,8 +44,13 @@ spec:
       {{- if .Values.networkPolicy.egress.additionalTo }}
       to:
         {{- toYaml .Values.networkPolicy.egress.additionalTo | nindent 8 }}
-      {{- else if not .Values.networkPolicy.egress.allowDns }}
-      to: []
       {{- end }}
+    {{- end }}
+    {{- with .Values.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if not (or .Values.networkPolicy.egress.allowDns .Values.networkPolicy.egress.additionalTo .Values.networkPolicy.extraEgress) }}
+    []
+    {{- end }}
   {{- end }}
 {{- end }}

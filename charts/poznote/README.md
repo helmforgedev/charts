@@ -71,7 +71,7 @@ ingress:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Image repository | `ghcr.io/timothepoznanski/poznote` |
-| `image.tag` | Image tag | `6.80.0` |
+| `image.tag` | Image tag | `6.86.0` |
 | `image.pullPolicy` | Pull policy | `IfNotPresent` |
 
 #### Application Parameters
@@ -143,8 +143,16 @@ This chart intentionally does NOT:
 
 ## Upgrade Notes
 
-Poznote `6.80.0` includes the 6.69–6.80 background export, restore and import
+Poznote `6.86.0` includes the current background export, restore and import
 workers, chunked archive uploads, snapshot retention and conflict-safe autosave.
+Since `6.80.0`, upstream fixes stored XSS and backup streaming with custom themes,
+adds app passwords, and changes REST errors from HTTP 200 to actual error status
+codes. Integrations must handle HTTP 404 for inaccessible or missing IDs and
+409/423 for conflicting writes. The PHP worker default increases from 5 to 10;
+set `POZNOTE_PHP_FPM_MAX_CHILDREN` through `app.env` when sizing a smaller pod.
+`POZNOTE_PHP_MEMORY_LIMIT` is also configurable through `app.env` (upstream
+default: 512 MB). Dictation requires an operator-configured speech service;
+this chart does not deploy one.
 Complete backups and restores now continue in detached workers, with progress
 polled by the browser. Keep the pod running until the job completes and verify
 its final status before downloading or relying on the backup.

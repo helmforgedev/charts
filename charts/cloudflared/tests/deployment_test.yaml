@@ -37,7 +37,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/cloudflare/cloudflared:2026.8.3"
+          value: "docker.io/cloudflare/cloudflared:2026.9.1"
 
   - it: should use custom image tag
     template: templates/deployment.yaml
@@ -297,3 +297,29 @@ tests:
       - equal:
           path: spec.template.metadata.annotations.custom
           value: annotation
+
+  - it: should use http2 for the quick tunnel demo
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "http2"
+
+  - it: should allow quic for quick tunnels
+    template: templates/deployment.yaml
+    set:
+      tunnel.quickTunnel.protocol: quic
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "quic"
+
+  - it: should preserve the managed tunnel transport default
+    template: templates/deployment.yaml
+    set:
+      tunnel.quickTunnel.enabled: false
+      tunnel.token: ci-placeholder
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].command
+          content: "--protocol"

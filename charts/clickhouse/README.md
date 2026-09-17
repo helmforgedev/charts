@@ -15,7 +15,7 @@ helm install clickhouse oci://ghcr.io/helmforgedev/helm/clickhouse
 
 ## Features
 
-- Official ClickHouse image pinned to `26.8.2`.
+- Official ClickHouse image pinned to `26.8.3`.
 - StatefulSet with persistent data volume.
 - Client Service exposing HTTP `8123` and native TCP `9000`.
 - Headless Service for stable pod DNS.
@@ -55,7 +55,7 @@ networkPolicy:
 | --- | --- | --- |
 | `replicaCount` | ClickHouse pod count. Must remain `1` | `1` |
 | `image.repository` | Official image repository | `docker.io/clickhouse/clickhouse-server` |
-| `image.tag` | Official full-version tag | `26.8.2` |
+| `image.tag` | Official full-version tag | `26.8.3` |
 | `clickhouse.database` | Initial database | `default` |
 | `clickhouse.user` | Initial user | `default` |
 | `clickhouse.password` | Initial password | `""` |
@@ -90,7 +90,7 @@ Security posture acceptable.
 
 Local details:
 
-- Tool: Kubescape v4.0.13
+- Tool: Kubescape v4.0.14
 - Command: `kubescape scan framework mitre,nsa,soc2 .tmp/clickhouse-render.yaml`
 - Result: 0 critical failed resources, resource summary score 89.39%.
 
@@ -102,6 +102,14 @@ Use the ClickHouse Operator or Altinity operator stack for sharded or replicated
 clusters.
 
 ## Upgrade Notes
+
+The 26.8.3 LTS patch fixes query correctness, text-index reads after ALTER,
+backup restore path validation, S3 incremental backup chains, deserialization
+safety and multiple access checks. Review grants for restricted users that use
+views, table functions, backup locations or filesystem data sources. Existing
+credentials and the standalone storage layout remain unchanged.
+See the [26.8.3.105 release](https://github.com/ClickHouse/ClickHouse/releases/tag/v26.8.3.105-lts)
+and [complete patch comparison](https://github.com/ClickHouse/ClickHouse/compare/v26.8.2.7-lts...v26.8.3.105-lts).
 
 ClickHouse 26.8.2 follows the monthly 26.7 release and carries the August LTS
 designation. It changes the default text-index disk format to v2 and updates

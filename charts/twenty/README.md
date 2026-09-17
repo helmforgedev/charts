@@ -5,7 +5,7 @@ encryption identity.
 
 ## Operating contract
 
-- Official `twentycrm/twenty:v2.39.0` image pinned by immutable manifest digest.
+- Official `twentycrm/twenty:v2.40.0` image pinned by immutable manifest digest.
 - One Recreate Pod serializes migrations and shares local files between server and worker. This chart does not claim
   application HA or horizontal scaling.
 - Native first-administrator and workspace activation before public startup, followed by explicit closure of public
@@ -69,6 +69,28 @@ AI providers and hosted function execution are outside the tested integration se
 See [dependencies](docs/dependencies.md), [storage](docs/storage.md), [SMTP](docs/smtp.md) and
 [observability](docs/observability.md).
 
+## Upgrading to 2.40.0
+
+Review the [official release](https://github.com/twentyhq/twenty/releases/tag/twenty%2Fv2.40.0)
+and take a coordinated database, files and Redis backup before upgrading. Preserve
+`ENCRYPTION_KEY`, `SERVER_ID` and the ownership marker. Startup applies native
+migrations; application installation state now comes from deterministic queue
+jobs instead of the removed `Application.state` GraphQL field. Custom API clients
+must use the install/uninstall job status queries. Existing Canvas tabs migrate
+to vertical lists, and AI model selection uses a five-tier slider.
+
+Private-network SSO issuers, mail and calendar hosts now require the native
+`OUTBOUND_HTTP_ALLOWED_INTERNAL_HOSTS` allowlist through `extraEnv`. Use explicit
+hostnames or IP literals and corresponding NetworkPolicy peers. The deprecated
+`OUTBOUND_HTTP_SAFE_MODE_ENABLED=false` still overrides the allowlist and should
+be removed when migrating; link-local metadata addresses remain blocked.
+
+The bundled Redis chart moves to 3.0.0, retaining Redis 8.10.1 and the existing
+authentication and storage contract while improving authenticated health probes.
+The image also fixes SMTP retry propagation, upload size enforcement, SDK job
+initialization and migration-time repository updates. Ports, retained volumes,
+private enrollment and the colocated native worker remain unchanged.
+
 ## Validation
 
 Behavioral acceptance passed native administrator/workspace enrollment, closed
@@ -100,7 +122,7 @@ diagnostic profiles do not replace that gate.
 | NSA       | **98.54%** |
 | SOC2      | **97.50%** |
 
-Kubescape 4.0.13, default rendered manifests, 2026-09-11. No controls were suppressed. C-0012 matches the literal Bearer
+Kubescape 4.0.14, default rendered manifests, 2026-09-15. No controls were suppressed. C-0012 matches the literal Bearer
 authorization construction in the initializer's ConfigMap code; it does not contain a credential. C-0034 identifies the
 released Redis dependency's missing Pod-level token-automount field. Redis has a dedicated account without RBAC grants
 and denied egress. The production profile shares an explicitly named tokenless account with the dependencies and checks

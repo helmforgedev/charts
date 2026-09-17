@@ -356,6 +356,17 @@ try {
       pod,
       workspaceId,
     });
+  } else if (process.env.HF_TWENTY_UPGRADE_CHART) {
+    assert.ok(process.env.HF_TWENTY_UPGRADE_TAG, "Explicit upgrade image tag required");
+    execFileSync("helm", [
+      "upgrade", release, process.env.HF_TWENTY_UPGRADE_CHART,
+      "--kube-context", context, "-n", namespace,
+      "--reset-then-reuse-values", "--set", "image.tag=" + process.env.HF_TWENTY_UPGRADE_TAG,
+      "--wait", "--timeout", "900s",
+    ], {encoding: "utf8", timeout: 930000, stdio: ["ignore", "pipe", "pipe"]});
+    const upgraded = JSON.parse(k(["get", "pod", pod(), "-o", "json"]));
+    assert.equal(upgraded.spec.containers.find(c => c.name === "twenty").image,
+      values.image.repository + ":" + process.env.HF_TWENTY_UPGRADE_TAG);
   } else k(["rollout", "restart", "deployment/" + deployment.metadata.name]);
   k([
     "rollout",
@@ -389,10 +400,11 @@ try {
     );
     await login(base);
     await verifyAttachment({ base, origin, token, attachment });
+    if (process.env.HF_TWENTY_UPGRADE_CHART) workerProof();
   });
   assert.equal(identity(), originalIdentity);
   console.log(
-    "PASS retained native administrator, workspace, encryption identity, session and company after Pod replacement",
+    "PASS retained native administrator, workspace, encryption identity, session and company after Pod replacement or explicit chart upgrade",
   );
 } catch (error) {
   console.error(

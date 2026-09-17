@@ -178,13 +178,14 @@ topologySpreadConstraints:
 
 ## Upgrade Notes
 
-Cloudflared 2026.8.3 updates its WebSocket dependency and distroless base image.
-It removes the hidden stdin reconnect test control and obsolete remote protocol
-percentage lookup. Automatic reconnection after real transport failures remains
-supported, and the chart's tunnel command and values contract are unchanged.
+Cloudflared 2026.9.1 fixes Access token lock handling and QUIC registration error
+classification, updates the Go toolchain and base image, and retains the existing
+quick-tunnel and managed-token contracts. The `--transport-loglevel` flag was
+removed in 2026.9.0 but restored as deprecated in 2026.9.1. Origin URLs must use
+valid syntax, including brackets around IPv6 literals.
 
 Review the
-[official 2026.8.3 release](https://github.com/cloudflare/cloudflared/releases/tag/2026.8.3)
+[official 2026.9.1 release](https://github.com/cloudflare/cloudflared/releases/tag/2026.9.1)
 before production rollout.
 
 ## Security Scan
@@ -195,7 +196,7 @@ before production rollout.
 |---|---|
 | MITRE + NSA + SOC2 | **87.88%** |
 
-Security posture acceptable. Verified with Kubescape 4.0.13 against rendered default manifests.
+Security posture acceptable. Verified with Kubescape 4.0.14 against rendered default manifests.
 
 Local details:
 
@@ -215,3 +216,12 @@ platform network policies for the deployment environment.
 - [Cloudflare Tunnel documentation](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
 - [Kubernetes deployment guide](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/deploy-tunnels/deployment-guides/kubernetes/)
 - [Architecture overview](docs/architecture.md)
+
+The startup probe allows 180 seconds of failed readiness checks, plus its initial
+delay, so edge registration retries and protocol fallback can complete without
+a premature container restart. Readiness still requires a live tunnel.
+
+Quick tunnels use HTTP/2 by default so the demo does not require outbound UDP.
+Set `tunnel.quickTunnel.protocol` to `auto` or `quic` when appropriate. This
+setting applies only to ephemeral quick tunnels; managed tunnels retain the
+upstream transport default and can use `cloudflared.extraArgs` for overrides.

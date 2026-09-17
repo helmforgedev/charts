@@ -128,6 +128,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "vaultwarden.databaseMode" -}}
+{{- include "vaultwarden.validateDatabaseMode" . -}}
+{{- end -}}
+
+{{- define "vaultwarden.validateDatabaseMode" -}}
 {{- $mode := .Values.database.mode | default "auto" -}}
 {{- if not (has $mode (list "auto" "sqlite" "external" "postgresql" "mysql")) -}}
 {{- fail (printf "database.mode must be one of: auto, sqlite, external, postgresql, mysql (got %s)" $mode) -}}

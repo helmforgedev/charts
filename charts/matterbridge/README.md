@@ -55,7 +55,7 @@ Only use it on a trusted node and protect the administrative frontend.
 ## Features
 
 - Official, pinned multi-architecture Matterbridge image
-- Stable chart with upstream Matterbridge `3.10.8`
+- Stable chart with upstream Matterbridge `3.10.9`
 - StatefulSet singleton with explicit validation against unsafe scaling
 - One retained PVC for plugins, fabrics, certificates and configuration
 - Non-root UID/GID 1000, read-only root filesystem and all capabilities dropped
@@ -298,13 +298,14 @@ uncommissioned Matter bridge.
 
 ## Upgrades
 
-Matterbridge 3.10.8 updates persistent-storage dependencies, fixes frontend
-WebSocket handling and corrects Matter cluster behavior. Closure dimensions now
-advertise 1% granularity by default. Review the
-[official release notes](https://github.com/Luligu/matterbridge/releases/tag/3.10.8)
+Matterbridge 3.10.9 adds command subscriptions and optional EVSE features,
+fixes attribute listener dispatch, and corrects frontend settings, filters,
+logs and login behavior. EVSE extensions remain disabled unless plugins enable
+them. Storage paths, ports and the standalone container contract are unchanged. Review the
+[official release notes](https://github.com/Luligu/matterbridge/releases/tag/3.10.9)
 and test the installed plugins with a real Matter controller in staging.
 
-Use the standalone `luligu/matterbridge:3.10.8` distribution. Year-based tags such
+Use the standalone `luligu/matterbridge:3.10.9` distribution. Year-based tags such
 as `2026.9.1` in the same repository belong to the Home Assistant add-on and are
 not interchangeable with this chart's runtime.
 

@@ -2,9 +2,14 @@
 import assert from 'node:assert/strict';
 import {execFileSync, spawn} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
+import {readFileSync, writeFileSync} from 'node:fs';
 import {setTimeout as delay} from 'node:timers/promises';
 
-const [context, namespace, release] = process.argv.slice(2);
+const [context, namespace, release, version = '2.39.5', action = 'smoke'] = process.argv.slice(2);
+assert.ok(['smoke', 'create', 'verify'].includes(action));
+const statePath = process.env.HF_N8N_UPGRADE_STATE;
+assert.ok(action === 'smoke' || statePath, 'Upgrade state path required');
+const retained = action === 'verify' ? JSON.parse(readFileSync(statePath, 'utf8')) : null;
 if (!context?.startsWith('k3d-helmforge-') || !namespace || !release) {
   throw new Error('Explicit HelmForge lab context, namespace and release required');
 }
@@ -18,7 +23,7 @@ const pod = pods.find(p => !p.metadata.deletionTimestamp
   && p.status.conditions?.some(c => c.type === 'Ready' && c.status === 'True')
   && p.spec.containers.some(c => c.name === 'n8n'));
 assert.ok(pod, 'Ready n8n main pod required');
-assert.equal(kubectl(['exec', pod.metadata.name, '-c', 'n8n', '--', 'n8n', '--version']).trim(), '2.38.4');
+assert.equal(kubectl(['exec', pod.metadata.name, '-c', 'n8n', '--', 'n8n', '--version']).trim(), version);
 const main = pod.spec.containers.find(c => c.name === 'n8n');
 const python = main.env.some(e => e.name === 'N8N_PYTHON_ENABLED' && e.value === 'true');
 const queue = main.env.some(e => e.name === 'EXECUTIONS_MODE' && e.value === 'queue');
@@ -39,7 +44,8 @@ try {
     const remaining = deadline - Date.now();
     assert.ok(remaining > 0, 'Runtime deadline reached');
     const response = await fetch(base + route, {
-      method, headers: {'Content-Type': 'application/json', Cookie: [...cookies].map(([a, b]) => `${a}=${b}`).join('; ')},
+      // CLI export blocks the local event loop; do not reuse an expired HTTP socket.
+      method, headers: {'Content-Type': 'application/json', Connection: 'close', Cookie: [...cookies].map(([a, b]) => `${a}=${b}`).join('; ')},
       ...(body ? {body: JSON.stringify(body)} : {}), signal: AbortSignal.timeout(Math.min(60000, remaining)),
     });
     for (const cookie of response.headers.getSetCookie()) {
@@ -50,10 +56,32 @@ try {
     return response.json();
   }
   await request('/healthz/readiness');
-  await request('/rest/owner/setup', 'POST', {
-    email: 'runtime@example.invalid', firstName: 'Runtime', lastName: 'Fixture',
-    password: `Fixture-${randomBytes(18).toString('hex')}!`,
+  const ownerPassword = retained?.ownerPassword ?? `Fixture-${randomBytes(18).toString('hex')}!`;
+  if (retained) {
+    await request('/rest/login', 'POST', {emailOrLdapLoginId: 'runtime@example.invalid', password: ownerPassword});
+  } else {
+    await request('/rest/owner/setup', 'POST', {
+      email: 'runtime@example.invalid', firstName: 'Runtime', lastName: 'Fixture', password: ownerPassword,
+    });
+  }
+  const credentialPassword = retained?.credentialPassword ?? randomBytes(24).toString('hex');
+  const credential = retained?.credential ?? (await request('/rest/credentials', 'POST', {
+    name: 'HelmForge encryption fixture', type: 'httpBasicAuth',
+    data: {user: 'runtime-fixture', password: credentialPassword},
+  })).data;
+  const routes = retained?.routes ?? [];
+  for (const route of routes) {
+    const response = await request(`/webhook/${route}`);
+    assert.equal((Array.isArray(response) ? response[0] : response).answer, 42, 'Retained published workflow');
+  }
+  assert.ok(credential.id);
+  execFileSync('kubectl', [...target, 'exec', pod.metadata.name, '-c', 'n8n', '--',
+    'n8n', 'export:credentials', `--id=${credential.id}`, '--decrypted', '--output=/tmp/helmforge-credential.json'], {
+    encoding: 'utf8', timeout: 90000, stdio: ['ignore', 'pipe', 'pipe'],
   });
+  const exported = JSON.parse(kubectl(['exec', pod.metadata.name, '-c', 'n8n', '--', 'node', '-e',
+    "const fs=require('node:fs');const p='/tmp/helmforge-credential.json';const data=fs.readFileSync(p,'utf8');fs.unlinkSync(p);process.stdout.write(data);"]));
+  assert.equal(exported[0].data.password, credentialPassword, 'Persisted credential decryption');
   for (const language of python ? ['javaScript', 'pythonNative'] : ['javaScript']) {
     const route = `helmforge-${randomBytes(8).toString('hex')}`;
     const workflow = {name: `Runtime ${language}`, nodes: [
@@ -70,8 +98,10 @@ try {
     const response = await request(`/webhook/${route}`);
     const result = Array.isArray(response) ? response[0] : response;
     assert.equal(result.answer, 42, `${language} runner result`);
+    routes.push(route);
   }
-  console.log(`PASS: n8n 2.38.4, readiness, owner authentication and published ${python ? 'JavaScript/Python' : 'JavaScript'} workflow execution${queue ? ' through Redis queue workers' : ''}`);
+  if (action === 'create') writeFileSync(statePath, JSON.stringify({ownerPassword, credentialPassword, credential: {id: credential.id}, routes}), {mode: 0o600});
+  console.log(`PASS: n8n ${version}, readiness, owner authentication, persisted credential decryption${retained ? ', retained login and workflows after upgrade' : ''} and published ${python ? 'JavaScript/Python' : 'JavaScript'} workflow execution${queue ? ' through Redis queue workers' : ''}`);
 } finally {
   if (child.exitCode === null) {
     if (process.platform === 'win32') {

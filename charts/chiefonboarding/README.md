@@ -63,6 +63,21 @@ database:
     existingSecret: chiefonboarding-db-credentials
 ```
 
+## Upgrading to 2.5.0
+
+[Upstream 2.5.0](https://github.com/chiefonboarding/ChiefOnboarding/releases/tag/v2.5.0)
+adds access reports and CSV exports, external user-ID backfill, pagination fixes,
+and background offboarding account checks. Back up PostgreSQL and preserve the
+Django secret before upgrading; startup applies the application migrations.
+Update custom integration manifests for user-ID lookup before using backfill.
+
+Presigned S3 uploads remain the upstream default. The optional
+`AWS_USE_PRESIGNED_UPLOADS=False` environment variable routes uploads through the
+server; account for proxy timeouts and upload limits. `AWS_CDN_URL` optionally
+sets the download URL base. Configure these through
+`chiefonboarding.extraEnv`, with S3 credentials from Secrets. Existing ports,
+database configuration and deployment topology are unchanged.
+
 ## Architecture Guides
 
 - [Chart design](DESIGN.md)
@@ -113,14 +128,14 @@ The `ingressClassName` defaults to `traefik` but `nginx` or any other supported 
 
 Security Scan:
 
-Kubescape scan for `MITRE,NSA,SOC2` during this standards backfill:
+Kubescape 4.0.14 scan of default rendered manifests for `MITRE,NSA,SOC2` on 2026-09-15:
 
 | Framework | Score |
 |-----------|-------|
 | MITRE | 100.00% |
-| NSA | 67.50% |
+| NSA | 75.00% |
 | SOC2 | 90.00% |
-| Aggregate resource score | 78.79% |
+| Aggregate resource score | 83.33% |
 
 Expected follow-up hardening is operator-dependent:
 

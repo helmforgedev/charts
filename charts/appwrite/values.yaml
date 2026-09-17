@@ -27,16 +27,16 @@ image:
   # -- Appwrite server image repository
   repository: docker.io/appwrite/appwrite
   # -- Appwrite image tag. Defaults to appVersion.
-  tag: "1.9.6"
+  tag: "2.2.0"
   # -- Image pull policy
   pullPolicy: IfNotPresent
 
 console:
   image:
     # -- Appwrite console image repository
-    repository: docker.io/appwrite/console
+    repository: docker.io/appwrite/new
     # -- Console image tag
-    tag: "8.7.38"
+    tag: "1.1.96-self-hosted"
     # -- Console image pull policy
     pullPolicy: IfNotPresent
 
@@ -60,9 +60,12 @@ appwrite:
   existingSecretOpenSslKey: appwrite-openssl-key
   # -- Secret key for the internal JWT secret in appwrite.existingSecret
   existingSecretJwtKey: appwrite-jwt-secret
-  # -- Logging provider: default | sentry
+  # -- Error reporting and container log formatting
   logging:
+    # -- Deprecated compatibility field; empty, default or sentry only. No provider env is emitted.
     provider: ""
+    # -- Container log format: pretty or json
+    format: pretty
     # -- Sentry DSN for error tracking
     sentryDsn: ""
   # -- SMTP configuration for outgoing emails
@@ -76,8 +79,9 @@ appwrite:
     existingSecret: ""
     # -- Secret key for SMTP password
     existingSecretPasswordKey: smtp-password
-  # -- Usage statistics collection
-  usageStats: enabled
+  # -- Usage statistics collection. Appwrite 2.0 requires an external ClickHouse
+  # DSN via _APP_CONNECTIONS_DB_USAGE before enabling this setting.
+  usageStats: disabled
   # -- GraphQL API
   graphql: enabled
   # -- Functions settings
@@ -135,7 +139,22 @@ workers:
   # -- Global resources for all worker pods (overridden per-worker if set)
   resources: {}
   # -- Individual worker toggles and overrides
+  # -- Removed upstream in 2.0; retained only to reject stale enabled settings.
   audits:
+    enabled: false
+  jobs:
+    enabled: true
+    replicaCount: 1
+    resources: {}
+  screenshots:
+    enabled: true
+    replicaCount: 1
+    resources: {}
+  executions:
+    enabled: true
+    replicaCount: 1
+    resources: {}
+  notifications:
     enabled: true
     replicaCount: 1
     resources: {}
@@ -206,6 +225,7 @@ maintenance:
 
 tasks:
   statsResources:
+    # -- Deploy the statistics scheduler only when appwrite.usageStats is enabled.
     enabled: true
     resources: {}
 
@@ -215,8 +235,8 @@ tasks:
 
 database:
   # -- Database adapter Appwrite uses (`_APP_DB_ADAPTER`). This chart provisions
-  # MariaDB, so keep "mariadb". Appwrite 1.9+ defaults to "mongodb" when unset,
-  # which fails against MariaDB. Possible values: mariadb, mongodb.
+  # MariaDB, so keep "mariadb". The upstream 2.0 installer PostgreSQL default
+  # does not migrate this chart's existing MariaDB data.
   adapter: mariadb
   # -- Database mode: auto | external
   mode: auto
