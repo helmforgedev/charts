@@ -15,10 +15,18 @@ if (preg_match('/^(.+):(\d+)$/', $dbHost, $matches) === 1) {
 }
 $database = null;
 $lastDatabaseError = null;
-for ($attempt = 1; $attempt <= 60; $attempt++) {
+$databaseDeadline = time() + 120;
+while (time() < $databaseDeadline) {
+    $remainingSeconds = $databaseDeadline - time();
     try {
         $database = new PDO(
-            sprintf('pgsql:host=%s;port=%d;dbname=%s;connect_timeout=3', $dbHost, $dbPort, getenv('POSTGRES_DB')),
+            sprintf(
+                'pgsql:host=%s;port=%d;dbname=%s;connect_timeout=%d',
+                $dbHost,
+                $dbPort,
+                getenv('POSTGRES_DB'),
+                $remainingSeconds,
+            ),
             (string)getenv('POSTGRES_USER'),
             (string)getenv('POSTGRES_PASSWORD'),
             [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
@@ -27,8 +35,9 @@ for ($attempt = 1; $attempt <= 60; $attempt++) {
         break;
     } catch (PDOException $exception) {
         $lastDatabaseError = $exception;
-        if ($attempt < 60) {
-            sleep(2);
+        $remainingSeconds = $databaseDeadline - time();
+        if ($remainingSeconds > 0) {
+            sleep(min(2, $remainingSeconds));
         }
     }
 }
