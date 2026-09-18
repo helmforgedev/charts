@@ -57,17 +57,28 @@ for ($attempt = 0; $attempt < 20; $attempt++) {
     sleep(2);
 }
 if (!$discovered) throw new RuntimeException('Push capability missing after app setup');
-$socket = fsockopen('127.0.0.1', 8080, $errno, $error, 10);
-if ($socket === false) throw new RuntimeException('Unable to connect to Apache');
-stream_set_timeout($socket, 30);
-fwrite($socket, "GET /push/ws HTTP/1.1\r\nHost: 127.0.0.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n");
-if (!str_contains(fgets($socket), '101')) throw new RuntimeException('Apache WebSocket upgrade failed');
-while (($line = fgets($socket)) !== "\r\n") {
-    if ($line === false) throw new RuntimeException('Incomplete upgrade headers');
+$socket = null;
+$authenticationResponse = '';
+for ($attempt = 0; $attempt < 10; $attempt++) {
+    $candidate = fsockopen('127.0.0.1', 8080, $errno, $error, 10);
+    if ($candidate === false) throw new RuntimeException('Unable to connect to Apache');
+    stream_set_timeout($candidate, 30);
+    fwrite($candidate, "GET /push/ws HTTP/1.1\r\nHost: 127.0.0.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n");
+    if (!str_contains(fgets($candidate), '101')) throw new RuntimeException('Apache WebSocket upgrade failed');
+    while (($line = fgets($candidate)) !== "\r\n") {
+        if ($line === false) throw new RuntimeException('Incomplete upgrade headers');
+    }
+    sendFrame($candidate, $user);
+    sendFrame($candidate, $password);
+    $authenticationResponse = receiveFrame($candidate);
+    if ($authenticationResponse === 'authenticated') {
+        $socket = $candidate;
+        break;
+    }
+    fclose($candidate);
+    if ($attempt < 9) sleep(2);
 }
-sendFrame($socket, $user);
-sendFrame($socket, $password);
-if (receiveFrame($socket) !== 'authenticated') throw new RuntimeException('Push authentication failed');
+if ($socket === null) throw new RuntimeException('Push authentication failed after bounded retries: ' . $authenticationResponse);
 $path = '/remote.php/dav/files/' . rawurlencode($user) . '/push-smoke-' . bin2hex(random_bytes(6)) . '.txt';
 try {
     [$code] = http('PUT', $path, 'Client Push acceptance');

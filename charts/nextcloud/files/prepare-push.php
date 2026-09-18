@@ -7,6 +7,35 @@ $CONFIG = [];
 if (is_file('/var/www/html/config/config.php')) {
     require '/var/www/html/config/config.php';
 }
+$dbHost = (string)getenv('POSTGRES_HOST');
+$dbPort = 5432;
+if (preg_match('/^(.+):(\d+)$/', $dbHost, $matches) === 1) {
+    $dbHost = $matches[1];
+    $dbPort = (int)$matches[2];
+}
+$database = null;
+$lastDatabaseError = null;
+for ($attempt = 1; $attempt <= 60; $attempt++) {
+    try {
+        $database = new PDO(
+            sprintf('pgsql:host=%s;port=%d;dbname=%s;connect_timeout=3', $dbHost, $dbPort, getenv('POSTGRES_DB')),
+            (string)getenv('POSTGRES_USER'),
+            (string)getenv('POSTGRES_PASSWORD'),
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
+        );
+        $lastDatabaseError = null;
+        break;
+    } catch (PDOException $exception) {
+        $lastDatabaseError = $exception;
+        if ($attempt < 60) {
+            sleep(2);
+        }
+    }
+}
+if ($lastDatabaseError !== null) {
+    throw new RuntimeException('Database did not become ready for Client Push within 120 seconds', 0, $lastDatabaseError);
+}
+$database = null;
 $config = [
     'dbtype' => 'pgsql',
     'dbhost' => getenv('POSTGRES_HOST'),

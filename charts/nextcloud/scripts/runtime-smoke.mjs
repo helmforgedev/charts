@@ -24,16 +24,17 @@ if (!status.installed || status.maintenance || status.needsDbUpgrade) throw new 
 console.log(`Nextcloud ${status.versionstring}: application and CLI checks passed`);
 const config = JSON.parse(kubectl('get', 'configmap', service.metadata.name, '-o', 'json'));
 const runtime = JSON.parse(config.data['runtime-settings.json']);
-if (runtime.notifyPush.enabled) {
+if (runtime.notifyPush?.enabled) {
   const occ = (...args) => kubectl('exec', pod.metadata.name, '-c', 'nextcloud', '--', 'php', '/var/www/html/occ', ...args);
   const apps = JSON.parse(occ('app:list', '--output=json'));
-  if (!apps.enabled.notify_push && !apps.disabled.notify_push) {
-    // Pin the official signed app fixture instead of depending on a changing App Store index.
-    process.stdout.write(kubectl('exec', pod.metadata.name, '-c', 'nextcloud', '--', 'sh', '-ec',
+  // Verify the replacement before changing any retained app in this local test release.
+  process.stdout.write(kubectl('exec', pod.metadata.name, '-c', 'nextcloud', '--', 'sh', '-ec',
       'curl --fail --silent --show-error --location --retry 2 --max-time 120 --output /tmp/notify-push-fixture.tar.gz https://github.com/nextcloud-releases/notify_push/releases/download/v1.4.1/notify_push-v1.4.1.tar.gz; ' +
-      'echo "0bfda35cba6e21bc6358ede431bde790b039efadae54bbb393560fcff6127e36 /tmp/notify-push-fixture.tar.gz" | sha256sum -c -; ' +
-      'tar -xzf /tmp/notify-push-fixture.tar.gz -C /var/www/html/custom_apps; rm /tmp/notify-push-fixture.tar.gz'));
-  }
+      'echo "0bfda35cba6e21bc6358ede431bde790b039efadae54bbb393560fcff6127e36 /tmp/notify-push-fixture.tar.gz" | sha256sum -c -'));
+  if (apps.enabled.notify_push) process.stdout.write(occ('app:disable', 'notify_push'));
+  if (apps.enabled.notify_push || apps.disabled.notify_push) process.stdout.write(occ('app:remove', 'notify_push'));
+  process.stdout.write(kubectl('exec', pod.metadata.name, '-c', 'nextcloud', '--', 'sh', '-ec',
+    'tar -xzf /tmp/notify-push-fixture.tar.gz -C /var/www/html/custom_apps; rm /tmp/notify-push-fixture.tar.gz'));
   process.stdout.write(occ('app:enable', 'notify_push'));
   process.stdout.write(occ('integrity:check-app', 'notify_push'));
   process.stdout.write(occ('notify_push:setup', 'http://127.0.0.1:8080/push'));

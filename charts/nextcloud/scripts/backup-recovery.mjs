@@ -14,6 +14,8 @@ export function verifyBackupRecovery(context, namespace, release, deployment, ad
   const helm = args => execFileSync('helm', args, { encoding: 'utf8', timeout: 960000, maxBuffer: 4 * 1024 * 1024 });
   const chart = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const source = JSON.parse(helm(['get', 'values', release, '--kube-context', context, '-n', namespace, '--all', '-o', 'json']));
+  source.imaginary ??= { enabled: false };
+  source.notifyPush ??= { enabled: false };
   const proofInput = { user: `hf-recovery-${randomBytes(4).toString('hex')}`, password: randomBytes(24).toString('base64url'), payload: randomBytes(1024 * 1024).toString('base64') };
   const proof = k(['exec', '-i', `deployment/${deployment}`, '-c', 'nextcloud', '--', 'php', '/opt/helmforge/recovery-smoke.php', 'seed'], JSON.stringify(proofInput));
   JSON.parse(proof);
