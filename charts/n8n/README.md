@@ -241,7 +241,7 @@ external mode, Code node module allowlists such as
 `NODE_FUNCTION_ALLOW_BUILTIN` and `NODE_FUNCTION_ALLOW_EXTERNAL` must be set as
 `env-overrides` in `/etc/n8n-task-runners.json` inside the runner image; setting
 them only through `taskRunners.extraEnv` does not configure launched runners.
-See the [upstream task runner configuration](https://docs.n8n.io/hosting/configuration/task-runners/).
+See the [upstream task runner configuration](https://docs.n8n.io/deploy/host-n8n/configure-n8n/set-up-task-runners/).
 
 Anonymous diagnostics are disabled by default with
 `N8N_DIAGNOSTICS_ENABLED=false`, which keeps self-hosted clusters private and
