@@ -31,6 +31,25 @@ Configure:
 
 The uploader uses an S3-compatible endpoint, so MinIO and similar platforms are valid targets as long as they expose S3-compatible APIs.
 
+### Private certificate authorities
+
+For an HTTPS endpoint signed by a private or self-signed certificate authority, store the CA certificate in a Kubernetes Secret and configure:
+
+```yaml
+backup:
+  s3:
+    endpoint: https://s3.internal.example.com
+    caSecret: vaultwarden-s3-ca
+    caKey: ca.crt
+```
+
+The chart mounts that key as `/root/.mc/certs/CAs/ca.crt`, the trust directory used by the MinIO Client (`mc`).
+The Secret must contain the CA certificate that signed the S3 endpoint certificate, not merely the endpoint leaf certificate.
+
+As an emergency compatibility option, `backup.s3.insecureSkipVerify=true` passes `--insecure` to every `mc` operation.
+This disables TLS certificate verification and should not be used when a trusted CA can be supplied.
+`caSecret` and `insecureSkipVerify` are mutually exclusive.
+
 ## Database dump behavior
 
 ### SQLite
@@ -58,6 +77,8 @@ backup:
     bucket: vaultwarden-backups
     prefix: prod
     existingSecret: vaultwarden-backup-s3
+    caSecret: vaultwarden-s3-ca
+    caKey: ca.crt
 ```
 
 ## References

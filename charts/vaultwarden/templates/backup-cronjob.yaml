@@ -139,6 +139,8 @@ spec:
                   value: {{ .Values.backup.s3.prefix | quote }}
                 - name: S3_CREATE_BUCKET_IF_NOT_EXISTS
                   value: {{ ternary "true" "false" .Values.backup.s3.createBucketIfNotExists | quote }}
+                - name: S3_INSECURE_SKIP_VERIFY
+                  value: {{ ternary "true" "false" .Values.backup.s3.insecureSkipVerify | quote }}
                 - name: S3_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
@@ -156,6 +158,11 @@ spec:
                   mountPath: /scripts
                 - name: backup-workdir
                   mountPath: /backup/out
+                {{- if .Values.backup.s3.caSecret }}
+                - name: s3-ca
+                  mountPath: /root/.mc/certs/CAs
+                  readOnly: true
+                {{- end }}
           volumes:
             - name: scripts
               configMap:
@@ -163,6 +170,14 @@ spec:
                 defaultMode: 0755
             - name: backup-workdir
               emptyDir: {}
+            {{- if .Values.backup.s3.caSecret }}
+            - name: s3-ca
+              secret:
+                secretName: {{ .Values.backup.s3.caSecret }}
+                items:
+                  - key: {{ .Values.backup.s3.caKey }}
+                    path: ca.crt
+            {{- end }}
             {{- if eq (include "vaultwarden.databaseMode" .) "sqlite" }}
             - name: data
               persistentVolumeClaim:

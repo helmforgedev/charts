@@ -346,6 +346,9 @@ database-url
   {{- if and (not .Values.backup.s3.existingSecret) (or (not .Values.backup.s3.accessKey) (not .Values.backup.s3.secretKey)) -}}
     {{- fail "backup requires either backup.s3.existingSecret or both backup.s3.accessKey and backup.s3.secretKey" -}}
   {{- end -}}
+  {{- if and .Values.backup.s3.caSecret .Values.backup.s3.insecureSkipVerify -}}
+    {{- fail "backup.s3.caSecret and backup.s3.insecureSkipVerify are mutually exclusive" -}}
+  {{- end -}}
   {{- if and (eq (include "vaultwarden.databaseMode" .) "sqlite") (not .Values.data.persistence.enabled) -}}
     {{- fail "backup for sqlite mode requires data.persistence.enabled=true" -}}
   {{- end -}}

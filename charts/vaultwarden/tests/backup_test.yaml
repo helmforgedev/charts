@@ -53,3 +53,64 @@ tests:
           content:
             name: DB_HOST
             value: test-postgresql
+
+  - it: should mount a custom S3 CA from the configured Secret key
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://rustfs.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+      backup.s3.caSecret: vaultwarden-s3-ca
+      backup.s3.caKey: private-ca.pem
+    template: backup-cronjob.yaml
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].volumeMounts
+          content:
+            name: s3-ca
+            mountPath: /root/.mc/certs/CAs
+            readOnly: true
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.volumes
+          content:
+            name: s3-ca
+            secret:
+              secretName: vaultwarden-s3-ca
+              items:
+                - key: private-ca.pem
+                  path: ca.crt
+
+  - it: should apply insecure TLS mode to every mc operation when explicitly enabled
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://rustfs.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+      backup.s3.insecureSkipVerify: true
+    template: backup-configmap.yaml
+    asserts:
+      - matchRegex:
+          path: data["upload-backup.sh"]
+          pattern: 'mc \$\{mc_tls_args\} alias set'
+      - matchRegex:
+          path: data["upload-backup.sh"]
+          pattern: 'mc \$\{mc_tls_args\} mb'
+      - matchRegex:
+          path: data["upload-backup.sh"]
+          pattern: 'mc \$\{mc_tls_args\} cp'
+
+  - it: should reject custom CA and disabled verification together
+    set:
+      backup.enabled: true
+      backup.s3.endpoint: https://rustfs.example.com
+      backup.s3.bucket: backups
+      backup.s3.accessKey: access
+      backup.s3.secretKey: secret
+      backup.s3.caSecret: vaultwarden-s3-ca
+      backup.s3.insecureSkipVerify: true
+    template: secret.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.s3.caSecret and backup.s3.insecureSkipVerify are mutually exclusive"

@@ -1,0 +1,176 @@
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vaultwarden-s3-ca
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+type: Opaque
+stringData:
+  ca.crt: "-----BEGIN CERTIFICATE-----\r\nMIIBkzCCATmgAwIBAgIUOS2cPdIdFz0RPBENXtHTmJlbxFgwCgYIKoZIzj0EAwIw\r\nFDESMBAGA1UEAwwJaGVybWVzLXMzMB4XDTI2MDkxODE4NDQzMFoXDTM2MDkxNTE4\r\nNDQzMFowFDESMBAGA1UEAwwJaGVybWVzLXMzMFkwEwYHKoZIzj0CAQYIKoZIzj0D\r\nAQcDQgAEk4ADM2QP7xWoMm03MV7p+9WXfFVKvZTGfMqvvOzByv2Rmt2HX8SlID82\r\nobKilRRRoxExkRLmDUyc32vIIcjylaNpMGcwHQYDVR0OBBYEFKTcnxtnyx/z6bqm\r\nr55ae1vr03YhMB8GA1UdIwQYMBaAFKTcnxtnyx/z6bqmr55ae1vr03YhMBQGA1Ud\r\nEQQNMAuCCWhlcm1lcy1zMzAPBgNVHRMBAf8EBTADAQH/MAoGCCqGSM49BAMCA0gA\r\nMEUCIQDvZkWdUU35DQfuiG0P9HzfOROMFnsL4fSi4E7EbCMkIwIgJifwArxfc71J\r\nEGkC7tuOGd2FLmJFCCse6oXHlJeZ3hc=\r\n-----END CERTIFICATE-----\r\n"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vaultwarden-s3-tls
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+type: kubernetes.io/tls
+stringData:
+  tls.crt: "-----BEGIN CERTIFICATE-----\r\nMIIBkzCCATmgAwIBAgIUOS2cPdIdFz0RPBENXtHTmJlbxFgwCgYIKoZIzj0EAwIw\r\nFDESMBAGA1UEAwwJaGVybWVzLXMzMB4XDTI2MDkxODE4NDQzMFoXDTM2MDkxNTE4\r\nNDQzMFowFDESMBAGA1UEAwwJaGVybWVzLXMzMFkwEwYHKoZIzj0CAQYIKoZIzj0D\r\nAQcDQgAEk4ADM2QP7xWoMm03MV7p+9WXfFVKvZTGfMqvvOzByv2Rmt2HX8SlID82\r\nobKilRRRoxExkRLmDUyc32vIIcjylaNpMGcwHQYDVR0OBBYEFKTcnxtnyx/z6bqm\r\nr55ae1vr03YhMB8GA1UdIwQYMBaAFKTcnxtnyx/z6bqmr55ae1vr03YhMBQGA1Ud\r\nEQQNMAuCCWhlcm1lcy1zMzAPBgNVHRMBAf8EBTADAQH/MAoGCCqGSM49BAMCA0gA\r\nMEUCIQDvZkWdUU35DQfuiG0P9HzfOROMFnsL4fSi4E7EbCMkIwIgJifwArxfc71J\r\nEGkC7tuOGd2FLmJFCCse6oXHlJeZ3hc=\r\n-----END CERTIFICATE-----\r\n"
+  tls.key: "-----BEGIN PRIVATE KEY-----\r\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgqxmBiioa78cN9Lic\r\ntbpL0mEzago0kXcH4G26Wu5AP/ehRANCAASTgAMzZA/vFagybTcxXun71Zd8VUq9\r\nlMZ8yq+87MHK/ZGa3YdfxKUgPzahsqKVFFGjETGREuYNTJzfa8ghyPKV\r\n-----END PRIVATE KEY-----\r\n"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vaultwarden-backup-s3
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+type: Opaque
+stringData:
+  access-key: vaultwarden-ci-backup
+  secret-key: vaultwarden-ci-backup-secret-never-production
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vaultwarden-s3-config
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+data:
+  s3.json: >-
+    {"identities":[{"name":"ci-backup","credentials":[{"accessKey":"vaultwarden-ci-backup","secretKey":"vaultwarden-ci-backup-secret-never-production"}],"actions":["Admin","Read","Write","List"]}]}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hermes-s3
+  labels:
+    app: hermes-s3
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hermes-s3
+  template:
+    metadata:
+      labels:
+        app: hermes-s3
+        helmforge.dev/runtime-fixture: "true"
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: seaweedfs
+          image: chrislusf/seaweedfs:4.46@sha256:08d516132314207d10c8e37cbffc1f32b147d870169688734cc61c6231625b62
+          command: [weed]
+          args:
+            - server
+            - -dir=/data
+            - -ip=127.0.0.1
+            - -ip.bind=0.0.0.0
+            - -master.volumeSizeLimitMB=64
+            - -volume.max=4
+            - -filer
+            - -s3
+            - -s3.config=/config/s3.json
+            - -s3.cert.file=/tls/tls.crt
+            - -s3.key.file=/tls/tls.key
+          ports:
+            - name: s3
+              containerPort: 8333
+          startupProbe:
+            tcpSocket:
+              port: s3
+            periodSeconds: 2
+            failureThreshold: 90
+          readinessProbe:
+            tcpSocket:
+              port: s3
+            periodSeconds: 5
+          resources:
+            requests: {cpu: 100m, memory: 192Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            - {name: tmp, mountPath: /tmp}
+            - {name: config, mountPath: /config, readOnly: true}
+            - {name: tls, mountPath: /tls, readOnly: true}
+      volumes:
+        - name: data
+          emptyDir: {sizeLimit: 1Gi}
+        - name: tmp
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: vaultwarden-s3-config
+        - name: tls
+          secret:
+            secretName: vaultwarden-s3-tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hermes-s3
+  labels:
+    app: hermes-s3
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  selector:
+    app: hermes-s3
+  ports:
+    - name: s3
+      port: 8333
+      targetPort: s3
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vaultwarden-s3-create-bucket
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 240
+  template:
+    metadata:
+      labels:
+        app: hermes-s3
+        helmforge.dev/runtime-fixture: "true"
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      containers:
+        - name: create-bucket
+          image: docker.io/helmforge/mc:1.0.0
+          command: [/bin/sh, -ec]
+          args:
+            - |
+              for attempt in $(seq 1 60); do
+                if mc --insecure alias set fixture https://hermes-s3:8333 "$ACCESS_KEY" "$SECRET_KEY" >/tmp/error 2>&1 &&
+                  mc --insecure mb --ignore-existing fixture/vaultwarden-backups >/tmp/error 2>&1; then
+                  echo 'HTTPS S3 fixture ready'
+                  exit 0
+                fi
+                sleep 2
+              done
+              cat /tmp/error >&2
+              exit 1
+          env:
+            - {name: ACCESS_KEY, value: vaultwarden-ci-backup}
+            - {name: SECRET_KEY, value: vaultwarden-ci-backup-secret-never-production}
+          resources:
+            requests: {cpu: 25m, memory: 32Mi}
+            limits: {cpu: 250m, memory: 128Mi}

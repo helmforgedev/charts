@@ -51,6 +51,7 @@ helm install vaultwarden oci://ghcr.io/helmforgedev/helm/vaultwarden -f values.y
 - production should prefer an external database or one of the optional database subcharts
 - SQLite is the fallback mode when no external database or subchart is configured
 - built-in backup can archive `/data` for SQLite or run database dumps for DB-backed modes
+- S3 backup endpoints signed by a private CA can use a mounted CA Secret without disabling TLS verification
 - ingress and `domain` should be aligned for attachment links and client behavior
 - websocket traffic uses the same HTTP service and ingress path as the web vault
 - the pod binds Vaultwarden/Rocket to non-privileged container port `8085` by default while keeping the Kubernetes Service on port `80`
@@ -80,6 +81,7 @@ helm install vaultwarden oci://ghcr.io/helmforgedev/helm/vaultwarden -f values.y
 - in `sqlite` mode the chart archives `/data` and uploads it to the configured bucket
 - in `external`, `postgresql`, and `mysql` modes the chart runs a database dump and uploads the compressed result
 - the built-in backup path is intentionally focused on backup creation, not restore orchestration
+- prefer `backup.s3.caSecret` for private or self-signed certificate authorities; use `backup.s3.insecureSkipVerify` only as a temporary compatibility escape hatch
 - review [Backup Automation](docs/backup-automation.md) before enabling the CronJob in production
 
 ### Database selection
@@ -270,6 +272,9 @@ Official reference:
 | `backup.schedule` | Backup schedule | `"0 0 * * *"` |
 | `backup.s3.endpoint` | S3-compatible endpoint URL | `""` |
 | `backup.s3.bucket` | Target bucket name | `""` |
+| `backup.s3.caSecret` | Secret containing the CA certificate trusted for the S3 endpoint | `""` |
+| `backup.s3.caKey` | Key containing the CA certificate in `backup.s3.caSecret` | `ca.crt` |
+| `backup.s3.insecureSkipVerify` | Disable TLS certificate verification for all `mc` operations; mutually exclusive with `caSecret` | `false` |
 | `backup.s3.existingSecret` | Existing secret with S3 credentials | `""` |
 | `database.sqlite.enableWal` | Enable SQLite WAL mode on startup | `true` |
 | `database.connection.retries` | Number of startup retries while connecting to the database | `15` |
@@ -306,6 +311,7 @@ The `ci/` scenarios validate the main chart behaviors:
 - `database-mysql.yaml`
 - `hardening.yaml`
 - `backup-sqlite.yaml`
+- `backup-tls.yaml`
 - `backup-postgresql.yaml`
 - `backup-mysql.yaml`
 
