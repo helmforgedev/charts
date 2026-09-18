@@ -164,6 +164,7 @@ externalSecrets:
 | `taskRunners.autoShutdownTimeout` | `15` | External runner launcher idle shutdown timeout |
 | `taskRunners.authToken` | `""` | External runner auth token, auto-generated when empty |
 | `taskRunners.nativePython.enabled` | `false` | Enable native Python runner integration |
+| `taskRunners.extraEnv` | `[]` | Additional environment variables for external task runner containers in main and worker pods |
 | `persistence.enabled` | `true` | Enable persistent storage |
 | `persistence.size` | `5Gi` | PVC size |
 | `resources.requests.memory` | `512Mi` | Default memory request for the main pod |
@@ -233,6 +234,14 @@ to the main pod and each queue worker. This avoids the missing-Python warning
 produced by internal runner mode in the upstream `n8nio/n8n` image and gives
 each queue worker its own runner, as required by n8n external task runner
 architecture.
+
+Use `taskRunners.extraEnv` for runner-container settings such as
+`GENERIC_TIMEZONE`, `NODE_OPTIONS`, or `N8N_RUNNERS_MAX_OLD_SPACE_SIZE`. In
+external mode, Code node module allowlists such as
+`NODE_FUNCTION_ALLOW_BUILTIN` and `NODE_FUNCTION_ALLOW_EXTERNAL` must be set as
+`env-overrides` in `/etc/n8n-task-runners.json` inside the runner image; setting
+them only through `taskRunners.extraEnv` does not configure launched runners.
+See the [upstream task runner configuration](https://docs.n8n.io/hosting/configuration/task-runners/).
 
 Anonymous diagnostics are disabled by default with
 `N8N_DIAGNOSTICS_ENABLED=false`, which keeps self-hosted clusters private and

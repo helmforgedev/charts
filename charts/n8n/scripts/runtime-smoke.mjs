@@ -27,6 +27,15 @@ assert.equal(kubectl(['exec', pod.metadata.name, '-c', 'n8n', '--', 'n8n', '--ve
 const main = pod.spec.containers.find(c => c.name === 'n8n');
 const python = main.env.some(e => e.name === 'N8N_PYTHON_ENABLED' && e.value === 'true');
 const queue = main.env.some(e => e.name === 'EXECUTIONS_MODE' && e.value === 'queue');
+if (queue) {
+  const runnerPods = pods.filter(candidate => candidate.spec.containers.some(container => container.name === 'task-runners'));
+  assert.ok(runnerPods.length >= 2, 'Queue profile requires task runners in main and worker pods');
+  for (const runnerPod of runnerPods) {
+    const runner = runnerPod.spec.containers.find(container => container.name === 'task-runners');
+    assert.ok(runner.env.some(env => env.name === 'HELMFORGE_TASK_RUNNER_PROFILE' && env.value === 'queue'),
+      `Queue task runner ${runnerPod.metadata.name} requires configured extraEnv`);
+  }
+}
 const child = spawn('kubectl', [...target, 'port-forward', `pod/${pod.metadata.name}`, ':5678', '--address=127.0.0.1'], {
   windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
 });
