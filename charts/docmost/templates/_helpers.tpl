@@ -197,7 +197,19 @@ redis-password
 {{- end -}}
 
 {{- define "docmost.appSecretSecretName" -}}
+{{- if .Values.docmost.existingSecret -}}
+{{- .Values.docmost.existingSecret -}}
+{{- else -}}
 {{- printf "%s-app" (include "docmost.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "docmost.appSecretKey" -}}
+{{- if .Values.docmost.existingSecret -}}
+{{- .Values.docmost.existingSecretAppSecretKey -}}
+{{- else -}}
+{{- "app-secret" -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "docmost.storageSecretName" -}}
