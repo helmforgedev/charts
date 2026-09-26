@@ -80,7 +80,7 @@ schedules:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/velero/velero` | Velero server image |
-| `image.tag` | `v1.18.1` | Velero server image tag |
+| `image.tag` | `v1.18.3` | Velero server image tag |
 | `plugins.aws.tag` | `v1.14.0` | Default AWS/S3 plugin image tag |
 | `credentials.useSecret` | `true` | Mount credentials when `existingSecret`, `name`, or `secretContents` is set |
 | `credentials.existingSecret` | `""` | Existing credentials secret |
@@ -118,6 +118,12 @@ schedules:
 - this v1 chart is intentionally focused on clear install and configuration flows, not on abstracting every Velero provider combination
 - for S3-compatible storage, use the AWS plugin with explicit `s3Url` and `s3ForcePathStyle` settings when required by the provider
 - if you enable `nodeAgent`, validate hostPath and Pod Security expectations in your cluster before relying on filesystem backups
+
+Velero v1.18.3 fixes backup and restore timeouts, filesystem-backup metadata
+loss, restore security-context handling, data-mover validation and several
+resource-policy edge cases. Review the
+[upstream release](https://github.com/velero-io/velero/releases/tag/v1.18.3)
+before upgrading production recovery infrastructure.
 
 ## Security Scan
 
