@@ -62,6 +62,15 @@ Recommended reading before installation:
 - [Configuration Profiles](docs/configuration-profiles.md)
 - [Production Hardening](docs/production.md)
 
+## Upgrade to MySQL 26.7.0
+
+MySQL 26.7.0 is the first calendar-versioned Innovation release after the 9.7
+LTS line. Both tracks are production-grade, but Innovation releases require a
+faster upgrade cadence. Back up and restore-test all databases, review removed
+or deprecated settings, and validate application/connector compatibility
+before upgrading existing PVCs. The backup client image is kept aligned with
+the server image.
+
 ## Official product references
 
 - MySQL replication: <https://dev.mysql.com/doc/refman/8.4/en/replication.html>
@@ -209,7 +218,7 @@ Operational documents:
 |-----------|-------------|---------|
 | `architecture` | `standalone` or `replication` | `standalone` |
 | `image.repository` | MySQL image repository | `docker.io/library/mysql` |
-| `image.tag` | MySQL image tag | `9.7.2` |
+| `image.tag` | MySQL image tag | `26.7.0` |
 | `auth.database` | App database created at bootstrap | `app` |
 | `auth.username` | App user created at bootstrap | `app` |
 | `auth.existingSecret` | Existing secret for passwords | `""` |
