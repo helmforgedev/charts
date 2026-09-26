@@ -5,7 +5,7 @@ import {randomBytes} from 'node:crypto';
 import {readFileSync, writeFileSync} from 'node:fs';
 import {setTimeout as delay} from 'node:timers/promises';
 
-const [context, namespace, release, version = '2.39.5', action = 'smoke'] = process.argv.slice(2);
+const [context, namespace, release, version = '2.40.7', action = 'smoke'] = process.argv.slice(2);
 assert.ok(['smoke', 'create', 'verify'].includes(action));
 const statePath = process.env.HF_N8N_UPGRADE_STATE;
 assert.ok(action === 'smoke' || statePath, 'Upgrade state path required');
@@ -64,6 +64,18 @@ try {
     assert.ok(response.ok, `${method} ${route}: HTTP ${response.status}`);
     return response.json();
   }
+  async function publishedWebhook(route) {
+    let lastError;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      try { return await request(`/webhook/${route}`); }
+      catch (caught) {
+        if (!caught.message.includes('HTTP 404')) throw caught;
+        lastError = caught;
+        await delay(250);
+      }
+    }
+    throw lastError;
+  }
   await request('/healthz/readiness');
   const ownerPassword = retained?.ownerPassword ?? `Fixture-${randomBytes(18).toString('hex')}!`;
   if (retained) {
@@ -80,7 +92,7 @@ try {
   })).data;
   const routes = retained?.routes ?? [];
   for (const route of routes) {
-    const response = await request(`/webhook/${route}`);
+    const response = await publishedWebhook(route);
     assert.equal((Array.isArray(response) ? response[0] : response).answer, 42, 'Retained published workflow');
   }
   assert.ok(credential.id);
@@ -104,7 +116,7 @@ try {
     const created = (await request('/rest/workflows', 'POST', workflow)).data;
     assert.ok(created.id && created.versionId);
     await request(`/rest/workflows/${created.id}/activate`, 'POST', {versionId: created.versionId});
-    const response = await request(`/webhook/${route}`);
+    const response = await publishedWebhook(route);
     const result = Array.isArray(response) ? response[0] : response;
     assert.equal(result.answer, 42, `${language} runner result`);
     routes.push(route);
