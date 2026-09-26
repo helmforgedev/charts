@@ -4,9 +4,14 @@ import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 
 export function filterDistributionTags(repository, tags) {
-  const standaloneMatterbridge = repository.replace(/^docker\.io\//, '') === 'luligu/matterbridge';
+  const normalizedRepository = repository.replace(/^docker\.io\//, '');
+  const standaloneMatterbridge = normalizedRepository === 'luligu/matterbridge';
+  const valkey = normalizedRepository === 'valkey/valkey';
   // This repository also publishes Home Assistant add-on images under year-based tags.
-  return tags.filter(tag => !standaloneMatterbridge || !/^v?\d{4}\./.test(tag));
+  // Valkey's two-component aliases can point to release candidates before the
+  // corresponding stable patch release exists, so only accept complete tags.
+  return tags.filter(tag => (!standaloneMatterbridge || !/^v?\d{4}\./.test(tag))
+    && (!valkey || /^v?\d+\.\d+\.\d+(?:[-+].*)?$/.test(tag)));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
