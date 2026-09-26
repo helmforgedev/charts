@@ -4,7 +4,7 @@ Deploy [NetBird](https://github.com/netbirdio/netbird), a self-hosted WireGuard 
 
 This chart packages the current upstream combined architecture:
 
-- `netbirdio/netbird-server:0.78.1` for the management API, gRPC endpoint, signal, relay, metrics, health, and UDP STUN service
+- `netbirdio/netbird-server:0.79.0` for the management API, gRPC endpoint, signal, relay, metrics, health, and UDP STUN service
 - `netbirdio/dashboard:v2.90.10` for the web UI
 - a generated or externally supplied `config.yaml`
 - HelmForge PostgreSQL subchart as the default production store
@@ -118,13 +118,28 @@ repository security gate. Remaining findings are tracked as hardening trade-offs
 for optional NetworkPolicy enablement, upstream dashboard startup model, and
 operator-owned resource limit tuning across the database-backed topology.
 
-## Upgrade to 0.78.1
+## Upgrade to 0.79.0
 
-NetBird `0.78.1` includes the 0.78.0 Go/QUIC updates, reverse-proxy Rosenpass
+NetBird `0.79.0` hardens OIDC issuer validation, forwarded-IP trust and reverse
+proxy access control, and fixes SQLite network-map restoration and relay races.
+The prior `0.78.1` release included Go/QUIC updates and reverse-proxy Rosenpass
 support in permissive mode, lazy proxy connections and the SQLite network-map
 fix for peer-based routers. Review both the
 [0.78.0 release](https://github.com/netbirdio/netbird/releases/tag/v0.78.0) and
-[0.78.1 release](https://github.com/netbirdio/netbird/releases/tag/v0.78.1).
+[0.79.0 release](https://github.com/netbirdio/netbird/releases/tag/v0.79.0).
+
+An empty `reverseProxy.trustedPeers` trusts forwarded client-IP headers from
+all IPv4 and IPv6 sources. Restrict it to the proxy source CIDR as seen by
+NetBird Management, for example through `server.config.extraYaml`:
+
+```yaml
+server:
+  config:
+    extraYaml: |
+      reverseProxy:
+        trustedPeers:
+          - 10.42.0.0/16
+```
 
 Remote debug jobs now require an explicit opt-in on the peer
 (`--allow-remote-jobs` or managed `allowRemoteJobs`). The chart does not enable
@@ -144,7 +159,7 @@ helm upgrade netbird helmforge/netbird \
 ```
 
 Using `--reuse-values` alone retains the previous default image tag. Remove any
-explicit `server.image.tag` override if you want the chart default `0.78.1`.
+explicit `server.image.tag` override if you want the chart default `0.79.0`.
 
 The combined server's port-9000 `/health` endpoint checks the advertised public
 relay address and standalone listener list. It can return 503 in a private
