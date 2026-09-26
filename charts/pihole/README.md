@@ -296,9 +296,10 @@ metrics:
 
 Pi-hole `2026.09.0` includes FTL 6.7.1 fixes for remote code execution,
 arbitrary file reads, a stack overflow and configuration-validation bypasses.
-The API can no longer change `misc.dnsmasq_lines` or
-`webserver.advancedOpts`. No chart-specific migration is required, but back up
-`/etc/pihole` and `/etc/dnsmasq.d` before rollout.
+The API and web interface can no longer change `misc.dnsmasq_lines` or
+`webserver.advancedOpts`. Configure them in `pihole.toml`, through environment
+variables, or with `pihole-FTL --config`. No chart-specific migration is
+required, but back up `/etc/pihole` and `/etc/dnsmasq.d` before rollout.
 
 ## Connection
 
