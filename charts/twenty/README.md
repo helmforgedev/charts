@@ -5,7 +5,7 @@ encryption identity.
 
 ## Operating contract
 
-- Official `twentycrm/twenty:v2.40.0` image pinned by immutable manifest digest.
+- Official `twentycrm/twenty:v2.41.0` image pinned by immutable manifest digest.
 - One Recreate Pod serializes migrations and shares local files between server and worker. This chart does not claim
   application HA or horizontal scaling.
 - Native first-administrator and workspace activation before public startup, followed by explicit closure of public
@@ -71,7 +71,9 @@ See [dependencies](docs/dependencies.md), [storage](docs/storage.md), [SMTP](doc
 
 ## Upgrading to 2.40.0
 
-Review the [official release](https://github.com/twentyhq/twenty/releases/tag/twenty%2Fv2.40.0)
+Twenty 2.41 changes workspace-shared connection administration, validates
+workflow versions more strictly and includes permission, OAuth and dependency
+hardening. Review the [official release](https://github.com/twentyhq/twenty/releases/tag/twenty%2Fv2.41.0)
 and take a coordinated database, files and Redis backup before upgrading. Preserve
 `ENCRYPTION_KEY`, `SERVER_ID` and the ownership marker. Startup applies native
 migrations; application installation state now comes from deterministic queue
