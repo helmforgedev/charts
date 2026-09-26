@@ -43,7 +43,7 @@ app.kubernetes.io/part-of: helmforge
 {{- if and .Values.gpu.enabled (contains "cpu-" .Values.image.tag) -}}{{ fail "gpu.enabled requires a compatible pinned CUDA image tag" }}{{- end -}}
 {{- if and (not .Values.gpu.enabled) (not (hasPrefix "cpu-" .Values.image.tag)) -}}{{ fail "CPU deployment requires the official cpu image variant" }}{{- end -}}
 {{- if and (not .Values.gpu.enabled) (ne (int .Values.inference.maxBatchRequests) 8) -}}{{ fail "the pinned CPU backend forces exactly eight batch requests; inference.maxBatchRequests must be 8" }}{{- end -}}
-{{- if ne (get .Values.nodeSelector "kubernetes.io/arch" | default "amd64") "amd64" -}}{{ fail "the pinned TEI 1.9.3 images support linux/amd64 only" }}{{- end -}}
+{{- if ne (get .Values.nodeSelector "kubernetes.io/arch" | default "amd64") "amd64" -}}{{ fail "the pinned TEI 1.9.4 images support linux/amd64 only" }}{{- end -}}
 {{- if le (int .Values.terminationGracePeriodSeconds) (int .Values.proxy.readTimeoutSeconds) -}}{{ fail "terminationGracePeriodSeconds must exceed proxy.readTimeoutSeconds" }}{{- end -}}
 {{- range $labels := list .Values.commonLabels .Values.podLabels -}}{{- range $key := list "app.kubernetes.io/name" "app.kubernetes.io/instance" -}}{{- if hasKey $labels $key -}}{{ fail (printf "selector label %s cannot be overridden" $key) }}{{- end -}}{{- end -}}{{- end -}}
 {{- $reserved := list "API_KEY" "HF_TOKEN" "LOG_LEVEL" "HOSTNAME" "PORT" "MODEL_ID" "REVISION" "SERVED_MODEL_NAME" "POOLING" "DTYPE" "DEFAULT_PROMPT" "DEFAULT_PROMPT_NAME" "HUGGINGFACE_HUB_CACHE" "HF_HOME" "MAX_CONCURRENT_REQUESTS" "MAX_BATCH_TOKENS" "MAX_BATCH_REQUESTS" "MAX_CLIENT_BATCH_SIZE" "PAYLOAD_LIMIT" "AUTO_TRUNCATE" "TOKENIZATION_WORKERS" "RAYON_NUM_THREADS" "OMP_NUM_THREADS" "MKL_NUM_THREADS" -}}

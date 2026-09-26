@@ -8,7 +8,7 @@ with read-only root filesystems and writable temporary directories. The Pod has 
 
 ## Native behavior and security boundary
 
-TEI 1.9.3 serves unauthenticated metrics on its HTTP API listener. A declared Prometheus port does not create
+TEI 1.9.4 serves unauthenticated metrics on its HTTP API listener. A declared Prometheus port does not create
 a private HTTP exporter in this image. The proxy is therefore a required boundary, not an optional exporter.
 Public paths deny metrics and API documentation, and NetworkPolicy separately authorizes metrics clients.
 The native process retains its official entrypoint, which is essential to CUDA architecture selection.

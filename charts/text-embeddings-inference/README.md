@@ -5,7 +5,7 @@ as an authenticated HTTP embedding API with immutable model provenance and priva
 
 ## Features
 
-- Official TEI 1.9.3 CPU image pinned by digest; optional pinned CUDA example.
+- Official TEI 1.9.4 CPU image pinned by digest; optional pinned CUDA example.
 - BGE-small English model pinned to an immutable revision, with 384-dimensional embeddings.
 - Native `/embed` and OpenAI-compatible `/v1/embeddings` endpoints.
 - Generated API Secret retained across Helm upgrades, existing Secrets and External Secrets Operator.
