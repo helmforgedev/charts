@@ -47,7 +47,7 @@ A disabled placeholder `admin` account is shipped because Authelia requires a no
 Enable it only after setting a strong password hash. Generate one with:
 
 ```bash
-docker run authelia/authelia:4.39.26 authelia crypto hash generate argon2
+docker run authelia/authelia:4.39.28 authelia crypto hash generate argon2
 ```
 
 ```yaml
@@ -185,16 +185,16 @@ auth_request /authelia;
 auth_request_set $user $upstream_http_remote_user;
 ```
 
-## Upgrading to 4.39.26
+## Upgrading to 4.39.28
 
-The 4.39.23-4.39.26 patches fix OIDC client authentication, resource grants,
+The 4.39.23-4.39.28 patches fix OIDC client authentication, resource grants,
 client-credentials subjects, JARM responses, storage queries and SMTP IPv6
 addresses. Remove the obsolete `website` configuration attribute from custom
 configuration. Review all intervening releases:
 [4.39.23](https://github.com/authelia/authelia/releases/tag/v4.39.23),
 [4.39.24](https://github.com/authelia/authelia/releases/tag/v4.39.24),
 [4.39.25](https://github.com/authelia/authelia/releases/tag/v4.39.25), and
-[4.39.26](https://github.com/authelia/authelia/releases/tag/v4.39.26).
+[4.39.28](https://github.com/authelia/authelia/releases/tag/v4.39.28).
 
 The Redis dependency is updated to 3.0.0. Its image, standalone storage and
 authentication defaults are unchanged; its probes now respect TLS and the
