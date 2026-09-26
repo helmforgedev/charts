@@ -3,7 +3,7 @@
 Deploy [Memos](https://github.com/usememos/memos), a lightweight self-hosted note-taking service, with
 production-oriented Kubernetes defaults.
 
-This chart packages the official `docker.io/neosmemo/memos:0.30.0` image and exposes the runtime settings that matter
+This chart packages the official `docker.io/neosmemo/memos:0.31.0` image and exposes the runtime settings that matter
 for Kubernetes: persistent data, SQLite or external database configuration, public instance URL, ingress/Gateway API
 exposure, network policy, pod disruption budgets, file-backed deployment configuration, and non-root security context.
 
@@ -239,6 +239,11 @@ Back up the data volume and external database before upgrading. Review these ups
 
 The release also adds the Web Clipper, a rebuilt Markdown editor, multi-column feeds, signed webhooks, file-backed
 settings, and a rebuilt MCP toolset.
+
+Memos 0.31 adds collaborative Spaces, Calendar and Map views, portable ZIP
+exports, multiple attachment backends and request hardening. Before upgrading,
+review the administrator access expansion, Shortcut-to-View API migration and
+RSS removal in the [official release notes](https://github.com/usememos/memos/releases/tag/v0.31.0).
 
 ## Backups
 
