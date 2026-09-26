@@ -4,9 +4,16 @@ import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 
 export function filterDistributionTags(repository, tags) {
-  const standaloneMatterbridge = repository.replace(/^docker\.io\//, '') === 'luligu/matterbridge';
+  const normalizedRepository = repository.replace(/^docker\.io\//, '');
+  const standaloneMatterbridge = normalizedRepository === 'luligu/matterbridge';
+  const brokenTags = new Map([
+    ['flowiseai/flowise', new Set(['3.1.4'])],
+  ]);
   // This repository also publishes Home Assistant add-on images under year-based tags.
-  return tags.filter(tag => !standaloneMatterbridge || !/^v?\d{4}\./.test(tag));
+  // Flowise 3.1.4 is excluded because its official image exits during startup
+  // with missing dependencies and a fatal SQLite session-store error.
+  return tags.filter(tag => (!standaloneMatterbridge || !/^v?\d{4}\./.test(tag))
+    && !brokenTags.get(normalizedRepository)?.has(tag));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
