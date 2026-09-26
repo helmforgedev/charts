@@ -22,7 +22,7 @@ for(let i=0;i<30;i++) {
   if(logs.includes('running metrics server:')) break;
   await delay(1000);
 }
-assert.match(logs,/management server version 0\.78\.1\b/);
+assert.match(logs,/management server version 0\.79\.0\b/);
 assert.match(logs,/running metrics server:/);
 const child = spawn('kubectl', [...target,'port-forward',`pod/${pod.metadata.name}`,':80',':9090','--address=127.0.0.1'], {
   windowsHide:true, stdio:['ignore','pipe','pipe'],
@@ -64,7 +64,7 @@ try {
     socket.addEventListener('open',()=>{clearTimeout(timer);socket.close();resolve();},{once:true});
     socket.addEventListener('error',()=>{clearTimeout(timer);reject(new Error('Relay WebSocket upgrade failed'));},{once:true});
   });
-  console.log('NetBird 0.78.1: unauthenticated API rejection, embedded OIDC discovery, relay WebSocket upgrade and Prometheus exposition verified.');
+  console.log('NetBird 0.79.0: unauthenticated API rejection, embedded OIDC discovery, relay WebSocket upgrade and Prometheus exposition verified.');
 } finally {
   if(child.exitCode===null) {
     if(process.platform==='win32') execFileSync('taskkill',['/PID',String(child.pid),'/T','/F'],{stdio:'ignore'});
