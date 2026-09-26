@@ -69,7 +69,7 @@ AI providers and hosted function execution are outside the tested integration se
 See [dependencies](docs/dependencies.md), [storage](docs/storage.md), [SMTP](docs/smtp.md) and
 [observability](docs/observability.md).
 
-## Upgrading to 2.40.0
+## Upgrading to 2.41.0
 
 Twenty 2.41 changes workspace-shared connection administration, validates
 workflow versions more strictly and includes permission, OAuth and dependency
