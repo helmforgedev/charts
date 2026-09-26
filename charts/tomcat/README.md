@@ -4,7 +4,7 @@ Apache Tomcat chart for Kubernetes using the official `docker.io/library/tomcat`
 
 ## Highlights
 
-- Official Tomcat image, pinned by default to `11.0.25-jdk17-temurin-noble`.
+- Official Tomcat image, pinned by default to `11.0.26-jdk17-temurin-noble`.
 - Stable default install with an optional ROOT health webapp for deterministic probes and Helm tests.
 - Preserves WARs or exploded applications baked into immutable Tomcat images before mounting the writable webapps volume.
 - Non-root runtime with writable `webapps`, `logs`, `temp`, and `work` volumes.
@@ -75,7 +75,8 @@ For authenticated or TLS-secured JMX, mount the required files with `extraVolume
 When `jmx.rmiPort` differs from `jmx.port`, the chart exposes the RMI endpoint
 through `service.ports.jmxRmi` so the registry and RMI Service ports stay unique.
 
-Tomcat 11.0.25 requires an authority on every HTTP/2 request, resets EL parser
+Tomcat 11.0.26 improves RewriteValve, TLS/OCSP/ALPN, WebSocket timeout, async
+dispatch and DIGEST authentication behavior. Tomcat 11.0.25 required an authority on every HTTP/2 request, reset EL parser
 state before reuse, and limits buffering in the bundled WebSocket chat example.
 HTTP/2 stream prioritization and the OpenSSL FFM symbol-lookup fix were delivered
 in Tomcat 11.0.0-M18. Custom clustering that uses `EncryptInterceptor` must
@@ -96,7 +97,7 @@ account for its new `AES/GCM/NoPadding` default before a rolling upgrade.
 | --- | --- | --- |
 | `replicaCount` | `1` | Number of Tomcat pods when HPA is disabled. |
 | `image.repository` | `docker.io/library/tomcat` | Tomcat image repository. |
-| `image.tag` | `11.0.25-jdk17-temurin-noble` | Tomcat image tag. |
+| `image.tag` | `11.0.26-jdk17-temurin-noble` | Tomcat image tag. |
 | `service.type` | `ClusterIP` | Kubernetes Service type. |
 | `service.ipFamilyPolicy` | `null` | Optional Service dual-stack policy. |
 | `service.ipFamilies` | `[]` | Optional Service IP family ordering. |
