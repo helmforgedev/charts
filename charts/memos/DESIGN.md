@@ -1,6 +1,6 @@
 # Memos Chart Design
 
-This chart deploys Memos as a stateful web application using the official `docker.io/neosmemo/memos:0.30.0` image.
+This chart deploys Memos as a stateful web application using the official `docker.io/neosmemo/memos:0.31.0` image.
 
 ## Product Model
 
