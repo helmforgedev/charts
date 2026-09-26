@@ -11,11 +11,11 @@ Matterbridge is an Apache-2.0 Matter plugin manager. It exposes devices from
 platforms such as Zigbee2MQTT, MQTT, Home Assistant, Homebridge and Shelly to
 Matter controllers including Apple Home, Google Home and Amazon Alexa.
 
-The stable upstream release selected for this chart is `3.10.9`, published on
+The stable upstream release selected for this chart is `3.10.10`, published on
 2026-09-04. The official pinned image is
-`docker.io/luligu/matterbridge:3.10.9`. HelmForge manifest verification
+`docker.io/luligu/matterbridge:3.10.10`. HelmForge manifest verification
 confirmed `linux/amd64` and `linux/arm64` support. The selected standalone image
-reports OCI application version `3.10.9`.
+reports OCI application version `3.10.10`.
 
 Year-based tags such as `2026.9.1` in the same repository are Home Assistant
 add-on images with an s6 `/init` entrypoint. They are a different distribution
@@ -196,7 +196,7 @@ reflection as supported features.
 ## Primary Sources
 
 - [Matterbridge repository](https://github.com/Luligu/matterbridge)
-- [Matterbridge 3.10.9 release](https://github.com/Luligu/matterbridge/releases/tag/3.10.9)
+- [Matterbridge 3.10.10 release](https://github.com/Luligu/matterbridge/releases/tag/3.10.10)
 - [Official Docker documentation](https://github.com/Luligu/matterbridge/blob/main/README-DOCKER.md)
 - [Official Docker Compose file](https://github.com/Luligu/matterbridge/blob/main/docker/docker-compose.yml)
 - [Official health check source](https://github.com/Luligu/matterbridge/blob/main/packages/core/src/mb_health.ts)
