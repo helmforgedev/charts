@@ -42,7 +42,7 @@ async function check(base,negative=false){
  for(const path of ['/metrics','//metrics','/%6Detrics','/docs','/api-doc/openapi.json'])assert.equal((await request(base,path)).status,404,'Private/documentation path exposed: '+path);
  if(values.auth.enabled){for(const key of ['',apiKey+'-wrong'])assert.equal((await post(base,'/embed',{inputs:input[0]},key)).status,401);}
  const info=await request(base,'/info',{headers:auth(apiKey)});assert.equal(info.status,200);const metadata=await info.json();
- assert.equal(metadata.version,'1.9.3');assert.equal(metadata.model_id,values.model.source==='hub'?values.model.id:'/models');
+ assert.equal(metadata.version,'1.9.4');assert.equal(metadata.model_id,values.model.source==='hub'?values.model.id:'/models');
  if(values.model.source==='hub')assert.equal(metadata.model_sha,values.model.revision);
  assert.equal(metadata.max_concurrent_requests,values.inference.maxConcurrentRequests);assert.equal(metadata.max_client_batch_size,values.inference.maxClientBatchSize);
  assert.equal(metadata.max_batch_tokens,values.inference.maxBatchTokens);assert.equal(metadata.max_batch_requests,values.inference.maxBatchRequests);

@@ -57,8 +57,11 @@ jobs:
             [ -z "$TAG" ] && continue
             [ "$TAG" = "null" ] && continue
 
+            # Compare only the tag name when charts pin an OCI digest.
+            TAG_NAME="${TAG%%@*}"
+
             # Skip charts with non-semver tags (can't be monitored)
-            if ! echo "$TAG" | grep -qE '(^|[^0-9])v?[0-9]+\.[0-9]+'; then
+            if ! echo "$TAG_NAME" | grep -qE '(^|[^0-9])v?[0-9]+\.[0-9]+'; then
               echo "::group::$CHART — $REPO:$TAG"
               echo "ℹ️ $CHART uses non-semver tag ($TAG) — skipping"
               echo "::endgroup::"
@@ -66,9 +69,12 @@ jobs:
               continue
             fi
 
-            # Detect tag variant suffix (e.g. "-apache", "-management")
-            TAG_VARIANT=$(echo "$TAG" \
-              | sed -n 's/^v\?[0-9]\+\.[0-9]\+\(\.[0-9]\+\)\?\(-.\+\)/\2/p')
+            # Detect tag variant prefix/suffix (for example "cpu-" or "-management").
+            TAG_PREFIX=$(echo "$TAG_NAME" \
+              | sed -n 's/^\([^v0-9][^0-9]*\)v\?[0-9]\+\.[0-9]\+\(\.[0-9]\+\)\?.*/\1/p')
+            TAG_VARIANT=$(echo "$TAG_NAME" \
+              | sed -n "s/^${TAG_PREFIX}v\\?[0-9]\\+\\.[0-9]\\+\\(\\.[0-9]\\+\\)\\?\\(-.\\+\\)/\\2/p")
+            TAG_VERSION_PREFIX=$(echo "${TAG_NAME#${TAG_PREFIX}}" | sed -n 's/^\(v\).*/\1/p')
 
             echo "::group::$CHART — $REPO:$TAG"
 
@@ -168,19 +174,20 @@ jobs:
             LATEST=$(echo "$ALL_TAGS" | grep -v '^$' \
               | node scripts/filter-upstream-tags.mjs "$REPO" \
               | { if [ -n "$TAG_VARIANT" ]; then
-                    grep -E "^v?[0-9]+\.[0-9]+(\.[0-9]+)?${TAG_VARIANT}$"
+                    grep -E "^${TAG_PREFIX}v?[0-9]+\.[0-9]+(\.[0-9]+)?${TAG_VARIANT}$"
                   else
-                    grep -E '^v?[0-9]+\.[0-9]+(\.[0-9]+)?$'
+                    grep -E "^${TAG_PREFIX}v?[0-9]+\.[0-9]+(\.[0-9]+)?$"
                   fi; } \
               | grep -vE '(-rc|-alpha|-beta|-dev|-snapshot|-pre)' \
-              | sed "s/^v//; s/${TAG_VARIANT:-\$}$//" \
+              | sed "s/^${TAG_PREFIX}//; s/^v//; s/${TAG_VARIANT:-\$}$//" \
               | sort -t. -k1,1n -k2,2n -k3,3n \
               | tail -1)
 
             # ---------------------------------------------------------------
             # Compare versions (strip variant from current too)
             # ---------------------------------------------------------------
-            CURRENT_CLEAN=$(echo "$TAG" | sed "s/^v//; s/${TAG_VARIANT:-\$}$//")
+            CURRENT_CLEAN=$(echo "$TAG_NAME" \
+              | sed "s/^${TAG_PREFIX}//; s/^v//; s/${TAG_VARIANT:-\$}$//")
 
             if [ -z "$LATEST" ]; then
               echo "ℹ️ No stable semver tags found for $REPO"
@@ -207,10 +214,7 @@ jobs:
             fi
 
             # Re-append variant suffix for display
-            LATEST_DISPLAY="$LATEST"
-            if [ -n "$TAG_VARIANT" ]; then
-              LATEST_DISPLAY="${LATEST}${TAG_VARIANT}"
-            fi
+            LATEST_DISPLAY="${TAG_PREFIX}${TAG_VERSION_PREFIX}${LATEST}${TAG_VARIANT}"
 
             echo "🔔 Update available: $CHART $TAG → $LATEST_DISPLAY"
 
