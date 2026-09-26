@@ -1,7 +1,7 @@
 # Kubernetes MCP Server Helm Chart
 
 Kubernetes MCP Server exposes Kubernetes cluster inspection and automation through the Model Context Protocol.
-This chart deploys the official `ghcr.io/containers/kubernetes-mcp-server:v0.0.66` image in HTTP mode with in-cluster authentication,
+This chart deploys the official `ghcr.io/containers/kubernetes-mcp-server:v0.0.67` image in HTTP mode with in-cluster authentication,
 read-only safety flags, and least-privilege RBAC by default.
 
 ## Install
@@ -42,12 +42,13 @@ Set `networkPolicy.dnsEgressPeers` when your cluster DNS pods do not use the def
 
 ## Upgrade Notes
 
-Version `0.0.66` adds MCP specification `2026-07-28` support, optional TLS
-minimum-version and cipher-suite environment variables, an environment-based
-config file path, and additional tool capabilities. Existing clients should be
-verified against the new MCP specification. Optional upstream environment
-variables can be supplied through `app.extraEnv`; the default HTTP port and
-read-only chart profile are unchanged.
+Version `0.0.67` removes the legacy SSE MCP transport, migrates token exchange
+from `sts_*` settings to an explicit configuration block, and adds RBAC metadata,
+metrics-port support and Kubernetes fixes. The chart already uses HTTP mode and
+does not set the removed token-exchange options. Existing clients using SSE must
+migrate to Streamable HTTP. Optional upstream environment variables can be
+supplied through `app.extraEnv`; the default HTTP port and read-only chart
+profile are unchanged.
 
 ## Security Scan: `kubernetes-mcp-server`
 
