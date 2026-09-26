@@ -193,7 +193,9 @@ addresses. Remove the obsolete `website` configuration attribute from custom
 configuration. Review all intervening releases:
 [4.39.23](https://github.com/authelia/authelia/releases/tag/v4.39.23),
 [4.39.24](https://github.com/authelia/authelia/releases/tag/v4.39.24),
-[4.39.25](https://github.com/authelia/authelia/releases/tag/v4.39.25), and
+[4.39.25](https://github.com/authelia/authelia/releases/tag/v4.39.25),
+[4.39.26](https://github.com/authelia/authelia/releases/tag/v4.39.26),
+[4.39.27](https://github.com/authelia/authelia/releases/tag/v4.39.27), and
 [4.39.28](https://github.com/authelia/authelia/releases/tag/v4.39.28).
 
 The Redis dependency is updated to 3.0.0. Its image, standalone storage and
