@@ -71,7 +71,7 @@ All default values are listed below; upstream pass-through configuration remains
 | `fullnameOverride` | `""` | Override all resource name prefixes for a stable existing installation. |
 | `image` | Object | Official Hermes runtime, pinned to a verified multi-platform release digest. |
 | `image.repository` | `"docker.io/nousresearch/hermes-agent"` | Official container image repository. |
-| `image.tag` | `"v2026.9.11@sha256:9469b3e78b9545b6d576eb8887a95352e9a0ea83730eaf31431cf862ca1010e1"` | Pinned release tag and immutable digest. |
+| `image.tag` | `"v2026.9.24@sha256:fca358f12efd65bfaaca05884166f15c0e2788375ca30d77061ac1ebc96452b7"` | Pinned release tag and immutable digest. |
 | `image.pullPolicy` | `"IfNotPresent"` | Kubernetes image pull policy. |
 | `imagePullSecrets` | `[]` | image pull secrets setting for the gateway. |
 | `auth` | Object | Bearer credential protecting API access and configured agent tools. |
