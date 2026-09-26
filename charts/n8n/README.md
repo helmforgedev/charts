@@ -143,7 +143,7 @@ externalSecrets:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/n8nio/n8n` | n8n container image repository |
-| `image.tag` | `2.39.5` | n8n container image tag |
+| `image.tag` | `2.40.7` | n8n container image tag |
 | `n8n.encryptionKey` | `""` | Encryption key for credentials (auto-generated) |
 | `n8n.webhookUrl` | `""` | Webhook URL (auto-detected from ingress) |
 | `n8n.logLevel` | `info` | Log level (info, warn, error, debug) |
@@ -185,14 +185,15 @@ externalSecrets:
 
 ## Upgrade Notes
 
-n8n `2.39.5` includes the 2.39 encryption bootstrap and wrapped-key fixes,
+n8n `2.40.7` includes the 2.40 workflow-publication, execution-timeout,
+secret-redaction, trigger reconnection and task-runner fixes, plus the earlier 2.39 encryption bootstrap and wrapped-key fixes,
 runner shutdown ordering, queue cleanup, source-control CA handling and
 credential-revocation fixes. Back
 up the database and data volume, preserve the encryption key, and validate
 workflows and credentials in staging before upgrading. Keep the app and external
 runner tags aligned; an empty `taskRunners.image.tag` inherits `image.tag`.
 
-Use `helm upgrade --reset-then-reuse-values` with `image.tag=2.39.5` and update
+Use `helm upgrade --reset-then-reuse-values` with `image.tag=2.40.7` and update
 any separately pinned runner tag. Existing generated encryption keys and runner
 tokens are retained through Helm lookup; use existing Secrets for offline
 rendering or GitOps. Automatic database migrations require a recoverable backup.
@@ -205,7 +206,7 @@ version opens the same database. Plan for brief downtime. The Python toggle
 The Redis dependency moves to 3.0.0 with unchanged image, storage and
 authentication defaults and corrected TLS/custom-port probes. Review each
 intervening release from [2.39.0](https://github.com/n8n-io/n8n/releases/tag/n8n%402.39.0)
-through [2.39.5](https://github.com/n8n-io/n8n/releases/tag/n8n%402.39.5).
+through [2.40.7](https://github.com/n8n-io/n8n/releases/tag/n8n%402.40.7).
 For source-control HTTPS remotes with a private CA, `GIT_SSL_CAINFO` is now
 honored; mount the trust file and pass its path through the existing environment
 extension when needed.
