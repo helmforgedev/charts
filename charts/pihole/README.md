@@ -135,7 +135,7 @@ metrics:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `docker.io/pihole/pihole` | Pi-hole container image repository |
-| `image.tag` | `2026.07.2` | Pi-hole container image tag (official upstream release 2026.07.2) |
+| `image.tag` | `2026.09.0` | Pi-hole container image tag (official upstream release 2026.09.0) |
 | `image.pullPolicy` | `IfNotPresent` | Pi-hole image pull policy |
 | `pihole.timezone` | `UTC` | Timezone for logs and scheduled tasks |
 | `pihole.upstreamDns` | `8.8.8.8;8.8.4.4` | Upstream DNS servers (semicolon-delimited) |
@@ -294,11 +294,12 @@ metrics:
 
 ## Upgrade Notes
 
-Pi-hole `2026.07.2` includes the container-side fix associated with upstream
-security advisory `GHSA-h8w9-qx2v-wrww` and moves the logrotate configuration
-to `/etc/logrotate.d/pihole`. No chart-specific migration is required, but
-production upgrades should still back up `/etc/pihole` and
-`/etc/dnsmasq.d` before rollout.
+Pi-hole `2026.09.0` includes FTL 6.7.1 fixes for remote code execution,
+arbitrary file reads, a stack overflow and configuration-validation bypasses.
+The API and web interface can no longer change `misc.dnsmasq_lines` or
+`webserver.advancedOpts`. Configure them in `pihole.toml`, through environment
+variables, or with `pihole-FTL --config`. No chart-specific migration is
+required, but back up `/etc/pihole` and `/etc/dnsmasq.d` before rollout.
 
 ## Connection
 
