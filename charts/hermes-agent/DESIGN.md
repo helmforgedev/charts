@@ -12,7 +12,7 @@ tools expands that trust boundary.
 
 ## Official image and immutable execution
 
-The chart pins the official Nous Research multi-platform image by release and manifest digest. The tested release is v2026.9.11; its internal Python version
+The chart pins the official Nous Research multi-platform image by release and manifest digest. The tested release is v2026.9.24; its internal Python version
 string is 0.21.2. Linux amd64 was exercised in k3d; an arm64 manifest is present but was not runtime-tested here.
 
 The image's standard s6 startup performs root-only initialization. Kubernetes instead starts the official gateway/dashboard foreground commands as UID/GID 10000
