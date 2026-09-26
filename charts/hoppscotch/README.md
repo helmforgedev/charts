@@ -77,7 +77,7 @@ backend process inside the AIO image.
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `mode` | Chart mode: `dev` or `production` | `dev` |
-| `image.tag` | Hoppscotch image tag | `2026.8.0` |
+| `image.tag` | Hoppscotch image tag | `2026.8.2` |
 | `namespaceOverride` | Namespace for chart-managed resources. Use with an external database; bundled PostgreSQL remains in the Helm release namespace. | `""` |
 | `replicaCount` | Number of replicas | `1` |
 | `ingress.enabled` | Enable Ingress | `false` |
@@ -105,7 +105,7 @@ backend process inside the AIO image.
 
 ## Upgrade Notes
 
-Hoppscotch `2026.8.0` unifies REST and GraphQL workspaces, adds data collection
+Hoppscotch `2026.8.2` includes the `2026.8.0` Community Edition changes that unify REST and GraphQL workspaces, add data collection
 runs, and includes security and maintenance fixes. Back up the
 PostgreSQL database and keep `DATA_ENCRYPTION_KEY` stable before upgrading.
 The bundled PostgreSQL path now derives `DATABASE_URL` from the PostgreSQL
@@ -116,7 +116,8 @@ The chart also persists `WEBAPP_SERVER_SIGNING_KEY` in the chart Secret so
 signed web bundles remain valid across pod restarts. When using External
 Secrets, include `webapp-server-signing-key` in `externalSecrets.data`, or set
 `signingKey.existingSecret` and `signingKey.existingSecretKey` to reference a
-separately managed Secret.
+separately managed Secret. Releases `2026.8.1` and `2026.8.2` contain no
+functional Community Edition changes.
 
 ## Examples
 
