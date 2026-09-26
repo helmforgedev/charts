@@ -3,7 +3,8 @@
 A single chart that handles **Deployments**, **StatefulSets**, **DaemonSets**, **Jobs**, and **CronJobs** with a unified values
 interface. Designed for teams that deploy many services and want one chart to rule them all.
 
-The default `nginx:1.31.5` image includes fixes for buffered HTTP/2 proxy responses,
+The default `nginx:1.31.6` image fixes CVE-2026-90439, a buffer overflow in the
+HTTP/3 module. Version 1.31.5 also included fixes for buffered HTTP/2 proxy responses,
 worker shutdown, and FastCGI/uWSGI parameter handling. New control API, predicate
 location, JSON module, and early request-body features require explicit configuration.
 Existing Generic chart configuration remains compatible with this image update.
@@ -374,7 +375,7 @@ See the [examples/](examples/) directory for complete, ready-to-use values files
 | **Image** | | |
 | `global.imageRegistry` | Optional registry prefix for unqualified repositories | `""` |
 | `image.repository` | Container image repository | `docker.io/library/nginx` |
-| `image.tag` | Image tag | `1.31.5` |
+| `image.tag` | Image tag | `1.31.6` |
 | `image.digest` | Image digest, takes precedence over tag | `""` |
 | `image.pullPolicy` | Pull policy | `IfNotPresent` |
 | `imagePullSecrets` | Registry pull secrets | `[]` |
