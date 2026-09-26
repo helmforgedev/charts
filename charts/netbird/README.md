@@ -128,6 +128,19 @@ fix for peer-based routers. Review both the
 [0.78.0 release](https://github.com/netbirdio/netbird/releases/tag/v0.78.0) and
 [0.79.0 release](https://github.com/netbirdio/netbird/releases/tag/v0.79.0).
 
+An empty `reverseProxy.trustedPeers` trusts forwarded client-IP headers from
+all IPv4 and IPv6 sources. Restrict it to the proxy source CIDR as seen by
+NetBird Management, for example through `server.config.extraYaml`:
+
+```yaml
+server:
+  config:
+    extraYaml: |
+      reverseProxy:
+        trustedPeers:
+          - 10.42.0.0/16
+```
+
 Remote debug jobs now require an explicit opt-in on the peer
 (`--allow-remote-jobs` or managed `allowRemoteJobs`). The chart does not enable
 remote jobs on clients. Rosenpass settings belong to the separately deployed
