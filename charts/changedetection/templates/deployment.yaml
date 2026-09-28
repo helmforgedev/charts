@@ -108,7 +108,7 @@ spec:
             {{- end }}
             {{- if .Values.browser.enabled }}
             - name: PLAYWRIGHT_DRIVER_URL
-              value: "ws://127.0.0.1:3000/?stealth=1&--disable-web-security=true"
+              value: "ws://127.0.0.1:3000"
             {{- end }}
             {{- with .Values.changedetection.extraEnv }}
             {{- toYaml . | nindent 12 }}
@@ -156,12 +156,24 @@ spec:
             {{- end }}
         {{- if .Values.browser.enabled }}
         - name: browser
-          image: "{{ .Values.browser.image.repository }}:{{ .Values.browser.image.tag }}"
+          image: {{ include "changedetection.browserImage" . | quote }}
           imagePullPolicy: {{ .Values.browser.image.pullPolicy }}
           ports:
             - name: browser
               containerPort: 3000
               protocol: TCP
+          startupProbe:
+            tcpSocket:
+              port: browser
+            periodSeconds: 2
+            timeoutSeconds: 1
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket:
+              port: browser
+            periodSeconds: 5
+            timeoutSeconds: 1
+            failureThreshold: 3
           env:
             - name: SCREEN_WIDTH
               value: "1920"
@@ -169,10 +181,8 @@ spec:
               value: "1024"
             - name: SCREEN_DEPTH
               value: "16"
-            - name: ENABLE_DEBUGGER
-              value: "false"
-            - name: DEFAULT_STEALTH
-              value: "true"
+            - name: MAX_CONCURRENT_CHROME_PROCESSES
+              value: "10"
           {{- with .Values.browser.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

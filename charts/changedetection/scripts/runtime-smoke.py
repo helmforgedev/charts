@@ -12,6 +12,7 @@ import urllib.request
 
 action, browser, version = sys.argv[1:]
 browser = browser == "true"
+version_tuple = tuple(int(part) for part in version.split('.')[:3])
 settings_path = pathlib.Path('/datastore/changedetection.json')
 settings = json.loads(settings_path.read_text())
 token = settings['settings']['application']['api_access_token']
@@ -73,7 +74,7 @@ try:
     else:
         watch = api('/watch/' + uuid)
         raise AssertionError('No expected fetched snapshot: ' + str(watch.get('last_error')))
-    if not browser and version == '0.60.7':
+    if not browser and version_tuple >= (0, 60, 7):
         from changedetectionio.validate_url import validate_fetch_url
         try:
             validate_fetch_url('http://127.0.0.1:18080/')
@@ -82,7 +83,7 @@ try:
             assert 'private/reserved IP address' in str(error), str(error)
     if action != 'smoke':
         marker.write_text(json.dumps({'uuid': uuid, 'history': list(history)[0]}))
-    if browser and version == '0.60.7':
+    if browser and version_tuple >= (0, 60, 7):
         import io
         import re
         import requests

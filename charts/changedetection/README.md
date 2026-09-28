@@ -60,7 +60,7 @@ browser:
   enabled: true
 ```
 
-The sidecar runs `ghcr.io/browserless/chromium` and the main container receives
+The sidecar runs the upstream-recommended `docker.io/dgtlmoon/sockpuppetbrowser` and the main container receives
 `PLAYWRIGHT_DRIVER_URL` automatically. Keep browser resources sized separately
 from the application container when JavaScript rendering is used heavily.
 
@@ -243,7 +243,7 @@ probes:
 | Key | Default | Description |
 |-----|---------|-------------|
 | `image.repository` | `ghcr.io/dgtlmoon/changedetection.io` | changedetection.io image repository |
-| `image.tag` | `0.60.7` | changedetection.io image tag |
+| `image.tag` | `0.60.8` | changedetection.io image tag |
 | `image.pullPolicy` | `IfNotPresent` | Image pull policy |
 | `changedetection.port` | `5000` | Application port |
 | `changedetection.baseUrl` | `""` | Public base URL |
@@ -255,8 +255,9 @@ probes:
 | `changedetection.extraEnv` | `[]` | Extra environment variables |
 | `changedetection.envFrom` | `[]` | Extra envFrom sources |
 | `browser.enabled` | `false` | Enable Playwright browser sidecar |
-| `browser.image.repository` | `ghcr.io/browserless/chromium` | Browser sidecar image repository |
-| `browser.image.tag` | `v2.46.0` | Browser sidecar image tag |
+| `browser.image.repository` | `docker.io/dgtlmoon/sockpuppetbrowser` | Browser sidecar image repository |
+| `browser.image.tag` | `0.0.3` | Browser sidecar image tag |
+| `browser.image.digest` | `sha256:1d8f72d2ce2085faed4232e5ae1e65c02efe5b831a18e127829b267c260b4fb2` | Immutable browser sidecar image index digest |
 | `persistence.enabled` | `true` | Enable persistence for /datastore |
 | `persistence.size` | `10Gi` | PVC size |
 | `persistence.storageClass` | `""` | PVC storage class |
@@ -283,11 +284,11 @@ probes:
 
 ## Upgrade Notes
 
-Version 0.60.7 includes 0.60.4's watch-history API and notification updates,
-plus browser status-code, navigation, content-deadline and runaway-script fixes.
-It also restores locale generation for price formatting and reduces repeated
-explicit garbage collection. Review the [0.60.4 notes](https://github.com/dgtlmoon/changedetection.io/releases/tag/0.60.4)
-and [0.60.7 notes](https://github.com/dgtlmoon/changedetection.io/releases/tag/0.60.7).
+Version 0.60.8 adds HTTP caching for UI assets and PWA support, validates values
+received through imports and API updates, and improves reverse-proxy language
+routing, LLM responsiveness and browser dependencies. It does not change the
+service port or `/datastore` persistence contract. Review the
+[0.60.8 notes](https://github.com/dgtlmoon/changedetection.io/releases/tag/0.60.8).
 
 Version 0.60.3 includes the intervening watch/tag loading, XML parsing,
 CSRF/XSS protections, browser and UTF-8 backup fixes since 0.55.8.

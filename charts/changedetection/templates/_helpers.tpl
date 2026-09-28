@@ -71,6 +71,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
+{{- define "changedetection.browserImage" -}}
+{{- if .Values.browser.image.digest -}}
+{{- printf "%s@%s" .Values.browser.image.repository .Values.browser.image.digest -}}
+{{- else -}}
+{{- printf "%s:%s" .Values.browser.image.repository .Values.browser.image.tag -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Data PVC claim name */}}
 {{- define "changedetection.dataClaimName" -}}
 {{- if .Values.persistence.existingClaim -}}

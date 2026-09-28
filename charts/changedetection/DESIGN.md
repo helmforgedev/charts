@@ -15,7 +15,7 @@ User or automation
               |
               +-- Deployment
                     |-- changedetection.io container
-                    |-- optional browserless Chromium sidecar
+                    |-- optional upstream Sockpuppet Chromium sidecar
                     +-- PVC mounted at /datastore
 ```
 
