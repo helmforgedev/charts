@@ -257,12 +257,11 @@ Spigot servers, provide the platform-specific Floodgate plugin through
 
 ## Upgrade Notes
 
-The 2026.9.1 image updates `mc-image-helper` to 1.68.0, adding ZIP path-safety
-commands and improving Modrinth project version logging and error handling.
-It retains the 2026.9.0 behavior that stops startup after failed custom-server, BuildTools, Sponge,
-modpack or FTB installer downloads instead of continuing with incomplete artifacts.
-It also rejects archive path traversal, fixes Forge/NeoForge reinstall defaults,
-FTB Fabric detection, percentage-memory arithmetic and CurseForge pruning.
+The 2026.9.2 image adds the optional `REMOVE_OLD_CONFIGS` and
+`PRE_START_SCRIPT` hooks and updates the bundled helper, monitor and server
+runner components. Existing defaults remain unchanged. It retains the behavior
+that stops startup after failed custom-server, BuildTools, Sponge, modpack or
+FTB installer downloads instead of continuing with incomplete artifacts.
 Confirm modpack downloads and installer success before rolling out. The dated
 image pins the container distribution, not the game: pin `server.version`
 separately to keep an image update from downloading a newer Minecraft release.
@@ -271,7 +270,8 @@ Earlier image releases fixed Modrinth packs that require
 server-side mods, corrected `STOP_SERVER_DELAY_COMMAND`, and updated the bundled
 Minecraft helper tools. It retains native `PREFER_IPv6` and custom
 `SERVER_RUNNER` support. Configure the
-first two features with `server.preferIPv6` and `server.runner`.
+first two features with `server.preferIPv6` and `server.runner`. Review the
+[2026.9.2 release](https://github.com/itzg/docker-minecraft-server/releases/tag/2026.9.2).
 Review the upstream release notes before upgrading production servers, take a
 world backup, and verify plugins, mods, datapacks, proxy settings, and pinned
 `server.version` values in a staging environment before reusing existing PVCs.
