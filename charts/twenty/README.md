@@ -5,7 +5,7 @@ encryption identity.
 
 ## Operating contract
 
-- Official `twentycrm/twenty:v2.41.0` image pinned by immutable manifest digest.
+- Official `twentycrm/twenty:v2.43.0` image pinned by immutable manifest digest.
 - One Recreate Pod serializes migrations and shares local files between server and worker. This chart does not claim
   application HA or horizontal scaling.
 - Native first-administrator and workspace activation before public startup, followed by explicit closure of public
@@ -69,11 +69,12 @@ AI providers and hosted function execution are outside the tested integration se
 See [dependencies](docs/dependencies.md), [storage](docs/storage.md), [SMTP](docs/smtp.md) and
 [observability](docs/observability.md).
 
-## Upgrading to 2.41.0
+## Upgrading to 2.43.0
 
-Twenty 2.41 changes workspace-shared connection administration, validates
-workflow versions more strictly and includes permission, OAuth and dependency
-hardening. Review the [official release](https://github.com/twentyhq/twenty/releases/tag/twenty%2Fv2.41.0)
+Twenty 2.43 migrates workflows and application-scoped core schemas, changes
+file uploads to direct storage paths, and includes permission, OAuth and
+dependency hardening. Review the
+[official release](https://github.com/twentyhq/twenty/releases/tag/twenty%2Fv2.43.0)
 and take a coordinated database, files and Redis backup before upgrading. Preserve
 `ENCRYPTION_KEY`, `SERVER_ID` and the ownership marker. Startup applies native
 migrations; application installation state now comes from deterministic queue
@@ -87,7 +88,7 @@ hostnames or IP literals and corresponding NetworkPolicy peers. The deprecated
 `OUTBOUND_HTTP_SAFE_MODE_ENABLED=false` still overrides the allowlist and should
 be removed when migrating; link-local metadata addresses remain blocked.
 
-The bundled Redis chart moves to 3.0.0, retaining Redis 8.10.1 and the existing
+The bundled Redis chart remains on 3.0.0, retaining the existing
 authentication and storage contract while improving authenticated health probes.
 The image also fixes SMTP retry propagation, upload size enforcement, SDK job
 initialization and migration-time repository updates. Ports, retained volumes,
