@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-const [context, namespace, release, version = '2.2.0', action = 'smoke'] = process.argv.slice(2);
+const [context, namespace, release, version = '2.3.0', action = 'smoke'] = process.argv.slice(2);
 if (context !== 'k3d-helmforge-tests-wsl' || !namespace?.startsWith('hf-') || !release || !['smoke', 'create', 'verify'].includes(action)) {
   throw new Error('Explicit owned HelmForge lab context, namespace, release and action required');
 }
