@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: bulwark-mail HTTP exposure
+templates:
+  - templates/ingress.yaml
+  - templates/gateway-httproute.yaml
+tests:
+  - it: does not render exposure resources by default
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/ingress.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/gateway-httproute.yaml
+  - it: renders ingress class TLS and the service backend
+    template: templates/ingress.yaml
+    values:
+      - ingress-values.yaml
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.rules[0].host
+          value: webmail.example.com
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.number
+          value: 3000
+      - equal:
+          path: spec.tls[0].secretName
+          value: bulwark-mail-tls
+  - it: renders Gateway API default backend and parent
+    template: templates/gateway-httproute.yaml
+    values:
+      - gateway-values.yaml
+    asserts:
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: spec.parentRefs[0].name
+          value: shared-gateway
+      - equal:
+          path: spec.hostnames[0]
+          value: webmail.example.com
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: RELEASE-NAME-bulwark-mail
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 3000
+  - it: renders multiple named routes with unique names
+    template: templates/gateway-httproute.yaml
+    values:
+      - gateway-multiple-values.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-bulwark-mail-public
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-bulwark-mail-admin
+        documentIndex: 1

@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: bulwark-mail deployment
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: renders the deterministic official image and single-instance strategy
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/bulwarkmail/webmail:1.11.2-always
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 3000
+  - it: hardens the pod for the upstream UID and read-only root filesystem
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1001
+      - equal:
+          path: spec.template.spec.securityContext.runAsGroup
+          value: 1001
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1001
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - it: mounts one data volume and an ephemeral tmp volume
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          value: /app/data
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[1].mountPath
+          value: /tmp
+      - equal:
+          path: spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          value: RELEASE-NAME-bulwark-mail
+      - equal:
+          path: spec.template.spec.volumes[1].emptyDir
+          value: {}
+  - it: configures all probes against the upstream health endpoint
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /api/health
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /api/health
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /api/health
+  - it: renders declarative JMAP configuration without forcing admin read-only mode
+    set:
+      config.mode: declarative
+      config.jmap.serverUrl: https://mail.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JMAP_SERVER_URL
+            value: https://mail.example.com
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ADMIN_CONFIG_READONLY
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SETTINGS_DATA_DIR
+            value: /app/data/settings
+  - it: enables admin read-only mode only when explicitly selected
+    set:
+      config.admin.readOnly: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ADMIN_CONFIG_READONLY
+            value: "true"
+  - it: leaves JMAP unset in wizard mode
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JMAP_SERVER_URL
+          any: true

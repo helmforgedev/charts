@@ -1,0 +1,367 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# -- Override the chart name used in Kubernetes object names.
+nameOverride: ""
+
+# -- Override the full release name used in Kubernetes object names.
+fullnameOverride: ""
+
+# -- Extra labels applied to all resources.
+commonLabels: {}
+
+# -- Extra annotations applied to the primary workload.
+commonAnnotations: {}
+
+image:
+  # -- Official Bulwark Mail container image repository.
+  repository: ghcr.io/bulwarkmail/webmail
+  # -- Deterministic upstream tag for Bulwark 1.11.2. The plain 1.11.2 tag has duplicate manifests upstream.
+  tag: "1.11.2-always"
+  # -- Kubernetes image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Optional image pull secrets for private registries or mirrors.
+imagePullSecrets: []
+
+# -- Number of Bulwark pods. Only one is supported because the application mutates a single data volume.
+replicaCount: 1
+
+config:
+  # -- Configuration mode. wizard uses the setup UI; declarative requires an operator-provided JMAP server URL.
+  mode: wizard
+  # -- Display name exposed by the Bulwark runtime configuration endpoint.
+  appName: Bulwark Webmail
+  # -- Enable Stalwart-specific JMAP capabilities such as password changes and Sieve filters.
+  stalwartFeatures: true
+  # -- Enable encrypted server-side user settings sync. The generated session secret is used for encryption.
+  settingsSync: true
+  # -- Anonymous upstream telemetry mode. Allowed values: on, off.
+  telemetry: "off"
+  # -- Log output format. Allowed values: text, json.
+  logFormat: text
+  # -- Log level. Allowed values: error, warn, info, debug.
+  logLevel: info
+  # -- Number of trusted reverse proxies used to derive the client address.
+  trustedProxyDepth: 1
+  # -- Enable Bulwark demo data instead of a real JMAP server.
+  demoMode: false
+  # -- Enable the upstream release update check.
+  updateCheck: true
+  jmap:
+    # -- External JMAP server URL. Required in declarative mode.
+    serverUrl: ""
+    # -- Allow users to enter a JMAP server URL at login.
+    allowCustomEndpoint: false
+    # -- JMAP server definitions exposed on the login form. Values are serialized to JMAP_SERVERS JSON.
+    servers: []
+    # -- Select a configured JMAP server from the user's email domain.
+    autoPickByDomain: false
+  admin:
+    # -- Make environment-managed admin configuration read-only. Enable only after bootstrap state has been written.
+    readOnly: false
+    # -- Admin dashboard session lifetime in seconds.
+    sessionTtl: 3600
+    # -- Stalwart administrator access behavior. Allowed values: auto, password, off.
+    stalwartAccess: auto
+  oauth:
+    # -- Enable OAuth/OIDC login.
+    enabled: false
+    # -- Hide password login and require OAuth/OIDC.
+    only: false
+    # -- OAuth client identifier.
+    clientId: ""
+    # -- OpenID Connect issuer URL.
+    issuerUrl: ""
+    # -- Optional user-facing authorization endpoint override.
+    authorizeUrl: ""
+    # -- Allow discovered OAuth endpoints on other private hosts.
+    allowPrivateEndpoints: false
+    # -- Sign out from the identity provider when the Bulwark session ends.
+    endSession: false
+    # -- Optional post-logout redirect URI registered with the identity provider.
+    postLogoutRedirectUri: ""
+    # -- Optional replacement OAuth scope string.
+    scopes: ""
+    # -- Optional OAuth scopes appended to Bulwark defaults.
+    extraScopes: ""
+    # -- Redirect directly to the identity provider.
+    autoSso: false
+  jwtAuth:
+    # -- Enable trusted-platform JWT impersonation through a Stalwart master account.
+    enabled: false
+    # -- JWT issuer. Defaults upstream to platform-api/webmail when empty.
+    issuer: ""
+
+branding:
+  # -- Short PWA application name.
+  appShortName: ""
+  # -- PWA application description.
+  appDescription: ""
+  # -- Favicon URL or path.
+  faviconUrl: ""
+  # -- PWA icon URL or path.
+  pwaIconUrl: ""
+  # -- PWA theme color.
+  pwaThemeColor: ""
+  # -- PWA background color.
+  pwaBackgroundColor: ""
+  # -- Login logo URL for light backgrounds.
+  loginLogoLightUrl: ""
+  # -- Login logo URL for dark backgrounds.
+  loginLogoDarkUrl: ""
+  # -- Company name on the login page.
+  loginCompanyName: ""
+  # -- Company website link on the login page.
+  loginWebsiteUrl: ""
+  # -- Privacy policy link on the login page.
+  loginPrivacyPolicyUrl: ""
+  # -- Legal imprint link on the login page.
+  loginImprintUrl: ""
+  # -- Per-domain branding definitions serialized to DOMAIN_BRANDING JSON.
+  domains: []
+
+secrets:
+  # -- Generate a Kubernetes Secret when existingSecret is empty. The session secret is generated once and reused across upgrades.
+  generate: true
+  # -- Existing Secret containing the keys declared below. Recommended with External Secrets in production.
+  existingSecret: ""
+  keys:
+    # -- Key containing SESSION_SECRET.
+    sessionSecret: session-secret
+    # -- Key containing ADMIN_PASSWORD.
+    adminPassword: admin-password
+    # -- Key containing OAUTH_CLIENT_SECRET.
+    oauthClientSecret: oauth-client-secret
+    # -- Key containing BULWARK_JWT_AUTH_SECRET.
+    jwtAuthSecret: jwt-auth-secret
+    # -- Key containing BULWARK_STALWART_MASTER_USER.
+    stalwartMasterUser: stalwart-master-user
+    # -- Key containing BULWARK_STALWART_MASTER_PASSWORD.
+    stalwartMasterPassword: stalwart-master-password
+  # -- Inline session secret. Empty generates a stable random 64-character value.
+  sessionSecret: ""
+  # -- Optional bootstrap password for the Bulwark admin dashboard.
+  adminPassword: ""
+  # -- Optional OAuth client secret. Leave empty for public clients using PKCE.
+  oauthClientSecret: ""
+  # -- JWT signing secret of at least 32 characters for trusted-platform impersonation.
+  jwtAuthSecret: ""
+  # -- Stalwart master account used by JWT impersonation.
+  stalwartMasterUser: ""
+  # -- Stalwart master account password used by JWT impersonation.
+  stalwartMasterPassword: ""
+
+persistence:
+  # -- Persist all Bulwark mutable state under /app/data.
+  enabled: true
+  # -- Existing PVC mounted at /app/data instead of creating one.
+  existingClaim: ""
+  # -- Storage class for the generated PVC. Empty uses the cluster default.
+  storageClass: ""
+  # -- PVC access modes.
+  accessModes:
+    - ReadWriteOnce
+  # -- PVC requested size.
+  size: 5Gi
+  # -- PVC annotations.
+  annotations: {}
+  # -- Keep the generated PVC after Helm uninstall.
+  retain: true
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: true
+  # -- ServiceAccount name. Empty uses the release fullname.
+  name: ""
+  # -- ServiceAccount annotations.
+  annotations: {}
+  # -- Mount the Kubernetes API token in the pod.
+  automountServiceAccountToken: false
+
+service:
+  # -- Kubernetes Service type.
+  type: ClusterIP
+  # -- Service port. Bulwark listens on port 3000.
+  port: 3000
+  # -- Service annotations.
+  annotations: {}
+  # -- IP family policy. Empty inherits the cluster default. Options: SingleStack, PreferDualStack, RequireDualStack.
+  ipFamilyPolicy: ""
+  # -- Ordered IP families. Each entry is IPv4 or IPv6.
+  ipFamilies: []
+
+ingress:
+  # -- Enable Kubernetes Ingress.
+  enabled: false
+  # -- IngressClassName for the generated Ingress.
+  ingressClassName: ""
+  # -- Ingress annotations.
+  annotations: {}
+  # -- Ingress hosts and paths.
+  hosts: []
+  # -- Ingress TLS entries.
+  tls: []
+
+gatewayAPI:
+  # -- Enable Gateway API HTTPRoute resources.
+  enabled: false
+  # -- HTTPRoute definitions. The chart injects its Service backend only when an item omits rules.
+  httpRoutes: []
+
+externalSecrets:
+  # -- Render external-secrets.io ExternalSecret resources.
+  enabled: false
+  # -- ExternalSecret API version.
+  apiVersion: external-secrets.io/v1
+  # -- Default refresh interval for items without an override.
+  refreshInterval: 1h
+  # -- ExternalSecret definitions using the canonical items[] contract.
+  items: []
+
+probes:
+  startup:
+    # -- Enable the startup probe on /api/health.
+    enabled: true
+    # -- Startup probe initial delay.
+    initialDelaySeconds: 5
+    # -- Startup probe period.
+    periodSeconds: 5
+    # -- Startup probe timeout.
+    timeoutSeconds: 3
+    # -- Startup probe failure threshold.
+    failureThreshold: 30
+  liveness:
+    # -- Enable the liveness probe on /api/health.
+    enabled: true
+    # -- Liveness probe initial delay.
+    initialDelaySeconds: 0
+    # -- Liveness probe period.
+    periodSeconds: 30
+    # -- Liveness probe timeout.
+    timeoutSeconds: 5
+    # -- Liveness probe failure threshold.
+    failureThreshold: 3
+  readiness:
+    # -- Enable the readiness probe on /api/health.
+    enabled: true
+    # -- Readiness probe initial delay.
+    initialDelaySeconds: 0
+    # -- Readiness probe period.
+    periodSeconds: 10
+    # -- Readiness probe timeout.
+    timeoutSeconds: 5
+    # -- Readiness probe failure threshold.
+    failureThreshold: 6
+
+# -- Container resource requests and limits.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# -- Pod-level security context matching the upstream nextjs user.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Bulwark container security context.
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+pdb:
+  # -- Create a PodDisruptionBudget. Unsupported while Bulwark is restricted to one replica and rejected when true.
+  enabled: false
+  # -- Minimum available pods during voluntary disruptions.
+  minAvailable: 1
+
+autoscaling:
+  # -- Enable autoscaling. Unsupported for Bulwark's single-writer storage contract and rejected when true.
+  enabled: false
+  # -- Minimum replicas reserved for a future upstream HA contract.
+  minReplicas: 1
+  # -- Maximum replicas reserved for a future upstream HA contract.
+  maxReplicas: 1
+  # -- Target CPU utilization reserved for a future upstream HA contract.
+  targetCPUUtilizationPercentage: 80
+
+networkPolicy:
+  # -- Create a NetworkPolicy for Bulwark.
+  enabled: false
+  # -- Ingress peers allowed to reach the HTTP port. Empty permits all namespaces.
+  ingressFrom: []
+  egress:
+    # -- Restrict egress to DNS, JMAP ports, and explicit extra rules.
+    enabled: false
+    # -- Allow TCP and UDP DNS lookups.
+    allowDNS: true
+    # -- TCP ports used by external JMAP services.
+    jmapPorts:
+      - 443
+    # -- Optional peers restricting the JMAP egress rule. Empty allows any destination on jmapPorts.
+    jmapTo: []
+    # -- Additional peers appended to the JMAP egress destination list.
+    extraTo: []
+    # -- Additional complete egress rules.
+    extraEgress: []
+
+# -- Optional command override.
+command: []
+
+# -- Optional argument override.
+args: []
+
+# -- Additional environment variables appended to the Bulwark container.
+extraEnv: []
+
+# -- Additional envFrom sources appended to the Bulwark container.
+extraEnvFrom: []
+
+# -- Extra volumes added to the pod.
+extraVolumes: []
+
+# -- Extra volume mounts added to the Bulwark container.
+extraVolumeMounts: []
+
+# -- Extra Kubernetes manifests rendered verbatim.
+extraManifests: []
+
+# -- Extra labels added to the pod template.
+podLabels: {}
+
+# -- Extra annotations added to the pod template.
+podAnnotations: {}
+
+# -- Node selector for pod scheduling.
+nodeSelector: {}
+
+# -- Tolerations for pod scheduling.
+tolerations: []
+
+# -- Affinity rules for pod scheduling.
+affinity: {}
+
+# -- Topology spread constraints for pod scheduling.
+topologySpreadConstraints: []
+
+# -- Optional PriorityClass name.
+priorityClassName: ""
+
+# -- Pod termination grace period in seconds.
+terminationGracePeriodSeconds: 30

@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: bulwark-mail extension points
+templates:
+  - templates/deployment.yaml
+  - templates/extra-manifests.yaml
+  - templates/serviceaccount.yaml
+tests:
+  - it: renders extra environment volumes and scheduling controls
+    template: templates/deployment.yaml
+    values:
+      - extensions-values.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LIBRETRANSLATE_URL
+            value: https://translate.example.com
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[0].configMapRef.name
+          value: bulwark-extra
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[2].mountPath
+          value: /etc/bulwark/custom
+      - equal:
+          path: spec.template.spec.volumes[2].configMap.name
+          value: bulwark-custom
+      - equal:
+          path: spec.template.spec.nodeSelector["kubernetes.io/os"]
+          value: linux
+      - equal:
+          path: spec.template.metadata.labels.workload
+          value: webmail
+  - it: renders extra manifests verbatim
+    template: templates/extra-manifests.yaml
+    values:
+      - extensions-values.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: bulwark-extra-manifest
+      - equal:
+          path: data.mode
+          value: declarative
+  - it: renders a dedicated ServiceAccount without token mounting
+    template: templates/serviceaccount.yaml
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: automountServiceAccountToken
+          value: false

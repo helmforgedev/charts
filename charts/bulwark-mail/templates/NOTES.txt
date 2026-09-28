@@ -1,0 +1,210 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+Bulwark Mail has been installed.
+
+1. Installation summary
+=======================
+
+- Release: {{ .Release.Name }}
+- Namespace: {{ .Release.Namespace }}
+- Chart: {{ .Chart.Name }} {{ .Chart.Version }}
+- Application: Bulwark Mail {{ .Chart.AppVersion }}
+- Image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+- Configuration mode: {{ .Values.config.mode }}
+- Replicas: {{ .Values.replicaCount }}
+- Update strategy: Recreate
+- ServiceAccount: {{ include "bulwark-mail.serviceAccountName" . }}
+- Service: {{ include "bulwark-mail.fullname" . }}:{{ .Values.service.port }}
+- Persistence: {{ ternary "enabled" "disabled" .Values.persistence.enabled }}
+- External Stalwart/JMAP dependency: required for normal mail operation
+
+Bulwark is a JMAP web client. This chart intentionally does not install
+Stalwart or any other mail server.
+
+2. Access
+=========
+
+The in-cluster endpoint is:
+
+  http://{{ include "bulwark-mail.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+
+For a local port-forward:
+
+  kubectl -n {{ .Release.Namespace }} port-forward service/{{ include "bulwark-mail.fullname" . }} 3000:{{ .Values.service.port }}
+
+Then open:
+
+  http://127.0.0.1:3000
+
+{{- if .Values.ingress.enabled }}
+
+Ingress hosts:
+{{- range .Values.ingress.hosts }}
+  - https://{{ .host }}/
+{{- end }}
+{{- end }}
+{{- if .Values.gatewayAPI.enabled }}
+
+Gateway API HTTPRoutes:
+{{- range $index, $route := .Values.gatewayAPI.httpRoutes }}
+  - {{ include "bulwark-mail.httpRouteName" (dict "root" $ "route" $route "index" $index) }}{{ with $route.hostnames }}: {{ join ", " . }}{{ end }}
+{{- end }}
+{{- end }}
+
+The published upstream image supports only the root path `/`. A `/webmail`
+subpath requires rebuilding Bulwark with its build-time base-path option.
+
+3. Getting started
+==================
+
+Wait until the Deployment is available:
+
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "bulwark-mail.fullname" . }} --timeout=180s
+
+{{- if eq .Values.config.mode "wizard" }}
+
+Wizard mode is active. Open the service and follow `/setup` to configure:
+
+  - the public URL of the external JMAP server;
+  - the Bulwark administrator password;
+  - optional OAuth/OIDC login;
+  - branding and feature policy.
+
+The wizard writes state below `/app/data`; persistence is mandatory so that
+the completed setup survives pod replacement.
+{{- else }}
+
+Declarative mode is active. The chart configured:
+
+  - JMAP URL: {{ .Values.config.jmap.serverUrl }}
+  - settings sync: {{ .Values.config.settingsSync }}
+  - Stalwart features: {{ .Values.config.stalwartFeatures }}
+  - OAuth enabled: {{ .Values.config.oauth.enabled }}
+
+The JMAP URL is managed through JMAP_SERVER_URL. Existing files on a reused
+PVC retain higher upstream precedence; remove obsolete admin overrides before
+switching an existing installation to declarative mode.
+{{- if .Values.config.admin.readOnly }}
+Admin configuration is read-only because config.admin.readOnly is enabled.
+{{- else }}
+Admin configuration remains writable. Enable config.admin.readOnly only after
+bootstrap has persisted the intended admin configuration.
+{{- end }}
+{{- end }}
+
+4. Credentials
+==============
+
+Runtime Secret:
+
+  {{ include "bulwark-mail.secretName" . }}
+
+Session key:
+
+  {{ .Values.secrets.keys.sessionSecret }}
+
+{{- if .Values.secrets.existingSecret }}
+The chart references an existing Secret and does not create credential data.
+Verify the configured keys before rollout:
+
+  kubectl -n {{ .Release.Namespace }} get secret {{ include "bulwark-mail.secretName" . }}
+{{- else }}
+The chart created a stable generated session secret. It is reused on Helm
+upgrades through lookup. Back up the Secret with the PVC before recovery.
+{{- end }}
+
+Admin, OAuth, and JWT/Stalwart master credentials are optional and rendered
+only for the feature that consumes them. Never store production values in a
+committed values file; use an existing Secret or External Secrets.
+
+5. Configuration summary
+========================
+
+- Mode: {{ .Values.config.mode }}
+- App name: {{ .Values.config.appName }}
+- Settings sync: {{ .Values.config.settingsSync }}
+- Telemetry: {{ .Values.config.telemetry }}
+- Update check: {{ .Values.config.updateCheck }}
+- OAuth: {{ .Values.config.oauth.enabled }}
+- JWT impersonation: {{ .Values.config.jwtAuth.enabled }}
+- Ingress: {{ .Values.ingress.enabled }}
+- Gateway API: {{ .Values.gatewayAPI.enabled }}
+- NetworkPolicy: {{ .Values.networkPolicy.enabled }}
+- External Secrets: {{ .Values.externalSecrets.enabled }}
+- PVC retention: {{ .Values.persistence.retain }}
+{{- with .Values.service.ipFamilyPolicy }}
+- Service IP family policy: {{ . }}{{ with $.Values.service.ipFamilies }} ({{ join ", " . }}){{ end }}
+{{- end }}
+
+The single `/app/data` PVC contains settings, admin configuration, admin
+runtime state, telemetry state, and update-check state. `/tmp` is an emptyDir.
+
+6. Validation commands
+======================
+
+Inspect the release:
+
+  helm -n {{ .Release.Namespace }} status {{ .Release.Name }}
+
+Inspect workload and storage:
+
+  kubectl -n {{ .Release.Namespace }} get deployment,pod,service,pvc
+
+Wait for readiness:
+
+  kubectl -n {{ .Release.Namespace }} wait --for=condition=Available deployment/{{ include "bulwark-mail.fullname" . }} --timeout=180s
+
+Check Service endpoints:
+
+  kubectl -n {{ .Release.Namespace }} get endpointslice -l kubernetes.io/service-name={{ include "bulwark-mail.fullname" . }}
+
+Check the health contract from the pod:
+
+  kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "bulwark-mail.fullname" . }} -- wget -qO- http://127.0.0.1:3000/api/health
+
+{{- if eq .Values.config.mode "declarative" }}
+Check the public configuration contract:
+
+  kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "bulwark-mail.fullname" . }} -- wget -qO- http://127.0.0.1:3000/api/config
+{{- else }}
+Check the wizard setup contract:
+
+  kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "bulwark-mail.fullname" . }} -- wget -qO- http://127.0.0.1:3000/api/setup/status
+{{- end }}
+
+7. Troubleshooting
+==================
+
+List pods and recent events:
+
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
+
+Inspect the pod and logs:
+
+  kubectl -n {{ .Release.Namespace }} describe pod -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "bulwark-mail.fullname" . }} --tail=200
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "bulwark-mail.fullname" . }} --previous --tail=200
+
+If the browser cannot reach JMAP, verify that the configured URL is public to
+the browser and that Stalwart permits credentialed CORS for the Bulwark origin.
+A Kubernetes `.svc` hostname is usually not browser-resolvable.
+
+If the pod reports a read-only filesystem error, confirm that all application
+state remains below `/app/data` and temporary files below `/tmp`.
+
+If the wizard restarts after pod replacement, verify the PVC is Bound and is
+mounted at `/app/data`.
+
+If OAuth login fails, inspect issuer discovery from the pod and verify the
+client redirect URI, scopes, and Secret key names.
+
+8. Resources
+============
+
+- HelmForge chart documentation: https://helmforge.dev/docs/charts/bulwark-mail
+- Bulwark documentation: https://bulwarkmail.org/docs
+- Bulwark source: https://github.com/bulwarkmail/webmail
+- Stalwart documentation: https://stalw.art/docs
+- Chart issues: https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)

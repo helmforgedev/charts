@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: bulwark-mail service and persistence
+templates:
+  - templates/service.yaml
+  - templates/pvc.yaml
+  - templates/pdb.yaml
+tests:
+  - it: exposes HTTP on port 3000
+    template: templates/service.yaml
+    asserts:
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - equal:
+          path: spec.ports[0].name
+          value: http
+      - equal:
+          path: spec.ports[0].port
+          value: 3000
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+  - it: omits dual-stack fields by default
+    template: templates/service.yaml
+    asserts:
+      - notExists:
+          path: spec.ipFamilyPolicy
+      - notExists:
+          path: spec.ipFamilies
+  - it: renders ordered dual-stack families
+    template: templates/service.yaml
+    values:
+      - dual-stack-values.yaml
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: RequireDualStack
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv6
+      - equal:
+          path: spec.ipFamilies[1]
+          value: IPv4
+  - it: creates one retained PVC for all application data
+    template: templates/pvc.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+      - equal:
+          path: spec.resources.requests.storage
+          value: 5Gi
+  - it: skips PVC creation for an existing claim
+    template: templates/pvc.yaml
+    set:
+      persistence.existingClaim: shared-data
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: omits the PDB by default
+    template: templates/pdb.yaml
+    asserts:
+      - hasDocuments:
+          count: 0

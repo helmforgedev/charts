@@ -1,0 +1,106 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: bulwark-mail validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: rejects multiple replicas
+    set:
+      replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: replicaCount must be 1 because Bulwark writes mutable state to a single ReadWriteOnce data volume
+  - it: rejects autoscaling
+    set:
+      autoscaling.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: autoscaling.enabled is not supported for the single-writer Bulwark data contract
+  - it: requires a JMAP server URL in declarative mode
+    set:
+      config.mode: declarative
+    asserts:
+      - failedTemplate:
+          errorMessage: declarative mode requires config.jmap.serverUrl
+  - it: requires OAuth metadata when OAuth is enabled
+    set:
+      config.oauth.enabled: true
+      secrets.oauthClientSecret: oauth-secret
+    asserts:
+      - failedTemplate:
+          errorMessage: config.oauth.clientId and config.oauth.issuerUrl are required when OAuth is enabled
+  - it: rejects a PDB that cannot protect a single replica
+    set:
+      pdb.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: pdb.enabled is not supported while replicaCount is restricted to 1
+  - it: requires all JWT impersonation credentials
+    set:
+      config.jwtAuth.enabled: true
+      secrets.jwtAuthSecret: "01234567890123456789012345678901"
+    asserts:
+      - failedTemplate:
+          errorMessage: JWT impersonation requires its signing secret, Stalwart master user, and Stalwart master password
+  - it: rejects a short JWT signing secret
+    set:
+      config.jwtAuth.enabled: true
+      secrets.jwtAuthSecret: too-short
+      secrets.stalwartMasterUser: master@example.com
+      secrets.stalwartMasterPassword: password
+    asserts:
+      - failedTemplate:
+          errorMessage: secrets.jwtAuthSecret must contain at least 32 characters
+  - it: requires ingress hosts
+    set:
+      ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.hosts must contain at least one host when ingress.enabled=true
+  - it: requires ExternalSecret items
+    set:
+      externalSecrets.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.items must contain at least one item when externalSecrets.enabled=true
+  - it: rejects selector label collisions
+    values:
+      - pod-label-collision-values.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels must not override the selector label app.kubernetes.io/name
+  - it: requires generated or existing secret management
+    set:
+      secrets.generate: false
+    asserts:
+      - failedTemplate:
+          errorMessage: secrets.generate must be true when secrets.existingSecret is empty
+  - it: requires persistence in wizard mode
+    set:
+      persistence.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: persistence.enabled must be true in wizard mode so setup and admin state survive pod replacement
+  - it: rejects a short session secret
+    set:
+      secrets.sessionSecret: too-short
+    asserts:
+      - failedTemplate:
+          errorMessage: secrets.sessionSecret must contain at least 32 characters
+  - it: rejects simultaneous Ingress and Gateway API exposure
+    values:
+      - exposure-conflict-values.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.enabled and gatewayAPI.enabled are mutually exclusive
+  - it: rejects unsupported ingress subpaths
+    values:
+      - ingress-subpath-values.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: Bulwark's published image only supports exposure at path /; ingress subpaths require a custom image rebuild
+  - it: rejects chart-managed extra environment overrides
+    values:
+      - reserved-env-values.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: extraEnv must not override chart-managed environment variable PORT

@@ -1,0 +1,282 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bulwark-mail.fullname" . }}
+  labels:
+    {{- include "bulwark-mail.labels" . | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "bulwark-mail.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "bulwark-mail.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ dict "config" .Values.config "branding" .Values.branding | toJson | sha256sum }}
+        checksum/secret-contract: {{ dict "secrets" .Values.secrets "externalSecrets" .Values.externalSecrets | toJson | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "bulwark-mail.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: {{ include "bulwark-mail.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: HOSTNAME
+              value: "0.0.0.0"
+            - name: PORT
+              value: "3000"
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "bulwark-mail.secretName" . | quote }}
+                  key: {{ .Values.secrets.keys.sessionSecret | quote }}
+            - name: APP_NAME
+              value: {{ .Values.config.appName | quote }}
+            - name: STALWART_FEATURES
+              value: {{ .Values.config.stalwartFeatures | quote }}
+            - name: SETTINGS_SYNC_ENABLED
+              value: {{ .Values.config.settingsSync | quote }}
+            - name: SETTINGS_DATA_DIR
+              value: /app/data/settings
+            - name: ADMIN_CONFIG_DIR
+              value: /app/data/admin
+            - name: ADMIN_STATE_DIR
+              value: /app/data/admin-state
+            - name: TELEMETRY_DATA_DIR
+              value: /app/data/telemetry
+            - name: VERSION_CHECK_DATA_DIR
+              value: /app/data/version-check
+            - name: BULWARK_TELEMETRY
+              value: {{ .Values.config.telemetry | quote }}
+            - name: BULWARK_UPDATE_CHECK
+              value: {{ ternary "on" "off" .Values.config.updateCheck | quote }}
+            - name: LOG_FORMAT
+              value: {{ .Values.config.logFormat | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.config.logLevel | quote }}
+            - name: TRUSTED_PROXY_DEPTH
+              value: {{ .Values.config.trustedProxyDepth | quote }}
+            - name: DEMO_MODE
+              value: {{ .Values.config.demoMode | quote }}
+            - name: ALLOW_CUSTOM_JMAP_ENDPOINT
+              value: {{ .Values.config.jmap.allowCustomEndpoint | quote }}
+            - name: JMAP_SERVER_AUTO_PICK_BY_DOMAIN
+              value: {{ .Values.config.jmap.autoPickByDomain | quote }}
+            - name: ADMIN_SESSION_TTL
+              value: {{ .Values.config.admin.sessionTtl | quote }}
+            - name: STALWART_ADMIN_ACCESS
+              value: {{ .Values.config.admin.stalwartAccess | quote }}
+            {{- if .Values.config.admin.readOnly }}
+            - name: ADMIN_CONFIG_READONLY
+              value: "true"
+            {{- end }}
+            {{- with .Values.config.jmap.serverUrl }}
+            - name: JMAP_SERVER_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.config.jmap.servers }}
+            - name: JMAP_SERVERS
+              value: {{ mustToJson . | quote }}
+            {{- end }}
+            {{- if .Values.config.oauth.enabled }}
+            - name: OAUTH_ENABLED
+              value: "true"
+            - name: OAUTH_ONLY
+              value: {{ .Values.config.oauth.only | quote }}
+            - name: OAUTH_CLIENT_ID
+              value: {{ .Values.config.oauth.clientId | quote }}
+            - name: OAUTH_ISSUER_URL
+              value: {{ .Values.config.oauth.issuerUrl | quote }}
+            {{- if or .Values.secrets.oauthClientSecret .Values.secrets.existingSecret }}
+            - name: OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "bulwark-mail.secretName" . | quote }}
+                  key: {{ .Values.secrets.keys.oauthClientSecret | quote }}
+                  optional: true
+            {{- end }}
+            {{- with .Values.config.oauth.authorizeUrl }}
+            - name: OAUTH_AUTHORIZE_URL
+              value: {{ . | quote }}
+            {{- end }}
+            - name: OAUTH_ALLOW_PRIVATE_ENDPOINTS
+              value: {{ .Values.config.oauth.allowPrivateEndpoints | quote }}
+            - name: OAUTH_END_SESSION
+              value: {{ .Values.config.oauth.endSession | quote }}
+            {{- with .Values.config.oauth.postLogoutRedirectUri }}
+            - name: OAUTH_POST_LOGOUT_REDIRECT_URI
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.config.oauth.scopes }}
+            - name: OAUTH_SCOPES
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.config.oauth.extraScopes }}
+            - name: OAUTH_EXTRA_SCOPES
+              value: {{ . | quote }}
+            {{- end }}
+            - name: AUTO_SSO_ENABLED
+              value: {{ .Values.config.oauth.autoSso | quote }}
+            {{- end }}
+            {{- if .Values.config.jwtAuth.enabled }}
+            - name: BULWARK_JWT_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "bulwark-mail.secretName" . | quote }}
+                  key: {{ .Values.secrets.keys.jwtAuthSecret | quote }}
+            - name: BULWARK_STALWART_MASTER_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "bulwark-mail.secretName" . | quote }}
+                  key: {{ .Values.secrets.keys.stalwartMasterUser | quote }}
+            - name: BULWARK_STALWART_MASTER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "bulwark-mail.secretName" . | quote }}
+                  key: {{ .Values.secrets.keys.stalwartMasterPassword | quote }}
+            {{- with .Values.config.jwtAuth.issuer }}
+            - name: BULWARK_JWT_AUTH_ISSUER
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if or .Values.secrets.adminPassword .Values.secrets.existingSecret }}
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "bulwark-mail.secretName" . | quote }}
+                  key: {{ .Values.secrets.keys.adminPassword | quote }}
+                  optional: true
+            {{- end }}
+            {{- $brandingMap := dict "APP_SHORT_NAME" .Values.branding.appShortName "APP_DESCRIPTION" .Values.branding.appDescription "FAVICON_URL" .Values.branding.faviconUrl "PWA_ICON_URL" .Values.branding.pwaIconUrl "PWA_THEME_COLOR" .Values.branding.pwaThemeColor "PWA_BACKGROUND_COLOR" .Values.branding.pwaBackgroundColor "LOGIN_LOGO_LIGHT_URL" .Values.branding.loginLogoLightUrl "LOGIN_LOGO_DARK_URL" .Values.branding.loginLogoDarkUrl "LOGIN_COMPANY_NAME" .Values.branding.loginCompanyName "LOGIN_WEBSITE_URL" .Values.branding.loginWebsiteUrl "LOGIN_PRIVACY_POLICY_URL" .Values.branding.loginPrivacyPolicyUrl "LOGIN_IMPRINT_URL" .Values.branding.loginImprintUrl -}}
+            {{- range $name, $value := $brandingMap }}
+            {{- if $value }}
+            - name: {{ $name }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.branding.domains }}
+            - name: DOMAIN_BRANDING
+              value: {{ mustToJson . | quote }}
+            {{- end }}
+            {{- range .Values.extraEnv }}
+            - name: {{ .name }}
+              {{- if hasKey . "valueFrom" }}
+              valueFrom:
+                {{- toYaml .valueFrom | nindent 16 }}
+              {{- else }}
+              value: {{ default "" .value | quote }}
+              {{- end }}
+            {{- end }}
+          {{- with .Values.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: tmp
+              mountPath: /tmp
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "bulwark-mail.persistenceClaimName" . | quote }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir: {}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

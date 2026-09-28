@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: bulwark-mail network policy
+templates:
+  - templates/networkpolicy.yaml
+tests:
+  - it: is disabled by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: allows inbound HTTP and DNS plus JMAP egress
+    values:
+      - networkpolicy-values.yaml
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: http
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 443
+  - it: appends full extra egress rules
+    values:
+      - networkpolicy-extra-values.yaml
+    asserts:
+      - equal:
+          path: spec.egress[2].ports[0].port
+          value: 8443
