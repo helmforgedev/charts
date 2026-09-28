@@ -59,7 +59,7 @@ Register a confidential client with callback `https://snippets.example.test/api/
 configured `server.basePath` before `/api` when serving under a subpath. Use an HTTPS issuer and client Secret. Optional
 `oidc.caConfigMap` adds a trusted PEM CA through native Node TLS verification; it does not disable certificate checks.
 
-Restrict assigned users at the identity provider. Upstream 1.5.12 does not apply `ALLOW_NEW_ACCOUNTS=false` as an OIDC
+Restrict assigned users at the identity provider. Upstream 1.5.13 does not apply `ALLOW_NEW_ACCOUNTS=false` as an OIDC
 allowlist once the database has users. Identities are keyed by subject and issuer, not automatically linked by email.
 Mapped username collisions receive a numeric suffix. Administrator access is based on the final username in
 `auth.adminUsernames`; verify that mapping and control provider enrollment. Local administrator login stays available.

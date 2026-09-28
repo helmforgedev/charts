@@ -1,6 +1,6 @@
 # ByteStash
 
-Private code snippets using the official `ghcr.io/jordan-dalby/bytestash:1.5.12` image. Linux amd64, arm64 and arm image
+Private code snippets using the official `ghcr.io/jordan-dalby/bytestash:1.5.13` image. Linux amd64, arm64 and arm image
 manifests were verified. The chart preserves SQLite's single-writer contract and closes the upstream first-registration
 window with an administrative init container.
 
