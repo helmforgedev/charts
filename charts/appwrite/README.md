@@ -86,6 +86,9 @@ removes development keys, consolidates generated Console links under
 `_APP_CONSOLE_URL`, and ships Console 1.1.159-self-hosted. Its migration touches
 every project's `users` and `identities` collections, removes the `devKeys`
 collection and strips obsolete dev-key scopes; run `migrate` after upgrading.
+Remove `_APP_CONSOLE_URL_SCHEME` from retained environment values. When the
+Console uses a different host from the API, set `_APP_CONSOLE_URL` to the full
+Console origin through `extraEnv` before upgrading.
 
 Function and site executions now require ClickHouse through
 `_APP_CONNECTIONS_DB_EXECUTIONS`; they are no longer read from the project
@@ -124,8 +127,10 @@ existing data between engines.
 
 Use `helm upgrade <release> <chart-ref> --reset-then-reuse-values` (or explicitly set the new image tag),
 then run `kubectl exec -n <namespace> deploy/<api-deployment> -c api -- migrate`.
-Verify the API, worker logs and existing projects before restoring traffic. For
-rollback, restore the database, volumes, Secret and matching old images together.
+Verify the API, worker logs and existing projects before restoring traffic. To
+roll back to 2.2, stop new queue receives and drain or recover every in-flight
+reservation before removing the 2.3 workers. Then restore the database, volumes,
+Secret and matching old images together.
 
 Console IV uses `appwrite/new:1.1.159-self-hosted` on port 3000 with the API on the same origin;
 the console Service still exposes port 80. `worker-audits` was removed upstream:
