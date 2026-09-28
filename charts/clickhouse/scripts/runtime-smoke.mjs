@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 
-const [context, namespace, release, version = '26.8.10', action = 'smoke'] = process.argv.slice(2);
+const [context, namespace, release, version = '26.9.4', action = 'smoke'] = process.argv.slice(2);
 assert.ok(context?.startsWith('k3d-helmforge-') && namespace && release);
 const k = args => execFileSync('kubectl', ['--context', context, '-n', namespace, ...args], {
   encoding: 'utf8', timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'],
