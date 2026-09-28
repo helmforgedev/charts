@@ -106,7 +106,7 @@ through Ghost's environment-based configuration:
 ```yaml
 image:
   repository: registry.example.com/ghost-with-adapters
-  tag: "6.64.0"
+  tag: "6.65.0"
 
 ghost:
   extraEnv:
@@ -123,7 +123,7 @@ adapters when the container starts.
 | Key | Default | Description |
 |-----|---------|-------------|
 | `ghost.url` | `""` | Public URL of the Ghost instance |
-| `image.tag` | `6.64.0` | Ghost image tag |
+| `image.tag` | `6.65.0` | Ghost image tag |
 | `mysql.enabled` | `true` | Deploy MySQL subchart |
 | `mysql.image.tag` | `8.4.11` | MySQL image tag pinned to the Ghost-supported MySQL 8 major |
 | `persistence.enabled` | `true` | Enable content persistence |
@@ -137,10 +137,12 @@ adapters when the container starts.
 
 ## Upgrade Notes
 
-Ghost `6.64.0` updates the Source theme and fixes navigation icon persistence,
-malformed email CSS rendering, newsletter subscriptions, staff-token audit logs,
-and protected settings imports. It does not change the image's port, content
-path, database contract, probes, or required environment variables.
+Ghost `6.65.0` updates the Source and Casper themes and improves sitemap
+responsiveness and memory use. It also fixes gated-post comments, subscription
+conversion accounting, theme activation and mobile analytics layout. It does
+not change the image's port, content path, database contract, probes, or
+required environment variables. Review the
+[official release](https://github.com/TryGhost/Ghost/releases/tag/v6.65.0).
 Files edited in Ghost Admin remain under `/var/lib/ghost/content/data`, so the
 chart's content PVC and S3 content backup already cover them. Review the
 upstream Ghost release notes before upgrading
