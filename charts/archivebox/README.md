@@ -75,7 +75,7 @@ archivebox:
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `archivebox.port` | `8000` | Application port |
+| `archivebox.port` | `5797` | Application port |
 | `archivebox.adminUsername` | `admin` | Admin username |
 | `archivebox.adminPassword` | `""` | Admin password (auto-generated if empty) |
 | `archivebox.allowedHosts` | `*` | Allowed hostnames |
@@ -92,6 +92,10 @@ archivebox:
 | `backup.schedule` | `0 3 * * *` | Backup CronJob schedule |
 
 ## Security Scan
+
+ArchiveBox 0.9 requires `/data` to be owned by UID/GID 911. A narrowly scoped
+init container applies ownership to the mount root; the application container
+then starts and remains non-root as UID/GID 911.
 
 Security Scan:
 

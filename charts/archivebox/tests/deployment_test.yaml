@@ -24,16 +24,14 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "docker.io/archivebox/archivebox:0.7.4"
+          value: "docker.io/archivebox/archivebox:0.9.70"
 
   - it: should set server command
     asserts:
-      - equal:
+      - isNull:
           path: spec.template.spec.containers[0].command
-          value: ["archivebox"]
-      - equal:
+      - isNull:
           path: spec.template.spec.containers[0].args
-          value: ["server", "--quick-init", "0.0.0.0:8000"]
 
   - it: should set admin credentials from secret
     asserts:
@@ -144,10 +142,10 @@ tests:
           path: spec.template.spec.containers[0].ports
           content:
             name: http
-            containerPort: 8000
+            containerPort: 5797
             protocol: TCP
 
-  - it: should run as non-root UID 911
+  - it: should prepare volume ownership then run as non-root UID 911
     asserts:
       - equal:
           path: spec.template.spec.securityContext.fsGroup
@@ -158,8 +156,15 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].securityContext.runAsNonRoot
           value: true
+      - contains:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.add
+          content: CHOWN
 
-  - it: should not have init containers
+  - it: should prepare data ownership with the pinned application image
     asserts:
-      - notExists:
-          path: spec.template.spec.initContainers
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: docker.io/archivebox/archivebox:0.9.70
+      - equal:
+          path: spec.template.spec.initContainers[0].args
+          value: ["chown 911:911 /data"]

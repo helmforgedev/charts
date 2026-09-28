@@ -18,7 +18,7 @@ The chart renders one `Deployment` with a single `archivebox` container. The
 container runs:
 
 ```text
-archivebox server --quick-init 0.0.0.0:<archivebox.port>
+The chart preserves the image entrypoint and default command (`archivebox server --init 0.0.0.0:5797`) so ArchiveBox can perform its supported initialization and migration flow.
 ```
 
 Key workload decisions:

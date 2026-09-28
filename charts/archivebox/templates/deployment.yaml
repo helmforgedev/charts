@@ -39,12 +39,31 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        - name: prepare-data-ownership
+          image: {{ include "archivebox.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/sh", "-ec"]
+          args: ["chown 911:911 /data"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+            readOnlyRootFilesystem: true
+            runAsNonRoot: false
+            runAsUser: 0
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: data
+              mountPath: /data
       containers:
         - name: archivebox
           image: {{ include "archivebox.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["archivebox"]
-          args: ["server", "--quick-init", "0.0.0.0:{{ .Values.archivebox.port }}"]
           ports:
             - name: http
               containerPort: {{ .Values.archivebox.port }}
