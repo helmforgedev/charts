@@ -65,7 +65,7 @@ spec:
       initContainers:
         - name: cleanup-lost-found
           image: {{ include "kafka.image" . | quote }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          imagePullPolicy: {{ include "kafka.imagePullPolicy" . }}
           command:
             - /bin/sh
             - -c
@@ -85,6 +85,37 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/kafka/controller-data
+        {{- if eq .Values.runtime "native" }}
+        - name: setup-kafka
+          image: {{ include "kafka.setupImage" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - /opt/helmforge/kafka/configure.sh
+          env:
+            - name: KAFKA_COMPONENT
+              value: controller
+            - name: KAFKA_DATA_DIR
+              value: /var/lib/kafka/controller-data
+            - name: KAFKA_CONFIG_FILE
+              value: /mnt/shared/config/server.properties
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/kafka/controller-data
+            - name: kraft-secret
+              mountPath: /etc/kafka/kraft-secret
+              readOnly: true
+            - name: kafka-scripts
+              mountPath: /opt/helmforge/kafka
+              readOnly: true
+            - name: kafka-config
+              mountPath: /mnt/shared/config
+        {{- end }}
         {{- if .Values.metrics.enabled }}
         - name: copy-jmx-agent
           image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
@@ -106,11 +137,22 @@ spec:
       containers:
         - name: kafka
           image: {{ include "kafka.image" . | quote }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          imagePullPolicy: {{ include "kafka.imagePullPolicy" . }}
+          {{- if eq .Values.runtime "native" }}
+          command:
+            - /opt/kafka/kafka.Kafka
+          args:
+            - start
+            - --config
+            - /mnt/shared/config/server.properties
+            - -Dkafka.logs.dir=/opt/kafka/logs/
+            - -Dlog4j2.configurationFile=file:/etc/kafka/docker/log4j2.yaml
+          {{- else }}
           command:
             - /bin/sh
             - -ec
             - /opt/helmforge/kafka/start.sh
+          {{- end }}
           env:
             - name: KAFKA_COMPONENT
               value: controller
@@ -167,12 +209,18 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/kafka/controller-data
+            {{- if eq .Values.runtime "native" }}
+            - name: kafka-config
+              mountPath: /mnt/shared/config
+              readOnly: true
+            {{- else }}
             - name: kraft-secret
               mountPath: /etc/kafka/kraft-secret
               readOnly: true
             - name: kafka-scripts
               mountPath: /opt/helmforge/kafka
               readOnly: true
+            {{- end }}
             {{- if .Values.metrics.enabled }}
             - name: jmx-agent
               mountPath: /opt/jmx-exporter
@@ -192,6 +240,10 @@ spec:
           configMap:
             name: {{ include "kafka.scriptsConfigMapName" . }}
             defaultMode: 0555
+        {{- if eq .Values.runtime "native" }}
+        - name: kafka-config
+          emptyDir: {}
+        {{- end }}
         {{- if .Values.metrics.enabled }}
         - name: jmx-agent
           emptyDir: {}
@@ -286,7 +338,7 @@ spec:
       initContainers:
         - name: cleanup-lost-found
           image: {{ include "kafka.image" . | quote }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          imagePullPolicy: {{ include "kafka.imagePullPolicy" . }}
           command:
             - /bin/sh
             - -c
@@ -298,14 +350,45 @@ spec:
               fi
           env:
             - name: KAFKA_DATA_DIR
-              value: /var/lib/kafka/controller-data
+              value: /var/lib/kafka/data
           {{- with .Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
             - name: data
-              mountPath: /var/lib/kafka/controller-data
+              mountPath: /var/lib/kafka/data
+        {{- if eq .Values.runtime "native" }}
+        - name: setup-kafka
+          image: {{ include "kafka.setupImage" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - /opt/helmforge/kafka/configure.sh
+          env:
+            - name: KAFKA_COMPONENT
+              value: broker
+            - name: KAFKA_DATA_DIR
+              value: /var/lib/kafka/data
+            - name: KAFKA_CONFIG_FILE
+              value: /mnt/shared/config/server.properties
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/kafka/data
+            - name: kraft-secret
+              mountPath: /etc/kafka/kraft-secret
+              readOnly: true
+            - name: kafka-scripts
+              mountPath: /opt/helmforge/kafka
+              readOnly: true
+            - name: kafka-config
+              mountPath: /mnt/shared/config
+        {{- end }}
         {{- if .Values.metrics.enabled }}
         - name: copy-jmx-agent
           image: "{{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}"
@@ -327,11 +410,22 @@ spec:
       containers:
         - name: kafka
           image: {{ include "kafka.image" . | quote }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          imagePullPolicy: {{ include "kafka.imagePullPolicy" . }}
+          {{- if eq .Values.runtime "native" }}
+          command:
+            - /opt/kafka/kafka.Kafka
+          args:
+            - start
+            - --config
+            - /mnt/shared/config/server.properties
+            - -Dkafka.logs.dir=/opt/kafka/logs/
+            - -Dlog4j2.configurationFile=file:/etc/kafka/docker/log4j2.yaml
+          {{- else }}
           command:
             - /bin/sh
             - -ec
             - /opt/helmforge/kafka/start.sh
+          {{- end }}
           env:
             - name: KAFKA_COMPONENT
               value: broker
@@ -364,11 +458,16 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 6
           readinessProbe:
+            {{- if eq .Values.runtime "native" }}
+            tcpSocket:
+              port: client
+            {{- else }}
             exec:
               command:
                 - /bin/sh
                 - -ec
                 - KAFKA_OPTS= /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:{{ .Values.listeners.client.port }} >/dev/null 2>&1
+            {{- end }}
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 5
@@ -389,12 +488,18 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/kafka/data
+            {{- if eq .Values.runtime "native" }}
+            - name: kafka-config
+              mountPath: /mnt/shared/config
+              readOnly: true
+            {{- else }}
             - name: kraft-secret
               mountPath: /etc/kafka/kraft-secret
               readOnly: true
             - name: kafka-scripts
               mountPath: /opt/helmforge/kafka
               readOnly: true
+            {{- end }}
             {{- if .Values.metrics.enabled }}
             - name: jmx-agent
               mountPath: /opt/jmx-exporter
@@ -414,6 +519,10 @@ spec:
           configMap:
             name: {{ include "kafka.scriptsConfigMapName" . }}
             defaultMode: 0555
+        {{- if eq .Values.runtime "native" }}
+        - name: kafka-config
+          emptyDir: {}
+        {{- end }}
         {{- if .Values.metrics.enabled }}
         - name: jmx-agent
           emptyDir: {}

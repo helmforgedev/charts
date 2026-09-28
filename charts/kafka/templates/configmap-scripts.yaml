@@ -6,13 +6,13 @@ metadata:
   labels:
     {{- include "kafka.labels" . | nindent 4 }}
 data:
-  start.sh: |
+  configure.sh: |
     #!/bin/sh
     set -eu
 
     ordinal="${HOSTNAME##*-}"
     component="${KAFKA_COMPONENT}"
-    config_file="/tmp/server.properties"
+    config_file="${KAFKA_CONFIG_FILE:-/tmp/server.properties}"
     data_dir="${KAFKA_DATA_DIR}"
     cluster_id="$(cat /etc/kafka/kraft-secret/{{ .Values.kraft.existingSecretClusterIdKey }})"
     mkdir -p "${data_dir}"
@@ -144,5 +144,10 @@ data:
           --no-initial-controllers
       fi
     fi
+  start.sh: |
+    #!/bin/sh
+    set -eu
 
-    exec /opt/kafka/bin/kafka-server-start.sh "${config_file}"
+    export KAFKA_CONFIG_FILE="${KAFKA_CONFIG_FILE:-/tmp/server.properties}"
+    /opt/helmforge/kafka/configure.sh
+    exec /opt/kafka/bin/kafka-server-start.sh "${KAFKA_CONFIG_FILE}"

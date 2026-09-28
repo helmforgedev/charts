@@ -40,6 +40,22 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "kafka.image" -}}
+{{- if eq .Values.runtime "native" -}}
+{{- printf "%s:%s" .Values.native.image.repository .Values.native.image.tag -}}
+{{- else -}}
+{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "kafka.imagePullPolicy" -}}
+{{- if eq .Values.runtime "native" -}}
+{{- .Values.native.image.pullPolicy -}}
+{{- else -}}
+{{- .Values.image.pullPolicy -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "kafka.setupImage" -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
@@ -182,6 +198,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "kafka.validate" -}}
+{{- if not (or (eq .Values.runtime "jvm") (eq .Values.runtime "native")) -}}
+{{- fail "runtime must be jvm or native" -}}
+{{- end -}}
+{{- if and (eq .Values.runtime "native") .Values.metrics.enabled -}}
+{{- fail "metrics.enabled is not supported with runtime=native because the JMX javaagent requires the JVM runtime" -}}
+{{- end -}}
 {{- if not (or (eq .Values.architecture "single-broker") (eq .Values.architecture "cluster")) -}}
 {{- fail "architecture must be single-broker or cluster" -}}
 {{- end -}}

@@ -19,12 +19,36 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].image
           value: docker.io/apache/kafka:4.3.1
+      - equal:
+          path: spec.template.spec.containers[0].command[2]
+          value: /opt/helmforge/kafka/start.sh
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
             name: client
             containerPort: 9092
             protocol: TCP
+
+  - it: renders the native runtime with a JVM setup init container
+    set:
+      runtime: native
+    template: templates/statefulset-single.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: setup-kafka
+      - equal:
+          path: spec.template.spec.initContainers[1].image
+          value: docker.io/apache/kafka:4.3.1
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/apache/kafka-native:4.3.1
+      - equal:
+          path: spec.template.spec.containers[0].command[0]
+          value: /opt/kafka/kafka.Kafka
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.tcpSocket.port
+          value: client
 
   - it: renders the KRaft secret when no existing secret is provided
     template: templates/secret.yaml

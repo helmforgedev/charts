@@ -42,6 +42,44 @@ tests:
             containerPort: 9094
             protocol: TCP
 
+  - it: renders native controllers with a JVM setup init container
+    set:
+      architecture: cluster
+      runtime: native
+    template: templates/statefulset-cluster.yaml
+    documentSelector:
+      path: metadata.name
+      value: RELEASE-NAME-kafka-controller
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: setup-kafka
+      - equal:
+          path: spec.template.spec.initContainers[1].image
+          value: docker.io/apache/kafka:4.3.1
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/apache/kafka-native:4.3.1
+
+  - it: renders native brokers with TCP readiness
+    set:
+      architecture: cluster
+      runtime: native
+    template: templates/statefulset-cluster.yaml
+    documentSelector:
+      path: metadata.name
+      value: RELEASE-NAME-kafka-broker
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: setup-kafka
+      - equal:
+          path: spec.template.spec.containers[0].command[0]
+          value: /opt/kafka/kafka.Kafka
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.tcpSocket.port
+          value: client
+
   - it: renders controller directory ids in the secret for cluster mode
     set:
       architecture: cluster

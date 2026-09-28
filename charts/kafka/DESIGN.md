@@ -3,9 +3,12 @@
 ## Scope
 
 This chart deploys Apache Kafka in KRaft mode with the official `apache/kafka`
-runtime image. It supports a development-oriented single-broker topology and
-production-oriented cluster topologies with either dedicated controller and
-broker StatefulSets or combined controller/broker pods.
+JVM runtime by default and the optional experimental `apache/kafka-native`
+runtime. Native mode uses the JVM image in a setup init container to generate
+configuration and format storage before the native process starts. It supports
+a development-oriented single-broker topology and production-oriented cluster
+topologies with either dedicated controller and broker StatefulSets or combined
+controller/broker pods.
 
 The chart is intentionally Kafka-only. It does not install ZooKeeper, Kafka
 Connect, MirrorMaker, Schema Registry, UIs, TLS/SASL automation, or external
@@ -23,6 +26,9 @@ flowchart LR
   controllers <--> brokers
   kraft[KRaft Secret optional] --> controllers
   metrics[JMX exporter javaagent optional] --> sm[ServiceMonitor optional]
+  setup[JVM setup init container in native mode] --> single
+  setup --> controllers
+  setup --> brokers
 ```
 
 Topology selection:
@@ -33,6 +39,15 @@ Topology selection:
   dedicated controller and broker StatefulSets.
 - `architecture=cluster` with `cluster.brokers.replicaCount=0` renders combined
   controller/broker pods for a 3-node HA topology with fewer pods.
+
+Runtime selection:
+
+- `runtime=jvm` runs the standard `apache/kafka` image and supports JMX agent
+  metrics.
+- `runtime=native` runs `apache/kafka-native` after a JVM setup init container
+  completes.
+- JMX javaagent metrics are rejected in native mode because they require a JVM
+  runtime.
 
 ## Main Design Choices
 

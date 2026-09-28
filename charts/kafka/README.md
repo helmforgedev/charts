@@ -1,6 +1,14 @@
 # Kafka
 
-Apache Kafka for Kubernetes using the official [`apache/kafka`](https://hub.docker.com/r/apache/kafka) image and a KRaft-only design. This chart intentionally supports two clear topologies:
+Apache Kafka for Kubernetes using a KRaft-only design. The chart supports the official
+[`apache/kafka`](https://hub.docker.com/r/apache/kafka) JVM runtime by default and the experimental
+[`apache/kafka-native`](https://hub.docker.com/r/apache/kafka-native) runtime as an option.
+
+When `runtime=native`, an init container based on `apache/kafka` generates `server.properties` and formats
+KRaft storage before the native container starts. Apache currently recommends the native image for local
+development and testing rather than production.
+
+This chart intentionally supports two clear topologies:
 
 - `single-broker` for development and simple internal environments
 - `cluster` for production-oriented deployments with dedicated controllers and brokers
@@ -32,12 +40,13 @@ helm install kafka oci://ghcr.io/helmforgedev/helm/kafka -f values.yaml
 ## What this chart covers
 
 - KRaft only
-- official Kafka `4.3.1` runtime image
+- official Kafka `4.3.1` JVM or native runtime image
+- JVM-based setup init container when the native runtime is selected
 - persistent storage for single-broker, controllers, and brokers
 - automatic cleanup of `lost+found` directories in PVCs (ext4/xfs compatibility)
 - stable in-cluster advertised listeners for brokers
 - explicit KRaft cluster ID and controller directory ID secret handling
-- optional Prometheus metrics through a SHA-256 verified JMX exporter javaagent
+- optional Prometheus metrics through a SHA-256 verified JMX exporter javaagent for the JVM runtime
 - optional `ServiceMonitor`
 - optional `PodDisruptionBudget`
 - support for `extraInitContainers` for custom initialization logic
@@ -54,6 +63,7 @@ helm install kafka oci://ghcr.io/helmforgedev/helm/kafka -f values.yaml
 - [Kafka downloads](https://downloads.apache.org/kafka/)
 - [Kafka documentation](https://kafka.apache.org/documentation/)
 - [Kafka Docker image](https://hub.docker.com/r/apache/kafka)
+- [Kafka native Docker image](https://hub.docker.com/r/apache/kafka-native)
 
 ## Quick start
 
@@ -65,6 +75,13 @@ architecture: single-broker
 singleBroker:
   persistence:
     size: 8Gi
+```
+
+Native single broker for development/testing:
+
+```yaml
+runtime: native
+architecture: single-broker
 ```
 
 Cluster (dedicated controllers and brokers):
@@ -108,6 +125,7 @@ pdb:
 Metrics:
 
 ```yaml
+# Metrics require runtime=jvm.
 metrics:
   enabled: true
   serviceMonitor:
@@ -126,9 +144,12 @@ metrics:
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
+| `runtime` | Kafka runtime: `jvm` or `native` | `jvm` |
 | `architecture` | `single-broker` or `cluster` | `single-broker` |
-| `image.repository` | Kafka image repository | `apache/kafka` |
-| `image.tag` | Kafka image tag | `4.3.1` |
+| `image.repository` | JVM runtime and native setup image repository | `apache/kafka` |
+| `image.tag` | JVM Kafka image tag | `4.3.1` |
+| `native.image.repository` | Native runtime image repository | `apache/kafka-native` |
+| `native.image.tag` | Native Kafka image tag | `4.3.1` |
 | `service.type` | Client bootstrap service type | `ClusterIP` |
 | `service.ipFamilyPolicy` | Service IP family policy for client, headless, and metrics Services | `""` |
 | `service.ipFamilies` | Service IP families for client, headless, and metrics Services | `[]` |
@@ -165,6 +186,9 @@ The `ci/` directory covers the main supported paths:
 - `combined-mode.yaml`
 - `metrics.yaml`
 - `cluster-tuned.yaml`
+- `native-single-broker.yaml`
+- `native-cluster.yaml`
+- `native-combined-mode.yaml`
 
 ## Examples
 
@@ -186,6 +210,8 @@ See `examples/`:
 - broker advertised listeners use stable StatefulSet pod DNS names
 - for production, do not treat this chart as a shortcut around Kafka capacity planning, topic design, and client retry behavior
 - the chart automatically removes `lost+found` directories from PVCs during pod initialization to prevent Kafka startup failures on ext4/xfs filesystems
+- `metrics.enabled` is supported only with `runtime=jvm`
+- keep `image.tag` and `native.image.tag` aligned when using `runtime=native`
 
 <!-- @AI-METADATA
 type: chart-readme
