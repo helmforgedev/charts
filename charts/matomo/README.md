@@ -16,7 +16,7 @@ helm install matomo oci://ghcr.io/helmforgedev/helm/matomo
 
 ## Features
 
-- Official Matomo Apache image pinned to `5.13.0-apache`.
+- Official Matomo Apache image pinned to `5.14.0-apache`.
 - Bundled HelmForge MySQL subchart for simple deployments.
 - External MySQL/MariaDB mode for production.
 - CronJob-based `core:archive` execution.
@@ -25,9 +25,10 @@ helm install matomo oci://ghcr.io/helmforgedev/helm/matomo
 - NetworkPolicy, ServiceMonitor, dual-stack Service fields.
 - External Secrets integration for database passwords.
 
-Matomo 5.13.0 improves reporting and user management and includes maintenance
-and security fixes. Upstream reports no major database upgrade for this release;
-back up the database and persistent application volume before production rollout.
+Matomo 5.14.0 is the current stable production release. Review the
+[official changelog](https://matomo.org/changelog/matomo-5-14-0/), and back up
+the database and persistent application volume before production rollout so
+the native updater can be rolled back together with its data.
 
 ## Quick Start
 
@@ -68,7 +69,7 @@ ingress:
 | --- | --- | --- |
 | `replicaCount` | Matomo web replicas | `1` |
 | `image.repository` | Official Matomo image repository | `docker.io/library/matomo` |
-| `image.tag` | Official Matomo image tag | `5.13.0-apache` |
+| `image.tag` | Official Matomo image tag | `5.14.0-apache` |
 | `database.mode` | `auto`, `external`, or `mysql` | `auto` |
 | `mysql.enabled` | Deploy HelmForge MySQL subchart | `true` |
 | `persistence.enabled` | Persist `/var/www/html` | `true` |
