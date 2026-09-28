@@ -38,7 +38,7 @@ secrets:
   ssoClientSecretKey: sso-client-secret
 ```
 
-MediKeep 0.70.0 enforces `SSO_ONLY_MODE` and parses `SSO_ENABLED`,
+MediKeep 0.71.0 enforces `SSO_ONLY_MODE` and parses `SSO_ENABLED`,
 `SSO_ONLY_MODE` and `SSO_AUTO_REDIRECT` strictly. Accepted boolean values are
 `true/false`, `1/0`, `yes/no` and `on/off`; invalid values stop startup.
 The chart renders `SSO_ENABLED` from `medikeep.sso.enabled`. Configure the

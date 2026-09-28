@@ -2,18 +2,16 @@
 
 Deploy [MediKeep](https://github.com/afairgiant/MediKeep), a self-hosted personal medical records application built with React and FastAPI.
 
-This chart packages the official `ghcr.io/afairgiant/medikeep:v0.70.0` image with PostgreSQL, persistent uploads and backups,
+This chart packages the official `ghcr.io/afairgiant/medikeep:v0.71.0` image with PostgreSQL, persistent uploads and backups,
 Kubernetes Ingress, Gateway API, NetworkPolicy, and External Secrets Operator integration.
 
 ## Upgrade Notes
 
-MediKeep `v0.70.0` fixes SSO-only enforcement, validates authentication flags
-strictly, improves trusted-proxy client IP handling and fixes file-access/SSRF
-issues. Existing `SSO_ONLY_MODE=1` or `yes` settings now disable password login.
-Verify that an administrator can sign in through the identity provider before
-upgrading. Invalid boolean values now stop startup. See
-[authentication configuration](docs/authentication.md) and the
-[upstream release](https://github.com/afairgiant/MediKeep/releases/tag/v0.70.0).
+MediKeep `v0.71.0` adds support for PostgreSQL 16 through 18, expands medical
+record options and fixes HTML injection and printed insurance escaping. It does
+not change the service port, uploads path or authentication environment
+contract. See [authentication configuration](docs/authentication.md) and the
+[upstream release](https://github.com/afairgiant/MediKeep/releases/tag/v0.71.0).
 Back up PostgreSQL and uploaded records before upgrading.
 
 ## Install

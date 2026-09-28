@@ -13,7 +13,7 @@ const pod = pods.find(p => !p.metadata.deletionTimestamp
   && p.spec.containers.some(c => c.name === 'medikeep'));
 assert.ok(pod, 'Ready MediKeep pod required');
 const container = pod.spec.containers.find(c => c.name === 'medikeep');
-assert.match(container.image, /:v0\.70\.0$/);
+assert.match(container.image, /:v0\.71\.0$/);
 const ssoOnly = ['true', '1', 'yes', 'on'].includes(
   container.env.find(e => e.name === 'SSO_ONLY_MODE')?.value?.toLowerCase());
 const result = run(['exec', pod.metadata.name, '-c', 'medikeep', '--', 'python', '-c', `
@@ -30,6 +30,6 @@ if config['sso_only']:
         raise AssertionError('Password login must be disabled')
     except urllib.error.HTTPError as error:
         assert error.code == 403, error.code
-print('MediKeep 0.70.0 health and authentication mode verified; sso_only=' + str(config['sso_only']))
+print('MediKeep 0.71.0 health and authentication mode verified; sso_only=' + str(config['sso_only']))
 `]);
 console.log(result.trim());
