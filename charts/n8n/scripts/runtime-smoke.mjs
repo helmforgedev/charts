@@ -5,7 +5,7 @@ import {randomBytes} from 'node:crypto';
 import {readFileSync, writeFileSync} from 'node:fs';
 import {setTimeout as delay} from 'node:timers/promises';
 
-const [context, namespace, release, version = '2.40.7', action = 'smoke'] = process.argv.slice(2);
+const [context, namespace, release, version = '2.41.3', action = 'smoke'] = process.argv.slice(2);
 assert.ok(['smoke', 'create', 'verify'].includes(action));
 const statePath = process.env.HF_N8N_UPGRADE_STATE;
 assert.ok(action === 'smoke' || statePath, 'Upgrade state path required');
