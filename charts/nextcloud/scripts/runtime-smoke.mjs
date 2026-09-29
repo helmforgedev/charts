@@ -67,7 +67,10 @@ if (runtime.cron.enabled) {
   try {
     kubectl('create', 'job', job, `--from=cronjob/${cronjob.metadata.name}`);
     kubectl('wait', '--for=condition=complete', `job/${job}`, '--timeout=600s');
-    const log = kubectl('logs', `job/${job}`, '-c', 'cron');
+    const jobPods = JSON.parse(kubectl('get', 'pods', '-l', `job-name=${job}`, '-o', 'json')).items;
+    const successfulPod = jobPods.find(item => item.status.phase === 'Succeeded');
+    if (!successfulPod) throw new Error(`Completed CronJob ${job} has no successful Pod`);
+    const log = kubectl('logs', successfulPod.metadata.name, '-c', 'cron');
     if (!log.includes('Nextcloud background jobs completed successfully')) {
       throw new Error(`CronJob did not report a completed background-job cycle: ${log}`);
     }
