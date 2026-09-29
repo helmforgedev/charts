@@ -37,7 +37,18 @@ if (runtime.notifyPush?.enabled) {
     'tar -xzf /tmp/notify-push-fixture.tar.gz -C /var/www/html/custom_apps; rm /tmp/notify-push-fixture.tar.gz'));
   process.stdout.write(occ('app:enable', 'notify_push'));
   process.stdout.write(occ('integrity:check-app', 'notify_push'));
-  process.stdout.write(occ('notify_push:setup', 'http://127.0.0.1:8080/push'));
+  let notifyPushSetup = '';
+  for (let attempt = 1; attempt <= 12; attempt++) {
+    try {
+      notifyPushSetup = occ('notify_push:setup', 'http://127.0.0.1:8080/push');
+      break;
+    } catch (error) {
+      if (attempt === 12) throw error;
+      console.log(`notify_push setup not ready (${attempt}/12); retrying in five seconds`);
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+  }
+  process.stdout.write(notifyPushSetup);
   process.stdout.write(execFileSync('kubectl', ['--context', context, '-n', namespace,
     'exec', '-i', pod.metadata.name, '-c', 'nextcloud', '--', 'php'], {
     input: readFileSync(new URL('./push-smoke.php', import.meta.url)),
@@ -48,19 +59,26 @@ if (runtime.cron.enabled) {
   const cronjobs = JSON.parse(kubectl('get', 'cronjobs', '-l', `app.kubernetes.io/instance=${release},app.kubernetes.io/component=cron`, '-o', 'json')).items;
   if (cronjobs.length !== 1) throw new Error(`Expected one Nextcloud CronJob, found ${cronjobs.length}`);
   const cronjob = cronjobs[0];
-  if (!cronjob.spec.suspend) {
+  const wasSuspended = Boolean(cronjob.spec.suspend);
+  if (!wasSuspended) {
     kubectl('patch', 'cronjob', cronjob.metadata.name, '--type=merge', '-p', '{"spec":{"suspend":true}}');
   }
   const job = `${cronjob.metadata.name.slice(0, 39)}-smoke-${Date.now()}`;
-  kubectl('create', 'job', job, `--from=cronjob/${cronjob.metadata.name}`);
-  kubectl('wait', '--for=condition=complete', `job/${job}`, '--timeout=600s');
-  const log = kubectl('logs', `job/${job}`, '-c', 'cron');
-  if (!log.includes('Nextcloud background jobs completed successfully')) {
-    throw new Error(`CronJob did not report a completed background-job cycle: ${log}`);
-  }
-  kubectl('delete', 'job', job, '--wait=true');
-  if (!cronjob.spec.suspend) {
-    kubectl('patch', 'cronjob', cronjob.metadata.name, '--type=merge', '-p', '{"spec":{"suspend":false}}');
+  try {
+    kubectl('create', 'job', job, `--from=cronjob/${cronjob.metadata.name}`);
+    kubectl('wait', '--for=condition=complete', `job/${job}`, '--timeout=600s');
+    const log = kubectl('logs', `job/${job}`, '-c', 'cron');
+    if (!log.includes('Nextcloud background jobs completed successfully')) {
+      throw new Error(`CronJob did not report a completed background-job cycle: ${log}`);
+    }
+  } finally {
+    try {
+      kubectl('delete', 'job', job, '--ignore-not-found=true', '--wait=true');
+    } finally {
+      if (!wasSuspended) {
+        kubectl('patch', 'cronjob', cronjob.metadata.name, '--type=merge', '-p', '{"spec":{"suspend":false}}');
+      }
+    }
   }
   console.log('Kubernetes CronJob background cycle completed successfully');
 }
