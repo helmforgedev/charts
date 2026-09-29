@@ -1,0 +1,139 @@
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: Secret
+metadata:
+  name: attic-production
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+type: Opaque
+stringData:
+  database-url: postgresql://attic:fixture-password@fixture-postgresql:5432/attic
+  token-hs256-secret-base64: Zml4dHVyZS1hdHRpYy1zaWduaW5nLWtleS0yMDI2
+  aws-access-key-id: fixture-access-key
+  aws-secret-access-key: fixture-secret-key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fixture-postgresql
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  selector:
+    app.kubernetes.io/name: fixture-postgresql
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: fixture-postgresql
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  serviceName: fixture-postgresql
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fixture-postgresql
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fixture-postgresql
+        helmforge.dev/runtime-fixture: "true"
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgresql
+          image: docker.io/library/postgres:18.6-trixie
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgresql
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: attic
+            - name: POSTGRES_PASSWORD
+              value: fixture-password
+            - name: POSTGRES_DB
+              value: attic
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "attic", "-d", "attic"]
+            periodSeconds: 2
+            timeoutSeconds: 2
+            failureThreshold: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wait-for-postgresql
+  labels:
+    helmforge.dev/runtime-fixture: "true"
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        helmforge.dev/runtime-fixture: "true"
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: OnFailure
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: wait
+          image: docker.io/library/postgres:18.6-trixie
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -ec
+            - until pg_isready -h fixture-postgresql -U attic -d attic; do sleep 2; done
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi

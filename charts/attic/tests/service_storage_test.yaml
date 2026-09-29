@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Attic service and persistence
+templates:
+  - templates/service.yaml
+  - templates/pvc.yaml
+  - templates/secret.yaml
+tests:
+  - it: renders a ClusterIP Service
+    template: templates/service.yaml
+    asserts:
+      - isKind: { of: Service }
+      - equal: { path: spec.type, value: ClusterIP }
+  - it: routes the Service to the named port
+    template: templates/service.yaml
+    asserts:
+      - equal: { path: "spec.ports[0].port", value: 8080 }
+      - equal: { path: "spec.ports[0].targetPort", value: http }
+  - it: omits dual-stack fields by default
+    template: templates/service.yaml
+    asserts:
+      - notExists: { path: spec.ipFamilyPolicy }
+      - notExists: { path: spec.ipFamilies }
+  - it: renders dual-stack fields in order
+    template: templates/service.yaml
+    set:
+      service.ipFamilyPolicy: RequireDualStack
+      service.ipFamilies: [IPv6, IPv4]
+    asserts:
+      - equal: { path: spec.ipFamilyPolicy, value: RequireDualStack }
+      - equal: { path: "spec.ipFamilies[0]", value: IPv6 }
+      - equal: { path: "spec.ipFamilies[1]", value: IPv4 }
+  - it: creates a retained PVC by default
+    template: templates/pvc.yaml
+    asserts:
+      - isKind: { of: PersistentVolumeClaim }
+      - equal: { path: "metadata.annotations[\"helm.sh/resource-policy\"]", value: keep }
+      - equal: { path: spec.resources.requests.storage, value: 20Gi }
+  - it: skips the PVC when persistence is disabled
+    template: templates/pvc.yaml
+    set: { persistence.enabled: false }
+    asserts:
+      - hasDocuments: { count: 0 }
+  - it: skips the PVC for an existing claim
+    template: templates/pvc.yaml
+    set: { persistence.existingClaim: existing-data }
+    asserts:
+      - hasDocuments: { count: 0 }
+  - it: generates a standalone credential Secret
+    template: templates/secret.yaml
+    asserts:
+      - isKind: { of: Secret }
+      - exists: { path: stringData.token-hs256-secret-base64 }
+  - it: skips generation when an existing Secret is selected
+    template: templates/secret.yaml
+    set: { auth.existingSecret: attic-existing }
+    asserts:
+      - hasDocuments: { count: 0 }

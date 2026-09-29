@@ -1,0 +1,76 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and (eq .Values.mode "distributed") .Values.config.garbageCollection.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ printf "%s-gc" (include "attic.fullname" .) | trunc 63 | trimSuffix "-" }}
+  labels:
+    {{- include "attic.labels" . | nindent 4 }}
+    app.kubernetes.io/component: garbage-collector
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "attic.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: garbage-collector
+  template:
+    metadata:
+      labels:
+        {{- include "attic.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: garbage-collector
+    spec:
+      serviceAccountName: {{ include "attic.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: garbage-collector
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["-f", "/config/server.toml", "--mode", "garbage-collector"]
+          env:
+            - name: HOME
+              value: /tmp
+            - name: RUST_LOG
+              value: {{ .Values.config.logLevel | quote }}
+            {{- include "attic.secretEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.garbageCollectorResources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "attic.fullname" . }}
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

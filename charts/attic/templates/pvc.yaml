@@ -1,0 +1,25 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and (eq .Values.mode "standalone") .Values.persistence.enabled (empty .Values.persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "attic.pvcName" . }}
+  labels:
+    {{- include "attic.labels" . | nindent 4 }}
+  annotations:
+    {{- if .Values.persistence.retain }}
+    helm.sh/resource-policy: keep
+    {{- end }}
+    {{- with .Values.persistence.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  accessModes:
+    {{- toYaml .Values.persistence.accessModes | nindent 4 }}
+  {{- with .Values.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size }}
+{{- end }}

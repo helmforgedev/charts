@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Attic HTTP exposure
+templates:
+  - templates/ingress.yaml
+  - templates/gateway-httproute.yaml
+tests:
+  - it: disables both exposure resources by default
+    asserts:
+      - hasDocuments: { count: 0 }
+        template: templates/ingress.yaml
+      - hasDocuments: { count: 0 }
+        template: templates/gateway-httproute.yaml
+  - it: renders the configured Ingress class
+    template: templates/ingress.yaml
+    values: [ingress-values.yaml]
+    asserts:
+      - equal: { path: spec.ingressClassName, value: nginx }
+  - it: renders the Ingress hostname
+    template: templates/ingress.yaml
+    values: [ingress-values.yaml]
+    asserts:
+      - equal: { path: "spec.rules[0].host", value: cache.example.com }
+  - it: routes Ingress traffic to the Attic Service
+    template: templates/ingress.yaml
+    values: [ingress-values.yaml]
+    asserts:
+      - equal: { path: "spec.rules[0].http.paths[0].backend.service.name", value: RELEASE-NAME-attic }
+      - equal: { path: "spec.rules[0].http.paths[0].backend.service.port.number", value: 8080 }
+  - it: renders Gateway API parent and hostname
+    template: templates/gateway-httproute.yaml
+    values: [gateway-values.yaml]
+    asserts:
+      - isKind: { of: HTTPRoute }
+      - equal: { path: "spec.parentRefs[0].name", value: shared-gateway }
+      - equal: { path: "spec.hostnames[0]", value: cache.example.com }
+  - it: injects the default Gateway backend
+    template: templates/gateway-httproute.yaml
+    values: [gateway-values.yaml]
+    asserts:
+      - equal: { path: "spec.rules[0].backendRefs[0].name", value: RELEASE-NAME-attic }
+      - equal: { path: "spec.rules[0].backendRefs[0].port", value: 8080 }
+  - it: rejects a Gateway API route without parentRefs
+    template: templates/gateway-httproute.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - hostnames: [cache.example.com]
+    asserts:
+      - failedTemplate:
+          errorMessage: "gatewayAPI.httpRoutes[].parentRefs is required"

@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Attic API deployment
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: renders an API Deployment
+    asserts:
+      - isKind: { of: Deployment }
+  - it: defaults to one replica
+    asserts:
+      - equal: { path: spec.replicas, value: 1 }
+  - it: uses Recreate for standalone storage
+    asserts:
+      - equal: { path: spec.strategy.type, value: Recreate }
+  - it: pins the official immutable image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/zhaofengli/attic:9eda345a743f50999de04f59a170806c3e029eea
+  - it: runs monolithic mode by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: monolithic
+  - it: exposes the HTTP container port
+    asserts:
+      - equal: { path: "spec.template.spec.containers[0].ports[0].name", value: http }
+      - equal: { path: "spec.template.spec.containers[0].ports[0].containerPort", value: 8080 }
+  - it: disables service account token mounting
+    asserts:
+      - equal: { path: spec.template.spec.automountServiceAccountToken, value: false }
+  - it: runs as the hardened arbitrary UID
+    asserts:
+      - equal: { path: spec.template.spec.securityContext.runAsNonRoot, value: true }
+      - equal: { path: spec.template.spec.securityContext.runAsUser, value: 10001 }
+      - equal: { path: spec.template.spec.securityContext.seccompProfile.type, value: RuntimeDefault }
+  - it: hardens the application container
+    asserts:
+      - equal: { path: "spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation", value: false }
+      - equal: { path: "spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem", value: true }
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+  - it: mounts config data and tmp
+    asserts:
+      - equal: { path: "spec.template.spec.containers[0].volumeMounts[0].mountPath", value: /config }
+      - equal: { path: "spec.template.spec.containers[0].volumeMounts[1].mountPath", value: /tmp }
+      - equal: { path: "spec.template.spec.containers[0].volumeMounts[2].mountPath", value: /data }
+  - it: uses TCP probes because Attic has no health endpoint
+    asserts:
+      - equal: { path: "spec.template.spec.containers[0].startupProbe.tcpSocket.port", value: http }
+      - equal: { path: "spec.template.spec.containers[0].livenessProbe.tcpSocket.port", value: http }
+      - equal: { path: "spec.template.spec.containers[0].readinessProbe.tcpSocket.port", value: http }
+  - it: validates configuration before startup
+    asserts:
+      - equal: { path: "spec.template.spec.initContainers[0].name", value: check-config }
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: check-config
+  - it: injects the configured tracing filter
+    set:
+      config.logLevel: attic_server=debug
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: RUST_LOG, value: attic_server=debug }
+  - it: appends extra environment variables
+    set:
+      extraEnv:
+        - name: TEST_FLAG
+          value: enabled
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: TEST_FLAG, value: enabled }

@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Attic fail-fast validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: accepts the default standalone topology
+    asserts:
+      - hasDocuments: { count: 0 }
+  - it: rejects standalone replicas
+    set: { replicaCount: 2 }
+    asserts:
+      - failedTemplate: { errorMessage: "replicaCount must be 1 when mode=standalone because SQLite/local storage is not safe for multiple replicas" }
+  - it: rejects PostgreSQL in standalone mode
+    set: { database.type: postgresql }
+    asserts:
+      - failedTemplate: { errorMessage: "database.type must be sqlite when mode=standalone" }
+  - it: rejects S3 in standalone mode
+    set: { storage.type: s3 }
+    asserts:
+      - failedTemplate: { errorMessage: "storage.type must be local when mode=standalone" }
+  - it: requires PostgreSQL in distributed mode
+    set: { mode: distributed }
+    asserts:
+      - failedTemplate: { errorMessage: "database.type must be postgresql when mode=distributed" }
+  - it: requires S3 in distributed mode
+    set:
+      mode: distributed
+      database.type: postgresql
+    asserts:
+      - failedTemplate: { errorMessage: "storage.type must be s3 when mode=distributed" }
+  - it: requires an S3 bucket
+    set:
+      mode: distributed
+      database.type: postgresql
+      storage.type: s3
+    asserts:
+      - failedTemplate: { errorMessage: "storage.s3.bucket is required when mode=distributed" }
+  - it: requires stable distributed credentials
+    set:
+      mode: distributed
+      database.type: postgresql
+      storage.type: s3
+      storage.s3.bucket: cache
+    asserts:
+      - failedTemplate: { errorMessage: "auth.existingSecret is required when mode=distributed so migrations can access stable database and JWT credentials" }
+  - it: requires Ingress hosts
+    set:
+      ingress.enabled: true
+      ingress.hosts: []
+    asserts:
+      - failedTemplate: { errorMessage: "ingress.hosts must contain at least one host when ingress.enabled=true" }
+  - it: protects selector labels
+    set:
+      podLabels:
+        app.kubernetes.io/name: override
+    asserts:
+      - failedTemplate: { errorMessage: "podLabels must not override the selector label app.kubernetes.io/name" }

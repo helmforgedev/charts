@@ -1,0 +1,85 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Attic distributed topology
+templates:
+  - templates/deployment.yaml
+  - templates/garbage-collector.yaml
+  - templates/migration-job.yaml
+  - templates/pdb.yaml
+  - templates/pvc.yaml
+tests:
+  - it: scales the stateless API
+    template: templates/deployment.yaml
+    values: [distributed-values.yaml]
+    asserts:
+      - equal: { path: spec.replicas, value: 3 }
+      - equal: { path: spec.strategy.type, value: RollingUpdate }
+      - equal: { path: 'spec.selector.matchLabels["app.kubernetes.io/component"]', value: api }
+  - it: runs api-server mode
+    template: templates/deployment.yaml
+    values: [distributed-values.yaml]
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: api-server
+  - it: injects the PostgreSQL Secret key
+    template: templates/deployment.yaml
+    values: [distributed-values.yaml]
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ATTIC_SERVER_DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: attic-production
+                key: database-url
+  - it: removes the local data mount
+    template: templates/deployment.yaml
+    values: [distributed-values.yaml]
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content: { name: data, mountPath: /data }
+  - it: renders exactly one garbage collector
+    template: templates/garbage-collector.yaml
+    values: [distributed-values.yaml]
+    asserts:
+      - isKind: { of: Deployment }
+      - equal: { path: spec.replicas, value: 1 }
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: garbage-collector
+  - it: renders the migration hook
+    template: templates/migration-job.yaml
+    values: [distributed-values.yaml]
+    asserts:
+      - isKind: { of: Job }
+      - equal: { path: "metadata.annotations[\"helm.sh/hook\"]", value: "pre-install,pre-upgrade" }
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: db-migrations
+  - it: propagates pull and scheduling settings to the migration hook
+    template: templates/migration-job.yaml
+    values: [scheduling-values.yaml]
+    asserts:
+      - equal: { path: "spec.template.spec.imagePullSecrets[0].name", value: registry-credentials }
+      - equal: { path: 'spec.template.spec.nodeSelector["kubernetes.io/os"]', value: linux }
+      - equal: { path: "spec.template.spec.tolerations[0].key", value: dedicated }
+  - it: propagates pull and scheduling settings to the garbage collector
+    template: templates/garbage-collector.yaml
+    values: [scheduling-values.yaml]
+    asserts:
+      - equal: { path: "spec.template.spec.imagePullSecrets[0].name", value: registry-credentials }
+      - equal: { path: 'spec.template.spec.nodeSelector["kubernetes.io/os"]', value: linux }
+      - equal: { path: "spec.template.spec.tolerations[0].key", value: dedicated }
+  - it: renders a PDB for multiple API replicas
+    template: templates/pdb.yaml
+    values: [distributed-values.yaml]
+    asserts:
+      - isKind: { of: PodDisruptionBudget }
+      - equal: { path: spec.minAvailable, value: 1 }
+  - it: does not render a local PVC
+    template: templates/pvc.yaml
+    values: [distributed-values.yaml]
+    asserts:
+      - hasDocuments: { count: 0 }

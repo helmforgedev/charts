@@ -1,0 +1,90 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Attic platform extensions
+templates:
+  - templates/externalsecret.yaml
+  - templates/networkpolicy.yaml
+  - templates/extra-manifests.yaml
+tests:
+  - it: does not render ExternalSecret by default
+    template: templates/externalsecret.yaml
+    asserts:
+      - hasDocuments: { count: 0 }
+  - it: renders the canonical ExternalSecret target
+    template: templates/externalsecret.yaml
+    values: [external-secrets-values.yaml]
+    asserts:
+      - isKind: { of: ExternalSecret }
+      - equal: { path: metadata.name, value: attic-credentials }
+      - equal: { path: spec.target.name, value: attic-credentials }
+      - equal: { path: spec.refreshInterval, value: 1h }
+  - it: preserves a literal fullname override and item refresh interval
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: attic-runtime-credentials
+          spec:
+            refreshInterval: 15m
+            secretStoreRef:
+              name: production
+              kind: ClusterSecretStore
+            data: []
+    asserts:
+      - equal: { path: metadata.name, value: attic-runtime-credentials }
+      - equal: { path: spec.target.name, value: attic-runtime-credentials }
+      - equal: { path: spec.refreshInterval, value: 15m }
+  - it: rejects an item without a store reference
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - spec:
+            data: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.items[].spec.secretStoreRef.name or item sourceRef.storeRef.name/sourceRef.generatorRef.name is required when externalSecrets.enabled=true"
+  - it: renders multiple ExternalSecret items
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - name: database
+          spec:
+            secretStoreRef: { name: production, kind: ClusterSecretStore }
+            data: []
+        - name: object-storage
+          spec:
+            secretStoreRef: { name: production, kind: ClusterSecretStore }
+            data: []
+    asserts:
+      - hasDocuments: { count: 2 }
+  - it: renders ingress-only NetworkPolicy by default when enabled
+    template: templates/networkpolicy.yaml
+    set: { networkPolicy.enabled: true }
+    asserts:
+      - isKind: { of: NetworkPolicy }
+      - contains: { path: spec.policyTypes, content: Ingress }
+      - notContains: { path: spec.policyTypes, content: Egress }
+  - it: renders DNS and custom egress
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.extraEgress:
+        - ports:
+            - protocol: TCP
+              port: 5432
+    asserts:
+      - contains: { path: spec.policyTypes, content: Egress }
+      - equal: { path: "spec.egress[0].ports[0].port", value: 53 }
+      - equal: { path: "spec.egress[1].ports[0].port", value: 5432 }
+  - it: renders additional manifests verbatim
+    template: templates/extra-manifests.yaml
+    set:
+      extraManifests:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata: { name: extra }
+    asserts:
+      - isKind: { of: ConfigMap }
+      - equal: { path: metadata.name, value: extra }

@@ -1,0 +1,296 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# -- Override the chart name used in Kubernetes object names.
+nameOverride: ""
+# -- Override the full release name used in Kubernetes object names.
+fullnameOverride: ""
+# -- Extra labels applied to every resource.
+commonLabels: {}
+# -- Extra annotations applied to workloads.
+commonAnnotations: {}
+
+# -- Runtime topology. standalone uses SQLite/local storage; distributed uses PostgreSQL/S3.
+mode: standalone
+
+image:
+  # -- Official Attic image repository.
+  repository: ghcr.io/zhaofengli/attic
+  # -- Immutable upstream commit tag. Upstream does not publish semver releases.
+  tag: "9eda345a743f50999de04f59a170806c3e029eea"
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private mirrors.
+imagePullSecrets: []
+# -- API replica count. Must be 1 in standalone mode.
+replicaCount: 1
+
+config:
+  # -- Socket address used by Attic inside the pod.
+  listen: "[::]:8080"
+  # -- Canonical public API endpoint. Must end with a slash.
+  apiEndpoint: "http://attic.local/"
+  # -- Optional public substituter endpoint. Empty uses apiEndpoint.
+  substituterEndpoint: ""
+  # -- Accepted HTTP Host headers. Set to the public hostname in production.
+  allowedHosts:
+    - attic.local
+  # -- Require uploaders to prove possession of NAR contents.
+  requireProofOfPossession: true
+  # -- Soft-delete cache records instead of deleting them.
+  softDeleteCaches: false
+  # -- Maximum upload metadata size in bytes.
+  maxNarInfoSize: 1048576
+  # -- Rust tracing filter written to RUST_LOG.
+  logLevel: attic_server=info
+  chunking:
+    # -- Minimum NAR size that enables chunking.
+    narSizeThreshold: 65536
+    # -- Preferred minimum chunk size.
+    minSize: 16384
+    # -- Preferred average chunk size.
+    avgSize: 65536
+    # -- Preferred maximum chunk size.
+    maxSize: 262144
+  compression:
+    # -- Compression algorithm. One of none, brotli, zstd or xz.
+    type: zstd
+    # -- Optional compression level. Null uses the upstream default.
+    level: null
+  garbageCollection:
+    # -- Enable the singleton garbage collector in distributed mode.
+    enabled: true
+    # -- Garbage collection interval understood by Attic.
+    interval: 12 hours
+    # -- Default cache retention period. Zero disables time-based retention.
+    defaultRetentionPeriod: 0s
+  jwt:
+    # -- Optional required JWT issuer.
+    tokenBoundIssuer: ""
+    # -- Optional accepted JWT audiences.
+    tokenBoundAudiences: []
+
+database:
+  # -- Database backend. standalone requires sqlite; distributed requires postgresql.
+  type: sqlite
+  sqlite:
+    # -- SQLite database path on the data volume.
+    path: /data/server.db
+  postgresql:
+    # -- Secret key containing ATTIC_SERVER_DATABASE_URL.
+    secretKey: database-url
+    # -- Enable upstream heartbeat queries for external PostgreSQL connections.
+    heartbeat: true
+
+storage:
+  # -- Object backend. standalone requires local; distributed requires s3.
+  type: local
+  local:
+    # -- Local object path on the data volume.
+    path: /data/storage
+  s3:
+    # -- S3 region.
+    region: us-east-1
+    # -- S3 bucket name.
+    bucket: ""
+    # -- Optional S3-compatible endpoint. It must also be reachable by clients using presigned URLs.
+    endpoint: ""
+    # -- Secret key containing AWS_ACCESS_KEY_ID. Empty allows workload identity.
+    accessKeyIdKey: aws-access-key-id
+    # -- Secret key containing AWS_SECRET_ACCESS_KEY. Empty allows workload identity.
+    secretAccessKeyKey: aws-secret-access-key
+
+auth:
+  # -- Generate a stable Secret for standalone HS256 authentication.
+  generate: true
+  # -- Existing Secret for JWT, PostgreSQL and optional S3 credentials.
+  existingSecret: ""
+  # -- Key containing ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64.
+  hs256SecretKey: token-hs256-secret-base64
+  # -- Key containing ATTIC_SERVER_TOKEN_RS256_SECRET_BASE64.
+  rs256SecretKey: token-rs256-secret-base64
+  # -- Key containing ATTIC_SERVER_TOKEN_RS256_PUBKEY_BASE64.
+  rs256PublicKey: token-rs256-pubkey-base64
+  # -- Optional pre-generated base64 HMAC secret. Empty generates and reuses one.
+  hs256Secret: ""
+
+persistence:
+  # -- Persist SQLite metadata and local objects.
+  enabled: true
+  # -- Existing PVC instead of creating one.
+  existingClaim: ""
+  # -- Storage class. Empty uses the cluster default.
+  storageClass: ""
+  # -- PVC access modes.
+  accessModes:
+    - ReadWriteOnce
+  # -- PVC requested size.
+  size: 20Gi
+  # -- PVC annotations.
+  annotations: {}
+  # -- Keep the generated PVC after Helm uninstall.
+  retain: true
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: true
+  # -- ServiceAccount name. Empty uses the release fullname.
+  name: ""
+  # -- ServiceAccount annotations.
+  annotations: {}
+  # -- Mount the Kubernetes API token.
+  automountServiceAccountToken: false
+
+service:
+  # -- Kubernetes Service type.
+  type: ClusterIP
+  # -- Service port.
+  port: 8080
+  # -- Service annotations.
+  annotations: {}
+  # -- IP family policy. Empty inherits the cluster default.
+  ipFamilyPolicy: ""
+  # -- Ordered IP families.
+  ipFamilies: []
+
+ingress:
+  # -- Enable Kubernetes Ingress.
+  enabled: false
+  # -- Ingress class name.
+  ingressClassName: ""
+  # -- Ingress annotations. Configure upload limits and timeouts for large NARs.
+  annotations: {}
+  # -- Ingress hosts and paths.
+  hosts: []
+  # -- Ingress TLS entries.
+  tls: []
+
+gatewayAPI:
+  # -- Enable Gateway API HTTPRoute resources.
+  enabled: false
+  # -- HTTPRoute definitions.
+  httpRoutes: []
+
+externalSecrets:
+  # -- Render external-secrets.io ExternalSecret resources.
+  enabled: false
+  # -- Default refresh interval.
+  refreshInterval: 1h
+  # -- ExternalSecret definitions using the canonical items contract.
+  items: []
+
+networkPolicy:
+  # -- Enable NetworkPolicy.
+  enabled: false
+  # -- Allowed ingress peers. Empty permits all namespaces.
+  ingressFrom: []
+  egress:
+    # -- Restrict egress. Add PostgreSQL and S3 destinations when enabled.
+    enabled: false
+    # -- Allow DNS egress.
+    allowDNS: true
+    # -- Additional peer selectors applied to unrestricted ports.
+    extraTo: []
+    # -- Complete additional egress rules.
+    extraEgress: []
+
+pdb:
+  # -- Enable a PDB for distributed API replicas.
+  enabled: false
+  # -- Minimum available API pods.
+  minAvailable: 1
+  # -- Maximum unavailable API pods. Empty uses minAvailable.
+  maxUnavailable: ""
+
+probes:
+  startup:
+    # -- Enable TCP startup probe. Attic has no dedicated health endpoint.
+    enabled: true
+    # -- Startup probe period.
+    periodSeconds: 5
+    # -- Startup probe timeout.
+    timeoutSeconds: 3
+    # -- Startup probe failure threshold.
+    failureThreshold: 30
+  liveness:
+    # -- Enable TCP liveness probe.
+    enabled: true
+    # -- Liveness probe period.
+    periodSeconds: 30
+    # -- Liveness probe timeout.
+    timeoutSeconds: 5
+    # -- Liveness probe failure threshold.
+    failureThreshold: 3
+  readiness:
+    # -- Enable TCP readiness probe. This checks the listener, not PostgreSQL or S3.
+    enabled: true
+    # -- Readiness probe period.
+    periodSeconds: 10
+    # -- Readiness probe timeout.
+    timeoutSeconds: 5
+    # -- Readiness probe failure threshold.
+    failureThreshold: 6
+
+# -- Container resource requests and limits.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# -- Garbage-collector resource requests and limits.
+garbageCollectorResources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+podSecurityContext:
+  # -- Run containers as a non-root user.
+  runAsNonRoot: true
+  # -- Pod user ID.
+  runAsUser: 10001
+  # -- Pod group ID.
+  runAsGroup: 10001
+  # -- Filesystem group for PVC access.
+  fsGroup: 10001
+  # -- Seccomp profile.
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  # -- Prevent privilege escalation.
+  allowPrivilegeEscalation: false
+  # -- Use a read-only root filesystem.
+  readOnlyRootFilesystem: true
+  capabilities:
+    # -- Drop all Linux capabilities.
+    drop:
+      - ALL
+
+# -- Pod annotations.
+podAnnotations: {}
+# -- Additional pod labels. Selector labels are reserved.
+podLabels: {}
+# -- Termination grace period for in-flight uploads.
+terminationGracePeriodSeconds: 60
+# -- Node selector.
+nodeSelector: {}
+# -- Affinity rules.
+affinity: {}
+# -- Tolerations.
+tolerations: []
+# -- Topology spread constraints.
+topologySpreadConstraints: []
+# -- Extra environment variables.
+extraEnv: []
+# -- Extra volumes.
+extraVolumes: []
+# -- Extra volume mounts.
+extraVolumeMounts: []
+# -- Additional Kubernetes manifests rendered verbatim.
+extraManifests: []
