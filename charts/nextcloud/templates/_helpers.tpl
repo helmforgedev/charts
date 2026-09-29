@@ -21,6 +21,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- define "nextcloud.image" -}}{{ printf "%s:%s" .Values.image.repository .Values.image.tag }}{{- end -}}
 {{- define "nextcloud.secretName" -}}{{ default (printf "%s-auth" (include "nextcloud.fullname" .)) .Values.nextcloud.existingSecret }}{{- end -}}
 {{- define "nextcloud.backupName" -}}{{ printf "%s-backup" (include "nextcloud.fullname" . | trunc 45 | trimSuffix "-") }}{{- end -}}
+{{- define "nextcloud.cronName" -}}{{ printf "%s-cron" (include "nextcloud.fullname" . | trunc 47 | trimSuffix "-") }}{{- end -}}
 {{- define "nextcloud.restoreName" -}}{{ printf "%s-restore" (include "nextcloud.fullname" . | trunc 55 | trimSuffix "-") }}{{- end -}}
 {{- define "nextcloud.dbHost" -}}
 {{- if .Values.postgresql.enabled -}}{{ include "postgresql.primaryServiceName" .Subcharts.postgresql }}
@@ -34,6 +35,8 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- define "nextcloud.redisSecret" -}}{{ if .Values.redis.enabled }}{{ include "redis.secretName" .Subcharts.redis }}{{ else }}{{ .Values.externalRedis.existingSecret }}{{ end }}{{- end -}}
 {{- define "nextcloud.redisKey" -}}{{ if .Values.redis.enabled }}{{ .Values.redis.auth.existingSecretPasswordKey }}{{ else }}{{ .Values.externalRedis.existingSecretPasswordKey }}{{ end }}{{- end -}}
 {{- define "nextcloud.validate" -}}
+{{- if and .Values.cron.enabled (not .Values.persistence.enabled) -}}{{ fail "cron.enabled requires persistence.enabled=true so the CronJob can execute the installed application" }}{{- end -}}
+{{- if and .Values.cron.enabled (has "ReadWriteOncePod" .Values.persistence.accessModes) -}}{{ fail "cron.enabled is incompatible with ReadWriteOncePod because the application and CronJob must mount the PVC from separate Pods" }}{{- end -}}
 {{- if and .Values.backup.enabled .Values.restore.enabled -}}{{ fail "backup.enabled and restore.enabled cannot both be true" }}{{- end -}}
 {{- if or .Values.backup.enabled .Values.restore.enabled -}}
 {{- if not .Values.persistence.enabled -}}{{ fail "backup and restore require persistence.enabled=true" }}{{- end -}}

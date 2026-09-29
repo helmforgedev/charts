@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Backup coordination permissions
+templates:
+  - templates/backup-rbac.yaml
+tests:
+  - it: does not render permissions when backup is disabled
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: limits cron mutation to the release CronJob
+    set:
+      backup.enabled: true
+      backup.s3.bucket: test
+      backup.s3.existingSecret: s3
+    documentIndex: 1
+    asserts:
+      - equal: {path: 'rules[0].resources', value: [deployments/scale]}
+      - equal: {path: 'rules[0].verbs', value: [get, update]}
+      - equal: {path: 'rules[2].apiGroups', value: [batch]}
+      - equal: {path: 'rules[2].resources', value: [cronjobs]}
+      - equal: {path: 'rules[2].resourceNames', value: [RELEASE-NAME-nextcloud-cron]}
+      - equal: {path: 'rules[2].verbs', value: [get, patch]}
+  - it: can observe cron Jobs before a snapshot
+    set:
+      backup.enabled: true
+      backup.s3.bucket: test
+      backup.s3.existingSecret: s3
+    documentIndex: 1
+    asserts:
+      - equal: {path: 'rules[3].apiGroups', value: [batch]}
+      - equal: {path: 'rules[3].resources', value: [jobs]}
+      - equal: {path: 'rules[3].verbs', value: [list]}

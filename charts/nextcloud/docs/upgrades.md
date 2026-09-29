@@ -18,14 +18,27 @@ a database rollback.
 The init container refreshes image-owned configuration fragments and PHP
 extensions. The native image entrypoint synchronizes application code and runs
 the native upgrade. The persisted `config.php`, instance identity, custom apps
-and data remain on the PVC. Cron shares the initialization lock and will not run
+and data remain on the PVC. Cron Jobs share the initialization lock and will not run
 against an uninitialized or upgrade-pending database.
 
-Inspect web and cron logs, run `php occ status --output=json` inside the application
+Inspect web logs and Kubernetes cron Job logs, run `php occ status --output=json` inside the application
 container, and verify a user login, WebDAV read/write and existing shares. The
 startup probe allows up to 15 minutes for installation/upgrade. If this is
 insufficient for a large database, investigate progress before changing probe
 settings or repeatedly restarting the instance.
+
+## Migrating from the co-located cron worker
+
+Chart 2.0 replaces the continuously running cron sidecar with a native Kubernetes
+CronJob. Remove `cron.interval` and `cron.initialDelay` from retained values and
+configure `cron.schedule` instead. The default remains every five minutes. Review
+the Job history/deadline settings and ensure the application PVC supports a second
+Pod on the same node; `ReadWriteOncePod` is not compatible with enabled cron.
+
+After upgrading, confirm `<fullname>-cron` exists, create a manual Job with
+`kubectl create job --from=cronjob/<fullname>-cron <name>`, wait for completion,
+and inspect its `cron` container log. The old `cron` container should no longer be
+present in the application Deployment.
 
 Existing Secret content used as environment variables requires a rollout to take
 effect. Bootstrap administrator settings create the first account only. Change

@@ -32,7 +32,8 @@ and node ephemeral storage for the full archive and SQL dump.
 
 ## Availability and concurrency
 
-Every backup stops both web and cron during SQL/file capture. Users experience
+Every backup suspends the background CronJob, waits for active cron Jobs to reach
+a terminal state, and stops the web application during SQL/file capture. Users experience
 an outage proportional to the data size. Upload occurs after the application
 resumes. Do not run Helm upgrades, manual scaling, database maintenance or
 GitOps reconciliation during a backup. Configure a maintenance window and monitor
@@ -44,8 +45,7 @@ The default Pod grace period is 120 seconds and backup quiescence timeout is
 the quiescence timeout longer than the Pod grace period. If a process is forcibly
 killed, its graceful-shutdown record is absent and the backup refuses to capture
 state. Retrying after the long-running job finishes is safer than weakening this
-check. The default first cron run is delayed five minutes after startup, matching
-upstream timer guidance.
+check. The default cron schedule runs every five minutes, matching upstream guidance.
 
 These shutdown limits do not extend the later S3 upload phase. Increase
 `backup.activeDeadlineSeconds` when capture and S3 transfer need more time.
@@ -79,7 +79,8 @@ archive completion, the application may remain at zero replicas and the PVC may
 contain `.helmforge-backup-lock`. Mount that PVC in an approved maintenance Pod,
 inspect its `owner` and `quiesced` files, and remove only that lock directory after
 confirming that its owner has stopped. Scale the application back to one replica
-and verify `/status.php`, CLI status and a WebDAV operation. Do not remove any
+and restore the `<fullname>-cron` CronJob's `spec.suspend` value recorded in
+`cron-was-suspended`. Verify `/status.php`, CLI status and a WebDAV operation. Do not remove any
 application files or database objects. Investigate the snapshot failure before
 resuming the schedule.
 

@@ -86,15 +86,27 @@ notifyPush:
     requests: {cpu: 10m, memory: 32Mi}
     limits: {cpu: 500m, memory: 128Mi}
 
-# -- Same-Pod background job worker.
+# -- Kubernetes-native background job scheduler.
 cron:
   # -- Enable Nextcloud cron processing.
   enabled: true
-  # -- Seconds between invocations; upstream recommends five minutes.
-  interval: 300
-  # -- Delay the first cron invocation after Pod startup, matching upstream timer guidance.
-  initialDelay: 300
-  # -- Worker resources.
+  # -- Cron schedule; upstream recommends every five minutes.
+  schedule: "*/5 * * * *"
+  # -- Suspend scheduling while retaining the CronJob for manual runs.
+  suspend: false
+  # -- Maximum delay for starting a missed execution.
+  startingDeadlineSeconds: 300
+  # -- Maximum execution duration.
+  activeDeadlineSeconds: 900
+  # -- Successful Jobs retained for inspection.
+  successfulJobsHistoryLimit: 1
+  # -- Failed Jobs retained for diagnostics.
+  failedJobsHistoryLimit: 3
+  # -- Pod retries before an execution is marked failed.
+  backoffLimit: 0
+  # -- Optional affinity override; the default pins cron to the application node for RWO volumes.
+  affinity: {}
+  # -- CronJob resources.
   resources:
     requests: {cpu: 25m, memory: 128Mi}
     limits: {cpu: 500m, memory: 512Mi}
@@ -259,7 +271,7 @@ backup:
   suspend: false
   # -- Maximum total job duration in seconds.
   activeDeadlineSeconds: 7200
-  # -- Maximum time to wait for web and cron termination.
+  # -- Maximum time to suspend cron and stop application writers.
   quiesceTimeout: 180
   # -- Successful job history.
   successfulJobsHistoryLimit: 1

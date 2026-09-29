@@ -85,7 +85,7 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          env: &appEnv
+          env:
             - name: PATH
               value: /opt/helmforge:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
             - name: POD_UID
@@ -145,25 +145,13 @@ spec:
             tcpSocket: {port: http}
             periodSeconds: 20
             timeoutSeconds: 5
-          volumeMounts: &appMounts
+          volumeMounts:
             - {name: data, mountPath: /var/www/html}
             - {name: php-conf, mountPath: /usr/local/etc/php/conf.d}
             - {name: config, mountPath: /opt/helmforge, readOnly: true}
             - {name: tmp, mountPath: /tmp}
             - {name: apache-run, mountPath: /var/run/apache2}
             - {name: apache-lock, mountPath: /var/lock/apache2}
-        {{- if .Values.cron.enabled }}
-        - name: cron
-          image: {{ include "nextcloud.image" . | quote }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: [bash, /opt/helmforge/cron.sh]
-          securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
-          resources:
-            {{- toYaml .Values.cron.resources | nindent 12 }}
-          env: *appEnv
-          volumeMounts: *appMounts
-        {{- end }}
         {{- if .Values.imaginary.enabled }}
         - name: imaginary
           image: {{ printf "%s@%s" .Values.imaginary.image.repository .Values.imaginary.image.digest | quote }}

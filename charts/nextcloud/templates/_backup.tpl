@@ -130,6 +130,10 @@ spec:
       value: {{ include "nextcloud.fullname" $root | quote }}
     - name: RELEASE_NAME
       value: {{ $root.Release.Name | quote }}
+    - name: CRON_ENABLED
+      value: {{ $root.Values.cron.enabled | quote }}
+    - name: CRON_JOB
+      value: {{ include "nextcloud.cronName" $root | quote }}
     - name: QUIESCE_TIMEOUT
       value: {{ $root.Values.backup.quiesceTimeout | quote }}
     - name: POD_NAMESPACE

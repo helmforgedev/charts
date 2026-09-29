@@ -1,0 +1,91 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.cron.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "nextcloud.cronName" . }}
+  labels:
+    {{- include "nextcloud.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cron
+spec:
+  schedule: {{ .Values.cron.schedule | quote }}
+  suspend: {{ .Values.cron.suspend }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: {{ .Values.cron.startingDeadlineSeconds }}
+  successfulJobsHistoryLimit: {{ .Values.cron.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.cron.failedJobsHistoryLimit }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "nextcloud.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: cron
+    spec:
+      backoffLimit: {{ .Values.cron.backoffLimit }}
+      activeDeadlineSeconds: {{ .Values.cron.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            {{- include "nextcloud.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: cron
+            {{- with .Values.podLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.podAnnotations }}
+          annotations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        spec:
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          affinity:
+            {{- if .Values.cron.affinity }}
+            {{- toYaml .Values.cron.affinity | nindent 12 }}
+            {{- else }}
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - topologyKey: kubernetes.io/hostname
+                  labelSelector:
+                    matchLabels:
+                      {{- include "nextcloud.selectorLabels" . | nindent 22 }}
+                      app.kubernetes.io/component: app
+            {{- end }}
+          containers:
+            - name: cron
+              image: {{ include "nextcloud.image" . | quote }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command: [bash, /opt/helmforge/cron.sh]
+              securityContext:
+                {{- toYaml .Values.securityContext | nindent 16 }}
+              resources:
+                {{- toYaml .Values.cron.resources | nindent 16 }}
+              env:
+                {{- include "nextcloud.backendEnv" . | nindent 16 }}
+              volumeMounts:
+                - {name: data, mountPath: /var/www/html}
+                - {name: config, mountPath: /opt/helmforge, readOnly: true}
+                - {name: tmp, mountPath: /tmp}
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: {{ default (include "nextcloud.fullname" .) .Values.persistence.existingClaim }}
+            - name: config
+              configMap:
+                name: {{ include "nextcloud.fullname" . }}
+                defaultMode: 0555
+            - name: tmp
+              emptyDir: {}
+{{- end }}

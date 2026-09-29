@@ -2,11 +2,12 @@
 
 ## Operating model
 
-The chart runs one Apache application Pod with a co-located PHP cron worker.
+The chart runs one Apache application Pod and a separate Kubernetes CronJob for
+one-shot PHP background processing.
 The official image synchronizes bundled application code and performs native
-installation and sequential major-version upgrades. Recreate updates stop both
-writers before replacing the Pod. A ReadWriteMany PVC does not change this
-single-writer contract; there is no HPA or horizontal scaling switch.
+installation and sequential major-version upgrades. Recreate updates stop the
+application before replacing its Pod. A ReadWriteMany PVC does not change the
+single-application-writer contract; there is no HPA or horizontal scaling switch.
 
 PostgreSQL holds users, file identities, shares and application state. The complete
 `/var/www/html` volume holds native configuration and instance secrets, installed
@@ -35,27 +36,35 @@ processing, WebDAV methods and protected data/configuration directories.
 
 ## Background jobs
 
-Cron runs under the same unprivileged identity, taking a shared lock on the
-upstream initialization lock before invoking Nextcloud CLI and `cron.php`.
-Uninitialized, maintenance-mode or upgrade-pending instances do not run cron.
-The worker exits on execution failure rather than silently reporting success.
+Cron is a native Kubernetes CronJob using the official application image and the
+same unprivileged identity. Each Job mounts the application PVC, takes a shared
+lock on the upstream initialization lock, selects native cron mode and invokes
+`cron.php` directly through PHP CLI. Uninitialized, maintenance-mode or
+upgrade-pending instances do not run cron. The Job exits on execution failure,
+retains Kubernetes status/log evidence and never overlaps another scheduled run.
+A PVC-backed exclusive lock also serializes manually instantiated Jobs, which
+are outside the Kubernetes CronJob controller's concurrency policy.
+Default required Pod affinity keeps the Job on the application node for RWO
+volumes. ReadWriteOncePod is incompatible because two Pods must mount the claim.
 
 ## Consistent backup boundary
 
 The backup CronJob has sequential stages: check object storage, acquire the
-volume lock and scale the application to zero, wait for every web/cron Pod to
-terminate, dump PostgreSQL, archive files, resume the application, and upload the
+volume lock, suspend background scheduling, wait for active cron Jobs to finish,
+scale the application to zero, dump PostgreSQL, archive files, resume the
+application and cron schedule, and upload the
 backup set. A directory created atomically on the application volume serializes
 manual jobs as well as scheduled jobs. Application initialization refuses to
 start while this lock exists, including during an unsolicited concurrent rollout.
 The Apache supervisor records evidence only after the upstream Apache process
-finishes a graceful stop. Cron waits for an active PHP task to finish before
-recording its own evidence. The coordinator requires both records for the exact
-source Pod UID. An OOM, forced kill or exceeded termination deadline therefore
-fails closed instead of treating Pod disappearance as a consistent checkpoint.
+finishes a graceful stop. The coordinator requires that record for the exact
+source Pod UID and terminal Kubernetes status for every cron Job. An OOM, forced
+kill or exceeded termination deadline therefore fails closed instead of treating
+Pod disappearance as a consistent checkpoint.
 
 Only the coordinator stages receive a projected Kubernetes token. RBAC permits
-reading/updating the one Deployment scale subresource and listing namespace Pods.
+reading/updating the one Deployment scale subresource, suspending the named cron
+CronJob, and listing namespace Pods and cron Jobs.
 SQL stages receive database credentials; S3 stages receive object-store credentials.
 The application itself has no API token. Backup Pod affinity schedules the worker
 on the application's node before stopping it, supporting RWO volumes.

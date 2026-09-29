@@ -17,7 +17,7 @@ Namespace: {{ .Release.Namespace }}
   kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
   kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "nextcloud.fullname" . }} -c nextcloud
 
-  One application writer, Recreate updates and co-located cron.
+  One application writer, Recreate updates and a Kubernetes CronJob.
   Initial installation can take several minutes.
 
 2. Application access
@@ -41,7 +41,7 @@ Namespace: {{ .Release.Namespace }}
 
   Persistence enabled: {{ .Values.persistence.enabled }}
   Integrated backup enabled: {{ .Values.backup.enabled }}
-  Backups stop web and cron while capturing database and files.
+  Backups suspend cron and stop web while capturing database and files.
   Retain external Secrets separately. Monitor completed backup age and failed Jobs.
   Failed snapshots can leave the application locked and stopped; follow the
   documented recovery procedure before removing a lock.
@@ -56,7 +56,8 @@ Namespace: {{ .Release.Namespace }}
 6. Background jobs and capacity
 
   Cron enabled: {{ .Values.cron.enabled }}
-  Cron interval: {{ .Values.cron.interval }} seconds
+  Cron schedule: {{ .Values.cron.schedule }}
+  Cron suspended: {{ .Values.cron.suspend }}
   PHP memory limit: {{ .Values.php.memoryLimit }}
   Upload limit: {{ .Values.php.uploadLimit }}
   Align proxy body limits, storage capacity and worker resources with usage.
@@ -64,7 +65,8 @@ Namespace: {{ .Release.Namespace }}
 7. Troubleshooting
 
   kubectl -n {{ .Release.Namespace }} exec deployment/{{ include "nextcloud.fullname" . }} -c nextcloud -- php occ status --output=json
-  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "nextcloud.fullname" . }} -c cron
+  kubectl -n {{ .Release.Namespace }} get jobs -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=cron
+  kubectl -n {{ .Release.Namespace }} logs job/<cron-job-name> -c cron
   kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
 
   Verify PVC ownership for UID/GID 33, database/Redis credentials and trusted hosts.

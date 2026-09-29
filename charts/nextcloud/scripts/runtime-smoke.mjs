@@ -9,7 +9,7 @@ if (context !== 'k3d-helmforge-tests-wsl' || !namespace || !release) {
 }
 const kubectl = (...args) => execFileSync('kubectl', [
   '--context', context, '--namespace', namespace, '--request-timeout=120s', ...args,
-], { encoding: 'utf8', timeout: 240000, maxBuffer: 4 * 1024 * 1024 });
+], { encoding: 'utf8', timeout: 660000, maxBuffer: 4 * 1024 * 1024 });
 const selector = `app.kubernetes.io/instance=${release},app.kubernetes.io/component=app`;
 const pods = JSON.parse(kubectl('get', 'pods', '-l', selector, '-o', 'json')).items;
 const pod = pods.find(item => !item.metadata.deletionTimestamp && item.spec.containers.some(c => c.name === 'nextcloud'));
@@ -44,24 +44,32 @@ if (runtime.notifyPush?.enabled) {
     encoding: 'utf8', timeout: 120000,
   }));
 }
-if (runtime.cron.enabled && runtime.cron.initialDelay === 0) {
-  let success = false;
-  for (let attempt = 0; attempt < 150; attempt++) {
-    try {
-      kubectl('exec', pod.metadata.name, '-c', 'cron', '--', 'test', '-s', '/tmp/nextcloud-cron-last-success');
-      success = true;
-      break;
-    } catch { await new Promise(resolve => setTimeout(resolve, 5000)); }
+if (runtime.cron.enabled) {
+  const cronjobs = JSON.parse(kubectl('get', 'cronjobs', '-l', `app.kubernetes.io/instance=${release},app.kubernetes.io/component=cron`, '-o', 'json')).items;
+  if (cronjobs.length !== 1) throw new Error(`Expected one Nextcloud CronJob, found ${cronjobs.length}`);
+  const cronjob = cronjobs[0];
+  if (!cronjob.spec.suspend) {
+    kubectl('patch', 'cronjob', cronjob.metadata.name, '--type=merge', '-p', '{"spec":{"suspend":true}}');
   }
-  if (!success) throw new Error('Cron did not complete a native background job cycle');
-  console.log('Native cron cycle completed successfully');
+  const job = `${cronjob.metadata.name.slice(0, 39)}-smoke-${Date.now()}`;
+  kubectl('create', 'job', job, `--from=cronjob/${cronjob.metadata.name}`);
+  kubectl('wait', '--for=condition=complete', `job/${job}`, '--timeout=600s');
+  const log = kubectl('logs', `job/${job}`, '-c', 'cron');
+  if (!log.includes('Nextcloud background jobs completed successfully')) {
+    throw new Error(`CronJob did not report a completed background-job cycle: ${log}`);
+  }
+  kubectl('delete', 'job', job, '--wait=true');
+  if (!cronjob.spec.suspend) {
+    kubectl('patch', 'cronjob', cronjob.metadata.name, '--type=merge', '-p', '{"spec":{"suspend":false}}');
+  }
+  console.log('Kubernetes CronJob background cycle completed successfully');
 }
 const external = JSON.parse(kubectl('get', 'externalsecrets', '-o', 'json')).items;
 for (const item of external) {
   if (!item.status?.conditions?.some(c => c.type === 'Ready' && c.status === 'True')) throw new Error('ExternalSecret is not Ready');
 }
-const cronjobs = JSON.parse(kubectl('get', 'cronjobs', '-l', `app.kubernetes.io/instance=${release}`, '-o', 'json')).items;
-if (cronjobs.length > 0) {
+const backupCronjobs = JSON.parse(kubectl('get', 'cronjobs', '-l', `app.kubernetes.io/instance=${release},app.kubernetes.io/component=backup`, '-o', 'json')).items;
+if (backupCronjobs.length > 0) {
   const secret = pod.spec.containers.find(c => c.name === 'nextcloud').env.find(e => e.name === 'NEXTCLOUD_ADMIN_PASSWORD').valueFrom.secretKeyRef.name;
-  verifyBackupRecovery(context, namespace, release, service.metadata.name, secret, cronjobs[0].metadata.name);
+  verifyBackupRecovery(context, namespace, release, service.metadata.name, secret, backupCronjobs[0].metadata.name);
 }

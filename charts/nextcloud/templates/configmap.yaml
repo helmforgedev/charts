@@ -138,43 +138,22 @@ data:
   cron.sh: |
     #!/bin/bash
     # SPDX-License-Identifier: Apache-2.0
-    set -uo pipefail
-    proof="/var/www/html/.helmforge-quiescence/${POD_UID}"
-    mkdir -p "$proof"
-    rm -f "$proof/cron"
-    stopping=false
-    child=''
-    sleeping=false
-    stop() {
-      stopping=true
-      # Active PHP jobs must finish naturally. Only the inter-run sleep is canceled.
-      if "$sleeping" && [ -n "$child" ]; then kill -TERM "$child" 2>/dev/null || true; fi
-    }
-    trap stop TERM INT WINCH
-    sleeping=true
-    sleep {{ .Values.cron.initialDelay }} & child=$!; wait "$child"
-    sleeping=false
-    if "$stopping"; then printf 'graceful\n' > "$proof/cron"; exit 0; fi
-    while true; do
-      # Shared lock excludes the upstream bootstrap/upgrade writer.
-      (
-        flock -s 9
-        if [ -f /var/www/html/config/config.php ] && php /var/www/html/occ status --output=json | php -r '$s=json_decode(stream_get_contents(STDIN),true);exit(!($s["installed"]??false)||($s["maintenance"]??true)||($s["needsDbUpgrade"]??true));'; then
-          php /var/www/html/occ background:cron || exit $?
-          php -f /var/www/html/cron.php
-          status=$?
-          if [ "$status" -ne 0 ]; then exit "$status"; fi
-          date +%s > /tmp/nextcloud-cron-last-success
-        fi
-      ) 9>/var/www/html/nextcloud-init-sync.lock &
-      child=$!
-      wait "$child"
-      status=$?
-      if "$stopping"; then wait "$child"; status=$?; fi
-      if [ "$status" -ne 0 ]; then exit "$status"; fi
-      if "$stopping"; then printf 'graceful\n' > "$proof/cron"; exit 0; fi
-      sleeping=true
-      sleep {{ .Values.cron.interval }} & child=$!; wait "$child"
-      sleeping=false
-      if "$stopping"; then printf 'graceful\n' > "$proof/cron"; exit 0; fi
-    done
+    set -euo pipefail
+    # CronJob concurrencyPolicy does not cover manually instantiated Jobs.
+    exec 8>/var/www/html/nextcloud-cron-sync.lock
+    flock -x 8
+    if [ -d /var/www/html/.helmforge-backup-lock ]; then
+      echo 'Backup owns the volume; skipping this scheduled execution'
+      exit 0
+    fi
+    # Shared lock excludes the upstream bootstrap and upgrade writer.
+    exec 9>/var/www/html/nextcloud-init-sync.lock
+    flock -s 9
+    if [ ! -f /var/www/html/config/config.php ]; then
+      echo 'Nextcloud is not initialized; skipping this scheduled execution'
+      exit 0
+    fi
+    php /var/www/html/occ status --output=json | php -r '$s=json_decode(stream_get_contents(STDIN),true);exit(!($s["installed"]??false)||($s["maintenance"]??true)||($s["needsDbUpgrade"]??true));'
+    php /var/www/html/occ background:cron
+    php -d apc.enable_cli=1 -f /var/www/html/cron.php -- --verbose
+    echo 'Nextcloud background jobs completed successfully'

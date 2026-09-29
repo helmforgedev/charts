@@ -24,9 +24,24 @@ tests:
       backup.s3.bucket: test
       backup.s3.existingSecret: s3
       persistence.enabled: false
+      cron.enabled: false
     asserts:
       - failedTemplate:
           errorMessage: backup and restore require persistence.enabled=true
+  - template: templates/secret.yaml
+    it: requires persistent state for the Kubernetes CronJob
+    set:
+      persistence.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: cron.enabled requires persistence.enabled=true so the CronJob can execute the installed application
+  - template: templates/secret.yaml
+    it: rejects exclusive single-Pod storage when the CronJob is enabled
+    set:
+      persistence.accessModes: [ReadWriteOncePod]
+    asserts:
+      - failedTemplate:
+          errorMessage: cron.enabled is incompatible with ReadWriteOncePod because the application and CronJob must mount the PVC from separate Pods
   - template: templates/secret.yaml
     it: requires S3 credentials and a bucket
     set:

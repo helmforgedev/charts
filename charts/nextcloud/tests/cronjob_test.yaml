@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Nextcloud Kubernetes CronJob
+templates:
+  - templates/cronjob.yaml
+tests:
+  - it: schedules native background processing every five minutes
+    asserts:
+      - isKind: {of: CronJob}
+      - equal: {path: spec.schedule, value: "*/5 * * * *"}
+      - equal: {path: spec.concurrencyPolicy, value: Forbid}
+      - equal: {path: spec.startingDeadlineSeconds, value: 300}
+      - equal: {path: spec.successfulJobsHistoryLimit, value: 1}
+      - equal: {path: spec.failedJobsHistoryLimit, value: 3}
+      - equal: {path: spec.jobTemplate.spec.backoffLimit, value: 0}
+      - equal: {path: spec.jobTemplate.spec.activeDeadlineSeconds, value: 900}
+  - it: runs the pinned official image as a one-shot PHP cron task
+    asserts:
+      - equal: {path: 'spec.jobTemplate.spec.template.spec.containers[0].name', value: cron}
+      - equal: {path: 'spec.jobTemplate.spec.template.spec.containers[0].image', value: "docker.io/library/nextcloud:35.0.1-apache"}
+      - equal: {path: 'spec.jobTemplate.spec.template.spec.containers[0].command', value: [bash, /opt/helmforge/cron.sh]}
+      - equal: {path: spec.jobTemplate.spec.template.spec.restartPolicy, value: Never}
+      - equal: {path: spec.jobTemplate.spec.template.spec.automountServiceAccountToken, value: false}
+  - it: pins the cron Pod to the application node for RWO storage
+    asserts:
+      - equal:
+          path: 'spec.jobTemplate.spec.template.spec.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey'
+          value: kubernetes.io/hostname
+      - equal:
+          path: 'spec.jobTemplate.spec.template.spec.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector.matchLabels["app.kubernetes.io/component"]'
+          value: app
+  - it: mounts an existing application claim
+    set:
+      persistence.existingClaim: shared-nextcloud
+    asserts:
+      - equal: {path: 'spec.jobTemplate.spec.template.spec.volumes[0].persistentVolumeClaim.claimName', value: shared-nextcloud}
+  - it: supports scheduling controls
+    set:
+      cron.schedule: "0 * * * *"
+      cron.suspend: true
+      cron.startingDeadlineSeconds: 600
+      cron.activeDeadlineSeconds: 1200
+      cron.successfulJobsHistoryLimit: 2
+      cron.failedJobsHistoryLimit: 5
+      cron.backoffLimit: 1
+    asserts:
+      - equal: {path: spec.schedule, value: "0 * * * *"}
+      - equal: {path: spec.suspend, value: true}
+      - equal: {path: spec.startingDeadlineSeconds, value: 600}
+      - equal: {path: spec.jobTemplate.spec.activeDeadlineSeconds, value: 1200}
+      - equal: {path: spec.successfulJobsHistoryLimit, value: 2}
+      - equal: {path: spec.failedJobsHistoryLimit, value: 5}
+      - equal: {path: spec.jobTemplate.spec.backoffLimit, value: 1}
+  - it: propagates registry and scheduling settings
+    set:
+      imagePullSecrets:
+        - name: registry-credentials
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: nextcloud
+          effect: NoSchedule
+      cron.affinity:
+        nodeAffinity: {}
+    asserts:
+      - equal: {path: 'spec.jobTemplate.spec.template.spec.imagePullSecrets[0].name', value: registry-credentials}
+      - equal: {path: 'spec.jobTemplate.spec.template.spec.nodeSelector["kubernetes.io/os"]', value: linux}
+      - equal: {path: 'spec.jobTemplate.spec.template.spec.tolerations[0].key', value: dedicated}
+      - exists: {path: spec.jobTemplate.spec.template.spec.affinity.nodeAffinity}
+  - it: does not render when disabled
+    set:
+      cron.enabled: false
+    asserts:
+      - hasDocuments: {count: 0}
