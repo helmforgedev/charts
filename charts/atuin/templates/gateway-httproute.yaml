@@ -1,0 +1,39 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.gatewayAPI.enabled }}
+{{- range $index, $route := .Values.gatewayAPI.httpRoutes }}
+{{- if $index }}
+---
+{{- end }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ default (printf "%s-%d" (include "atuin.fullname" $) $index) $route.name }}
+  labels:
+    {{- include "atuin.labels" $ | nindent 4 }}
+    {{- with $route.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with $route.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- toYaml $route.parentRefs | nindent 4 }}
+  {{- with $route.hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range $rule := default (list (dict)) $route.rules }}
+    - {{- with $rule.matches }}
+      matches:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      backendRefs:
+        - name: {{ include "atuin.fullname" $ }}
+          port: {{ $.Values.service.port }}
+          weight: 1
+    {{- end }}
+{{- end }}
+{{- end }}

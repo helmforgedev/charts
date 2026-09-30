@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Atuin deployment
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: renders a hardened SQLite deployment
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/atuinsh/atuin:18.23.0"
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /healthz
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ATUIN_DB_URI
+            value: "sqlite:///config/atuin.db"
+  - it: follows the configured route prefix in probes
+    set:
+      atuin.path: /sync
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /sync/healthz
+  - it: enables the separate metrics listener
+    set:
+      metrics.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: ATUIN_METRICS__ENABLE, value: "true" }
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content: { name: metrics, containerPort: 9001, protocol: TCP }
+  - it: follows PostgreSQL subchart fullname overrides
+    set:
+      database.type: postgresql
+      postgresql.enabled: true
+      postgresql.fullnameOverride: custom-database
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: DB_HOST
+            value: custom-database
+      - equal:
+          path: spec.template.spec.initContainers[0].env[3].valueFrom.secretKeyRef.name
+          value: custom-database-auth

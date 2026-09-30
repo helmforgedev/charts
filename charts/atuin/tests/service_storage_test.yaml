@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Atuin service and storage
+templates:
+  - templates/service.yaml
+tests:
+  - it: exposes HTTP
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.ports[0].port
+          value: 8888
+  - it: renders a metrics service when enabled
+    set:
+      metrics.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: spec.ports[0].name
+          value: metrics
+        documentIndex: 1
+  - it: supports dual stack configuration
+    values:
+      - ../ci/dual-stack-values.yaml
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack

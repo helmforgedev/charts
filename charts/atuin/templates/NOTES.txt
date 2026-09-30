@@ -1,0 +1,53 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+1. Access Atuin
+
+   Cluster URL:
+   http://{{ include "atuin.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}{{ .Values.atuin.path }}
+
+   Confirm the workload:
+   kubectl -n {{ .Release.Namespace }} get deploy,pod,svc -l app.kubernetes.io/instance={{ .Release.Name }}
+
+2. Configure DNS and TLS
+
+   Public exposure must use HTTPS because credentials are unsafe over plain HTTP.
+
+   Configure either ingress or gatewayAPI values, a matching certificate, and DNS.
+
+3. Create the first account
+
+   Temporarily set atuin.openRegistration=true, register the account, and close registration again.
+
+   Keep the client encryption key in a separate secure backup.
+
+4. Configure a client
+
+   Set sync_address = "<https-url>" in the Atuin client configuration.
+   Then let the CLI prompt for the password and encryption key:
+   atuin login -u <username>
+
+5. Verify health
+
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "atuin.fullname" . }} 8888:{{ .Values.service.port }}
+   curl --fail http://127.0.0.1:8888{{ include "atuin.healthPath" . }}
+
+   The health endpoint checks the HTTP process, not continuing database health.
+
+6. Monitor the service
+
+   Enable metrics.enabled and metrics.serviceMonitor.enabled for Prometheus Operator discovery.
+
+   Metrics remain on a separate private Service and are not exposed publicly.
+
+7. Back up data
+
+   Coordinate SQLite snapshots or use pg_dump for PostgreSQL before upgrades.
+
+   Test restore procedures and preserve the client-side encryption key separately.
+
+8. Review operations
+
+   See https://helmforge.dev/docs/charts/atuin for scaling, backup and recovery guidance.
+
+   PostgreSQL replicas can each open up to 100 database connections.
+
+Happy Helmforging :)

@@ -1,0 +1,247 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "atuin.fullname" . }}
+  labels:
+    {{- include "atuin.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  strategy:
+    {{- if .Values.strategy }}
+    {{- toYaml .Values.strategy | nindent 4 }}
+    {{- else if eq .Values.database.type "sqlite" }}
+    type: Recreate
+    {{- else }}
+    type: RollingUpdate
+    {{- end }}
+  selector:
+    matchLabels:
+      {{- include "atuin.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "atuin.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "atuin.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if or .Values.postgresql.enabled .Values.extraInitContainers }}
+      initContainers:
+        {{- if .Values.postgresql.enabled }}
+        - name: database-uri
+          image: "{{ .Values.databaseUriHelper.image.repository }}:{{ .Values.databaseUriHelper.image.tag }}"
+          imagePullPolicy: {{ .Values.databaseUriHelper.image.pullPolicy }}
+          command:
+            - node
+            - -e
+            - |
+              const fs = require('fs');
+              const user = encodeURIComponent(process.env.DB_USER);
+              const password = encodeURIComponent(process.env.DB_PASSWORD);
+              const database = encodeURIComponent(process.env.DB_NAME);
+              fs.writeFileSync('/runtime/db-uri', `postgres://${user}:${password}@${process.env.DB_HOST}:5432/${database}`);
+          env:
+            - name: DB_HOST
+              value: {{ include "postgresql.clientServiceName" .Subcharts.postgresql | quote }}
+            - name: DB_NAME
+              value: {{ .Values.postgresql.auth.database | quote }}
+            - name: DB_USER
+              value: {{ .Values.postgresql.auth.username | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "atuin.postgresqlSecretName" . }}
+                  key: {{ .Values.postgresql.auth.existingSecretUserPasswordKey }}
+          volumeMounts:
+            - name: database-runtime
+              mountPath: /runtime
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.databaseUriHelper.resources | nindent 12 }}
+        {{- end }}
+        {{- with .Values.extraInitContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: atuin
+          image: {{ include "atuin.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.postgresql.enabled }}
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - export ATUIN_DB_URI="$(cat /runtime/db-uri)"; exec /usr/local/bin/atuin-server start
+          {{- else }}
+          args:
+            - start
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 8888
+              protocol: TCP
+            {{- if .Values.metrics.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.metrics.port }}
+              protocol: TCP
+            {{- end }}
+          env:
+            - name: ATUIN_HOST
+              value: 0.0.0.0
+            - name: ATUIN_PORT
+              value: "8888"
+            - name: ATUIN_CONFIG_DIR
+              value: /config
+            - name: ATUIN_OPEN_REGISTRATION
+              value: {{ .Values.atuin.openRegistration | quote }}
+            - name: ATUIN_PATH
+              value: {{ .Values.atuin.path | quote }}
+            - name: ATUIN_MAX_RECORD_SIZE
+              value: {{ .Values.atuin.maxRecordSize | quote }}
+            - name: RUST_LOG
+              value: {{ .Values.atuin.logLevel | quote }}
+            {{- if .Values.atuin.fakeVersion }}
+            - name: ATUIN_FAKE_VERSION
+              value: {{ .Values.atuin.fakeVersion | quote }}
+            {{- end }}
+            {{- if .Values.atuin.registerWebhook.existingSecret }}
+            - name: ATUIN_REGISTER_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.atuin.registerWebhook.existingSecret }}
+                  key: {{ .Values.atuin.registerWebhook.key }}
+            {{- end }}
+            {{- if .Values.atuin.registerWebhook.username }}
+            - name: ATUIN_REGISTER_WEBHOOK_USERNAME
+              value: {{ .Values.atuin.registerWebhook.username | quote }}
+            {{- end }}
+            {{- if .Values.metrics.enabled }}
+            - name: ATUIN_METRICS__ENABLE
+              value: "true"
+            - name: ATUIN_METRICS__HOST
+              value: 0.0.0.0
+            - name: ATUIN_METRICS__PORT
+              value: {{ .Values.metrics.port | quote }}
+            {{- end }}
+            {{- if and (eq .Values.database.type "sqlite") (not .Values.postgresql.enabled) }}
+            - name: ATUIN_DB_URI
+              value: {{ printf "sqlite://%s" .Values.database.sqlite.path | quote }}
+            {{- else if and (not .Values.postgresql.enabled) .Values.database.existingSecret }}
+            - name: ATUIN_DB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.existingSecretKey }}
+            {{- end }}
+            {{- with .Values.atuin.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.atuin.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ include "atuin.healthPath" . | quote }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ include "atuin.healthPath" . | quote }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ include "atuin.healthPath" . | quote }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.postgresql.enabled }}
+            - name: database-runtime
+              mountPath: /runtime
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+        - name: config
+          {{- if eq .Values.database.type "sqlite" }}
+          persistentVolumeClaim:
+            claimName: {{ default (include "atuin.fullname" .) .Values.persistence.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.postgresql.enabled }}
+        - name: database-runtime
+          emptyDir:
+            medium: Memory
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
