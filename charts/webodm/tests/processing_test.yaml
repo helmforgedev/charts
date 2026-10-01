@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: WebODM processing engine
+templates:
+  - templates/processing-deployment.yaml
+tests:
+  - it: renders an authenticated CPU processor by default
+    asserts:
+      - isKind: {of: Deployment}
+      - equal:
+          path: "spec.template.spec.containers[0].image"
+          value: docker.io/opendronemap/nodeodm:3.6.2@sha256:fcd99eb23d8db194a7d1dc95f029f518283b3d6be32dd64422395f4e7af56720
+      - contains:
+          path: "spec.template.spec.containers[0].env"
+          content:
+            name: PROCESSOR_TOKEN
+            valueFrom: {secretKeyRef: {name: RELEASE-NAME-webodm-auth, key: processor-token}}
+  - it: can disable the bundled processor
+    set: {processing.enabled: false}
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: selects the pinned GPU image and requests NVIDIA resources
+    set: {processing.gpu.enabled: true}
+    asserts:
+      - equal:
+          path: "spec.template.spec.containers[0].image"
+          value: docker.io/opendronemap/nodeodm:3.6.2-gpu@sha256:4013b4977c267afa8d7bb3ba99a2fcdf55f710ec32f26061800c989f48f3a3c9
+      - equal: {path: "spec.template.spec.containers[0].resources.limits['nvidia.com/gpu']", value: 1}
+  - it: applies GPU scheduling controls
+    set:
+      processing.gpu.enabled: true
+      processing.gpu.runtimeClassName: nvidia
+      processing.gpu.nodeSelector: {accelerator: nvidia}
+      processing.gpu.tolerations:
+        - {key: nvidia.com/gpu, operator: Exists, effect: NoSchedule}
+    asserts:
+      - equal: {path: spec.template.spec.runtimeClassName, value: nvidia}
+      - equal: {path: spec.template.spec.nodeSelector.accelerator, value: nvidia}
+      - equal: {path: "spec.template.spec.tolerations[0].key", value: nvidia.com/gpu}
+  - it: mounts persistent processing data and bounded scratch space
+    asserts:
+      - equal: {path: "spec.template.spec.containers[0].volumeMounts[0].mountPath", value: /var/www/data}
+      - equal: {path: "spec.template.spec.volumes[1].emptyDir.sizeLimit", value: 10Gi}

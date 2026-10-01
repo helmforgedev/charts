@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+webodm:
+  host: webodm.example.com
+  existingSecret: webodm-auth
+
+persistence:
+  storageClass: rwx-storage
+  accessModes: [ReadWriteMany]
+  size: 500Gi
+
+worker:
+  replicaCount: 2
+  concurrency: 4
+
+pdb:
+  enabled: true
+
+processing:
+  persistence:
+    storageClass: fast-block
+    size: 500Gi
+  resources:
+    requests: {cpu: "8", memory: 32Gi, ephemeral-storage: 20Gi}
+    limits: {cpu: "32", memory: 128Gi, ephemeral-storage: 100Gi}
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+    - host: webodm.example.com
+      paths: [{path: /, pathType: Prefix}]
+  tls:
+    - secretName: webodm-tls
+      hosts: [webodm.example.com]

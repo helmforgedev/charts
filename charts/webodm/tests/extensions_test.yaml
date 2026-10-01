@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: WebODM platform extensions
+templates:
+  - templates/externalsecret.yaml
+  - templates/ingress.yaml
+  - templates/gateway-httproute.yaml
+tests:
+  - it: does not render ExternalSecret by default
+    template: templates/externalsecret.yaml
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: renders the canonical ExternalSecret target
+    template: templates/externalsecret.yaml
+    values: [../ci/external-secrets-values.yaml]
+    asserts:
+      - isKind: {of: ExternalSecret}
+      - equal: {path: metadata.name, value: webodm-auth}
+      - equal: {path: spec.target.name, value: webodm-auth}
+      - equal: {path: spec.refreshInterval, value: 1h}
+  - it: preserves a literal fullname override and refresh interval
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - fullnameOverride: webodm-runtime
+          spec:
+            refreshInterval: 15m
+            secretStoreRef: {name: production, kind: ClusterSecretStore}
+            data: []
+    asserts:
+      - equal: {path: metadata.name, value: webodm-runtime}
+      - equal: {path: spec.target.name, value: webodm-runtime}
+      - equal: {path: spec.refreshInterval, value: 15m}
+  - it: rejects an item without a store reference
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - spec: {data: []}
+    asserts:
+      - failedTemplate:
+          errorMessage: "externalSecrets.items[].spec.secretStoreRef.name or item sourceRef.storeRef.name/sourceRef.generatorRef.name is required when externalSecrets.enabled=true"
+  - it: renders multiple ExternalSecret items
+    template: templates/externalsecret.yaml
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items:
+        - {name: app, spec: {secretStoreRef: {name: production, kind: ClusterSecretStore}, data: []}}
+        - {name: oidc, spec: {secretStoreRef: {name: production, kind: ClusterSecretStore}, data: []}}
+    asserts:
+      - hasDocuments: {count: 2}
+  - it: renders Ingress only when enabled
+    template: templates/ingress.yaml
+    set: {ingress.enabled: true}
+    asserts:
+      - isKind: {of: Ingress}
+      - equal: {path: "spec.rules[0].host", value: webodm.local}
+  - it: renders HTTPRoute with the application backend
+    template: templates/gateway-httproute.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.parentRefs: [{name: public}]
+    asserts:
+      - isKind: {of: HTTPRoute}
+      - equal: {path: "spec.parentRefs[0].name", value: public}
+      - equal: {path: "spec.rules[0].backendRefs[0].port", value: 80}

@@ -1,0 +1,377 @@
+# SPDX-License-Identifier: Apache-2.0
+# -- Override the chart name.
+nameOverride: ""
+# -- Override resource names.
+fullnameOverride: ""
+# -- Additional labels applied to chart resources; selector labels are reserved.
+commonLabels: {}
+
+# -- Official WebODM application image pinned to the 3.3.0 multi-architecture manifest.
+image:
+  # -- Official image repository.
+  repository: docker.io/webodm/webodm_webapp
+  # -- Stable upstream image tag.
+  tag: "3.3.0"
+  # -- Immutable multi-architecture manifest digest.
+  digest: sha256:ed7b1aa0e40f594539ea5dc6dfeb7ecedd85f13259163974528ef9a1bd78bc1f
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+# -- Registry credentials for WebODM and processing images.
+imagePullSecrets: []
+
+# -- WebODM application settings.
+webodm:
+  # -- Public hostname passed to WebODM; use the Ingress or HTTPRoute hostname in production.
+  host: localhost
+  # -- Enable upstream debug behavior. Never enable on a public production deployment.
+  debug: false
+  # -- Existing Secret containing the application secret key and processor token.
+  existingSecret: ""
+  # -- Key containing the Django secret key.
+  existingSecretKeyKey: secret-key
+  # -- Key containing the processing API token.
+  existingSecretProcessorTokenKey: processor-token
+  # -- Optional fixed Django secret key; generated and retained when empty.
+  secretKey: ""
+  # -- Optional fixed processing API token; generated and retained when empty.
+  processorToken: ""
+  # -- Additional environment variables for webapp and worker containers.
+  extraEnv: []
+  # -- Additional environment sources for webapp and worker containers.
+  extraEnvFrom: []
+
+# -- Web application process settings. Web replicas are intentionally fixed at one.
+web:
+  # -- Gunicorn worker count. Keep low unless requests and memory are measured.
+  concurrency: 2
+  # -- Web container resources.
+  resources:
+    requests: {cpu: 250m, memory: 1Gi}
+    limits: {cpu: "2", memory: 2Gi}
+  # -- Seconds allowed for migrations and application startup.
+  startupFailureThreshold: 60
+  # -- Seconds between startup probes.
+  startupPeriodSeconds: 5
+  # -- Web pod termination grace period.
+  terminationGracePeriodSeconds: 120
+
+# -- Celery background worker settings.
+worker:
+  # -- Number of Celery worker pods. Values above one require RWX media storage.
+  replicaCount: 1
+  # -- Maximum upstream Celery autoscale concurrency per pod.
+  concurrency: 2
+  # -- Worker container resources.
+  resources:
+    requests: {cpu: 250m, memory: 1Gi}
+    limits: {cpu: "2", memory: 2Gi}
+  # -- Worker pod termination grace period for in-flight background work.
+  terminationGracePeriodSeconds: 300
+
+# -- NodeODM-compatible processing engine.
+processing:
+  # -- Deploy a private processing engine and register it in WebODM.
+  enabled: true
+  image:
+    # -- Official NodeODM image repository.
+    repository: docker.io/opendronemap/nodeodm
+    # -- Stable NodeODM CPU image tag.
+    tag: "3.6.2"
+    # -- Immutable multi-architecture CPU manifest digest.
+    digest: sha256:fcd99eb23d8db194a7d1dc95f029f518283b3d6be32dd64422395f4e7af56720
+    # -- Image pull policy.
+    pullPolicy: IfNotPresent
+  # -- NVIDIA GPU processing settings. Requires the NVIDIA device plugin.
+  gpu:
+    # -- Use the official CUDA-enabled NodeODM image.
+    enabled: false
+    image:
+      repository: docker.io/opendronemap/nodeodm
+      tag: "3.6.2-gpu"
+      digest: sha256:4013b4977c267afa8d7bb3ba99a2fcdf55f710ec32f26061800c989f48f3a3c9
+      pullPolicy: IfNotPresent
+    # -- NVIDIA GPUs requested by the processing container.
+    count: 1
+    # -- Optional RuntimeClass configured for NVIDIA containers.
+    runtimeClassName: ""
+    # -- GPU-node selector applied only to the processing pod.
+    nodeSelector: {}
+    # -- GPU-node tolerations applied only to the processing pod.
+    tolerations: []
+  # -- Human-readable label registered in WebODM.
+  label: HelmForge NodeODM
+  # -- Maximum simultaneous queued processing tasks.
+  parallelQueueProcessing: 1
+  # -- Maximum images accepted per task; zero uses the upstream unlimited default.
+  maxImages: 0
+  # -- Maximum processing threads per task; zero uses the upstream default.
+  maxConcurrency: 0
+  # -- Maximum task runtime in minutes; zero disables the upstream timeout.
+  maxRuntime: 0
+  # -- Remove completed and canceled task data after this many minutes.
+  cleanupTasksAfter: 2880
+  # -- Remove incomplete uploads after this many minutes.
+  cleanupUploadsAfter: 2880
+  # -- Processing engine resources. Real photogrammetry requires substantially larger values.
+  resources:
+    requests: {cpu: "1", memory: 2Gi, ephemeral-storage: 2Gi}
+    limits: {cpu: "4", memory: 8Gi, ephemeral-storage: 20Gi}
+  # -- Processing pod termination grace period for state checkpointing.
+  terminationGracePeriodSeconds: 600
+  # -- Persistent task storage mounted at /var/www/data.
+  persistence:
+    # -- Persist processing task state across pod restarts.
+    enabled: true
+    # -- Reuse an existing claim.
+    existingClaim: ""
+    # -- Storage class; empty uses the cluster default, dash disables dynamic selection.
+    storageClass: ""
+    # -- Access modes for a chart-created claim.
+    accessModes: [ReadWriteOnce]
+    # -- Requested processing data capacity.
+    size: 20Gi
+    # -- Keep the chart-created claim after uninstall.
+    retain: true
+    # -- Additional PVC annotations.
+    annotations: {}
+  # -- Ephemeral upload and scratch storage limit mounted at /var/www/tmp.
+  tmpSizeLimit: 10Gi
+
+# -- Shared WebODM media storage used by both webapp and Celery workers.
+persistence:
+  # -- Persist uploaded imagery and generated assets.
+  enabled: true
+  # -- Reuse an existing shared media claim.
+  existingClaim: ""
+  # -- Storage class; use an RWX-capable class when worker.replicaCount is greater than one.
+  storageClass: ""
+  # -- Media claim access modes.
+  accessModes: [ReadWriteOnce]
+  # -- Requested media capacity.
+  size: 20Gi
+  # -- Keep the chart-created media claim after uninstall.
+  retain: true
+  # -- Additional PVC annotations.
+  annotations: {}
+
+# -- Application Service configuration.
+service:
+  # -- Service type.
+  type: ClusterIP
+  # -- HTTP service port.
+  port: 80
+  # -- Service annotations.
+  annotations: {}
+  # -- Optional IP family policy; omitted for cluster default.
+  ipFamilyPolicy: ""
+  # -- Optional ordered IP families.
+  ipFamilies: []
+
+# -- Processing Service configuration. This Service remains private.
+processingService:
+  # -- Processing API service port.
+  port: 3000
+  # -- Service annotations.
+  annotations: {}
+  # -- Optional IP family policy; omitted for cluster default.
+  ipFamilyPolicy: ""
+  # -- Optional ordered IP families.
+  ipFamilies: []
+
+# -- OpenID Connect login configuration. The client secret is always read from a Secret.
+oidc:
+  # -- Enable the WebODM OIDC provider.
+  enabled: false
+  # -- Login button label.
+  name: OpenID Connect
+  # -- OIDC client identifier.
+  clientId: ""
+  # -- Existing Secret containing the OIDC client secret.
+  existingSecret: ""
+  # -- Client-secret key in oidc.existingSecret.
+  existingSecretClientSecretKey: client-secret
+  # -- Provider authorization endpoint.
+  authEndpoint: ""
+  # -- Provider token endpoint.
+  tokenEndpoint: ""
+  # -- Provider user-info endpoint.
+  userinfoEndpoint: ""
+  # -- Font Awesome class used on the login button.
+  icon: fa fa-lock
+  # -- Allowed exact emails or @domain suffixes; empty permits all authenticated users.
+  allowedEmails: []
+  # -- Update the WebODM profile from OIDC profile claims.
+  updateProfile: true
+  # -- Extra scopes requested in addition to openid and email.
+  customScopes: []
+  # -- Claims whose values map users to WebODM groups.
+  groupClaims: []
+  # -- Create groups returned by configured group claims.
+  createGroups: false
+  # -- Manually managed groups that OIDC reconciliation must preserve.
+  ignoreGroups: []
+
+# -- Kubernetes Ingress exposure.
+ingress:
+  enabled: false
+  ingressClassName: ""
+  annotations: {}
+  hosts:
+    - host: webodm.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# -- Gateway API HTTPRoute exposure.
+gatewayAPI:
+  enabled: false
+  parentRefs: []
+  hostnames: []
+  annotations: {}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+
+# -- NetworkPolicy settings for WebODM workloads.
+networkPolicy:
+  enabled: false
+  # -- Additional ingress peers allowed to reach the web pod.
+  ingressFrom: []
+  # -- Additional egress peers and ports applied to all application pods.
+  extraEgress: []
+
+# -- Celery worker PodDisruptionBudget. Requires at least two workers.
+pdb:
+  enabled: false
+  minAvailable: 1
+
+# -- External Secrets Operator resources that project Kubernetes Secrets consumed by the chart.
+externalSecrets:
+  enabled: false
+  refreshInterval: 1h
+  items: []
+
+# -- External PostgreSQL/PostGIS connection. Used when postgresql.enabled=false.
+externalDatabase:
+  # -- PostgreSQL hostname.
+  host: ""
+  # -- PostgreSQL port.
+  port: 5432
+  # -- Database name with PostGIS enabled.
+  database: webodm
+  # -- Database username.
+  username: webodm
+  # -- Existing Secret containing the database password.
+  existingSecret: ""
+  # -- Password key in the existing Secret.
+  existingSecretPasswordKey: password
+
+# -- External Redis connection. Used when redis.enabled=false.
+externalRedis:
+  # -- Redis hostname.
+  host: ""
+  # -- Redis port.
+  port: 6379
+  # -- Redis logical database.
+  database: 0
+  # -- Existing Secret containing the Redis password.
+  existingSecret: ""
+  # -- Password key in the existing Secret.
+  existingSecretPasswordKey: password
+
+# -- Bundled HelmForge PostgreSQL configured with the official PostGIS image.
+postgresql:
+  # -- Deploy the bundled PostgreSQL/PostGIS database.
+  enabled: true
+  # -- Official PostGIS image configuration; the digest pins the mutable upstream variant tag.
+  image:
+    repository: docker.io/postgis/postgis
+    tag: "17-3.5@sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6"
+    pullPolicy: IfNotPresent
+  # -- Standalone database topology for the bundled default.
+  architecture: standalone
+  auth:
+    # -- WebODM database name.
+    database: webodm
+    # -- WebODM database username.
+    username: webodm
+    # -- Application password; generated by the subchart when empty.
+    password: ""
+    # -- Existing PostgreSQL Secret.
+    existingSecret: ""
+    # -- Application password key.
+    existingSecretUserPasswordKey: user-password
+  initdb:
+    # -- Run the HelmForge user/database bootstrap.
+    runDefaultScript: true
+    # -- Enable PostGIS and raster settings on first initialization.
+    scripts:
+      10-webodm-postgis.sql: |
+        \connect webodm
+        CREATE EXTENSION IF NOT EXISTS postgis;
+        CREATE EXTENSION IF NOT EXISTS postgis_raster;
+        ALTER DATABASE webodm SET postgis.gdal_enabled_drivers TO 'GTiff';
+        ALTER DATABASE webodm SET postgis.enable_outdb_rasters TO true;
+  standalone:
+    persistence:
+      enabled: true
+      size: 10Gi
+
+# -- Bundled HelmForge Redis broker and result backend.
+redis:
+  # -- Deploy the bundled Redis service.
+  enabled: true
+  # -- Standalone Redis topology.
+  architecture: standalone
+  auth:
+    # -- Require Redis authentication.
+    enabled: true
+    # -- Password generated by the subchart when empty.
+    password: ""
+    # -- Existing Redis Secret.
+    existingSecret: ""
+    # -- Password key.
+    existingSecretPasswordKey: redis-password
+  standalone:
+    persistence:
+      enabled: true
+      size: 2Gi
+
+# -- Pod labels shared by application workloads; selector labels are reserved.
+podLabels: {}
+# -- Pod annotations shared by application workloads.
+podAnnotations: {}
+# -- Upstream images require root for cron, nginx, and processing initialization.
+podSecurityContext:
+  seccompProfile: {type: RuntimeDefault}
+# -- Baseline-compatible container hardening while retaining upstream root execution.
+securityContext:
+  runAsUser: 0
+  runAsNonRoot: false
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities: {drop: [ALL], add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]}
+# -- Workload node selector.
+nodeSelector: {}
+# -- Workload tolerations.
+tolerations: []
+# -- Workload affinity.
+affinity: {}
+# -- Workload topology spread constraints.
+topologySpreadConstraints: []
+# -- Workload priority class.
+priorityClassName: ""
+
+# -- Dedicated ServiceAccount configuration.
+serviceAccount:
+  # -- Create the ServiceAccount.
+  create: true
+  # -- Existing or overridden ServiceAccount name.
+  name: ""
+  # -- ServiceAccount annotations.
+  annotations: {}
+  # -- Mount a Kubernetes API token into workloads.
+  automountServiceAccountToken: false

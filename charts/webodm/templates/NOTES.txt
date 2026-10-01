@@ -1,0 +1,101 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+WebODM has been installed.
+
+1. Installation summary
+=======================
+
+- Release: {{ .Release.Name }}
+- Namespace: {{ .Release.Namespace }}
+- WebODM: {{ .Chart.AppVersion }}
+- Processing: {{ ternary "GPU" "CPU" .Values.processing.gpu.enabled }}
+- Web workers: 1
+- Celery workers: {{ .Values.worker.replicaCount }}
+
+2. Access
+=========
+
+Port-forward the private Service:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "webodm.fullname" . }} 8000:{{ .Values.service.port }}
+
+Open http://127.0.0.1:8000 and create the initial administrator account.
+{{- if .Values.ingress.enabled }}
+
+Ingress hosts:
+{{- range .Values.ingress.hosts }}
+- https://{{ .host }}
+{{- end }}
+{{- end }}
+{{- if .Values.gatewayAPI.enabled }}
+
+Confirm the HTTPRoute is Accepted and ResolvedRefs:
+
+  kubectl -n {{ .Release.Namespace }} get httproute {{ include "webodm.fullname" . }}
+{{- end }}
+
+3. Processing
+=============
+
+The private processor is registered as "{{ .Values.processing.label }}" at:
+
+  {{ include "webodm.processingServiceName" . }}:{{ .Values.processingService.port }}
+
+Inspect processor health without printing its token:
+
+  kubectl -n {{ .Release.Namespace }} get deploy {{ include "webodm.processingServiceName" . }}
+
+GPU mode requires the NVIDIA device plugin and an amd64 GPU node.
+
+4. Credentials and OIDC
+=======================
+
+- Application Secret: {{ include "webodm.secretName" . }}
+- PostgreSQL Secret: {{ include "webodm.databaseSecretName" . }}
+- Redis Secret: {{ include "webodm.redisSecretName" . }}
+- OIDC enabled: {{ .Values.oidc.enabled }}
+
+Do not print or rotate the Django secret key or processing token during a
+routine upgrade. OIDC client secrets must come from an existing Secret or ESO.
+
+5. Storage and backup
+=====================
+
+- Media claim: {{ include "webodm.mediaClaimName" . }}
+- Processing claim: {{ include "webodm.processingClaimName" . }}
+
+Back up PostgreSQL and the media claim at the same recovery point. Use an RWX
+storage class before increasing worker.replicaCount. Kept claims and generated
+credentials survive `helm uninstall` and require explicit cleanup.
+
+6. Validation
+=============
+
+  kubectl -n {{ .Release.Namespace }} get deploy,statefulset,pod,svc,pvc
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "webodm.fullname" . }} --timeout=300s
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "webodm.fullname" . }}-worker --timeout=300s
+  helm -n {{ .Release.Namespace }} test {{ .Release.Name }} --logs
+
+Confirm the processor registration:
+
+  kubectl -n {{ .Release.Namespace }} logs job/{{ include "webodm.fullname" . }}-register-processor
+
+7. Troubleshooting
+==================
+
+  kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "webodm.fullname" . }} --tail=200
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "webodm.fullname" . }}-worker --tail=200
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "webodm.processingServiceName" . }} --tail=200
+
+Long jobs need sufficient CPU, memory, ephemeral storage, persistent capacity,
+and proxy upload timeouts. A healthy UI alone does not prove processing health.
+
+8. Resources
+============
+
+- Chart documentation: https://helmforge.dev/docs/charts/webodm
+- WebODM source: https://github.com/WebODM/WebODM
+- NodeODM source: https://github.com/OpenDroneMap/NodeODM
+- Chart issues: https://github.com/helmforgedev/charts/issues
+
+Happy Helmforging :)

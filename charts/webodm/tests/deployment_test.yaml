@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: WebODM application workloads
+templates:
+  - templates/deployment.yaml
+  - templates/worker-deployment.yaml
+tests:
+  - it: renders the singleton web Deployment
+    template: templates/deployment.yaml
+    asserts:
+      - isKind: {of: Deployment}
+      - equal: {path: spec.replicas, value: 1}
+      - equal: {path: spec.strategy.type, value: Recreate}
+  - it: renders the configured worker Deployment
+    template: templates/worker-deployment.yaml
+    set: {worker.replicaCount: 3, persistence.accessModes: [ReadWriteMany]}
+    asserts:
+      - isKind: {of: Deployment}
+      - equal: {path: spec.replicas, value: 3}
+  - it: pins the official WebODM image by digest
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: "spec.template.spec.containers[0].image"
+          value: docker.io/webodm/webodm_webapp:3.3.0@sha256:ed7b1aa0e40f594539ea5dc6dfeb7ecedd85f13259163974528ef9a1bd78bc1f
+  - it: disables service account token mounting
+    template: templates/deployment.yaml
+    asserts:
+      - equal: {path: spec.template.spec.automountServiceAccountToken, value: false}
+  - it: injects stable database and Redis secret references
+    template: templates/deployment.yaml
+    asserts:
+      - equal: {path: "spec.template.spec.containers[0].env[4].name", value: WO_DATABASE_PASSWORD}
+      - equal: {path: "spec.template.spec.containers[0].env[4].valueFrom.secretKeyRef.key", value: user-password}
+      - equal: {path: "spec.template.spec.containers[0].env[8].valueFrom.secretKeyRef.key", value: redis-password}
+  - it: mounts shared media in web
+    template: templates/deployment.yaml
+    asserts:
+      - equal: {path: "spec.template.spec.containers[0].volumeMounts[0].mountPath", value: /webodm/app/media}
+  - it: mounts shared media in worker
+    template: templates/worker-deployment.yaml
+    asserts:
+      - equal: {path: "spec.template.spec.containers[0].volumeMounts[0].mountPath", value: /webodm/app/media}
+  - it: mounts generated OIDC settings and client secret
+    template: templates/deployment.yaml
+    set:
+      oidc.enabled: true
+      oidc.clientId: webodm
+      oidc.existingSecret: webodm-oidc
+      oidc.authEndpoint: https://idp.example/authorize
+      oidc.tokenEndpoint: https://idp.example/token
+      oidc.userinfoEndpoint: https://idp.example/userinfo
+    asserts:
+      - contains:
+          path: "spec.template.spec.containers[0].env"
+          content:
+            name: WEBODM_OIDC_CLIENT_SECRET
+            valueFrom: {secretKeyRef: {name: webodm-oidc, key: client-secret}}
+      - equal: {path: "spec.template.spec.containers[0].volumeMounts[1].subPath", value: settings_override.py}
+  - it: mounts generated OIDC settings in worker
+    template: templates/worker-deployment.yaml
+    set:
+      oidc.enabled: true
+      oidc.clientId: webodm
+      oidc.existingSecret: webodm-oidc
+      oidc.authEndpoint: https://idp.example/authorize
+      oidc.tokenEndpoint: https://idp.example/token
+      oidc.userinfoEndpoint: https://idp.example/userinfo
+    asserts:
+      - equal: {path: "spec.template.spec.containers[0].volumeMounts[1].subPath", value: settings_override.py}

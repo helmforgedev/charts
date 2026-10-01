@@ -1,0 +1,112 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "webodm.fullname" . }}
+  labels:
+    {{- include "webodm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "webodm.componentSelectorLabels" (dict "root" . "component" "web") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "webodm.componentSelectorLabels" (dict "root" . "component" "web") | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "webodm.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.web.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: webodm
+          image: {{ include "webodm.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          command: [/bin/bash, -ec]
+          args:
+            - |
+              until pg_isready -h "$WO_DATABASE_HOST" -p "$WO_DATABASE_PORT" -U "$WO_DATABASE_USER"; do sleep 2; done
+              until (echo >/dev/tcp/"$REDIS_HOST"/"$REDIS_PORT") 2>/dev/null; do sleep 2; done
+              exec /webodm/start.sh
+          env:
+            {{- include "webodm.applicationEnv" . | nindent 12 }}
+            - name: WEB_CONCURRENCY
+              value: {{ .Values.web.concurrency | quote }}
+          {{- with .Values.webodm.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          startupProbe:
+            httpGet: {path: /, port: http}
+            failureThreshold: {{ .Values.web.startupFailureThreshold }}
+            periodSeconds: {{ .Values.web.startupPeriodSeconds }}
+          readinessProbe:
+            httpGet: {path: /, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: {path: /, port: http}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.web.resources | nindent 12 }}
+          volumeMounts:
+            - name: media
+              mountPath: /webodm/app/media
+            {{- if .Values.oidc.enabled }}
+            - name: oidc-settings
+              mountPath: /webodm/webodm/settings_override.py
+              subPath: settings_override.py
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: {{ include "webodm.mediaClaimName" . }}
+        {{- if .Values.oidc.enabled }}
+        - name: oidc-settings
+          configMap:
+            name: {{ include "webodm.oidcConfigMapName" . }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}

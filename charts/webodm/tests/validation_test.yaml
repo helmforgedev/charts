@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: WebODM fail-fast validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: accepts default values
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: requires an external database host and Secret
+    set: {postgresql.enabled: false}
+    asserts:
+      - failedTemplate: {errorMessage: "externalDatabase.host and externalDatabase.existingSecret are required when postgresql.enabled=false"}
+  - it: requires an external Redis host and Secret
+    set: {redis.enabled: false}
+    asserts:
+      - failedTemplate: {errorMessage: "externalRedis.host and externalRedis.existingSecret are required when redis.enabled=false"}
+  - it: requires RWX media for multiple workers
+    set: {worker.replicaCount: 2}
+    asserts:
+      - failedTemplate: {errorMessage: "persistence.accessModes must include ReadWriteMany when worker.replicaCount is greater than one"}
+  - it: requires persistent shared media
+    set: {persistence.enabled: false}
+    asserts:
+      - failedTemplate: {errorMessage: "persistence.enabled or persistence.existingClaim is required because webapp and worker share media"}
+  - it: requires complete OIDC endpoints and credentials
+    set: {oidc.enabled: true}
+    asserts:
+      - failedTemplate: {errorMessage: "oidc.clientId, oidc.existingSecret, oidc.authEndpoint, oidc.tokenEndpoint, and oidc.userinfoEndpoint are required when oidc.enabled=true"}
+  - it: requires multiple workers for a PDB
+    set: {pdb.enabled: true}
+    asserts:
+      - failedTemplate: {errorMessage: "pdb.enabled requires worker.replicaCount greater than one"}
+  - it: protects component selector labels
+    set:
+      podLabels: {app.kubernetes.io/component: override}
+    asserts:
+      - failedTemplate: {errorMessage: "podLabels must not override app.kubernetes.io/component"}

@@ -1,0 +1,125 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.processing.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "webodm.processingServiceName" . }}
+  labels:
+    {{- include "webodm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: processing
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "webodm.componentSelectorLabels" (dict "root" . "component" "processing") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "webodm.componentSelectorLabels" (dict "root" . "component" "processing") | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "webodm.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.processing.terminationGracePeriodSeconds }}
+      {{- if and .Values.processing.gpu.enabled .Values.processing.gpu.runtimeClassName }}
+      runtimeClassName: {{ .Values.processing.gpu.runtimeClassName }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: nodeodm
+          image: {{ include "webodm.processingImage" . | quote }}
+          imagePullPolicy: {{ ternary .Values.processing.gpu.image.pullPolicy .Values.processing.image.pullPolicy .Values.processing.gpu.enabled }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          command: [/bin/sh, -ec]
+          args:
+            - >-
+              exec node /var/www/index.js
+              --port 3000
+              --token "$PROCESSOR_TOKEN"
+              --parallel_queue_processing {{ .Values.processing.parallelQueueProcessing }}
+              --cleanup_tasks_after {{ .Values.processing.cleanupTasksAfter }}
+              --cleanup_uploads_after {{ .Values.processing.cleanupUploadsAfter }}
+              {{- if gt (int .Values.processing.maxImages) 0 }} --max_images {{ .Values.processing.maxImages }}{{ end }}
+              {{- if gt (int .Values.processing.maxConcurrency) 0 }} --max_concurrency {{ .Values.processing.maxConcurrency }}{{ end }}
+              {{- if gt (int .Values.processing.maxRuntime) 0 }} --max_runtime {{ .Values.processing.maxRuntime }}{{ end }}
+          env:
+            - name: PROCESSOR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "webodm.secretName" . }}
+                  key: {{ .Values.webodm.existingSecretProcessorTokenKey }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          startupProbe:
+            tcpSocket: {port: http}
+            failureThreshold: 60
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: {port: http}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            {{- with .Values.processing.resources.requests }}
+            requests:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+            {{- with .Values.processing.resources.limits }}
+            limits:
+              {{- toYaml . | nindent 14 }}
+              {{- if $.Values.processing.gpu.enabled }}
+              nvidia.com/gpu: {{ $.Values.processing.gpu.count }}
+              {{- end }}
+            {{- end }}
+          volumeMounts:
+            - name: processing-data
+              mountPath: /var/www/data
+            - name: processing-tmp
+              mountPath: /var/www/tmp
+      volumes:
+        - name: processing-data
+          {{- if or .Values.processing.persistence.enabled .Values.processing.persistence.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ include "webodm.processingClaimName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: processing-tmp
+          emptyDir:
+            sizeLimit: {{ .Values.processing.tmpSizeLimit }}
+      {{- $processingNodeSelector := ternary .Values.processing.gpu.nodeSelector .Values.nodeSelector .Values.processing.gpu.enabled }}
+      {{- with $processingNodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- $processingTolerations := ternary .Values.processing.gpu.tolerations .Values.tolerations .Values.processing.gpu.enabled }}
+      {{- with $processingTolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+{{- end }}

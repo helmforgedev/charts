@@ -1,0 +1,28 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.oidc.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "webodm.oidcConfigMapName" . }}
+  labels:
+    {{- include "webodm.labels" . | nindent 4 }}
+data:
+  settings_override.py: |
+    import os
+
+    OIDC_AUTH_PROVIDERS = [{
+        "client_id": {{ .Values.oidc.clientId | quote }},
+        "client_secret": os.environ.get("WEBODM_OIDC_CLIENT_SECRET", ""),
+        "auth_endpoint": {{ .Values.oidc.authEndpoint | quote }},
+        "token_endpoint": {{ .Values.oidc.tokenEndpoint | quote }},
+        "userinfo_endpoint": {{ .Values.oidc.userinfoEndpoint | quote }},
+        "name": {{ .Values.oidc.name | quote }},
+        "icon": {{ .Values.oidc.icon | quote }},
+    }]
+    OIDC_AUTH_EMAILS = {{ .Values.oidc.allowedEmails | toJson }}
+    OIDC_UPDATE_PROFILE = {{ ternary "True" "False" .Values.oidc.updateProfile }}
+    OIDC_CUSTOM_SCOPES = {{ .Values.oidc.customScopes | toJson }}
+    OIDC_GROUPS_CLAIMS = {{ .Values.oidc.groupClaims | toJson }}
+    OIDC_CREATE_GROUPS = {{ ternary "True" "False" .Values.oidc.createGroups }}
+    OIDC_IGNORE_GROUPS = {{ .Values.oidc.ignoreGroups | toJson }}
+{{- end }}
