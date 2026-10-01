@@ -20,6 +20,10 @@ storage before increasing `worker.replicaCount`. Back up the PostgreSQL database
 and the media claim at the same recovery point. NodeODM task storage is retained
 by default but is not a substitute for the WebODM media backup.
 
+With the default `ReadWriteOnce` media claim, the worker is scheduled onto the
+web pod's node. A user-defined global `affinity` replaces this default, so keep
+equivalent co-location rules unless the media claim supports `ReadWriteMany`.
+
 ## Security
 
 The official upstream images currently initialize services as root. The chart
@@ -53,7 +57,8 @@ supported. See [OIDC configuration](docs/oidc.md).
 Ingress and Gateway API HTTPRoute are opt-in. Expose only the WebODM Service;
 the authenticated NodeODM Service is intentionally private. Photogrammetry
 uploads and downloads are large and long-running, so configure body-size and
-timeout settings on the selected proxy.
+timeout settings on the selected proxy. When NetworkPolicy is enabled, add the
+Ingress controller or Gateway data-plane namespace to `networkPolicy.ingressFrom`.
 
 ## External Secrets
 

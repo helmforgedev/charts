@@ -40,6 +40,25 @@ tests:
     template: templates/worker-deployment.yaml
     asserts:
       - equal: {path: "spec.template.spec.containers[0].volumeMounts[0].mountPath", value: /webodm/app/media}
+  - it: co-locates the worker with web for default RWO media
+    template: templates/worker-deployment.yaml
+    asserts:
+      - equal:
+          path: "spec.template.spec.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey"
+          value: kubernetes.io/hostname
+      - equal:
+          path: "spec.template.spec.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector.matchLabels['app.kubernetes.io/component']"
+          value: web
+  - it: preserves a user-defined affinity override
+    template: templates/worker-deployment.yaml
+    set:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms: []
+    asserts:
+      - exists: {path: spec.template.spec.affinity.nodeAffinity}
+      - notExists: {path: spec.template.spec.affinity.podAffinity}
   - it: mounts generated OIDC settings and client secret
     template: templates/deployment.yaml
     set:

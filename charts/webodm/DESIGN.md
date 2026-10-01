@@ -15,6 +15,7 @@ HelmForge subchart as the Celery broker and result backend. Both may be replaced
 with external services through existing Secrets.
 
 The processing API is never exposed publicly. Its generated token is shared
-between NodeODM, the registration Job, and the Helm smoke test. Generated
-credentials are retained across upgrades through Secret lookup and the Helm
-keep policy.
+between NodeODM, the registration Job, and the Helm smoke test through a Secret.
+NodeODM and `manage.py addnode` receive the token as a process argument, so pod
+exec access must remain restricted. Generated credentials are retained across
+upgrades through Secret lookup and the Helm keep policy.
