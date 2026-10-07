@@ -238,6 +238,7 @@ Use the generic extension values when platform-specific integration is needed:
 | `sentinel.masterSet` | Sentinel master set name used by Sentinel clients | `mymaster` |
 | `sentinel.quorum` | Sentinel quorum | `2` |
 | `sentinel.gracefulFailover.enabled` | Request failover before voluntary master shutdown | `true` |
+| `sentinel.gracefulFailover.replicaSyncTimeoutSeconds` | Seconds the master keeps trying to hand over to an in-sync replica that Sentinel accepts | `15` |
 | `sentinel.startupFailoverGuard.enabled` | Prevent an empty recreated node from resuming as master | `true` |
 | `cluster.nodes` | Number of Redis Cluster nodes | `6` |
 | `cluster.replicasPerMaster` | Redis Cluster replicas per master | `1` |

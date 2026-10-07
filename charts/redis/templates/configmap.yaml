@@ -258,12 +258,16 @@ data:
     # Graceful demotion: when the active master receives SIGTERM (rollout, drain,
     # delete), promote a replica through Sentinel before shutting down instead of
     # letting clients eat the full down-after-milliseconds detection window.
-    # Total budget must stay below terminationGracePeriodSeconds. Never fails.
+    # Worst case it spends replicaSyncTimeoutSeconds getting an in-sync replica
+    # accepted by Sentinel, plus 5s for the last writes to replicate and 3s per
+    # attempt to confirm the failover; the total must stay below
+    # terminationGracePeriodSeconds. Never fails.
     set -u
 
     REDIS_PORT={{ .Values.service.ports.redis }}
     SENTINEL_HOST="{{ include "redis.sentinelServiceFqdn" . }}"
     SENTINEL_PORT={{ .Values.service.ports.sentinel }}
+    SENTINEL_PEERS="{{ include "redis.sentinelPeerFqdns" . }}"
     MASTER_SET="{{ .Values.sentinel.masterSet }}"
     TLS_ARGS="{{ include "redis.cliTlsArgs" . }}"
     SELF_FQDN="$(hostname -f 2>/dev/null || true)"
@@ -275,27 +279,150 @@ data:
     vcli() { redis-cli $TLS_ARGS "$@"; }
     {{- if and .Values.auth.enabled (not .Values.auth.sentinel) }}
     # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
-    scli() { env -u REDISCLI_AUTH redis-cli $TLS_ARGS -h "$SENTINEL_HOST" -p "$SENTINEL_PORT" "$@"; }
+    sentinel_cli() { env -u REDISCLI_AUTH redis-cli $TLS_ARGS -p "$SENTINEL_PORT" "$@"; }
     {{- else }}
     # shellcheck disable=SC2086 # TLS_ARGS is an intentional flag list
-    scli() { redis-cli $TLS_ARGS -h "$SENTINEL_HOST" -p "$SENTINEL_PORT" "$@"; }
+    sentinel_cli() { redis-cli $TLS_ARGS -p "$SENTINEL_PORT" "$@"; }
     {{- end }}
+    scli() { sentinel_cli -h "$SENTINEL_HOST" "$@"; }
 
-    role="$(vcli -p "$REDIS_PORT" info replication 2>/dev/null | sed -n 's/^role://p' | tr -d '\r')"
+    replication_info() { vcli -p "$REDIS_PORT" info replication 2>/dev/null | tr -d '\r'; }
+
+    # Succeeds when the master has at least one replica and every connected
+    # replica has finished its full sync (state=online) and acknowledged within
+    # the last second. With a target offset, every replica must also have
+    # reached it.
+    replicas_in_sync() {
+      replication_info | awk -v target="$1" '
+        /^slave[0-9]+:/ {
+          n++
+          state = ""; offset = ""; lag = ""
+          m = split(substr($0, index($0, ":") + 1), kv, ",")
+          for (i = 1; i <= m; i++) {
+            split(kv[i], p, "=")
+            if (p[1] == "state") state = p[2]
+            else if (p[1] == "offset") offset = p[2]
+            else if (p[1] == "lag") lag = p[2]
+          }
+          if (state != "online" || lag == "" || lag + 0 > 1) bad = 1
+          if (target != "" && offset + 0 < target + 0) bad = 1
+        }
+        END { exit (n > 0 && !bad) ? 0 : 1 }'
+    }
+
+    # Replicas that some Sentinel could promote: every replica it lists that it
+    # does not already consider down or disconnected. Sentinel picks one on its
+    # own, from INFO it may have cached seconds ago, and it can list a replica
+    # that is not connected to this master, for example one it has not yet
+    # pointed at the current master after an earlier failover.
+    sentinel_candidates() {
+      for s in $SENTINEL_PEERS; do
+        sentinel_cli -h "$s" sentinel replicas "$MASTER_SET" 2>/dev/null | tr -d '\r' | awk '
+          NR % 2 == 1 { key = $0; next }
+          key == "name" {
+            if (ip != "" && flags !~ /(s_down|o_down|disconnected)/) print ip
+            ip = ""; flags = ""
+          }
+          key == "ip" { ip = $0 }
+          key == "flags" { flags = $0 }
+          END { if (ip != "" && flags !~ /(s_down|o_down|disconnected)/) print ip }'
+      done | sort -u | tr '\n' ' '
+    }
+
+    # Asks every candidate directly whether its replication link is up, it is
+    # not syncing and, with a target offset, it has processed the stream up to
+    # it. A replica fed through another replica receives the same stream with
+    # the same offsets, so this holds however it is connected.
+    candidates_in_sync() {
+      for c in $2; do
+        case "$c" in "$SELF_FQDN" | "$SELF_IP") continue ;; esac
+        vcli -h "$c" -p "$REDIS_PORT" info replication 2>/dev/null | tr -d '\r' | awk -v target="$1" '
+          /^role:/ { role = substr($0, 6) }
+          /^master_link_status:/ { link = substr($0, 20) }
+          /^master_sync_in_progress:/ { syncing = substr($0, 25) }
+          /^slave_repl_offset:/ { offset = substr($0, 19) }
+          END { exit (role == "slave" && link == "up" && syncing == "0" && (target == "" || offset + 0 >= target + 0)) ? 0 : 1 }' || return 1
+      done
+    }
+
+    # Every replica this master feeds and every replica Sentinel could promote
+    # must be safe to promote.
+    all_in_sync() { replicas_in_sync "$1" && candidates_in_sync "$1" "$candidates"; }
+
+    master_offset() { replication_info | sed -n 's/^master_repl_offset://p'; }
+
+    role="$(replication_info | sed -n 's/^role://p')"
     [ "$role" = "master" ] || exit 0
 
-    slaves="$(vcli -p "$REDIS_PORT" info replication 2>/dev/null | sed -n 's/^connected_slaves://p' | tr -d '\r')"
-    case "${slaves:-0}" in '' | *[!0-9]*) slaves=0 ;; esac
-    if [ "$slaves" -lt 1 ]; then
-      echo "active master has no connected replicas; nothing to promote"
+    deadline=$(( $(date +%s) + {{ int .Values.sentinel.gracefulFailover.replicaSyncTimeoutSeconds }} ))
+    unpause() { vcli -p "$REDIS_PORT" client unpause >/dev/null 2>&1 || true; }
+    give_up() {
+      echo "$1; shutting down without failover"
+      unpause
       exit 0
-    fi
+    }
 
-    echo "active master shutting down; requesting Sentinel failover"
-    # Submit exactly one request. SENTINEL_HOST is a load-balanced Service, so
-    # retrying the command can ask different Sentinels to start competing forced
-    # failovers and leave the election stuck in wait_start.
-    scli sentinel failover "$MASTER_SET" >/dev/null 2>&1 || true
+    # A replica that is loading or still receiving a full sync answers Sentinel
+    # but holds stale data. Promoting it would drop every write accepted since it
+    # restarted, so only hand over once every replica has caught up. Sentinel may
+    # also still refuse a replica that just restarted until it has reconnected to
+    # it, so retry until it accepts or the deadline passes.
+    waiting=0
+    while :; do
+      candidates="$(sentinel_candidates)"
+      if ! all_in_sync ""; then
+        [ "$(date +%s)" -ge "$deadline" ] && give_up "replicas not in sync after {{ int .Values.sentinel.gracefulFailover.replicaSyncTimeoutSeconds }}s"
+        [ "$waiting" -eq 0 ] && echo "waiting for every replica to be in sync before failover"
+        waiting=1
+        sleep 1
+        continue
+      fi
+
+      # Hold writes so the replicas receive the last of them, and keep them held
+      # until shutdown so clients retry against the new master instead of
+      # writing to this one. Reads, PING and INFO keep working. Without the
+      # pause a write accepted after the offset check could miss the promoted
+      # replica, so never hand over unpaused. The pause outlasts the grace
+      # period, so it can only end with this process or an explicit unpause.
+      pause_reply="$(vcli -p "$REDIS_PORT" client pause {{ mul (add (int .Values.terminationGracePeriodSeconds) 5) 1000 }} write 2>&1 | tr -d '\r')"
+      [ "$pause_reply" = "OK" ] || give_up "could not pause writes: ${pause_reply:-no reply}"
+      i=0
+      caught_up=0
+      while [ "$i" -lt 25 ]; do
+        target="$(master_offset)"
+        if [ -n "$target" ] && all_in_sync "$target"; then
+          caught_up=1
+          break
+        fi
+        sleep 0.2
+        i=$((i + 1))
+      done
+      if [ "$caught_up" -eq 1 ]; then
+        echo "active master shutting down; requesting Sentinel failover"
+        # Submit exactly one request per attempt, and never again once a Sentinel
+        # accepted it. SENTINEL_HOST is a load-balanced Service, so resubmitting an
+        # accepted request can ask different Sentinels to start competing forced
+        # failovers and leave the election stuck in wait_start. A refused request
+        # started nothing, so it is safe to try again.
+        reply="$(scli sentinel failover "$MASTER_SET" 2>&1 | tr -d '\r')"
+        case "$reply" in
+          OK) break ;;
+          INPROG*)
+            # A failover of this master is already running and may promote a
+            # replica at any moment, so wait for it with writes paused too.
+            echo "Sentinel reports a failover already in progress; waiting for it"
+            break
+            ;;
+        esac
+        echo "Sentinel did not accept the failover: ${reply:-no reply}"
+      else
+        echo "replicas did not reach the master offset while writes were paused"
+      fi
+      unpause
+      [ "$(date +%s)" -ge "$deadline" ] && give_up "no failover accepted within {{ int .Values.sentinel.gracefulFailover.replicaSyncTimeoutSeconds }}s"
+      sleep 2
+    done
+
     i=0
     while [ "$i" -lt {{ int .Values.sentinel.gracefulFailover.maxAttempts }} ]; do
       sleep 3
@@ -306,7 +433,10 @@ data:
       fi
       i=$((i + 1))
     done
-    echo "failover not confirmed within budget; continuing shutdown"
+    # Sentinel accepted the request and may still complete it, so keep writes
+    # paused until this process exits rather than let it accept writes the new
+    # master would not have.
+    echo "failover not confirmed within budget; shutting down with writes paused"
     exit 0
   sentinel-entrypoint.sh: |
     #!/bin/sh
