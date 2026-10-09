@@ -1,0 +1,80 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+1. Confirm the runtime
+
+   kubectl -n {{ .Release.Namespace }} get deploy,job,cronjob,pod -l app.kubernetes.io/instance={{ .Release.Name }}
+
+   The default mode only imports NautilusTrader and waits. It never connects to a venue or submits orders.
+
+   Check the image reference and security context:
+   kubectl -n {{ .Release.Namespace }} get deploy/{{ include "nautilus-trader.fullname" . }} -o yaml
+
+   A Ready default installation is a runtime validation environment, not an active strategy.
+
+2. Supply strategy code
+
+   Build a derived image or mount code with extraVolumes and extraVolumeMounts.
+   Set live.mode=live and live.factory to a Python module:callable factory.
+
+   The callable receives live.nodeConfig and must return an object with run().
+   Implement stop() and dispose() to participate in graceful Kubernetes shutdown.
+
+   Use a separate Helm release for each independently managed live node.
+
+3. Configure credentials
+
+   Use secrets.existingSecret or externalSecrets.items. Never place API keys in values.
+
+   Confirm the projected environment without printing values:
+   kubectl -n {{ .Release.Namespace }} describe pod -l app.kubernetes.io/instance={{ .Release.Name }}
+
+   Rotate credentials through the Secret provider and verify strategy reconnection behavior.
+
+4. Configure state services
+
+   database.mode and messageBus.mode expose connection details to the strategy factory.
+   Enabling a dependency does not silently activate an application adapter.
+
+   Bundled PostgreSQL and Redis are evaluation topologies. Prefer managed services for production.
+   Confirm TLS, backups, recovery, connection capacity, and adapter availability independently.
+
+   Keep cache and message-bus Redis databases distinct.
+
+5. Run backtests
+
+   Enable backtest.enabled for a one-shot Job or scheduledBacktest.enabled for a CronJob.
+   Persist results before relying on completed Job pods.
+
+   Inspect a completed Job:
+   kubectl -n {{ .Release.Namespace }} logs job/{{ include "nautilus-trader.nameWithSuffix" (dict "base" (include "nautilus-trader.fullname" .) "suffix" "-backtest") }}
+
+   The default concurrency policy prevents scheduled runs from overlapping.
+
+6. Verify runner health
+
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "nautilus-trader.fullname" . }} 8080:{{ .Values.service.port }}
+   curl --fail http://127.0.0.1:8080/healthz
+   curl --fail http://127.0.0.1:8080/readyz
+
+   These endpoints and /metrics describe the chart runner, not venue connectivity or trading correctness.
+
+   Alert separately on market-data freshness, venue sessions, reconciliation, risk limits, and order outcomes.
+   Enable monitoring.serviceMonitor and monitoring.prometheusRule only when their CRDs are installed.
+
+7. Upgrade deliberately
+
+   The official upstream registry has floating latest and nightly channels but no release tags.
+   HelmForge therefore pins the resolved multi-architecture digest. Review upstream changes before replacing it.
+
+   A digest takes precedence over image.tag. Clear image.digest only after choosing a reviewed replacement tag.
+   Test every image change in sandbox mode before allowing venue credentials.
+
+8. Review operations
+
+   See https://helmforge.dev/docs/charts/nautilus-trader for strategy packaging, security, observability, and recovery guidance.
+
+   Back up enabled catalog, event-store, and result volumes before upgrades or uninstall.
+   Restore into an isolated namespace and validate data before declaring a recovery procedure complete.
+
+   NetworkPolicy is opt-in because venue and managed-service destinations are installation-specific.
+
+Happy Helmforging :)

@@ -1,0 +1,210 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.live.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nautilus-trader.fullname" . }}
+  labels:
+    {{- include "nautilus-trader.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "nautilus-trader.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "nautilus-trader.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/runtime: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "nautilus-trader.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.extraInitContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: nautilus-trader
+          image: {{ include "nautilus-trader.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- if .Values.live.command }}
+          command:
+            {{- toYaml .Values.live.command | nindent 12 }}
+          {{- else }}
+          command: ["python", "/opt/helmforge/runner.py"]
+          {{- end }}
+          {{- if .Values.live.args }}
+          args:
+            {{- toYaml .Values.live.args | nindent 12 }}
+          {{- else }}
+          args:
+            - --mode
+            - {{ .Values.live.mode | quote }}
+            - --config
+            - /etc/nautilus/node-config.json
+            - --port
+            - {{ .Values.runner.port | quote }}
+            - --readiness-timeout
+            - {{ .Values.runner.readinessTimeoutSeconds | quote }}
+          {{- end }}
+          env:
+            - name: HOME
+              value: /tmp
+            - name: NAUTILUS_RUNNER_FACTORY
+              value: {{ .Values.live.factory | quote }}
+            - name: NAUTILUS_RUNNER_LOG_LEVEL
+              value: {{ .Values.runner.logLevel | quote }}
+            - name: NAUTILUS_RUNNER_PORT
+              value: {{ .Values.runner.port | quote }}
+            - name: NAUTILUS_DATABASE_MODE
+              value: {{ .Values.database.mode | quote }}
+            - name: NAUTILUS_MESSAGE_BUS_MODE
+              value: {{ .Values.messageBus.mode | quote }}
+            - name: NAUTILUS_CACHE_DATABASE
+              value: {{ .Values.messageBus.cacheDatabase | quote }}
+            - name: NAUTILUS_BUS_DATABASE
+              value: {{ .Values.messageBus.busDatabase | quote }}
+            {{- if ne .Values.database.mode "none" }}
+            - name: POSTGRES_HOST
+              value: {{ include "nautilus-trader.postgresqlHost" . | quote }}
+            - name: POSTGRES_PORT
+              value: {{ ternary (get (.Values.postgresql.service | default dict) "port" | default 5432) .Values.database.external.port .Values.postgresql.enabled | quote }}
+            - name: POSTGRES_DATABASE
+              value: {{ ternary .Values.postgresql.auth.database .Values.database.external.name .Values.postgresql.enabled | quote }}
+            - name: POSTGRES_USERNAME
+              value: {{ ternary .Values.postgresql.auth.username .Values.database.external.username .Values.postgresql.enabled | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "nautilus-trader.postgresqlSecret" . }}
+                  key: {{ ternary .Values.postgresql.auth.existingSecretUserPasswordKey .Values.database.external.passwordKey .Values.postgresql.enabled }}
+            {{- end }}
+            {{- if ne .Values.messageBus.mode "none" }}
+            - name: REDIS_HOST
+              value: {{ include "nautilus-trader.redisHost" . | quote }}
+            - name: REDIS_PORT
+              value: {{ ternary (get (get (.Values.redis.service | default dict) "ports" | default dict) "redis" | default 6379) .Values.messageBus.external.port .Values.redis.enabled | quote }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "nautilus-trader.redisSecret" . }}
+                  key: {{ ternary .Values.redis.auth.existingSecretPasswordKey .Values.messageBus.external.passwordKey .Values.redis.enabled }}
+            {{- end }}
+            {{- with .Values.live.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if or .Values.secrets.existingSecret .Values.live.envFrom }}
+          envFrom:
+            {{- if .Values.secrets.existingSecret }}
+            - secretRef:
+                name: {{ .Values.secrets.existingSecret }}
+            {{- end }}
+            {{- with .Values.live.envFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          ports:
+            - name: runner
+              containerPort: {{ .Values.runner.port }}
+              protocol: TCP
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet: {path: /healthz, port: runner}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet: {path: /healthz, port: runner}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet: {path: /readyz, port: runner}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: runtime
+              mountPath: /opt/helmforge
+              readOnly: true
+            - name: runtime
+              mountPath: /etc/nautilus/node-config.json
+              subPath: node-config.json
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            {{- range $kind, $config := .Values.persistence }}
+            {{- if $config.enabled }}
+            - name: {{ $kind | kebabcase }}
+              mountPath: /var/lib/nautilus/{{ $kind | kebabcase }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+        - name: runtime
+          configMap:
+            name: {{ include "nautilus-trader.fullname" . }}-runtime
+            defaultMode: 0555
+        - name: tmp
+          emptyDir: {}
+        {{- range $kind, $config := .Values.persistence }}
+        {{- if $config.enabled }}
+        - name: {{ $kind | kebabcase }}
+          persistentVolumeClaim:
+            claimName: {{ include "nautilus-trader.claimName" (dict "root" $ "kind" $kind) }}
+        {{- end }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+

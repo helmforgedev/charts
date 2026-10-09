@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: NautilusTrader workload
+templates:
+  - templates/deployment.yaml
+  - templates/configmap.yaml
+tests:
+  - it: renders one singleton deployment
+    template: templates/deployment.yaml
+    asserts:
+      - equal: {path: spec.replicas, value: 1}
+      - equal: {path: spec.strategy.type, value: Recreate}
+  - it: pins the official image by digest
+    template: templates/deployment.yaml
+    asserts:
+      - equal: {path: "spec.template.spec.containers[0].image", value: "ghcr.io/nautechsystems/nautilus_trader@sha256:8ee49f436ea55e842d625d534e5a91db2a740cb0072af422fdac46e2d22ba58f"}
+  - it: defaults to non-trading validation
+    template: templates/deployment.yaml
+    asserts:
+      - contains: {path: "spec.template.spec.containers[0].args", content: validate}
+  - it: hardens pod and container
+    template: templates/deployment.yaml
+    asserts:
+      - equal: {path: spec.template.spec.securityContext.runAsNonRoot, value: true}
+      - equal: {path: "spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem", value: true}
+      - equal: {path: spec.template.spec.automountServiceAccountToken, value: false}
+  - it: disables the live deployment
+    template: templates/deployment.yaml
+    set: {live.enabled: false}
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: accepts a custom live factory
+    template: templates/deployment.yaml
+    set: {live.mode: live, live.factory: strategy:create}
+    asserts:
+      - contains:
+          path: "spec.template.spec.containers[0].env"
+          content: {name: NAUTILUS_RUNNER_FACTORY, value: "strategy:create"}

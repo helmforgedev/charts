@@ -1,0 +1,88 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.scheduledBacktest.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "nautilus-trader.nameWithSuffix" (dict "base" (include "nautilus-trader.fullname" .) "suffix" "-backtest") | trunc 52 | trimSuffix "-" }}
+  labels:
+    {{- include "nautilus-trader.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.scheduledBacktest.schedule | quote }}
+  {{- with .Values.scheduledBacktest.timeZone }}
+  timeZone: {{ . | quote }}
+  {{- end }}
+  concurrencyPolicy: {{ .Values.scheduledBacktest.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.scheduledBacktest.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.scheduledBacktest.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backtest.backoffLimit }}
+      activeDeadlineSeconds: {{ .Values.backtest.activeDeadlineSeconds }}
+      ttlSecondsAfterFinished: {{ .Values.backtest.ttlSecondsAfterFinished }}
+      template:
+        metadata:
+          labels:
+            {{- include "nautilus-trader.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: scheduled-backtest
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "nautilus-trader.serviceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          containers:
+            - name: backtest
+              image: {{ include "nautilus-trader.image" . | quote }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              securityContext:
+                {{- toYaml .Values.securityContext | nindent 16 }}
+              {{- if .Values.backtest.command }}
+              command:
+                {{- toYaml .Values.backtest.command | nindent 16 }}
+              {{- else }}
+              command: ["python", "/opt/helmforge/runner.py"]
+              {{- end }}
+              {{- if .Values.backtest.args }}
+              args:
+                {{- toYaml .Values.backtest.args | nindent 16 }}
+              {{- else }}
+              args: ["--mode", "backtest", "--config", "/etc/nautilus/backtest-config.json"]
+              {{- end }}
+              env:
+                - {name: HOME, value: /tmp}
+                - name: NAUTILUS_RUNNER_FACTORY
+                  value: {{ .Values.backtest.factory | quote }}
+              {{- if .Values.secrets.existingSecret }}
+              envFrom:
+                - secretRef:
+                    name: {{ .Values.secrets.existingSecret }}
+              {{- end }}
+              resources:
+                {{- toYaml .Values.backtest.resources | nindent 16 }}
+              volumeMounts:
+                - {name: runtime, mountPath: /opt/helmforge, readOnly: true}
+                - {name: runtime, mountPath: /etc/nautilus/backtest-config.json, subPath: backtest-config.json, readOnly: true}
+                - {name: tmp, mountPath: /tmp}
+                {{- if .Values.persistence.catalog.enabled }}
+                - {name: catalog, mountPath: /var/lib/nautilus/catalog}
+                {{- end }}
+                {{- if .Values.persistence.results.enabled }}
+                - {name: results, mountPath: /var/lib/nautilus/results}
+                {{- end }}
+                {{- with .Values.extraVolumeMounts }}{{- toYaml . | nindent 16 }}{{- end }}
+          volumes:
+            - name: runtime
+              configMap: {name: {{ include "nautilus-trader.fullname" . }}-runtime, defaultMode: 0555}
+            - name: tmp
+              emptyDir: {}
+            {{- if .Values.persistence.catalog.enabled }}
+            - name: catalog
+              persistentVolumeClaim: {claimName: {{ include "nautilus-trader.claimName" (dict "root" . "kind" "catalog") }}}
+            {{- end }}
+            {{- if .Values.persistence.results.enabled }}
+            - name: results
+              persistentVolumeClaim: {claimName: {{ include "nautilus-trader.claimName" (dict "root" . "kind" "results") }}}
+            {{- end }}
+            {{- with .Values.extraVolumes }}{{- toYaml . | nindent 12 }}{{- end }}
+{{- end }}
+

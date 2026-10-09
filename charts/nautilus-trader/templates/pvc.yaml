@@ -1,0 +1,22 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- range $kind, $config := .Values.persistence }}
+{{- if and $config.enabled (not $config.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "nautilus-trader.claimName" (dict "root" $ "kind" $kind) }}
+  labels:
+    {{- include "nautilus-trader.labels" $ | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml $config.accessModes | nindent 4 }}
+  {{- with $config.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $config.size }}
+{{- end }}
+{{- end }}
+
