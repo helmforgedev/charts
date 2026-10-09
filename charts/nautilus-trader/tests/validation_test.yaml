@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: NautilusTrader validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: rejects live mode without a factory
+    set: {live.mode: live}
+    asserts:
+      - failedTemplate: {errorMessage: "live.factory is required when live.mode=live unless live.command overrides the chart runner"}
+  - it: rejects an unselected image
+    set: {image.digest: "", image.tag: ""}
+    asserts:
+      - failedTemplate: {errorMessage: "image.tag or image.digest is required"}
+  - it: requires the postgresql mode
+    set: {postgresql.enabled: true}
+    asserts:
+      - failedTemplate: {errorMessage: "database.mode must be postgresql when postgresql.enabled=true"}
+  - it: requires bundled postgresql
+    set: {database.mode: postgresql}
+    asserts:
+      - failedTemplate: {errorMessage: "postgresql.enabled must be true when database.mode=postgresql"}
+  - it: requires external postgresql coordinates
+    set: {database.mode: external}
+    asserts:
+      - failedTemplate: {errorMessage: "external PostgreSQL requires database.external.host and database.external.existingSecret"}
+  - it: requires the redis mode
+    set: {redis.enabled: true}
+    asserts:
+      - failedTemplate: {errorMessage: "messageBus.mode must be redis when redis.enabled=true"}
+  - it: separates redis logical databases
+    set: {messageBus.busDatabase: 0}
+    asserts:
+      - failedTemplate: {errorMessage: "messageBus.cacheDatabase and messageBus.busDatabase must be different"}
+  - it: requires external secret items
+    set: {externalSecrets.enabled: true}
+    asserts:
+      - failedTemplate: {errorMessage: "externalSecrets.items must contain at least one item when externalSecrets.enabled=true"}
+  - it: protects selector labels
+    set:
+      podLabels:
+        app.kubernetes.io/name: unsafe
+    asserts:
+      - failedTemplate: {errorMessage: "podLabels must not override chart selector labels"}
+  - it: requires monitoring discovery for alerts
+    set: {monitoring.prometheusRule.enabled: true}
+    asserts:
+      - failedTemplate: {errorMessage: "monitoring.serviceMonitor.enabled must be true when prometheusRule is enabled"}

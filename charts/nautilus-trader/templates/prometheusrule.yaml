@@ -1,0 +1,31 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.monitoring.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "nautilus-trader.fullname" . }}
+  labels:
+    {{- include "nautilus-trader.labels" . | nindent 4 }}
+    {{- with .Values.monitoring.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: {{ include "nautilus-trader.fullname" . }}
+      rules:
+        - alert: NautilusTraderRunnerDown
+          expr: (up{namespace={{ .Release.Namespace | quote }},service={{ include "nautilus-trader.fullname" . | quote }}} == 0) or absent(up{namespace={{ .Release.Namespace | quote }},service={{ include "nautilus-trader.fullname" . | quote }}})
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: NautilusTrader runner is unhealthy
+        - alert: NautilusTraderNotReady
+          expr: nautilus_runner_ready{namespace={{ .Release.Namespace | quote }}} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: NautilusTrader runtime is not ready
+{{- end }}
+

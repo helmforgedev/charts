@@ -1,0 +1,316 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# -- Override the chart name.
+nameOverride: ""
+# -- Override the fully qualified application name.
+fullnameOverride: ""
+# -- Additional labels applied to every chart resource.
+commonLabels: {}
+
+image:
+  # -- Official NautilusTrader image repository.
+  repository: ghcr.io/nautechsystems/nautilus_trader
+  # -- Optional image tag used only when digest is empty. The upstream publishes no versioned OCI tags.
+  tag: ""
+  # -- Immutable multi-architecture digest resolved from upstream latest on 2026-10-09 (revision 7b766f).
+  digest: sha256:8ee49f436ea55e842d625d534e5a91db2a740cb0072af422fdac46e2d22ba58f
+  # -- Kubernetes image pull policy.
+  pullPolicy: IfNotPresent
+# -- Image pull secrets for private mirrors or custom strategy images.
+imagePullSecrets: []
+
+live:
+  # -- Deploy the singleton long-running NautilusTrader runtime.
+  enabled: true
+  # -- Runner mode. validate imports NautilusTrader without trading; live invokes runner.factory.
+  mode: validate
+  # -- Python factory in module:callable form. Required when mode is live.
+  factory: ""
+  # -- Optional command override for a custom strategy image.
+  command: []
+  # -- Optional args override for a custom strategy image.
+  args: []
+  # -- Non-sensitive configuration passed to the factory as a dictionary.
+  nodeConfig:
+    environment: sandbox
+    traderId: TRADER-001
+    logging:
+      level: INFO
+  # -- Additional environment variables for the live container. Do not place secrets here.
+  extraEnv: []
+  # -- Additional envFrom sources for the live container.
+  envFrom: []
+
+runner:
+  # -- Port for the chart-managed health and metrics server.
+  port: 8080
+  # -- Time allowed for a user node to report is_running after run starts.
+  readinessTimeoutSeconds: 120
+  # -- Log level for the chart-managed runner.
+  logLevel: INFO
+
+backtest:
+  # -- Create a one-shot backtest Job.
+  enabled: false
+  # -- Python factory in module:callable form for the backtest.
+  factory: ""
+  # -- Optional command override for the backtest image.
+  command: []
+  # -- Optional args override for the backtest image.
+  args: []
+  # -- Non-sensitive configuration passed to the backtest factory.
+  config: {}
+  # -- Job retry limit.
+  backoffLimit: 1
+  # -- Maximum runtime for the backtest Job.
+  activeDeadlineSeconds: 3600
+  # -- Seconds to retain a completed backtest Job.
+  ttlSecondsAfterFinished: 86400
+  # -- Resources reserved for the backtest Job.
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "4"
+      memory: 8Gi
+
+scheduledBacktest:
+  # -- Create a scheduled backtest CronJob.
+  enabled: false
+  # -- Cron schedule for backtest execution.
+  schedule: "0 2 * * *"
+  # -- Optional IANA time zone for the schedule.
+  timeZone: ""
+  # -- Prevent overlapping trading research runs by default.
+  concurrencyPolicy: Forbid
+  # -- Keep this many successful jobs.
+  successfulJobsHistoryLimit: 1
+  # -- Keep this many failed jobs.
+  failedJobsHistoryLimit: 3
+
+secrets:
+  # -- Existing Secret projected into the live and backtest containers with envFrom.
+  existingSecret: ""
+
+externalSecrets:
+  # -- Render external-secrets.io/v1 ExternalSecret resources.
+  enabled: false
+  # -- Default synchronization interval.
+  refreshInterval: 1h
+  # -- Complete ExternalSecret specifications.
+  items: []
+
+database:
+  # -- Cache backing mode. One of none, postgresql, external.
+  mode: none
+  external:
+    # -- External PostgreSQL host.
+    host: ""
+    # -- External PostgreSQL port.
+    port: 5432
+    # -- External PostgreSQL database name.
+    name: nautilus
+    # -- External PostgreSQL username.
+    username: nautilus
+    # -- Require TLS for external PostgreSQL connections.
+    tls: true
+    # -- Secret containing the external PostgreSQL password.
+    existingSecret: ""
+    # -- Password key in database.external.existingSecret.
+    passwordKey: password
+
+messageBus:
+  # -- Message bus mode. One of none, redis, external.
+  mode: none
+  # -- Redis database index reserved for cache data.
+  cacheDatabase: 0
+  # -- Redis database index reserved for message bus streams.
+  busDatabase: 1
+  external:
+    # -- External Redis host.
+    host: ""
+    # -- External Redis port.
+    port: 6379
+    # -- Enable TLS for external Redis.
+    tls: true
+    # -- Secret containing the external Redis password.
+    existingSecret: ""
+    # -- Password key in messageBus.external.existingSecret.
+    passwordKey: password
+
+postgresql:
+  # -- Deploy the HelmForge PostgreSQL subchart for non-production evaluation.
+  enabled: false
+  architecture: standalone
+  auth:
+    database: nautilus
+    username: nautilus
+    existingSecret: ""
+    existingSecretUserPasswordKey: user-password
+
+redis:
+  # -- Deploy the HelmForge Redis subchart for non-production evaluation.
+  enabled: false
+  architecture: standalone
+  auth:
+    enabled: true
+    existingSecret: ""
+    existingSecretPasswordKey: password
+
+persistence:
+  catalog:
+    # -- Persist Parquet market-data catalogs.
+    enabled: false
+    # -- Existing PVC for catalog data.
+    existingClaim: ""
+    # -- Storage class for a generated catalog PVC.
+    storageClass: ""
+    # -- Catalog PVC access modes.
+    accessModes: [ReadWriteOnce]
+    # -- Catalog PVC size.
+    size: 20Gi
+  eventStore:
+    # -- Persist Nautilus event-store data.
+    enabled: false
+    # -- Existing PVC for event-store data.
+    existingClaim: ""
+    # -- Storage class for a generated event-store PVC.
+    storageClass: ""
+    # -- Event-store PVC access modes.
+    accessModes: [ReadWriteOnce]
+    # -- Event-store PVC size.
+    size: 10Gi
+  results:
+    # -- Persist backtest results.
+    enabled: false
+    # -- Existing PVC for backtest results.
+    existingClaim: ""
+    # -- Storage class for a generated results PVC.
+    storageClass: ""
+    # -- Results PVC access modes.
+    accessModes: [ReadWriteOnce]
+    # -- Results PVC size.
+    size: 20Gi
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: true
+  # -- ServiceAccount name override.
+  name: ""
+  # -- ServiceAccount annotations.
+  annotations: {}
+  # -- Mount the Kubernetes API token.
+  automountServiceAccountToken: false
+
+service:
+  # -- Kubernetes Service type for runner health and metrics.
+  type: ClusterIP
+  # -- Service port.
+  port: 8080
+  # -- Service annotations.
+  annotations: {}
+  # -- IP family policy. Empty uses the cluster default.
+  ipFamilyPolicy: ""
+  # -- Ordered IP families. Empty uses the cluster default.
+  ipFamilies: []
+
+monitoring:
+  serviceMonitor:
+    # -- Create a Prometheus Operator ServiceMonitor for runner metrics.
+    enabled: false
+    # -- Scrape interval.
+    interval: 30s
+    # -- Scrape timeout.
+    scrapeTimeout: 10s
+    # -- Additional ServiceMonitor labels.
+    labels: {}
+  prometheusRule:
+    # -- Create runner availability alerts.
+    enabled: false
+    # -- Additional PrometheusRule labels.
+    labels: {}
+
+probes:
+  startup:
+    # -- Enable startup probe.
+    enabled: true
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 36
+  liveness:
+    # -- Enable liveness probe.
+    enabled: true
+    periodSeconds: 20
+    timeoutSeconds: 3
+    failureThreshold: 3
+  readiness:
+    # -- Enable readiness probe.
+    enabled: true
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 6
+
+# -- Grace period for LiveNode stop and dispose.
+terminationGracePeriodSeconds: 90
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "2"
+    memory: 4Gi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+# -- Pod annotations.
+podAnnotations: {}
+# -- Additional pod labels. Selector labels cannot be overridden.
+podLabels: {}
+# -- PriorityClass name.
+priorityClassName: ""
+# -- Node selector.
+nodeSelector: {}
+# -- Tolerations.
+tolerations: []
+# -- Affinity rules.
+affinity: {}
+# -- Topology spread constraints.
+topologySpreadConstraints: []
+
+networkPolicy:
+  # -- Enable a NetworkPolicy for the singleton runtime.
+  enabled: false
+  # -- Additional complete ingress rules.
+  extraIngress: []
+  # -- Enable egress isolation.
+  egressEnabled: false
+  # -- Allow DNS egress when egress isolation is enabled.
+  allowDNS: true
+  # -- Additional complete egress rules.
+  extraEgress: []
+
+# -- Additional volumes for strategy code, certificates, or catalogs.
+extraVolumes: []
+# -- Additional mounts for strategy code, certificates, or catalogs.
+extraVolumeMounts: []
+# -- Additional init containers.
+extraInitContainers: []
+# -- Additional sidecars.
+extraContainers: []
+# -- Additional Kubernetes manifests.
+extraManifests: []
+
