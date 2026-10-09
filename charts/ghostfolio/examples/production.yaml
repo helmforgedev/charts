@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+ghostfolio:
+  rootUrl: https://wealth.example.com
+  trustProxy: "1"
+  existingSecret: ghostfolio-application
+
+postgresql:
+  enabled: false
+database:
+  external:
+    enabled: true
+    host: postgres.database.svc.cluster.local
+    existingSecret: ghostfolio-database
+    directUrlEnabled: true
+
+redis:
+  enabled: false
+  external:
+    enabled: true
+    host: redis.cache.svc.cluster.local
+    existingSecret: ghostfolio-redis
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: wealth.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: wealth-example-tls
+      hosts: [wealth.example.com]
+
+resources:
+  requests: { cpu: 250m, memory: 512Mi }
+  limits: { cpu: '2', memory: 2Gi }
+
+networkPolicy:
+  extraEgress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: database }
+      ports: [{ protocol: TCP, port: 5432 }]
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: cache }
+      ports: [{ protocol: TCP, port: 6379 }]

@@ -1,0 +1,157 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Ghostfolio deployment
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: renders the immutable official image as a singleton Recreate deployment
+    asserts:
+      - isKind: { of: Deployment }
+      - equal: { path: 'spec.replicas', value: 1 }
+      - equal: { path: 'spec.strategy.type', value: Recreate }
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: 'docker.io/ghostfolio/ghostfolio:3.82.0@sha256:3b87436abfe7daae20a8bd5862bda230d327a5af49a837f888c007863ecb94fb'
+  - it: uses the official upstream health endpoints
+    asserts:
+      - equal: { path: 'spec.template.spec.containers[0].startupProbe.httpGet.path', value: /api/v1/health/liveness }
+      - equal: { path: 'spec.template.spec.containers[0].livenessProbe.httpGet.path', value: /api/v1/health/liveness }
+      - equal: { path: 'spec.template.spec.containers[0].readinessProbe.httpGet.path', value: /api/v1/health }
+      - equal: { path: 'spec.template.spec.containers[0].readinessProbe.timeoutSeconds', value: 5 }
+  - it: waits for both state services before migration startup
+    asserts:
+      - equal: { path: 'spec.template.spec.initContainers[0].name', value: wait-for-postgresql }
+      - equal: { path: 'spec.template.spec.initContainers[1].name', value: wait-for-redis }
+      - equal: { path: 'spec.template.spec.initContainers[0].securityContext.runAsNonRoot', value: true }
+  - it: hardens the application container and leaves the service account token unmounted
+    asserts:
+      - equal: { path: 'spec.template.spec.automountServiceAccountToken', value: false }
+      - equal: { path: 'spec.template.spec.securityContext.runAsNonRoot', value: true }
+      - equal: { path: 'spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem', value: true }
+      - contains: { path: 'spec.template.spec.containers[0].securityContext.capabilities.drop', content: ALL }
+  - it: configures bundled PostgreSQL and Redis credentials without putting secret values in the pod spec
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: DATABASE_URL, value: "postgresql://ghostfolio:$(DATABASE_PASSWORD)@RELEASE-NAME-postgresql:5432/ghostfolio?connect_timeout=300" }
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: REDIS_HOST, value: RELEASE-NAME-redis-client }
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef: { name: RELEASE-NAME-redis-auth, key: redis-password }
+  - it: follows dependency naming overrides and existing Secret key contracts
+    set:
+      postgresql.fullnameOverride: wealth-database
+      postgresql.auth.existingSecret: wealth-database-auth
+      postgresql.auth.existingSecretUserPasswordKey: application-password
+      redis.fullnameOverride: wealth-cache
+      redis.auth.existingSecret: wealth-cache-auth
+      redis.auth.existingSecretPasswordKey: cache-password
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: 'timeout 180 sh -c ''until nc -z -w 2 "$1" "$2"; do sleep 2; done'' -- "wealth-database" "5432"'
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef: { name: wealth-database-auth, key: application-password }
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: REDIS_HOST, value: wealth-cache-client }
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef: { name: wealth-cache-auth, key: cache-password }
+  - it: follows the Redis dependency fullname rule when the release contains redis
+    release:
+      name: redis-portfolio
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: REDIS_HOST, value: redis-portfolio-client }
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef: { name: redis-portfolio-auth, key: redis-password }
+  - it: reads complete external database and Redis contracts from Secrets
+    set:
+      postgresql.enabled: false
+      database.external.enabled: true
+      database.external.host: pg.internal
+      database.external.existingSecret: ghostfolio-db
+      database.external.directUrlEnabled: true
+      redis.enabled: false
+      redis.external.enabled: true
+      redis.external.host: redis.internal
+      redis.external.existingSecret: ghostfolio-redis
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_URL
+            valueFrom:
+              secretKeyRef: { name: ghostfolio-db, key: database-url }
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DIRECT_URL
+            valueFrom:
+              secretKeyRef: { name: ghostfolio-db, key: direct-url }
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: REDIS_HOST, value: redis.internal }
+  - it: configures OIDC with JSON scopes and Secret-backed client credentials
+    set:
+      oidc.enabled: true
+      oidc.issuer: https://idp.example.test
+      oidc.clientId: ghostfolio
+      oidc.existingSecret: ghostfolio-oidc
+      oidc.scopes: [openid, email, profile]
+    asserts:
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: ENABLE_FEATURE_AUTH_OIDC, value: "true" } }
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: OIDC_SCOPE, value: '["openid","email","profile"]' } }
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef: { name: ghostfolio-oidc, key: client-secret }
+  - it: derives ROOT_URL from TLS ingress and exposes trusted proxy configuration
+    set:
+      ghostfolio.trustProxy: "1"
+      ingress.enabled: true
+      ingress.hosts:
+        - host: wealth.example.com
+          paths: [{ path: /, pathType: Prefix }]
+      ingress.tls:
+        - secretName: wealth-tls
+          hosts: [wealth.example.com]
+    asserts:
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: ROOT_URL, value: 'https://wealth.example.com' } }
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: TRUST_PROXY, value: "1" } }
+  - it: derives ROOT_URL with the configured Gateway API scheme
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.rootUrlScheme: http
+      gatewayAPI.httpRoutes:
+        - name: web
+          parentRefs: [{ name: shared }]
+          hostnames: [wealth.example.com]
+    asserts:
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: ROOT_URL, value: 'http://wealth.example.com' } }
+  - it: renders advanced environment and envFrom extensions
+    set:
+      ghostfolio.extraEnv: [{ name: API_KEY_COINGECKO_DEMO, value: demo-key }]
+      ghostfolio.extraEnvFrom: [{ secretRef: { name: providers } }]
+    asserts:
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: API_KEY_COINGECKO_DEMO, value: demo-key } }
+      - contains: { path: 'spec.template.spec.containers[0].envFrom', content: { secretRef: { name: providers } } }
