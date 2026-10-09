@@ -1,0 +1,261 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ghostfolio.fullname" . }}
+  labels:
+    {{- include "ghostfolio.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "ghostfolio.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ghostfolio.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "ghostfolio.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      initContainers:
+        - name: wait-for-postgresql
+          image: {{ include "ghostfolio.waitImage" . | quote }}
+          imagePullPolicy: {{ .Values.waitForServices.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            {{- toYaml .Values.waitForServices.resources | nindent 12 }}
+          command: [sh, -c]
+          args:
+            - >-
+              timeout {{ .Values.waitForServices.timeoutSeconds }} sh -c
+              'until nc -z -w 2 "$1" "$2"; do sleep 2; done' --
+              {{ include "ghostfolio.databaseHost" . | quote }} {{ include "ghostfolio.databasePort" . | quote }}
+        - name: wait-for-redis
+          image: {{ include "ghostfolio.waitImage" . | quote }}
+          imagePullPolicy: {{ .Values.waitForServices.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            {{- toYaml .Values.waitForServices.resources | nindent 12 }}
+          command: [sh, -c]
+          args:
+            - >-
+              timeout {{ .Values.waitForServices.timeoutSeconds }} sh -c
+              'until nc -z -w 2 "$1" "$2"; do sleep 2; done' --
+              {{ include "ghostfolio.redisHost" . | quote }} {{ include "ghostfolio.redisPort" . | quote }}
+      containers:
+        - name: ghostfolio
+          image: {{ include "ghostfolio.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 3333
+              protocol: TCP
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: HOST
+              value: 0.0.0.0
+            - name: PORT
+              value: '3333'
+            - name: ROOT_URL
+              value: {{ include "ghostfolio.rootUrl" . | quote }}
+            {{- if not .Values.ghostfolio.authTokenEnabled }}
+            - name: ENABLE_FEATURE_AUTH_TOKEN
+              value: 'false'
+            {{- end }}
+            - name: ENABLE_FEATURE_CRON
+              value: {{ .Values.ghostfolio.cronEnabled | quote }}
+            - name: ENABLE_FEATURE_SECURITY_HEADERS
+              value: {{ .Values.ghostfolio.securityHeadersEnabled | quote }}
+            - name: ENABLE_FEATURE_MCP
+              value: {{ .Values.ghostfolio.mcpEnabled | quote }}
+            - name: ENABLE_FEATURE_RATE_LIMITING
+              value: {{ .Values.ghostfolio.rateLimitingEnabled | quote }}
+            - name: ENABLE_FEATURE_READ_ONLY_MODE
+              value: {{ .Values.ghostfolio.readOnlyModeEnabled | quote }}
+            {{- with .Values.ghostfolio.trustProxy }}
+            - name: TRUST_PROXY
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if .Values.ghostfolio.logLevels }}
+            - name: LOG_LEVELS
+              value: {{ .Values.ghostfolio.logLevels | toJson | quote }}
+            {{- end }}
+            - name: ACCESS_TOKEN_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ghostfolio.applicationSecretName" . | quote }}
+                  key: {{ .Values.ghostfolio.accessTokenSaltKey | quote }}
+            - name: JWT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ghostfolio.applicationSecretName" . | quote }}
+                  key: {{ .Values.ghostfolio.jwtSecretKey | quote }}
+            {{- if .Values.database.external.enabled }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ghostfolio.databaseSecretName" . | quote }}
+                  key: {{ .Values.database.external.urlKey | quote }}
+            {{- if .Values.database.external.directUrlEnabled }}
+            - name: DIRECT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ghostfolio.databaseSecretName" . | quote }}
+                  key: {{ .Values.database.external.directUrlKey | quote }}
+            {{- end }}
+            {{- else }}
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ghostfolio.databaseSecretName" . | quote }}
+                  key: {{ include "ghostfolio.databaseSecretKey" . | quote }}
+            - name: DATABASE_URL
+              value: {{ printf "postgresql://%s:$(DATABASE_PASSWORD)@%s:%s/%s?connect_timeout=300" .Values.postgresql.auth.username (include "ghostfolio.databaseHost" .) (include "ghostfolio.databasePort" .) .Values.postgresql.auth.database | quote }}
+            - name: DIRECT_URL
+              value: {{ printf "postgresql://%s:$(DATABASE_PASSWORD)@%s:%s/%s?connect_timeout=300" .Values.postgresql.auth.username (include "ghostfolio.databaseHost" .) (include "ghostfolio.databasePort" .) .Values.postgresql.auth.database | quote }}
+            {{- end }}
+            - name: REDIS_HOST
+              value: {{ include "ghostfolio.redisHost" . | quote }}
+            - name: REDIS_PORT
+              value: {{ include "ghostfolio.redisPort" . | quote }}
+            - name: REDIS_DB
+              value: {{ include "ghostfolio.redisDatabase" . | quote }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ghostfolio.redisSecretName" . | quote }}
+                  key: {{ include "ghostfolio.redisSecretKey" . | quote }}
+            - name: ENABLE_FEATURE_AUTH_OIDC
+              value: {{ .Values.oidc.enabled | quote }}
+            {{- if .Values.oidc.enabled }}
+            - name: OIDC_ISSUER
+              value: {{ .Values.oidc.issuer | quote }}
+            - name: OIDC_CLIENT_ID
+              value: {{ .Values.oidc.clientId | quote }}
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.oidc.existingSecret | quote }}
+                  key: {{ .Values.oidc.clientSecretKey | quote }}
+            - name: OIDC_SCOPE
+              value: {{ .Values.oidc.scopes | toJson | quote }}
+            {{- with .Values.oidc.callbackUrl }}
+            - name: OIDC_CALLBACK_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.oidc.authorizationUrl }}
+            - name: OIDC_AUTHORIZATION_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.oidc.tokenUrl }}
+            - name: OIDC_TOKEN_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.oidc.userInfoUrl }}
+            - name: OIDC_USER_INFO_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.ghostfolio.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.ghostfolio.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet: { path: /api/v1/health/liveness, port: http }
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet: { path: /api/v1/health/liveness, port: http }
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet: { path: /api/v1/health, port: http }
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+            - name: npm-cache
+              mountPath: /home/node/.npm
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: runtime-tmp
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.sizeLimit }}
+        - name: npm-cache
+          emptyDir:
+            sizeLimit: {{ .Values.runtimeStorage.sizeLimit }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

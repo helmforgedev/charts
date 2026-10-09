@@ -1,0 +1,92 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+{{- $extraEgress := .Values.networkPolicy.extraEgress | default list }}
+{{- $egressEnabled := or .Values.networkPolicy.egressIsolation (gt (len $extraEgress) 0) }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ghostfolio.fullname" . }}
+  labels:
+    {{- include "ghostfolio.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ghostfolio.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if $egressEnabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    - from:
+        {{- if .Values.networkPolicy.ingressFrom }}
+        {{- toYaml .Values.networkPolicy.ingressFrom | nindent 8 }}
+        {{- else }}
+        - podSelector: {}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: http
+  {{- if $egressEnabled }}
+  egress:
+    - {{- if .Values.networkPolicy.dnsEgress }}
+      to:
+        {{- toYaml .Values.networkPolicy.dnsEgress | nindent 8 }}
+      {{- end }}
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    {{- if .Values.postgresql.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ include "postgresql.name" .Subcharts.postgresql }}
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - { protocol: TCP, port: 5432 }
+    {{- else if .Values.database.external.networkPolicyPeers }}
+    - to:
+        {{- toYaml .Values.database.external.networkPolicyPeers | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.database.external.port }} }
+    {{- end }}
+    {{- if .Values.redis.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ include "redis.name" .Subcharts.redis }}
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - { protocol: TCP, port: 6379 }
+    {{- else if .Values.redis.external.networkPolicyPeers }}
+    - to:
+        {{- toYaml .Values.redis.external.networkPolicyPeers | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.redis.external.port }} }
+    {{- end }}
+    {{- if .Values.networkPolicy.allowPublicInternet }}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 100.64.0.0/10
+              - 127.0.0.0/8
+              - 169.254.0.0/16
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+        - ipBlock:
+            cidr: ::/0
+            except:
+              - ::1/128
+              - fc00::/7
+              - fe80::/10
+      ports:
+        - { protocol: TCP, port: 80 }
+        - { protocol: TCP, port: 443 }
+    {{- end }}
+    {{- with $extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

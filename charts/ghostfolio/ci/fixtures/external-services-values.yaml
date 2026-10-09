@@ -1,0 +1,93 @@
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ghostfolio-external-database
+  labels: { helmforge.dev/runtime-fixture: "true" }
+type: Opaque
+stringData:
+  database-url: postgresql://ghostfolio:helmforge-db-password@ghostfolio-external-postgresql:5432/ghostfolio?connect_timeout=300
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ghostfolio-external-redis
+  labels: { helmforge.dev/runtime-fixture: "true" }
+type: Opaque
+stringData:
+  redis-password: helmforge-redis-password
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ghostfolio-external-postgresql
+  labels: { app.kubernetes.io/name: ghostfolio-external-postgresql, helmforge.dev/runtime-fixture: "true" }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: ghostfolio-external-postgresql }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: ghostfolio-external-postgresql, helmforge.dev/runtime-fixture: "true" }
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: postgresql
+          image: docker.io/library/postgres:18-alpine
+          env:
+            - { name: POSTGRES_DB, value: ghostfolio }
+            - { name: POSTGRES_USER, value: ghostfolio }
+            - { name: POSTGRES_PASSWORD, value: helmforge-db-password }
+          ports: [{ name: postgresql, containerPort: 5432 }]
+          readinessProbe:
+            exec:
+              command: [pg_isready, -U, ghostfolio, -d, ghostfolio]
+            periodSeconds: 2
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ghostfolio-external-postgresql
+  labels: { helmforge.dev/runtime-fixture: "true" }
+spec:
+  selector: { app.kubernetes.io/name: ghostfolio-external-postgresql }
+  ports: [{ name: postgresql, port: 5432, targetPort: postgresql }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ghostfolio-external-redis
+  labels: { app.kubernetes.io/name: ghostfolio-external-redis, helmforge.dev/runtime-fixture: "true" }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: ghostfolio-external-redis }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: ghostfolio-external-redis, helmforge.dev/runtime-fixture: "true" }
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: redis
+          image: docker.io/library/redis:8.2-alpine
+          command: [redis-server, --requirepass, helmforge-redis-password]
+          ports: [{ name: redis, containerPort: 6379 }]
+          readinessProbe:
+            exec:
+              command: [redis-cli, -a, helmforge-redis-password, ping]
+            periodSeconds: 2
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+            limits: { cpu: 250m, memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ghostfolio-external-redis
+  labels: { helmforge.dev/runtime-fixture: "true" }
+spec:
+  selector: { app.kubernetes.io/name: ghostfolio-external-redis }
+  ports: [{ name: redis, port: 6379, targetPort: redis }]

@@ -1,0 +1,319 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# -- Override the chart name used in Kubernetes object names.
+nameOverride: ''
+# -- Override the full release name used in Kubernetes object names.
+fullnameOverride: ''
+# -- Extra labels applied to every chart-owned resource.
+commonLabels: {}
+
+# -- Ghostfolio runs its database migrations, seed, and scheduled work in the application process. Keep this at one.
+replicaCount: 1
+
+image:
+  # -- Official Ghostfolio image repository.
+  repository: docker.io/ghostfolio/ghostfolio
+  # -- Released tag pinned to its verified multi-platform OCI digest.
+  tag: 3.82.0@sha256:3b87436abfe7daae20a8bd5862bda230d327a5af49a837f888c007863ecb94fb
+  # -- Kubernetes pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Registry credentials for private mirrors.
+imagePullSecrets: []
+
+ghostfolio:
+  # -- Canonical public URL used in links and OIDC callbacks. Empty derives from Ingress or the first HTTPRoute hostname.
+  rootUrl: ''
+  # -- Express trust-proxy setting. Use a hop count such as "1" behind one trusted ingress proxy.
+  trustProxy: ''
+  # -- Enable token-based authentication.
+  authTokenEnabled: true
+  # -- Enable Ghostfolio's scheduled data gathering and snapshot jobs.
+  cronEnabled: true
+  # -- Enable experimental HTTP security headers. Validate embedded use cases before enabling.
+  securityHeadersEnabled: false
+  # -- Enable the experimental Model Context Protocol endpoint at /mcp.
+  mcpEnabled: false
+  # -- Enable upstream rate limiting.
+  rateLimitingEnabled: false
+  # -- Enable read-only mode.
+  readOnlyModeEnabled: false
+  # -- JSON array of NestJS log levels. Empty preserves the upstream default.
+  logLevels: []
+  # -- Existing Secret containing immutable application salts. Empty creates and retains a random Secret.
+  existingSecret: ''
+  # -- Key in ghostfolio.existingSecret containing ACCESS_TOKEN_SALT.
+  accessTokenSaltKey: access-token-salt
+  # -- Key in ghostfolio.existingSecret containing JWT_SECRET_KEY.
+  jwtSecretKey: jwt-secret-key
+  # -- Additional environment entries for supported advanced upstream settings.
+  extraEnv: []
+  # -- Additional envFrom sources such as Secret or ConfigMap references.
+  extraEnvFrom: []
+
+oidc:
+  # -- Enable Ghostfolio's experimental OpenID Connect authentication.
+  enabled: false
+  # -- OIDC issuer URL used for discovery.
+  issuer: ''
+  # -- OIDC client identifier.
+  clientId: ''
+  # -- Existing Secret containing the OIDC client secret.
+  existingSecret: ''
+  # -- Key in oidc.existingSecret containing OIDC_CLIENT_SECRET.
+  clientSecretKey: client-secret
+  # -- JSON-compatible list of requested scopes.
+  scopes:
+    - openid
+  # -- Optional explicit callback URL. Empty lets Ghostfolio use ROOT_URL/api/auth/oidc/callback.
+  callbackUrl: ''
+  # -- Optional authorization endpoint override; discovery is preferred.
+  authorizationUrl: ''
+  # -- Optional token endpoint override; discovery is preferred.
+  tokenUrl: ''
+  # -- Optional user-info endpoint override; discovery is preferred.
+  userInfoUrl: ''
+
+database:
+  external:
+    # -- Use an externally managed PostgreSQL database instead of the bundled subchart.
+    enabled: false
+    # -- Existing Secret containing complete, URL-encoded PostgreSQL connection URLs.
+    existingSecret: ''
+    # -- Key containing the pooled DATABASE_URL.
+    urlKey: database-url
+    # -- Optional key containing DIRECT_URL for Prisma migrations that bypass a pooler.
+    directUrlKey: direct-url
+    # -- Whether the direct URL key exists in the Secret.
+    directUrlEnabled: false
+    # -- TCP host used only for dependency waiting and NetworkPolicy documentation.
+    host: ''
+    # -- PostgreSQL TCP port.
+    port: 5432
+    # -- NetworkPolicy peers allowed to the external database when egress isolation is enabled.
+    networkPolicyPeers: []
+
+# -- Maintained HelmForge PostgreSQL dependency. Prefer managed PostgreSQL for production.
+postgresql:
+  # -- Deploy PostgreSQL with this release.
+  enabled: true
+  # -- PostgreSQL topology.
+  architecture: standalone
+  auth:
+    # -- Application database created on first initialization.
+    database: ghostfolio
+    # -- Application database user.
+    username: ghostfolio
+    # -- Application password. Empty lets the dependency generate and retain it.
+    password: ''
+    # -- Administrative password. Empty lets the dependency generate and retain it.
+    postgresPassword: ''
+  standalone:
+    persistence:
+      # -- Persist PostgreSQL data.
+      enabled: true
+      # -- Requested PostgreSQL PVC capacity.
+      size: 8Gi
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { cpu: '1', memory: 1Gi }
+
+# -- Maintained HelmForge Redis dependency or external Redis connection.
+redis:
+  # -- Deploy Redis with this release.
+  enabled: true
+  # -- Redis topology.
+  architecture: standalone
+  auth:
+    # -- Require password authentication.
+    enabled: true
+    # -- Redis password. Empty lets the dependency generate and retain it.
+    password: ''
+  standalone:
+    persistence:
+      # -- Persist Redis state. PostgreSQL remains the system of record.
+      enabled: true
+      # -- Requested Redis PVC capacity.
+      size: 1Gi
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits: { cpu: 500m, memory: 512Mi }
+  external:
+    # -- Use an external Redis service instead of the bundled subchart.
+    enabled: false
+    # -- External Redis hostname.
+    host: ''
+    # -- External Redis port.
+    port: 6379
+    # -- Redis logical database number.
+    database: 0
+    # -- Existing Secret containing the Redis password.
+    existingSecret: ''
+    # -- Key in redis.external.existingSecret containing the password.
+    passwordKey: redis-password
+    # -- NetworkPolicy peers allowed to external Redis when egress isolation is enabled.
+    networkPolicyPeers: []
+
+# -- Native External Secrets Operator resources for application, OIDC, database, Redis, and provider credentials.
+externalSecrets:
+  # -- Render ExternalSecret resources; install the operator and CRDs separately.
+  enabled: false
+  # -- Default refresh interval; an item may override it in spec.
+  refreshInterval: 1h
+  # -- Native ExternalSecret definitions using name/fullnameOverride and a complete spec.
+  items: []
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: true
+  # -- ServiceAccount name. Empty uses the chart fullname.
+  name: ''
+  # -- Additional ServiceAccount annotations.
+  annotations: {}
+  # -- Keep the Kubernetes API token unmounted; Ghostfolio does not use it.
+  automountServiceAccountToken: false
+
+service:
+  # -- Kubernetes Service type.
+  type: ClusterIP
+  # -- Service port.
+  port: 3333
+  # -- Additional Service annotations.
+  annotations: {}
+  # -- Service IP family policy. Empty inherits the cluster default.
+  ipFamilyPolicy: ''
+  # -- Ordered Service address families. Empty inherits the cluster default.
+  ipFamilies: []
+
+ingress:
+  # -- Enable Kubernetes Ingress.
+  enabled: false
+  # -- Explicit IngressClassName.
+  ingressClassName: ''
+  # -- Additional Ingress annotations.
+  annotations: {}
+  # -- Ingress host and path definitions.
+  hosts: []
+  # -- Ingress TLS definitions.
+  tls: []
+
+gatewayAPI:
+  # -- Render Gateway API HTTPRoutes.
+  enabled: false
+  # -- Scheme used when deriving ghostfolio.rootUrl from the first HTTPRoute hostname.
+  rootUrlScheme: https
+  # -- Route definitions with parentRefs, hostnames, rules, labels, and annotations.
+  httpRoutes: []
+
+probes:
+  startup:
+    # -- Enable startup probing through the dependency-free liveness endpoint.
+    enabled: true
+    # -- Seconds before the first startup probe.
+    initialDelaySeconds: 5
+    # -- Seconds between startup probes.
+    periodSeconds: 5
+    # -- Timeout for one startup probe.
+    timeoutSeconds: 5
+    # -- Failures allowed while Prisma migrations and seed complete.
+    failureThreshold: 60
+  liveness:
+    # -- Enable liveness probing without coupling restarts to PostgreSQL or Redis outages.
+    enabled: true
+    # -- Seconds before the first liveness probe.
+    initialDelaySeconds: 0
+    # -- Seconds between liveness probes.
+    periodSeconds: 20
+    # -- Timeout for one liveness probe.
+    timeoutSeconds: 5
+    # -- Consecutive failures before restart.
+    failureThreshold: 3
+  readiness:
+    # -- Enable readiness probing of PostgreSQL and Redis connectivity.
+    enabled: true
+    # -- Seconds before the first readiness probe.
+    initialDelaySeconds: 0
+    # -- Seconds between readiness probes.
+    periodSeconds: 10
+    # -- Timeout must be at least five seconds because Redis health can take five seconds.
+    timeoutSeconds: 5
+    # -- Consecutive failures before traffic is withdrawn.
+    failureThreshold: 3
+
+waitForServices:
+  image:
+    # -- Official BusyBox image used only to wait for PostgreSQL and Redis TCP listeners.
+    repository: docker.io/library/busybox
+    # -- Pinned multi-platform BusyBox tag and digest.
+    tag: 1.37.0@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+    # -- Pull policy for the dependency wait image.
+    pullPolicy: IfNotPresent
+  # -- Maximum seconds each dependency wait loop may run.
+  timeoutSeconds: 180
+  # -- Resources for dependency wait init containers.
+  resources:
+    requests: { cpu: 10m, memory: 16Mi }
+    limits: { cpu: 100m, memory: 64Mi }
+
+# -- Kubernetes compute requests and limits for Ghostfolio.
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { cpu: '1', memory: 1Gi }
+
+# -- Pod-level non-root identity and syscall filtering.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container-level privilege and filesystem restrictions.
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# -- EmptyDir size for /tmp and the Node npm cache used by the upstream migration entrypoint.
+runtimeStorage:
+  sizeLimit: 256Mi
+
+# -- Grace period matching the upstream Docker Compose stop_grace_period.
+terminationGracePeriodSeconds: 60
+
+networkPolicy:
+  # -- Restrict ingress and egress. External services need explicit peers.
+  enabled: true
+  # -- Enforce egress isolation.
+  egressIsolation: true
+  # -- Ingress peers. Empty allows Pods in the release namespace.
+  ingressFrom: []
+  # -- DNS peers. Empty permits port 53 without a peer selector.
+  dnsEgress: []
+  # -- Permit public IPv4 and IPv6 HTTP/HTTPS for Ghostfolio market-data providers.
+  allowPublicInternet: true
+  # -- Additional native NetworkPolicy egress rules.
+  extraEgress: []
+
+# -- Additional pod labels; selector labels remain chart-owned.
+podLabels: {}
+# -- Additional pod annotations.
+podAnnotations: {}
+# -- Node labels required for scheduling.
+nodeSelector: {}
+# -- Node taints tolerated by the pod.
+tolerations: []
+# -- Pod scheduling affinity.
+affinity: {}
+# -- Topology spread constraints.
+topologySpreadConstraints: []
+# -- Optional PriorityClass name.
+priorityClassName: ''
+# -- Additional volumes.
+extraVolumes: []
+# -- Additional volume mounts.
+extraVolumeMounts: []

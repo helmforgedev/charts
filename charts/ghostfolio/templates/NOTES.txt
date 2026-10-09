@@ -1,0 +1,81 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+1. Check the rollout
+
+   kubectl -n {{ .Release.Namespace }} get deploy,pod,svc -l app.kubernetes.io/instance={{ .Release.Name }}
+   kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "ghostfolio.fullname" . }}
+
+   Ghostfolio stays at one replica because its entrypoint runs Prisma migrations
+   and seed operations and the application owns scheduled work without documented
+   distributed leadership.
+
+2. Open Ghostfolio
+
+{{- if .Values.ingress.enabled }}
+   Visit {{ include "ghostfolio.rootUrl" . }}
+{{- else if .Values.gatewayAPI.enabled }}
+   Visit {{ include "ghostfolio.rootUrl" . }} after the referenced Gateway accepts the route.
+{{- else }}
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "ghostfolio.fullname" . }} 3333:{{ .Values.service.port }}
+   Open http://127.0.0.1:3333
+{{- end }}
+
+   The first registered user becomes the administrator. Protect public access
+   until initial registration is complete.
+
+3. Verify health
+
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "ghostfolio.fullname" . }} 3333:{{ .Values.service.port }}
+   curl --fail http://127.0.0.1:3333/api/v1/health/liveness
+   curl --fail http://127.0.0.1:3333/api/v1/health
+
+   Liveness is dependency-free. Readiness checks both PostgreSQL and Redis and
+   can take five seconds while Redis is unavailable.
+
+4. Protect credentials
+
+   The chart-created application Secret is retained across ordinary Helm
+   upgrades through cluster lookup. GitOps renderers cannot perform that lookup;
+   set ghostfolio.existingSecret for deterministic production delivery.
+
+   Use externalSecrets.items to materialize application, OIDC, database, Redis,
+   or market-data provider Secrets. Never commit credential values.
+
+5. Configure OIDC
+
+   Set oidc.enabled, issuer, clientId, and existingSecret. Register this callback:
+
+   {{ include "ghostfolio.rootUrl" . }}/api/auth/oidc/callback
+
+   OIDC remains experimental upstream. Keep token authentication available until
+   provider login and account linking have been tested.
+
+6. Operate state services
+
+   PostgreSQL is the system of record. Back it up before every Ghostfolio upgrade,
+   restore into an isolated namespace, and verify portfolio history and login.
+
+   Bundled PostgreSQL and Redis are convenient topologies. Prefer managed services
+   with TLS, monitoring, capacity planning, and tested recovery for production.
+
+7. Review networking
+
+   NetworkPolicy allows namespace-local HTTP ingress, DNS, selected data services,
+   and public HTTP/HTTPS for market-data providers. External private PostgreSQL or
+   Redis endpoints require explicit networkPolicyPeers or extraEgress rules.
+
+{{- with .Values.service.ipFamilyPolicy }}
+   Service IP family policy: {{ . }}{{ with $.Values.service.ipFamilies }} ({{ join ", " . }}){{ end }}
+{{- end }}
+
+8. Upgrade and troubleshoot
+
+   Review upstream release notes and back up PostgreSQL. The immutable image digest
+   must be updated together with the released tag after manifest verification.
+
+   kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "ghostfolio.fullname" . }}
+   kubectl -n {{ .Release.Namespace }} describe pod -l app.kubernetes.io/instance={{ .Release.Name }}
+   kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
+
+   Documentation: https://helmforge.dev/docs/charts/ghostfolio
+
+Happy Helmforging :)

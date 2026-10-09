@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: Service and routes
+templates:
+  - templates/service.yaml
+  - templates/ingress.yaml
+  - templates/gateway-httproute.yaml
+  - templates/networkpolicy.yaml
+tests:
+  - it: omits Service address-family fields by default
+    template: templates/service.yaml
+    asserts:
+      - isKind: { of: Service }
+      - notExists: { path: spec.ipFamilyPolicy }
+      - notExists: { path: spec.ipFamilies }
+  - it: preserves explicit dual-stack ordering
+    template: templates/service.yaml
+    set:
+      service.ipFamilyPolicy: RequireDualStack
+      service.ipFamilies: [IPv6, IPv4]
+    asserts:
+      - equal: { path: spec.ipFamilyPolicy, value: RequireDualStack }
+      - equal: { path: 'spec.ipFamilies', value: [IPv6, IPv4] }
+  - it: renders ingressClassName and routes the root path
+    template: templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.ingressClassName: nginx
+      ingress.hosts:
+        - host: wealth.example.com
+          paths: [{ path: /, pathType: Prefix }]
+    asserts:
+      - equal: { path: spec.ingressClassName, value: nginx }
+      - equal: { path: 'spec.rules[0].host', value: wealth.example.com }
+      - equal: { path: 'spec.rules[0].http.paths[0].backend.service.port.number', value: 3333 }
+  - it: renders a Gateway API route with the default backend
+    template: templates/gateway-httproute.yaml
+    set:
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes:
+        - name: web
+          parentRefs: [{ name: shared }]
+          hostnames: [wealth.example.com]
+    asserts:
+      - isKind: { of: HTTPRoute }
+      - equal: { path: 'spec.parentRefs[0].name', value: shared }
+      - equal: { path: 'spec.rules[0].backendRefs[0].port', value: 3333 }
+  - it: allows state services and public market-data ports in the default NetworkPolicy
+    template: templates/networkpolicy.yaml
+    asserts:
+      - isKind: { of: NetworkPolicy }
+      - contains: { path: spec.policyTypes, content: Egress }
+      - exists: { path: spec.egress }
