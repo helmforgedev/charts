@@ -14,7 +14,9 @@ official container is `docker.io/ghostfolio/ghostfolio:3.82.0`; its
 multi-platform OCI index was verified for Linux amd64, arm/v7, and arm64 and
 resolved to
 `sha256:3b87436abfe7daae20a8bd5862bda230d327a5af49a837f888c007863ecb94fb`.
-The image runs as the upstream `node` user and exposes port 3333.
+The digest records the verification evidence; the chart default uses the
+official release tag `3.82.0`. The image runs as the upstream `node` user and
+exposes port 3333.
 
 PostgreSQL and Redis are mandatory. The upstream entrypoint runs
 `prisma migrate deploy`, seeds the database, and only then starts the server.

@@ -1,14 +1,14 @@
 # Ghostfolio Helm chart
 
 Deploy [Ghostfolio](https://ghostfol.io), the open-source wealth-management
-application, with an immutable official image, PostgreSQL, Redis, OIDC,
+application, with a pinned official image, PostgreSQL, Redis, OIDC,
 External Secrets, hardened networking, and upstream-native health checks.
 
 ## Install
 
 ```bash
 helm install ghostfolio oci://ghcr.io/helmforgedev/helm/ghostfolio \
-  --version 1.0.0 \
+  --version 1.0.1 \
   --namespace ghostfolio \
   --create-namespace
 ```
@@ -30,10 +30,9 @@ dependencies and configuring the external Secret contracts described in
 
 ## Image provenance
 
-The default is the official multi-platform image
-`docker.io/ghostfolio/ghostfolio:3.82.0`, pinned to OCI index digest
-`sha256:3b87436abfe7daae20a8bd5862bda230d327a5af49a837f888c007863ecb94fb`.
-The manifest was verified for Linux amd64, arm/v7, and arm64 on 2026-10-09.
+The default is the official release image
+`docker.io/ghostfolio/ghostfolio:3.82.0`. Its manifest was verified for Linux
+amd64, arm/v7, and arm64 on 2026-10-09.
 
 ## Health contract
 
@@ -89,7 +88,7 @@ See [docs/operations.md](docs/operations.md) for rollout and recovery details.
 
 | Value | Default | Purpose |
 |---|---:|---|
-| `image.tag` | `3.82.0@sha256:...` | Immutable official application image |
+| `image.tag` | `3.82.0` | Pinned official application release |
 | `replicaCount` | `1` | Enforced singleton migration and cron owner |
 | `ghostfolio.rootUrl` | derived | Canonical external origin |
 | `ghostfolio.existingSecret` | `""` | Retained access-token salt and JWT secret |
