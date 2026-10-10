@@ -21,7 +21,7 @@ const pod = pods[0];
 assert.ok(pod.status.conditions?.some((condition) => condition.type === 'Ready' && condition.status === 'True'));
 const container = pod.spec.containers.find((candidate) => candidate.name === 'ghostfolio');
 assert.ok(container);
-assert.match(container.image, /ghostfolio\/ghostfolio:3\.82\.0@sha256:[a-f0-9]{64}$/);
+assert.equal(container.image, 'docker.io/ghostfolio/ghostfolio:3.82.0');
 assert.equal(pod.spec.automountServiceAccountToken, false);
 
 const request = (path) => kubectl([

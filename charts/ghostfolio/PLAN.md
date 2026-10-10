@@ -8,7 +8,7 @@ upstream startup contract.
 
 ## Priority 1: safe runnable foundation
 
-- Deploy exactly one Ghostfolio pod with the official immutable image.
+- Deploy exactly one Ghostfolio pod with the pinned official release image.
 - Provide retained JWT and access-token salts without placing generated values
   in a Deployment.
 - Connect to bundled or external PostgreSQL and Redis.
