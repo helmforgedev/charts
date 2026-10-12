@@ -1,0 +1,257 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ib-gateway.fullname" . }}
+  labels:
+    {{- include "ib-gateway.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "ib-gateway.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ib-gateway.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/credentials: {{ toJson (dict "auth" .Values.auth "vnc" .Values.vnc "externalSecrets" .Values.externalSecrets) | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "ib-gateway.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.workload.initContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: ib-gateway
+          image: {{ include "ib-gateway.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.workload.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.workload.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          ports:
+            - name: live-api
+              containerPort: 4003
+              protocol: TCP
+            - name: paper-api
+              containerPort: 4004
+              protocol: TCP
+            {{- if .Values.vnc.enabled }}
+            - name: vnc
+              containerPort: 5900
+              protocol: TCP
+            {{- end }}
+          env:
+            - name: TWS_USERID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ib-gateway.secretName" . }}
+                  key: {{ .Values.auth.usernameKey }}
+                  optional: true
+            {{- if eq .Values.gateway.tradingMode "both" }}
+            - name: TWS_USERID_PAPER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ib-gateway.secretName" . }}
+                  key: {{ .Values.auth.paperUsernameKey }}
+            {{- end }}
+            - name: TWS_PASSWORD_FILE
+              value: /run/secrets/ib-gateway/password
+            {{- if eq .Values.gateway.tradingMode "both" }}
+            - name: TWS_PASSWORD_PAPER_FILE
+              value: /run/secrets/ib-gateway/paper-password
+            {{- end }}
+            - name: TRADING_MODE
+              value: {{ .Values.gateway.tradingMode | quote }}
+            - name: READ_ONLY_API
+              value: {{ include "ib-gateway.bool" .Values.gateway.readOnlyApi | quote }}
+            - name: TWS_ACCEPT_INCOMING
+              value: {{ .Values.gateway.acceptIncoming | quote }}
+            {{- with .Values.gateway.masterClientId }}
+            - name: TWS_MASTER_CLIENT_ID
+              value: {{ . | quote }}
+            {{- end }}
+            - name: ALLOW_BLIND_TRADING
+              value: {{ include "ib-gateway.bool" .Values.gateway.allowBlindTrading | quote }}
+            - name: TIME_ZONE
+              value: {{ .Values.gateway.timeZone | quote }}
+            - name: TZ
+              value: {{ .Values.gateway.timeZone | quote }}
+            - name: JAVA_HEAP_SIZE
+              value: {{ .Values.gateway.javaHeapSize | quote }}
+            - name: TWOFA_TIMEOUT_ACTION
+              value: {{ .Values.gateway.twoFactorTimeoutAction | quote }}
+            - name: TWOFA_EXIT_INTERVAL
+              value: {{ .Values.gateway.twoFactorExitInterval | quote }}
+            {{- with .Values.gateway.twoFactorDevice }}
+            - name: TWOFA_DEVICE
+              value: {{ . | quote }}
+            {{- end }}
+            - name: RELOGIN_AFTER_TWOFA_TIMEOUT
+              value: {{ include "ib-gateway.bool" .Values.gateway.reloginAfterTwoFactorTimeout | quote }}
+            - name: EXISTING_SESSION_DETECTED_ACTION
+              value: {{ .Values.gateway.existingSessionDetectedAction | quote }}
+            {{- with .Values.gateway.autoRestartTime }}
+            - name: AUTO_RESTART_TIME
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.gateway.autoLogoffTime }}
+            - name: AUTO_LOGOFF_TIME
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.gateway.coldRestartTime }}
+            - name: TWS_COLD_RESTART
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.gateway.saveSettingsAt }}
+            - name: SAVE_TWS_SETTINGS
+              value: {{ . | quote }}
+            {{- end }}
+            - name: CUSTOM_CONFIG
+              value: {{ ternary "yes" "NO" .Values.gateway.customConfig | quote }}
+            - name: TWS_SETTINGS_PATH
+              value: /home/ibgateway/tws_settings
+            {{- if .Values.vnc.enabled }}
+            - name: VNC_SERVER_PASSWORD_FILE
+              value: /run/secrets/ib-gateway/vnc-password
+            {{- end }}
+            {{- with .Values.workload.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.workload.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            exec:
+              command:
+                {{- if .Values.probes.startup.command }}
+                {{- toYaml .Values.probes.startup.command | nindent 16 }}
+                {{- else }}
+                - sh
+                - -ec
+                - {{ include "ib-gateway.apiProbeCommand" . | quote }}
+                {{- end }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            exec:
+              command:
+                {{- if .Values.probes.readiness.command }}
+                {{- toYaml .Values.probes.readiness.command | nindent 16 }}
+                {{- else }}
+                - sh
+                - -ec
+                - {{ include "ib-gateway.apiProbeCommand" . | quote }}
+                {{- end }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            exec:
+              command:
+                {{- if .Values.probes.liveness.command }}
+                {{- toYaml .Values.probes.liveness.command | nindent 16 }}
+                {{- else }}
+                - sh
+                - -ec
+                - {{ include "ib-gateway.livenessCommand" . | quote }}
+                {{- end }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          volumeMounts:
+            - name: credentials
+              mountPath: /run/secrets/ib-gateway
+              readOnly: true
+            - name: settings
+              mountPath: /home/ibgateway/tws_settings
+            {{- with .Values.workload.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- with .Values.workload.sidecars }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+        - name: credentials
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ include "ib-gateway.secretName" . }}
+                  optional: true
+                  items:
+                    - key: {{ .Values.auth.passwordKey }}
+                      path: password
+                    {{- if eq .Values.gateway.tradingMode "both" }}
+                    - key: {{ .Values.auth.paperPasswordKey }}
+                      path: paper-password
+                    {{- end }}
+              {{- if .Values.vnc.enabled }}
+              - secret:
+                  name: {{ include "ib-gateway.vncSecretName" . }}
+                  items:
+                    - key: {{ .Values.vnc.passwordKey }}
+                      path: vnc-password
+              {{- end }}
+        - name: settings
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "ib-gateway.claimName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- with .Values.workload.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

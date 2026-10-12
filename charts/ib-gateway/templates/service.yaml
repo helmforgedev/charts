@@ -1,0 +1,39 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ib-gateway.fullname" . }}
+  labels:
+    {{- include "ib-gateway.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if and (eq .Values.service.type "LoadBalancer") .Values.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml .Values.service.loadBalancerSourceRanges | nindent 4 }}
+  {{- end }}
+  selector:
+    {{- include "ib-gateway.selectorLabels" . | nindent 4 }}
+  ports:
+    {{- if or (eq .Values.gateway.tradingMode "live") (eq .Values.gateway.tradingMode "both") }}
+    - name: live-api
+      port: {{ .Values.service.livePort }}
+      targetPort: live-api
+      protocol: TCP
+    {{- end }}
+    {{- if or (eq .Values.gateway.tradingMode "paper") (eq .Values.gateway.tradingMode "both") }}
+    - name: paper-api
+      port: {{ .Values.service.paperPort }}
+      targetPort: paper-api
+      protocol: TCP
+    {{- end }}

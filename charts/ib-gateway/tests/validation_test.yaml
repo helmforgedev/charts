@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: IB Gateway validation
+templates:
+  - validate.yaml
+tests:
+  - it: rejects mixed existing and inline credentials
+    set:
+      auth.existingSecret: credentials
+      auth.username: user
+    asserts:
+      - failedTemplate: {errorMessage: "auth inline values cannot be combined with auth.existingSecret"}
+  - it: requires paper credentials for managed both mode
+    set: {gateway.tradingMode: both}
+    asserts:
+      - failedTemplate: {errorMessage: "both mode requires paper credentials or auth.existingSecret"}
+  - it: accepts both mode with existing credentials
+    set:
+      gateway.tradingMode: both
+      auth.existingSecret: credentials
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: requires VNC credentials
+    set: {vnc.enabled: true}
+    asserts:
+      - failedTemplate: {errorMessage: "vnc.password, vnc.existingSecret or auth.existingSecret is required when vnc.enabled=true"}
+  - it: rejects claim when persistence is disabled
+    set:
+      persistence.enabled: false
+      persistence.existingClaim: settings
+    asserts:
+      - failedTemplate: {errorMessage: "persistence.existingClaim requires persistence.enabled=true"}
+  - it: requires ExternalSecret items
+    set: {externalSecrets.enabled: true}
+    asserts:
+      - failedTemplate: {errorMessage: "externalSecrets.items must contain at least one item when externalSecrets.enabled=true"}
+  - it: rejects selector label overrides
+    set:
+      podLabels:
+        app.kubernetes.io/name: override
+    asserts:
+      - failedTemplate: {errorMessage: "custom labels must not override selector label app.kubernetes.io/name"}

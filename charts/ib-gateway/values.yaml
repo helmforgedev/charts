@@ -1,0 +1,271 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# -- Override the chart name in resource names.
+nameOverride: ""
+# -- Override the complete resource name.
+fullnameOverride: ""
+# -- Exactly one IB Gateway Pod is supported because concurrent account sessions are not HA-safe.
+replicaCount: 1
+# -- Additional labels applied to chart resources.
+commonLabels: {}
+# -- Additional labels applied to the Pod after immutable selector labels.
+podLabels: {}
+# -- Additional Pod annotations.
+podAnnotations: {}
+# -- Registry credentials for private mirrors.
+imagePullSecrets: []
+
+image:
+  # -- Official image repository for the gnzsnz IB Gateway Docker project.
+  repository: ghcr.io/gnzsnz/ib-gateway
+  # -- Exact stable upstream tag, used when digest is empty.
+  tag: "10.50.1f"
+  # -- Immutable multi-architecture manifest digest for 10.50.1f.
+  digest: sha256:1e2236804ac949b789197c225a048c0c891c9958f948c87166226e5b647ff581
+  # -- Kubernetes image pull policy.
+  pullPolicy: IfNotPresent
+
+auth:
+  # -- Existing Secret containing account usernames and passwords. Empty uses a chart-managed Secret.
+  existingSecret: ""
+  # -- Live account username stored in the chart-managed Secret. Prefer existingSecret in production.
+  username: ""
+  # -- Live account password stored in the chart-managed Secret. Prefer existingSecret in production.
+  password: ""
+  # -- Paper account username used only when tradingMode is both.
+  paperUsername: ""
+  # -- Paper account password used only when tradingMode is both.
+  paperPassword: ""
+  # -- Secret key containing the live username.
+  usernameKey: username
+  # -- Secret key containing the live password.
+  passwordKey: password
+  # -- Secret key containing the paper username.
+  paperUsernameKey: paper-username
+  # -- Secret key containing the paper password.
+  paperPasswordKey: paper-password
+
+externalSecrets:
+  # -- Render external-secrets.io/v1 ExternalSecret resources.
+  enabled: false
+  # -- Default synchronization interval.
+  refreshInterval: 1h
+  # -- Complete ExternalSecret definitions with optional name, fullnameOverride, labels and annotations.
+  items: []
+
+gateway:
+  # -- Account runtime: paper, live or both.
+  tradingMode: paper
+  # -- Restrict the TWS API to read-only operations.
+  readOnlyApi: true
+  # -- Incoming API connection handling: manual, accept or reject.
+  acceptIncoming: manual
+  # -- Optional TWS master client identifier.
+  masterClientId: ""
+  # -- Permit blind order transmission. Keep false unless the risk is understood.
+  allowBlindTrading: false
+  # -- IANA time zone applied on first creation of jts.ini.
+  timeZone: Etc/UTC
+  # -- Java heap size in MiB without a unit, as required by upstream.
+  javaHeapSize: 1024
+  # -- Action after a second-factor timeout: exit or restart.
+  twoFactorTimeoutAction: restart
+  # -- Seconds IBC waits after mobile second-factor acknowledgement.
+  twoFactorExitInterval: 60
+  # -- Optional second-factor device selector.
+  twoFactorDevice: ""
+  # -- Retry login after a second-factor timeout.
+  reloginAfterTwoFactorTimeout: true
+  # -- Action when another session is detected: manual, primary, secondary or primaryoverride.
+  existingSessionDetectedAction: primary
+  # -- Optional daily auto-restart time in IBC format, for example 11:59 PM.
+  autoRestartTime: "11:59 PM"
+  # -- Optional daily auto-logoff time in IBC format.
+  autoLogoffTime: ""
+  # -- Optional cold restart time in HH:MM format.
+  coldRestartTime: ""
+  # -- Optional IBC schedule for saving TWS settings.
+  saveSettingsAt: ""
+  # -- Use user-supplied jts.ini and IBC config files instead of generated configuration.
+  customConfig: false
+
+workload:
+  # -- Optional command override, primarily for custom images and deterministic validation.
+  command: []
+  # -- Optional argument override.
+  args: []
+  # -- Additional non-sensitive environment variables.
+  extraEnv: []
+  # -- Additional envFrom sources.
+  envFrom: []
+  # -- Additional volume mounts for custom configuration, SSH keys or startup scripts.
+  extraVolumeMounts: []
+  # -- Additional Pod volumes.
+  extraVolumes: []
+  # -- Additional init containers.
+  initContainers: []
+  # -- Additional sidecar containers.
+  sidecars: []
+
+persistence:
+  # -- Persist TWS settings across Pod replacements.
+  enabled: true
+  # -- Existing PVC. Empty creates a chart-managed claim.
+  existingClaim: ""
+  # -- StorageClass. Empty uses the cluster default; '-' disables dynamic provisioning.
+  storageClass: ""
+  # -- Requested storage capacity.
+  size: 2Gi
+  # -- PVC access modes.
+  accessModes:
+    - ReadWriteOnce
+  # -- Retain a generated PVC after Helm uninstall.
+  retain: true
+  # -- Additional PVC annotations.
+  annotations: {}
+
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: true
+  # -- Existing or custom ServiceAccount name.
+  name: ""
+  # -- ServiceAccount annotations.
+  annotations: {}
+  # -- Mount the Kubernetes API token.
+  automountServiceAccountToken: false
+
+service:
+  # -- Kubernetes Service type. ClusterIP is strongly recommended.
+  type: ClusterIP
+  # -- Service annotations.
+  annotations: {}
+  # -- Client-facing live API port targeting container port 4003.
+  livePort: 4001
+  # -- Client-facing paper API port targeting container port 4004.
+  paperPort: 4002
+  # -- IP family policy. Empty uses the cluster default.
+  ipFamilyPolicy: ""
+  # -- Ordered IP families. Empty uses the cluster default.
+  ipFamilies: []
+  # -- Optional LoadBalancer source CIDRs; public exposure is not recommended.
+  loadBalancerSourceRanges: []
+
+vnc:
+  # -- Enable the upstream x11vnc server and its separate Service.
+  enabled: false
+  # -- Existing Secret containing the VNC password. Empty reuses auth.existingSecret or the managed Secret.
+  existingSecret: ""
+  # -- VNC password stored in the managed Secret. Prefer an existing Secret in production.
+  password: ""
+  # -- Secret key containing the VNC password.
+  passwordKey: vnc-password
+  service:
+    # -- VNC Service type. Keep ClusterIP and use port-forward for maintenance.
+    type: ClusterIP
+    # -- VNC Service port.
+    port: 5900
+    # -- VNC Service annotations.
+    annotations: {}
+    # -- IP family policy. Empty uses the cluster default.
+    ipFamilyPolicy: ""
+    # -- Ordered IP families. Empty uses the cluster default.
+    ipFamilies: []
+
+networkPolicy:
+  # -- Render NetworkPolicies for API and optional VNC traffic.
+  enabled: true
+  # -- Allowed API client peers. Empty allows Pods only in the release namespace.
+  apiIngressFrom: []
+  # -- Allowed VNC client peers. Empty allows Pods only in the release namespace.
+  vncIngressFrom: []
+  # -- Enable egress isolation. Disabled because IBKR endpoints and addresses change.
+  egressIsolation: false
+  # -- DNS egress destinations used when egress isolation is enabled.
+  dnsEgress:
+    - namespaceSelector: {}
+  # -- Additional complete egress rules for IBKR and optional SSH endpoints.
+  extraEgress: []
+
+probes:
+  startup:
+    # -- Enable the startup probe.
+    enabled: true
+    # -- Optional complete exec command override.
+    command: []
+    # -- Seconds between startup checks.
+    periodSeconds: 10
+    # -- Per-check timeout.
+    timeoutSeconds: 3
+    # -- Startup failures allowed for GUI startup and 2FA.
+    failureThreshold: 90
+  readiness:
+    # -- Enable the readiness probe.
+    enabled: true
+    # -- Optional complete exec command override.
+    command: []
+    # -- Seconds between readiness checks.
+    periodSeconds: 10
+    # -- Per-check timeout.
+    timeoutSeconds: 3
+    # -- Failures before the Pod becomes unready.
+    failureThreshold: 3
+  liveness:
+    # -- Enable the conservative process liveness probe.
+    enabled: true
+    # -- Optional complete exec command override.
+    command: []
+    # -- Seconds between liveness checks.
+    periodSeconds: 30
+    # -- Per-check timeout.
+    timeoutSeconds: 3
+    # -- Failures before restart.
+    failureThreshold: 5
+
+# -- Grace period for IBC, Gateway, Xvfb and socat shutdown.
+terminationGracePeriodSeconds: 90
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+podSecurityContext:
+  # -- Require non-root execution.
+  runAsNonRoot: true
+  # -- Upstream runtime UID.
+  runAsUser: 1000
+  # -- Upstream runtime GID.
+  runAsGroup: 1000
+  # -- Group ownership for persistent settings.
+  fsGroup: 1000
+  # -- Avoid repeated recursive ownership changes.
+  fsGroupChangePolicy: OnRootMismatch
+  # -- Kernel syscall filtering.
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  # -- Prevent elevation despite the image containing passwordless sudo metadata.
+  allowPrivilegeEscalation: false
+  # -- The upstream runtime writes generated files below HOME and /tmp.
+  readOnlyRootFilesystem: false
+  # -- Drop all Linux capabilities.
+  capabilities:
+    drop:
+      - ALL
+
+# -- Node selection labels.
+nodeSelector: {}
+# -- Pod tolerations.
+tolerations: []
+# -- Pod affinity configuration. This does not make multiple replicas safe.
+affinity: {}
+# -- Optional workload priority class.
+priorityClassName: ""
+# -- Optional topology constraints for the singleton Pod.
+topologySpreadConstraints: []
+# -- Additional arbitrary Kubernetes resources.
+extraManifests: []

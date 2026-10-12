@@ -1,0 +1,79 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: IB Gateway deployment
+templates:
+  - deployment.yaml
+tests:
+  - it: renders one replica with Recreate strategy
+    asserts:
+      - equal: {path: spec.replicas, value: 1}
+      - equal: {path: spec.strategy.type, value: Recreate}
+  - it: pins the immutable upstream manifest
+    asserts:
+      - equal:
+          path: "spec.template.spec.containers[0].image"
+          value: ghcr.io/gnzsnz/ib-gateway@sha256:1e2236804ac949b789197c225a048c0c891c9958f948c87166226e5b647ff581
+  - it: disables API token automount
+    asserts:
+      - equal: {path: spec.template.spec.automountServiceAccountToken, value: false}
+  - it: uses upstream uid and gid
+    asserts:
+      - equal: {path: spec.template.spec.securityContext.runAsUser, value: 1000}
+      - equal: {path: spec.template.spec.securityContext.runAsGroup, value: 1000}
+  - it: drops all capabilities
+    asserts:
+      - contains:
+          path: "spec.template.spec.containers[0].securityContext.capabilities.drop"
+          content: ALL
+  - it: defaults to paper and read-only
+    asserts:
+      - contains:
+          path: "spec.template.spec.containers[0].env"
+          content: {name: TRADING_MODE, value: paper}
+      - contains:
+          path: "spec.template.spec.containers[0].env"
+          content: {name: READ_ONLY_API, value: "yes"}
+  - it: mounts password as a file
+    asserts:
+      - contains:
+          path: "spec.template.spec.containers[0].env"
+          content: {name: TWS_PASSWORD_FILE, value: /run/secrets/ib-gateway/password}
+  - it: reports the credential waiting process ready for an empty evaluation install
+    asserts:
+      - contains:
+          path: "spec.template.spec.containers[0].readinessProbe.exec.command"
+          content: 'test -s /tmp/pid_paper && kill -0 "$(cat /tmp/pid_paper)"'
+  - it: checks the authenticated internal listener when credentials are configured
+    set:
+      auth.username: paper-user
+      auth.password: paper-password
+    asserts:
+      - contains:
+          path: "spec.template.spec.containers[0].readinessProbe.exec.command"
+          content: "socat -u /dev/null TCP:127.0.0.1:4002,connect-timeout=2"
+  - it: exposes all container listeners but only Services select active modes
+    asserts:
+      - lengthEqual: {path: "spec.template.spec.containers[0].ports", count: 2}
+  - it: adds VNC only when enabled
+    set:
+      vnc.enabled: true
+      vnc.password: test
+    asserts:
+      - lengthEqual: {path: "spec.template.spec.containers[0].ports", count: 3}
+  - it: renders command and args overrides
+    set:
+      workload.command: [sh]
+      workload.args: [-c, sleep 60]
+    asserts:
+      - equal: {path: "spec.template.spec.containers[0].command[0]", value: sh}
+      - equal: {path: "spec.template.spec.containers[0].args[1]", value: sleep 60}
+  - it: uses emptyDir when persistence is disabled
+    set:
+      persistence.enabled: false
+    asserts:
+      - isKind: {of: Deployment}
+      - exists: {path: "spec.template.spec.volumes[1].emptyDir"}
+  - it: uses an existing PVC
+    set:
+      persistence.existingClaim: saved-settings
+    asserts:
+      - equal: {path: "spec.template.spec.volumes[1].persistentVolumeClaim.claimName", value: saved-settings}

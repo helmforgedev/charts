@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: IB Gateway services
+templates:
+  - service.yaml
+  - service-vnc.yaml
+tests:
+  - it: exposes only paper by default
+    template: service.yaml
+    asserts:
+      - lengthEqual: {path: spec.ports, count: 1}
+      - equal: {path: "spec.ports[0].port", value: 4002}
+      - equal: {path: "spec.ports[0].targetPort", value: paper-api}
+  - it: exposes only live in live mode
+    template: service.yaml
+    set: {gateway.tradingMode: live}
+    asserts:
+      - lengthEqual: {path: spec.ports, count: 1}
+      - equal: {path: "spec.ports[0].port", value: 4001}
+  - it: exposes both account modes
+    template: service.yaml
+    set:
+      gateway.tradingMode: both
+      auth.existingSecret: both-creds
+    asserts:
+      - lengthEqual: {path: spec.ports, count: 2}
+  - it: omits dual-stack fields by default
+    template: service.yaml
+    asserts:
+      - notExists: {path: spec.ipFamilyPolicy}
+      - notExists: {path: spec.ipFamilies}
+  - it: renders dual-stack fields in order
+    template: service.yaml
+    set:
+      service.ipFamilyPolicy: RequireDualStack
+      service.ipFamilies: [IPv6, IPv4]
+    asserts:
+      - equal: {path: spec.ipFamilyPolicy, value: RequireDualStack}
+      - equal: {path: "spec.ipFamilies[0]", value: IPv6}
+      - equal: {path: "spec.ipFamilies[1]", value: IPv4}
+  - it: does not render VNC by default
+    template: service-vnc.yaml
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: renders a separate VNC ClusterIP Service
+    template: service-vnc.yaml
+    set:
+      vnc.enabled: true
+      vnc.password: test
+    asserts:
+      - isKind: {of: Service}
+      - equal: {path: metadata.name, value: RELEASE-NAME-ib-gateway-vnc}
+      - equal: {path: "spec.ports[0].targetPort", value: vnc}
+  - it: supports a custom paper Service port
+    template: service.yaml
+    set: {service.paperPort: 14002}
+    asserts:
+      - equal: {path: "spec.ports[0].port", value: 14002}

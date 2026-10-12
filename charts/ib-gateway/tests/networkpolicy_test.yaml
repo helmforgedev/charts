@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: IB Gateway NetworkPolicy
+templates:
+  - networkpolicy.yaml
+tests:
+  - it: renders ingress isolation by default
+    asserts:
+      - isKind: {of: NetworkPolicy}
+      - lengthEqual: {path: spec.policyTypes, count: 1}
+      - equal: {path: "spec.ingress[0].ports[0].port", value: 4004}
+  - it: uses configured API peers
+    set:
+      networkPolicy.apiIngressFrom[0].namespaceSelector.matchLabels.team: trading
+    asserts:
+      - equal: {path: "spec.ingress[0].from[0].namespaceSelector.matchLabels.team", value: trading}
+  - it: renders both API target ports
+    set:
+      gateway.tradingMode: both
+      auth.existingSecret: credentials
+    asserts:
+      - lengthEqual: {path: "spec.ingress[0].ports", count: 2}
+  - it: adds an isolated VNC rule
+    set:
+      vnc.enabled: true
+      vnc.password: test
+    asserts:
+      - lengthEqual: {path: spec.ingress, count: 2}
+      - equal: {path: "spec.ingress[1].ports[0].port", value: 5900}
+  - it: enables egress isolation explicitly
+    set: {networkPolicy.egressIsolation: true}
+    asserts:
+      - contains: {path: spec.policyTypes, content: Egress}
+      - exists: {path: spec.egress}

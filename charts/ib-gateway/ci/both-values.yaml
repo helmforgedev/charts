@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+terminationGracePeriodSeconds: 5
+gateway:
+  tradingMode: both
+auth:
+  username: ci-live-user
+  password: ci-live-password
+  paperUsername: ci-paper-user
+  paperPassword: ci-paper-password
+vnc:
+  enabled: true
+  password: ci-vnc-password
+persistence:
+  enabled: false
+workload:
+  command: [sh, -ec]
+  args:
+    - >-
+      socat TCP-LISTEN:4001,fork,reuseaddr EXEC:/bin/cat &
+      echo $! >/tmp/pid_live;
+      socat TCP-LISTEN:4002,fork,reuseaddr EXEC:/bin/cat &
+      echo $! >/tmp/pid_paper;
+      socat TCP-LISTEN:4003,fork,reuseaddr TCP:127.0.0.1:4001 &
+      socat TCP-LISTEN:4004,fork,reuseaddr TCP:127.0.0.1:4002 &
+      socat TCP-LISTEN:5900,fork,reuseaddr EXEC:/bin/cat &
+      wait

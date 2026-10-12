@@ -1,0 +1,74 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+1. Check the singleton rollout
+
+   kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "ib-gateway.fullname" . }}
+   kubectl -n {{ .Release.Namespace }} get pod,svc,pvc -l app.kubernetes.io/instance={{ .Release.Name }}
+
+   The chart intentionally runs one Pod with Recreate updates. Concurrent IBKR
+   account sessions are not safe high availability.
+
+2. Confirm trading safety
+
+   Trading mode: {{ .Values.gateway.tradingMode }}
+   Read-only API: {{ .Values.gateway.readOnlyApi }}
+   Blind trading allowed: {{ .Values.gateway.allowBlindTrading }}
+
+   Prove integrations against paper trading before enabling live operations.
+
+3. Watch login and two-factor authentication
+
+   kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "ib-gateway.fullname" . }} --follow
+
+   Manual mobile approval is periodically required. With credentials configured,
+   readiness means the local API listener is active. An empty evaluation install
+   only proves the waiting process runs. Neither proves trading authorization.
+
+4. Connect a client
+
+{{- if or (eq .Values.gateway.tradingMode "paper") (eq .Values.gateway.tradingMode "both") }}
+   kubectl -n {{ .Release.Namespace }} port-forward service/{{ include "ib-gateway.fullname" . }} {{ .Values.service.paperPort }}:{{ .Values.service.paperPort }}
+   Connect paper clients to 127.0.0.1:{{ .Values.service.paperPort }}.
+{{- end }}
+{{- if or (eq .Values.gateway.tradingMode "live") (eq .Values.gateway.tradingMode "both") }}
+   kubectl -n {{ .Release.Namespace }} port-forward service/{{ include "ib-gateway.fullname" . }} {{ .Values.service.livePort }}:{{ .Values.service.livePort }}
+   Connect live clients to 127.0.0.1:{{ .Values.service.livePort }}.
+{{- end }}
+
+   The API is raw, unauthenticated TCP. Keep it private and restricted.
+
+5. Protect credentials
+
+   Use auth.existingSecret or externalSecrets.items in production. Passwords are
+   mounted through upstream file variables. Never commit inline credentials.
+
+6. Maintain settings
+
+{{- if .Values.persistence.enabled }}
+   TWS settings persist in PVC {{ include "ib-gateway.claimName" . }}.
+   Back it up before upgrades. A retained jts.ini can preserve the original
+   timezone when gateway.timeZone changes.
+{{- else }}
+   Settings persistence is disabled and Pod replacement resets local settings.
+{{- end }}
+
+7. Use VNC only for maintenance
+
+{{- if .Values.vnc.enabled }}
+   kubectl -n {{ .Release.Namespace }} port-forward service/{{ include "ib-gateway.fullname" . }}-vnc {{ .Values.vnc.service.port }}:{{ .Values.vnc.service.port }}
+   Keep the VNC Service internal and disable it after diagnostics.
+{{- else }}
+   VNC is disabled. Enable it temporarily with a Secret-backed password only
+   when visual maintenance is necessary.
+{{- end }}
+
+8. Upgrade and troubleshoot
+
+   Review the upstream image and IBC changes, validate paper mode, then schedule
+   the Recreate downtime and expected two-factor approval.
+
+   kubectl -n {{ .Release.Namespace }} describe pod -l app.kubernetes.io/instance={{ .Release.Name }}
+   kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
+
+   Documentation: https://helmforge.dev/docs/charts/ib-gateway
+
+Happy Helmforging :)

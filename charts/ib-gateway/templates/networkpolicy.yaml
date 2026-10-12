@@ -1,0 +1,55 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ib-gateway.fullname" . }}
+  labels:
+    {{- include "ib-gateway.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ib-gateway.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if .Values.networkPolicy.egressIsolation }}
+    - Egress
+    {{- end }}
+  ingress:
+    - from:
+        {{- if .Values.networkPolicy.apiIngressFrom }}
+        {{- toYaml .Values.networkPolicy.apiIngressFrom | nindent 8 }}
+        {{- else }}
+        - podSelector: {}
+        {{- end }}
+      ports:
+        {{- if or (eq .Values.gateway.tradingMode "live") (eq .Values.gateway.tradingMode "both") }}
+        - {protocol: TCP, port: 4003}
+        {{- end }}
+        {{- if or (eq .Values.gateway.tradingMode "paper") (eq .Values.gateway.tradingMode "both") }}
+        - {protocol: TCP, port: 4004}
+        {{- end }}
+    {{- if .Values.vnc.enabled }}
+    - from:
+        {{- if .Values.networkPolicy.vncIngressFrom }}
+        {{- toYaml .Values.networkPolicy.vncIngressFrom | nindent 8 }}
+        {{- else }}
+        - podSelector: {}
+        {{- end }}
+      ports:
+        - {protocol: TCP, port: 5900}
+    {{- end }}
+  {{- if .Values.networkPolicy.egressIsolation }}
+  egress:{{ if and (not .Values.networkPolicy.dnsEgress) (not .Values.networkPolicy.extraEgress) }} []{{ end }}
+    {{- if .Values.networkPolicy.dnsEgress }}
+    - to:
+        {{- toYaml .Values.networkPolicy.dnsEgress | nindent 8 }}
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    {{- end }}
+    {{- with .Values.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

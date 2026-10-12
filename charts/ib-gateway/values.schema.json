@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "IB Gateway Helm Chart Values",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "global": { "type": "object", "additionalProperties": true },
+    "nameOverride": { "type": "string" },
+    "fullnameOverride": { "type": "string" },
+    "replicaCount": { "type": "integer", "const": 1 },
+    "commonLabels": { "type": "object", "additionalProperties": { "type": "string" } },
+    "podLabels": { "type": "object", "additionalProperties": { "type": "string" } },
+    "podAnnotations": { "type": "object", "additionalProperties": { "type": "string" } },
+    "imagePullSecrets": { "type": "array", "items": { "type": "object" } },
+    "image": {
+      "type": "object",
+      "required": ["repository", "tag", "digest", "pullPolicy"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "not": { "enum": ["latest", "stable"] } },
+        "digest": { "type": "string", "pattern": "^$|^sha256:[a-f0-9]{64}$" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "properties": {
+        "existingSecret": { "type": "string" },
+        "username": { "type": "string" },
+        "password": { "type": "string" },
+        "paperUsername": { "type": "string" },
+        "paperPassword": { "type": "string" },
+        "usernameKey": { "type": "string", "minLength": 1 },
+        "passwordKey": { "type": "string", "minLength": 1 },
+        "paperUsernameKey": { "type": "string", "minLength": 1 },
+        "paperPasswordKey": { "type": "string", "minLength": 1 }
+      }
+    },
+    "externalSecrets": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "refreshInterval": { "type": "string", "minLength": 1 },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "fullnameOverride": { "type": "string" },
+              "labels": { "type": "object" },
+              "annotations": { "type": "object" },
+              "spec": { "type": "object" }
+            }
+          }
+        }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "properties": {
+        "tradingMode": { "type": "string", "enum": ["paper", "live", "both"] },
+        "readOnlyApi": { "type": "boolean" },
+        "acceptIncoming": { "type": "string", "enum": ["manual", "accept", "reject"] },
+        "masterClientId": { "type": ["string", "integer"] },
+        "allowBlindTrading": { "type": "boolean" },
+        "timeZone": { "type": "string", "minLength": 1 },
+        "javaHeapSize": { "type": "integer", "minimum": 256 },
+        "twoFactorTimeoutAction": { "type": "string", "enum": ["exit", "restart"] },
+        "twoFactorExitInterval": { "type": "integer", "minimum": 1 },
+        "twoFactorDevice": { "type": "string" },
+        "reloginAfterTwoFactorTimeout": { "type": "boolean" },
+        "existingSessionDetectedAction": { "type": "string", "enum": ["manual", "primary", "secondary", "primaryoverride"] },
+        "autoRestartTime": { "type": "string" },
+        "autoLogoffTime": { "type": "string" },
+        "coldRestartTime": { "type": "string", "pattern": "^$|^([01][0-9]|2[0-3]):[0-5][0-9]$" },
+        "saveSettingsAt": { "type": "string" },
+        "customConfig": { "type": "boolean" }
+      }
+    },
+    "workload": {
+      "type": "object",
+      "properties": {
+        "command": { "type": "array", "items": { "type": "string" } },
+        "args": { "type": "array", "items": { "type": "string" } },
+        "extraEnv": { "type": "array", "items": { "type": "object" } },
+        "envFrom": { "type": "array", "items": { "type": "object" } },
+        "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
+        "extraVolumes": { "type": "array", "items": { "type": "object" } },
+        "initContainers": { "type": "array", "items": { "type": "object" } },
+        "sidecars": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "existingClaim": { "type": "string" },
+        "storageClass": { "type": "string" },
+        "size": { "type": "string", "pattern": "^[0-9]+(Ki|Mi|Gi|Ti|Pi|Ei)$" },
+        "accessModes": { "type": "array", "minItems": 1, "items": { "type": "string", "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany", "ReadWriteOncePod"] } },
+        "retain": { "type": "boolean" },
+        "annotations": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "create": { "type": "boolean" },
+        "name": { "type": "string" },
+        "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+        "automountServiceAccountToken": { "type": "boolean" }
+      }
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+        "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+        "livePort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "paperPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "ipFamilyPolicy": { "type": "string", "enum": ["", "SingleStack", "PreferDualStack", "RequireDualStack"] },
+        "ipFamilies": { "type": "array", "maxItems": 2, "uniqueItems": true, "items": { "type": "string", "enum": ["IPv4", "IPv6"] } },
+        "loadBalancerSourceRanges": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "vnc": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "existingSecret": { "type": "string" },
+        "password": { "type": "string" },
+        "passwordKey": { "type": "string", "minLength": 1 },
+        "service": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+            "ipFamilyPolicy": { "type": "string", "enum": ["", "SingleStack", "PreferDualStack", "RequireDualStack"] },
+            "ipFamilies": { "type": "array", "maxItems": 2, "uniqueItems": true, "items": { "type": "string", "enum": ["IPv4", "IPv6"] } }
+          }
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiIngressFrom": { "type": "array", "items": { "type": "object" } },
+        "vncIngressFrom": { "type": "array", "items": { "type": "object" } },
+        "egressIsolation": { "type": "boolean" },
+        "dnsEgress": { "type": "array", "items": { "type": "object" } },
+        "extraEgress": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "probes": {
+      "type": "object",
+      "properties": {
+        "startup": { "$ref": "#/$defs/probe" },
+        "readiness": { "$ref": "#/$defs/probe" },
+        "liveness": { "$ref": "#/$defs/probe" }
+      }
+    },
+    "terminationGracePeriodSeconds": { "type": "integer", "minimum": 1 },
+    "resources": { "type": "object" },
+    "podSecurityContext": { "type": "object" },
+    "securityContext": { "type": "object" },
+    "nodeSelector": { "type": "object" },
+    "tolerations": { "type": "array", "items": { "type": "object" } },
+    "affinity": { "type": "object" },
+    "priorityClassName": { "type": "string" },
+    "topologySpreadConstraints": { "type": "array", "items": { "type": "object" } },
+    "extraManifests": { "type": "array", "items": { "type": "object" } }
+  },
+  "$defs": {
+    "probe": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "command": { "type": "array", "items": { "type": "string" } },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}
