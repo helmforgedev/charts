@@ -5,7 +5,8 @@ import {execFileSync} from 'node:child_process';
 const [context, namespace, release] = process.argv.slice(2);
 assert.ok(context?.startsWith('k3d-helmforge-') && namespace && release);
 const run = args => execFileSync('kubectl', ['--context', context, '-n', namespace, ...args], {encoding: 'utf8', timeout: 60000});
-const pods = JSON.parse(run(['get', 'pods', '-l', `app.kubernetes.io/instance=${release}`, '-o', 'json'])).items;
+const pods = JSON.parse(run(['get', 'pods', '-l', `app.kubernetes.io/instance=${release}`, '-o', 'json'])).items
+  .filter(pod => !pod.metadata.deletionTimestamp);
 assert.equal(pods.length, 1, 'OpenHuman must remain a singleton');
 const pod = pods[0];
 assert.ok(pod.status.conditions?.some(c => c.type === 'Ready' && c.status === 'True'), 'OpenHuman must be Ready');

@@ -11,6 +11,9 @@
    kubectl -n {{ .Release.Namespace }} get secret {{ include "openhuman.authSecretName" . }} -o jsonpath="{.data.{{ .Values.auth.key }}}" | base64 -d
 
    Store the token in a password manager and rotate it through the selected Secret contract.
+   Secret rotation does not update a running Pod. Restart the Deployment after
+   coordinating the new token with clients. The checksum detects Helm value
+   changes only; automatic ExternalSecret rollouts need a Secret reloader.
 
 3. Reach the private endpoint
 
@@ -41,6 +44,8 @@
    Back up the workspace and projects claims before upgrades. Workspace migrations are not documented as downgrade-safe.
 
    The claims and generated bearer Secret are retained across uninstall by default.
+   Enabling the optional PDB with minAvailable 1 blocks voluntary eviction of
+   the singleton and can stop node drain until the budget is removed or relaxed.
 
 8. Troubleshoot and upgrade
 
