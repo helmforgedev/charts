@@ -27,7 +27,7 @@ helm install openreplay oci://ghcr.io/helmforgedev/helm/openreplay \
 For the HTTPS repository:
 
 ```bash
-helm repo add helmforge https://repo.helmforge.dev/charts
+helm repo add helmforge https://repo.helmforge.dev
 helm install openreplay helmforge/openreplay \
   --namespace openreplay --create-namespace \
   --set openreplay.domain=replay.example.com
