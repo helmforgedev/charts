@@ -1,0 +1,54 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+1. Check the singleton rollout
+
+   kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "openhuman.fullname" . }}
+   kubectl -n {{ .Release.Namespace }} get pod,svc,pvc -l app.kubernetes.io/instance={{ .Release.Name }}
+
+   One Recreate Pod is intentional because the workspace is a single-writer state store.
+
+2. Retrieve the RPC token
+
+   kubectl -n {{ .Release.Namespace }} get secret {{ include "openhuman.authSecretName" . }} -o jsonpath="{.data.{{ .Values.auth.key }}}" | base64 -d
+
+   Store the token in a password manager and rotate it through the selected Secret contract.
+
+3. Reach the private endpoint
+
+   kubectl -n {{ .Release.Namespace }} port-forward service/{{ include "openhuman.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+
+   ClusterIP and same-namespace NetworkPolicy access are the secure defaults.
+
+4. Verify health
+
+   curl --fail http://127.0.0.1:{{ .Values.service.port }}/health
+
+   Health proves local components, not provider login or model inference.
+
+5. Connect OpenHuman Desktop
+
+   Configure the external Core RPC URL as http://127.0.0.1:{{ .Values.service.port }}/rpc and provide the bearer token. Use HTTPS for every non-loopback connection.
+
+   Define openhuman.allowedOrigins when the client runs from a non-loopback browser origin.
+
+6. Protect agent authority
+
+   The RPC bearer grants control of an agent capable of side effects. Keep the Service private, restrict NetworkPolicy peers and never commit the token.
+
+   Keep browser allow-all disabled and audit every optional provider credential.
+
+7. Back up state
+
+   Back up the workspace and projects claims before upgrades. Workspace migrations are not documented as downgrade-safe.
+
+   The claims and generated bearer Secret are retained across uninstall by default.
+
+8. Troubleshoot and upgrade
+
+   kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "openhuman.fullname" . }}
+   kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
+
+   The official image is amd64-only. Retained volumes restored with root-owned mode-0600 files may require an operator ownership repair to UID/GID 10001.
+   Do not add long-lived Linux capabilities to work around ownership on a restored backup.
+   Documentation: https://helmforge.dev/docs/charts/openhuman
+
+Happy Helmforging :)

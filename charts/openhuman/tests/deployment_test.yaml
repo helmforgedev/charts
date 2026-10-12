@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: OpenHuman deployment
+templates: [templates/deployment.yaml]
+tests:
+  - it: renders the official immutable image and secure runtime
+    asserts:
+      - equal: {path: spec.replicas, value: 1}
+      - equal: {path: spec.strategy.type, value: Recreate}
+      - equal: {path: spec.template.spec.securityContext.runAsUser, value: 10001}
+      - equal: {path: "spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem", value: true}
+      - equal: {path: "spec.template.spec.containers[0].image", value: "ghcr.io/tinyhumansai/openhuman-core:v0.64.15@sha256:c694baccddb47a41ea26db2f6f398fd387b1da1069e91e08ee6bd63509fbb9ab"}
+  - it: injects bearer authentication and disables self-update
+    asserts:
+      - contains:
+          path: "spec.template.spec.containers[0].env"
+          content:
+            name: OPENHUMAN_CORE_TOKEN
+            valueFrom: {secretKeyRef: {name: RELEASE-NAME-openhuman, key: core-token}}
+      - contains:
+          path: "spec.template.spec.containers[0].env"
+          content: {name: OPENHUMAN_AUTO_UPDATE_RPC_MUTATIONS_ENABLED, value: "false"}
+  - it: mounts both state volumes and tmp
+    asserts:
+      - lengthEqual: {path: spec.template.spec.volumes, count: 3}
+      - contains: {path: "spec.template.spec.containers[0].volumeMounts", content: {name: projects, mountPath: /home/openhuman/OpenHuman}}
+  - it: prepares a private keyring file for uid 10001
+    set: {keyring.existingSecret: keyring-secret}
+    asserts:
+      - equal: {path: "spec.template.spec.initContainers[0].name", value: prepare-keyring}
+      - equal: {path: "spec.template.spec.initContainers[0].securityContext.runAsUser", value: 0}
+      - contains:
+          path: "spec.template.spec.containers[0].env"
+          content: {name: OPENHUMAN_KEYRING_MASTER_KEY_FILE, value: /run/openhuman-secrets/master-key}

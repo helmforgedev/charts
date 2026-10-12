@@ -1,0 +1,200 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openhuman.fullname" . }}
+  labels:
+    {{- include "openhuman.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "openhuman.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "openhuman.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/auth-contract: {{ printf "%s/%s/%s/%s" .Values.auth.existingSecret .Values.auth.key .Values.keyring.existingSecret .Values.keyring.key | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "openhuman.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if or .Values.keyring.existingSecret .Values.extraInitContainers }}
+      initContainers:
+        {{- if .Values.keyring.existingSecret }}
+        - name: prepare-keyring
+          image: {{ include "openhuman.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [/bin/sh, -ec]
+          args:
+            - install -o 10001 -g 10001 -m 0400 /source/master-key /runtime/master-key
+          securityContext:
+            runAsNonRoot: false
+            runAsUser: 0
+            runAsGroup: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN]
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          volumeMounts:
+            - {name: keyring-source, mountPath: /source, readOnly: true}
+            - {name: keyring, mountPath: /runtime}
+        {{- end }}
+        {{- with .Values.extraInitContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: openhuman
+          image: {{ include "openhuman.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 7788
+              protocol: TCP
+          env:
+            - name: OPENHUMAN_CORE_HOST
+              value: 0.0.0.0
+            - name: OPENHUMAN_CORE_PORT
+              value: "7788"
+            - name: OPENHUMAN_WORKSPACE
+              value: /home/openhuman/.openhuman
+            - name: XDG_CACHE_HOME
+              value: /home/openhuman/.openhuman/cache
+            - name: TMPDIR
+              value: /tmp
+            - name: OPENHUMAN_CORE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openhuman.authSecretName" . }}
+                  key: {{ .Values.auth.key }}
+            - name: BACKEND_URL
+              value: {{ .Values.openhuman.backendUrl | quote }}
+            - name: OPENHUMAN_APP_ENV
+              value: {{ .Values.openhuman.appEnv | quote }}
+            - name: RUST_LOG
+              value: {{ .Values.openhuman.logLevel | quote }}
+            - name: OPENHUMAN_ANALYTICS_ENABLED
+              value: {{ .Values.openhuman.analyticsEnabled | quote }}
+            - name: OPENHUMAN_BROWSER_ALLOW_ALL
+              value: "0"
+            - name: OPENHUMAN_AUTO_UPDATE_RPC_MUTATIONS_ENABLED
+              value: "false"
+            - name: OPENHUMAN_AUTO_UPDATE_RESTART_STRATEGY
+              value: supervisor
+            {{- with .Values.openhuman.allowedOrigins }}
+            - name: OPENHUMAN_CORE_ALLOWED_ORIGINS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if .Values.keyring.existingSecret }}
+            - name: OPENHUMAN_KEYRING_MASTER_KEY_FILE
+              value: /run/openhuman-secrets/master-key
+            {{- end }}
+            {{- with .Values.openhuman.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.openhuman.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - {name: workspace, mountPath: /home/openhuman/.openhuman}
+            - {name: projects, mountPath: /home/openhuman/OpenHuman}
+            - {name: tmp, mountPath: /tmp}
+            {{- if .Values.keyring.existingSecret }}
+            - {name: keyring, mountPath: /run/openhuman-secrets, readOnly: true}
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-workspace" (include "openhuman.fullname" .)) .Values.persistence.existingClaim }}
+        - name: projects
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-projects" (include "openhuman.fullname" .)) .Values.projectsPersistence.existingClaim }}
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.keyring.existingSecret }}
+        - name: keyring-source
+          secret:
+            secretName: {{ .Values.keyring.existingSecret }}
+            defaultMode: 0400
+            items:
+              - key: {{ .Values.keyring.key }}
+                path: master-key
+        - name: keyring
+          emptyDir:
+            medium: Memory
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

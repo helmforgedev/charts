@@ -1,0 +1,209 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# -- Override the chart name used in resource labels.
+nameOverride: ""
+# -- Override all resource name prefixes.
+fullnameOverride: ""
+# -- Labels added to every chart resource.
+commonLabels: {}
+
+# -- Official OpenHuman Core image pinned to an immutable release digest.
+image:
+  # -- Official image repository.
+  repository: ghcr.io/tinyhumansai/openhuman-core
+  # -- Immutable release tag and OCI index digest.
+  tag: v0.64.15@sha256:c694baccddb47a41ea26db2f6f398fd387b1da1069e91e08ee6bd63509fbb9ab
+  # -- Kubernetes image pull policy.
+  pullPolicy: IfNotPresent
+# -- Registry credentials for private mirrors.
+imagePullSecrets: []
+
+# -- RPC bearer token source. A generated token is retained when no existing Secret is selected.
+auth:
+  # -- Existing Secret containing the RPC bearer token.
+  existingSecret: ""
+  # -- Key in auth.existingSecret containing the token.
+  key: core-token
+
+# -- Optional encrypted keyring master-key source.
+keyring:
+  # -- Existing Secret containing a 64-character hexadecimal master key.
+  existingSecret: ""
+  # -- Key in keyring.existingSecret containing the master key.
+  key: master-key
+
+# -- OpenHuman runtime configuration.
+openhuman:
+  # -- TinyHumans backend URL.
+  backendUrl: https://api.tinyhumans.ai
+  # -- Application environment.
+  appEnv: production
+  # -- Rust log filter.
+  logLevel: info
+  # -- Browser origins allowed to call RPC; empty permits only upstream built-in origins.
+  allowedOrigins: ""
+  # -- Disable anonymous analytics explicitly.
+  analyticsEnabled: false
+  # -- Additional environment variables. Never place secret values here.
+  extraEnv: []
+  # -- Additional envFrom sources such as operator-managed Secrets.
+  envFrom: []
+
+# -- Persistent OpenHuman workspace containing config, memory, sessions and SQLite state.
+persistence:
+  # -- Persist the workspace.
+  enabled: true
+  # -- Existing claim for the workspace.
+  existingClaim: ""
+  # -- Storage class; empty uses the cluster default.
+  storageClass: ""
+  # -- PVC access modes.
+  accessModes: [ReadWriteOnce]
+  # -- Workspace capacity.
+  size: 10Gi
+  # -- Keep the chart-created workspace claim after uninstall.
+  retain: true
+  # -- Additional PVC annotations.
+  annotations: {}
+
+# -- Persistent directory used by OpenHuman file and action tools.
+projectsPersistence:
+  # -- Persist the projects directory.
+  enabled: true
+  # -- Existing claim for the projects directory.
+  existingClaim: ""
+  # -- Storage class; empty uses the cluster default.
+  storageClass: ""
+  # -- PVC access modes.
+  accessModes: [ReadWriteOnce]
+  # -- Projects capacity.
+  size: 10Gi
+  # -- Keep the chart-created projects claim after uninstall.
+  retain: true
+  # -- Additional PVC annotations.
+  annotations: {}
+
+# -- Service account settings.
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: true
+  # -- Existing or overridden ServiceAccount name.
+  name: ""
+  # -- ServiceAccount annotations.
+  annotations: {}
+  # -- Mount Kubernetes API credentials into the Pod.
+  automountServiceAccountToken: false
+
+# -- Cluster service settings.
+service:
+  # -- Service type. ClusterIP is the secure default.
+  type: ClusterIP
+  # -- Service port.
+  port: 7788
+  # -- Service annotations.
+  annotations: {}
+  # -- Kubernetes IP family policy.
+  ipFamilyPolicy: ""
+  # -- Kubernetes IP families.
+  ipFamilies: []
+
+# -- Optional TLS ingress for the bearer-authenticated RPC endpoint.
+ingress:
+  # -- Enable Ingress.
+  enabled: false
+  # -- Ingress class name.
+  ingressClassName: ""
+  # -- Ingress annotations.
+  annotations: {}
+  # -- Ingress host and path rules.
+  hosts: []
+  # -- TLS settings. TLS is required whenever ingress is enabled.
+  tls: []
+
+# -- Optional Gateway API HTTPRoutes.
+gatewayAPI:
+  # -- Enable HTTPRoutes.
+  enabled: false
+  # -- HTTPRoute declarations; parent Gateways must terminate TLS.
+  httpRoutes: []
+
+# -- Optional External Secrets Operator resources.
+externalSecrets:
+  # -- Enable ExternalSecret rendering.
+  enabled: false
+  # -- Default refresh interval.
+  refreshInterval: 1h
+  # -- ExternalSecret items using the canonical item.spec contract.
+  items: []
+
+# -- HTTP health probes for the public /health endpoint.
+probes:
+  # -- Startup probe settings.
+  startup: {enabled: true, initialDelaySeconds: 0, periodSeconds: 10, timeoutSeconds: 5, failureThreshold: 30}
+  # -- Liveness probe settings.
+  liveness: {enabled: true, initialDelaySeconds: 0, periodSeconds: 30, timeoutSeconds: 5, failureThreshold: 3}
+  # -- Readiness probe settings.
+  readiness: {enabled: true, initialDelaySeconds: 0, periodSeconds: 10, timeoutSeconds: 5, failureThreshold: 6}
+
+# -- Container resources based on upstream cloud examples.
+resources:
+  requests: {cpu: 250m, memory: 512Mi}
+  limits: {cpu: "2", memory: 4Gi}
+
+# -- Pod-level security context for the upstream openhuman user.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile: {type: RuntimeDefault}
+# -- Container-level security context.
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities: {drop: [ALL]}
+
+# -- Update strategy; singleton state requires Recreate.
+strategy: {type: Recreate}
+# -- Pod annotations.
+podAnnotations: {}
+# -- Additional Pod labels; selector labels cannot be overridden.
+podLabels: {}
+# -- PriorityClass name.
+priorityClassName: ""
+# -- Grace period for active agent work.
+terminationGracePeriodSeconds: 120
+# -- Node selection. The official container is currently amd64-only.
+nodeSelector: {kubernetes.io/arch: amd64, kubernetes.io/os: linux}
+# -- Pod tolerations.
+tolerations: []
+# -- Pod affinity.
+affinity: {}
+# -- Topology spread constraints.
+topologySpreadConstraints: []
+
+# -- Optional PodDisruptionBudget for the singleton.
+podDisruptionBudget: {enabled: false, minAvailable: 1}
+
+# -- Default-deny ingress and controlled outbound access.
+networkPolicy:
+  # -- Enable NetworkPolicy.
+  enabled: true
+  # -- Peers allowed to call port 7788. Empty allows same-namespace clients only.
+  ingressFrom: []
+  # -- Allow public HTTPS egress for backend, model, search and OAuth providers.
+  allowInternet: true
+  # -- Additional egress rules for private model endpoints and integrations.
+  extraEgress: []
+
+# -- Additional volumes.
+extraVolumes: []
+# -- Additional volume mounts.
+extraVolumeMounts: []
+# -- Additional sidecars.
+extraContainers: []
+# -- Additional init containers.
+extraInitContainers: []
+# -- Additional arbitrary manifests.
+extraManifests: []

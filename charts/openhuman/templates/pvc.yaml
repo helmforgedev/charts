@@ -1,0 +1,28 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- range $suffix, $persistence := dict "workspace" .Values.persistence "projects" .Values.projectsPersistence }}
+{{- if and $persistence.enabled (not $persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "openhuman.fullname" $ }}-{{ $suffix }}
+  labels:
+    {{- include "openhuman.labels" $ | nindent 4 }}
+  annotations:
+    {{- if $persistence.retain }}
+    helm.sh/resource-policy: keep
+    {{- end }}
+    {{- with $persistence.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  accessModes:
+    {{- toYaml $persistence.accessModes | nindent 4 }}
+  {{- with $persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $persistence.size }}
+---
+{{- end }}
+{{- end }}
