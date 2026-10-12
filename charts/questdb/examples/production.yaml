@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+questdb:
+  existingSecret: questdb-auth
+  serverConfig:
+    cairo.sql.copy.root: /var/lib/questdb/import
+resources:
+  requests: {cpu: "4", memory: 8Gi}
+  limits: {cpu: "8", memory: 16Gi}
+metrics:
+  enabled: true
+  serviceMonitor: {enabled: true, interval: 30s, scrapeTimeout: 10s, labels: {}}
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts: [{host: questdb.example.com, paths: [{path: /, pathType: Prefix}]}]
+  tls: [{secretName: questdb-tls, hosts: [questdb.example.com]}]
+networkPolicy:
+  httpFrom:
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: ingress-nginx}
+  pgWireFrom:
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: applications}
+  metricsFrom:
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: monitoring}

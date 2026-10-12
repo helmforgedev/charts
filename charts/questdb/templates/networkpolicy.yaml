@@ -1,0 +1,58 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "questdb.fullname" . }}
+  labels:
+    {{- include "questdb.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "questdb.selectorLabels" . | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        {{- if .Values.networkPolicy.httpFrom }}
+        {{- toYaml .Values.networkPolicy.httpFrom | nindent 8 }}
+        {{- else }}
+        - podSelector: {}
+        {{- end }}
+      ports: [{port: 9000, protocol: TCP}]
+    {{- if .Values.service.pgWireEnabled }}
+    - from:
+        {{- if .Values.networkPolicy.pgWireFrom }}
+        {{- toYaml .Values.networkPolicy.pgWireFrom | nindent 8 }}
+        {{- else }}
+        - podSelector: {}
+        {{- end }}
+      ports: [{port: 8812, protocol: TCP}]
+    {{- end }}
+    {{- if .Values.service.ilpTcpEnabled }}
+    - from:
+        {{- if .Values.networkPolicy.ilpTcpFrom }}
+        {{- toYaml .Values.networkPolicy.ilpTcpFrom | nindent 8 }}
+        {{- else }}
+        - podSelector: {}
+        {{- end }}
+      ports: [{port: 9009, protocol: TCP}]
+    {{- end }}
+    - from:
+        {{- if .Values.networkPolicy.metricsFrom }}
+        {{- toYaml .Values.networkPolicy.metricsFrom | nindent 8 }}
+        {{- else }}
+        - podSelector: {}
+        {{- end }}
+      ports: [{port: 9003, protocol: TCP}]
+  egress:
+    {{- if .Values.networkPolicy.allowDNS }}
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - {port: 53, protocol: UDP}
+        - {port: 53, protocol: TCP}
+    {{- end }}
+    {{- with .Values.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

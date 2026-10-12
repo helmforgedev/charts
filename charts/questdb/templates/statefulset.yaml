@@ -1,0 +1,150 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "questdb.fullname" . }}
+  labels:
+    {{- include "questdb.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "questdb.fullname" . }}-headless
+  replicas: 1
+  updateStrategy:
+    {{- toYaml .Values.updateStrategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "questdb.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "questdb.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/auth-contract: {{ printf "%s/%s/%s" .Values.questdb.existingSecret .Values.questdb.pgPasswordKey .Values.questdb.httpPasswordKey | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "questdb.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.extraInitContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: questdb
+          image: {{ include "questdb.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - {name: http, containerPort: 9000, protocol: TCP}
+            - {name: pgwire, containerPort: 8812, protocol: TCP}
+            - {name: ilp-tcp, containerPort: 9009, protocol: TCP}
+            - {name: health, containerPort: 9003, protocol: TCP}
+          env:
+            - {name: DO_CHOWN, value: "false"}
+            - {name: QDB_PG_USER, value: {{ .Values.questdb.pgUser | quote }}}
+            - {name: QDB_PG_PASSWORD_FILE, value: /run/questdb-secrets/pg-password}
+            - {name: QDB_HTTP_USER, value: {{ .Values.questdb.httpUser | quote }}}
+            - {name: QDB_HTTP_PASSWORD_FILE, value: /run/questdb-secrets/http-password}
+            - {name: QDB_HTTP_HEALTH_CHECK_AUTHENTICATION_REQUIRED, value: "false"}
+            - {name: QDB_HTTP_MIN_ENABLED, value: "true"}
+            - {name: QDB_HTTP_MIN_NET_BIND_TO, value: "0.0.0.0:9003"}
+            - {name: QDB_HTTP_MIN_WORKER_COUNT, value: "1"}
+            - {name: QDB_METRICS_ENABLED, value: {{ .Values.metrics.enabled | quote }}}
+            - {name: TMPDIR, value: /tmp}
+            {{- range $key, $value := .Values.questdb.serverConfig }}
+            - name: {{ printf "QDB_%s" ($key | upper | replace "." "_") }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- with .Values.questdb.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.questdb.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet: {path: /status, port: health}
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet: {path: /status, port: health}
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet: {path: /status, port: health}
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/questdb}
+            - {name: auth, mountPath: /run/questdb-secrets, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ default (include "questdb.fullname" .) .Values.persistence.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: auth
+          secret:
+            secretName: {{ include "questdb.authSecretName" . }}
+            defaultMode: 0400
+            items:
+              - {key: {{ .Values.questdb.pgPasswordKey }}, path: pg-password}
+              - {key: {{ .Values.questdb.httpPasswordKey }}, path: http-password}
+        - name: tmp
+          emptyDir: {}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,209 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# -- Override the chart name used in resource labels.
+nameOverride: ""
+# -- Override all resource name prefixes.
+fullnameOverride: ""
+# -- Labels added to every chart resource.
+commonLabels: {}
+
+# -- Official QuestDB image pinned to an immutable release digest.
+image:
+  # -- Official image repository.
+  repository: docker.io/questdb/questdb
+  # -- Immutable release tag and OCI index digest.
+  tag: 10.0.1@sha256:67eaed863ebb2383227919ea9a5499a4a39ceca3862c20b974c84a10e11cdf89
+  # -- Kubernetes image pull policy.
+  pullPolicy: IfNotPresent
+# -- Registry credentials for private mirrors.
+imagePullSecrets: []
+
+# -- QuestDB authentication and runtime configuration.
+questdb:
+  # -- PostgreSQL wire protocol username.
+  pgUser: admin
+  # -- HTTP basic-auth username. Empty disables HTTP authentication.
+  httpUser: admin
+  # -- Existing Secret containing pg-password and http-password.
+  existingSecret: ""
+  # -- Secret key containing the PostgreSQL password.
+  pgPasswordKey: pg-password
+  # -- Secret key containing the HTTP password.
+  httpPasswordKey: http-password
+  # -- Additional server.conf properties expressed as property: value.
+  serverConfig: {}
+  # -- Additional environment variables. Never place secret values here.
+  extraEnv: []
+  # -- Additional envFrom sources such as operator-managed Secrets.
+  envFrom: []
+
+# -- Persistent QuestDB root containing database, configuration and logs.
+persistence:
+  # -- Persist /var/lib/questdb.
+  enabled: true
+  # -- Existing claim for the QuestDB root.
+  existingClaim: ""
+  # -- Storage class; empty uses the cluster default.
+  storageClass: ""
+  # -- PVC access modes.
+  accessModes: [ReadWriteOnce]
+  # -- Storage capacity. Production sizing starts at workload-specific IOPS and capacity analysis.
+  size: 20Gi
+  # -- Keep the chart-created claim after uninstall.
+  retain: true
+  # -- Additional PVC annotations.
+  annotations: {}
+
+# -- Service account settings.
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: true
+  # -- Existing or overridden ServiceAccount name.
+  name: ""
+  # -- ServiceAccount annotations.
+  annotations: {}
+  # -- Mount Kubernetes API credentials into the Pod.
+  automountServiceAccountToken: false
+
+# -- Client and protocol service settings.
+service:
+  # -- Service type. ClusterIP is the secure default because OSS protocols have no native TLS.
+  type: ClusterIP
+  # -- Service annotations.
+  annotations: {}
+  # -- Publish the PostgreSQL wire protocol port.
+  pgWireEnabled: true
+  # -- Publish the legacy ILP TCP port. ILP over HTTP is preferred.
+  ilpTcpEnabled: false
+  # -- Kubernetes IP family policy.
+  ipFamilyPolicy: ""
+  # -- Kubernetes IP families.
+  ipFamilies: []
+
+# -- Built-in metrics endpoint and Prometheus Operator integration.
+metrics:
+  # -- Enable QuestDB metrics on the minimal HTTP server.
+  enabled: false
+  # -- Service annotations.
+  annotations: {}
+  # -- Create a ServiceMonitor.
+  serviceMonitor:
+    # -- Enable ServiceMonitor rendering.
+    enabled: false
+    # -- Scrape interval.
+    interval: 30s
+    # -- Scrape timeout.
+    scrapeTimeout: 10s
+    # -- Additional ServiceMonitor labels.
+    labels: {}
+
+# -- Optional TLS ingress for the HTTP API and Web Console.
+ingress:
+  # -- Enable Ingress.
+  enabled: false
+  # -- Ingress class name.
+  ingressClassName: ""
+  # -- Ingress annotations.
+  annotations: {}
+  # -- Ingress host and path rules.
+  hosts: []
+  # -- TLS settings. TLS is required whenever ingress is enabled.
+  tls: []
+
+# -- Optional Gateway API HTTPRoutes for the HTTP API and Web Console.
+gatewayAPI:
+  # -- Enable HTTPRoutes.
+  enabled: false
+  # -- HTTPRoute declarations; parent Gateways must terminate TLS.
+  httpRoutes: []
+
+# -- Optional External Secrets Operator resources.
+externalSecrets:
+  # -- Enable ExternalSecret rendering.
+  enabled: false
+  # -- Default refresh interval.
+  refreshInterval: 1h
+  # -- ExternalSecret items using the canonical item.spec contract.
+  items: []
+
+# -- HTTP health probes against /status on the minimal server.
+probes:
+  # -- Startup probe settings.
+  startup: {enabled: true, initialDelaySeconds: 0, periodSeconds: 10, timeoutSeconds: 5, failureThreshold: 30}
+  # -- Liveness probe settings.
+  liveness: {enabled: true, initialDelaySeconds: 0, periodSeconds: 30, timeoutSeconds: 5, failureThreshold: 3}
+  # -- Readiness probe settings.
+  readiness: {enabled: true, initialDelaySeconds: 0, periodSeconds: 10, timeoutSeconds: 5, failureThreshold: 6}
+
+# -- Conservative installable defaults; production guidance starts at 4 CPU and 8Gi memory.
+resources:
+  requests: {cpu: 500m, memory: 1Gi}
+  limits: {cpu: "2", memory: 4Gi}
+
+# -- Pod-level security context for the upstream questdb user.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile: {type: RuntimeDefault}
+# -- Container-level security context.
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities: {drop: [ALL]}
+
+# -- StatefulSet update strategy.
+updateStrategy: {type: RollingUpdate}
+# -- Pod annotations.
+podAnnotations: {}
+# -- Additional Pod labels; selector labels cannot be overridden.
+podLabels: {}
+# -- PriorityClass name.
+priorityClassName: ""
+# -- Grace period for database shutdown.
+terminationGracePeriodSeconds: 120
+# -- Node selection.
+nodeSelector: {}
+# -- Pod tolerations.
+tolerations: []
+# -- Pod affinity.
+affinity: {}
+# -- Topology spread constraints.
+topologySpreadConstraints: []
+
+# -- Optional PodDisruptionBudget for the singleton.
+podDisruptionBudget:
+  # -- Enable the disruption budget.
+  enabled: false
+  # -- Minimum available Pods. Value 1 blocks voluntary eviction and node drain for this singleton.
+  minAvailable: 1
+
+# -- Default-deny ingress and controlled outbound access.
+networkPolicy:
+  # -- Enable NetworkPolicy.
+  enabled: true
+  # -- Peers allowed to call HTTP port 9000. Empty allows same-namespace clients only.
+  httpFrom: []
+  # -- Peers allowed to call PostgreSQL wire port 8812. Empty allows same-namespace clients only.
+  pgWireFrom: []
+  # -- Peers allowed to call legacy ILP TCP port 9009. Empty allows same-namespace clients only.
+  ilpTcpFrom: []
+  # -- Peers allowed to scrape health and metrics port 9003. Empty allows same-namespace clients only.
+  metricsFrom: []
+  # -- Allow DNS egress.
+  allowDNS: true
+  # -- Additional complete egress rules.
+  extraEgress: []
+
+# -- Additional volumes, including projected ILP TCP auth databases when required.
+extraVolumes: []
+# -- Additional volume mounts.
+extraVolumeMounts: []
+# -- Additional sidecars.
+extraContainers: []
+# -- Additional init containers.
+extraInitContainers: []
+# -- Additional arbitrary manifests.
+extraManifests: []

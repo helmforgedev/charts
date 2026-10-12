@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: QuestDB StatefulSet
+templates: [templates/statefulset.yaml]
+tests:
+  - it: renders the official immutable image and secure runtime
+    asserts:
+      - equal: {path: spec.replicas, value: 1}
+      - equal: {path: spec.updateStrategy.type, value: RollingUpdate}
+      - equal: {path: spec.template.spec.securityContext.runAsUser, value: 10001}
+      - equal: {path: "spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem", value: true}
+      - equal: {path: "spec.template.spec.containers[0].image", value: "docker.io/questdb/questdb:10.0.1@sha256:67eaed863ebb2383227919ea9a5499a4a39ceca3862c20b974c84a10e11cdf89"}
+  - it: mounts password files and exposes the minimal health server
+    asserts:
+      - contains:
+          path: "spec.template.spec.containers[0].env"
+          content:
+            name: QDB_PG_PASSWORD_FILE
+            value: /run/questdb-secrets/pg-password
+      - contains:
+          path: "spec.template.spec.containers[0].env"
+          content: {name: QDB_HTTP_HEALTH_CHECK_AUTHENTICATION_REQUIRED, value: "false"}
+      - equal: {path: "spec.template.spec.containers[0].startupProbe.httpGet.path", value: /status}
+  - it: mounts database state and tmp
+    asserts:
+      - lengthEqual: {path: spec.template.spec.volumes, count: 3}
+      - contains: {path: "spec.template.spec.containers[0].volumeMounts", content: {name: data, mountPath: /var/lib/questdb}}
