@@ -1,0 +1,196 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and .Values.migration.enabled (not .Values.migration.validationMode) }}
+{{- $versionConfigMapName := printf "%s-version" (include "openreplay.fullname" .) }}
+{{- $installedVersionConfigMap := lookup "v1" "ConfigMap" .Release.Namespace $versionConfigMapName }}
+{{- $installedVersion := "" }}
+{{- if $installedVersionConfigMap }}{{- $installedVersion = index $installedVersionConfigMap.data "version" | default "" }}{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "openreplay.fullname" . }}-migration-{{ .Release.Revision }}
+  labels:
+    {{- include "openreplay.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: {{ .Values.migration.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "openreplay.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "openreplay.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        fsGroup: 1001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: source
+          image: {{ include "openreplay.image" .Values.migration.gitImage | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 1001
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |-
+              git clone --depth 1 --filter=blob:none --sparse \
+                --branch "v{{ .Chart.AppVersion }}" \
+                https://github.com/openreplay/openreplay /opt/openreplay/openreplay
+              cd /opt/openreplay/openreplay
+              git sparse-checkout set scripts/schema scripts/helmcharts
+              for endpoint in \
+                "{{ include "openreplay.postgresqlHost" . }}:{{ .Values.database.postgresql.port }}" \
+                "{{ include "openreplay.clickhouseHost" . }}:{{ .Values.database.clickhouse.nativePort }}" \
+                "{{ include "openreplay.s3Endpoint" . }}"; do
+                host="${endpoint%:*}"
+                port="${endpoint##*:}"
+                attempts=0
+                until nc -z "$host" "$port"; do
+                  attempts=$((attempts + 1))
+                  if [ "$attempts" -ge 60 ]; then
+                    echo "Timed out waiting for $endpoint" >&2
+                    exit 1
+                  fi
+                  sleep 5
+                done
+              done
+          resources:
+            {{- toYaml .Values.migration.resources | nindent 12 }}
+          volumeMounts:
+            - name: source
+              mountPath: /opt/openreplay
+      containers:
+        - name: postgresql
+          image: {{ include "openreplay.image" .Values.migration.postgresImage | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 1001
+          command: [/bin/bash, /opt/migrations/dbops.sh, {{ .Release.IsUpgrade | quote }}, postgresql]
+          env:
+            - name: FORCE_MIGRATION
+              value: {{ .Values.migration.force | quote }}
+            - name: PREVIOUS_APP_VERSION
+              value: {{ default $installedVersion .Values.migration.fromVersion | quote }}
+            - name: CHART_APP_VERSION
+              value: {{ .Chart.AppVersion | quote }}
+            - name: PGHOST
+              value: {{ include "openreplay.postgresqlHost" . | quote }}
+            - name: PGPORT
+              value: {{ .Values.database.postgresql.port | quote }}
+            - name: PGDATABASE
+              value: {{ .Values.database.postgresql.database | quote }}
+            - name: PGUSER
+              value: postgres
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" . }}
+                  key: {{ .Values.credentials.postgresSuperuserPasswordKey }}
+          resources:
+            {{- toYaml .Values.migration.resources | nindent 12 }}
+          volumeMounts:
+            - name: source
+              mountPath: /opt/openreplay
+            - name: script
+              mountPath: /opt/migrations
+        - name: object-storage
+          image: {{ include "openreplay.image" .Values.migration.s3Image | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 1001
+          command: [/bin/bash, /opt/migrations/dbops.sh, {{ .Release.IsUpgrade | quote }}, minio]
+          env:
+            - name: FORCE_MIGRATION
+              value: {{ .Values.migration.force | quote }}
+            - name: PREVIOUS_APP_VERSION
+              value: {{ default $installedVersion .Values.migration.fromVersion | quote }}
+            - name: CHART_APP_VERSION
+              value: {{ .Chart.AppVersion | quote }}
+            - name: MINIO_HOST
+              value: {{ printf "%s://%s" (ternary "https" "http" .Values.objectStorage.secure) (include "openreplay.s3Endpoint" .) | quote }}
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" . }}
+                  key: {{ .Values.credentials.s3AccessKeyKey }}
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" . }}
+                  key: {{ .Values.credentials.s3SecretKeyKey }}
+          resources:
+            {{- toYaml .Values.migration.resources | nindent 12 }}
+          volumeMounts:
+            - name: source
+              mountPath: /opt/openreplay
+            - name: script
+              mountPath: /opt/migrations
+        - name: clickhouse
+          image: {{ include "openreplay.image" .Values.migration.clickhouseImage | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 1001
+          command: [/bin/bash, /opt/migrations/dbops.sh, {{ .Release.IsUpgrade | quote }}, clickhouse]
+          env:
+            - name: FORCE_MIGRATION
+              value: {{ .Values.migration.force | quote }}
+            - name: PREVIOUS_APP_VERSION
+              value: {{ default $installedVersion .Values.migration.fromVersion | quote }}
+            - name: CHART_APP_VERSION
+              value: {{ .Chart.AppVersion | quote }}
+            - name: CH_HOST
+              value: {{ include "openreplay.clickhouseHost" . | quote }}
+            - name: CH_PORT
+              value: {{ .Values.database.clickhouse.nativePort | quote }}
+            - name: CH_PORT_HTTP
+              value: {{ .Values.database.clickhouse.httpPort | quote }}
+            - name: CH_USERNAME
+              value: {{ .Values.database.clickhouse.username | quote }}
+            - name: CH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" . }}
+                  key: {{ .Values.credentials.clickhousePasswordKey }}
+          resources:
+            {{- toYaml .Values.migration.resources | nindent 12 }}
+          volumeMounts:
+            - name: source
+              mountPath: /opt/openreplay
+            - name: script
+              mountPath: /opt/migrations
+      volumes:
+        - name: source
+          emptyDir: {}
+        - name: script
+          configMap:
+            name: {{ include "openreplay.fullname" . }}-migration
+            defaultMode: 0555
+      nodeSelector:
+        kubernetes.io/arch: amd64
+{{- end }}

@@ -1,0 +1,149 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+OpenReplay has been installed.
+
+1. Installation summary
+=======================
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Chart: {{ .Chart.Name }} {{ .Chart.Version }}
+OpenReplay: {{ .Chart.AppVersion }}
+Public domain: {{ .Values.openreplay.domain }}
+Public scheme: {{ .Values.openreplay.scheme }}
+Architecture: linux/amd64
+Service account: {{ include "openreplay.serviceAccountName" . }}
+
+The release contains an internal router and up to fifteen OpenReplay application
+components. Application image tags intentionally differ because upstream ships
+compatible component hotfixes independently.
+
+2. Access
+=========
+Service: {{ include "openreplay.fullname" . }}
+Service type: {{ .Values.service.type }}
+Service port: {{ .Values.service.port }}
+Cluster URL: http://{{ include "openreplay.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+
+Local access:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "openreplay.fullname" . }} 8080:{{ .Values.service.port }}
+  Open http://127.0.0.1:8080
+
+{{- if .Values.ingress.enabled }}
+Ingress hosts:
+{{- range .Values.ingress.hosts }}
+  - {{ $.Values.openreplay.scheme }}://{{ .host }}
+{{- end }}
+{{- end }}
+{{- if .Values.gatewayAPI.enabled }}
+Gateway API HTTPRoutes:
+{{- range .Values.gatewayAPI.httpRoutes }}
+{{- range .hostnames }}
+  - https://{{ . }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+3. Getting started
+==================
+Wait for the router and frontend:
+  kubectl -n {{ .Release.Namespace }} wait --for=condition=Available \
+    deployment/{{ include "openreplay.fullname" . }}-router --timeout=10m
+  kubectl -n {{ .Release.Namespace }} wait --for=condition=Available \
+    deployment/{{ include "openreplay.componentName" (dict "root" . "component" "frontend") }} --timeout=10m
+
+Confirm the health endpoint:
+  kubectl -n {{ .Release.Namespace }} run openreplay-check --rm -i --restart=Never \
+    --image=curlimages/curl -- http://{{ include "openreplay.fullname" . }}:{{ .Values.service.port }}/healthz
+
+Install tracker 19.x on the application being observed. Backend 1.28 and
+Assist 11.x must be upgraded together with the tracker compatibility contract.
+
+4. Credentials
+==============
+Application Secret: {{ include "openreplay.credentialsSecretName" . }}
+{{- if .Values.externalSecrets.enabled }}
+Credentials are reconciled by External Secrets Operator.
+{{- else if .Values.credentials.existingSecret }}
+Credentials come from the existing Secret configured by the operator.
+{{- else }}
+Credentials were generated on first install and are preserved on upgrade.
+Back up this Secret before restoring or migrating the release.
+{{- end }}
+
+Never print production Secret data into tickets or logs. Coordinate rotation
+across application components and bundled or external data services.
+
+5. Configuration summary
+========================
+Bundled PostgreSQL: {{ .Values.postgresql.enabled }}
+Bundled Redis: {{ .Values.redis.enabled }}
+Bundled ClickHouse: {{ .Values.clickhouse.enabled }}
+Bundled RustFS: {{ .Values.rustfs.enabled }}
+Migration Job: {{ and .Values.migration.enabled (not .Values.migration.validationMode) }}
+Scratch ephemeral: {{ .Values.scratch.ephemeral }}
+Scratch claim: {{ include "openreplay.scratchClaimName" . }}
+Ingress: {{ .Values.ingress.enabled }}
+Gateway API: {{ .Values.gatewayAPI.enabled }}
+NetworkPolicy: {{ .Values.networkPolicy.enabled }}
+ServiceMonitor: {{ .Values.monitoring.serviceMonitor.enabled }}
+
+The bundled data services are singleton defaults. Scaling application replicas
+does not make the installation highly available.
+
+6. Validation commands
+======================
+Release status:
+  helm -n {{ .Release.Namespace }} status {{ .Release.Name }}
+
+Workloads and endpoints:
+  kubectl -n {{ .Release.Namespace }} get deployments,pods,jobs,pvc
+  kubectl -n {{ .Release.Namespace }} get svc,endpoints
+
+Migration result:
+  kubectl -n {{ .Release.Namespace }} get job -l app.kubernetes.io/component=migration
+  kubectl -n {{ .Release.Namespace }} logs \
+    -l app.kubernetes.io/component=migration --all-containers --prefix
+
+Events:
+  kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp
+
+7. Troubleshooting
+==================
+All component status:
+  kubectl -n {{ .Release.Namespace }} get pods \
+    -l app.kubernetes.io/instance={{ .Release.Name }} -o wide
+
+Router logs:
+  kubectl -n {{ .Release.Namespace }} logs \
+    deployment/{{ include "openreplay.fullname" . }}-router
+
+Current and previous logs for a component:
+  kubectl -n {{ .Release.Namespace }} logs \
+    deployment/{{ include "openreplay.componentName" (dict "root" . "component" "api") }}
+  kubectl -n {{ .Release.Namespace }} logs --previous \
+    deployment/{{ include "openreplay.componentName" (dict "root" . "component" "api") }}
+
+Pending scratch PVCs mean the cluster probably lacks an RWX storage class.
+Unschedulable application pods on ARM are expected: upstream publishes amd64
+only. Router 502 responses indicate a disabled or unavailable target component.
+Check the migration Job before investigating repeated component restarts.
+
+8. Resources
+============
+HelmForge chart documentation:
+  https://helmforge.dev/docs/charts/openreplay
+
+OpenReplay Kubernetes documentation:
+  https://docs.openreplay.com/en/deployment/deploy-kubernetes/
+
+OpenReplay upgrade documentation:
+  https://docs.openreplay.com/en/deployment/upgrade/
+
+Source and issues:
+  https://github.com/openreplay/openreplay
+  https://github.com/helmforgedev/charts/issues
+
+Back up PostgreSQL, ClickHouse, object storage, credentials, and relevant
+scratch/Valkey state before upgrades. Helm cannot roll back schema migrations.
+
+Happy Helmforging :)
+

@@ -1,0 +1,87 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: OpenReplay router
+templates:
+  - templates/router-deployment.yaml
+  - templates/service.yaml
+  - templates/router-configmap.yaml
+tests:
+  - it: creates the router deployment
+    template: templates/router-deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+  - it: uses the pinned Caddy image
+    template: templates/router-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/library/caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+  - it: disables service account token automount
+    template: templates/router-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - it: runs the router as non-root
+    template: templates/router-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+  - it: uses a read-only router root filesystem
+    template: templates/router-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+  - it: exposes a named HTTP port
+    template: templates/router-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].name
+          value: http
+  - it: creates a ClusterIP service by default
+    template: templates/service.yaml
+    asserts:
+      - equal:
+          path: spec.type
+          value: ClusterIP
+  - it: targets only router pods
+    template: templates/service.yaml
+    asserts:
+      - equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: router
+  - it: supports dual-stack fields
+    template: templates/service.yaml
+    set:
+      service.ipFamilyPolicy: PreferDualStack
+      service.ipFamilies:
+        - IPv4
+        - IPv6
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: PreferDualStack
+      - lengthEqual:
+          path: spec.ipFamilies
+          count: 2
+  - it: writes the health endpoint into Caddy configuration
+    template: templates/router-configmap.yaml
+    asserts:
+      - matchRegex:
+          path: data.Caddyfile
+          pattern: handle /healthz
+  - it: writes the API route into Caddy configuration
+    template: templates/router-configmap.yaml
+    asserts:
+      - matchRegex:
+          path: data.Caddyfile
+          pattern: handle_path /v2/api
+  - it: writes the Assist WebSocket route into Caddy configuration
+    template: templates/router-configmap.yaml
+    asserts:
+      - matchRegex:
+          path: data.Caddyfile
+          pattern: handle_path /ws-assist
+

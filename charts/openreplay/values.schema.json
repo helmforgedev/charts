@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OpenReplay Helm values",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "nameOverride": { "type": "string" },
+    "fullnameOverride": { "type": "string" },
+    "commonLabels": { "type": "object", "additionalProperties": { "type": "string" } },
+    "podLabels": { "type": "object", "additionalProperties": { "type": "string" } },
+    "podAnnotations": { "type": "object", "additionalProperties": { "type": "string" } },
+    "imagePullSecrets": { "type": "array", "items": { "type": "object" } },
+    "openreplay": {
+      "type": "object",
+      "required": ["domain", "scheme", "allowUnsupportedArchitecture"],
+      "properties": {
+        "domain": { "type": "string" },
+        "scheme": { "type": "string", "enum": ["http", "https"] },
+        "allowUnsupportedArchitecture": { "type": "boolean" },
+        "extraEnv": { "type": "array", "items": { "type": "object" } },
+        "extraEnvFrom": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": false
+    },
+    "credentials": { "$ref": "#/$defs/object" },
+    "externalSecrets": { "$ref": "#/$defs/object" },
+    "scratch": { "$ref": "#/$defs/object" },
+    "database": { "$ref": "#/$defs/object" },
+    "objectStorage": { "$ref": "#/$defs/object" },
+    "rustfs": { "$ref": "#/$defs/object" },
+    "migration": { "$ref": "#/$defs/object" },
+    "router": { "$ref": "#/$defs/object" },
+    "components": {
+      "type": "object",
+      "minProperties": 15,
+      "additionalProperties": { "$ref": "#/$defs/component" }
+    },
+    "componentDefaults": { "$ref": "#/$defs/object" },
+    "service": { "$ref": "#/$defs/object" },
+    "ingress": { "$ref": "#/$defs/object" },
+    "gatewayAPI": { "$ref": "#/$defs/object" },
+    "serviceAccount": { "$ref": "#/$defs/object" },
+    "pdb": { "$ref": "#/$defs/object" },
+    "networkPolicy": { "$ref": "#/$defs/object" },
+    "monitoring": { "$ref": "#/$defs/object" },
+    "extraManifests": { "type": "array", "items": { "type": "object" } },
+    "postgresql": { "$ref": "#/$defs/object" },
+    "redis": { "$ref": "#/$defs/object" },
+    "clickhouse": { "$ref": "#/$defs/object" }
+  },
+  "required": [
+    "openreplay", "credentials", "scratch", "database", "objectStorage",
+    "rustfs", "migration", "router", "components", "componentDefaults",
+    "service", "ingress", "gatewayAPI", "serviceAccount", "networkPolicy"
+  ],
+  "$defs": {
+    "object": { "type": "object", "additionalProperties": true },
+    "component": {
+      "type": "object",
+      "required": ["enabled", "repository", "tag", "digest", "port", "replicaCount"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "minLength": 1, "not": { "enum": ["latest", "stable", "main", "master"] } },
+        "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "metricsPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "replicaCount": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    }
+  }
+}

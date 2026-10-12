@@ -1,0 +1,93 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openreplay.fullname" . }}-router
+  labels:
+    {{- include "openreplay.labels" . | nindent 4 }}
+    app.kubernetes.io/component: router
+spec:
+  replicas: {{ .Values.router.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "openreplay.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: router
+  template:
+    metadata:
+      labels:
+        {{- include "openreplay.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: router
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "openreplay.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: router
+          image: {{ include "openreplay.image" .Values.router.image | quote }}
+          imagePullPolicy: {{ .Values.router.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - cp /usr/bin/caddy /tmp/caddy && exec /tmp/caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+          ports:
+            - name: http
+              containerPort: 8080
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            tcpSocket:
+              port: http
+          resources:
+            {{- toYaml .Values.router.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/caddy/Caddyfile
+              subPath: Caddyfile
+              readOnly: true
+            - name: data
+              mountPath: /data
+            - name: runtime-config
+              mountPath: /config
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "openreplay.fullname" . }}-router
+        - name: data
+          emptyDir: {}
+        - name: runtime-config
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+      nodeSelector:
+        kubernetes.io/arch: amd64
+

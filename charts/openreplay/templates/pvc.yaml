@@ -1,0 +1,37 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if and .Values.scratch.enabled (not .Values.scratch.ephemeral) (not .Values.scratch.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "openreplay.scratchClaimName" . }}
+  labels:
+    {{- include "openreplay.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.scratch.accessModes | nindent 4 }}
+  {{- with .Values.scratch.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.scratch.size }}
+{{- end }}
+{{- if and .Values.rustfs.enabled .Values.rustfs.persistence.enabled (not .Values.rustfs.persistence.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "openreplay.fullname" . }}-rustfs
+  labels:
+    {{- include "openreplay.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.rustfs.persistence.accessModes | nindent 4 }}
+  {{- with .Values.rustfs.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.rustfs.persistence.size }}
+{{- end }}
+

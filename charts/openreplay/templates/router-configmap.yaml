@@ -1,0 +1,53 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "openreplay.fullname" . }}-router
+  labels:
+    {{- include "openreplay.labels" . | nindent 4 }}
+data:
+  Caddyfile: |-
+    :8080 {
+      encode zstd gzip
+      header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy same-origin
+        -Server
+      }
+
+      handle /healthz {
+        respond 200
+      }
+
+      handle_path /ingest/v1/web/images* {
+        reverse_proxy {{ include "openreplay.componentName" (dict "root" . "component" "canvases") }}:{{ .Values.components.canvases.port }}
+      }
+      handle_path /ingest/v1/mobile/images* {
+        reverse_proxy {{ include "openreplay.componentName" (dict "root" . "component" "images") }}:{{ .Values.components.images.port }}
+      }
+      handle_path /ingest* {
+        reverse_proxy {{ include "openreplay.componentName" (dict "root" . "component" "http") }}:{{ .Values.components.http.port }}
+      }
+      handle_path /v2/api* {
+        reverse_proxy {{ include "openreplay.componentName" (dict "root" . "component" "api") }}:{{ .Values.components.api.port }}
+      }
+      handle_path /ws-assist* {
+        reverse_proxy {{ include "openreplay.componentName" (dict "root" . "component" "assist") }}:{{ .Values.components.assist.port }}
+      }
+      handle_path /spot* {
+        reverse_proxy {{ include "openreplay.componentName" (dict "root" . "component" "spot") }}:{{ .Values.components.spot.port }}
+      }
+      handle_path /script* {
+        reverse_proxy https://static.openreplay.com {
+          header_up Host static.openreplay.com
+        }
+      }
+      @objects path /mobs* /sessions-assets* /static* /sourcemaps* /spots*
+      handle @objects {
+        reverse_proxy {{ include "openreplay.s3Endpoint" . }}
+      }
+      handle {
+        reverse_proxy {{ include "openreplay.componentName" (dict "root" . "component" "frontend") }}:{{ .Values.components.frontend.port }}
+      }
+    }
+

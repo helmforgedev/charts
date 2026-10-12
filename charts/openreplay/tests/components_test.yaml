@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: OpenReplay components
+templates:
+  - templates/components.yaml
+tests:
+  - it: creates the API deployment
+    documentIndex: 2
+    asserts:
+      - isKind:
+          of: Deployment
+  - it: pins the API hotfix image
+    documentIndex: 2
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: public.ecr.aws/p1t3u8a3/api:v1.28.5@sha256:12aeda8dbac763722cd028fc2583d66b89b02bb70dc6a691acbec8d2bcda6489
+  - it: pins the frontend hotfix image
+    documentIndex: 16
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: public.ecr.aws/p1t3u8a3/frontend:v1.28.3@sha256:bc4452ef97015eeae716bcafbc49f00dad57a75ea6329527d119b1afc357d926
+  - it: runs frontend with its upstream UID
+    documentIndex: 16
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 65532
+  - it: schedules application components on amd64
+    documentIndex: 2
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector["kubernetes.io/arch"]
+          value: amd64
+  - it: mounts shared scratch storage
+    documentIndex: 22
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          value: /mnt/efs
+  - it: uses emptyDir only when explicitly selected
+    set:
+      scratch.ephemeral: true
+    documentIndex: 28
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.volumes[0].emptyDir
+  - it: disables one selected component
+    set:
+      components.alerts.enabled: false
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Deployment
+  - it: exposes a named API service port
+    documentIndex: 3
+    asserts:
+      - equal:
+          path: spec.ports[0].name
+          value: http
+  - it: exposes the Assist WebSocket port
+    documentIndex: 6
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 9001
+  - it: supplies the public domain
+    documentIndex: 2
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DOMAIN
+            value: openreplay.example.com
+  - it: supplies a PostgreSQL connection contract
+    documentIndex: 2
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_STRING
+            value: postgres://postgres:$(PGPASSWORD)@RELEASE-NAME-postgresql:5432/openreplay
+

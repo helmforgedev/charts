@@ -1,0 +1,114 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- if .Values.rustfs.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openreplay.fullname" . }}-rustfs
+  labels:
+    {{- include "openreplay.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rustfs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "openreplay.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: rustfs
+  template:
+    metadata:
+      labels:
+        {{- include "openreplay.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: rustfs
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "openreplay.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        fsGroup: 1001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: rustfs
+          image: {{ include "openreplay.image" .Values.rustfs.image | quote }}
+          imagePullPolicy: {{ .Values.rustfs.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 1001
+          env:
+            - name: RUSTFS_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" . }}
+                  key: {{ .Values.credentials.s3AccessKeyKey }}
+            - name: RUSTFS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" . }}
+                  key: {{ .Values.credentials.s3SecretKeyKey }}
+            - name: RUSTFS_ADDRESS
+              value: 0.0.0.0:9000
+            - name: RUSTFS_CONSOLE_ENABLE
+              value: "true"
+            - name: RUSTFS_CONSOLE_ADDRESS
+              value: 0.0.0.0:9001
+            - name: RUSTFS_VOLUMES
+              value: /data
+          ports:
+            - name: s3
+              containerPort: 9000
+            - name: console
+              containerPort: 9001
+          startupProbe:
+            httpGet:
+              path: /health
+              port: s3
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: s3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: s3
+          resources:
+            {{- toYaml .Values.rustfs.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          {{- if .Values.rustfs.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-rustfs" (include "openreplay.fullname" .)) .Values.rustfs.persistence.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openreplay.fullname" . }}-rustfs
+  labels:
+    {{- include "openreplay.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rustfs
+spec:
+  ports:
+    - name: s3
+      port: 9000
+      targetPort: s3
+    - name: console
+      port: 9001
+      targetPort: console
+  selector:
+    {{- include "openreplay.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: rustfs
+{{- end }}
+

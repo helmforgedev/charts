@@ -1,0 +1,101 @@
+# SPDX-License-Identifier: Apache-2.0
+suite: OpenReplay validation
+templates:
+  - templates/validate.yaml
+tests:
+  - it: accepts default values
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: rejects ingress without hosts
+    set:
+      ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.hosts must contain at least one host when ingress.enabled=true
+  - it: rejects simultaneous ingress and gateway
+    set:
+      ingress.enabled: true
+      ingress.hosts[0].host: replay.test
+      gatewayAPI.enabled: true
+      gatewayAPI.httpRoutes[0].parentRefs[0].name: shared
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.enabled and gatewayAPI.enabled are mutually exclusive
+  - it: rejects gateway without routes
+    set:
+      gatewayAPI.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: gatewayAPI.httpRoutes must contain at least one route when gatewayAPI.enabled=true
+  - it: rejects ESO without items
+    set:
+      externalSecrets.enabled: true
+      credentials.existingSecret: openreplay-credentials
+    asserts:
+      - failedTemplate:
+          errorMessage: externalSecrets.items must contain at least one item when externalSecrets.enabled=true
+  - it: rejects ESO without an existing target Secret name
+    set:
+      externalSecrets.enabled: true
+      externalSecrets.items[0].spec.target.name: openreplay-credentials
+    asserts:
+      - failedTemplate:
+          errorMessage: credentials.existingSecret must name the ExternalSecret target when externalSecrets.enabled=true
+  - it: rejects ephemeral scratch with an existing claim
+    set:
+      scratch.ephemeral: true
+      scratch.existingClaim: shared
+    asserts:
+      - failedTemplate:
+          errorMessage: scratch.ephemeral and scratch.existingClaim are mutually exclusive
+  - it: rejects bundled and external object storage together
+    set:
+      objectStorage.endpoint: s3.example:9000
+    asserts:
+      - failedTemplate:
+          errorMessage: rustfs.enabled and objectStorage.endpoint are mutually exclusive
+  - it: rejects disabling the required internal router
+    set:
+      router.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: router.enabled must remain true because public OpenReplay routes require the internal router
+  - it: rejects an empty public domain
+    set:
+      openreplay.domain: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: openreplay.domain is required
+  - it: rejects selector name collisions
+    set:
+      podLabels:
+        app.kubernetes.io/name: collision
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels must not override the selector label app.kubernetes.io/name
+  - it: rejects selector instance collisions
+    set:
+      podLabels:
+        app.kubernetes.io/instance: collision
+    asserts:
+      - failedTemplate:
+          errorMessage: podLabels must not override the selector label app.kubernetes.io/instance
+  - it: rejects unsupported architecture selectors by default
+    set:
+      componentDefaults:
+        nodeSelector:
+          kubernetes.io/arch: arm64
+    asserts:
+      - failedTemplate:
+          errorMessage: componentDefaults.nodeSelector[kubernetes.io/arch] must be amd64 unless openreplay.allowUnsupportedArchitecture=true
+  - it: permits explicit unsupported architecture override
+    set:
+      openreplay.allowUnsupportedArchitecture: true
+      componentDefaults:
+        nodeSelector:
+          kubernetes.io/arch: arm64
+    asserts:
+      - hasDocuments:
+          count: 0
+

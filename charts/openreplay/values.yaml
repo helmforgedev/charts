@@ -1,0 +1,511 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# -- Override the chart name.
+nameOverride: ""
+# -- Override the fully qualified release name.
+fullnameOverride: ""
+# -- Labels added to all chart resources.
+commonLabels: {}
+# -- Labels added to every OpenReplay pod.
+podLabels: {}
+# -- Annotations added to every OpenReplay pod.
+podAnnotations: {}
+# -- Registry pull secrets.
+imagePullSecrets: []
+
+# -- Public OpenReplay configuration.
+openreplay:
+  # -- Public hostname. HTTPS is required outside local testing.
+  domain: openreplay.example.com
+  # -- Public URL scheme.
+  scheme: https
+  # -- Allow installation on non-amd64 nodes. Unsupported by upstream images.
+  allowUnsupportedArchitecture: false
+  # -- Extra environment variables supplied to all application components.
+  extraEnv: []
+  # -- Extra envFrom sources supplied to all application components.
+  extraEnvFrom: []
+
+# -- Application credential management.
+credentials:
+  # -- Generated Secret name. Also consumed by bundled data-service subcharts.
+  secretName: openreplay-credentials
+  # -- Existing Secret. Empty creates a generated Secret on first install.
+  existingSecret: ""
+  # -- Secret key holding the PostgreSQL password.
+  postgresqlPasswordKey: postgres-password
+  # -- Secret key holding the PostgreSQL superuser password for the bundled subchart.
+  postgresSuperuserPasswordKey: postgres-password
+  # -- Secret key holding the Valkey/Redis password.
+  redisPasswordKey: redis-password
+  # -- Secret key holding the ClickHouse password.
+  clickhousePasswordKey: clickhouse-password
+  # -- Secret key holding the S3 access key.
+  s3AccessKeyKey: access-key
+  # -- Secret key holding the S3 secret key.
+  s3SecretKeyKey: secret-key
+  # -- Secret key holding the Assist shared key.
+  assistKeyKey: assist-key
+  # -- Secret key holding the Assist JWT secret.
+  assistJwtSecretKey: assist-jwt-secret
+  # -- Secret key holding the API JWT secret.
+  jwtSecretKey: jwt-secret
+  # -- Secret key holding the Spot JWT secret.
+  jwtSpotSecretKey: jwt-spot-secret
+  # -- Secret key holding the token secret.
+  tokenSecretKey: token-secret
+  # -- Secret key holding the refresh JWT secret.
+  jwtRefreshSecretKey: jwt-refresh-secret
+  # -- Secret key holding the Spot refresh JWT secret.
+  jwtSpotRefreshSecretKey: jwt-spot-refresh-secret
+  # -- Secret key holding the MCP JWT secret.
+  jwtMcpSecretKey: jwt-mcp-secret
+
+# -- External Secrets Operator resources using the canonical items contract.
+externalSecrets:
+  # -- Render ExternalSecret resources.
+  enabled: false
+  # -- Default refresh interval injected into items that omit spec.refreshInterval.
+  refreshInterval: 1h
+  # -- ExternalSecret resources to render.
+  items: []
+
+# -- Shared scratch storage used by the ingestion pipeline.
+scratch:
+  # -- Create a PVC when existingClaim is empty.
+  enabled: true
+  # -- Existing RWX PVC name.
+  existingClaim: ""
+  # -- Storage class. Empty uses the cluster default.
+  storageClass: ""
+  # -- PVC access modes. Multi-node installs require ReadWriteMany.
+  accessModes:
+    - ReadWriteOnce
+  # -- Scratch PVC size.
+  size: 20Gi
+  # -- Use emptyDir instead of a PVC. Intended only for isolated validation.
+  ephemeral: false
+
+# -- PostgreSQL connection used by OpenReplay.
+database:
+  postgresql:
+    # -- External hostname. Empty selects the bundled subchart Service.
+    host: ""
+    # -- PostgreSQL port.
+    port: 5432
+    # -- Database name.
+    database: openreplay
+    # -- Database user.
+    username: postgres
+  redis:
+    # -- External hostname. Empty selects the bundled subchart Service.
+    host: ""
+    # -- Redis/Valkey port.
+    port: 6379
+  clickhouse:
+    # -- External hostname. Empty selects the bundled subchart Service.
+    host: ""
+    # -- Native ClickHouse port.
+    nativePort: 9000
+    # -- ClickHouse HTTP port.
+    httpPort: 8123
+    # -- Database name.
+    database: default
+    # -- ClickHouse user.
+    username: default
+
+# -- S3-compatible object storage connection.
+objectStorage:
+  # -- External S3 endpoint. Empty selects bundled RustFS.
+  endpoint: ""
+  # -- S3 region.
+  region: us-east-1
+  # -- Recordings bucket.
+  recordingsBucket: mobs
+  # -- Session assets bucket.
+  assetsBucket: sessions-assets
+  # -- Sourcemaps bucket.
+  sourcemapsBucket: sourcemaps
+  # -- Spot bucket.
+  spotsBucket: spots
+  # -- Use TLS for the S3 endpoint.
+  secure: false
+
+# -- Bundled RustFS S3-compatible object store.
+rustfs:
+  # -- Deploy RustFS. Disable when objectStorage.endpoint is external.
+  enabled: true
+  image:
+    # -- Official RustFS image repository.
+    repository: docker.io/rustfs/rustfs
+    # -- Upstream image tag.
+    tag: "1.0.0"
+    # -- Manifest digest pin.
+    digest: sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff
+    # -- Image pull policy.
+    pullPolicy: IfNotPresent
+  persistence:
+    # -- Enable RustFS persistence.
+    enabled: true
+    # -- Existing PVC.
+    existingClaim: ""
+    # -- Storage class.
+    storageClass: ""
+    # -- Access modes.
+    accessModes:
+      - ReadWriteOnce
+    # -- PVC size.
+    size: 50Gi
+  # -- RustFS resource requests and limits.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+# -- Offline/online schema migration workflow.
+migration:
+  # -- Run the revision-scoped schema migration Job.
+  enabled: true
+  # -- Skip migration for isolated frontend/router validation only.
+  validationMode: false
+  # -- Explicitly allow deploying an older AppVersion.
+  allowDowngrade: false
+  # -- Previous application version for forced migrations.
+  fromVersion: ""
+  # -- Force migration when versions match.
+  force: false
+  gitImage:
+    # -- Official Alpine Git image repository.
+    repository: docker.io/alpine/git
+    # -- Git image tag.
+    tag: "2.52.0"
+    # -- Manifest digest pin.
+    digest: sha256:4a0e72d49596a1f5d3701aeedafdadc5c0da4062be4657c7bdc4017387f591cc
+  postgresImage:
+    # -- Official OpenReplay PostgreSQL migration image.
+    repository: ghcr.io/openreplay/postgres
+    # -- Migration image tag.
+    tag: "17"
+    # -- Manifest digest pin.
+    digest: sha256:3b49780c0497898b5cd1afbde98f96a6d41b8bd1e55296b81dad75f4ee806ebb
+  clickhouseImage:
+    # -- Official ClickHouse migration client image.
+    repository: docker.io/clickhouse/clickhouse-server
+    # -- Migration image tag.
+    tag: 25.9-alpine
+    # -- Manifest digest pin.
+    digest: sha256:fcd91b9d797edc72f2b8c2128a232078e061839b0596d65a21c507849ffe5d87
+  s3Image:
+    # -- Official OpenReplay S3 migration image.
+    repository: ghcr.io/openreplay/minio
+    # -- Migration image tag.
+    tag: "2025"
+    # -- Manifest digest pin.
+    digest: sha256:8cada3c9458a494dde66e91935aed425bd31326ce68411a236c12e0b03fe2733
+  # -- Migration Job deadline in seconds.
+  activeDeadlineSeconds: 3600
+  # -- Migration Job resource requests and limits.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 512Mi
+
+# -- Internal controller-neutral OpenReplay router.
+router:
+  # -- Deploy the router.
+  enabled: true
+  # -- Router replica count.
+  replicaCount: 1
+  image:
+    # -- Official Caddy image repository.
+    repository: docker.io/library/caddy
+    # -- Router image tag.
+    tag: 2.10.2-alpine
+    # -- Manifest digest pin.
+    digest: sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    # -- Image pull policy.
+    pullPolicy: IfNotPresent
+  # -- Router resources.
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
+# -- OpenReplay application components. Component tags intentionally differ.
+components:
+  alerts:
+    enabled: true
+    repository: public.ecr.aws/p1t3u8a3/alerts
+    tag: v1.28.0
+    digest: sha256:048f3090de46260833348ae1e6348bd48630986e0234a286fcdcce2f04abdbca
+    port: 9000
+    metricsPort: 8888
+    replicaCount: 1
+  api:
+    enabled: true
+    repository: public.ecr.aws/p1t3u8a3/api
+    tag: v1.28.5
+    digest: sha256:12aeda8dbac763722cd028fc2583d66b89b02bb70dc6a691acbec8d2bcda6489
+    port: 8080
+    metricsPort: 8888
+    replicaCount: 1
+  assets:
+    enabled: true
+    repository: public.ecr.aws/p1t3u8a3/assets
+    tag: v1.28.0
+    digest: sha256:fee63ead0e748dc93d104f0ed3c6678b6ce70b6d3d276e416c908de343a8f69e
+    port: 9000
+    metricsPort: 8888
+    replicaCount: 1
+  assist:
+    enabled: true
+    repository: public.ecr.aws/p1t3u8a3/assist
+    tag: v1.28.0
+    digest: sha256:69e1990f52b3135b1dd5604ea70accdb4e466ba0921c8494cc5b590b98417159
+    port: 9001
+    metricsPort: 8888
+    replicaCount: 1
+  canvases:
+    enabled: true
+    repository: public.ecr.aws/p1t3u8a3/canvases
+    tag: v1.28.0
+    digest: sha256:8d2b3a947a14e2851cb74680f9d7fd8034ce1b6985eb6dd1f044c6d964e190ce
+    port: 8080
+    metricsPort: 8888
+    replicaCount: 1
+  chalice:
+    enabled: true
+    repository: public.ecr.aws/p1t3u8a3/chalice
+    tag: v1.28.6
+    digest: sha256:6abe7250a64ea8592a39e2a36e375971d254e0ebcf31f4b64860e18cc6e48bea
+    port: 8000
+    metricsPort: 8888
+    replicaCount: 1
+  db:
+    enabled: true
+    repository: public.ecr.aws/p1t3u8a3/db
+    tag: v1.28.0
+    digest: sha256:2c99078d7957da3f7cf8a6b57afd61f32f255c49738af2c29dfd6759f976eda6
+    port: 9000
+    metricsPort: 8888
+    replicaCount: 1
+  ender:
+    enabled: true
+    repository: public.ecr.aws/p1t3u8a3/ender
+    tag: v1.28.0
+    digest: sha256:0f58065836262fb2beedeb4aed5d12efc0185325a16c7217ed987075b8026fb9
+    port: 9000
+    metricsPort: 8888
+    replicaCount: 1
+  frontend:
+    enabled: true
+    repository: public.ecr.aws/p1t3u8a3/frontend
+    tag: v1.28.3
+    digest: sha256:bc4452ef97015eeae716bcafbc49f00dad57a75ea6329527d119b1afc357d926
+    port: 8080
+    metricsPort: 8888
+    replicaCount: 1
+  http:
+    enabled: true
+    repository: public.ecr.aws/p1t3u8a3/http
+    tag: v1.28.0
+    digest: sha256:cd0e4469cd0221265b11436c80d22e1e1e83f23ae78ab55cfc78c4b82d2c6911
+    port: 8080
+    metricsPort: 8888
+    replicaCount: 1
+  images:
+    enabled: true
+    repository: public.ecr.aws/p1t3u8a3/images
+    tag: v1.28.0
+    digest: sha256:04fadd25a569d6295b2482e19e90ff2c45b0bb2578a4f12bbf9ddc37851238de
+    port: 8080
+    metricsPort: 8888
+    replicaCount: 1
+  sink:
+    enabled: true
+    repository: public.ecr.aws/p1t3u8a3/sink
+    tag: v1.28.0
+    digest: sha256:6b80fb10b4432b5be79770bbb8d7a527c4be95e057c7e0d2aad6bb27085aff27
+    port: 9000
+    metricsPort: 8888
+    replicaCount: 1
+  sourcemapreader:
+    enabled: true
+    repository: public.ecr.aws/p1t3u8a3/sourcemapreader
+    tag: v1.28.1
+    digest: sha256:c9580815b47625ebb96f6fbfb8d511e9ad4668bf4810fc0357ebdfbf06c2248f
+    port: 9000
+    metricsPort: 8888
+    replicaCount: 1
+  spot:
+    enabled: true
+    repository: public.ecr.aws/p1t3u8a3/spot
+    tag: v1.28.0
+    digest: sha256:0ba5cb666370ee21731a5626d815b34562781d9981164e137aa275a1f1e38bc5
+    port: 8080
+    metricsPort: 8888
+    replicaCount: 1
+  storage:
+    enabled: true
+    repository: public.ecr.aws/p1t3u8a3/storage
+    tag: v1.28.0
+    digest: sha256:2f9784a385ce1d6946f85f7b4c7a31193699b6115e56b59943e6869b0691edaf
+    port: 9000
+    metricsPort: 8888
+    replicaCount: 1
+
+# -- Default application component resources.
+componentDefaults:
+  # -- Component image pull policy.
+  imagePullPolicy: IfNotPresent
+  # -- Resource requests and limits inherited by every component.
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      memory: 512Mi
+  # -- Component pod security context.
+  podSecurityContext:
+    fsGroup: 1001
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+  # -- Component container security context.
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    runAsUser: 1001
+  # -- Component node selector. amd64 is required upstream.
+  nodeSelector:
+    kubernetes.io/arch: amd64
+  # -- Component tolerations.
+  tolerations: []
+  # -- Component affinity.
+  affinity: {}
+  # -- Component topology spread constraints.
+  topologySpreadConstraints: []
+
+# -- Public router Service.
+service:
+  # -- Service type.
+  type: ClusterIP
+  # -- Service port.
+  port: 80
+  # -- Service annotations.
+  annotations: {}
+  # -- IP family policy.
+  ipFamilyPolicy: ""
+  # -- IP families.
+  ipFamilies: []
+
+# -- Conventional Ingress targeting the internal router.
+ingress:
+  # -- Create an Ingress.
+  enabled: false
+  # -- IngressClass name. Empty uses the cluster default.
+  ingressClassName: ""
+  # -- Ingress annotations.
+  annotations: {}
+  # -- Ingress hosts.
+  hosts: []
+  # -- Ingress TLS entries.
+  tls: []
+
+# -- Gateway API HTTPRoute targeting the internal router.
+gatewayAPI:
+  # -- Create HTTPRoute resources.
+  enabled: false
+  # -- HTTPRoute definitions.
+  httpRoutes: []
+
+# -- Service account configuration.
+serviceAccount:
+  # -- Create a ServiceAccount.
+  create: true
+  # -- ServiceAccount name override.
+  name: ""
+  # -- ServiceAccount annotations.
+  annotations: {}
+  # -- Automount Kubernetes API credentials.
+  automountServiceAccountToken: false
+
+# -- Pod disruption budget for the router.
+pdb:
+  # -- Create a PDB when router.replicaCount is greater than one.
+  enabled: false
+  # -- Minimum available router pods.
+  minAvailable: 1
+  # -- Maximum unavailable router pods. Empty uses minAvailable.
+  maxUnavailable: ""
+
+# -- NetworkPolicy configuration.
+networkPolicy:
+  # -- Create a NetworkPolicy for application pods.
+  enabled: false
+  # -- Ingress peers. Empty permits traffic from all namespaces.
+  ingressFrom: []
+  egress:
+    # -- Restrict egress.
+    enabled: false
+    # -- Permit DNS egress.
+    allowDNS: true
+    # -- Additional egress peers.
+    extraTo: []
+    # -- Additional complete egress rules.
+    extraEgress: []
+
+# -- Prometheus Operator integration.
+monitoring:
+  serviceMonitor:
+    # -- Create ServiceMonitors for enabled components.
+    enabled: false
+    # -- Scrape interval.
+    interval: 30s
+    # -- Additional ServiceMonitor labels.
+    labels: {}
+    # -- Namespace selector.
+    namespaceSelector: {}
+
+# -- Extra Kubernetes manifests.
+extraManifests: []
+
+# Bundled HelmForge PostgreSQL subchart values.
+postgresql:
+  enabled: true
+  auth:
+    database: openreplay
+    username: openreplay
+    existingSecret: openreplay-credentials
+    existingSecretUserPasswordKey: postgres-password
+  primary:
+    persistence:
+      size: 20Gi
+
+# Bundled HelmForge Redis subchart values.
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    existingSecret: openreplay-credentials
+    existingSecretPasswordKey: redis-password
+
+# Bundled HelmForge ClickHouse subchart values.
+clickhouse:
+  enabled: true
+  clickhouse:
+    database: default
+    user: default
+    existingSecret: openreplay-credentials
+    existingSecretPasswordKey: clickhouse-password
+  persistence:
+    size: 100Gi

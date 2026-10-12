@@ -1,0 +1,16 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $existing := lookup "v1" "ConfigMap" .Release.Namespace (printf "%s-version" (include "openreplay.fullname" .)) }}
+{{- $existingVersion := "" }}
+{{- if $existing }}{{- $existingVersion = index $existing.data "version" | default "" }}{{- end }}
+{{- if and $existingVersion (not .Values.migration.allowDowngrade) (semverCompare (printf ">%s" (trimPrefix "v" .Chart.AppVersion)) (trimPrefix "v" $existingVersion)) }}
+{{- fail (printf "downgrade blocked: installed OpenReplay version %s is newer than chart AppVersion %s; set migration.allowDowngrade=true only after restoring compatible backups" $existingVersion .Chart.AppVersion) }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "openreplay.fullname" . }}-version
+  labels:
+    {{- include "openreplay.labels" . | nindent 4 }}
+data:
+  version: {{ .Chart.AppVersion | quote }}
+

@@ -1,0 +1,383 @@
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $scratchComponents := list "api" "canvases" "chalice" "images" "sink" "spot" "storage" }}
+{{- range $name, $component := .Values.components }}
+{{- if $component.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openreplay.componentName" (dict "root" $ "component" $name) }}
+  labels:
+    {{- include "openreplay.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
+spec:
+  replicas: {{ $component.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "openreplay.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: {{ $name }}
+  template:
+    metadata:
+      labels:
+        {{- include "openreplay.selectorLabels" $ | nindent 8 }}
+        app.kubernetes.io/component: {{ $name }}
+        {{- with $.Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with $.Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "openreplay.serviceAccountName" $ }}
+      automountServiceAccountToken: {{ $.Values.serviceAccount.automountServiceAccountToken }}
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if and $.Values.migration.enabled (not $.Values.migration.validationMode) }}
+      initContainers:
+        - name: wait-for-schema
+          image: {{ include "openreplay.image" $.Values.migration.postgresImage | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 1001
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |-
+              attempts=0
+              until psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" \
+                -tAc "SELECT 1 FROM public.tenants LIMIT 1" >/dev/null 2>&1; do
+                attempts=$((attempts + 1))
+                if [ "$attempts" -ge 120 ]; then
+                  echo "Timed out waiting for the OpenReplay PostgreSQL schema" >&2
+                  exit 1
+                fi
+                sleep 5
+              done
+          env:
+            - name: PGHOST
+              value: {{ include "openreplay.postgresqlHost" $ | quote }}
+            - name: PGPORT
+              value: {{ $.Values.database.postgresql.port | quote }}
+            - name: PGDATABASE
+              value: {{ $.Values.database.postgresql.database | quote }}
+            - name: PGUSER
+              value: postgres
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" $ }}
+                  key: {{ $.Values.credentials.postgresSuperuserPasswordKey }}
+          resources:
+            {{- toYaml $.Values.migration.resources | nindent 12 }}
+      {{- end }}
+      securityContext:
+        {{- if eq $name "frontend" }}
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+        {{- else }}
+        {{- toYaml $.Values.componentDefaults.podSecurityContext | nindent 8 }}
+        {{- end }}
+      containers:
+        - name: {{ $name }}
+          image: {{ include "openreplay.image" $component | quote }}
+          imagePullPolicy: {{ $.Values.componentDefaults.imagePullPolicy }}
+          securityContext:
+            {{- if eq $name "frontend" }}
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 65532
+            {{- else }}
+            {{- toYaml $.Values.componentDefaults.securityContext | nindent 12 }}
+            {{- end }}
+          env:
+            - name: DOMAIN
+              value: {{ $.Values.openreplay.domain | quote }}
+            - name: SITE_URL
+              value: {{ printf "%s://%s" $.Values.openreplay.scheme $.Values.openreplay.domain | quote }}
+            - name: OR_SECURE_ACCESS
+              value: {{ ternary "true" "false" (eq $.Values.openreplay.scheme "https") | quote }}
+            - name: OR_TMP_DIR
+              value: /mnt/efs
+            - name: ASSETS_ORIGIN
+              value: {{ printf "%s://%s" $.Values.openreplay.scheme $.Values.openreplay.domain | quote }}
+            - name: ASSIST_URL
+              value: {{ printf "http://%s:%v/assist/%%s" (include "openreplay.componentName" (dict "root" $ "component" "assist")) $.Values.components.assist.port | quote }}
+            - name: SMR_HOST
+              value: 0.0.0.0
+            - name: KAFKA_SERVERS
+              value: ""
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" $ }}
+                  key: {{ $.Values.credentials.postgresqlPasswordKey }}
+            - name: pg_host
+              value: {{ include "openreplay.postgresqlHost" $ | quote }}
+            - name: pg_port
+              value: {{ $.Values.database.postgresql.port | quote }}
+            - name: pg_dbname
+              value: {{ $.Values.database.postgresql.database | quote }}
+            - name: pg_user
+              value: {{ $.Values.database.postgresql.username | quote }}
+            - name: pg_password
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" $ }}
+                  key: {{ $.Values.credentials.postgresqlPasswordKey }}
+            - name: POSTGRES_STRING
+              value: {{ printf "postgres://%s:$(PGPASSWORD)@%s:%v/%s" $.Values.database.postgresql.username (include "openreplay.postgresqlHost" $) $.Values.database.postgresql.port $.Values.database.postgresql.database | quote }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" $ }}
+                  key: {{ $.Values.credentials.redisPasswordKey }}
+            - name: REDIS_STRING
+              value: {{ printf "redis://:$(REDIS_PASSWORD)@%s:%v" (include "openreplay.redisHost" $) $.Values.database.redis.port | quote }}
+            - name: CH_USERNAME
+              value: {{ $.Values.database.clickhouse.username | quote }}
+            - name: CH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" $ }}
+                  key: {{ $.Values.credentials.clickhousePasswordKey }}
+            - name: ch_host
+              value: {{ include "openreplay.clickhouseHost" $ | quote }}
+            - name: ch_port
+              value: {{ $.Values.database.clickhouse.nativePort | quote }}
+            - name: ch_port_http
+              value: {{ $.Values.database.clickhouse.httpPort | quote }}
+            - name: ch_username
+              value: {{ $.Values.database.clickhouse.username | quote }}
+            - name: ch_password
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" $ }}
+                  key: {{ $.Values.credentials.clickhousePasswordKey }}
+            - name: CLICKHOUSE_STRING
+              value: {{ printf "%s:%v/%s" (include "openreplay.clickhouseHost" $) $.Values.database.clickhouse.nativePort $.Values.database.clickhouse.database | quote }}
+            - name: CLICKHOUSE_HTTP_STRING
+              value: {{ printf "%s:%v/%s" (include "openreplay.clickhouseHost" $) $.Values.database.clickhouse.httpPort $.Values.database.clickhouse.database | quote }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" $ }}
+                  key: {{ $.Values.credentials.s3AccessKeyKey }}
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" $ }}
+                  key: {{ $.Values.credentials.s3SecretKeyKey }}
+            - name: AWS_ENDPOINT
+              value: {{ printf "%s://%s" (ternary "https" "http" $.Values.objectStorage.secure) (include "openreplay.s3Endpoint" $) | quote }}
+            - name: AWS_REGION
+              value: {{ $.Values.objectStorage.region | quote }}
+            - name: AWS_DEFAULT_REGION
+              value: {{ $.Values.objectStorage.region | quote }}
+            - name: S3_HOST
+              value: {{ printf "%s://%s" (ternary "https" "http" $.Values.objectStorage.secure) (include "openreplay.s3Endpoint" $) | quote }}
+            - name: S3_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" $ }}
+                  key: {{ $.Values.credentials.s3AccessKeyKey }}
+            - name: S3_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" $ }}
+                  key: {{ $.Values.credentials.s3SecretKeyKey }}
+            - name: BUCKET_NAME
+              value: {{ $.Values.objectStorage.recordingsBucket | quote }}
+            - name: sessions_bucket
+              value: {{ $.Values.objectStorage.recordingsBucket | quote }}
+            - name: IOS_VIDEO_BUCKET
+              value: {{ $.Values.objectStorage.recordingsBucket | quote }}
+            - name: sourcemaps_bucket
+              value: {{ $.Values.objectStorage.sourcemapsBucket | quote }}
+            - name: js_cache_bucket
+              value: {{ $.Values.objectStorage.assetsBucket | quote }}
+            - name: version_number
+              value: {{ printf "v%s" $.Chart.AppVersion | quote }}
+            - name: ASSIST_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" $ }}
+                  key: {{ $.Values.credentials.assistKeyKey }}
+            - name: ASSIST_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" $ }}
+                  key: {{ $.Values.credentials.assistJwtSecretKey }}
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" $ }}
+                  key: {{ $.Values.credentials.jwtSecretKey }}
+            - name: JWT_SPOT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" $ }}
+                  key: {{ $.Values.credentials.jwtSpotSecretKey }}
+            - name: TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" $ }}
+                  key: {{ $.Values.credentials.tokenSecretKey }}
+            - name: JWT_REFRESH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" $ }}
+                  key: {{ $.Values.credentials.jwtRefreshSecretKey }}
+            - name: JWT_SPOT_REFRESH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" $ }}
+                  key: {{ $.Values.credentials.jwtSpotRefreshSecretKey }}
+            - name: JWT_MCP_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openreplay.credentialsSecretName" $ }}
+                  key: {{ $.Values.credentials.jwtMcpSecretKey }}
+            {{- with $.Values.openreplay.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with $.Values.openreplay.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ $component.port }}
+              protocol: TCP
+            {{- if $component.metricsPort }}
+            - name: metrics
+              containerPort: {{ $component.metricsPort }}
+              protocol: TCP
+            {{- end }}
+          {{- if ne $name "alerts" }}
+          startupProbe:
+            {{- if has $name (list "api" "assets" "canvases" "db" "ender" "http" "images" "sink" "spot" "storage") }}
+            httpGet:
+              path: /health
+              port: metrics
+            {{- else if eq $name "chalice" }}
+            httpGet:
+              path: /signup
+              port: http
+            {{- else if eq $name "sourcemapreader" }}
+            tcpSocket:
+              port: metrics
+            {{- else }}
+            tcpSocket:
+              port: http
+            {{- end }}
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            {{- if has $name (list "api" "assets" "canvases" "db" "ender" "http" "images" "sink" "spot" "storage") }}
+            httpGet:
+              path: /health
+              port: metrics
+            {{- else if eq $name "chalice" }}
+            httpGet:
+              path: /signup
+              port: http
+            {{- else if eq $name "sourcemapreader" }}
+            tcpSocket:
+              port: metrics
+            {{- else }}
+            tcpSocket:
+              port: http
+            {{- end }}
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            {{- if has $name (list "api" "assets" "canvases" "db" "ender" "http" "images" "sink" "spot" "storage") }}
+            httpGet:
+              path: /health
+              port: metrics
+            {{- else if eq $name "chalice" }}
+            httpGet:
+              path: /signup
+              port: http
+            {{- else if eq $name "sourcemapreader" }}
+            tcpSocket:
+              port: metrics
+            {{- else }}
+            tcpSocket:
+              port: http
+            {{- end }}
+            periodSeconds: 20
+            timeoutSeconds: 3
+          {{- end }}
+          resources:
+            {{- toYaml $.Values.componentDefaults.resources | nindent 12 }}
+          {{- if has $name $scratchComponents }}
+          volumeMounts:
+            - name: scratch
+              mountPath: /mnt/efs
+          {{- end }}
+      {{- if has $name $scratchComponents }}
+      volumes:
+        - name: scratch
+          {{- if $.Values.scratch.ephemeral }}
+          emptyDir: {}
+          {{- else }}
+          persistentVolumeClaim:
+            claimName: {{ include "openreplay.scratchClaimName" $ }}
+          {{- end }}
+      {{- end }}
+      {{- with $.Values.componentDefaults.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.componentDefaults.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.componentDefaults.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.componentDefaults.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openreplay.componentName" (dict "root" $ "component" $name) }}
+  labels:
+    {{- include "openreplay.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ $component.port }}
+      targetPort: http
+    {{- if $component.metricsPort }}
+    - name: metrics
+      port: {{ $component.metricsPort }}
+      targetPort: metrics
+    {{- end }}
+  selector:
+    {{- include "openreplay.selectorLabels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
+---
+{{- end }}
+{{- end }}
+
